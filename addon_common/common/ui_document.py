@@ -239,8 +239,8 @@ class UI_Document(UI_Document_FSM):
                         self._under_mouse = self._sticky_element
 
         next_message = None
-        if self._under_mouse and self._under_mouse.title: # and not self._under_mouse.disabled:
-            next_message = self._under_mouse.title
+        if self._under_mouse and self._under_mouse.title_with_for(): # and not self._under_mouse.disabled:
+            next_message = self._under_mouse.title_with_for()
             if self._under_mouse.disabled:
                 next_message = f'(Disabled) {next_message}'
         if self._tooltip_message != next_message:
@@ -506,6 +506,7 @@ class UI_Document(UI_Document_FSM):
             # likely, self._under_mouse or an ancestor was deleted?
             # mousedown main event handler below will switch FSM back to main, effectively ignoring the mousedown event
             # see RetopoFlow issue #857
+            self.blur()
             return
         self._addrem_pseudoclass('active', add_to=self._under_mousedown)
         self._under_mousedown.dispatch_event('on_mousedown')

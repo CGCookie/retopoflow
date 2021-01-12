@@ -338,9 +338,12 @@ class UI_Element_Elements():
             )
             self._ui_marker.is_visible = False
 
+            allowed = None  # allow any character
             if input_type == 'text':
-                # allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
-                allowed = None
+                # could set
+                #     allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
+                # but that would exclude any non-US-keyboard inputs
+                pass
             elif input_type == 'number':
                 allowed = '''0123456789.-'''
             else:
@@ -349,18 +352,16 @@ class UI_Element_Elements():
             data = {'orig':None, 'text':None, 'idx':0, 'pos':None}
 
             def preclean():
-                nonlocal data
                 if data['text'] is None:
                     if type(self.value) is float:
-                        self.innerText = '%0.4f' % self.value
+                        self.innerText = f'{self.value:0.4g}'
                     else:
-                        self.innerText = str(self.value)
+                        self.innerText = f'{self.value}'
                 else:
                     self.innerText = data['text']
-                self.dirty_content(cause='preclean called')
+                # self.dirty_content(cause='preclean called')
 
             def postflow():
-                nonlocal data
                 if data['text'] is None: return
                 data['pos'] = self.get_text_pos(data['idx'])
                 if self._ui_marker._absolute_size:
@@ -371,7 +372,6 @@ class UI_Element_Elements():
                     )
                     cursor_postflow()
             def cursor_postflow():
-                nonlocal data
                 if data['text'] is None: return
                 self._setup_ltwh()
                 self._ui_marker._setup_ltwh()
@@ -388,7 +388,6 @@ class UI_Element_Elements():
                     self._setup_ltwh()
 
             def set_cursor(e):
-                nonlocal data
                 data['idx'] = self.get_text_index(e.mouse)
                 data['pos'] = self.get_text_pos(data['idx'])
                 self.dirty_flow()
@@ -399,31 +398,26 @@ class UI_Element_Elements():
                 self._ui_marker.is_visible = True
                 set_cursor(e)
             def blur(e):
-                nonlocal data
-                changed = self.value == data['text']
+                changed = data['orig'] != data['text']
                 self.value = data['text']
                 data['text'] = None
                 self._ui_marker.is_visible = False
-                if changed: self.dispatch('on_change')
+                if changed: self.dispatch_event('on_change')
 
             def mouseup(e):
-                nonlocal data
                 if not e.button[0]: return
                 # if not self.is_focused: return
                 set_cursor(e)
             def mousemove(e):
-                nonlocal data
                 if data['text'] is None: return
                 if not e.button[0]: return
                 set_cursor(e)
             def mousedown(e):
-                nonlocal data
                 if data['text'] is None: return
                 if not e.button[0]: return
                 set_cursor(e)
 
             def keypress(e):
-                nonlocal data
                 if data['text'] == None: return
                 if type(e.key) is int:
                     if is_keycode(e.key, 'BACK_SPACE'):

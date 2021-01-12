@@ -103,6 +103,8 @@ HTML_CHAR_MAP = [
     ('&nbsp;', ' '),
     ('&#96;',  '`'),
     # ('&rarr;', '→'),
+    ('&lt;', '<'),
+    ('&gt;', '>'),
 ]
 
 
@@ -1047,6 +1049,10 @@ class UI_Element_Properties:
     def title(self, v):
         self._title = v
         # self.dirty('title changed', parent=True, children=False)
+    def title_with_for(self, ui_for=None):
+        if not ui_for: ui_for = self.get_for_element()
+        if not ui_for: return self.title
+        return self.title or ui_for.title
 
 
     @property

@@ -52,9 +52,9 @@ class RFTool_Tweak(RFTool):
 
 class Tweak_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
-        BoundFloat('''options['tweak radius']'''),
-        BoundFloat('''options['tweak falloff']'''),
-        BoundFloat('''options['tweak strength']'''),
+        BoundInt('''options['tweak radius']''', min_value=1),
+        BoundFloat('''options['tweak falloff']''', min_value=0.00, max_value=100.0),
+        BoundFloat('''options['tweak strength']''', min_value=0.01, max_value=1.0),
         fill_color=themes['tweak'],
     )
 
