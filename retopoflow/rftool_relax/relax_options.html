@@ -136,15 +136,15 @@
                     <div class="contents">
                         <div class='labeled-input-text'>
                             <label title="Adjust brush size">Size</label>
-                            <input type="number" value="self.rfwidget.get_radius_boundvar()">
+                            <input type="number" id='relax-current-radius' value="self.rfwidget.get_radius_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush strength">Strength</label>
-                            <input type="number" value="self.rfwidget.get_strength_boundvar()">
+                            <input type="number" id='relax-current-strength' value="self.rfwidget.get_strength_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" value="self.rfwidget.get_falloff_boundvar()">
+                            <input type="number" id='relax-current-falloff' value="self.rfwidget.get_falloff_boundvar()">
                         </div>
                         <button title="Reset brush options to defaults" on_mouseclick="self.reset_current_brush()">Reset</button>
                     </div>
@@ -158,15 +158,15 @@
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush size">Size</label>
-                            <input type="number" value="BoundInt('''options['relax preset 1 radius']''', min_value=1)">
+                            <input type="number" id='relax-preset-1-radius' value="BoundInt('''options['relax preset 1 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush strength">Strength</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 1 strength']''', min_value=0.01, max_value=1.0)">
+                            <input type="number" id='relax-preset-1-strength' value="BoundFloat('''options['relax preset 1 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 1 falloff']''', min_value=0.0, max_value=100.0)">
+                            <input type="number" id='relax-preset-1-falloff' value="BoundFloat('''options['relax preset 1 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -186,15 +186,15 @@
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush size">Size</label>
-                            <input type="number" value="BoundInt('''options['relax preset 2 radius']''', min_value=1)">
+                            <input type="number" id='relax-preset-2-radius' value="BoundInt('''options['relax preset 2 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush strength">Strength</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 2 strength']''', min_value=0.01, max_value=1.0)">
+                            <input type="number" id='relax-preset-2-strength' value="BoundFloat('''options['relax preset 2 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 2 falloff']''', min_value=0.0, max_value=100.0)">
+                            <input type="number" id='relax-preset-2-falloff' value="BoundFloat('''options['relax preset 2 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -214,15 +214,15 @@
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush size">Size</label>
-                            <input type="number" value="BoundInt('''options['relax preset 3 radius']''', min_value=1)">
+                            <input type="number" id='relax-preset-3-radius' value="BoundInt('''options['relax preset 3 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush strength">Strength</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 3 strength']''', min_value=0.01, max_value=1.0)">
+                            <input type="number" id='relax-preset-3-strength' value="BoundFloat('''options['relax preset 3 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 3 falloff']''', min_value=0.0, max_value=100.0)">
+                            <input type="number" id='relax-preset-3-falloff' value="BoundFloat('''options['relax preset 3 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -242,15 +242,15 @@
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush size">Size</label>
-                            <input type="number" value="BoundInt('''options['relax preset 4 radius']''', min_value=1)">
+                            <input type="number" id='relax-preset-4-radius' value="BoundInt('''options['relax preset 4 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush strength">Strength</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 4 strength']''', min_value=0.01, max_value=1.0)">
+                            <input type="number" id='relax-preset-4-strength' value="BoundFloat('''options['relax preset 4 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
                             <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" value="BoundFloat('''options['relax preset 4 falloff']''', min_value=0.0, max_value=100.0)">
+                            <input type="number" id='relax-preset-4-falloff' value="BoundFloat('''options['relax preset 4 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>

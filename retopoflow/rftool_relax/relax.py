@@ -88,7 +88,9 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
     def reset_current_brush(self):
         options.reset(keys={'relax radius', 'relax falloff', 'relax strength'})
-        self.document.body.getElementById('relax-current-brush').dirty(cause='reset brush options', children=True)
+        self.document.body.getElementById(f'relax-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'relax-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'relax-current-falloff').dirty(cause='copied preset to current brush')
 
     def update_preset_name(self, n):
         name = options[f'relax preset {n} name']
@@ -98,15 +100,17 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         options[f'relax preset {n} radius']   = options['relax radius']
         options[f'relax preset {n} strength'] = options['relax strength']
         options[f'relax preset {n} falloff']  = options['relax falloff']
-        ui = self.document.body.getElementById(f'relax-preset-{n}')
-        ui.dirty(cause='copied current brush to preset', children=True)
-        ui.dirty_flow(children=True)
-        #ui.debug_print(0, set())
+        self.document.body.getElementById(f'relax-preset-{n}-radius').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'relax-preset-{n}-strength').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'relax-preset-{n}-falloff').dirty(cause='copied current brush to preset')
+
     def copy_preset_to_current(self, n):
         options['relax radius']   = options[f'relax preset {n} radius']
         options['relax strength'] = options[f'relax preset {n} strength']
         options['relax falloff']  = options[f'relax preset {n} falloff']
-        self.document.body.getElementById(f'relax-current-brush').dirty(cause='copied preset to current brush', children=True)
+        self.document.body.getElementById(f'relax-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'relax-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'relax-current-falloff').dirty(cause='copied preset to current brush')
 
     @RFTool_Relax.on_ui_setup
     def ui(self):
