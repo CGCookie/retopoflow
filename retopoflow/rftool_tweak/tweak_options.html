@@ -6,12 +6,12 @@
             <div class='collection'>
                 <h1>Boundary</h1>
                 <div class='contents'>
-                    <label title='Tweak vertices not along boundary' class='half-size'>
-                        <input type="radio" value='exclude' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
+                    <label class='half-size'>
+                        <input type="radio" title='Tweak vertices not along boundary' value='exclude' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
                         Exclude
                     </label>
-                    <label title="Tweak all vertices within brush, regardless of being along boundary" class="half-size">
-                        <input type="radio" value='include' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
+                    <label class="half-size">
+                        <input type="radio" title="Tweak all vertices within brush, regardless of being along boundary" value='include' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
                         Include
                     </label>
                 </div>
@@ -19,16 +19,16 @@
             <div class='collection'>
                 <h1>Symmetry</h1>
                 <div class='contents'>
-                    <label title='Tweak vertices not along symmetry plane' class='third-size'>
-                        <input type="radio" value='exclude' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
+                    <label class='third-size'>
+                        <input type="radio" title='Tweak vertices not along symmetry plane' value='exclude' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
                         Exclude
                     </label>
-                    <label title='Tweak vertices along symmetry plane, but keep them on symmetry plane' class='third-size'>
-                        <input type="radio" value='maintain' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
+                    <label class='third-size'>
+                        <input type="radio" title='Tweak vertices along symmetry plane, but keep them on symmetry plane' value='maintain' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
                         Maintain
                     </label>
-                    <label title='Tweak all vertices within brush, regardless of being along symmetry plane' class='third-size'>
-                        <input type="radio" value='include' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
+                    <label class='third-size'>
+                        <input type="radio" title='Tweak all vertices within brush, regardless of being along symmetry plane' value='include' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
                         Include
                     </label>
                 </div>
@@ -36,12 +36,12 @@
             <div class='collection'>
                 <h1>Hidden</h1>
                 <div class='contents'>
-                    <label title="Tweak only visible vertices" class='half-size'>
-                        <input type="radio" value='exclude' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
+                    <label class='half-size'>
+                        <input type="radio" title="Tweak only visible vertices" value='exclude' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
                         Exclude
                     </label>
-                    <label title="Tweak all vertices within brush, regardless of visibility" class='half-size'>
-                        <input type="radio" value='include' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
+                    <label class='half-size'>
+                        <input type="radio" title="Tweak all vertices within brush, regardless of visibility" value='include' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
                         Include
                     </label>
                 </div>
@@ -49,16 +49,16 @@
             <div class="collection">
                 <h1>Selected</h1>
                 <div class="contents">
-                    <label title='Tweak only unselected vertices' class="third-size">
-                        <input type="radio" value='exclude' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
+                    <label class="third-size">
+                        <input type="radio" title='Tweak only unselected vertices' value='exclude' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
                         Exclude
                     </label>
-                    <label title='Tweak only selected vertices' class="third-size">
-                        <input type="radio" value='only' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
+                    <label class="third-size">
+                        <input type="radio" title='Tweak only selected vertices' value='only' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
                         Only
                     </label>
-                    <label title='Tweak all vertices within brush, regardless of selection' class="third-size">
-                        <input type="radio" value='all' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
+                    <label class="third-size">
+                        <input type="radio" title='Tweak all vertices within brush, regardless of selection' value='all' checked="BoundString('''options['tweak mask selected']''')" name='tweak-selected'>
                         All
                     </label>
                 </div>
@@ -71,16 +71,16 @@
                     <h1>Current</h1>
                     <div class="contents">
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush size">Size</label>
-                            <input type="number" id='tweak-current-radius' value="self.rfwidget.get_radius_boundvar()">
+                            <label for='tweak-current-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='tweak-current-radius' value="self.rfwidget.get_radius_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush strength">Strength</label>
-                            <input type="number" id='tweak-current-strength' value="self.rfwidget.get_strength_boundvar()">
+                            <label for='tweak-current-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='tweak-current-strength' value="self.rfwidget.get_strength_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" id='tweak-current-falloff' value="self.rfwidget.get_falloff_boundvar()">
+                            <label for='tweak-current-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='tweak-current-falloff' value="self.rfwidget.get_falloff_boundvar()">
                         </div>
                         <button title="Reset brush options to defaults" on_mouseclick="self.reset_current_brush()">Reset</button>
                     </div>
@@ -89,20 +89,20 @@
                     <summary id='tweak-preset-1-summary'>Preset: Preset 1</summary>
                     <div class="contents">
                         <div class='labeled-input-text'>
-                            <label title="Change name of preset">Name</label>
-                            <input type="text" value="BoundString('''options['tweak preset 1 name']''')" on_change="self.update_preset_name(1)">
+                            <label for='tweak-preset-1-name'>Name</label>
+                            <input type="text" title="Change name of preset" id='tweak-preset-1-name' value="BoundString('''options['tweak preset 1 name']''')" on_change="self.update_preset_name(1)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush size">Size</label>
-                            <input type="number" id='tweak-preset-1-radius' value="BoundInt('''options['tweak preset 1 radius']''', min_value=1)">
+                            <label for='tweak-preset-1-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='tweak-preset-1-radius' value="BoundInt('''options['tweak preset 1 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush strength">Strength</label>
-                            <input type="number" id='tweak-preset-1-strength' value="BoundFloat('''options['tweak preset 1 strength']''', min_value=0.01, max_value=1.0)">
+                            <label for='tweak-preset-1-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='tweak-preset-1-strength' value="BoundFloat('''options['tweak preset 1 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" id='tweak-preset-1-falloff' value="BoundFloat('''options['tweak preset 1 falloff']''', min_value=0.0, max_value=100.0)">
+                            <label for='tweak-preset-1-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='tweak-preset-1-falloff' value="BoundFloat('''options['tweak preset 1 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -117,20 +117,20 @@
                     <summary id='tweak-preset-2-summary'>Preset: Preset 2</summary>
                     <div class="contents">
                         <div class='labeled-input-text'>
-                            <label title="Change name of preset">Name</label>
-                            <input type="text" value="BoundString('''options['tweak preset 2 name']''')" on_change="self.update_preset_name(2)">
+                            <label for='tweak-preset-2-name'>Name</label>
+                            <input type="text" title="Change name of preset" id='tweak-preset-2-name' value="BoundString('''options['tweak preset 2 name']''')" on_change="self.update_preset_name(2)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush size">Size</label>
-                            <input type="number" id='tweak-preset-2-radius' value="BoundInt('''options['tweak preset 2 radius']''', min_value=1)">
+                            <label for='tweak-preset-2-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='tweak-preset-2-radius' value="BoundInt('''options['tweak preset 2 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush strength">Strength</label>
-                            <input type="number" id='tweak-preset-2-strength' value="BoundFloat('''options['tweak preset 2 strength']''', min_value=0.01, max_value=1.0)">
+                            <label for='tweak-preset-2-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='tweak-preset-2-strength' value="BoundFloat('''options['tweak preset 2 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" id='tweak-preset-2-falloff' value="BoundFloat('''options['tweak preset 2 falloff']''', min_value=0.0, max_value=100.0)">
+                            <label for='tweak-preset-2-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='tweak-preset-2-falloff' value="BoundFloat('''options['tweak preset 2 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -145,20 +145,20 @@
                     <summary id='tweak-preset-3-summary'>Preset: Preset 3</summary>
                     <div class="contents">
                         <div class='labeled-input-text'>
-                            <label title="Change name of preset">Name</label>
-                            <input type="text" value="BoundString('''options['tweak preset 3 name']''')" on_change="self.update_preset_name(3)">
+                            <label for='tweak-preset-3-name'>Name</label>
+                            <input type="text" title="Change name of preset" id='tweak-preset-3-name' value="BoundString('''options['tweak preset 3 name']''')" on_change="self.update_preset_name(3)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush size">Size</label>
-                            <input type="number" id='tweak-preset-3-radius' value="BoundInt('''options['tweak preset 3 radius']''', min_value=1)">
+                            <label for='tweak-preset-3-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='tweak-preset-3-radius' value="BoundInt('''options['tweak preset 3 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush strength">Strength</label>
-                            <input type="number" id='tweak-preset-3-strength' value="BoundFloat('''options['tweak preset 3 strength']''', min_value=0.01, max_value=1.0)">
+                            <label for='tweak-preset-3-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='tweak-preset-3-strength' value="BoundFloat('''options['tweak preset 3 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" id='tweak-preset-3-falloff' value="BoundFloat('''options['tweak preset 3 falloff']''', min_value=0.0, max_value=100.0)">
+                            <label for='tweak-preset-3-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='tweak-preset-3-falloff' value="BoundFloat('''options['tweak preset 3 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>
@@ -173,20 +173,20 @@
                     <summary id='tweak-preset-4-summary'>Preset: Preset 4</summary>
                     <div class="contents">
                         <div class='labeled-input-text'>
-                            <label title="Change name of preset">Name</label>
-                            <input type="text" value="BoundString('''options['tweak preset 4 name']''')" on_change="self.update_preset_name(4)">
+                            <label for='tweak-preset-4-name'>Name</label>
+                            <input type="text" title="Change name of preset" id='tweak-preset-4-name' value="BoundString('''options['tweak preset 4 name']''')" on_change="self.update_preset_name(4)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush size">Size</label>
-                            <input type="number" id='tweak-preset-4-radius' value="BoundInt('''options['tweak preset 4 radius']''', min_value=1)">
+                            <label for='tweak-preset-4-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='tweak-preset-4-radius' value="BoundInt('''options['tweak preset 4 radius']''', min_value=1)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush strength">Strength</label>
-                            <input type="number" id='tweak-preset-4-strength' value="BoundFloat('''options['tweak preset 4 strength']''', min_value=0.01, max_value=1.0)">
+                            <label for='tweak-preset-4-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='tweak-preset-4-strength' value="BoundFloat('''options['tweak preset 4 strength']''', min_value=0.01, max_value=1.0)">
                         </div>
                         <div class='labeled-input-text'>
-                            <label title="Adjust brush falloff">Falloff</label>
-                            <input type="number" id='tweak-preset-4-falloff' value="BoundFloat('''options['tweak preset 4 falloff']''', min_value=0.0, max_value=100.0)">
+                            <label for='tweak-preset-4-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='tweak-preset-4-falloff' value="BoundFloat('''options['tweak preset 4 falloff']''', min_value=0.0, max_value=100.0)">
                         </div>
                         <div class='collection'>
                             <h1>Copy Brush Settings</h1>

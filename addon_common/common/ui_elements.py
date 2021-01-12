@@ -226,6 +226,7 @@ class UI_Element_Elements():
 
                     # translate HTML attribs to CC UI attribs
                     if k.lower() in {'class'}: k = 'classes'
+                    if k.lower() in {'for'}:   k = 'forId'
 
                     ##############################################################
                     # translate HTML attrib values to CC UI attrib values
