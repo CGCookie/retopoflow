@@ -546,7 +546,7 @@ def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=Fals
     ui_dialog = UI_Element(tagName='dialog', **kwargs)
     if close_callback:
         if hide_on_close: ui_dialog.add_eventListener('on_visibilitychange', close_callback)
-        else: ui_dialog('on_close', close_callback)
+        else: ui_dialog.add_eventListener('on_close', close_callback)
     ui_header = UI_Element(tagName='h1', innerText=label or '', parent=ui_dialog)
 
     if resizable is not None: resizable_x = resizable_y = resizable

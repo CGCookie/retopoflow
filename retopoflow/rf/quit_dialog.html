@@ -1,0 +1,13 @@
+<dialog id="quitdialog" class="framed" style="width:200px" on_mouseleave="mouseleave_event()" on_keypress="key(event)">
+    <h1>Quit RetopoFlow?</h1>
+    <div class="contents">
+        <div>
+            <button class="half-size" on_mouseclick="self.done()">Yes (Enter)</button>
+            <button class="half-size" on_mouseclick="hide_ui_quit()">No (Esc)</button>
+        </div>
+        <label title="Check to confirm quitting when pressing Tab">
+            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
+            Confirm quit on Tab
+        </label>
+    </div>
+</dialog>

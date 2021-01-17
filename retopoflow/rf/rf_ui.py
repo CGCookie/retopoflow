@@ -1041,41 +1041,16 @@ class RetopoFlow_UI:
                 self.ui_quit.is_visible = False
                 self.document.sticky_element = None
                 self.document.clear_last_under()
-            def mouseleave_event(e):
+            def mouseleave_event():
                 if self.ui_quit.is_hovered: return
                 hide_ui_quit()
             def key(e):
                 if e.key in {'ESC', 'TAB'}: hide_ui_quit()
                 if e.key in {'RET', 'NUMPAD_ENTER'}: self.done()
 
-            self.ui_quit = ui.framed_dialog(
-                label='Quit RetopoFlow?',
-                id='quitdialog',
-                parent=self.document.body,
-                resizable_x=False,
-                hide_on_close=True,
-                close_callback=hide_ui_quit,
-                style='width:200px',
-                children=[
-                    ui.div(children=[
-                        ui.button(innerText='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
-                        ui.button(innerText='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
-                    ]),
-                    ui.label(
-                        innerText='Confirm quit on Tab',
-                        title='Check to confirm quitting when pressing Tab',
-                        children=[
-                            ui.input_checkbox(
-                                title='Check to confirm quitting when pressing Tab',
-                                checked=BoundVar('''options['confirm tab quit']'''),
-                            ),
-                        ],
-                    ),
-                ],
-            )
+            self.ui_quit = UI_Element.fromHTMLFile(abspath('quit_dialog.html'))[0]
             self.ui_quit.is_visible = False
-            self.ui_quit.add_eventListener('on_mouseleave', mouseleave_event)
-            self.ui_quit.add_eventListener('on_keypress', key)
+            self.document.body.append_child(self.ui_quit)
 
         def setup_delete_ui():
             def hide_ui_delete():
@@ -1092,11 +1067,8 @@ class RetopoFlow_UI:
                 hide_ui_delete()
 
             self.ui_delete = UI_Element.fromHTMLFile(abspath('delete_dialog.html'))[0]
-            self.document.body.append_child(self.ui_delete)
             self.ui_delete.is_visible = False
-            # # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
-            # self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
-            self.ui_delete.add_eventListener('on_keypress', key)
+            self.document.body.append_child(self.ui_delete)
 
         self._ui_windows_updating = True
         setup_main_ui()
