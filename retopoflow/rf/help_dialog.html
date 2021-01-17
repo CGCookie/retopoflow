@@ -1,0 +1,11 @@
+<dialog class='framed closeable' id='helpsystem' on_close="close()" on_keypress="key(event)">
+    <h1>RetopoFlow Help System</h1>
+    <div class="contents">
+        <article id='helpsystem-mdown' class='mdown'></article>
+    </div>
+    <div id='helpsystem-buttons'>
+        <button title='Click to open table of contents for help' on_mouseclick="self.helpsystem_open('table_of_contents.md')">Table of Contents</button>
+        <button title='Click to open online help documents.  Note: this is an experimental feature.' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)">View Online Docs</button>
+        <button title='Click to close this help dialog' on_mouseclick="close()">Close (Esc)</button>
+    </div>
+</dialog>

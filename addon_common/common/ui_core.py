@@ -39,7 +39,7 @@ import blf
 import gpu
 
 from .ui_proxy import UI_Proxy
-from .ui_elements import UI_Element_Elements
+from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
 
 from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
@@ -63,7 +63,7 @@ from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
 from .shaders import Shader
-from .utils import iter_head, any_args, join
+from .utils import iter_head, any_args, join, abspath
 
 from ..ext import png
 from ..ext.apng import APNG
@@ -99,14 +99,6 @@ DEBUG_LIST      = False
 CACHE_METHOD = 2                # 0:none, 1:only root, 2:hierarchical, 3:text leaves
 
 
-HTML_CHAR_MAP = [
-    ('&nbsp;', ' '),
-    ('&#96;',  '`'),
-    # ('&rarr;', '→'),
-    ('&lt;', '<'),
-    ('&gt;', '>'),
-]
-
 
 class UI_Element_Defaults:
     font_family = 'sans-serif'
@@ -121,7 +113,7 @@ class UI_Element_Defaults:
 @add_cache('_paths', [
     os.path.abspath(os.path.curdir),
     os.path.join(os.path.abspath(os.path.curdir), 'fonts'),
-    os.path.join(os.path.dirname(__file__), 'fonts'),
+    abspath('fonts'),
 ])
 def get_font_path(fn, ext=None):
     cache = get_font_path._cache
@@ -255,9 +247,10 @@ def load_image(fn):
         # have not seen this image before
         path = get_image_path(fn)
         _,ext = os.path.splitext(fn)
-        dprint(f'Loading image "{fn}" (path={path})')
+        print(f'UI: Loading image "{fn}" (path={path})')
         if   ext == '.png':  img = load_image_png(path)
         elif ext == '.apng': img = load_image_apng(path)
+        else: assert False, f'load_image: unhandled type ({ext}) for {fn}'
         load_image._cache[fn] = img
     return load_image._cache[fn]
 
@@ -272,7 +265,7 @@ def preload_image(*fns):
 def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR):
     if fn_image not in load_texture._cache:
         image = load_image(fn_image)
-        dprint('Buffering texture "%s"' % fn_image)
+        print(f'UI: Buffering texture "{fn_image}"')
         height,width,depth = len(image),len(image[0]),len(image[0][0])
         assert depth == 4, 'Expected texture %s to have 4 channels per pixel (RGBA), not %d' % (fn_image, depth)
         image = reversed(image) # flip image
@@ -654,18 +647,29 @@ class UI_Element_Properties:
 
     @property
     def innerText(self):
-        return self._innerText
+        if self._pseudoelement == 'text': return self._innerText
+        t = [child._innerText for child in self._children if child._pseudoelement == 'text' and child._innerText is not None]
+        if not t: return None
+        return '\n'.join(t)
     @innerText.setter
     def innerText(self, nText):
-        if self._innerText == nText: return
-        self._innerText = nText
-        # self.dirty(cause='changing innerText makes dirty', children=True)
-        self.dirty_content(cause='changing innerText')
-        self.dirty_size(cause='changing innerText')
-        #self.dirty('changing innerText changes content', 'content', children=True)
-        #self.dirty('changing innerText changes size', 'size', children=True)
-        self._new_content = True
-        self.dirty_flow()
+        if self._pseudoelement == 'text':
+            if self._innerText == nText: return
+            self._innerText = nText
+            # self.dirty(cause='changing innerText makes dirty', children=True)
+            self.dirty_content(cause='changing innerText')
+            self.dirty_size(cause='changing innerText')
+            #self.dirty('changing innerText changes content', 'content', children=True)
+            #self.dirty('changing innerText changes size', 'size', children=True)
+            self._new_content = True
+            self.dirty_flow()
+            if self._parent: self._parent.dirty_content(cause='changing innerText')
+        elif len(self._children) == 1 and self._children[0]._pseudoelement == 'text':
+            self._children[0].innerText = nText
+        else:
+            self.clear_children()
+            ui = UI_Element(tagName='text', pseudoelement='text', innerText=nText)
+            self.append_child(ui)
 
     @property
     def innerTextAsIs(self):
@@ -775,6 +779,46 @@ class UI_Element_Properties:
         self._new_content = True
         return child
     def append_child(self, child): return self._append_child(child)
+    def prepend_child(self, child):
+        assert child
+        if child in self._children:
+            # attempting to add existing child?
+            return
+        if child._parent:
+            # detach child from prev parent
+            child._parent.delete_child(child)
+        self._children.insert(0, child)
+        child._parent = self
+        child.document = self.document
+        child.dirty(cause='prepending children', parent=False)
+        self.dirty_content(cause='prepending children', children=False, parent=False)
+        self.dirty_flow()
+        self._new_content = True
+        return child
+
+    # create and append/prepend new child, similar to:
+    # self.append_child(UI_Element(...)) or UI_Element(..., parent=self)
+    def append_new_child(self, *args, **kwargs):
+        ui = UI_Element(*args, **kwargs)
+        self.append_child(ui)
+        return ui
+    def prepend_new_child(self, *args, **kwargs):
+        ui = UI_Element(*args, **kwargs)
+        self.prepend_child(ui)
+        return ui
+
+    # generates new UI_Element child and adds to self._children_gen
+    def _generate_new_ui_elem(self, *args, gen_child=True, text_child=False, **kwargs):
+        kwargs.setdefault('_parent', self)
+        ui = UI_Element(*args, **kwargs)
+        ui.clean()
+        if kwargs['_parent']:
+            if gen_child:  kwargs['_parent']._children_gen  += [ui]
+            if text_child: kwargs['_parent']._children_text += [ui]
+            kwargs['_parent']._new_content = True
+        return ui
+
+
 
     def builder(self, children):
         t = type(children)
@@ -827,16 +871,6 @@ class UI_Element_Properties:
         if not self._children: return None
         return self._children[idx]._tagName
 
-    # generates new UI_Element child and adds to self._children_gen
-    def _generate_new_ui_elem(self, *args, **kwargs):
-        kwargs.setdefault('_parent', self)
-        ui = UI_Element(*args, **kwargs)
-        ui.clean()
-        self._children_gen += [ui]
-        self._new_content = True
-        return ui
-
-
     #########################################
     # style methods
 
@@ -852,6 +886,8 @@ class UI_Element_Properties:
         self.dirty_style(cause=f'changing style for {self} affects style')
         # self.dirty(f'changing style for {self} affects parent content', 'content', parent=True, children=False)
         self.add_dirty_callback_to_parent(['style', 'content'])
+        if self._document:
+            self._document.body.dirty()
     def add_style(self, style):
         style = f'{self._style_str};{style or ""}'
         if self._style_str == style: return
@@ -860,6 +896,8 @@ class UI_Element_Properties:
         self.dirty_style(cause=f'adding style for {self} affects style')
         # self.dirty(f'adding style for {self} affects parent content', 'content', parent=True, children=False)
         self.add_dirty_callback_to_parent(['style', 'content'])
+        if self._document:
+            self._document.body.dirty()
 
     @property
     def id(self):
@@ -925,7 +963,8 @@ class UI_Element_Properties:
         self._classes_str = ' '.join(self._classes)
         self.dirty_selector(cause=f'deleting class "{cls}" for {self} affects selector', children=True)
         self.add_dirty_callback_to_parent('content')
-
+    def has_class(self, cls):
+        return cls in self._classes
 
     @property
     def clamp_to_parent(self):
@@ -1094,10 +1133,12 @@ class UI_Element_Properties:
         assert not bottom and not right, 'repositioning UI via bottom or right not implemented yet :('
         if clamp_position and self._relative_element:
             w,h = Globals.drawing.scale(self.width_pixels),self.height_pixels #Globals.drawing.scale(self.height_pixels)
+            mymbph = self._mbp_height
             rw,rh = self._relative_element.width_pixels,self._relative_element.height_pixels
             mbpw,mbph = self._relative_element._mbp_width,self._relative_element._mbp_height
+            # print(f'reposition: top={top} h={h} mymbp={mymbph} r={self._relative_element} rh={rh} rmbp={mbph} min={-(rh-mbph)+h+mymbph} max=0')
             if left is not None: left = clamp(left, 0, (rw - mbpw) - w)
-            if top  is not None: top  = clamp(top, -(rh - mbph) + h, 0)
+            if top  is not None: top  = clamp(top, -(rh - mbph) + h + mymbph, 0)
         if left is None: left = self._style_left
         if top  is None: top  = self._style_top
         if self._style_left != left or self._style_top != top:
@@ -1248,6 +1289,7 @@ class UI_Element_Properties:
         if self._relative_element is None:   reh = self._parent_size.height if self._parent_size else 0
         elif self._relative_element == self: reh = self._parent_size.height if self._parent_size else 0
         else:                                reh = self._relative_element.height_pixels
+        if reh is None: reh = 0
         t = self.style_top
         if self._relative_pos and t == 'auto': t = self._relative_pos.y
         if t != 'auto':
@@ -1256,8 +1298,10 @@ class UI_Element_Properties:
             dpi_mult = Globals.drawing.get_dpi_mult()
             b = self.style_bottom
             h = self.height_pixels*dpi_mult if self.height_pixels != 'auto' else 0
-            if type(b) is NumberUnit: t = h + b.val(base=reh) - reh
+            if type(b) is NumberUnit: t = reh - b.val(base=reh)
             elif b != 'auto':         t = h + b
+            # if type(b) is NumberUnit: t = h + b.val(base=reh) - reh
+            # elif b != 'auto':         t = h + b
         return t
     @property
     def top_scissor(self):
@@ -1375,10 +1419,13 @@ class UI_Element_Properties:
     def is_visible(self, v):
         if self._is_visible == v: return
         self._is_visible = v
+        self.dispatch_event('on_visibilitychange')
         # self.dirty('changing visibility can affect everything', parent=True, children=True)
         self.dirty(cause='visibility changed')
         self.dirty_flow()
         self.dirty_renderbuf(cause='changing visibility can affect everything')
+        if self._document:
+            self._document.body.dirty()
 
     # self.get_is_visible() is same as self.is_visible() except it doesn't check parent
     def get_is_visible(self):
@@ -1555,6 +1602,10 @@ class UI_Element_Properties:
 
     @profiler.function
     def get_text_pos(self, index):
+        if self._pseudoelement != 'text':
+            ui_text = next((child for child in self._children if child._pseudoelement == 'text'), None)
+            if not ui_text: return None
+            return ui_text.get_text_pos(index)
         if self._innerText is None: return None
         index = clamp(index, 0, len(self._text_map)-1)
         m = self._text_map[index]
@@ -1567,6 +1618,10 @@ class UI_Element_Properties:
         return e_pos
 
     def get_text_index(self, pos):
+        if self._pseudoelement != 'text':
+            ui_text = next((child for child in self._children if child._pseudoelement == 'text'), None)
+            if not ui_text: return None
+            return ui_text.get_text_index(pos)
         if self._innerText is None: return None
         size_prev = Globals.drawing.set_font_size(self._fontsize, fontid=self._fontid)
         get_text_width = Globals.drawing.get_text_width
@@ -1994,6 +2049,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._tablecell_size       = None       # overriding size if table-cell
         self._all_lines            = None       # all children elements broken up into lines (for horizontal alignment)
         self._blocks               = None
+        self._blocks_abs           = None
         self._children_text_min_size = None
 
         #######################################
@@ -2037,6 +2093,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             'on_input':         [],     # occurs immediately after value has changed
             'on_change':        [],     # occurs after blur if value has changed
             'on_toggle':        [],     # occurs when open attribute is toggled
+            'on_close':         [],     # dialog is closed
+            'on_visibilitychange': [],  # element became visible or hidden
         }
 
         ####################################################################
@@ -2120,6 +2178,15 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         ###################################################
         # start setting properties
         # NOTE: some properties require special handling
+
+        # handle innerText
+        # if 'innerText' in kwargs and kwargs.get('pseudoelement', '') != 'text':
+        #     innerText = kwargs['innerText']
+        #     del kwargs['innerText']
+        #     kwargs.setdefault('children', [])
+        #     kwargs['children'] += [UI_Element(tagName='text', pseudoelement='text', innerText=innerText)]
+        #     print(f'UI_Element: {kwargs["tagName"]} creating <text::text> for "{innerText}"')
+
         with self.defer_dirty('setting initial properties'):
             # NOTE: handle attribs in multiple passes, so that debug prints are more informative
 
@@ -2136,7 +2203,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     self.value_bind(v)
                 elif k == 'checked' and isinstance(v, BoundVar):
                     self.checked_bind(v)
-                elif hasattr(self, k) and k not in {'parent', '_parent', 'children'}:
+                elif hasattr(self, k) and k not in {'parent', '_parent', 'children', 'innerText'}:
                     # need to test that a setter exists for the property
                     class_attr = getattr(type(self), k, None)
                     if type(class_attr) is property:
@@ -2145,10 +2212,15 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                         setattr(self, k, v)
                     else:
                         # k is an attribute
-                        print(f'Setting non-property attribute {k} to "{v}"')
+                        print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
                         setattr(self, k, v)
                 else:
                     unhandled_keys.add(k)
+
+            # handle innerText
+            if 'innerText' in kwargs:
+                if kwargs['innerText'] is not None:
+                    self.innerText = kwargs['innerText']
 
             # second pass: handling parent...
             working_keys, unhandled_keys = unhandled_keys, set()
@@ -2159,7 +2231,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     v.append_child(self)
                 elif k == '_parent':
                     self._parent = v
-                    self._document = v.document
+                    if v: self._document = v.document
                     self._do_not_dirty_parent = True
                 else:
                     unhandled_keys.add(k)
@@ -2172,12 +2244,14 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     # append each child
                     for child in kwargs['children']:
                         self.append_child(child)
+                elif k == 'innerText':
+                    pass
                 else:
                     unhandled_keys.add(k)
 
             # report unhandled attribs
             if unhandled_keys:
-                print(f'When creating new UI_Element, found unhandled attribute value pairs:')
+                print(f'>> COOKIECUTTER UI WARNING: When creating new UI_Element, found unhandled attribute value pairs:')
                 for k in unhandled_keys:
                     print(f'  {k}={kwargs[k]}')
 
@@ -2205,7 +2279,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
     @property
     def as_html(self):
         info = [
-            'id', 'classes', 'type',
+            'id', 'classes', 'type', 'pseudoelement',
             # 'innerText', 'innerTextAsIs',
             'href',
             'value', 'title',
@@ -2265,7 +2339,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 sel_attribs += '[open]'
 
             self_selector = f'{sel_tagName}{sel_id}{sel_cls}{sel_attribs}{sel_attribvals}{sel_pseudocls}{sel_pseudoelem}'
-            if self._pseudoelement:
+            if self._pseudoelement not in {None, '', 'text'}:
                 selector = [*sel_parent[:-1], self_selector]
             else:
                 selector = [*sel_parent,      self_selector]
@@ -2310,8 +2384,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._rebuild_style_selector()
         if self._children:
             for child in self._children: child._compute_selector()
-        if self._children_text:
-            for child in self._children_text: child._compute_selector()
+        # if self._children_text:
+        #     for child in self._children_text: child._compute_selector()
         if self._children_gen:
             for child in self._children_gen: child._compute_selector()
         # if self._child_before or self._child_after:
@@ -2350,6 +2424,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} style')
 
+        was_visible = self.is_visible
         self._draw_dirty_style += 1
         self._clean_debugging['style'] = time.time()
 
@@ -2381,7 +2456,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 self._styling_custom
             ]
             self._computed_styles = UI_Styling.compute_style(self._selector, *self._styling_list)
-
 
         with profiler.code('style.filling style cache'):
             if self._is_visible and not self._pseudoelement:
@@ -2430,15 +2504,20 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 sc['width']  = 'auto'
                 sc['height'] = 'auto'
 
+            if self._pseudoelement == 'text':
+                text_styles = self._parent._computed_styles if self._parent else self._computed_styles
+            else:
+                text_styles = self._computed_styles
+
             self._fontid = get_font(
-                self._computed_styles.get('font-family', UI_Element_Defaults.font_family),
-                self._computed_styles.get('font-style',  UI_Element_Defaults.font_style),
-                self._computed_styles.get('font-weight', UI_Element_Defaults.font_weight),
+                text_styles.get('font-family', UI_Element_Defaults.font_family),
+                text_styles.get('font-style',  UI_Element_Defaults.font_style),
+                text_styles.get('font-weight', UI_Element_Defaults.font_weight),
             )
-            self._fontsize   = self._computed_styles.get('font-size',   UI_Element_Defaults.font_size).val()
-            self._fontcolor  = self._computed_styles.get('color',       UI_Element_Defaults.font_color)
-            self._whitespace = self._computed_styles.get('white-space', UI_Element_Defaults.whitespace)
-            ts = self._computed_styles.get('text-shadow', 'none')
+            self._fontsize   = text_styles.get('font-size',   UI_Element_Defaults.font_size).val()
+            self._fontcolor  = text_styles.get('color',       UI_Element_Defaults.font_color)
+            self._whitespace = text_styles.get('white-space', UI_Element_Defaults.whitespace)
+            ts = text_styles.get('text-shadow', 'none')
             self._textshadow = None if ts == 'none' else (ts[0].val(), ts[1].val(), ts[-1])
 
         # tell children to recompute selector
@@ -2446,8 +2525,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if self.is_visible:
             if self._children:
                 for child in self._children: child._compute_style()
-            if self._children_text:
-                for child in self._children_text: child._compute_style()
+            # if self._children_text:
+            #     for child in self._children_text: child._compute_style()
             if self._children_gen:
                 for child in self._children_gen: child._compute_style()
             # if self._child_before or self._child_after:
@@ -2508,6 +2587,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._dirty_callbacks['style'].clear()
         self._dirty_callbacks['style parent'].clear()
 
+        if self.is_visible != was_visible:
+            self.dispatch_event('on_visibilitychange')
+
         # self.defer_dirty_propagation = False
 
     @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf'})
@@ -2561,7 +2643,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._new_content = True
 
         if self._computed_styles.get('content', None) is not None:
-            self._innerText = self._computed_styles['content']
+            self.innerText = self._computed_styles['content']
 
         if self._innerText is not None:
             # TODO: cache this!!
@@ -2570,8 +2652,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 'text':              self._innerText,
                 'fontid':            self._fontid,
                 'fontsize':          self._fontsize,
-                'preserve_newlines': self._whitespace in {'pre', 'pre-line', 'pre-wrap'},
-                'collapse_spaces':   self._whitespace in {'normal', 'nowrap', 'pre-line'},
+                'preserve_newlines': self._whitespace in {'pre',    'pre-line', 'pre-wrap'},
+                'collapse_spaces':   self._whitespace in {'normal', 'nowrap',   'pre-line'},
                 'wrap_text':         self._whitespace in {'normal', 'pre-wrap', 'pre-line'},
             }
             # TODO: if whitespace:pre, then make self NOT wrap
@@ -2590,8 +2672,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 idx = 0
                 for l in self._innerTextWrapped.splitlines():
                     if self._children_text:
-                        ui_br = UI_Element(tagName='br', _parent=self)
-                        self._children_text.append(ui_br)
+                        ui_br = self._generate_new_ui_elem(tagName='br', text_child=True)
                         self._text_map.append({
                             'ui_element': ui_br,
                             'idx': idx,
@@ -2607,12 +2688,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     for word in words:
                         if not word: continue
                         for f,t in HTML_CHAR_MAP: word = word.replace(f, t)
-                        ui_word = UI_Element(
-                            #tagName=self._tagName, pseudoelement='text',
-                            innerTextAsIs=word,
-                            _parent=self,
-                        )
-                        self._children_text.append(ui_word)
+                        ui_word = self._generate_new_ui_elem(innerTextAsIs=word, text_child=True)
+                        #tagName=self._tagName, pseudoelement='text',
                         for i in range(len(word)):
                             self._text_map.append({
                                 'ui_element': ui_word,
@@ -2622,12 +2699,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                                 'pre': word[:i],
                             })
                         idx += len(word)
-                ui_end = UI_Element(                                # needed so cursor can reach end
-                    #tagName=self._tagName, pseudoelement='text',
-                    innerTextAsIs='',
-                    _parent=self,
-                )
-                self._children_text.append(ui_end)
+                # needed so cursor can reach end
+                ui_end = self._generate_new_ui_elem(innerTextAsIs='', text_child=True)
+                #tagName=self._tagName, pseudoelement='text',
                 self._text_map.append({
                     'ui_element': ui_end,
                     'idx': idx,
@@ -2672,6 +2746,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._children_all += self._process_children()
         if self._children_text: self._children_all += self._children_text
         if self._child_after:   self._children_all.append(self._child_after)
+
+        self._children_all = [child for child in self._children_all if child.is_visible]
 
         for child in self._children_all: child._compute_content()
 
@@ -2719,17 +2795,30 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             child._compute_blocks()
 
         blocks = self._blocks
+        blocks_abs = self._blocks_abs
         if self._computed_styles.get('display', 'inline') == 'flexbox':
             # all children are treated as flex blocks, regardless of their display
             pass
         else:
             # collect children into blocks
             blocks = []
+            blocks_abs = []
             blocked_inlines = False
+            # if any(child._tagName == 'text' for child in self._children_all):
+            #     n_children_all = []
+            #     for child in self._children_all:
+            #         if child._tagName != 'text':
+            #             n_children_all.append(child)
+            #         else:
+            #             print(f'moving children of {child} ({child._children_all} / {child._children_text}) to {self}')
+            #             n_children_all += child._children_all
+            #     self._children_all = n_children_all
             for child in self._children_all:
                 d = child._computed_styles.get('display', 'inline')
                 p = child._computed_styles.get('position', 'static')
-                if d in {'inline', 'table-cell'} and p != 'absolute':
+                if p == 'absolute':
+                    blocks_abs.append(child)
+                elif d in {'inline', 'table-cell'}:
                     if not blocked_inlines:
                         blocked_inlines = True
                         blocks.append([child])
@@ -2749,9 +2838,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     if l0[j] != l1[j]: return False
             return True
 
-        if not same(blocks, self._blocks):
+        if not same(blocks, self._blocks) or not same([blocks_abs], [self._blocks_abs]):
             # content changes might have changed size
             self._blocks = blocks
+            self._blocks_abs = blocks_abs
             self.dirty_size(cause='block changes might have changed size')
             self.dirty_renderbuf(cause='block changes might have changed size')
             self.dirty_flow()
@@ -2865,8 +2955,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                    DO NOT PREVENT THIS, otherwise layout bugs will occur!
         '''
 
-        if not self.is_visible:
-            return
+        if not self.is_visible: return
 
         #profiler.add_note('laying out %s' % str(self).replace('\n',' ')[:100])
 
@@ -2973,6 +3062,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         inside_size.min_width  = floor_if_finite(inside_size.min_width)
         inside_size.min_height = floor_if_finite(inside_size.min_height)
 
+        dw, dh = 0, 0
+
         if self._static_content_size:
             # self has static content size
             # self has no children
@@ -3068,10 +3159,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             dw = accum_width
             dh = accum_height
 
-        else:
-            dw = 0
-            dh = 0
-
         # possibly override with text size
         if self._children_text_min_size:
             dw = max(dw, self._children_text_min_size.width)
@@ -3095,6 +3182,25 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         self._dynamic_full_size = Size2D(width=dw, height=dh)
         # if self._tagName == 'body': print(self._dynamic_content_size, self._dynamic_full_size)
+
+        pos = Point2D((0, 0))
+        remaining = Size2D(max_width=float('inf'), max_height=float('inf'))
+        for element in self._blocks_abs:
+            if not element.is_visible: continue
+            element._layout(
+                first_on_line=True,
+                fitting_size=remaining,
+                fitting_pos=pos,
+                parent_size=self._dynamic_full_size,
+                nonstatic_elem=next_nonstatic_elem,
+                document_elem=document_elem,
+                table_data=table_data,
+                first_run=True,
+            )
+            w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
+            w, h = math.ceil(w), math.ceil(h)
+            sz = Size2D(width=w, height=h)
+            element.set_view_size(sz)
 
         # handle table elements
         if display == 'table-row':
@@ -3568,6 +3674,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
     @profiler.function
     def get_under_mouse(self, p:Point2D):
+        if self._pseudoelement: return None
         if self._w < 1 or self._h < 1: return None
         if not (self._l <= p.x <= self._r and self._b <= p.y <= self._t): return None
         # p is over element
@@ -3654,4 +3761,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return ui_event.default_prevented
 
 
+def create_fn(tag):
+    def create(*args, **kwargs):
+        return UI_Element(tagName=tag, *args, **kwargs)
+    return create
+for tag in tags_known:
+    setattr(UI_Element, tag.upper(), create_fn(tag))
 

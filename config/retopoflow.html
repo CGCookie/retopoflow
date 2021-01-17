@@ -76,6 +76,7 @@ body {
 }
 
 dialog {
+    display: block;
     position: fixed;
     left: auto;
     right: auto;
@@ -225,6 +226,34 @@ dialog#optionsdialog {
     max-width: 225px;
 }
 
+
+dialog#helpsystem {
+    position: relative;
+    width: 60%;
+    left: 20%;
+    height: 100%;
+    /*max-height: 100%;*/
+    background: hsla(200, 0%, 10%, 0.98);
+}
+dialog#helpsystem > div.contents {
+    /*position: relative;*/
+    left: 0px;
+    top: 0px;
+}
+div#helpsystem-buttons {
+    /*position: absolute;*/
+    margin: 4px;
+    /*left: 0px;*/
+    /*top: 0px;*/
+    width: 100%;
+}
+div#helpsystem-buttons > button {
+    display: inline;
+    width: 33%;
+    text-align: center;
+}
+
+
 </style>
 </head>
 <body>
@@ -311,6 +340,19 @@ dialog#optionsdialog {
         </tr>
     </table>
 </dialog>
+
+<dialog class='framed closeable' id='helpsystem'>
+    <h1>RetopoFlow Help System</h1>
+    <div class="contents">
+        <article id='helpsystem-mdown' class='mdown'>Foo Bar</article>
+        <div id='helpsystem-buttons'>
+            <button title='Click to open table of contents for help' on_mouseclick="self.helpsystem_open('table_of_contents.md')">Table of Contents</button>
+            <button title='Click to open online help documents.  Note: this is an experimental feature.' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)">View Online Docs</button>
+            <button title='Click to close this help dialog' on_mouseclick="close()">Close (Esc)</button>
+        </div>
+    </div>
+</dialog>
+
 
 </body>
 

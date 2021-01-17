@@ -164,17 +164,20 @@ def find_and_import_all_subclasses(cls, root_path=None):
 
 #########################################################
 
-def delay_exec(action, f_globals=None, f_locals=None):
+def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None):
     if f_globals is None or f_locals is None:
         frame = inspect.currentframe().f_back               # get frame   of calling function
         if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
         if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
     def run_it(*args, **kwargs):
         # args are ignored!?
-        d = dict(f_locals)
-        d.update(kwargs)
+        nf_locals = dict(f_locals)
+        if ordered_parameters:
+            for k,v in zip(ordered_parameters, args):
+                nf_locals[k] = v
+        nf_locals.update(kwargs)
         try:
-            return exec(action, f_globals, f_locals)
+            return exec(action, f_globals, nf_locals)
         except Exception as e:
             print('Caught exception while trying to run a delay_exec')
             print('  action:', action)
@@ -282,6 +285,18 @@ def get_and_discard(d, k, default=None):
     v = d[k]
     del d[k]
     return v
+
+
+
+#################################################
+
+
+def abspath(*args, frame_depth=1, **kwargs):
+    frame = inspect.currentframe()
+    for i in range(frame_depth): frame = frame.f_back
+    module = inspect.getmodule(frame)
+    path = os.path.dirname(module.__file__)
+    return os.path.abspath(os.path.join(path, *args, **kwargs))
 
 
 

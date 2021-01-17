@@ -49,7 +49,7 @@ from .decorators import blender_version_wrapper, debug_test_call, add_cache
 from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
 from .profiler import profiler
 from .drawing import Drawing, ScissorStack
-from .utils import iter_head, UniqueCounter, join
+from .utils import iter_head, UniqueCounter, join, abspath
 from .shaders import Shader
 from .fontmanager import FontManager
 
@@ -182,14 +182,6 @@ token_rules = [
     ('string', get_converter_to_string('string'), [
         r'"(?P<string>[^"]*?)"',
     ]),
-    ('cursor', convert_token_to_cursor, [
-        r'default|auto|initial',
-        r'none|wait|grab|crosshair|pointer',
-        r'text',
-        r'e-resize|w-resize|ew-resize',
-        r'n-resize|s-resize|ns-resize',
-        r'all-scroll',
-    ]),
     ('color', convert_token_to_color, [
         r'rgb\( *(?P<red>\d+) *, *(?P<green>\d+) *, *(?P<blue>\d+) *\)',
         r'rgba\( *(?P<red>\d+) *, *(?P<green>\d+) *, *(?P<blue>\d+) *, *(?P<alpha>\d+(\.\d+)?) *\)',
@@ -240,12 +232,21 @@ token_rules = [
         # r'first-letter',
         # r'first-line',
         # r'selection',
+        r'text',            # innerText
     ]),
     ('num', convert_token_to_numberunit, [
         r'(?P<num>-?((\d*[.]\d+)|\d+))(?P<unit>px|vw|vh|pt|%|)',
     ]),
     ('id', convert_token_to_string, [
         r'[a-zA-Z_][a-zA-Z_\-0-9]*',
+    ]),
+    ('cursor', convert_token_to_cursor, [
+        r'default|auto|initial',
+        r'none|wait|grab|crosshair|pointer',
+        r'text',
+        r'e-resize|w-resize|ew-resize',
+        r'n-resize|s-resize|ns-resize',
+        r'all-scroll',
     ]),
     ('variable', convert_token_to_string, [
         r'--[a-zA-Z-]+',
@@ -567,7 +568,7 @@ class UI_Style_RuleSet:
         uid = ruleset._uid
         inline = ruleset._inline
         defaults = ruleset._defaults
-        k = f'{uid} {selector}'
+        k = f'{uid} {selector} {inline} {defaults}'
         cache = UI_Style_RuleSet.selector_specificity._cache
         if k not in cache:
             split = UI_Style_RuleSet._split_selector
@@ -723,6 +724,7 @@ class UI_Styling:
                     node_cur = trie
                     while True:
                         if part['pseudoelement']:
+                            # print(f'build_trie {rule} {part["pseudoelement"]}')
                             node_cur = get_node(node_cur, f"::{part['pseudoelement']}")
                             part['pseudoelement'] = ''
                         elif part['type']:
@@ -793,31 +795,38 @@ class UI_Styling:
             nonlocal rules
             part_has_pseudoelement = bool(part['pseudoelement'])
             for (edge_label, node_next) in node_cur.items():
-                if   edge_label == ' ':
+                if edge_label == ' ':
                     ps = parts
                     while ps:
                         p,ps = ps[-1],ps[:-1]
                         m(node_next, p, ps, False, depth+1)
                 elif edge_label == '>':
-                    if parts: m(node_next, parts[-1], parts[:-1], False, depth+1)
+                    if parts:
+                        m(node_next, parts[-1], parts[:-1], False, depth+1)
                 elif edge_label == '*' and (pseudoelement_handled or not part_has_pseudoelement):
                     m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '#':
-                    if edge_label[1:] == part['id']: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                    if edge_label[1:] == part['id']:
+                        m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '.':
-                    if edge_label[1:] in part['class']: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                    if edge_label[1:] in part['class']:
+                        m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[:2] == '::':
-                    if edge_label[2:] == part['pseudoelement']: m(node_next, part, parts, True, depth+1)
+                    if edge_label[2:] == part['pseudoelement']:
+                        m(node_next, part, parts, True, depth+1)
                 elif edge_label[0] == ':':
-                    if edge_label[1:] in part['pseudoclass']: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                    if edge_label[1:] in part['pseudoclass']:
+                        m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label[0] == '[':
                     attrib_parts = edge_label[1:-1].split('=')      # remove square brackets and split on `=`
                     attrib_key = attrib_parts[0]
                     if len(attrib_parts) == 1:
-                        if attrib_key in part['attribs']: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                        if attrib_key in part['attribs']:
+                            m(node_next, part, parts, pseudoelement_handled, depth+1)
                     else:
                         attrib_val = attrib_parts[1][1:-1]          # remove quotes from attribute value
-                        if part['attribvals'].get(attrib_key) == attrib_val: m(node_next, part, parts, pseudoelement_handled, depth+1)
+                        if part['attribvals'].get(attrib_key) == attrib_val:
+                            m(node_next, part, parts, pseudoelement_handled, depth+1)
                 elif edge_label in {'__selectors', '__parent', '__uid'}:
                     pass
                 elif edge_label == '__rulesets':
@@ -1110,7 +1119,7 @@ class UI_Styling:
 ui_defaultstylings = UI_Styling(defaults=True)
 def load_defaultstylings():
     global ui_defaultstylings
-    path = os.path.join(os.path.dirname(__file__), 'config', 'ui_defaultstyles.css')
+    path = abspath('config', 'ui_defaultstyles.css')
     if os.path.exists(path): ui_defaultstylings.load_from_file(path)
     else: ui_defaultstylings.rules = []
 load_defaultstylings()

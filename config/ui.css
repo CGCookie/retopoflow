@@ -227,7 +227,7 @@ input[type="range"] > *.inputrange-handle {
 
 
 /********************************/
-/* text input                   */
+/* input                        */
 /********************************/
 
 *.labeledinputtext-container {
@@ -236,6 +236,11 @@ input[type="range"] > *.inputrange-handle {
 
 
 /* old ^, new v */
+
+
+/********************************/
+/* text input                   */
+/********************************/
 
 input[type="text"] {
     color: var(--text);
@@ -261,6 +266,10 @@ input[type="text"]:disabled {
 }
 
 
+/********************************/
+/* number input                 */
+/********************************/
+
 input[type="number"] {
     color: var(--text);
     background: var(--button-background);
@@ -283,6 +292,11 @@ input[type="number"]:disabled {
     color: var(--button-disabled-text);
     cursor: default;
 }
+
+
+/********************************/
+/* labeled text/number input    */
+/********************************/
 
 
 
@@ -425,22 +439,91 @@ details > div.contents {
 /********************************/
 
 dialog {
+    display: block;
+    margin: 4px;
     border-radius: 4px;
     border: 0px;
     background: var(--panel-background);
     color: var(--text);
 }
 dialog.framed {
-    border: 1.5px var(--header-background);
+    margin: 4px;
+    border: 1px var(--header-background);
     border-radius: 4px;
     padding: 0px;
-    margin: 4px;
 }
-div.dialog-header {
+
+dialog > h1 {
+    display: block;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    background: var(--header-background);
+    color: var(--text);
+    margin: 0px;
+    border: 0px;
+    border-radius: 0px;
+    padding: 4px;
+}
+
+dialog.moveable > h1:hover {
+    cursor: grab;
+}
+dialog.moveable > h1:active {
+    cursor: grab;
+    /*background: var(--button-hover-background);*/
+}
+
+/* dialog minimize and close buttons */
+button.dialog-action {
+    display: none;
+    max-width: 16px;
+    max-height: 18px;
+    margin: 1px;
+    border: 0px;
+    padding: 5px;
+    background-color: transparent;
+}
+
+dialog.minimizeable button.dialog-minimize {
+    display: inline;
+}
+button.dialog-minimize {
+    background-image: url('collapse_open.png');
+}
+button.dialog-minimize:hover {
+    background-color: var(--button-hover-background);
+}
+button.dialog-minimize:active:hover {
+    background-color: var(--button-selected-background);
+}
+button.dialog-minimize:active {
+    background-color: var(--button-hover-background);
+}
+
+dialog.closeable button.dialog-close {
+    display: inline;
+}
+button.dialog-close {
+    background-image: url('close.png');
+}
+button.dialog-close:hover {
+    background-color: var(--button-hover-background);
+}
+button.dialog-close:active:hover {
+    background-color: var(--button-selected-background);
+}
+button.dialog-close:active {
+    background-color: var(--button-hover-background);
+}
+
+
+
+/*div.dialog-header {
     background: var(--header-background);
     margin: 0px;
-    padding: 4px;
     border: 0px;
+    padding: 4px;
     border-radius: 0px;
 }
 span.dialog-title {
@@ -450,6 +533,8 @@ span.dialog-title {
     margin-left: 8px;
     color: var(--text);
     font-size: 12;
+}
+button.dialog-minimize {
 }
 button.dialog-close {
     display: inline;
@@ -471,13 +556,13 @@ div.dialog-footer {
     right: 50px;
     top: -200px;
     width: 100%;
-    /*bottom: 0px;*/
+    /*bottom: 0px;* /
     background: rgba(255, 238, 0, 0.75);
     margin: 0px;
     padding: 2px;
     border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
     border-radius: 0px;
-}
+}*/
 
 
 
@@ -602,13 +687,15 @@ label.symmetry-enable {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 370px;
-    min-width: 50px;
-    max-width: 500px;
+    width: 333px;
     padding: 0px;
+    overflow: hidden;
 }
-dialog#tinydialog * {
-    overflow-x: hidden;
+dialog#tinydialog button.dialog-minimize {
+    background-image: url('collapse_close.png');
+}
+dialog#tinydialog > div.contents {
+    overflow: hidden;
 }
 dialog#tinydialog span.dialog-title {
     padding: 0px 2px;
@@ -656,7 +743,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
     border: 0px;
     width: 20px;
     height: 40px;
-    background: rgba(0,0,0,0) url('collapse_close.png');
+    background: transparent url('collapse_close.png');
 }
 
 
@@ -680,13 +767,22 @@ dialog#optionsdialog {
 dialog#helpsystem {
     width: 60%;
     left: 20%;
+    top: -2%;
+    /*height: 100%;*/
+    /*max-height: 100%;*/
     background: hsla(200, 0%, 10%, 0.98);
 }
-dialog#helpsystem div#helpsystem-buttons {
-    margin: 4px;
+dialog#helpsystem > div.contents {
+    max-height: 90%;
+}
+div#helpsystem-buttons {
+    /*position: absolute;*/
+    margin: 0px;
+    left: 0px;
+    bottom: -30px;
     width: 100%;
 }
-dialog#helpsystem div#helpsystem-buttons button {
+div#helpsystem-buttons > button {
     display: inline;
     width: 33%;
     text-align: center;
@@ -774,11 +870,12 @@ div.issue-checker button.action {
 /***************************************************/
 
 dialog#geometrydialog {
-    right: 0px;
-    bottom: 0px;
+    left: 0px;
+    top: -90%;
+    /*bottom: -100px;*/
     width: 120px;
-    min-width: 120px;
-    max-width: 120px;
+    max-width: 120px;  /* this is needed to force 120px wide dialog!? */
+    height: 98px;
 }
 
 dialog#geometrydialog table {
@@ -812,8 +909,6 @@ dialog#geometrydialog table div {
 article.mdown h1 {
     width: 100%;
     padding: 4px;
-}
-article.mdown h1> span {
     font-size: 18px;
 }
 article.mdown h1 img {
@@ -824,15 +919,11 @@ article.mdown h1 img {
 article.mdown h2 {
     width: 100%;
     padding: 4px;
-}
-article.mdown h2> span {
     font-size: 14px;
 }
 article.mdown h3 {
     width: 100%;
     padding: 4px;
-}
-article.mdown h3> span {
     font-size: 12px;
     color: rgba(192, 192, 192, 1.0);
 }
@@ -887,15 +978,26 @@ article.mdown code {
     background-color: var(--header-background);
 }
 
+article.mdown span {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+
 article.mdown span.html-arrow {
     font-weight: normal;
+}
+
+article.mdown label {
+    margin-left: 8px;
+    margin-right: 8px;
 }
 
 /***************************************************/
 /* pie menu                                        */
 /***************************************************/
 
-div#pie-menu {
+dialog#pie-menu {
     display: none;
     position: fixed;
     left: 0px;
@@ -908,8 +1010,9 @@ div#pie-menu {
     padding: 0px;
     border: 0px;
     z-index: 10000;
+    overflow: hidden;
 }
-div#pie-menu * {
+dialog#pie-menu * {
     overflow: hidden;
 }
 

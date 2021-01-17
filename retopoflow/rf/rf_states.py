@@ -117,7 +117,7 @@ class RetopoFlow_States(CookieCutter):
                 img.dirty()
             self.pie_menu_options[i_section] = option['value']
 
-        self.ui_pie_menu.style = f'display: block'
+        self.ui_pie_menu.is_visible = True
         self.document.force_clean(self.actions.context)
         doc_h = self.document.body.height_pixels
         # NOTE: I DO NOT KNOW WHY self.ui_pie_table.width_pixels DOES NOT RETURN THE CORRECT THING!
@@ -137,7 +137,7 @@ class RetopoFlow_States(CookieCutter):
         confirm_r = self.actions.released(self.pie_menu_release, ignoremods=True)
         if confirm_p or confirm_r:
             # setting display to none in case callback needs to show some UI
-            self.ui_pie_menu.style = f'display: none'
+            self.ui_pie_menu.is_visible = False
             i_option = self.which_pie_menu_section()
             option = self.pie_menu_options[i_option] if i_option is not None else None
             if option is not None or self.pie_menu_always_callback:
@@ -154,7 +154,7 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu', 'exit')
     def pie_menu_exit(self):
-        self.ui_pie_menu.style = f'display: none'
+        self.ui_pie_menu.is_visible = False
 
     @CookieCutter.FSM_State('pie menu wait')
     def pie_menu_wait(self):

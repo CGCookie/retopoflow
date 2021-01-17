@@ -52,7 +52,7 @@ from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit
 from .markdown import Markdown
 from .profiler import profiler, time_it
 from .useractions import is_keycode
-from .utils import Dict, delay_exec, get_and_discard, strshort
+from .utils import Dict, delay_exec, get_and_discard, strshort, abspath
 
 
 from ..ext import png
@@ -169,15 +169,6 @@ def input_checkbox(**kwargs):
 
 def label(**kwargs):
     return UI_Element(tagName='label', **kwargs)
-    # ui_label = UI_Element(tagName='label', **kwargs)
-    # def mouseclick(e):
-    #     if not e.target.is_descendant_of(ui_label): return
-    #     ui_for = ui_label.get_for_element()
-    #     if not ui_for: return
-    #     if ui_for == e.target: return
-    #     ui_for.dispatch_event('on_mouseclick')
-    # ui_label.add_eventListener('on_mouseclick', mouseclick, useCapture=True)
-    # return ui_label
 
 
 
@@ -325,10 +316,8 @@ def get_mdown_path(fn, ext=None, subfolders=None):
         subfolders = ['help']
     if ext:
         fn = '%s.%s' % (fn,ext)
-    path_here = os.path.dirname(__file__)
-    path_root = os.path.join(path_here, '..', '..')
-    paths = [os.path.join(path_root, p, fn) for p in subfolders]
-    paths += [os.path.join(path_here, 'images', fn)]
+    paths = [abspath('..', '..', p, fn) for p in subfolders]
+    paths += [abspath('images', fn)]
     paths = [p for p in paths if os.path.exists(p)]
     return iter_head(paths, None)
 
@@ -369,7 +358,7 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
 
             # break each ui_item onto it's own line
             para = re.sub(r'\n', ' ', para)     # join sentences of paragraph
-            para = re.sub(r'  *', ' ', para)    # 1+ spaces => 1 space
+            para = re.sub(r' +', ' ', para)     # 1+ spaces => 1 space
 
             # TODO: revisit this, and create an actual parser
             para = para.lstrip()
@@ -377,10 +366,10 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                 t,m = Markdown.match_inline(para)
                 if t is None:
                     word,para = Markdown.split_word(para)
-                    container.append_child(span(innerText=word))
+                    UI_Element.TEXT(innerText=word, pseudoelement='text', parent=container)
                 else:
                     if t == 'br':
-                        container.append_child(br())
+                        UI_Element.BR(parent=container)
                     elif t == 'arrow':
                         d = {   # https://www.toptal.com/designers/htmlarrows/arrows/
                             'uarr': '↑',
@@ -396,12 +385,12 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                             'hArr': '⇔',
                             'vArr': '⇕',
                         }[m.group('dir')]
-                        UI_Element(tagName='span', classes='html-arrow', innerText=f'{d}', parent=container)
+                        UI_Element.SPAN(classes='html-arrow', innerText=f'{d}', parent=container)
                     elif t == 'img':
                         style = m.group('style').strip() or None
-                        UI_Element(tagName='img', classes='inline', style=style, src=m.group('filename'), title=m.group('caption'), parent=container)
+                        UI_Element.IMG(classes='inline', style=style, src=m.group('filename'), title=m.group('caption'), parent=container)
                     elif t == 'code':
-                        container.append_child(code(innerText=m.group('text')))
+                        UI_Element.CODE(innerText=m.group('text'), parent=container)
                     elif t == 'link':
                         text,link = m.group('text'),m.group('link')
                         title = 'Click to open URL in default web browser' if Markdown.is_url(link) else 'Click to open help'
@@ -410,11 +399,11 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                                 bpy.ops.wm.url_open(url=link)
                             else:
                                 set_markdown(ui_mdown, mdown_path=link, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
-                        process_words(text, lambda word: a(innerText=word, href=link, title=title, on_mouseclick=mouseclick, parent=container))
+                        process_words(text, lambda word: UI_Element.A(innerText=word, href=link, title=title, on_mouseclick=mouseclick, parent=container))
                     elif t == 'bold':
-                        process_words(m.group('text'), lambda word: b(innerText=word, parent=container))
+                        process_words(m.group('text'), lambda word: UI_Element.B(innerText=word, parent=container))
                     elif t == 'italic':
-                        process_words(m.group('text'), lambda word: i(innerText=word, parent=container))
+                        process_words(m.group('text'), lambda word: UI_Element.I(innerText=word, parent=container))
                     elif t == 'checkbox':
                         params = m.group('params')
                         innertext = m.group('innertext')
@@ -430,7 +419,10 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                                 assert False, 'Unhandled checkbox parameter key="%s", val="%s" (%s)' % (key,val,param)
                         assert value is not None, 'Unhandled checkbox parameters: expected value (%s)' % (params)
                         # print('CREATING input_checkbox(label="%s", checked=BoundVar("%s", ...)' % (innertext, value))
-                        container.append_child(input_checkbox(label=innertext, checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals)))
+                        UI_Element.LABEL(children=[
+                            UI_Element.INPUT(type='checkbox', checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals)),
+                            UI_Element.SPAN(innerText=innertext),
+                        ], parent=container)
                     else:
                         assert False, 'Unhandled inline markdown type "%s" ("%s") with "%s"' % (str(t), str(m), line)
                     para = para[m.end():]
@@ -442,19 +434,16 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
             t,m = Markdown.match_line(para)
 
             if t is None:
-                p_element = p()
+                p_element = UI_Element.P(parent=ui_container)
                 process_para(p_element, para)
-                ui_container.append_child(p_element)
 
             elif t in ['h1','h2','h3']:
-                hn = {'h1':h1, 'h2':h2, 'h3':h3}[t]
-                #hn(innerText=m.group('text'), parent=ui_mdown)
-                ui_hn = hn()
+                hn = {'h1':UI_Element.H1, 'h2':UI_Element.H2, 'h3':UI_Element.H3}[t]
+                ui_hn = hn(parent=ui_container)
                 process_para(ui_hn, m.group('text'))
-                ui_container.append_child(ui_hn)
 
             elif t == 'ul':
-                ui_ul = UI_Element(tagName='ul')
+                ui_ul = UI_Element.UL(parent=ui_container)
                 with ui_ul.defer_dirty('creating ul children'):
                     # add newline at beginning so that we can skip the first item (before "- ")
                     skip_first = True
@@ -463,19 +452,18 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                         if skip_first:
                             skip_first = False
                             continue
-                        ui_li = UI_Element(tagName='li', parent=ui_ul)
-                        UI_Element(tagName='img', classes='dot', src='radio.png', parent=ui_li)
-                        span_element = UI_Element(tagName='span', classes='text', parent=ui_li)
+                        ui_li = UI_Element.LI(parent=ui_ul)
+                        UI_Element.IMG(classes='dot', src='radio.png', parent=ui_li)
+                        span_element = UI_Element.SPAN(classes='text', parent=ui_li)
                         if '\n' in litext:
                             # remove leading spaces
                             litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
                             process_mdown(span_element, litext)
                         else:
                             process_para(span_element, litext)
-                ui_container.append_child(ui_ul)
 
             elif t == 'ol':
-                ui_ol = UI_Element(tagName='ol', parent=ui_container)
+                ui_ol = UI_Element.OL(parent=ui_container)
                 with ui_ol.defer_dirty('creating ol children'):
                     # add newline at beginning so that we can skip the first item (before "- ")
                     skip_first = True
@@ -484,15 +472,14 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                         if skip_first:
                             skip_first = False
                             continue
-                        ui_li = UI_Element(tagName='li', parent=ui_ol)
-                        UI_Element(tagName='span', classes='number', innerText=f'{ili}.', parent=ui_li)
-                        span_element = UI_Element(tagName='span', classes='text', parent=ui_li)
+                        ui_li = UI_Element.LI(parent=ui_ol)
+                        UI_Element.SPAN(classes='number', innerText=f'{ili}.', parent=ui_li)
+                        span_element = UI_Element.SPAN(classes='text', parent=ui_li)
                         process_para(span_element, litext)
-                ui_container.append_child(ui_ol)
 
             elif t == 'img':
                 style = m.group('style').strip() or None
-                UI_Element(tagName='img', style=style, src=m.group('filename'), title=m.group('caption'), parent=ui_container)
+                UI_Element.IMG(style=style, src=m.group('filename'), title=m.group('caption'), parent=ui_container)
 
             elif t == 'table':
                 # table!
@@ -506,18 +493,17 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                 align = data[1]
                 data = [split_row(row) for row in data[2:]]
                 rows,cols = len(data),len(data[0])
-                table_element = table()
+                table_element = UI_Element.TABLE(parent=ui_container)
                 with table_element.defer_dirty('creating table children'):
                     if add_header:
-                        tr_element = tr(parent=table_element)
+                        tr_element = UI_Element.TR(parent=table_element)
                         for c in range(cols):
-                            th(innerText=header[c], parent=tr_element)
+                            UI_Element.TH(innerText=header[c], parent=tr_element)
                     for r in range(rows):
-                        tr_element = tr(parent=table_element)
+                        tr_element = UI_Element.TR(parent=table_element)
                         for c in range(cols):
-                            td_element = td(parent=tr_element)
+                            td_element = UI_Element.TD(parent=tr_element)
                             process_para(td_element, data[r][c])
-                ui_container.append_child(table_element)
 
             else:
                 assert False, 'Unhandled markdown line type "%s" ("%s") with "%s"' % (str(t), str(m), para)
@@ -548,53 +534,20 @@ def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=Fals
     # TODO: always add header, and use UI_Proxy translate+map "label" to change header
     kw_inside = kwargs_splitter({'children'}, kwargs)
     ui_document = Globals.ui_document
-    kwargs['classes'] = 'framed %s %s' % (kwargs.get('classes', ''), 'moveable' if moveable else '')
-    kwargs['clamp_to_parent'] = clamp_to_parent
-    ui_dialog = UI_Element(tagName='dialog', **kwargs)
-
-    ui_header = UI_Element(tagName='div', classes='dialog-header', parent=ui_dialog)
+    classes = ['framed']
+    if 'classes' in kwargs: classes.append(kwargs['classes'])
+    if moveable: classes.append('moveable')
     if closeable:
-        def close():
-            if close_callback: close_callback()
-            if hide_on_close:
-                ui_dialog.is_visible = False
-                return
-            if ui_dialog._parent is None: return
-            if ui_dialog._parent == ui_dialog: return
-            ui_dialog._parent.delete_child(ui_dialog)
-        title = 'Close dialog' # 'Hide' if hide_on_close??
-        ui_close = UI_Element(tagName='button', classes='dialog-close', title=title, on_mouseclick=close, parent=ui_header)
+        if hide_on_close: classes.append('minimizeable')
+        else: classes.append('closeable')
+    kwargs['classes'] = ' '.join(classes)
+    kwargs['clamp_to_parent'] = clamp_to_parent
 
-    ui_label = UI_Element(tagName='span', classes='dialog-title', innerText=label or '', parent=ui_header)
-    if moveable:
-        is_dragging = False
-        mousedown_pos = None
-        original_pos = None
-        def mousedown(e):
-            nonlocal is_dragging, mousedown_pos, original_pos, ui_dialog
-            if e.target != ui_header and e.target != ui_label: return
-            ui_document.ignore_hover_change = True
-            is_dragging = True
-            mousedown_pos = e.mouse
-
-            l = ui_dialog.left_pixels
-            if l is None or l == 'auto': l = 0
-            t = ui_dialog.top_pixels
-            if t is None or t == 'auto': t = 0
-            original_pos = Point2D((float(l), float(t)))
-        def mouseup(e):
-            nonlocal is_dragging
-            is_dragging = False
-            ui_document.ignore_hover_change = False
-        def mousemove(e):
-            nonlocal is_dragging, mousedown_pos, original_pos, ui_dialog
-            if not is_dragging: return
-            delta = e.mouse - mousedown_pos
-            new_pos = original_pos + delta
-            ui_dialog.reposition(left=new_pos.x, top=new_pos.y)
-        ui_header.add_eventListener('on_mousedown', mousedown)
-        ui_header.add_eventListener('on_mouseup', mouseup)
-        ui_header.add_eventListener('on_mousemove', mousemove)
+    ui_dialog = UI_Element(tagName='dialog', **kwargs)
+    if close_callback:
+        if hide_on_close: ui_dialog.add_eventListener('on_visibilitychange', close_callback)
+        else: ui_dialog('on_close', close_callback)
+    ui_header = UI_Element(tagName='h1', innerText=label or '', parent=ui_dialog)
 
     if resizable is not None: resizable_x = resizable_y = resizable
     if resizable_x or resizable_y:
@@ -659,7 +612,7 @@ def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=Fals
     # ui_footer_label = UI_Element(tagName='span', innerText='footer', parent=ui_footer)
 
     ui_proxy = UI_Proxy('framed_dialog', ui_dialog)
-    ui_proxy.translate_map('label', 'innerText', ui_label)
+    ui_proxy.translate_map('label', 'innerText', ui_header) # ui_label)
     ui_proxy.map_children_to(ui_inside)
     ui_proxy.map_scroll_to(ui_inside)
     if parent: parent.append_child(ui_proxy)

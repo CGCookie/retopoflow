@@ -713,7 +713,8 @@ class UI_Document(UI_Document_FSM):
         self._draw_count += 1
         self._draw_time += time.time() - time_start
         if self._draw_count % 100 == 0:
-            self._draw_fps = (self._draw_count / self._draw_time) if self._draw_time>0 else float('inf')
+            fps = (self._draw_count / self._draw_time) if self._draw_time>0 else float('inf')
+            self._draw_fps = fps
             # print('~%f fps  (%f / %d = %f)' % (self._draw_fps, self._draw_time, self._draw_count, self._draw_time / self._draw_count))
             self._draw_count = 0
             self._draw_time = 0

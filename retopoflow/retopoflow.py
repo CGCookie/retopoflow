@@ -139,7 +139,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
-        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=False)
+        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=True, on_close=self.done)
         Globals.ui_document.body.dirty(cause='changed document size', children=True)
 
     def end(self):
@@ -232,7 +232,7 @@ class RetopoFlow(
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
                 print(f'RetopoFlow: {stage_name} ({time.time()-d["time"]})')
-                ui.set_markdown(d['ui_div'], mdown='%s' % stage_name)
+                ui.set_markdown(d['ui_div'], mdown=stage_name)
             else:
                 stage_fn()
         except Exception as e:

@@ -1,0 +1,25 @@
+<dialog class="framed minimizeable moveable" id="maindialog" on_visibilitychange="self.update_main_ui_window()" on_keypress="key(event)">
+    <h1>RetopoFlow <script>write(retopoflow_version)</script></h1>
+    <div class="contents">
+        <div id="tools"></div>
+        <details id='help-buttons'>
+            <summary>Documentation</summary>
+            <div class="contents">
+                <button title='Show the "Welcome!" message from the RetopoFlow team' on_mouseclick="self.helpsystem_open('welcome.md')">Welcome!</button>
+                <button title='Show help table of contents ({humanread("all help")})' on_mouseclick="self.helpsystem_open('table_of_contents.md')">Table of Contents</button>
+                <button title='how how to get started with RetopoFlow' on_mouseclick="self.helpsystem_open('quick_start.md')">Quick start guide</button>
+                <button title='Show general help ({humanread("general help")})' on_mouseclick="self.helpsystem_open('general.md')">General</button>
+                <button title='Show help for currently selected tool ({humanread("tool help")})' on_mouseclick="self.helpsystem_open(self.rftool.help)">Active Tool</button>
+            </div>
+        </details>
+        <details>
+            <summary>Windows</summary>
+            <div class="contents">
+                <button title='Show options window' id='show-options' disabled=True on_mouseclick="self.show_options_window()">Show Options</button>
+                <button title='Show poly count window' id='show-geometry' disabled=True on_mouseclick="self.show_geometry_window()">Show Poly Count</button>
+            </div>
+        </details>
+        <button title='Report an issue with RetopoFlow' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_issues_url)">Report Issue</button>
+        <button title='Quit RetopoFlow ({humanread("done")})' on_mouseclick="self.done()">Exit</button>
+    </div>
+</dialog>

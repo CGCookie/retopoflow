@@ -25,8 +25,9 @@ import bpy
 
 from ...addon_common.common import ui
 from ...addon_common.common.globals import Globals
-from ...addon_common.common.utils import delay_exec
+from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings
+from ...addon_common.common.ui_core import UI_Element
 
 from ...config.options import options, retopoflow_helpdocs_url
 from ...config.keymaps import get_keymaps
@@ -79,7 +80,7 @@ class RetopoFlow_HelpSystem:
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
-    def helpsystem_open(self, mdown_path, done_on_esc=False, closeable=True):
+    def helpsystem_open(self, mdown_path, done_on_esc=False, closeable=True, *args, **kwargs):
         ui_markdown = self.document.body.getElementById('helpsystem-mdown')
         if not ui_markdown:
             keymaps = get_keymaps()
@@ -102,33 +103,9 @@ class RetopoFlow_HelpSystem:
                         self.helpsystem_open(self.rftool.help)
                 elif e.key == 'ESC':
                     close()
-            ui_help = ui.framed_dialog(
-                label='RetopoFlow Help System',
-                id='helpsystem',
-                resizable=False,
-                closeable=closeable,
-                moveable=False,
-                parent=self.document.body,
-            )
-            ui_markdown = ui.markdown(id='helpsystem-mdown', parent=ui_help)
-            ui.div(id='helpsystem-buttons', parent=ui_help, children=[
-                ui.button(
-                    innerText='Table of Contents',
-                    title='Click to open table of contents for help.',
-                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')"),
-                ),
-                ui.button(
-                    innerText='View Online Docs',
-                    title='Click to open online help documents.  Note: this is an experimental feature.',
-                    on_mouseclick=delay_exec('''bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)'''),
-                ),
-                ui.button(
-                    innerText='Close (Esc)',
-                    title='Click to close this help dialog.',
-                    on_mouseclick=close,
-                )
-            ])
-            ui_help.add_eventListener('on_keypress', key)
+            ui_help = UI_Element.fromHTMLFile(abspath('help_dialog.html'))[0]
+            ui_markdown = ui_help.getElementById('helpsystem-mdown')
+            self.document.body.append_child(ui_help)
             self.document.body.dirty()
 
         ui.set_markdown(

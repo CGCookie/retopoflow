@@ -85,16 +85,16 @@ class Parse_Lexer:
             matches = [(tname, conv, retoken.match(rest)) for (tname,conv,retokens) in token_rules for retoken in retokens]
             # filter out non-matches
             matches = list(filter(lambda nm: nm[2] is not None, matches))
-            assert matches, 'syntax error on line %d: "%s"' % (i_line, charstream.peek_restofline())
+            assert matches, f'Parse_Lexer: Syntax error on line {i_line}: "{charstream.peek_restofline()}"'
             # find longest match
             longest = max(len(m.group(0)) for (tname,conv,m) in matches)
             # filter out non-longest matches
             matches = list(filter(lambda nm: len(nm[2].group(0))==longest, matches))
-            matches = {k:(c,v) for (k,c,v) in matches}
-
+            # consume characters from stream
             charstream.consume(l=longest)
 
             # convert token to python/blender types
+            matches = {k:(c,v) for (k,c,v) in matches}
             for k,(conv,v) in list(matches.items()):
                 v = conv(v)
                 if v is None: del matches[k]

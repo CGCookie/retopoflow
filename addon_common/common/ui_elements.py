@@ -45,9 +45,22 @@ from mathutils import Vector, Matrix
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
+from .fontmanager import FontManager
+from .globals import Globals
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
+from .profiler import profiler, time_it
 from .useractions import is_keycode
+from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .utils import iter_head, any_args, join, delay_exec, Dict
+
+
+HTML_CHAR_MAP = [
+    ('&nbsp;', ' '),
+    ('&#96;',  '`'),
+    # ('&rarr;', '→'),
+    ('&lt;', '<'),
+    ('&gt;', '>'),
+]
 
 
 def setup_scrub(ui_element, value):
@@ -151,11 +164,13 @@ tags_selfclose = {
     'track', 'wbr'
 }
 tags_known = {
+    'article',
     'button',
     'span', 'div', 'p',
     'a',
     'b', 'i',
     'h1', 'h2', 'h3',
+    'ul', 'ol', 'li',
     'pre', 'code',
     'br',
     'img',
@@ -163,6 +178,8 @@ tags_known = {
     'dialog',
     'label', 'input',
     'details', 'summary',
+    'script',
+    'text',
 }
 events_known = {
     'focus':        'on_focus',         'onfocus':          'on_focus',         'on_focus':         'on_focus',
@@ -183,6 +200,8 @@ events_known = {
     'input':        'on_input',         'oninput':          'on_input',         'on_input':         'on_input',
     'change':       'on_change',        'onchange':         'on_change',        'on_change':        'on_change',
     'toggle':       'on_toggle',        'ontoggle':         'on_toggle',        'on_toggle':        'on_toggle',
+    'visibilitychange': 'on_visibilitychange', 'onvisibilitychange': 'on_visibilitychange', 'on_visibilitychange': 'on_visibilitychange',
+    'close': 'on_close', 'onclose': 'on_close', 'on_close': 'on_close',
 }
 
 
@@ -207,17 +226,31 @@ class UI_Element_Elements():
             f_globals = f_globals or frame.f_globals
             f_locals = dict(f_locals or frame.f_locals)
 
-        def get_next_tag(html, tname_end, tab, hierarchy):
+        def next_close(html, tagName):
+            m_tag = re_html_tag.search(html)
+            if not m_tag: return None
+            if m_tag.group('name').lower() != tagName: return None
+            if not m_tag.group('close'): return None
+            innerText = html[:m_tag.start()].lstrip()
+            post_html = html[m_tag.end():].lstrip()
+            return Dict({
+                'innerText': innerText,
+                'post_html': post_html
+            })
+
+        def get_next_tag(html, ui_cur, tab, hierarchy):
             m_tag = re_html_tag.search(html)
             if not m_tag: return None
 
-            pre_html = html[:m_tag.start()].strip()
+            cur_tagName = ui_cur._tagName if ui_cur else None
+
+            pre_html = html[:m_tag.start()].lstrip()
             post_html = html[m_tag.end():].lstrip()
 
             tname = m_tag.group('name').lower()
             attributes = m_tag.group('attributes')
             is_close = m_tag.group('close') is not None
-            is_selfclose = m_tag.group('selfclose') is not None or tname in tags_selfclose
+            is_selfclose = m_tag.group('selfclose') or tname in tags_selfclose
 
             attribs = {}
             if attributes:
@@ -253,7 +286,10 @@ class UI_Element_Elements():
                     if k.lower() in events_known:
                         # attribute is an event (value is callback)
                         k = events_known[k.lower()]
-                        v = delay_exec(v, f_globals=f_globals, f_locals=f_locals)
+                        nf_locals = dict(f_locals)
+                        nf_locals['this'] = ui_cur
+                        # nf_locals['event'] = None
+                        v = delay_exec(v, f_globals=f_globals, f_locals=nf_locals, ordered_parameters=['event'])
                     elif v.lower() in {'true'}:  v = True
                     elif v.lower() in {'false'}: v = False
                     elif m_self:                 v = eval(v, f_globals, f_locals)
@@ -265,7 +301,7 @@ class UI_Element_Elements():
 
             assert not (is_close and attribs), 'Cannot have closing tag with attributes'
             assert not (is_close and is_selfclose), f'Cannot be closing and self-closing: {m_tag.group("tag")}'
-            assert not (is_close and tname != tname_end), f'Found ending tag {m_tag.group("tag")} but expecting </{tname_end}>\n{hierarchy}'
+            assert not (is_close and tname != cur_tagName), f'Found ending tag {m_tag.group("tag")} but expecting </{cur_tagName}>\n{hierarchy}'
             assert tname in tags_known, f'Unhandled tag type: {m_tag.group("tag")}'
 
             return Dict({
@@ -278,6 +314,8 @@ class UI_Element_Elements():
             })
 
         def create(*args, **kwargs):
+            if kwargs.get('tagName', '') == 'dialog':
+                kwargs.setdefault('clamp_to_parent', True)
             ui = cls(*args, **kwargs)
             def cb():
                 ui.dirty(cause='BoundVar changed')
@@ -286,39 +324,71 @@ class UI_Element_Elements():
                     v.on_change(cb)
             return ui
 
-        def process(html, tname_end, hierarchy=[]):
+        def process(html, ui_cur, hierarchy=[]):
             depth = len(hierarchy)
             tab = '  '*depth
             ret = []
             while html.strip():
-                tag = get_next_tag(html, tname_end, tab, hierarchy)
+                tag = get_next_tag(html, ui_cur, tab, hierarchy)
                 if not tag:
-                    return (ret + [create(tagName='span', innerText=html)], '')
+                    return (ret + [create(tagName='text', pseudoelement='text', innerText=html)], '')
 
-                if tag.pre_html:
-                    ret += [create(tagName='span', innerText=tag.pre_html)]
+                if tag.pre_html.strip():
+                    # <tag>found some text here  </tag>/<anothertag>/<selfclose/>...
+                    #      ^                     ^ tag.tname
+                    #      \_ started here: tag.pre_html
+                    ui_text = create(tagName='text', pseudoelement='text', innerText=tag.pre_html)
+                    ret += [ui_text]
 
                 if tag.is_close:
+                    # <tag>...</tag>
+                    #      ^  ^ closing current tag
+                    #      \_ started here, but this is already processed
                     return (ret, tag.post_html)
                 elif tag.is_selfclose:
+                    # <tag>...<selfclose/>...
+                    #      ^  ^           ^ tag.post_html
+                    #      |  \_ self-closing tag
+                    #      \_ started here, but this is already processed
                     ret += [create(tagName=tag.tname, **tag.attribs)]
                     html = tag.post_html
                 else:
-                    ntag = get_next_tag(tag.post_html, tag.tname, tab, hierarchy+[tag.tname])
-                    if ntag and ntag.is_close:
-                        # just stick pre_html into innerText
-                        ret += [create(tagName=tag.tname, innerText=ntag.pre_html, **tag.attribs)]
-                        html = ntag.post_html
+                    # <tag>...<anothertag>...
+                    #      ^  ^           ^ tag.post_html
+                    #      |  \_ starting another tag
+                    #      \_ started here, but this is already processed
+                    # check if anothertag is immediately closed, especially looking for <script>
+                    nclose = next_close(tag.post_html, tag.tname)
+                    if nclose:
+                        # case: <anothertag>some innerText</anothertag>...
+                        if tag.tname.lower() == 'script':
+                            # case anothertag=script: <script>some python code</script>
+                            # TODO: check for src attribute!
+                            nf_locals = dict(f_locals)
+                            written = []
+                            nf_locals['write'] = written.append
+                            # print(f'executing script: {nclose.innerText}')
+                            exec(nclose.innerText, f_globals, nf_locals)
+                            # prepend anything written out to HTML so it can be processed
+                            html = '\n'.join(written) + nclose.post_html
+                        else:
+                            # just stick pre_html into innerText
+                            innerText = nclose.innerText if nclose.innerText.strip() else None
+                            ret += [create(tagName=tag.tname, innerText=innerText, **tag.attribs)]
+                            html = nclose.post_html
                     else:
-                        children, html = process(tag.post_html, tag.tname, hierarchy+[tag.tname])
-                        ret += [create(tagName=tag.tname, children=children, **tag.attribs)]
+                        ui = create(tagName=tag.tname, **tag.attribs)
+                        children, html = process(tag.post_html, ui, hierarchy+[tag.tname])
+                        for child in children: ui.append_child(child)
+                        ret += [ui]
             return (ret, html.strip())
 
+        # remove HTML comments
+        html = re_html_comment.sub('', html)
         # strip leading and trailing whitespace characters
         html = re.sub(r'^[ \n\r\t]+', '', html)
         html = re.sub(r'[ \n\r\t]+$', '', html)
-        # remove HTML comments
-        html = re_html_comment.sub('', html)
+
         lui,rest = process(html, None)
         assert not rest, f'Could not process all of HTML\nRemaining: {rest}\nHTML: {html}'
         return lui
@@ -367,8 +437,8 @@ class UI_Element_Elements():
                 data['pos'] = self.get_text_pos(data['idx'])
                 if self._ui_marker._absolute_size:
                     self._ui_marker.reposition(
-                        left=data['pos'].x - self._mbp_left - self._ui_marker._absolute_size.width / 2,
-                        top=data['pos'].y + self._mbp_top,
+                        left=data['pos'].x - self._ui_marker._absolute_size.width / 2,
+                        top=data['pos'].y,
                         clamp_position=False,
                     )
                     cursor_postflow()
@@ -569,7 +639,7 @@ class UI_Element_Elements():
         if self._get_child_tagName(0) != 'summary':
             # <details> does not have a <summary>, so create a default one
             if self._ui_marker is None:
-                self._ui_marker = self._generate_new_ui_elem(tagName='summary', innerText='Details')
+                self._ui_marker = self.prepend_new_child(tagName='summary', innerText='Details')
             summary = self._ui_marker
             contents = self._children if is_open else []
         else:
@@ -588,6 +658,69 @@ class UI_Element_Elements():
         )
         return [marker, *self._children]
 
+    def _process_dialog(self):
+        if not self.has_class('framed'):
+            return self._children
+
+        if self._get_child_tagName(0) != 'h1':
+            self.prepend_new_child(tagName='h1', innerText='Window')
+
+        return self._children
+
+    def _process_h1(self):
+        if self._parent and self._parent._tagName == 'dialog' and self._parent._children[0] == self:
+            dialog = self._parent
+            if not dialog.has_class('framed'):
+                return self._children
+
+            if not getattr(self, '_processed_dialog', False):
+                self._processed_dialog = True
+
+                # add minimize button to <h1> (only visible if dialog has minimizeable class)
+                def minimize():
+                    dialog.is_visible = False
+                self.prepend_new_child(tagName='button', title="Minimize dialog", classes='dialog-minimize dialog-action', on_mouseclick=minimize)
+
+                # add close button to <h1> (only visible if dialog has closeable class)
+                def close():
+                    if dialog._parent is None: return
+                    dialog._parent.delete_child(dialog)
+                    dialog.dispatch_event('on_close')
+                self.prepend_new_child(tagName='button', title="Close dialog", classes='dialog-close dialog-action', on_mouseclick=close)
+
+                # add event handlers to <h1> for dragging window around (only moveable if dialog has moveable class)
+                state = Dict(
+                    is_dragging=False,
+                    mousedown_pos=None,
+                    original_pos=None,
+                )
+                def mousedown(e):
+                    if not dialog.has_class('moveable'): return
+                    if e.target != self and e.target != self: return
+                    dialog.document.ignore_hover_change = True
+                    state.is_dragging = True
+                    state.mousedown_pos = e.mouse
+                    l = dialog.left_pixels
+                    if l is None or l == 'auto': l = 0
+                    t = dialog.top_pixels
+                    if t is None or t == 'auto': t = 0
+                    state.original_pos = Point2D((float(l), float(t)))
+                def mouseup(e):
+                    if not dialog.has_class('moveable'): return
+                    state.is_dragging = False
+                    dialog.document.ignore_hover_change = False
+                def mousemove(e):
+                    if not dialog.has_class('moveable'): return
+                    if not state.is_dragging: return
+                    delta = e.mouse - state.mousedown_pos
+                    new_pos = state.original_pos + delta
+                    dialog.reposition(left=new_pos.x, top=new_pos.y)
+                self.add_eventListener('on_mousedown', mousedown)
+                self.add_eventListener('on_mouseup', mouseup)
+                self.add_eventListener('on_mousemove', mousemove)
+
+        return self._children
+
     def _process_children(self):
         if self._innerTextAsIs is not None: return []
         if self._pseudoelement == 'marker': return self._children
@@ -601,6 +734,8 @@ class UI_Element_Elements():
             'details':        self._process_details,
             'summary':        self._process_summary,
             'label':          self._process_label,
+            'dialog':         self._process_dialog,
+            'h1':             self._process_h1,
         }.get(tagtype, None)
 
         return processor() if processor else self._children

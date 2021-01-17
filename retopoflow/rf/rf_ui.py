@@ -35,8 +35,8 @@ from concurrent.futures import ThreadPoolExecutor
 import bpy
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
-from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat
-from ...addon_common.common.utils import delay_exec
+from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat, BoundString
+from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import get_preferences
 from ...addon_common.common import ui
@@ -109,7 +109,7 @@ class RetopoFlow_UI:
     # pie menu
 
     def setup_pie_menu(self):
-        path_pie_menu_html = os.path.join(os.path.dirname(__file__), 'pie_menu.html')
+        path_pie_menu_html = abspath('pie_menu.html')
         self.ui_pie_menu = UI_Element.fromHTMLFile(path_pie_menu_html)[0]
         self.ui_pie_menu.can_hover = False
         self.document.body.append_child(self.ui_pie_menu)
@@ -174,7 +174,7 @@ class RetopoFlow_UI:
             nonlocal msg_report
             nonlocal report_details
 
-            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template_simple.md')
+            path = abspath('..', '..', 'help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
                 'title': f'{self.rftool.name}: {title}',
@@ -410,20 +410,28 @@ class RetopoFlow_UI:
     def show_geometry_window(self):
         options['show geometry window'] = True
         self.ui_geometry.is_visible = True
-        self.ui_show_geometry.disabled = True
+        self.ui_main.getElementById('show-geometry').disabled = True
     def hide_geometry_window(self):
         options['show geometry window'] = False
         self.ui_geometry.is_visible = False
-        self.ui_show_geometry.disabled = False
+        self.ui_main.getElementById('show-geometry').disabled = False
+    def update_geometry_window_visibility(self):
+        visible = self.ui_geometry.is_visible
+        options['show geometry window'] = visible
+        self.ui_main.getElementById('show-geometry').disabled = visible
 
     def show_options_window(self):
         options['show options window'] = True
         self.ui_options.is_visible = True
-        self.ui_show_options.disabled = True
+        self.ui_main.getElementById('show-options').disabled = True
     def hide_options_window(self):
         options['show options window'] = False
         self.ui_options.is_visible = False
-        self.ui_show_options.disabled = False
+        self.ui_main.getElementById('show-options').disabled = False
+    def update_options_window_visibility(self):
+        visible = self.ui_options.is_visible
+        options['show options window'] = visible
+        self.ui_main.getElementById('show-options').disabled = visible
 
     def show_main_ui_window(self):
         options['show main window'] = True
@@ -433,6 +441,34 @@ class RetopoFlow_UI:
         options['show main window'] = False
         self.ui_tiny.is_visible = True
         self.ui_main.is_visible = False
+    def update_main_ui_window(self):
+        if self._ui_windows_updating: return
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        options['show main window'] = self.ui_main.is_visible
+        if not options['show main window']:
+            self.ui_tiny.is_visible = True
+            self.ui_tiny.left = self.ui_main.left
+            self.ui_tiny.top = self.ui_main.top
+            # self.ui_tiny.clean()
+        self._ui_windows_updating = pre
+    def update_tiny_ui_window(self):
+        if self._ui_windows_updating: return
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        options['show main window'] = not self.ui_tiny.is_visible
+        if options['show main window']:
+            self.ui_main.is_visible = True
+            self.ui_main.left = self.ui_tiny.left
+            self.ui_main.top = self.ui_tiny.top
+            # self.ui_main.clean()
+        self._ui_windows_updating = pre
+    def update_main_tiny_ui_windows(self):
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        self.ui_main.is_visible = options['show main window']
+        self.ui_tiny.is_visible = not options['show main window']
+        self._ui_windows_updating = pre
 
     def setup_ui(self):
         # NOTE: lambda is needed on next line so that RF keymaps are bound!
@@ -449,32 +485,8 @@ class RetopoFlow_UI:
         rf_starting_tool = getattr(self, 'rf_starting_tool', None) or options['quickstart tool']
 
         def setup_counts_ui():
-            self.ui_geometry = ui.framed_dialog(
-                label="Poly Count",
-                id="geometrydialog",
-                left=0,
-                resizable=False,
-                closeable=True,
-                hide_on_close=True,
-                close_callback=self.hide_geometry_window,
-                parent=self.document.body,
-                children=[
-                    ui.table(children=[
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Verts:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-verts')]),
-                        ]),
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Edges:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-edges')]),
-                        ]),
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Faces:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-faces')]),
-                        ]),
-                    ])
-                ],
-            )
+            self.ui_geometry = UI_Element.fromHTMLFile(abspath('geometry.html'))[0]
+            self.document.body.append_child(self.ui_geometry)
             self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
             self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
             self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
@@ -485,17 +497,9 @@ class RetopoFlow_UI:
                 self.hide_geometry_window()
 
         def setup_tiny_ui():
-            self.ui_tiny = ui.framed_dialog(
-                label=f'RetopoFlow {retopoflow_version}',
-                id='tinydialog',
-                closeable=False,
-                hide_on_close=True,
-                close_callback=self.show_main_ui_window,
-                is_visible=False,
-                parent=self.document.body,
-            )
-            ui_tools = ui.div(id='ttools', parent=self.ui_tiny)
-            ui.button(title='Maximize this window', classes='dialog-expand', on_mouseclick=self.show_main_ui_window, parent=ui_tools)
+            self.ui_tiny = UI_Element.fromHTMLFile(abspath('main_tiny.html'))[0]
+            self.document.body.append_child(self.ui_tiny)
+            ui_tools = self.ui_tiny.getElementById('ttools')
             def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
                 nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
                 lbl, img = rftool.name, rftool.icon
@@ -535,15 +539,10 @@ class RetopoFlow_UI:
                 debug_doc(c, level+1)
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(
-                label=f'RetopoFlow {retopoflow_version}',
-                id="maindialog",
-                closeable=False,
-                parent=self.document.body,
-            )
+            self.ui_main = UI_Element.fromHTMLFile(abspath('main_full.html'))[0]
+            self.document.body.append_child(self.ui_main)
+            ui_tools = self.ui_main.getElementById('tools')
 
-            # tools
-            ui_tools = ui.div(id="tools", parent=self.ui_main)
             def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
                 nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
                 lbl, img = rftool.name, rftool.icon
@@ -551,12 +550,13 @@ class RetopoFlow_UI:
                 title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
                 checked = (rftool.name == rf_starting_tool)
                 # if checked: self.select_rftool(rftool)
-                ui_label = ui.label(
+                ui_label = UI_Element.LABEL(
                     title=title,
                     classes="tool",
                     parent=ui_tools,
                     children=[
-                        ui.input_radio(
+                        UI_Element.INPUT(
+                            type='radio',
                             id=id_radio,
                             value=lbl.lower(),
                             title=title,
@@ -564,71 +564,13 @@ class RetopoFlow_UI:
                             classes='tool',
                             checked=checked,
                         ),
-                        ui.img(
-                            src=img,
-                            title=title,
-                        ),
-                        ui.span(
-                            innerText=lbl,
-                            title=title,
-                        ),
+                        UI_Element.IMG(src=img),
+                        UI_Element.SPAN(innerText=lbl),
                     ],
                 )
                 ui_radio = ui_label.getElementById(id_radio)
                 ui_radio.add_eventListener('on_input', delay_exec('''if ui_radio.checked: self.select_rftool(rftool)'''))
             for rftool in self.rftools: add_tool(rftool)
-
-            ui_help = ui.details(id='help-buttons', parent=self.ui_main, children=[
-                ui.summary(innerText='Documentation'),
-                ui.div(classes='contents', children=[
-                    ui.button(
-                        innerText='Welcome!',
-                        title='Show the "Welcome!" message from the RetopoFlow team',
-                        on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
-                    ),
-                    ui.button(
-                        innerText='Table of Contents',
-                        title=f'Show help table of contents ({humanread("all help")})',
-                        on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
-                    ),
-                    ui.button(
-                        innerText='Quick start guide',
-                        title='Show how to get started with RetopoFlow',
-                        on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
-                    ),
-                    ui.button(
-                        innerText='General',
-                        title=f'Show general help ({humanread("general help")})',
-                        on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
-                    ),
-                    ui.button(
-                        innerText='Active Tool',
-                        title=f'Show help for currently selected tool ({humanread("tool help")})',
-                        on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
-                    ),
-                ]),
-            ])
-            ui_show = ui.details(parent=self.ui_main, children=[
-                ui.summary(innerText='Windows'),
-                ui.div(classes='contents', children=[
-                    ui.button(innerText='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window),
-                    ui.button(innerText='Show Options', title='Show options window', id='show-options', disabled=True, on_mouseclick=self.show_options_window),
-                    ui.button(innerText='Show Poly Count', title='Show poly count window', id='show-geometry', disabled=True, on_mouseclick=self.show_geometry_window),
-                ]),
-            ])
-            self.ui_show_options = ui_show.getElementById('show-options')
-            self.ui_show_geometry = ui_show.getElementById('show-geometry')
-            ui.button(innerText='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(innerText='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
-            if False:
-                ui.button(innerText='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
-            if False:
-                def printout_profiler():
-                    profiler.printout()
-                    print("Children: %d" % self.document.body.count_children())
-                ui.button(innerText='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
-                ui.button(innerText='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
-
 
         def setup_options():
             self.ui_options = ui.framed_dialog(
@@ -637,7 +579,7 @@ class RetopoFlow_UI:
                 right=0,
                 closeable=True,
                 hide_on_close=True,
-                close_callback=self.hide_options_window,
+                close_callback=self.update_options_window_visibility,
                 parent=self.document.body,
             )
             self.document.defer_cleaning = True
@@ -1140,63 +1082,36 @@ class RetopoFlow_UI:
                 self.ui_delete.is_visible = False
                 self.document.sticky_element = None
                 self.document.clear_last_under()
-            def mouseleave_event(e):
+            def mouseleave_event():
                 if self.ui_delete.is_hovered: return
                 hide_ui_delete()
             def key(e):
                 if e.key == 'ESC': hide_ui_delete()
-
             def act(opt):
                 self.delete_dissolve_option(opt)
                 hide_ui_delete()
 
-            self.ui_delete = ui.framed_dialog(
-                label='Delete/Dissolve',
-                id='deletedialog',
-                parent=self.document.body,
-                resizable_x=False,
-                hide_on_close=True,
-                close_callback=hide_ui_delete,
-                style='width:200px',
-                children=[
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Delete'),
-                        ui.button(innerText='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))''')),
-                        ui.button(innerText='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))''')),
-                        ui.button(innerText='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))''')),
-                        ui.button(innerText='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))''')),
-                        ui.button(innerText='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))''')),
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(innerText='Dissolve'),
-                        ui.button(innerText='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))''')),
-                        ui.button(innerText='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))''')),
-                        ui.button(innerText='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))''')),
-                        ui.button(innerText='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))''')),
-                    ])
-                ],
-                )
+            self.ui_delete = UI_Element.fromHTMLFile(abspath('delete_dialog.html'))[0]
+            self.document.body.append_child(self.ui_delete)
             self.ui_delete.is_visible = False
-            # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
-            self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
+            # # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
+            # self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
             self.ui_delete.add_eventListener('on_keypress', key)
 
-
+        self._ui_windows_updating = True
         setup_main_ui()
         setup_tiny_ui()
         setup_options()
         setup_quit_ui()
         setup_delete_ui()
         setup_counts_ui()
+        self.update_main_tiny_ui_windows()
+        self._ui_windows_updating = False
 
         for rftool in self.rftools:
             if rftool.name == rf_starting_tool:
                 self.select_rftool(rftool)
 
-        if options['show main window']:
-            self.show_main_ui_window()
-        else:
-            self.show_tiny_ui_window()
 
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()

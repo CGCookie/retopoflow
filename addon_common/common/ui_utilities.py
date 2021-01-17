@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import re
+import math
 import random
 from functools import lru_cache
 
@@ -180,23 +181,22 @@ def get_converter_to_string(group):
 # below are various helper functions for ui functions
 
 @lru_cache(maxsize=1024)
-def helper_wraptext(text='', width=None, fontid=0, fontsize=12, preserve_newlines=False, collapse_spaces=True, wrap_text=True, **kwargs):
+def helper_wraptext(text='', width=float('inf'), fontid=0, fontsize=12, preserve_newlines=False, collapse_spaces=True, wrap_text=True, **kwargs):
     if type(text) is not str:
         assert False, 'unknown type: %s (%s)' % (str(type(text)), str(text))
     # TODO: get textwidth of space and each word rather than rebuilding the string
     size_prev = Globals.drawing.set_font_size(fontsize, fontid=fontid, force=True)
     tw = Globals.drawing.get_text_width
-    wrap_text &= width is not None
+    wrap_text &= math.isfinite(width)
 
     if not preserve_newlines: text = re.sub(r'\n', ' ', text)
     if collapse_spaces: text = re.sub(r' +', ' ', text)
     if wrap_text:
-        if width is None: width = float('inf')
         cline,*ltext = text.split(' ')
         nlines = []
         for cword in ltext:
             if not collapse_spaces and cword == '': cword = ' '
-            nline = '%s %s'%(cline,cword)
+            nline = f'{cline} {cword}'
             if tw(nline) <= width: cline = nline
             else: nlines,cline = nlines+[cline],cword
         nlines += [cline]

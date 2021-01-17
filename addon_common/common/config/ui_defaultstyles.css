@@ -39,6 +39,14 @@ body {
     overflow: hidden;
 }
 
+text::text {
+    display: inline;
+    background: transparent;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+
 button {
     white-space: normal;
     cursor: default;
@@ -160,6 +168,7 @@ dialog {
     width: 500px;
     /*max-width: 750px;*/
     min-width: 200px;
+    display: block;
 }
 
 dialog.framed {
@@ -168,6 +177,10 @@ dialog.framed {
     overflow: hidden;
     padding: 0px;
     margin: 5px;
+}
+
+dialog div.contents {
+    overflow-y: scroll;
 }
 
 div.dialog-header {
@@ -301,8 +314,6 @@ article.mdown h1 {
     margin: 0px 4px 4px 4px;
     padding: 4px 4px 4px 12px;
     border: 0px;
-}
-article.mdown h1 > span {
     font-size: 24;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
@@ -315,8 +326,6 @@ article.mdown h2 {
     border: 1px transparent;
     border-bottom-color: rgba(255, 255, 255, 0.25);
     border-radius: 0px;
-}
-article.mdown h2 > span {
     font-size: 18;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
@@ -329,8 +338,6 @@ article.mdown h3 {
     border: 1px transparent;
     border-bottom-color: rgba(255, 255, 255, 0.125);
     border-radius: 0px;
-}
-article.mdown h3 > span {
     font-size: 15;
     font-weight: bold;
     text-shadow: 2px 2px rgba(0,0,0,0.5);
