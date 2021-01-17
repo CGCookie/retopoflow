@@ -253,6 +253,11 @@ class UI_Element_Elements():
             is_close = m_tag.group('close') is not None
             is_selfclose = m_tag.group('selfclose') or tname in tags_selfclose
 
+            callbacks = []
+            def process(ui_this):
+                for cb in callbacks:
+                    cb(ui_this)
+
             attribs = {}
             if attributes:
                 for m_attrib in re_attributes.finditer(attributes):
@@ -296,8 +301,8 @@ class UI_Element_Elements():
                         # attribute is an event (value is callback)
                         k = events_known[k.lower()]
                         nf_locals = dict(f_locals)
-                        nf_locals['this'] = ui_cur
-                        # nf_locals['event'] = None
+                        def update_this(ui_this): nf_locals['this'] = ui_this
+                        callbacks += [update_this]
                         v = delay_exec(v, f_globals=f_globals, f_locals=nf_locals, ordered_parameters=['event'])
                     elif v.lower() in {'true'}:  v = True
                     elif v.lower() in {'false'}: v = False
@@ -320,6 +325,7 @@ class UI_Element_Elements():
                 'attribs':      attribs,
                 'is_close':     is_close,
                 'is_selfclose': is_selfclose,
+                'process':      process,
             })
 
         def create(*args, **kwargs):
@@ -359,7 +365,9 @@ class UI_Element_Elements():
                     #      ^  ^           ^ tag.post_html
                     #      |  \_ self-closing tag
                     #      \_ started here, but this is already processed
-                    ret += [create(tagName=tag.tname, **tag.attribs)]
+                    ui_new = create(tagName=tag.tname, **tag.attribs)
+                    tag.process(ui_new)
+                    ret.append(ui_new)
                     html = tag.post_html
                 else:
                     # <tag>...<anothertag>...
@@ -383,13 +391,16 @@ class UI_Element_Elements():
                         else:
                             # just stick pre_html into innerText
                             innerText = nclose.innerText if nclose.innerText.strip() else None
-                            ret += [create(tagName=tag.tname, innerText=innerText, **tag.attribs)]
+                            ui_new = create(tagName=tag.tname, innerText=innerText, **tag.attribs)
+                            tag.process(ui_new)
+                            ret.append(ui_new)
                             html = nclose.post_html
                     else:
-                        ui = create(tagName=tag.tname, **tag.attribs)
-                        children, html = process(tag.post_html, ui, hierarchy+[tag.tname])
-                        for child in children: ui.append_child(child)
-                        ret += [ui]
+                        ui_new = create(tagName=tag.tname, **tag.attribs)
+                        tag.process(ui_new)
+                        children, html = process(tag.post_html, ui_new, hierarchy+[tag.tname])
+                        for child in children: ui_new.append_child(child)
+                        ret.append(ui_new)
             return (ret, html.strip())
 
         # remove HTML comments
@@ -473,7 +484,7 @@ class UI_Element_Elements():
                 self.dirty_flow()
 
             def focus(e):
-                s = f'{self.value:0.4f}' if type(self.value) is float else str(self.value)
+                s = f'{self.value:0.4g}' if type(self.value) is float else str(self.value)
                 data['orig'] = data['text'] = s
                 self._ui_marker.is_visible = True
                 set_cursor(e)

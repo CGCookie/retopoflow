@@ -497,95 +497,38 @@ class RetopoFlow_UI:
                 self.hide_geometry_window()
 
         def setup_tiny_ui():
+            nonlocal humanread
             self.ui_tiny = UI_Element.fromHTMLFile(abspath('main_tiny.html'))[0]
             self.document.body.append_child(self.ui_tiny)
-            ui_tools = self.ui_tiny.getElementById('ttools')
-            def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
-                nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
-                lbl, img = rftool.name, rftool.icon
-                id_radio = f'ttool-{lbl.lower()}'
-                title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
-                checked = (rftool.name == rf_starting_tool)
-                # if checked: self.select_rftool(rftool)
-                ui_label = ui.label(
-                    title=title,
-                    classes="ttool",
-                    parent=ui_tools,
-                    children=[
-                        ui.input_radio(
-                            id=id_radio,
-                            value=lbl.lower(),
-                            title=title,
-                            name='ttool',
-                            classes='ttool',
-                            checked=checked,
-                        ),
-                        ui.img(
-                            src=img,
-                            title=title,
-                        ),
-                    ],
-                )
-                ui_radio = ui_label.getElementById(id_radio)
-                ui_radio.add_eventListener('on_input', delay_exec('''if ui_radio.checked: self.select_rftool(rftool)'''))
-            for rftool in self.rftools: add_tool(rftool)
-            # ui_close = UI_Element(tagName='button', classes='dialog-close', title=title, on_mouseclick=close, parent=ui_header)
-
-        def debug_doc(ui, level=0):
-            print(f"{'  '*level} {ui}: document={ui.document}, root={ui.get_root()}")
-            if type(ui) is UI_Proxy:
-                print(f"{'  '*(level+1)} {ui.proxy_default_element}: document={ui.proxy_default_element.document}, root={ui.proxy_default_element.get_root()}")
-            for c in ui.children:
-                debug_doc(c, level+1)
 
         def setup_main_ui():
+            nonlocal humanread
             self.ui_main = UI_Element.fromHTMLFile(abspath('main_full.html'))[0]
             self.document.body.append_child(self.ui_main)
-            ui_tools = self.ui_main.getElementById('tools')
 
-            def add_tool(rftool):   # IMPORTANT: must be a fn so that local vars are unique and correctly captured
-                nonlocal self       # IMPORTANT: need this so that self is captured in delay_exec below
-                lbl, img = rftool.name, rftool.icon
-                id_radio = f'tool-{lbl.lower()}'
+        def setup_tool_buttons():
+            ui_tools  = self.ui_main.getElementById('tools')
+            ui_ttools = self.ui_tiny.getElementById('ttools')
+            def add_tool(rftool):               # IMPORTANT: must be a fn so that local vars are unique and correctly captured
+                nonlocal self, humanread        # IMPORTANT: need this so that these are captured
                 title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
-                checked = (rftool.name == rf_starting_tool)
-                # if checked: self.select_rftool(rftool)
-                ui_label = UI_Element.LABEL(
-                    title=title,
-                    classes="tool",
-                    parent=ui_tools,
-                    children=[
-                        UI_Element.INPUT(
-                            type='radio',
-                            id=id_radio,
-                            value=lbl.lower(),
-                            title=title,
-                            name='tool',
-                            classes='tool',
-                            checked=checked,
-                        ),
-                        UI_Element.IMG(src=img),
-                        UI_Element.SPAN(innerText=lbl),
-                    ],
-                )
-                ui_radio = ui_label.getElementById(id_radio)
-                ui_radio.add_eventListener('on_input', delay_exec('''if ui_radio.checked: self.select_rftool(rftool)'''))
+                val = f'{rftool.name.lower()}'
+                ui_tools.append_child(UI_Element.fromHTML(
+                    f'<label title="{title}" class="tool">'
+                    f'<input type="radio" id="tool-{val}" value="{val}" name="tool" class="tool" on_input="if this.checked: self.select_rftool(rftool)">'
+                    f'<img src="{rftool.icon}">'
+                    f'<span>{rftool.name}</span>'
+                    f'</label>'
+                )[0])
+                ui_ttools.append_child(UI_Element.fromHTML(
+                    f'<label title="{title}" class="ttool">'
+                    f'<input type="radio" id="ttool-{val}" value="{val}" name="ttool" class="ttool" on_input="if this.checked: self.select_rftool(rftool)">'
+                    f'<img src="{rftool.icon}">'
+                    f'</label>'
+                )[0])
             for rftool in self.rftools: add_tool(rftool)
 
         def setup_options():
-            self.ui_options = ui.framed_dialog(
-                label='Options',
-                id='optionsdialog',
-                right=0,
-                closeable=True,
-                hide_on_close=True,
-                close_callback=self.update_options_window_visibility,
-                parent=self.document.body,
-            )
-            self.document.defer_cleaning = True
-
-            options['remove doubles dist']
-
             def theme_change(e):
                 if not e.target.checked: return
                 if e.target.value is None: return
@@ -598,275 +541,16 @@ class RetopoFlow_UI:
                 if options['hide overlays']: self.overlays_hide()
                 else: self.overlays_restore()
 
-            ui.details(title='General options', id='generaloptions', parent=self.ui_options, children=[
-                ui.summary(innerText='General'),
-                ui.div(classes='contents', children=[
-                    ui.div(classes='collection', children=[
-                        ui.h1(
-                            innerText='Quit Options',
-                            title='These options control quitting RetopoFlow',
-                        ),
-                        ui.label(
-                            innerText='Confirm quit on Tab',
-                            title='Check to confirm quitting when pressing Tab',
-                            children=[
-                                ui.input_checkbox(
-                                    title='Check to confirm quitting when pressing Tab',
-                                    checked=BoundBool('''options['confirm tab quit']'''),
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Escape to Quit',
-                            title='Check to allow Esc key to quit RetopoFlow',
-                            children=[
-                                ui.input_checkbox(
-                                    title='Check to allow Esc key to quit RetopoFlow',
-                                    checked=BoundBool('''options['escape to quit']'''),
-                                ),
-                            ],
-                        ),
-                    ]),
-                    ui.div(classes='collection', children=[
-                        ui.h1(
-                            innerText='Start Up Checks',
-                            title='These options control what checks are run when RetopoFlow starts',
-                        ),
-                        ui.label(
-                            innerText='Check Auto Save',
-                            title='If enabled, check if Auto Save is disabled at start',
-                            children=[
-                                ui.input_checkbox(
-                                    title='If enabled, check if Auto Save is disabled at start',
-                                    checked=BoundBool('''options['check auto save']'''),
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Check Unsaved',
-                            title='If enabled, check if blend file is unsaved at start',
-                            children=[
-                                ui.input_checkbox(
-                                    title='If enabled, check if blend file is unsaved at start',
-                                    checked=BoundBool('''options['check unsaved']'''),
-                                ),
-                            ],
-                        ),
-                    ]),
-                    ui.details(children=[
-                        ui.summary(innerText='Advanced'),
-                        ui.div(
-                            classes='contents',
-                            children=[
-                                ui.div(classes='collection', children=[
-                                    ui.h1(innerText='Keyboard Settings'),
-                                    ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
-                                    ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
-                                    ui.button(innerText='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
-                                ]),
-                                ui.div(classes='collection', children=[
-                                    ui.h1(
-                                        innerText='Visibility Testing',
-                                        title='These options are used to tune the parameters for visibility testing',
-                                    ),
-                                    ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                                    ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                                    ui.div(classes='collection', children=[
-                                        ui.h1(innerText='Presets'),
-                                        ui.button(innerText='Tiny', title='Preset options for working on tiny objects', classes='half-size', on_mouseclick=self.visibility_preset_tiny),
-                                        ui.button(innerText='Normal', title='Preset options for working on normal-sized objects', classes='half-size', on_mouseclick=self.visibility_preset_normal),
-                                    ]),
-                                ]),
-                                ui.div(classes='collection', children=[
-                                    ui.h1(innerText='Debugging'),
-                                    ui.div(innerText='FPS: 0', id='fpsdiv'),
-                                    ui.label(
-                                        innerText='Print actions',
-                                        title='Check to print (most) input actions to system console',
-                                        children=[
-                                            ui.input_checkbox(
-                                                title='Check to print (most) input actions to system console',
-                                                checked=BoundBool('''self._debug_print_actions'''),
-                                            ),
-                                        ],
-                                    ),
-                                ]),
-                                ui.button(innerText='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options),
-                            ],
-                        ),
-                    ]),
-                ]),
-            ]),
-            ui.details(title='Display options', id='view-options', parent=self.ui_options, children=[
-                ui.summary(innerText='Display'),
-                ui.div(
-                    classes='contents',
-                    children=[
-                        ui.label(
-                            innerText='Auto Hide Tool Options',
-                            title='If enabled, options for selected tool will show while other tool options hide.',
-                            children=[
-                                ui.input_checkbox(
-                                    title='If enabled, options for selected tool will show while other tool options hide.',
-                                    checked=self._var_auto_hide_options,
-                                ),
-                            ],
-                        ),
-                        ui.label(
-                            innerText='Hide Overlays',
-                            title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                            children=[
-                                ui.input_checkbox(
-                                    title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                                    checked=BoundBool('''options['hide overlays']'''),
-                                    on_input=update_hide_overlays,
-                                ),
-                            ],
-                        ),
-                        ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
-                        ui.div(classes='collection', children=[
-                            ui.h1(innerText='Theme'),
-                            ui.label(
-                                innerText='Green',
-                                title='Draw the target mesh using a green theme.',
-                                forId='theme-color-green',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        id='theme-color-green',
-                                        title='Draw the target mesh using a green theme.',
-                                        value='Green',
-                                        checked=(options['color theme']=='Green'),
-                                        name='theme-color',
-                                        on_input=theme_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Blue',
-                                title='Draw the target mesh using a blue theme.',
-                                forId='theme-color-blue',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        id='theme-color-blue',
-                                        title='Draw the target mesh using a blue theme.',
-                                        value='Blue',
-                                        checked=(options['color theme']=='Blue'),
-                                        name='theme-color',
-                                        on_input=theme_change,
-                                    ),
-                                ],
-                            ),
-                            ui.label(
-                                innerText='Orange',
-                                title='Draw the target mesh using a orange theme.',
-                                forId='theme-color-orange',
-                                classes='third-size',
-                                children=[
-                                    ui.input_radio(
-                                        id='theme-color-orange',
-                                        title='Draw the target mesh using a orange theme.',
-                                        value='Orange',
-                                        checked=(options['color theme']=='Orange'),
-                                        name='theme-color',
-                                        on_input=theme_change,
-                                    ),
-                                ],
-                            ),
-                        ]),
-                        ui.div(classes='collection', id='clipping', children=[
-                            ui.h1(innerText='Clipping'),
-                            ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
-                            ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
-                        ]),
-                        ui.div(classes='collection', children=[
-                            ui.h1(innerText='Target Drawing'),
-                            ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
-                            ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
-                            ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
-                            ui.details(children=[
-                                ui.summary(innerText='Individual Alpha Values'),
-                                ui.div(
-                                    classes='contents',
-                                    children=[
-                                        ui.div(classes='collection', children=[
-                                            ui.h1(innerText='Verts'),
-                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
-                                        ]),
-                                        ui.div(classes='collection', children=[
-                                            ui.h1(innerText="Edges"),
-                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
-                                        ]),
-                                        ui.div(classes='collection', children=[
-                                            ui.h1(innerText='Faces'),
-                                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
-                                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
-                                        ]),
-                                    ],
-                                ),
-                            ]),
-                        ]),
-                        ui.details(children=[
-                            ui.summary(innerText='Tooltips'),
-                            ui.div(
-                                classes='contents',
-                                children=[
-                                    ui.label(
-                                        innerText='Show',
-                                        title='Check to show tooltips',
-                                        children=[
-                                            ui.input_checkbox(
-                                                title='Check to show tooltips',
-                                                checked=BoundVar('''options['show tooltips']''')
-                                            ),
-                                        ]
-                                    ),
-                                    ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
-                                ],
-                            ),
-                        ]),
-                    ],
-                ),
-            ])
+            self.document.defer_cleaning = True
 
-            ui.details(title='Target cleaning options', id='target-cleaning', parent=self.ui_options, children=[
-                ui.summary(innerText='Target Cleaning'),
-                ui.div(
-                    classes='contents',
-                    children=[
-                        ui.div(classes='collection', children=[
-                            ui.h1(innerText='Snap Verts'),
-                            ui.button(innerText="All", title='Snap all target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_all_verts),
-                            ui.button(innerText="Selected", title='Snap selected target vertices to nearest point on source(s).', classes='half-size', on_mouseclick=self.snap_selected_verts),
-                        ]),
-                        ui.div(classes='collection', children=[
-                            ui.h1(innerText='Merge by Distance'),
-                            ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
-                            ui.button(innerText='All', title='Merge all vertices within given distance.', classes='half-size', on_mouseclick=self.remove_all_doubles),
-                            ui.button(innerText='Selected', title='Merge selected vertices within given distance.', classes='half-size', on_mouseclick=self.remove_selected_doubles)
-                        ]),
-                    ],
-                ),
-            ])
-
+            self.ui_options = UI_Element.fromHTMLFile(abspath('options_dialog.html'))[0]
+            self.document.body.append_child(self.ui_options)
 
             def symmetry_viz_change(e):
                 if not e.target.checked: return
                 options['symmetry view'] = e.target.value
 
-            symmetryoptions = ui.details(title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options, children=[
+            symmetryoptions = ui.details(title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options.getElementById('options-contents'), children=[
                 ui.summary(innerText='Symmetry', id='symmetryoptions_summary'),
                 ui.div(
                     classes='contents',
@@ -1015,7 +699,7 @@ class RetopoFlow_UI:
                             add_elem(ui)
                         return
                     ui_elems.append(ui_elem)
-                    self.ui_options.append_child(ui_elem)
+                    self.ui_options.getElementById('options-contents').append_child(ui_elem)
                 if getattr(rftool, 'ui_config', None):
                     path_folder = os.path.dirname(inspect.getfile(rftool.__class__))
                     path_html = os.path.join(path_folder, rftool.ui_config)
@@ -1026,7 +710,7 @@ class RetopoFlow_UI:
 
                 self.rftools_ui[rftool] = ui_elems
                 for ui_elem in ui_elems:
-                    self.ui_options.append_child(ui_elem)
+                    self.ui_options.getElementById('options-contents').append_child(ui_elem)
 
             if options['show options window']:
                 self.show_options_window()
@@ -1073,6 +757,7 @@ class RetopoFlow_UI:
         self._ui_windows_updating = True
         setup_main_ui()
         setup_tiny_ui()
+        setup_tool_buttons()
         setup_options()
         setup_quit_ui()
         setup_delete_ui()
@@ -1083,7 +768,6 @@ class RetopoFlow_UI:
         for rftool in self.rftools:
             if rftool.name == rf_starting_tool:
                 self.select_rftool(rftool)
-
 
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()

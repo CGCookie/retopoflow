@@ -41,9 +41,9 @@ class RetopoFlow_Tools:
         assert rftool in self.rftools
         self.rftool = rftool
         self.rftool._reset()
-        e = self.document.body.getElementById('tool-%s'%rftool.name.lower())
+        e = self.document.body.getElementById(f'tool-{rftool.name.lower()}')
         if e: e.checked = True
-        e = self.document.body.getElementById('ttool-%s'%rftool.name.lower())
+        e = self.document.body.getElementById(f'ttool-{rftool.name.lower()}')
         if e: e.checked = True
         self.ui_tiny.dirty(cause='changed tools', children=True)
         self.ui_main.dirty(cause='changed tools', children=True)

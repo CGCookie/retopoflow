@@ -1437,13 +1437,25 @@ class UI_Element_Properties:
 
     @property
     def is_scrollable(self):
-        return self._is_scrollable_x or self._is_scrollable_y
+        return self.is_scrollable_x or self.is_scrollable_y
     @property
     def is_scrollable_x(self):
-        return self._is_scrollable_x
+        return self._is_scrollable_x and self.is_clipped_x
     @property
     def is_scrollable_y(self):
-        return self._is_scrollable_y
+        return self._is_scrollable_y and self.is_clipped_y
+
+    @property
+    def is_clipped(self):
+        return self.is_clipped_x or self.is_clipped_y
+    @property
+    def is_clipped_x(self):
+        if not self._dynamic_content_size or not self._absolute_size: return False
+        return self._dynamic_content_size.width > self._absolute_size.width
+    @property
+    def is_clipped_y(self):
+        if not self._dynamic_content_size or not self._absolute_size: return False
+        return self._dynamic_content_size.height > self._absolute_size.height
 
     def get_visible_children(self):
         # MUST BE CALLED AFTER `compute_style()` METHOD IS CALLED!

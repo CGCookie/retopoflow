@@ -460,7 +460,7 @@ class UI_Document(UI_Document_FSM):
     def _get_scrollable(self):
         # find first along root to path that can scroll
         if not self._under_mouse: return None
-        self._scroll_element = next((e for e in self._under_mouse.get_pathToRoot() if e.is_scrollable), None)
+        self._scroll_element = next((e for e in self._under_mouse.get_pathToRoot() if e.is_scrollable_y), None)
         if self._scroll_element:
             self._scroll_last = RelPoint2D((self._scroll_element.scrollLeft, self._scroll_element.scrollTop))
         return self._scroll_element

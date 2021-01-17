@@ -1,0 +1,266 @@
+<dialog id="optionsdialog" class="framed minimizeable moveable" on_visibilitychange="self.update_options_window_visibility()">
+    <h1>Options</h1>
+    <div class="contents" id='options-contents'>
+        <details id="generaloptions">
+            <summary title="General options">General</summary>
+            <div class="contents">
+                <div class="collection">
+                    <h1 title="These options control quitting RetopoFlow">Quit Options</h1>
+                    <div class="contents">
+                        <label title="Check to confirm quitting when pressing Tab">
+                            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
+                            Confirm quit on Tab
+                        </label>
+                        <label title="Check to allow Esc key to quit RetopoFlow">
+                            <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
+                            Escape to Quit
+                        </label>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1 title="These options control what checks are run when RetopoFlow starts">Start Up Checks</h1>
+                    <div class="contents">
+                        <label title="If enabled, check if Auto Save is disabled at start">
+                            <input type="checkbox" checked="BoundBool('''options['check auto save']''')">
+                            Check Auto Save
+                        </label>
+                        <label title="If enabled, check if blend file is unsaved at start">
+                            <input type="checkbox" checked="BoundBool('''options['check unsaved']''')">
+                            Check Unsaved
+                        </label>
+                    </div>
+                </div>
+                <details>
+                    <summary>Advanced</summary>
+                    <div class="contents">
+                        <div class="collection">
+                            <h1>Keyboard Settings</h1>
+                            <div classes="contents">
+                                <div class="labeled-input-text">
+                                    <label title="Set delay time in seconds before keyboard start repeating">Repeat Delay</label>
+                                    <input type="number" value="BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)">
+                                </div>
+                                <div class="labeled-input-text">
+                                    <label title="Set pause time in seconds between keyboard repeats">Repeat Pause</label>
+                                    <input type="number" value="BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)">
+                                </div>
+                                <button title="Reset keyboard settings to default" on_mouseclick="options.reset(['keyboard repeat delay','keyboard repeat pause'], version=False)">Reset Keyboard Settings</button>
+                            </div>
+                        </div>
+                         <div class="collection">
+                            <h1 title="These options are used to tune the parameters for visibility testing">Visibility Testing</h1>
+                            <div class="contents">
+                                <div class="labeled-input-text">
+                                    <label title="Factor on minimum bounding box dimension">BBox factor</label>
+                                    <input type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()">
+                                </div>
+                                <div class="labeled-input-text">
+                                    <label title="Offset added to max distance">Distance offset</label>
+                                    <input type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()">
+                                </div>
+                                <div class="collection">
+                                    <h1>Presets</h1>
+                                    <div class="contents">
+                                        <button title="Preset options for working on tiny objects" class="half-size" on_mouseclick="self.visibility_preset_tiny()">Tiny</button>
+                                        <button title="Preset options for working on normal-sized objects" class='half-size' on_mouseclick="self.visibility_preset_normal()">Normal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="collection">
+                            <h1>Debugging</h1>
+                            <div class="contents">
+                                <div id='fpsdiv'>FPS: 0</div>
+                                <label title="Check to print (most) input actions to system console">
+                                    <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')">
+                                    Print actions
+                                </label>
+                            </div>
+                        </div>
+                        <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options()">Reset All Settings</button>
+                    </div>
+                </details>
+            </div>
+        </details>
+        <details id="view-options">
+            <summary title="Display options">Display</summary>
+            <div class="contents">
+                <label title="If enabled, options for selected tool will show while other tool options hide.">
+                    <input type="checkbox" checked="self._var_auto_hide_options">
+                    Auto Hide Tool Options
+                </label>
+                <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
+                    <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays()">
+                    Hide Overlays
+                </label>
+                <div class="labeled-input-text">
+                    <label title="Custom UI scaling setting">UI Scale</label>
+                    <input type="number" value="BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)">
+                </div>
+                <div class="collection">
+                    <h1>Theme</h1>
+                    <div class="contents">
+                        <label title="Draw the target mesh using a green theme." class="third-size">
+                            <input type="radio" id='theme-color-green' name="theme-color" value="Green" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Green
+                        </label>
+                        <label title="Draw the target mesh using a blue theme." class="third-size">
+                            <input type="radio" id='theme-color-blue' name="theme-color" value="Blue" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Blue
+                        </label>
+                        <label title="Draw the target mesh using a orange theme." class="third-size">
+                            <input type="radio" id='theme-color-orange' name="theme-color" value="Orange" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Orange
+                        </label>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Clipping</h1>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title="Near clipping distance">Start</label>
+                            <input type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title="Far clipping distance">End</label>
+                            <input type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)">
+                        </div>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Target Drawing</h1>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title='Sets how far geometry is pushed in visualization'>Normal Offset</label>
+                            <input type="number" value="BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title='Set transparency of target mesh that is above the source'>Alpha Above</label>
+                            <input type="number" value="BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title='Set transparency of target mesh that is below the source'>Alpha Below</label>
+                            <input type="number" value="BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title='Draw radius of vertices.'>Vertex Size</label>
+                            <input type="number" value="BoundFloat('''options['target vert size']''', min_value=0.1)">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title='Draw width of edges.'>Edge Size</label>
+                            <input type="number" value="BoundFloat('''options['target edge size']''', min_value=0.1)">
+                        </div>
+                    </div>
+                    <details>
+                        <summary>Individual Alpha Values</summary>
+                        <div class="contents">
+                            <div class="collection">
+                                <h1>Verts</h1>
+                                <div class="contents">
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of normal target vertices'>Normal</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected target vertices'>Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of mirrored target vertices'>Mirror</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected, mirrored target vertices'>Mirror Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of highlighted target vertices'>Highlight</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="collection">
+                                <h1>Edges</h1>
+                                <div class="contents">
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of normal target edges'>Normal</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected target edges'>Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of mirrored target edges'>Mirror</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected, mirrored target edges'>Mirror Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="collection">
+                                <h1>Faces</h1>
+                                <div class="contents">
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of normal target faces'>Normal</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected target faces'>Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of mirrored target faces'>Mirror</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of selected, mirrored target faces'>Mirror Selected</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <details>
+                    <summary>Tooltips</summary>
+                    <div class="contents">
+                        <label title="Check to show tooltips">
+                            <input type="checkbox" checked="BoundBool('''options['show tooltips']''')">
+                            Show tooltips
+                        </label>
+                        <div class="labeled-input-text">
+                            <label title="Set delay before tooltips show">Delay</label>
+                            <input type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)">
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </details>
+        <details>
+            <summary>Target Cleaning</summary>
+            <div class="contents">
+                <div class="collection">
+                    <h1>Snap Vertices</h1>
+                    <div class="contents">
+                        <button title='Snap all target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_all_verts()">All</button>
+                        <button title='Snap selected target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Merge by Distance</h1>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title='Distance within which vertices will be merged.'>Distance</label>
+                            <input type="number" value="BoundFloat('''options['remove doubles dist']''', min_value=0)">
+                        </div>
+                        <button title='Merge all vertices within given distance.' classes='half-size' on_mouseclick="self.remove_all_doubles()">All</button>
+                        <button title='Merge selected vertices within given distance.' classes='half-size' on_mouseclick="self.remove_selected_doubles()">Selected</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+</dialog>

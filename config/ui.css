@@ -147,6 +147,7 @@ input[type="checkbox"]::marker {
     background: var(--button-background);
     margin: 0px 6px 1px 2px;
     border: 0px;
+    border-radius: 2px;
     padding: 2px;
     width: 20px;
     height: 14px;
@@ -299,6 +300,9 @@ input[type="number"]:disabled {
 /********************************/
 
 
+div.labeled-input-text {
+    margin: 0px;
+}
 
 div.labeled-input-text label {
     display: inline;
@@ -582,16 +586,17 @@ div.collection > h1 {
     background-color: transparent;
     display: block;
     width: 100%;
-    margin: 0px 0px 4px 0px;
+    margin: 0px 0px 2px 0px;
     border: 1px transparent;
     border-bottom-color: rgba(0, 0, 0, 0.20);
     border-radius: 0px;
-    padding: 2px 6px 2px 6px;
+    padding: 2px 6px;
 }
 
 div.collection > div.contents {
-    margin:0px;
+    margin: 0px;
     border: 0px;
+    border-radius: 4px;
     padding: 0px;
 }
 
@@ -754,6 +759,7 @@ dialog#tinydialog div#ttools button.dialog-expand {
 /***************************************************/
 
 dialog#optionsdialog {
+    left: 100%;
     width: 225px;
     min-width: 150px;
     max-width: 500px;
@@ -871,7 +877,7 @@ div.issue-checker button.action {
 
 dialog#geometrydialog {
     left: 0px;
-    top: -90%;
+    top: -100%;
     /*bottom: -100px;*/
     width: 120px;
     max-width: 120px;  /* this is needed to force 120px wide dialog!? */
