@@ -3725,8 +3725,15 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             for (cap,cb,old_cb) in self._events[event]:
                 if cap: cb(details)
         if (bub and ph == 'bubbling') or (df and ph == 'at target'):
-            for (cap,cb,old_cb) in self._events[event]:
-                if not cap: cb(details)
+            try:
+                for (cap,cb,old_cb) in self._events[event]:
+                    if not cap: cb(details)
+            except Exception as e:
+                print(f'COOKIE CUTTER >> Exception Caught while trying to callback event handlers')
+                print(f'UI_Element: {self}')
+                print(f'event: {event}')
+                print(f'exception: {e}')
+                raise e
 
     @profiler.function
     def dispatch_event(self, event, mouse=None, button=None, key=None, ui_event=None, stop_at=None):
