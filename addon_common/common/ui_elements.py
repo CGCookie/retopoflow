@@ -155,6 +155,7 @@ re_self = re.compile(r"self\.")
 re_bound = re.compile(r"^(?P<type>Bound(String|StringToBool|Bool|Int|Float))\((?P<args>.*)\)$")
 re_int = re.compile(r"^[-+]?[0-9]+$")
 re_float = re.compile(r"^[-+]?[0-9]*\.?[0-9]+$")
+re_fstring = re.compile(r"{(?P<eval>([^}]|\\})*)}")
 
 tags_selfclose = {
     'area', 'br', 'col',
@@ -276,6 +277,14 @@ class UI_Element_Elements():
                         # wrapped in single quotes
                         v = v[1:-1]
                         v = re.sub(r"\\\'", "'", v)
+
+                    if k.lower() in {'title'}:
+                        while True:
+                            m = re_fstring.search(v)
+                            if not m: break
+                            pre, post = v[:m.start()], v[m.end():]
+                            nv = eval(m.group('eval'), f_globals, f_locals)
+                            v = f'{pre}{nv}{post}'
 
                     # convert value to Python value
                     m_self  = re_self.match(v)
