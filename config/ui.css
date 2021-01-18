@@ -1,6 +1,6 @@
 :root {
     --button-background: hsla(200, 0%, 20%, 1.0);
-    --button-hover-background: hsla(200, 0%, 50%, 0.50);
+    --button-hover-background: hsla(200, 0%, 35%, 1.00);
     --button-selected-background: rgb(10, 135, 197);
 
     --button-text: hsl(200, 0%, 90%);
@@ -22,8 +22,11 @@
 
     --text: rgb(221, 221, 221);
 
-    --alert-note: rgba(34, 34, 34, 0.99);
-    --alert-warning: rgba(128, 72, 8, 0.95);
+    --alert-note:      rgba( 34, 34, 34, 0.99);
+    --alert-warning:   rgba(128, 80,  0, 0.95);
+    --alert-error:     rgba( 96, 48,  0, 0.95);
+    --alert-assert:    rgba( 96,  0,  0, 0.95);
+    --alert-exception: rgba( 96,  0,  0, 0.95);
 }
 
 * {
@@ -45,6 +48,18 @@
 *.third-size {
     display: inline;
     width: 33.333%;
+    text-align: center;
+}
+
+*.fourth-size {
+    display: inline;
+    width: 25%;
+    text-align: center;
+}
+
+*.fifth-size {
+    display: inline;
+    width: 20%;
     text-align: center;
 }
 
@@ -523,52 +538,6 @@ button.dialog-close:active {
 
 
 
-/*div.dialog-header {
-    background: var(--header-background);
-    margin: 0px;
-    border: 0px;
-    padding: 4px;
-    border-radius: 0px;
-}
-span.dialog-title {
-    display: inline;
-    margin: 0px;
-    padding: 0px;
-    margin-left: 8px;
-    color: var(--text);
-    font-size: 12;
-}
-button.dialog-minimize {
-}
-button.dialog-close {
-    display: inline;
-    padding: 3px;
-    border: 0px;
-    width: 16px;
-    height: 16px;
-    background: transparent url('close.png');
-}
-button.dialog-close:hover {
-    background-color: rgba(255,255,255,0.25);
-}
-dialog.framed > div.inside {
-    margin: 0px;
-    padding: 4px;
-    border: 0px;
-}
-div.dialog-footer {
-    right: 50px;
-    top: -200px;
-    width: 100%;
-    /*bottom: 0px;* /
-    background: rgba(255, 238, 0, 0.75);
-    margin: 0px;
-    padding: 2px;
-    border: 1px rgba(0,0,0,1) rgba(0,0,0,0.25) rgba(0,0,0,0.25) rgba(0,0,0,0.25);
-    border-radius: 0px;
-}*/
-
-
 
 /****************************/
 /* collections              */
@@ -787,6 +756,7 @@ div#helpsystem-buttons {
     left: 0px;
     bottom: -30px;
     width: 100%;
+    overflow: hidden;
 }
 div#helpsystem-buttons > button {
     display: inline;
@@ -802,12 +772,20 @@ div#helpsystem-buttons > button {
 
 
 dialog.alertdialog {
-    width: 600px;
+    width: 200px;
     left: 20%;
+    max-height: 100%;
+    overflow: hidden;
+}
+dialog.alertdialog div#alert-checker {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
 }
 dialog.alertdialog div.alertdialog-buttons {
     margin: 1px;
     width: 100%;
+    bottom: -30px;
 }
 dialog.alertdialog div.alertdialog-buttons button {
     display: inline;
@@ -815,59 +793,47 @@ dialog.alertdialog div.alertdialog-buttons button {
 }
 dialog.alertdialog div.action-buttons button {
     margin: 1px;
+    /*width: 100%;*/
+    display: inline;
+    white-space: pre;
+}
+
+
+dialog.alertdialog > div.contents {
+    max-height: 90%;
+    overflow-y: scroll;
 }
 
 dialog.alertdialog.note {
     background-color: var(--alert-note);
 }
 
-
 dialog.alertdialog.warning {
-    /*background-color: rgba(90, 64, 38, 0.95);*/
     background-color: var(--alert-warning);
 }
-dialog.alertdialog.warning div#alertdialog-buttons {
-    background-color: rgba(64, 36, 4, 1.0);
-}
-dialog.alertdialog.warning div#alertdialog-buttons button {
-    background-color: rgba(128, 72, 8, 1.0);
-}
-dialog.alertdialog.warning div#alertdialog-buttons button:hover {
-    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
-    background-color: rgba(128, 96, 32, 1.0);
-}
-
 
 dialog.alertdialog.error {
     width: 60%;
-    background-color: rgba(76, 38, 38, 0.95);
-}
-dialog.alertdialog.error div#alertdialog-buttons {
-    background-color: rgb(26, 26, 26);
-}
-dialog.alertdialog.error div#alertdialog-buttons button {
-    background-color: rgb(128, 8, 8);
-}
-dialog.alertdialog.error div#alertdialog-buttons button:hover {
-    /*background: rgba(64, 64, 64, 1.00);  hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
-    background-color: rgb(139, 35, 35);
+    background-color: var(--alert-error);
 }
 
-
-dialog.alertdialog.assert, dialog.alertdialog.exception {
+dialog.alertdialog.assert {
     width: 60%;
-    background-color: rgba(96, 0, 0, 0.95);
+    background-color: var(--alert-assert);
 }
-dialog.alertdialog div#crashdetails pre {
+dialog.alertdialog.exception {
+    width: 60%;
+    background-color: var(--alert-exception);
+}
+
+dialog.alertdialog pre#alert-report {
+    border: 1px black;
+    border-radius: 0px;
+    background: rgba(48, 32, 32, 1.0);
+    color: white;
     white-space: pre;
 }
 
-div.issue-checker button.action {
-    display: inline;
-    margin: 0px;
-    width: 25%;
-    white-space: pre;
-}
 
 
 

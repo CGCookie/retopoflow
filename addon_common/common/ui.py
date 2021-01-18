@@ -518,13 +518,13 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
     if ui_mdown._document: ui_mdown._document.defer_cleaning = False
 
 
-def markdown(mdown=None, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, **kwargs):
+def markdown(mdown=None, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, ui_container=None, **kwargs):
     if f_globals is None or f_locals is None:
         frame = inspect.currentframe().f_back               # get frame   of calling function
         if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
         if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
 
-    ui_container = UI_Element(tagName='article', classes='mdown', **kwargs)
+    if not ui_container: ui_container = UI_Element(tagName='article', classes='mdown', **kwargs)
     set_markdown(ui_container, mdown=mdown, mdown_path=mdown_path, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
     return ui_container
 

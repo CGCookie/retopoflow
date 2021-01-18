@@ -217,6 +217,7 @@ class RetopoFlow_States(CookieCutter):
 
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
             # if self.actions.pressed('SHIFT+F6'): assert False
+            # if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
 
             if self.actions.pressed('SHIFT+F10'):
                 profiler.clear()

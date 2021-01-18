@@ -147,10 +147,10 @@ class RetopoFlow_UI:
         darken = False
 
         ui_checker = None
-        ui_details = None
         ui_show = None
         message_orig = message
         report_details = ''
+        msg_report = None
 
         if title is None and self.rftool: title = self.rftool.name
 
@@ -191,6 +191,7 @@ class RetopoFlow_UI:
 
             def check_github():
                 nonlocal win, ui_buttons
+                buttons = 4
                 try:
                     if self.GitHub_checks < self.GitHub_limit:
                         self.GitHub_checks += 1
@@ -227,7 +228,8 @@ class RetopoFlow_UI:
                                 ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                             def go():
                                 bpy.ops.wm.url_open(url=issueurl)
-                            ui.button(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                            ui.button(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
+                            buttons = 5
                     else:
                         ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
@@ -238,10 +240,11 @@ class RetopoFlow_UI:
                     print(e)
                     # ignore for now
                     pass
-                ui.button(innerText='Screenshot', classes='action', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
-                ui.button(innerText='Similar', classes='action', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
-                ui.button(innerText='All Issues', classes='action', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
-                ui.button(innerText='Report', classes='action', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                size = f'{"fourth" if buttons==4 else "fifth"}-size'
+                ui.button(innerText='Screenshot', classes=f'action {size}', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
+                ui.button(innerText='Similar',    classes=f'action {size}', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
+                ui.button(innerText='All Issues', classes=f'action {size}', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
+                ui.button(innerText='Report',     classes=f'action {size}', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
@@ -280,13 +283,6 @@ class RetopoFlow_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
-            ui_details = ui.details(id='crashdetails', children=[
-                ui.summary(innerText='Crash details'),
-                ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),
-                ui.pre(innerText=msg_report),
-                ui.button(innerText='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'),
-            ])
-
             show_quit = True
             darken = True
         else:
@@ -313,20 +309,19 @@ class RetopoFlow_UI:
             return
             #self.exit = True
 
-        win = ui.framed_dialog(label=title, classes=f'alertdialog {level}', close_callback=close, parent=self.document.body)
-        ui.markdown(mdown=message, parent=win)
-        if ui_details or ui_checker:
-            container = ui.div(parent=win)
-            if ui_details:
-                container.append_child(ui_details)
-            if ui_checker:
-                container.append_child(ui_checker)
-        ui_bottombuttons = ui.div(classes='alertdialog-buttons', parent=win)
-        ui_close = ui.button(innerText='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
-        if show_quit:
-            ui.button(innerText='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
-        else:
-            ui_close.style = 'width:100%'
+        win = UI_Element.fromHTMLFile(abspath('alert_dialog.html'))[0]
+        self.document.body.append_child(win)
+        win.getElementById('alert-title').innerText = title
+        ui.markdown(mdown=message, ui_container=win.getElementById('alert-message'))
+        if not msg_report and not ui_checker:
+            win.getElementById('alert-details').is_visible = False
+        if msg_report: win.getElementById('alert-report').innerText = msg_report
+        else:          win.getElementById('alert-report').is_visible = False
+        if ui_checker: win.getElementById('alert-checker').append_child(ui_checker)
+        else:          win.getElementById('alert-checker').is_visible = False
+        if not show_quit:
+            win.getElementById('alert-close').style = 'width:100%'
+            win.getElementById('alert-quit').is_visible = False
 
         self.document.focus(win)
         self.alert_windows += 1

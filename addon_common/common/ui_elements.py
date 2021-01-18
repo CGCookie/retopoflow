@@ -286,7 +286,8 @@ class UI_Element_Elements():
                         v = v[1:-1]
                         v = re.sub(r"\\\'", "'", v)
 
-                    if k.lower() in {'title'}:
+                    if k.lower() in {'title', 'class', 'classes'}:
+                        # apply fstring
                         while True:
                             m = re_fstring.search(v)
                             if not m: break
