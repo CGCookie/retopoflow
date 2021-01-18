@@ -749,6 +749,8 @@ class UI_Element_Properties:
             self.update_document()
         for c in self._children:
             c.document = value
+        if value:
+            self.dispatch_event('on_load')
 
     def update_document(self):
         if not self._document: return
@@ -2087,6 +2089,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         #       - second item is the callback function, possibly wrapped with lambda
         #       - third item is the original callback function
         self._events = {
+            'on_load':          [],     # called when document is set
             'on_focus':         [],     # focus is gained (:foces is added)
             'on_blur':          [],     # focus is lost (:focus is removed)
             'on_focusin':       [],     # focus is gained to self or a child

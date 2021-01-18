@@ -203,6 +203,7 @@ events_known = {
     'toggle':       'on_toggle',        'ontoggle':         'on_toggle',        'on_toggle':        'on_toggle',
     'visibilitychange': 'on_visibilitychange', 'onvisibilitychange': 'on_visibilitychange', 'on_visibilitychange': 'on_visibilitychange',
     'close': 'on_close', 'onclose': 'on_close', 'on_close': 'on_close',
+    'load': 'on_load', 'onload': 'on_load', 'on_load': 'on_load',
 }
 
 
@@ -253,10 +254,12 @@ class UI_Element_Elements():
             is_close = m_tag.group('close') is not None
             is_selfclose = m_tag.group('selfclose') or tname in tags_selfclose
 
-            callbacks = []
+            event_data = {
+                'this': None,
+            }
             def process(ui_this):
-                for cb in callbacks:
-                    cb(ui_this)
+                nonlocal event_data
+                event_data['this'] = ui_this
 
             attribs = {}
             if attributes:
@@ -300,10 +303,11 @@ class UI_Element_Elements():
                     if k.lower() in events_known:
                         # attribute is an event (value is callback)
                         k = events_known[k.lower()]
-                        nf_locals = dict(f_locals)
-                        def update_this(ui_this): nf_locals['this'] = ui_this
-                        callbacks += [update_this]
-                        v = delay_exec(v, f_globals=f_globals, f_locals=nf_locals, ordered_parameters=['event'])
+                        def precall(f_locals):
+                            nonlocal event_data
+                            for dk,dv in event_data.items():
+                                f_locals[dk] = dv
+                        v = delay_exec(v, f_globals=f_globals, f_locals=f_locals, ordered_parameters=['event'], precall=precall)
                     elif v.lower() in {'true'}:  v = True
                     elif v.lower() in {'false'}: v = False
                     elif m_self:                 v = eval(v, f_globals, f_locals)
@@ -381,11 +385,10 @@ class UI_Element_Elements():
                         if tag.tname.lower() == 'script':
                             # case anothertag=script: <script>some python code</script>
                             # TODO: check for src attribute!
-                            nf_locals = dict(f_locals)
                             written = []
-                            nf_locals['write'] = written.append
+                            f_locals['write'] = written.append
                             # print(f'executing script: {nclose.innerText}')
-                            exec(nclose.innerText, f_globals, nf_locals)
+                            exec(nclose.innerText, f_globals, f_locals)
                             # prepend anything written out to HTML so it can be processed
                             html = '\n'.join(written) + nclose.post_html
                         else:

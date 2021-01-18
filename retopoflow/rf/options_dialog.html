@@ -1,3 +1,32 @@
+<script type="python">
+def theme_change(e):
+    if not e.target.checked: return
+    if e.target.value is None: return
+    options['color theme'] = e.target.value
+
+def reset_options():
+    options.reset()
+    self.update_ui()
+    self.document.body.dirty(children=True)
+
+def update_hide_overlays():
+    if options['hide overlays']: self.overlays_hide()
+    else: self.overlays_restore()
+
+def symmetry_viz_change(e):
+    if not e.target.checked: return
+    options['symmetry view'] = e.target.value
+
+def symmetry_changed(self):
+    s = []
+    if self.rftarget.mirror_mod.x: s += ['X']
+    if self.rftarget.mirror_mod.y: s += ['Y']
+    if self.rftarget.mirror_mod.z: s += ['Z']
+    if not s: s = ['(none)']
+    self.ui_options.getElementById('symmetryoptions_summary').innerText = f'Symmetry: {",".join(s)}'
+
+</script>
+
 <dialog id="optionsdialog" class="framed minimizeable moveable" on_visibilitychange="self.update_options_window_visibility()">
     <h1>Options</h1>
     <div class="contents" id='options-contents'>
@@ -258,6 +287,68 @@
                         </div>
                         <button title='Merge all vertices within given distance.' classes='half-size' on_mouseclick="self.remove_all_doubles()">All</button>
                         <button title='Merge selected vertices within given distance.' classes='half-size' on_mouseclick="self.remove_selected_doubles()">Selected</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+        <details>
+            <summary id="symmetryoptions_summary" title="Symmetry (mirroring) options" on_load='symmetry_changed(self)'>Symmetry</summary>
+            <div class="contents">
+                <label title="Check to mirror along x-axis" class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.x''')" on_input="symmetry_changed(self)">
+                    x
+                </label>
+                <label title="Check to mirror along y-axis" class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.y''')" on_input="symmetry_changed(self)">
+                    y
+                </label>
+                <label title="Check to mirror along z-axis" class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.z''')" on_input="symmetry_changed(self)">
+                    z
+                </label>
+                <div class="collection">
+                    <h1>Visualization</h1>
+                    <div class="contents">
+                        <label title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).' class='third-size'>
+                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                            None
+                        </label>
+                        <label title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).' class='third-size'>
+                            <input type="radio" id="symmetry-viz-edge" name="symmetry-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                            Edge
+                        </label>
+                        <label title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).' class='third-size'>
+                            <input type="radio" id="symmetry-viz-face" name="symmetry-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                            Face
+                        </label>
+                        <div class="labeled-input-text">
+                            <label title="Effect of symmetry source visualization">Source Effect</label>
+                            <input type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
+                        </div>
+                        <div class="labeled-input-text">
+                            <label title="Factor for alpha of mirrored target visualization">Target Effect</label>
+                            <input type="number" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
+<!--
+                            ui.input_range(
+                                title='Effect of symmetry source visualization.',
+                                value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
+                            ),
+                            ui.input_range(
+                                title='Factor for alpha of mirrored target visualization.',
+                                value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
+                            ),
+-->
+                        </div>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Merge / Apply</h1>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title='Distance within which mirrored vertices will be merged'>Threshold</label>
+                            <input type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.01)"> <!-- scrub -->
+                        </div>
+                        <button title="Apply symmetry to target mesh" on_mouseclick="self.apply_symmetry()">Apply Symmetry</button>
                     </div>
                 </div>
             </div>

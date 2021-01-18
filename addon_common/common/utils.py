@@ -164,7 +164,7 @@ def find_and_import_all_subclasses(cls, root_path=None):
 
 #########################################################
 
-def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None):
+def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None, precall=None):
     if f_globals is None or f_locals is None:
         frame = inspect.currentframe().f_back               # get frame   of calling function
         if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
@@ -177,6 +177,7 @@ def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None):
                 nf_locals[k] = v
         nf_locals.update(kwargs)
         try:
+            if precall: precall(nf_locals)
             return exec(action, f_globals, nf_locals)
         except Exception as e:
             print('Caught exception while trying to run a delay_exec')
