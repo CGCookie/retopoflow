@@ -157,6 +157,37 @@ input {
     background: pink;
 }
 
+
+ul {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+}
+
+ul > li {
+    position: relative;
+    left: 0px;
+    top: 0px;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    padding: 0px 0px 0px 12px;
+    display: block;
+    overflow: visible;
+}
+ul > li::marker {
+    position: absolute;
+    left: -8px;
+    margin: 5px 5px 0px 5px;
+    border: 0px;
+    padding: 0px;
+    width: 15px;
+    height: 10px;
+    background-image: url('radio.png');
+}
+
+
 dialog {
     position: fixed;
     border-radius: 4px;
@@ -383,7 +414,7 @@ article.mdown code {
 }
 
 
-article.mdown ul {
+/*article.mdown ul {
     margin: 0px;
     border: 0px;
     padding: 0px;
@@ -391,7 +422,7 @@ article.mdown ul {
 }
 
 article.mdown ul > li {
-    /*margin: 8px 0px;*/
+    /*margin: 8px 0px;* /
     margin: 0px;
     border: 0px;
     padding: 0px;
@@ -411,7 +442,7 @@ article.mdown ul > li > span.text {
     border: 0px;
     padding: 0px;
     display: inline;
-}
+}*/
 
 
 article.mdown ol {

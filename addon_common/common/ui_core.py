@@ -25,12 +25,13 @@ import sys
 import math
 import time
 import random
+import asyncio
 import inspect
 import traceback
 import contextlib
 from math import floor, ceil
 from inspect import signature
-from itertools import dropwhile
+from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
@@ -254,6 +255,27 @@ def load_image(fn):
         load_image._cache[fn] = img
     return load_image._cache[fn]
 
+@add_cache('_image', None)
+def get_loading_image(fn):
+    nfn = f'{os.path.splitext(fn)[0]}.thumb.png'
+    if get_image_path(nfn):
+        return load_image(nfn)
+    if not get_loading_image._image:
+        c0, c1 = [128,128,128,0], [128,128,128,128]
+        w, h = 10, 10
+        image = []
+        for y in range(h):
+            row = []
+            for x in range(w):
+                c = c0 if (x+y)%2 == 0 else c1
+                row.append(c)
+            image.append(row)
+        get_loading_image._image = image
+    return get_loading_image._image
+
+def is_image_cached(fn):
+    return fn in load_image._cache
+
 def set_image_cache(fn, img):
     if fn in load_image._cache: return
     load_image._cache[fn] = img
@@ -262,9 +284,9 @@ def preload_image(*fns):
     return [ (fn, load_image(fn)) for fn in fns ]
 
 @add_cache('_cache', {})
-def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR):
+def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, image=None):
     if fn_image not in load_texture._cache:
-        image = load_image(fn_image)
+        if image is None: image = load_image(fn_image)
         print(f'UI: Buffering texture "{fn_image}"')
         height,width,depth = len(image),len(image[0]),len(image[0][0])
         assert depth == 4, 'Expected texture %s to have 4 channels per pixel (RGBA), not %d' % (fn_image, depth)
@@ -286,6 +308,10 @@ def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR):
             'texid': texid,
         }
     return load_texture._cache[fn_image]
+
+def async_load_image(fn_image, callback):
+    img = load_image(fn_image)
+    callback(img)
 
 class UI_Draw:
     _initialized = False
@@ -1938,19 +1964,14 @@ class UI_Element_Debug:
             print(f'{sp}{tag}...{tagc}')
             return
         already_printed.add(self)
-        if self._innerText and self._children:
+        if self._pseudoelement == 'text':
+            innerText = self._innerText.replace('\n', '\\n') if self._innerText else ''
+            print(f'{sp}"{innerText}"')
+        elif self._children_all:
             print(f'{sp}{tag}')
-            print(f'{sp}    {self._innerText}')
-            for c in self._children:
+            for c in self._children_all:
                 c.debug_print(d+1, already_printed)
             print(f'{sp}{tagc}')
-        elif self._children:
-            print(f'{sp}{tag}')
-            for c in self._children:
-                c.debug_print(d+1, already_printed)
-            print(f'{sp}{tagc}')
-        elif self._innerText:
-            print(f'{sp}{tag}{self._innerText}{tagc}')
         else:
             print(f'{sp}{tagsc}')
 
@@ -2281,10 +2302,16 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return self.__str__()
 
     def __str__(self):
+        if self._pseudoelement == 'text':
+            innerText = self.innerText.replace('\n', '\\n') if self.innerText else ''
+            return f'"{innerText}"'
         tagName = f'{self.tagName}::{self._pseudoelement}' if self._pseudoelement else self.tagName
-        info = ['id', 'classes', 'type', 'innerText', 'innerTextAsIs', 'value', 'title']
+        info = ['id', 'classes', 'type', 'value', 'title']  #, 'innerText', 'innerTextAsIs'
         info = [(k, getattr(self, k)) for k in info if hasattr(self, k)]
         info = [f'{k}="{v}"' for k,v in info if v]
+        # if self._pseudoelement == 'text':
+        #     nl,bnl = '\n','\\n'
+        #     info += [f"{k}=\"{getattr(self, k).replace(nl, bnl)}\"" for k in ['innerText', 'innerTextAsIs'] if getattr(self, k) != None]
         if self.open:     info += ['open']
         if self.is_dirty: info += ['dirty']
         if self._atomic:  info += ['atomic']
@@ -2619,7 +2646,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             # self._innerTextAsIs = None
             return
         if 'content' not in self._dirty_properties:
-            for e in self._dirty_callbacks.get('content', []): e._compute_content()
+            for e in list(self._dirty_callbacks.get('content', [])): e._compute_content()
             self._dirty_callbacks['content'].clear()
             return
 
@@ -2737,9 +2764,30 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 self._new_content = True
 
         elif self.src: # and not self._src:
-            with profiler.code('loading image as texture'):
+            if not self._pseudoelement and not is_image_cached(self.src):
+                if self._src == 'image':
+                    self._new_content = True
+                elif self._src == 'image loading':
+                    pass
+                elif self._src == 'image loaded':
+                    self._src = 'image'
+                    self._image_data = load_texture(self.src, image=self._image_data)
+                    self._new_content = True
+                    self.dirty()
+                else:
+                    self._src = 'image loading'
+                    self._image_data = load_texture(f'image loading {self.src}', image=get_loading_image(self.src))
+                    self._new_content = True
+                    def callback(image):
+                        self._src = 'image loaded'
+                        self._image_data = image
+                        self.dirty()
+                    def load():
+                        async_load_image(self.src, callback)
+                    ThreadPoolExecutor().submit(load)
+            else:
                 self._image_data = load_texture(self.src)
-            self._src = 'image'
+                self._src = 'image'
 
             self._children_text = []
             self._children_text_min_size = None
@@ -2819,16 +2867,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             blocks = []
             blocks_abs = []
             blocked_inlines = False
-            # if any(child._tagName == 'text' for child in self._children_all):
-            #     n_children_all = []
-            #     for child in self._children_all:
-            #         if child._tagName != 'text':
-            #             n_children_all.append(child)
-            #         else:
-            #             print(f'moving children of {child} ({child._children_all} / {child._children_text}) to {self}')
-            #             n_children_all += child._children_all
-            #     self._children_all = n_children_all
-            for child in self._children_all:
+            def process_child(child):
+                nonlocal blocks, blocks_abs, blocked_inlines
                 d = child._computed_styles.get('display', 'inline')
                 p = child._computed_styles.get('position', 'static')
                 if p == 'absolute':
@@ -2842,15 +2882,24 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 else:
                     blocked_inlines = False
                     blocks.append([child])
+            # if any(child._tagName == 'text' for child in self._children_all):
+            #     n_children_all = []
+            #     for child in self._children_all:
+            #         if child._tagName != 'text':
+            #             n_children_all.append(child)
+            #         else:
+            #             print(f'moving children of {child} ({child._children_all} / {child._children_text}) to {self}')
+            #             n_children_all += child._children_all
+            #     self._children_all = n_children_all
+            for child in self._children_all:
+                process_child(child)
 
         def same(ll0, ll1):
             if ll0 == None or ll1 == None: return ll0 == ll1
             if len(ll0) != len(ll1): return False
-            for i in range(len(ll0)):
-                l0, l1 = ll0[i], ll1[i]
+            for (l0, l1) in zip(ll0, ll1):
                 if len(l0) != len(l1): return False
-                for j in range(len(l0)):
-                    if l0[j] != l1[j]: return False
+                if any(i0 != i1 for (i0, i1) in zip(l0, l1)): return False
             return True
 
         if not same(blocks, self._blocks) or not same([blocks_abs], [self._blocks_abs]):
@@ -2915,7 +2964,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 Globals.drawing.set_font_size(size_prev, fontid=self._parent._fontid) #, force=True)
                 #print(f'"{self._innerTextAsIs}": {static_content_size.width} x {static_content_size.height}')
 
-        elif self._src == 'image':
+        elif self._src in {'image', 'image loading'}:
             with profiler.code('computing image sizes'):
                 # TODO: set to image size?
                 dpi_mult = Globals.drawing.get_dpi_mult()
@@ -3085,7 +3134,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             dw = self._static_content_size.width
             dh = self._static_content_size.height
 
-            if self._src == 'image':
+            if self._src in {'image' ,'image loading'}:
                 def scale_dw_dh(num, den):
                     nonlocal dw,dh
                     sc = 0 if den == 0 else num / den
@@ -3496,7 +3545,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         ol, ot = int(self._l + ox), int(self._t + oy)
 
         with profiler.code('drawing mbp'):
-            texture_id = self._image_data['texid'] if self._src == 'image' else -1
+            texture_id = self._image_data['texid'] if self._src in {'image', 'image loading'} else -1
             texture_fit = self._computed_styles.get('object-fit', 'fill')
             ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, texture_fit, background_override=background_override, depth=len(self._selector))
 
@@ -3509,8 +3558,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             it = round(self._t - (mt + bw + pt) + oy)
             iw = round(self._w - ((ml + bw + pl) + (pr + bw + mr)))
             ih = round(self._h - ((mt + bw + pt) + (pb + bw + mb)))
+            noclip = self._computed_styles.get('overflow-x', 'visible') == 'visible' and self._computed_styles.get('overflow-y', 'visible') == 'visible'
 
-            with ScissorStack.wrap(il, it, iw, ih, msg=f'{self} mbp'):
+            with ScissorStack.wrap(il, it, iw, ih, msg=f'{self} mbp', disabled=noclip):
                 if self._innerText is not None:
                     size_prev = Globals.drawing.set_font_size(self._fontsize, fontid=self._fontid)
                     if self._textshadow is not None:

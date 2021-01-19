@@ -745,6 +745,26 @@ class UI_Element_Elements():
 
         return self._children
 
+    def _process_li(self):
+        if self._parent and self._parent._tagName == 'ul':
+            # <ul><li>...
+            # if not self._ui_marker:
+            #     self._ui_marker = self._generate_new_ui_elem(
+            #         tagName='li',
+            #         classes=self._classes_str,
+            #         pseudoelement='marker',
+            #     )
+            # return [self._ui_marker, *self._children]
+            if not self._ui_marker:
+                self._ui_marker = self.prepend_new_child(tagName='li', classes=self._classes_str, pseudoelement='marker')
+            return self._children
+
+        elif self._parent and self._parent._tagName == 'ol':
+            # <ol><li>...
+            return self._children
+
+        return self._children
+
     def _process_children(self):
         if self._innerTextAsIs is not None: return []
         if self._pseudoelement == 'marker': return self._children
@@ -760,6 +780,7 @@ class UI_Element_Elements():
             'label':          self._process_label,
             'dialog':         self._process_dialog,
             'h1':             self._process_h1,
+            'li':             self._process_li,
         }.get(tagtype, None)
 
         return processor() if processor else self._children

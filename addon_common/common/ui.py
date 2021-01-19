@@ -348,9 +348,12 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
     ui_mdown.__mdown = mdown                                # record the mdown to prevent reprocessing same
 
     def process_words(text, word_fn):
+        build = ''
         while text:
             word,text = Markdown.split_word(text)
-            word_fn(word)
+            build += word
+            #word_fn(word)
+        word_fn(build)
 
     def process_para(container, para, **kwargs):
         with container.defer_dirty('creating new children'):
@@ -365,8 +368,12 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
             while para:
                 t,m = Markdown.match_inline(para)
                 if t is None:
-                    word,para = Markdown.split_word(para)
-                    UI_Element.TEXT(innerText=word, pseudoelement='text', parent=container)
+                    build = ''
+                    while t is None and para:
+                        word,para = Markdown.split_word(para)
+                        build += word
+                        t,m = Markdown.match_inline(para)
+                    UI_Element.TEXT(innerText=build, pseudoelement='text', parent=container)
                 else:
                     if t == 'br':
                         UI_Element.BR(parent=container)
@@ -421,7 +428,7 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                         # print('CREATING input_checkbox(label="%s", checked=BoundVar("%s", ...)' % (innertext, value))
                         UI_Element.LABEL(children=[
                             UI_Element.INPUT(type='checkbox', checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals)),
-                            UI_Element.SPAN(innerText=innertext),
+                            UI_Element.TEXT(innerText=innertext, pseudoelement='text'),
                         ], parent=container)
                     else:
                         assert False, 'Unhandled inline markdown type "%s" ("%s") with "%s"' % (str(t), str(m), line)
@@ -453,14 +460,12 @@ def set_markdown(ui_mdown, mdown=None, mdown_path=None, preprocess_fns=None, f_g
                             skip_first = False
                             continue
                         ui_li = UI_Element.LI(parent=ui_ul)
-                        UI_Element.IMG(classes='dot', src='radio.png', parent=ui_li)
-                        span_element = UI_Element.SPAN(classes='text', parent=ui_li)
                         if '\n' in litext:
                             # remove leading spaces
                             litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
-                            process_mdown(span_element, litext)
+                            process_mdown(ui_li, litext)
                         else:
-                            process_para(span_element, litext)
+                            process_para(ui_li, litext)
 
             elif t == 'ol':
                 ui_ol = UI_Element.OL(parent=ui_container)

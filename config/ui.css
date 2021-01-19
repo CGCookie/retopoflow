@@ -907,11 +907,12 @@ article.mdown p {
 article.mdown ul {
     padding-left: 16px;
 }
-article.mdown ul > li > span > p {
+
+article.mdown ul > li > p {
     padding: 0px;
     margin: 0px;
 }
-article.mdown ul > li > span > ul {
+article.mdown ul > li > ul {
     padding: 0px;
     margin: 0px;
 }

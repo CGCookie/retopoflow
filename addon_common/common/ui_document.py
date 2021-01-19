@@ -307,8 +307,8 @@ class UI_Document(UI_Document_FSM):
                 print('  '*(i+extra), end='')
                 print(*args, **kwargs)
             tprint(str(ui_elem))
-            tprint(ui_elem._selector, extra=1)
-            tprint(ui_elem._l, ui_elem._t, ui_elem._w, ui_elem._h, extra=1)
+            tprint(f'selector={ui_elem._selector}', extra=1)
+            tprint(f'l={ui_elem._l} t={ui_elem._t}  w={ui_elem._w} h={ui_elem._h}', extra=1)
 
     @property
     def sticky_element(self):
