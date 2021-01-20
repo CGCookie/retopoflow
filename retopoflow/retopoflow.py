@@ -51,6 +51,7 @@ from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec
 from ..addon_common.common.ui_styling import load_defaultstylings
 from ..addon_common.common.ui_core import preload_image, set_image_cache
+from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -134,6 +135,9 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.header_text_set('RetopoFlow')
 
     def start(self):
+        ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
+        print(ui_core.ASYNC_IMAGE_LOADING)
+
         preload_help_images.paused = True
         keymaps = get_keymaps()
         self.actions = ActionHandler(self.context, keymaps)
@@ -256,6 +260,9 @@ class RetopoFlow(
         preload_help_images.paused = False
 
     def start(self):
+        ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
+        print(ui_core.ASYNC_IMAGE_LOADING)
+
         self.loading_done = False
 
         keymaps = get_keymaps()

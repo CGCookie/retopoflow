@@ -99,6 +99,7 @@ DEBUG_LIST      = False
 
 CACHE_METHOD = 2                # 0:none, 1:only root, 2:hierarchical, 3:text leaves
 
+ASYNC_IMAGE_LOADING = True
 
 
 class UI_Element_Defaults:
@@ -275,6 +276,10 @@ def get_loading_image(fn):
 
 def is_image_cached(fn):
     return fn in load_image._cache
+
+def has_thumbnail(fn):
+    nfn = f'{os.path.splitext(fn)[0]}.thumb.png'
+    return get_image_path(nfn) is not None
 
 def set_image_cache(fn, img):
     if fn in load_image._cache: return
@@ -1734,6 +1739,7 @@ class UI_Element_Dirtiness:
         # if getattr(self, '_cleaning', False): print(f'{self} was dirtied ({properties}) while cleaning')
         self._dirty_properties |= properties
         self._dirty_causes.append(cause)
+        if self._do_not_dirty_parent: parent = False
         if parent:   self._dirty_propagation['parent']          |= properties   # dirty parent also (ex: size of self changes, so parent needs to layout)
         else:        self._dirty_propagation['parent callback'] |= properties   # let parent know self is dirty (ex: background color changes, so we need to update style of self but not parent)
         if children: self._dirty_propagation['children']        |= properties   # dirty all children also (ex: :hover pseudoclass added, so children might be affected)
@@ -2764,7 +2770,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 self._new_content = True
 
         elif self.src: # and not self._src:
-            if not self._pseudoelement and not is_image_cached(self.src):
+            if ASYNC_IMAGE_LOADING and not self._pseudoelement and not is_image_cached(self.src):
+                print(f'LOADING {self.src} ASYNC')
                 if self._src == 'image':
                     self._new_content = True
                 elif self._src == 'image loading':

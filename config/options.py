@@ -166,6 +166,7 @@ class Options:
         'undo depth':           100,    # size of undo stack
 
         'async mesh loading':   True,   # True: load source meshes asynchronously
+        'async image loading':  True,
 
         'select dist':          10,             # pixels away to select
         'action dist':          20,             # pixels away to allow action

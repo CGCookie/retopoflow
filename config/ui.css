@@ -756,6 +756,7 @@ div#helpsystem-buttons {
     left: 0px;
     bottom: -30px;
     width: 100%;
+    height: 32px;
     overflow: hidden;
 }
 div#helpsystem-buttons > button {
