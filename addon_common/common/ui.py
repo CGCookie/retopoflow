@@ -95,14 +95,6 @@ def p(**kwargs):
 
 def a(**kwargs):
     return UI_Element(tagName='a', **kwargs)
-    # elem = UI_Element(tagName='a', **kwargs)
-    # def mouseclick(e):
-    #     nonlocal elem
-    #     if not elem.href: return
-    #     if Markdown.is_url(elem.href):
-    #         bpy.ops.wm.url_open(url=elem.href)
-    # elem.add_eventListener('on_mouseclick', mouseclick)
-    # return elem
 
 def b(**kwargs):
     return UI_Element(tagName='b', **kwargs)
@@ -169,19 +161,6 @@ def input_checkbox(**kwargs):
 
 def label(**kwargs):
     return UI_Element(tagName='label', **kwargs)
-
-
-
-
-
-
-def input(**kwargs):
-    t = get_and_discard(kwargs, 'type', 'text')
-    if t == 'radio':    return input_radio(**kwargs)
-    if t == 'checkbox': return input_checkbox(**kwargs)
-    if t == 'range':    return input_range(**kwargs)
-    if t == 'text':     return input_text(**kwargs)
-    assert False, f'Unhandled input type: {t}'
 
 
 def input_range(value=None, min_value=None, max_value=None, step_size=None, **kwargs):
@@ -282,30 +261,6 @@ def input_range(value=None, min_value=None, max_value=None, step_size=None, **kw
     return ui_proxy
 
 
-
-def labeled_input_text(label, value='', scrub=False, **kwargs):
-    '''
-    this wraps input_text with a few divs to add a label on the left.
-    use for text input, but can also restrict to numbers
-    if scrub == True, value must be a BoundInt or BoundFloat with min_value and max_value set!
-    '''
-
-    kw_container = kwargs_splitter({'parent', 'id'}, kwargs)
-    kw_all = kwargs_splitter({'title'}, kwargs)
-    ui_container = UI_Element(tagName='div', classes='labeledinputtext-container', **kw_container, **kw_all)
-    with ui_container.defer_dirty('creating content'):
-        ui_left  = UI_Element(tagName='div',   classes='labeledinputtext-label-container', parent=ui_container, **kw_all)
-        ui_right = UI_Element(tagName='div',   classes='labeledinputtext-input-container', parent=ui_container, **kw_all)
-        ui_label = UI_Element(tagName='label', classes='labeledinputtext-label', innerText=label, parent=ui_left, **kw_all)
-        ui_input = input_text(parent=ui_right, value=value, **kwargs, **kw_all)
-
-    #if scrub: setup_scrub(ui_container, value)
-
-    ui_proxy = UI_Proxy('labeled_input_text', ui_container)
-    ui_proxy.translate_map('label', 'innerText', ui_label)
-    ui_proxy.map('value', ui_input)
-    ui_proxy.map_to_all({'title'})
-    return ui_proxy
 
 
 
@@ -622,142 +577,5 @@ def framed_dialog(label=None, resizable=None, resizable_x=True, resizable_y=Fals
     ui_proxy.map_scroll_to(ui_inside)
     if parent: parent.append_child(ui_proxy)
     return ui_proxy
-
-
-
-
-# class UI_Flexbox(UI_Core):
-#     '''
-#     This container will resize the width/height of all children to fill the available space.
-#     This element is useful for lists of children elements, growing along one dimension and filling along other dimension.
-#     Children of row flexboxes will take up entire height; children of column flexboxes will take up entire width.
-
-#     TODO: model off flexbox more closely?  https://css-tricks.com/snippets/css/a-guide-to-flexbox/
-#     '''
-
-#     style_default = '''
-#         display: flexbox;
-#         flex-direction: row;
-#         flex-wrap: nowrap;
-#         overflow: scroll;
-#     '''
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#     def compute_content_size(self):
-#         for child in self._children:
-#             pass
-
-#     def layout_children(self):
-#         for child in self._children: child.recalculate()
-
-#         # assuming all children are drawn on top on one another
-#         w,h = self._min_width,self._min_height
-#         W,H = self._max_width,self._max_height
-#         for child in self.get_visible_children():
-#             w = max(w, child._min_width)
-#             h = max(h, child._min_height)
-#             W = min(W, child._max_width)
-#             H = min(H, child._max_height)
-#         self._min_width,self.min_height = w,h
-#         self._max_width,self.max_height = W,H
-
-#         # do not clean self if any children are still dirty (ex: they are deferring recalculation)
-#         self._is_dirty = any(child._is_dirty for child in self._children)
-
-#     def position_children(self, left, top, width, height):
-#         for child in self.get_visible_children():
-#             child.position(left, top, width, height)
-
-#     def draw_children(self):
-#         for child in self.get_visible_children():
-#             child.draw()
-
-
-
-# class UI_Label(UI_Core):
-#     def __init__(self, label=None, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self._label = label or ''
-
-
-# class UI_Button(UI_Core):
-#     def __init__(self, label=None, click=None, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self._label = label or ''
-#         self._click = click
-
-
-
-
-# class UI_Dialog(UI_Core):
-#     '''
-#     a dialog window, can be shown modal
-#     '''
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__()
-
-
-
-# class UI_Body(UI_Core):
-#     def __init__(self, actions, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-
-#         self._actions = actions
-#         self._active = None         # element that is currently active
-#         self._active_last = None
-#         self._focus = None          # either active element or element under the cursor
-#         self._focus_last = None
-
-#     def modal(self, actions):
-#         if self.actions.mousemove:
-#             # update the tooltip's position
-#             # close windows that have focus
-#             pass
-
-#         if event.type == 'MOUSEMOVE':
-#             mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
-#             self.tooltip_window.fn_sticky.set(mouse + self.tooltip_offset)
-#             self.tooltip_window.update_pos()
-#             if self.focus and self.focus_close_on_leave:
-#                 d = self.focus.distance(mouse)
-#                 if d > self.focus_close_distance:
-#                     self.delete_window(self.focus)
-
-#         ret = {}
-
-#         if self.active and self.active.state != 'main':
-#             ret = self.active.modal(context, event)
-#             if not ret: self.active = None
-#         elif self.focus:
-#             ret = self.focus.modal(context, event)
-#         else:
-#             self.active = None
-#             for win in reversed(self.windows):
-#                 ret = win.modal(context, event)
-#                 if ret:
-#                     self.active = win
-#                     break
-
-#         if self.active != self.active_last:
-#             if self.active_last and self.active_last.fn_event_handler:
-#                 self.active_last.fn_event_handler(context, UI_Event('HOVER', 'LEAVE'))
-#             if self.active and self.active.fn_event_handler:
-#                 self.active.fn_event_handler(context, UI_Event('HOVER', 'ENTER'))
-#         self.active_last = self.active
-
-#         if self.active:
-#             if self.active.fn_event_handler:
-#                 self.active.fn_event_handler(context, event)
-#             if self.active:
-#                 tooltip = self.active.get_tooltip()
-#                 self.set_tooltip_label(tooltip)
-#         else:
-#             self.set_tooltip_label(None)
-
-#         return ret
-
 
 

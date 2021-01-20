@@ -48,9 +48,9 @@ from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
-from ..addon_common.common.utils import delay_exec
+from ..addon_common.common.utils import delay_exec, abspath
 from ..addon_common.common.ui_styling import load_defaultstylings
-from ..addon_common.common.ui_core import preload_image, set_image_cache
+from ..addon_common.common.ui_core import preload_image, set_image_cache, UI_Element
 from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
@@ -198,11 +198,14 @@ class RetopoFlow(
 
     @CookieCutter.FSM_State('loading', 'enter')
     def setup_next_stage_enter(self):
+        win = UI_Element.fromHTMLFile(abspath('rf/loading_dialog.html'))[0]
+        self.document.body.append_child(win)
+
         d = {}
         d['working'] = False
         d['timer'] = self.actions.start_timer(120)
-        d['ui_window'] = ui.framed_dialog(label='RetopoFlow is loading...', id='loadingdialog', closeable=False, parent=self.document.body)
-        d['ui_div'] = ui.markdown(id='loadingdiv', mdown='Loading...', parent=d['ui_window'])
+        d['ui_window'] = win
+        d['ui_div'] = win.getElementById('loadingdiv')
         d['i_stage'] = 0
         d['i_step'] = 0
         d['time'] = 0           # will be updated to current time
@@ -249,7 +252,7 @@ class RetopoFlow(
             print('RetopoFlow: done with start')
             self.loading_done = True
             self.fsm.force_set_state('main')
-            self.document.body.delete_child(d['ui_window'].proxy_default_element)
+            self.document.body.delete_child(d['ui_window'])
             d['timer'].done()
         d['working'] = False
 

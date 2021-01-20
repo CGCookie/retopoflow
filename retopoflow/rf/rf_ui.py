@@ -184,10 +184,10 @@ class RetopoFlow_UI:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.details(classes='issue-checker', open=True)
-            ui.summary(innerText='Report an issue', parent=ui_checker)
+            ui_checker = UI_Element.DETAILS(classes='issue-checker', open=True)
+            UI_Element.SUMMARY(innerText='Report an issue', parent=ui_checker)
             ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
-            ui_buttons = ui.div(parent=ui_checker, classes='action-buttons')
+            ui_buttons = UI_Element.DIV(parent=ui_checker, classes='action-buttons')
 
             def check_github():
                 nonlocal win, ui_buttons
@@ -228,7 +228,7 @@ class RetopoFlow_UI:
                                 ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                             def go():
                                 bpy.ops.wm.url_open(url=issueurl)
-                            ui.button(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
+                            UI_Element.BUTTON(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
                             buttons = 5
                     else:
                         ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
@@ -241,10 +241,10 @@ class RetopoFlow_UI:
                     # ignore for now
                     pass
                 size = f'{"fourth" if buttons==4 else "fifth"}-size'
-                ui.button(innerText='Screenshot', classes=f'action {size}', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
-                ui.button(innerText='Similar',    classes=f'action {size}', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
-                ui.button(innerText='All Issues', classes=f'action {size}', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
-                ui.button(innerText='Report',     classes=f'action {size}', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='Screenshot', classes=f'action {size}', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='Similar',    classes=f'action {size}', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='All Issues', classes=f'action {size}', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='Report',     classes=f'action {size}', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
