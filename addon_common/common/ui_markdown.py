@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -185,7 +185,7 @@ class UI_Markdown:
                                 if Markdown.is_url(link):
                                     bpy.ops.wm.url_open(url=link)
                                 else:
-                                    set_markdown(self, mdown_path=link, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
+                                    self.set_markdown(mdown_path=link, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
                             process_words(text, lambda word: container.append_new_child(tagName='a', innerText=word, href=link, title=title, on_mouseclick=mouseclick))
                         elif t == 'bold':
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='b', innerText=word))

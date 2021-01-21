@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -92,8 +92,10 @@ dirty_flow
 
 
 DEBUG_COLOR_CLEAN = False
-DEBUG_PROPERTY = 'style'     # selector, style, content, size, layout, blocks
-DEBUG_COLOR    = 1              # 0:time since change, 1:time of change
+DEBUG_PROPERTY  = 'style'       # selector, style, content, size, layout, blocks
+DEBUG_COLOR     = 1             # 0:time since change, 1:time of change
+
+DEBUG_DIRTY     = False
 
 DEBUG_LIST      = False
 
@@ -1762,7 +1764,7 @@ class UI_Element_Dirtiness:
         if not properties: return               # no new dirtiness
         # if getattr(self, '_cleaning', False): print(f'{self} was dirtied ({properties}) while cleaning')
         self._dirty_properties |= properties
-        self._dirty_causes.append(cause)
+        if DEBUG_DIRTY: self._dirty_causes.append(cause)
         if self._do_not_dirty_parent: parent = False
         if parent:   self._dirty_propagation['parent']          |= properties   # dirty parent also (ex: size of self changes, so parent needs to layout)
         else:        self._dirty_propagation['parent callback'] |= properties   # let parent know self is dirty (ex: background color changes, so we need to update style of self but not parent)
@@ -1836,9 +1838,11 @@ class UI_Element_Dirtiness:
 
         if self._dirty_propagation['parent']:
             if self._parent and not self._do_not_dirty_parent:
-                cause = ' -> '.join(f'{cause}' for cause in (self._dirty_causes+[
-                    f"\"propagating dirtiness ({self._dirty_propagation['parent']} from {self} to parent {self._parent}\""
-                ]))
+                cause = ''
+                if DEBUG_DIRTY:
+                    cause = ' -> '.join(f'{cause}' for cause in (self._dirty_causes+[
+                        f"\"propagating dirtiness ({self._dirty_propagation['parent']} from {self} to parent {self._parent}\""
+                    ]))
                 self._parent.dirty(
                     cause=cause,
                     properties=self._dirty_propagation['parent'],
@@ -1855,6 +1859,8 @@ class UI_Element_Dirtiness:
 
     @profiler.function
     def propagate_dirtiness_down(self):
+        if self._dirty_propagation['defer']: return
+
         if not self._dirty_propagation['children']: return
 
         # no need to dirty ::before, ::after, or text, because they will be reconstructed
@@ -1918,7 +1924,10 @@ class UI_Element_Dirtiness:
         - if deferring cleaning.
         '''
 
-        if not self.is_dirty or self.defer_clean: return
+        if self._dirty_propagation['defer']: return
+        if self.defer_clean: return
+        if not self.is_dirty: return
+
         self._was_dirty = True   # used to know if postclean should get called
 
         self._cleaning = True
