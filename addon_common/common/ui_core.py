@@ -2819,7 +2819,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     self.dirty()
                 else:
                     self._src = 'image loading'
-                    self._image_data = load_texture(f'image loading {self.src}', image=get_loading_image(self.src))
+                    self._image_data = load_texture(f'image loading {self.src}', image=get_loading_image(self.src), mag_filter=bgl.GL_LINEAR)
                     self._new_content = True
                     def callback(image):
                         self._src = 'image loaded'
