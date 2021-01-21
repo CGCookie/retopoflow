@@ -39,7 +39,6 @@ from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat, Bou
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import get_preferences
-from ...addon_common.common import ui
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
@@ -185,8 +184,10 @@ class RetopoFlow_UI:
         if msghash:
             ui_checker = UI_Element.DETAILS(classes='issue-checker', open=True)
             UI_Element.SUMMARY(innerText='Report an issue', parent=ui_checker)
-            ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
+            ui_label = UI_Element.ARTICLE(classes='mdown', parent=ui_checker)
             ui_buttons = UI_Element.DIV(parent=ui_checker, classes='action-buttons')
+
+            ui_label.set_markdown(mdown='Checking reported issues...')
 
             def check_github():
                 nonlocal win, ui_buttons
@@ -217,22 +218,22 @@ class RetopoFlow_UI:
                             if issue['state'] == 'closed': solved = True
                         if not exists:
                             print('GitHub: Not reported, yet')
-                            ui.set_markdown(ui_label, 'This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
+                            ui_label.set_markdown(mdown='This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
                         else:
                             if not solved:
                                 print('GitHub: Already reported!')
-                                ui.set_markdown(ui_label, 'This issue appears to have been reported already.\n\nClick Open button to see the current status.')
+                                ui_label.set_markdown('This issue appears to have been reported already.\n\nClick Open button to see the current status.')
                             else:
                                 print('GitHub: Already solved!')
-                                ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
+                                ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                             def go():
                                 bpy.ops.wm.url_open(url=issueurl)
                             UI_Element.BUTTON(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
                             buttons = 5
                     else:
-                        ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
+                        ui_label.set_markdown('Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
-                    ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
+                    ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
                     print('Caught exception while trying to pull issues from GitHub')
                     print(f'URL: "{url}"')
@@ -311,7 +312,7 @@ class RetopoFlow_UI:
         win = UI_Element.fromHTMLFile(abspath('alert_dialog.html'))[0]
         self.document.body.append_child(win)
         win.getElementById('alert-title').innerText = title
-        ui.markdown(mdown=message, ui_container=win.getElementById('alert-message'))
+        win.getElementById('alert-message').set_markdown(mdown=message)
         if not msg_report and not ui_checker:
             win.getElementById('alert-details').is_visible = False
         if msg_report: win.getElementById('alert-report').innerText = msg_report

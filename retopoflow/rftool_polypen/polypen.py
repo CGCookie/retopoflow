@@ -38,7 +38,6 @@ from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 

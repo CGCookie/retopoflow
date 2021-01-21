@@ -42,13 +42,7 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.shaders import circleShader, edgeShortenShader, arrowShader
 from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
-# from ...addon_common.common.ui import (
-#     UI_Image, UI_Number, UI_BoolValue,
-#     UI_Button, UI_Label,
-#     UI_Container, UI_EqualContainer
-#     )
 from ...config.options import options, themes
 
 from .strokes_utils import (

@@ -31,7 +31,6 @@ from ...addon_common.common.drawing import (
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
 
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color

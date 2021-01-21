@@ -43,7 +43,6 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundInt
 
 from ...config.options import options, themes, visualization

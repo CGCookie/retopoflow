@@ -23,7 +23,6 @@ import bgl
 from .cookiecutter import CookieCutter
 
 from ..common.maths import Point2D
-from ..common import ui
 from ..common.drawing import Drawing
 
 class CookieCutter_Test(CookieCutter):

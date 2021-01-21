@@ -30,7 +30,6 @@ from mathutils import Matrix
 
 from ..rftool import rftools
 
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundInt, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options

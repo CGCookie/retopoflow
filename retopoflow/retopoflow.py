@@ -42,7 +42,6 @@ from .rf.rf_tools       import RetopoFlow_Tools
 from .rf.rf_ui          import RetopoFlow_UI
 from .rf.rf_undo        import RetopoFlow_Undo
 
-from ..addon_common.common import ui
 from ..addon_common.common.blender import tag_redraw_all
 from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
@@ -238,7 +237,7 @@ class RetopoFlow(
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
                 print(f'RetopoFlow: {stage_name} ({time.time()-d["time"]})')
-                ui.set_markdown(d['ui_div'], mdown=stage_name)
+                d['ui_div'].set_markdown(mdown=stage_name)
             else:
                 stage_fn()
         except Exception as e:

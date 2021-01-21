@@ -31,7 +31,6 @@ from ...addon_common.common.maths import (
     Accel2D,
     Color,
 )
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs, delay_exec

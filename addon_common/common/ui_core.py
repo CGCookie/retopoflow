@@ -40,6 +40,7 @@ import blf
 import gpu
 
 from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
+from .ui_markdown import UI_Markdown
 
 from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
@@ -2027,7 +2028,7 @@ class UI_Element_PreventMultiCalls:
 
 
 
-class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, UI_Element_Debug, UI_Element_PreventMultiCalls, UI_Element_Elements):
+class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, UI_Element_Debug, UI_Element_PreventMultiCalls, UI_Element_Elements, UI_Markdown):
     @staticmethod
     @add_cache('uid', 0)
     def get_uid():

@@ -23,7 +23,6 @@ import os
 import re
 import bpy
 
-from ...addon_common.common import ui
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings
@@ -108,8 +107,7 @@ class RetopoFlow_HelpSystem:
             self.document.body.append_child(ui_help)
             self.document.body.dirty()
 
-        ui.set_markdown(
-            ui_markdown,
+        ui_markdown.set_markdown(
             mdown_path=mdown_path,
             preprocess_fns=[
                 self.substitute_keymaps,

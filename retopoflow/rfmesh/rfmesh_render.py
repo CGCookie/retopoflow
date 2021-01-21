@@ -44,7 +44,6 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Direction, Normal, Frame
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
-from ...addon_common.common.ui import Drawing
 from ...addon_common.common.utils import min_index
 from ...addon_common.common.hasher import hash_object, hash_bmesh
 from ...addon_common.common.decorators import stats_wrapper
