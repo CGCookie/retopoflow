@@ -663,14 +663,28 @@ class UI_Document(UI_Document_FSM):
         for o in self._callbacks['preclean']: o._call_preclean()
         self._body.clean()
         for o in self._callbacks['postclean']: o._call_postclean()
-        self._body._layout(first_on_line=True, fitting_size=sz, fitting_pos=Point2D((0,h-1)), parent_size=sz, nonstatic_elem=None, document_elem=self._body, table_data={}, first_run=True)
+        self._body._layout(
+            first_on_line=True,
+            fitting_size=sz,
+            fitting_pos=Point2D((0,h-1)),
+            parent_size=sz,
+            nonstatic_elem=self._body,
+            table_data={},
+        )
         self._body.set_view_size(sz)
         for o in self._callbacks['postflow']: o._call_postflow()
         for fn in self._callbacks['postflow once']: fn()
         self._callbacks['postflow once'].clear()
 
         # UI_Element_PreventMultiCalls.reset_multicalls()
-        self._body._layout(first_on_line=True, fitting_size=sz, fitting_pos=Point2D((0,h-1)), parent_size=sz, nonstatic_elem=None, document_elem=self._body, table_data={}, first_run=False)
+        self._body._layout(
+            first_on_line=True,
+            fitting_size=sz,
+            fitting_pos=Point2D((0,h-1)),
+            parent_size=sz,
+            nonstatic_elem=self._body,
+            table_data={},
+        )
         self._body.set_view_size(sz)
         if self._reposition_tooltip_before_draw:
             self._reposition_tooltip_before_draw = False

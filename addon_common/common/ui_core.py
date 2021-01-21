@@ -2101,7 +2101,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._style_height  = None
         self._style_z_index = None
 
-        self._document_elem = None      # this is actually the document.body.  TODO: rename?
         self._nonstatic_elem = None
 
 
@@ -3037,9 +3036,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
     @profiler.function
     def _layout(self, **kwargs):
         '''
-        layout each block into lines.  if a content box of child element is too wide to fit in line and
-        child is not only element on the current line, then end current line, start a new line, relayout the child.
-        this function does not set the final position and size for element.
+        layout each block into lines.  if a content box of child element is too wide to fit in line and the child
+        is not the only element on the current line, then end current line, start a new line, relayout the child.
+
+        NOTE: this function does not set the final position and size for element.
 
         through this function, we are calculating and committing to a certain width and height
         although the parent element might give us something different.  if we end up with a
@@ -3047,8 +3047,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         adjusting margin (if bigger) or using scrolling (if smaller)
 
         TODO: allow for horizontal growth rather than biasing for vertical
-        TODO: handle other types of layouts (ex: table, flex)
-        TODO: allow for different line alignments (top for now; bottom, baseline)
+        TODO: handle flex layouts
+        TODO: allow for different line alignments other than top (bottom, baseline)
         TODO: percent_of (style width, height, etc.) could be of last non-static element or document
         TODO: position based on bottom-right,etc.
 
@@ -3058,22 +3058,18 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         given size might by inf. given can be ignored due to style. constraints applied at end.
         positioning (with definitive size) should happen
 
-        IMPORTANT: as current written, this function needs to be able to be run multiple times!
+        IMPORTANT: as currently written, this function needs to be able to be run multiple times!
                    DO NOT PREVENT THIS, otherwise layout bugs will occur!
         '''
 
         if not self.is_visible: return
-
-        #profiler.add_note('laying out %s' % str(self).replace('\n',' ')[:100])
 
         first_on_line  = kwargs['first_on_line']    # is self the first UI_Element on the current line?
         fitting_size   = kwargs['fitting_size']     # size from parent that we should try to fit in (only max)
         fitting_pos    = kwargs['fitting_pos']      # top-left position wrt parent where we go if not absolute or fixed
         parent_size    = kwargs['parent_size']      # size of inside of parent
         nonstatic_elem = kwargs['nonstatic_elem']   # last non-static element
-        document_elem  = kwargs['document_elem']    # whole document element (root)
         table_data     = kwargs['table_data']       # data structure for current table (could be empty)
-        first_run      = kwargs['first_run']
 
         table_elem     = table_data.get('element', None)    # parent table element
         table_index2D  = table_data.get('index2D', None)    # current position in table (i=row,j=col)
@@ -3086,7 +3082,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._fitting_size = fitting_size
         self._parent_size = parent_size
         self._absolute_pos = None
-        self._document_elem = document_elem
         self._nonstatic_elem = nonstatic_elem
         self._tablecell_table = None
         self._tablecell_pos = None
@@ -3097,7 +3092,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if not self._dirtying_flow and not self._dirtying_children_flow and not table_data:
             return
 
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} layout self={self._dirtying_flow} children={self._dirtying_children_flow} first_run={first_run} fitting_size={fitting_size}')
+        if DEBUG_LIST:
+            self._debug_list.append(f'{time.ctime()} layout self={self._dirtying_flow} children={self._dirtying_children_flow} fitting_size={fitting_size}')
 
         if self._dirtying_children_flow:
             for child in self._children_all:
@@ -3203,7 +3199,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 table_cells = {}
                 table_data = { 'elem': table_elem, 'index2D': table_index2D, 'cells': table_cells }
 
-            working_width = (inside_size.width  if inside_size.width  is not None else (inside_size.max_width  if inside_size.max_width  is not None else float('inf')))
+            working_width  = (inside_size.width  if inside_size.width  is not None else (inside_size.max_width  if inside_size.max_width  is not None else float('inf')))
             working_height = (inside_size.height if inside_size.height is not None else (inside_size.max_height if inside_size.max_height is not None else float('inf')))
             if overflow_y in {'scroll', 'auto'}: working_height = float('inf')
 
@@ -3229,9 +3225,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                             fitting_pos=pos,
                             parent_size=inside_size,
                             nonstatic_elem=next_nonstatic_elem,
-                            document_elem=document_elem,
                             table_data=table_data,
-                            first_run=first_run,
                         )
                         w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
                         element_fits = False
@@ -3300,9 +3294,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 fitting_pos=pos,
                 parent_size=self._dynamic_full_size,
                 nonstatic_elem=next_nonstatic_elem,
-                document_elem=document_elem,
                 table_data=table_data,
-                first_run=True,
             )
             w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
             w, h = math.ceil(w), math.ceil(h)
@@ -3367,7 +3359,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             relative_offset = RelPoint2D((0, 0))
 
         elif style_pos in {'fixed', 'absolute'}:
-            relative_element = self._document_elem if style_pos == 'fixed' else self._nonstatic_elem
+            relative_element = self._document.body if style_pos == 'fixed' else self._nonstatic_elem
             if relative_element is None or relative_element == self:
                 mbp_left = mbp_top = 0
             else:
