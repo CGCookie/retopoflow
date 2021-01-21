@@ -39,7 +39,6 @@ import bgl
 import blf
 import gpu
 
-from .ui_proxy import UI_Proxy
 from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
 
 from gpu.types import GPUOffScreen
@@ -861,20 +860,13 @@ class UI_Element_Properties:
         elif t is tuple:
             child,grandchildren = children
             self.append_child(child).builder(grandchildren)
-        elif t is UI_Element or t is UI_Proxy:
-            self.append_child(children)
         else:
             assert False, 'UI_Element.builder: unhandled type %s' % t
         return self
 
     def _delete_child(self, child):
         assert child, 'attempting to delete None child?'
-        if child not in self._children:
-            # child is not in children, could be wrapped in proxy
-            pchildren = [pchild for pchild in self._children if type(pchild) is UI_Proxy and child in pchild._proxy_all_elements]
-            assert len(pchildren) != 0, 'attempting to delete child that does not exist?'
-            assert len(pchildren) == 1, 'attempting to delete child that is wrapped twice?'
-            child = pchildren[0]
+        assert child in self._children, f'Attempted to delete non-child {child} from {self}'
         if self.document: self.document.removed_element(child)
         self._children.remove(child)
         child._parent = None
@@ -1538,14 +1530,12 @@ class UI_Element_Properties:
     @property
     def value(self):
         if self._pseudoelement: return self._parent.value
-        if self._value_bound:
-            return self._value.value
-        else:
-            return self._value
+        if self._value_bound:   return self._value.value
+        return self._value
     @value.setter
     def value(self, v):
-        if self._value_bound:
-            self._value.value = v
+        if self._pseudoelement: self._parent.value = v
+        if self._value_bound:   self._value.value = v
         elif self._value != v:
             self._value = v
             self._value_change()
@@ -1566,6 +1556,39 @@ class UI_Element_Properties:
         self._value = v
         self._value_bound = False
         return p
+
+    @property
+    def valueMax(self):
+        if self._pseudoelement: return self._parent.valueMax
+        if self._value_bound:   return self._value.max_value
+        return self._valueMax
+    @valueMax.setter
+    def valueMax(self, v):
+        if self._pseudoelement:   self._parent.valueMax = v
+        elif self._value_bound:   self._value.max_value = v
+        elif self._valueMax != v: self._valueMax = v
+
+    @property
+    def valueMin(self):
+        if self._pseudoelement: return self._parent.valueMin
+        if self._value_bound:   return self._value.max_value
+        return self._valueMin
+    @valueMin.setter
+    def valueMin(self, v):
+        if   self._pseudoelement: self._parent.valueMin = v
+        elif self._value_bound:   self._value.min_value = v
+        elif self._valueMin != v: self._valueMin = v
+
+    @property
+    def valueStep(self):
+        if   self._pseudoelement: return self._parent.valueStep
+        elif self._value_bound:   return self._value.max_value
+        return self._valueStep
+    @valueStep.setter
+    def valueStep(self, v):
+        if   self._pseudoelement:  self._parent.valueStep = v
+        elif self._value_bound:    self._value.min_value = v
+        elif self._valueStep != v: self._valueStep = v
 
     @property
     def checked(self):
@@ -2035,6 +2058,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._type            = None
         self._value           = None
         self._value_bound     = False
+        self._valueMax        = None
+        self._valueMin        = None
+        self._valueStep       = None
         self._checked         = None
         self._checked_bound   = False
         self._name            = None

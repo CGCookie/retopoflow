@@ -841,16 +841,6 @@ input[type="number"]::marker {
 /*************************/
 /* INPUT RANGE           */
 
-div.inputrange-container {
-    display: block;
-    width: 100%;
-    height: 22px;
-    border: 0px;
-    padding: 0px;
-    /*height: 50px;*/
-}
-
-/* input.inputrange-input */
 input[type="range"] {
     position: relative;
     display: block;

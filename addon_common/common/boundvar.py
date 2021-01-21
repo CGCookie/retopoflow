@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import re
 import copy
+import math
 import inspect
 
 class IgnoreChange(Exception): pass
@@ -172,12 +173,14 @@ class BoundInt(BoundVar):
     def int_validator(self, value):
         try:
             t = type(value)
-            if t is str:     nv = int(re.sub(r'[^\d.]', '', value))
+            if   t is str:   nv = int(re.sub(r'[^\d.-]', '', value))
             elif t is int:   nv = value
             elif t is float: nv = int(value)
             else: assert False, 'Unhandled type of value: %s (%s)' % (str(value), str(t))
             if self._min_value is not None: nv = max(nv, self._min_value)
             if self._max_value is not None: nv = min(nv, self._max_value)
+            if self._step_size and self._min_value is not None:
+                nv = math.floor((nv - self._min_value) / self._step_size) * self._step_size + self._min_value
             return nv
         except ValueError as e:
             raise IgnoreChange()
@@ -218,12 +221,14 @@ class BoundFloat(BoundVar):
     def float_validator(self, value):
         try:
             t = type(value)
-            if t is str:     nv = float(re.sub(r'[^\d.]', '', value))
+            if   t is str:   nv = float(re.sub(r'[^\d.-]', '', value))
             elif t is int:   nv = float(value)
             elif t is float: nv = value
             else: assert False, 'Unhandled type of value: %s (%s)' % (str(value), str(t))
             if self._min_value is not None: nv = max(nv, self._min_value)
             if self._max_value is not None: nv = min(nv, self._max_value)
+            if self._step_size and self._min_value is not None:
+                nv = math.floor((nv - self._min_value) / self._step_size) * self._step_size + self._min_value
             return nv
         except ValueError as e:
             raise IgnoreChange()

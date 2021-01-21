@@ -136,7 +136,6 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
 
     def start(self):
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
-        print(ui_core.ASYNC_IMAGE_LOADING)
 
         preload_help_images.paused = True
         keymaps = get_keymaps()
@@ -264,7 +263,6 @@ class RetopoFlow(
 
     def start(self):
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
-        print(ui_core.ASYNC_IMAGE_LOADING)
 
         self.loading_done = False
 

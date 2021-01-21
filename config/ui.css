@@ -205,14 +205,12 @@ label > span {
 /* range input                  */
 /********************************/
 
-div.inputrange-container {
-    margin: 4px;
-    padding: 0px;
-    height: 30px;
-    background: transparent;
-}
-
 input[type="range"] {
+    display: block;
+    position: relative;
+    left: 0;
+    top: 0;
+    width: 100%;
     margin: 0px;
     padding: 0px;
     background: transparent;
@@ -222,11 +220,13 @@ input[type="range"] > *.inputrange-left {
     background-color: var(--option-selected-background);
     border: 0px;
     top: -6px;
+    z-index: 0;
 }
 input[type="range"] > *.inputrange-right {
     background-color: var(--option-background);
     border: 0px;
     top: -6px;
+    z-index: 0;
 }
 input[type="range"]:active > *.inputrange-left {
     background-color: hsla(200, 100%, 62.5%, 1.0);
@@ -237,6 +237,7 @@ input[type="range"] > *.inputrange-handle {
     width: 16px;
     height: 16px;
     background-color: hsl(200, 0%, 60%);
+    z-index: 1;
 }
 
 

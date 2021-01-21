@@ -41,7 +41,6 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import get_preferences
 from ...addon_common.common import ui
 from ...addon_common.common.ui_core import UI_Element
-from ...addon_common.common.ui_proxy import UI_Proxy
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
 

@@ -41,7 +41,6 @@ from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
 from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
-from .ui_proxy import UI_Proxy
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
@@ -315,8 +314,6 @@ class UI_Document(UI_Document_FSM):
         return self._sticky_element
     @sticky_element.setter
     def sticky_element(self, element):
-        if type(element) is UI_Proxy:
-            element = element.proxy_default_element
         self._sticky_element = element
 
     def clear_last_under(self):
@@ -586,13 +583,7 @@ class UI_Document(UI_Document_FSM):
         # self._under_mousedown.del_pseudoclass('active')
 
     def _is_ancestor(self, ancestor, descendant):
-        if type(ancestor) is UI_Proxy:
-            ancestors = set(ancestor._all_elements)
-        else:
-            ancestors = { ancestor }
-        descendant_ancestors = set(descendant.get_pathToRoot())
-        common = ancestors & descendant_ancestors
-        return len(common)>0
+        return ancestor in descendant.get_pathToRoot()
 
     def blur(self, stop_at=None):
         if self._focus is None: return
@@ -604,8 +595,6 @@ class UI_Document(UI_Document_FSM):
 
     def focus(self, ui_element):
         if ui_element is None: return
-        if type(ui_element) is UI_Proxy:
-            ui_element = ui_element.proxy_default_element
         if self._focus == ui_element: return
 
         stop_focus_at = None

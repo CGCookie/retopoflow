@@ -38,8 +38,6 @@ import bgl
 import blf
 import gpu
 
-from .ui_proxy import UI_Proxy
-
 from mathutils import Vector, Matrix
 
 from .boundvar import BoundVar
@@ -417,11 +415,6 @@ class UI_Element_Elements():
         assert not rest, f'Could not process all of HTML\nRemaining: {rest}\nHTML: {html}'
         return lui
 
-    def _process_input_text(self):
-        return self._process_input_box('text')
-    def _process_input_number(self):
-        return self._process_input_box('number')
-
     def _process_input_box(self, input_type):
         if self._ui_marker is None:
             # just got focus, so create a cursor element
@@ -593,6 +586,80 @@ class UI_Element_Elements():
 
         return [*self._children, self._ui_marker]
 
+    def _process_input_range(self):
+        assert self._value_bound, f'{self} must have bound value ({self.value})'
+        if not getattr(self, '_processed_input_range', False):
+            self._processed_input_range = True
+            ui_left   = self.append_new_child(tagName='span', classes='inputrange-left')
+            ui_handle = self.append_new_child(tagName='span', classes='inputrange-handle')
+            ui_right  = self.append_new_child(tagName='span', classes='inputrange-right')
+
+            state = Dict()
+            state.reset = delay_exec('''state.set(grabbed=False, down=None, initval=None, cancelled=False)''')
+            state.cancel = delay_exec('''state.value = state.initval; state.cancelled = True''')
+            state.reset()
+
+            def postflow():
+                if not self.is_visible: return
+                # since ui_left, ui_right, and ui_handle are all absolutely positioned UI elements,
+                # we can safely move them around without dirtying (the UI system does not need to
+                # clean anything or reflow the elements)
+
+                w, W = ui_handle.width_scissor, self.width_scissor
+                if w == 'auto' or W == 'auto': return   # UI system is not ready yet
+                W -= self._mbp_width
+
+                mw = W - w                      # max dist the handle can move
+                p = self._value.bounded_ratio   # convert value to [0,1] based on min,max
+                hl = p * mw                     # find where handle (left side) should be
+                m = hl + (w / 2)                # compute center of handle
+
+                ui_left.width_override = math.floor(m)
+                ui_handle._alignment_offset = Vec2D((math.floor(hl), 0))
+                ui_right.width_override = math.floor(W-m)
+                ui_right._alignment_offset = Vec2D((math.ceil(m), 0))
+
+                ui_left.dirty(cause='input range value changed', properties='renderbuf')
+                ui_right.dirty(cause='input range value changed', properties='renderbuf')
+
+            def handle_mousedown(e):
+                if e.button[2] and state['grabbed']:
+                    # right mouse button cancels
+                    state.cancel()
+                    e.stop_propagation()
+                    return
+                if not e.button[0]: return
+                state.set(
+                    grabbed=True,
+                    down=e.mouse,
+                    initval=self._value.value,
+                    cancelled=False,
+                )
+                e.stop_propagation()
+            def handle_mouseup(e):
+                if e.button[0]: return
+                e.stop_propagation()
+                state.reset()
+            def handle_mousemove(e):
+                if not state.grabbed or state.cancelled: return
+                m, M = self._value.min_value, self._value.max_value
+                p = (e.mouse.x - state['down'].x) / self.width_pixels
+                self._value.value = state.initval + p * (M - m)
+                e.stop_propagation()
+                postflow()
+            def handle_keypress(e):
+                if not state.grabbed or state.cancelled: return
+                if type(e.key) is int and is_keycode(e.key, 'ESC'):
+                    state.cancel()
+                    e.stop_propagation()
+            self.add_eventListener('on_mousemove', handle_mousemove, useCapture=True)
+            self.add_eventListener('on_mousedown', handle_mousedown, useCapture=True)
+            self.add_eventListener('on_mouseup',   handle_mouseup,   useCapture=True)
+            self.add_eventListener('on_keypress',  handle_keypress,  useCapture=True)
+
+            ui_handle.postflow = postflow
+            self._value.on_change(postflow)
+        return self._children
 
     def _process_label(self):
         if not getattr(self, '_processed_label', False):
@@ -770,17 +837,19 @@ class UI_Element_Elements():
         if self._pseudoelement == 'marker': return self._children
 
         tagtype = f'{self._tagName}{f" {self._type}" if self._type else ""}'
-        processor = {
+        processors = {
             'input radio':    self._process_input_radio,
             'input checkbox': self._process_input_checkbox,
-            'input text':     self._process_input_text,
-            'input number':   self._process_input_number,
+            'input text':     lambda: self._process_input_box('text'),
+            'input number':   lambda: self._process_input_box('number'),
+            'input range':    self._process_input_range,
             'details':        self._process_details,
             'summary':        self._process_summary,
             'label':          self._process_label,
             'dialog':         self._process_dialog,
             'h1':             self._process_h1,
             'li':             self._process_li,
-        }.get(tagtype, None)
+        }
+        processor = processors.get(tagtype, None)
 
         return processor() if processor else self._children

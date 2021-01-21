@@ -325,20 +325,12 @@ def symmetry_changed(self):
                             <label title="Effect of symmetry source visualization">Source Effect</label>
                             <input type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
                         </div>
+                        <input type="range" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">
                         <div class="labeled-input-text">
                             <label title="Factor for alpha of mirrored target visualization">Target Effect</label>
                             <input type="number" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
-<!--
-                            ui.input_range(
-                                title='Effect of symmetry source visualization.',
-                                value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                            ),
-                            ui.input_range(
-                                title='Factor for alpha of mirrored target visualization.',
-                                value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
-                            ),
--->
                         </div>
+                        <input type="range" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">
                     </div>
                 </div>
                 <div class="collection">
