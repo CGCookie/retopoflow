@@ -160,12 +160,20 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             return self.insert_edge_loop_strip()
 
         if self.rfcontext.actions.pressed({'select paint'}):
-            return self.rfcontext.setup_selection_painting(
-                'edge',
+            return self.rfcontext.setup_smart_selection_painting(
+                {'edge'},
+                #selecting=not sel_only,
+                #deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'edge',
+            #     fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')

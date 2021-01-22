@@ -213,24 +213,40 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
-            return self.rfcontext.setup_selection_painting(
-                'face',
-                sel_only=sel_only,
-                #fn_filter_bmelem=self.filter_edge_selection,
+            return self.rfcontext.setup_smart_selection_painting(
+                {'face'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
+                # fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'face',
+            #     sel_only=sel_only,
+            #     #fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             # TODO: DO NOT PAINT!
             sel_only = self.actions.pressed('select single')
-            return self.rfcontext.setup_selection_painting(
-                'face',
-                sel_only=sel_only,
-                #fn_filter_bmelem=self.filter_edge_selection,
+            return self.rfcontext.setup_smart_selection_painting(
+                {'face'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
+                # fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'face',
+            #     sel_only=sel_only,
+            #     #fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
 
     @RFTool_PolyStrips.FSM_State('move handle', 'can enter')

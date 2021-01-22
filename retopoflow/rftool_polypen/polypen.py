@@ -247,13 +247,21 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()
-            return self.rfcontext.setup_selection_painting(
+            return self.rfcontext.setup_smart_selection_painting(
                 {'vert','edge','face'},
-                sel_only=sel_only,
-                #fn_filter_bmelem=self.filter_edge_selection,
+                selecting=not sel_only,
+                deselect_all=sel_only,
+                # fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     {'vert','edge','face'},
+            #     sel_only=sel_only,
+            #     #fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             sel_only = self.actions.pressed('select single')

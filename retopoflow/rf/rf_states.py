@@ -22,6 +22,10 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import math
 import time
 import random
+from itertools import chain
+from collections import deque
+
+from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import Cursors
@@ -479,6 +483,115 @@ class RetopoFlow_States(CookieCutter):
         opts['timer'].done()
 
 
+    def setup_smart_selection_painting(self, bmelem_types, selecting, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
+        kwargs_filter = kwargs_filter or {}
+        fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
+
+        def get_bmelem(*args, **kwargs):
+            nonlocal fn_filter, bmelem_types
+            bmelem, dist = None, float('inf')
+            if 'vert' in bmelem_types:
+                _bmelem, _dist = self.accel_nearest2D_vert(*args, **kwargs)
+                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem, dist = _bmelem, _dist
+            if 'edge' in bmelem_types:
+                _bmelem, _dist = self.accel_nearest2D_edge(*args, **kwargs)
+                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
+            if 'face' in bmelem_types:
+                _bmelem, _dist = self.accel_nearest2D_face(*args, **kwargs)
+                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
+            return bmelem
+
+        bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
+        if not bmelem: return   # nothing there; leave!
+
+        bmelem_types = { RFVert: {'vert'}, RFEdge: {'edge'}, RFFace: {'face'} }[type(bmelem)]
+        selecting |= not bmelem.select              # if not explicitly selecting, start selecting only if elem under mouse is not selected
+        kwargs_select   = kwargs_select   or {}
+        kwargs_deselect = kwargs_deselect or {}
+        kwargs.update(kwargs_select if selecting else kwargs_deselect)
+        if selecting: kwargs['only'] = False
+
+        # find all other visible elements
+        vis_elems = self.accel_vis_verts | self.accel_vis_edges | self.accel_vis_faces
+
+        # walk from bmelem to all other connected visible geometry
+        path = {}
+        working = deque()
+        working.append((bmelem, None))
+        def add(o, bme):
+            nonlocal vis_elems, path, working
+            if o not in vis_elems or o in path: return
+            if not fn_filter(o): return
+            working.append((o, bme))
+        while working:
+            bme, from_bme = working.popleft()
+            if bme in path: continue
+            path[bme] = from_bme
+            if 'vert' in bmelem_types:
+                for c in bme.link_edges:
+                    o = c.other_vert(bme)
+                    add(o, bme)
+            if 'edge' in bmelem_types:
+                for c in bme.verts:
+                    for o in c.link_edges:
+                        add(o, bme)
+            if 'face' in bmelem_types:
+                for c in bme.edges:
+                    for o in c.link_faces:
+                        add(o, bme)
+
+        op = (lambda e: self.select(e, **kwargs)) if selecting else (lambda e: self.deselect(e, **kwargs))
+
+        self.selection_painting_opts = {
+            'bmelem':    bmelem,
+            'selecting': selecting,
+            'get':       get_bmelem,
+            'kwargs':    kwargs,
+            'path':      path,
+            'op':        op,
+            'deselect':  deselect_all,
+            'previous':  [],
+        }
+
+        self.undo_push('smart select' if selecting else 'smart deselect')
+        if deselect_all: self.deselect_all()
+        op(bmelem)
+
+        return 'smart selection painting'
+
+    @CookieCutter.FSM_State('smart selection painting', 'enter')
+    def smart_selection_painting_enter(self):
+        self._last_mouse = None
+
+    @CookieCutter.FSM_State('smart selection painting')
+    def smart_selection_painting(self):
+        assert self.selection_painting_opts
+        opts = self.selection_painting_opts
+
+        if self.actions.mousemove:
+            tag_redraw_all('RF selection_painting')
+        if self.actions.pressed('cancel'):
+            self.undo_cancel()
+            return 'main'
+        if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):
+            return 'main'
+        if self._last_mouse == self.actions.mouse: return
+        self._last_mouse = self.actions.mouse
+
+        bmelem = opts['get']()
+        if not bmelem: return
+        if bmelem not in opts['path']: return
+
+        for bme,s in opts['previous']: bme.select = s
+        opts['previous'] = []
+        while bmelem:
+            opts['previous'].append((bmelem, bmelem.select))
+            opts['op'](bmelem)
+            bmelem = opts['path'][bmelem]
+
+    @CookieCutter.FSM_State('smart selection painting', 'exit')
+    def smart_selection_painting_exit(self):
+        self.selection_painting_opts = None
 
 
     def setup_selection_painting(self, bmelem_type, select=None, sel_only=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):

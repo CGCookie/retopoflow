@@ -2494,10 +2494,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if all(p not in self._dirty_properties for p in ['style', 'style parent']):
             self.defer_clean = True
             with profiler.code('style.calling back callbacks'):
-                for e in self._dirty_callbacks.get('style', []):
+                for e in list(self._dirty_callbacks.get('style', [])):
                     # print(self,'->', e)
                     e._compute_style()
-                for e in self._dirty_callbacks.get('style parent', []):
+                for e in list(self._dirty_callbacks.get('style parent', [])):
                     # print(self,'->', e)
                     e._compute_style()
                 self._dirty_callbacks['style'].clear()
@@ -2915,6 +2915,8 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 p = child._computed_styles.get('position', 'static')
                 if p == 'absolute':
                     blocks_abs.append(child)
+                # elif p == 'fixed':
+                #    blocks_abs.append(child)  # need separate list for fixed elements?
                 elif d in {'inline', 'table-cell'}:
                     if not blocked_inlines:
                         blocked_inlines = True
@@ -3064,32 +3066,31 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         if not self.is_visible: return
 
-        first_on_line  = kwargs['first_on_line']    # is self the first UI_Element on the current line?
-        fitting_size   = kwargs['fitting_size']     # size from parent that we should try to fit in (only max)
-        fitting_pos    = kwargs['fitting_pos']      # top-left position wrt parent where we go if not absolute or fixed
-        parent_size    = kwargs['parent_size']      # size of inside of parent
-        nonstatic_elem = kwargs['nonstatic_elem']   # last non-static element
-        table_data     = kwargs['table_data']       # data structure for current table (could be empty)
+        first_on_line  = kwargs.get('first_on_line',  True)     # is self the first UI_Element on the current line?
+        fitting_size   = kwargs.get('fitting_size',   None)     # size from parent that we should try to fit in (only max)
+        fitting_pos    = kwargs.get('fitting_pos',    None)     # top-left position wrt parent where we go if not absolute or fixed
+        parent_size    = kwargs.get('parent_size',    None)     # size of inside of parent
+        nonstatic_elem = kwargs.get('nonstatic_elem', None)     # last non-static element
+        tabled         = kwargs.get('table_data',     {})       # data structure for current table (could be empty)
+        table_elem     = tabled.get('element',        None)     # parent table element
+        table_index2D  = tabled.get('index2D',        None)     # current position in table (i=row,j=col)
+        table_cells    = tabled.get('cells',          None)     # cells of table as tuples (element, size)
 
-        table_elem     = table_data.get('element', None)    # parent table element
-        table_index2D  = table_data.get('index2D', None)    # current position in table (i=row,j=col)
-        table_cells    = table_data.get('cells', None)      # cells of table as tuples (element, size)
+        styles    = self._computed_styles
+        style_pos = styles.get('position', 'static')
 
-        styles       = self._computed_styles
-        style_pos    = styles.get('position', 'static')
-
-        self._fitting_pos = fitting_pos
-        self._fitting_size = fitting_size
-        self._parent_size = parent_size
-        self._absolute_pos = None
-        self._nonstatic_elem = nonstatic_elem
+        self._fitting_pos     = fitting_pos
+        self._fitting_size    = fitting_size
+        self._parent_size     = parent_size
+        self._absolute_pos    = None
+        self._nonstatic_elem  = nonstatic_elem
         self._tablecell_table = None
-        self._tablecell_pos = None
-        self._tablecell_size = None
+        self._tablecell_pos   = None
+        self._tablecell_size  = None
 
         self.update_position()
 
-        if not self._dirtying_flow and not self._dirtying_children_flow and not table_data:
+        if not self._dirtying_flow and not self._dirtying_children_flow and not tabled:
             return
 
         if DEBUG_LIST:
@@ -3136,11 +3137,11 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         mbp_width  = mbp_left + mbp_right
         mbp_height = mbp_top  + mbp_bottom
 
-        self._mbp_left = mbp_left
-        self._mbp_top = mbp_top
-        self._mbp_right = mbp_right
+        self._mbp_left   = mbp_left
+        self._mbp_top    = mbp_top
+        self._mbp_right  = mbp_right
         self._mbp_bottom = mbp_bottom
-        self._mbp_width = mbp_width
+        self._mbp_width  = mbp_width
         self._mbp_height = mbp_height
 
         self._computed_min_width  = min_width
@@ -3170,14 +3171,13 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if self._static_content_size:
             # self has static content size
             # self has no children
-            dw = self._static_content_size.width
-            dh = self._static_content_size.height
+            dw, dh = self._static_content_size.size
 
             if self._src in {'image' ,'image loading'}:
                 def scale_dw_dh(num, den):
                     nonlocal dw,dh
                     sc = 0 if den == 0 else num / den
-                    dw,dh = dw*sc,dh*sc
+                    dw, dh = dw*sc, dh*sc
                 # image will scale based on inside_size
                 if inside_size.max_width  is not None and dw > inside_size.max_width:  scale_dw_dh(inside_size.max_width,  dw)
                 if inside_size.width      is not None:                                 scale_dw_dh(inside_size.width,      dw)
@@ -3197,7 +3197,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 table_elem = self
                 table_index2D = Index2D(0, 0)
                 table_cells = {}
-                table_data = { 'elem': table_elem, 'index2D': table_index2D, 'cells': table_cells }
+                tabled = { 'elem': table_elem, 'index2D': table_index2D, 'cells': table_cells }
 
             working_width  = (inside_size.width  if inside_size.width  is not None else (inside_size.max_width  if inside_size.max_width  is not None else float('inf')))
             working_height = (inside_size.height if inside_size.height is not None else (inside_size.max_height if inside_size.max_height is not None else float('inf')))
@@ -3225,7 +3225,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                             fitting_pos=pos,
                             parent_size=inside_size,
                             nonstatic_elem=next_nonstatic_elem,
-                            table_data=table_data,
+                            table_data=tabled,
                         )
                         w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
                         element_fits = False
@@ -3278,36 +3278,21 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if max_width  != 'auto': dw = min(max_width,  dw)
         if max_height != 'auto': dh = min(max_height, dh)
 
-        dw = math.ceil(dw) if not math.isinf(dw) else 100000
-        dh = math.ceil(dh) if not math.isinf(dh) else 100000
+        dw = math.ceil(dw) if math.isfinite(dw) else 100000
+        dh = math.ceil(dh) if math.isfinite(dh) else 100000
 
         self._dynamic_full_size = Size2D(width=dw, height=dh)
-        # if self._tagName == 'body': print(self._dynamic_content_size, self._dynamic_full_size)
 
-        pos = Point2D((0, 0))
-        remaining = Size2D(max_width=float('inf'), max_height=float('inf'))
-        for element in self._blocks_abs:
-            if not element.is_visible: continue
-            element._layout(
-                first_on_line=True,
-                fitting_size=remaining,
-                fitting_pos=pos,
-                parent_size=self._dynamic_full_size,
-                nonstatic_elem=next_nonstatic_elem,
-                table_data=table_data,
-            )
-            w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
-            w, h = math.ceil(w), math.ceil(h)
-            sz = Size2D(width=w, height=h)
-            element.set_view_size(sz)
 
         # handle table elements
         if display == 'table-row':
             table_index2D.update(i=0, j_off=1)
+
         elif display == 'table-cell':
             idx = table_index2D.to_tuple()
             table_cells[idx] = (self, self._dynamic_full_size)
             table_index2D.update(i_off=1)
+
         elif display == 'table':
             inds = table_cells.keys()
             ind_is = sorted({ i for (i,j) in inds })
@@ -3332,10 +3317,33 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._dynamic_content_size = Size2D(width=fw, height=fh)
             self._dynamic_full_size = Size2D(width=math.ceil(fw+mbp_width), height=math.ceil(fh+mbp_height))
 
-        self._tmp_max_width = max_width
 
         # reposition
         self.update_position()
+
+
+        # position all absolute positioned children
+        for element in self._blocks_abs:
+            if not element.is_visible: continue
+            position = element._computed_styles.get('position', 'static')
+            if position == 'absolute':
+                # fitting_size = Size2D(max_width=self._dynamic_content_size.width, max_height=self._dynamic_content_size.height)
+                fitting_size = Size2D(max_width=float('inf'), max_height=float('inf'))
+                parent_size = self._dynamic_full_size
+            elif position == 'fixed':
+                fitting_size = Size2D(max_width=self._document.body._dynamic_content_size.width, max_height=self._document.body._dynamic_content_size.height)
+                parent_size = self._document.body._dynamic_full_size
+            element._layout(
+                first_on_line=True,
+                fitting_size=fitting_size,
+                fitting_pos=Point2D((0, 0)),
+                parent_size=parent_size,
+                nonstatic_elem=next_nonstatic_elem,
+                table_data={},
+            )
+            w, h = math.ceil(element._dynamic_full_size.width), math.ceil(element._dynamic_full_size.height)
+            sz = Size2D(width=w, height=h)
+            element.set_view_size(sz)
 
         self._dirtying_flow = False
         self._dirtying_children_flow = False
@@ -3364,12 +3372,12 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 mbp_left = mbp_top = 0
             else:
                 mbp_left = relative_element._mbp_left
-                mbp_top = relative_element._mbp_top
+                mbp_top  = relative_element._mbp_top
             if pl == 'auto': pl = 0
             if pt == 'auto': pt = 0
-            if relative_element is not None and relative_element != self and self._clamp_to_parent:
-                parent_width  = self._parent_size.get_width_midmaxmin()  or 0
-                parent_height = self._parent_size.get_height_midmaxmin() or 0
+            if relative_element and relative_element != self and self._clamp_to_parent:
+                parent_width  = (relative_element._dynamic_full_size or self._parent_size).get_width_midmaxmin()  or 0
+                parent_height = (relative_element._dynamic_full_size or self._parent_size).get_height_midmaxmin() or 0
                 width         = self._get_style_num('width',  def_v='auto', percent_of=parent_width,  scale=dpi_mult)
                 height        = self._get_style_num('height', def_v='auto', percent_of=parent_height, scale=dpi_mult)
                 w = width  if width  != 'auto' else (self.width_pixels  if self.width_pixels  != 'auto' else 0)

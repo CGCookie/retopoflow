@@ -181,6 +181,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 'center': ctr,
             })
 
+    def filter_edge_selection(self, bme):
+        return bme.select or len(bme.link_faces) < 2
 
     @RFTool_Strokes.FSM_State('main')
     @profiler.function
@@ -233,13 +235,21 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()
-            return self.rfcontext.setup_selection_painting(
-                'edge',
-                sel_only=sel_only,
-                #fn_filter_bmelem=self.filter_edge_selection,
+            return self.rfcontext.setup_smart_selection_painting(
+                {'edge'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
+                fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'edge',
+            #     sel_only=sel_only,
+            #     fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             sel_only = self.actions.pressed('select single')
@@ -252,14 +262,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             else:                         self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
             return
 
-
-        # if self.rfcontext.actions.pressed({'select paint', 'select single', 'select single add'}):
-        #     return self.rfcontext.setup_selection_painting(
-        #         'edge',
-        #         #fn_filter_bmelem=self.filter_edge_selection,
-        #         kwargs_select={'supparts': False},
-        #         kwargs_deselect={'subparts': False},
-        #     )
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')

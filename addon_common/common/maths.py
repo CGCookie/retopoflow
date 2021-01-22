@@ -1250,6 +1250,9 @@ class Size2D:
     def height(self, v): self._height = v
 
     @property
+    def size(self): return (self.width, self.height)
+
+    @property
     def min_width(self): return self._min_width
     @min_width.setter
     def min_width(self, v): self._min_width = v
