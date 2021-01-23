@@ -24,7 +24,7 @@ Below is a list of major changes.
 ### RetopoFlow 3.00.2&rarr;3.00.3
 
 - General: selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
-- UI: major redesign and reimplementation of underlying UI system
+- UI: major performance improvements from redesign and reimplementation of underlying UI system
 - Added button on help system to view help documents in web browser
 - Several bug fixes and UX improvements
 

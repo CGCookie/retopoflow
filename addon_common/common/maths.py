@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin
+from math import sqrt, acos, cos, sin, floor, ceil, isinf
 import re
 from typing import List
 
@@ -1810,6 +1810,13 @@ class NumberUnit:
         return NumberUnit(self._num / other, self._unit, self._base)
 
 NumberUnit.zero = NumberUnit(0, 'px')
+
+
+
+def floor_if_finite(v):
+    return v if v is None or isinf(v) else floor(v)
+def ceil_if_finite(v):
+    return v if v is None or isinf(v) else ceil(v)
 
 
 
