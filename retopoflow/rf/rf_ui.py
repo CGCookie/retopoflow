@@ -481,15 +481,15 @@ class RetopoFlow_UI:
 
         def setup_counts_ui():
             self.ui_geometry = UI_Element.fromHTMLFile(abspath('geometry.html'))[0]
+            if options['show geometry window']:
+                self.show_geometry_window()
+            else:
+                self.hide_geometry_window()
             self.document.body.append_child(self.ui_geometry)
             self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
             self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
             self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
             self.update_ui_geometry()
-            if options['show geometry window']:
-                self.show_geometry_window()
-            else:
-                self.hide_geometry_window()
 
         def setup_tiny_ui():
             nonlocal humanread
