@@ -910,16 +910,18 @@ article.mdown ul {
     padding-left: 16px;
 }
 
-article.mdown ul > li > p {
-    padding: 0px;
+article.mdown li > p {
     margin: 0px;
+    border: 0px;
+    padding: 0px 0px 0px 15px;
 }
-article.mdown ul > li > ul {
-    padding: 0px;
-    margin: 0px;
-}
+
 article.mdown a {
-    padding: 0px 0px 0px 0px;
+    position: relative;
+    left: 0px;
+    top: 1px;
+    overflow: visible;
+    padding: 0px 0px -1px 0px;
     margin: 0px;
     background-color: transparent;
     border: 1px transparent;
