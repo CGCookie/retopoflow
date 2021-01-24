@@ -59,6 +59,7 @@ try:
         from .config import options as configoptions
         from .retopoflow import updater
         from .addon_common.common.maths import convert_numstr_num
+        from .addon_common.common.blender import get_active_object
         from .retopoflow import rftool
     options = configoptions.options
     retopoflow_version = configoptions.retopoflow_version
@@ -151,11 +152,11 @@ if import_succeeded:
     create operators to start RetopoFlow
     '''
 
-    class VIEW3D_OT_RetopoFlow_NewTarget(Operator):
-        """Create new target object+mesh and start RetopoFlow"""
-        bl_idname = "cgcookie.retopoflow_newtarget"
-        bl_label = "RF: Create new target"
-        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh and start RetopoFlow"
+    class VIEW3D_OT_RetopoFlow_NewTarget_Cursor(Operator):
+        """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow_newtarget_cursor"
+        bl_label = "RF: New target at Cursor"
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = {'REGISTER', 'UNDO'}
@@ -182,7 +183,45 @@ if import_succeeded:
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget]
+    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Cursor]
+
+    class VIEW3D_OT_RetopoFlow_NewTarget_Active(Operator):
+        """Create new target object+mesh at the active source and start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow_newtarget_active"
+        bl_label = "RF: New target at Active"
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the active source and start RetopoFlow"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+
+        @classmethod
+        def poll(cls, context):
+            if not context.region or context.region.type != 'WINDOW': return False
+            if not context.space_data or context.space_data.type != 'VIEW_3D': return False
+            # check we are not in mesh editmode
+            if context.mode == 'EDIT_MESH': return False
+            # make sure we have source meshes
+            if not retopoflow.RetopoFlow.get_sources(): return False
+            o = get_active_object()
+            if not o: return False
+            if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False): return False
+            # all seems good!
+            return True
+
+        def invoke(self, context, event):
+            active = get_active_object()
+            auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
+            bpy.context.preferences.edit.use_enter_edit_mode = False
+            for o in bpy.data.objects: o.select_set(False)
+            mesh = bpy.data.meshes.new('RetopoFlow')
+            obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            obj.matrix_world = active.matrix_world
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
+            return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
+    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
 
     class VIEW3D_OT_RetopoFlow_LastTool(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
@@ -362,14 +401,16 @@ if import_succeeded:
             box = layout.box()
             if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                 # currently editing target, so show RF tools
-                box.label(text='Start RetopoFlow with Tool')
+                box.label(text='Start RetopoFlow with Edit Mesh')
                 col = box.column()
                 for c in RF_tool_classes:
                     col.operator(c.bl_idname)
             else:
-                box.label(text='Start RetopoFlow')
+                box.label(text='Create New RetopoFlow Target')
+                col = box.column()
                 # currently not editing target, so show operator to create new target
-                box.operator('cgcookie.retopoflow_newtarget', icon='ADD')
+                col.operator('cgcookie.retopoflow_newtarget_cursor', icon='ADD') #'ORIENTATION_CURSOR')
+                col.operator('cgcookie.retopoflow_newtarget_active', icon='ADD') #'OBJECT_ORIGIN')
 
             box = layout.box()
             box.label(text='Help and Support') # , icon='QUESTION')
@@ -414,7 +455,7 @@ if import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                if context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
                     row = layout.row(align=True)
                     if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                         row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
@@ -483,7 +524,7 @@ if not import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                if context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
                     row = layout.row(align=True)
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow (broken)")

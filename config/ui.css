@@ -906,8 +906,19 @@ article.mdown p {
     text-align: justify;
     padding-left: 16px;
 }
+
 article.mdown ul {
     padding-left: 16px;
+}
+
+article.mdown ol {
+    padding-left: 16px;
+}
+
+article.mdown ol > li::marker {
+    text-align: left;
+    color: white;
+    font-size: 10px;
 }
 
 article.mdown li > p {

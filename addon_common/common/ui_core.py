@@ -965,6 +965,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return self.__str__()
 
     def __str__(self):
+        if self._innerTextAsIs is not None:
+            innerTextAsIs = self._innerTextAsIs.replace('\n', '\\n') if self._innerTextAsIs else ''
+            return f"'{innerTextAsIs}'"
         if self._pseudoelement == 'text':
             innerText = self.innerText.replace('\n', '\\n') if self.innerText else ''
             return f'"{innerText}"'

@@ -828,6 +828,14 @@ class UI_Element_Elements():
 
         elif self._parent and self._parent._tagName == 'ol':
             # <ol><li>...
+            if not self._ui_marker:
+                my_i = 0
+                for i,c in enumerate(self._parent._children):
+                    if c == self:
+                        my_i = i + 1
+                        break
+                self._ui_marker = self.prepend_new_child(tagName='li', classes=self._classes_str, pseudoelement='marker', innerText=f'{my_i}.')
+                #self._ui_marker = self.prepend_new_child(tagName='li', classes=f'number {self._classes_str}', pseudoelement='marker', content="1.")
             return self._children
 
         return self._children

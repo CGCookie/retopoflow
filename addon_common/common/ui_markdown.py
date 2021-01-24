@@ -256,9 +256,14 @@ class UI_Markdown:
                                 skip_first = False
                                 continue
                             ui_li = ui_ol.append_new_child(tagName='li')
-                            ui_li.append_new_child(tagName='span', classes='number', innerText=f'{ili}.')
-                            span_element = ui_li.append_new_child(tagName='span', classes='text')
-                            process_para(span_element, litext)
+                            #ui_li.append_new_child(tagName='span', classes='number', innerText=f'{ili}.')
+                            #span_element = ui_li.append_new_child(tagName='span', classes='text')
+                            if '\n' in litext:
+                                # remove leading spaces
+                                litext = '\n'.join(l.strip() for l in litext.split('\n'))
+                                process_mdown(ui_li, litext)
+                            else:
+                                process_para(ui_li, litext)
 
                 elif t == 'img':
                     style = m.group('style').strip() or None

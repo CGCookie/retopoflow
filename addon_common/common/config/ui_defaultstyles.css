@@ -187,6 +187,38 @@ ul > li::marker {
     background-image: url('radio.png');
 }
 
+ol {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    display: block;
+}
+
+ol > li {
+    position: relative;
+    left: 0px;
+    top: 0px;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    padding: 0px 0px 0px 12px;
+    display: block;
+    overflow: visible;
+}
+ol > li::marker {
+    color: white;
+    position: absolute;
+    /*left: -8px;*/
+    left: 0px;
+    /*margin: 5px 5px 0px 5px;*/
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    width: 15px;
+    /*height: 10px;*/
+    /*background-image: url('radio.png');*/
+}
+
 
 dialog {
     position: fixed;
@@ -445,7 +477,7 @@ article.mdown ul > li > span.text {
 }*/
 
 
-article.mdown ol {
+/*article.mdown ol {
     margin: 0px;
     border: 0px;
     padding: 0px;
@@ -453,7 +485,7 @@ article.mdown ol {
 }
 
 article.mdown ol > li {
-    /*margin: 8px 0px;*/
+    /*margin: 8px 0px;* /
     margin: 0px;
     border: 0px;
     padding: 0px;
@@ -466,7 +498,7 @@ article.mdown ol > li > span.number {
     border: 0px;
     padding: 0px;
     width: 20px;
-    /*height: 10px;*/
+    /*height: 10px;* /
 }
 article.mdown ol > li > span.text {
     margin: 0px 0px 0px 8px;
@@ -474,7 +506,7 @@ article.mdown ol > li > span.text {
     padding: 0px;
     display: inline;
 }
-
+*/
 
 /* background-color: hsla(200, 25%, 25%, 0.75); */
 /* background-color: hsla(200, 25%, 40%, 0.75); */

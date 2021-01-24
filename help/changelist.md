@@ -26,6 +26,7 @@ Below is a list of major changes.
 - General: selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
 - UI: major performance improvements from redesign and reimplementation of underlying UI system
 - Added button on help system to view help documents in web browser
+- Added Blender operator for creating new target mesh based on active source mesh
 - Several bug fixes and UX improvements
 
 ### RetopoFlow 3.00.1&rarr;3.00.2
