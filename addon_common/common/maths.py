@@ -2119,6 +2119,23 @@ def intersection2d_line_line(p0, p1, p2, p3):
     return (x0 + t * (x1 - x0), y0 + t * (y1 - y0))
 
 
+def closest2d_point_line(pt:Point2D, p0:Point2D, p1:Point2D):
+    d = Direction2D(p1 - p0)
+    v = Vec2D(pt - p0)
+    u = d * d.dot(v)
+    return Point2D(p0 + u)
+
+def closest2d_point_segment(pt:Point2D, p0:Point2D, p1:Point2D):
+    dv = Vec2D(p1 - p0)
+    ld = dv.length
+    if abs(ld) <= 0.00001: return p0
+    dd = dv / ld
+    v = Vec2D(pt - p0)
+    p = Point2D(p0 + dd * clamp(dd.dot(v), 0, ld))
+    p.freeze()
+    return p
+
+
 if __name__ == '__main__':
     # run tests
     p0 = Point((1, 2, 3))

@@ -137,6 +137,10 @@ class RetopoFlow_UI:
 
 
     def alert_user(self, message=None, title=None, level=None, msghash=None):
+        if not getattr(self, '_msghashes', None): self._msghashes = set()
+        if msghash and msghash in self._msghashes: return # have already seen this error!!
+        self._msghashes.add(msghash)
+
         show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version

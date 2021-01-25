@@ -65,6 +65,43 @@ from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join, abspath
 
 
+class LineFitter:
+    def __init__(self, box):
+        self.box = box
+        self.accum_width  = 0
+        self.accum_height = 0
+        self.lines   = []
+        self.current_line = None
+        self.new_line()
+
+    def new_line(self):
+        # width:  sum of all widths added to current line
+        # height: max of all heights added to current line
+        if not self.is_current_line_empty():
+            self.accum_width = max(self.accum_width, self.current_width)
+            self.accum_height = self.accum_height + self.current_height
+            self.lines.append(self.current.elements)
+        self.current_line = []
+        self.current_width = 0
+        self.current_height = 0
+
+    def is_current_line_empty(self):
+        return not self.current_line
+
+    def get_next_box(self):
+        return Box2D(
+            left  =self.box.left + self.current_width,
+            top   =-(self.box.top + self.accum_height),
+            width =self.box.width - self.current_width,
+            height=self.box.height - self.accum_height,
+        )
+
+    def add_element(self, element, size):
+        # assuming element is placed in correct spot in line
+        self.current_line.append(element)
+        self.current_width += size.biggest_width()
+        self.current_height = max(self.current_height, size.biggest_height())
+
 
 class UI_Layout:
     '''
@@ -94,9 +131,37 @@ class UI_Layout:
                DO NOT PREVENT THIS, otherwise layout bugs will occur!
     '''
 
+    def _layout2(self, **kwargs):
+        if not self.is_visible: return
+        if self._defer_clean: return
+
+        styles  = self._computed_styles
+        display = styles.get('display', 'block')
+
+        layout = {
+            'inline':     self._layout_inline,
+            'block':      self._layout_block,
+            'table':      self._layout_table,
+            'table-row':  self._layout_table_row,
+            'table-cell': self._layout_table_cell,
+        }.get(display, self._layout_block)
+
+        layout(*kwargs)
+
+
+    def _layout_inline(self):
+        pass
+
+    def _layout_block(self):
+        pass
+
+    def _layout_table(self):
+        pass
+
     @profiler.function
     def _layout(self, **kwargs):
         if not self.is_visible: return
+        if self._defer_clean: return
 
         first_on_line  = kwargs.get('first_on_line',  True)     # is self the first UI_Element on the current line?
         fitting_size   = kwargs.get('fitting_size',   None)     # size from parent that we should try to fit in (only max)
@@ -235,6 +300,19 @@ class UI_Layout:
             working_height = (inside_size.height if inside_size.height is not None else (inside_size.max_height if inside_size.max_height is not None else float('inf')))
             if overflow_y in {'scroll', 'auto'}: working_height = float('inf')
 
+            def flatten(block):
+                if type(block) is list: return [element for e in block for element in flatten(e)]
+                # assuming block is UI_Element
+                if block._pseudoelement == 'text': return flatten(block._children_all)
+                display = block._computed_styles.get('display', 'block')
+                if display == 'none': return []
+                if display in {'block', 'table', 'table-row', 'table-cell'}: return [block]
+                if display in {'inline'}: return flatten(block._children_all)
+                # print(f'flatten {self} {display}')
+                return [block]
+
+            fitter = LineFitter(Box2D(left=mbp_left, top=mbp_top, width=working_width, height=working_height))
+
             accum_lines, accum_width, accum_height = [], 0, 0
             # accum_width: max width for all lines;  accum_height: sum heights for all lines
             cur_line, cur_width, cur_height = [], 0, 0
@@ -266,7 +344,9 @@ class UI_Layout:
                         element_fits |= not c                        # child does not contribute to our size
                         element_fits |= self._innerText is not None and self._whitespace in {'nowrap', 'pre'}
                         if element_fits:
-                            if c: cur_line.append(element)
+                            if c:
+                                cur_line.append(element)
+                                #cur_line.extend(flatten(element))
                             # clamp width and height only if scrolling (respectively)
                             if sx == 'scroll': w = remaining.clamp_width(w)
                             if sy == 'scroll': h = remaining.clamp_height(h)
@@ -291,6 +371,9 @@ class UI_Layout:
             self._all_lines = accum_lines
             dw = accum_width
             dh = accum_height
+            # print(f'{self}:')
+            # for l,w,h in accum_lines:
+            #     print(f'   {len(l)} {l}')
 
         # possibly override with text size
         if self._children_text_min_size:

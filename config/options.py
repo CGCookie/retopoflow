@@ -238,6 +238,7 @@ class Options:
         'strokes span count':           1,
 
         'polypen merge dist':           10,         # pixels away to merge
+        'polypen snap dist':            3,          # pixels away to snap
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
@@ -476,17 +477,20 @@ class Themes:
         'Blue': {
             'select':  ints_to_Color( 55, 160, 255),
             'new':     ints_to_Color( 40,  40, 255),
-            'active':  ints_to_Color( 55, 160, 255),
+            'active':  ints_to_Color( 40, 255, 255),
+            # 'active':  ints_to_Color( 55, 160, 255),
         },
         'Green': {
             'select':  ints_to_Color( 78, 207,  81),
             'new':     ints_to_Color( 40, 255,  40),
-            'active':  ints_to_Color( 78, 207,  81),
+            'active':  ints_to_Color( 40, 255, 255),
+            # 'active':  ints_to_Color( 78, 207,  81),
         },
         'Orange': {
             'select':  ints_to_Color(255, 135,  54),
             'new':     ints_to_Color(255, 128,  64),
-            'active':  ints_to_Color(255, 135,  54),
+            'active':  ints_to_Color(255, 80,  64),
+            # 'active':  ints_to_Color(255, 135,  54),
         },
     }
 

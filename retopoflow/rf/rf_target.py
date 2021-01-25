@@ -407,6 +407,10 @@ class RetopoFlow_Target:
         self.undo_push('remove selected doubles')
         self.rftarget.remove_selected_doubles(options['remove doubles dist'])
 
+    def flip_face_normals(self):
+        self.undo_push('flipping face normals')
+        self.rftarget.flip_face_normals()
+
     #######################################
     # target manipulation functions
     #

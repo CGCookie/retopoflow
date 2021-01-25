@@ -815,13 +815,6 @@ class UI_Element_Elements():
     def _process_li(self):
         if self._parent and self._parent._tagName == 'ul':
             # <ul><li>...
-            # if not self._ui_marker:
-            #     self._ui_marker = self._generate_new_ui_elem(
-            #         tagName='li',
-            #         classes=self._classes_str,
-            #         pseudoelement='marker',
-            #     )
-            # return [self._ui_marker, *self._children]
             if not self._ui_marker:
                 self._ui_marker = self.prepend_new_child(tagName='li', classes=self._classes_str, pseudoelement='marker')
             return self._children
@@ -829,13 +822,8 @@ class UI_Element_Elements():
         elif self._parent and self._parent._tagName == 'ol':
             # <ol><li>...
             if not self._ui_marker:
-                my_i = 0
-                for i,c in enumerate(self._parent._children):
-                    if c == self:
-                        my_i = i + 1
-                        break
-                self._ui_marker = self.prepend_new_child(tagName='li', classes=self._classes_str, pseudoelement='marker', innerText=f'{my_i}.')
-                #self._ui_marker = self.prepend_new_child(tagName='li', classes=f'number {self._classes_str}', pseudoelement='marker', content="1.")
+                idx = next((i+1 for (i,c) in enumerate(self._parent._children) if self==c), 0)
+                self._ui_marker = self.prepend_new_child(tagName='li', classes=self._classes_str, pseudoelement='marker', innerText=f'{idx}.')
             return self._children
 
         return self._children

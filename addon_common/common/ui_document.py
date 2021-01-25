@@ -640,6 +640,8 @@ class UI_Document(UI_Document_FSM):
         if not self._focus: return 'main'
 
     def force_clean(self, context):
+        if self.defer_cleaning: return
+
         time_start = time.time()
 
         w,h = context.region.width, context.region.height

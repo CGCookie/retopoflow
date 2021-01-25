@@ -1707,3 +1707,12 @@ class RFTarget(RFMesh):
         remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
         self.dirty()
 
+    def flip_face_normals(self):
+        verts = set()
+        for bmf in self.get_selected_faces():
+            bmf.normal_flip()
+            for bmv in bmf.verts: verts.add(bmv)
+        for bmv in verts:
+            bmv.normal_update()
+        self.dirty()
+

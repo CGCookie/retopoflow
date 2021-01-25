@@ -289,6 +289,12 @@ def symmetry_changed(self):
                         <button title='Merge selected vertices within given distance.' classes='half-size' on_mouseclick="self.remove_selected_doubles()">Selected</button>
                     </div>
                 </div>
+                <div class="collection">
+                    <h1>Normals</h1>
+                    <div class="contents">
+                        <button title="Flip normal of selected faces" class="full-size" on_mouseclick="self.flip_face_normals()">Flip Normals</button>
+                    </div>
+                </div>
             </div>
         </details>
         <details>
