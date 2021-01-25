@@ -20,7 +20,7 @@ RetopoFlow v3.x requires Blender 2.83 or newer, and will work on any operating s
 
 ## Download and Install
 
-You may download RetopoFlow from your [account dashboard](https://cgcookiemarkets.com/customer-dashboard/?task=download) on the Blender Market, assuming you've already purchased it. If you have not yet purchased a copy, then you may get it [here](https://cgcookiemarkets.com/all-products/retopoflow/).
+You may download RetopoFlow from your [account dashboard](https://blendermarket.com/account) on the Blender Market, assuming you've already purchased it. If you have not yet purchased a copy, then you may get it [here](https://cgcookiemarkets.com/products/retopoflow/).
 
 The easiest way to install RetopoFlow is to do so directly from Blender. You can do this by going to **File > User Preferences > Add-ons > Install** from File. This will open a File Browser in Blender, allowing to you navigate to and select the .zip file you downloaded. Press Install from file.
 
@@ -33,4 +33,4 @@ Once installed, Blender should automatically filter the addons list to show only
 
 ## Getting Support
 
-Running into a problem or have a question that the documentation isn't answering? Reach out to us on the [support forum](https://cgcookiemarkets.com/all-products/retopoflow/?view=support)
+Running into a problem or have a question that the documentation isn't answering? Reach out to us via the [retopoflow@cgcookie.com](mailto:retopoflow@cgcookie.com)
