@@ -1,4 +1,4 @@
-# RetopoFlow {{ site.data.options.rf_version }} Quick Start {{ site.data.options.rf_version }}
+# RetopoFlow {{ site.data.options.rf_version }} Quick Start Guide
 
 This guide will help you get started with the RetopoFlow.
 

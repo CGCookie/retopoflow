@@ -1,4 +1,4 @@
-# RetopoFlow&nbsp;{{ site.data.options.rf_version }} Change List{{ site.data.options.rf_version }}
+# RetopoFlow&nbsp;{{ site.data.options.rf_version }} Change List
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
