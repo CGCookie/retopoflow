@@ -428,7 +428,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                         nedge = self.rfcontext.new_edge([prev, cur])
                     if cur_faces & pre_faces:
                         face = next(iter(cur_faces & pre_faces))
-                        face.split(prev, cur)
+                        try:
+                            face.split(prev, cur)
+                        except Exception as ex:
+                            print(f'PolyPen Exception Caught')
+                            print(ex)
                         
                 if not cur.link_faces:
                     unfaced_verts.append(cur)
