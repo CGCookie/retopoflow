@@ -1,6 +1,6 @@
 # ![](tweak-icon.png) Tweak Help
 
-Shortcut: {{ keymaps.tweak_tool }}
+Shortcut: {{ site.data.keymaps.tweak_tool }}
 
 
 The Tweak tool allows you to easily adjust vertex positions with a brush.
@@ -11,16 +11,16 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.brush }}          | : | tweak all vertices within brush |
-| {{ keymaps.brush_alt }}      | : | tweak only selected vertices within brush |
+| {{ site.data.keymaps.brush }}          | : | tweak all vertices within brush |
+| {{ site.data.keymaps.brush_alt }}      | : | tweak only selected vertices within brush |
 
 ## Changing Brush Options
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.brush_radius }}   | : | adjust brush size |
-| {{ keymaps.brush_strength }} | : | adjust brush strength |
-| {{ keymaps.brush_falloff }}  | : | adjust brush falloff |
+| {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
+| {{ site.data.keymaps.brush_strength }} | : | adjust brush strength |
+| {{ site.data.keymaps.brush_falloff }}  | : | adjust brush falloff |
 
 ## Masking
 

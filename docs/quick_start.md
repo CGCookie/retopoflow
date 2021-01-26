@@ -1,8 +1,8 @@
-# RetopoFlow {{ options.rf_version }} Quick Start {{ options.rf_version }}
+# RetopoFlow {{ site.data.options.rf_version }} Quick Start {{ site.data.options.rf_version }}
 
 This guide will help you get started with the RetopoFlow.
 
-More detailed help is available by pressing {{ keymaps.general_help }} after you start RetopoFlow.
+More detailed help is available by pressing {{ site.data.keymaps.general_help }} after you start RetopoFlow.
 
 
 ## The Short, Short Version

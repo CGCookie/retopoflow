@@ -1,4 +1,4 @@
-# RetopoFlow&nbsp;{{ options.rf_version }} Change List{{ options.rf_version }}
+# RetopoFlow&nbsp;{{ site.data.options.rf_version }} Change List{{ site.data.options.rf_version }}
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
@@ -48,8 +48,8 @@ Below is a list of major changes.
 - Tweak/Relax: brushes now do not become fully opaque (nor fully transparent) when strength is set to 1 (or 0)
 - Patches: improved code to detect good candidates for bridging two I-strips
 - PolyPen: PP-specific pie menu now shown in help doc
-- Added quit confirmation dialog when using {{ keymaps.done }}.  This dialog can be disabled.
-- Added Delete/Dissolve pie menu using {{ keymaps.delete_pie_menu }}
+- Added quit confirmation dialog when using {{ site.data.keymaps.done }}.  This dialog can be disabled.
+- Added Delete/Dissolve pie menu using {{ site.data.keymaps.delete_pie_menu }}
 - Other miscellaneous bug fixes
 
 ### RetopoFlow 2.x&rarr;3.00.0

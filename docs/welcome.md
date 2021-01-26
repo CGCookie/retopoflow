@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow&nbsp;{{ options.rf_version }}!{{ options.rf_version }}
+# Welcome to RetopoFlow&nbsp;{{ site.data.options.rf_version }}!{{ site.data.options.rf_version }}
 
 RetopoFlow is a suite of Blender tools that automatically generate geometry which snaps to your source objects as you draw on the surface. 
 
@@ -16,7 +16,7 @@ Check out our [quick start guide](quick_start.md) to learn the basics of using R
 
 RetopoFlow also has a full documentation and help system within the app.
 
-You can find it in the Help section of the toolbar or, at any time, press {{ keymaps.general_help }} to open the [general help document](general.md), {{ keymaps.all_help }} to open the [table of contents](table_of_contents.md), or {{ keymaps.tool_help }} to open the help documents for the currently selected tool.
+You can find it in the Help section of the toolbar or, at any time, press {{ site.data.keymaps.general_help }} to open the [general help document](general.md), {{ site.data.keymaps.all_help }} to open the [table of contents](table_of_contents.md), or {{ site.data.keymaps.tool_help }} to open the help documents for the currently selected tool.
 
 
 ## Find an issue? Please let us know!

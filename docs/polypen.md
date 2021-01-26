@@ -1,6 +1,6 @@
 # ![](polypen-icon.png) PolyPen Help
 
-Shortcut: {{ keymaps.polypen_tool }}
+Shortcut: {{ site.data.keymaps.polypen_tool }}
 
 The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
@@ -11,37 +11,37 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.insert }} | : | insert geometry connected to selected geometry |
+| {{ site.data.keymaps.insert }} | : | insert geometry connected to selected geometry |
 
 ## Selecting
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.select_single }}, {{ keymaps.select_single_add }} | : | select geometry |
-| {{ keymaps.select_paint }}, {{ keymaps.select_paint_add }}   | : | paint geometry selection |
-| {{ keymaps.select_all }}                       | : | select / deselect all |
-| {{ keymaps.deselect_all }}                     | : | deselect all |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select geometry |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint geometry selection |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Transforming
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.grab }}             | : | grab and move selected geometry |
-| {{ keymaps.action }}           | : | grab and move selected geometry under mouse |
-| {{ keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
+| {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
+| {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
+| {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
 
 ## Other
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.delete }} | : | delete/dissolve selected |
+| {{ site.data.keymaps.delete }} | : | delete/dissolve selected |
 
 
 ## Insertion Modes
 
 Creating vertices/edges/faces is dependent on the selected mode and the selected geometry.
-Switch between modes using the PolyPen Options, or hold {{ keymaps.pie_menu_alt0 }} to bring up a the PolyPen pie menu.
+Switch between modes using the PolyPen Options, or hold {{ site.data.keymaps.pie_menu_alt0 }} to bring up a the PolyPen pie menu.
 
 ![](help_polypen_modes_options_pie.png max-height:250px)
 

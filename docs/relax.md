@@ -1,6 +1,6 @@
 # ![](relax-icon.png) Relax Help
 
-Shortcut: {{ keymaps.relax_tool }}
+Shortcut: {{ site.data.keymaps.relax_tool }}
 
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
@@ -11,16 +11,16 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.brush }}          | : | relax all vertices within brush |
-| {{ keymaps.brush_alt }}      | : | relax only selected vertices within brush |
+| {{ site.data.keymaps.brush }}          | : | relax all vertices within brush |
+| {{ site.data.keymaps.brush_alt }}      | : | relax only selected vertices within brush |
 
 ## Changing Brush Options
 
 |  |  |  |
 | :--- | :--- | :--- |
-| {{ keymaps.brush_radius }}   | : | adjust brush size |
-| {{ keymaps.brush_strength }} | : | adjust brush strength |
-| {{ keymaps.brush_falloff }}  | : | adjust brush falloff |
+| {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
+| {{ site.data.keymaps.brush_strength }} | : | adjust brush strength |
+| {{ site.data.keymaps.brush_falloff }}  | : | adjust brush falloff |
 
 ## Masking
 
