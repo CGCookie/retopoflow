@@ -660,11 +660,12 @@ class RFFace(BMElemWrapper):
 
     #############################################
 
-    def split(self, vert_a, vert_b):
+    def split(self, vert_a, vert_b, coords=[]):
         bmf = BMElemWrapper._unwrap(self)
         bmva = BMElemWrapper._unwrap(vert_a)
         bmvb = BMElemWrapper._unwrap(vert_b)
-        bmf_new, bml_new = face_split(bmf, bmva, bmvb)
+        coords = [BMElemWrapper.w2l_point(c) for c in coords]
+        bmf_new, bml_new = face_split(bmf, bmva, bmvb, coords=coords)
         return RFFace(bmf_new)
 
 

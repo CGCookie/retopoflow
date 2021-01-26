@@ -783,21 +783,28 @@ dialog.alertdialog {
     width: 200px;
     left: 20%;
     max-height: 100%;
-    overflow: hidden;
+    /*overflow: hidden;*/
+}
+dialog.alertdialog > div.contents {
+    max-height: 90%;
 }
 dialog.alertdialog div#alert-checker {
     margin: 0px;
     border: 0px;
     padding: 0px;
 }
-dialog.alertdialog div.alertdialog-buttons {
-    margin: 1px;
+div.alertdialog-buttons {
+    margin: 0px;
+    left: 0px;
+    bottom: -36px;
     width: 100%;
-    bottom: -30px;
+    height: 32px;
+    overflow: hidden;
 }
-dialog.alertdialog div.alertdialog-buttons button {
+div.alertdialog-buttons button {
     display: inline;
     width: 50%;
+    text-align: center;
 }
 dialog.alertdialog div.action-buttons button {
     margin: 1px;
