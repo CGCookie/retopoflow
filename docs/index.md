@@ -1,36 +1,39 @@
----
-layout: default
----
+## Welcome to GitHub Pages
 
-# Introduction
+You can use the [editor on GitHub](https://github.com/CGCookie/retopoflow/edit/master/docs/index.md) to maintain and preview the content for your website in Markdown files.
 
-Welcome to the RetopoFlow documentation!
+Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
 
-RetopoFlow is a complete set of retopologize tools for Blender designed for artists. This documentation covers the installation and usage of all tools included in the add-on.
+### Markdown
 
-If you're brand new to RetopoFlow, check the [Getting Started]({{ site.baseurl }}/getting-started) page, ortherwise jump right over to the [Tools]({{ site.baseurl }}/tools) section.
+Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
 
-![RetopoFlow Viewport]({{ site.baseurl }}/assets/img/rf_viewport_polystrips.png)
+```markdown
+Syntax highlighted code block
+
+# Header 1
+## Header 2
+### Header 3
+
+- Bulleted
+- List
+
+1. Numbered
+2. List
+
+**Bold** and _Italic_ and `Code` text
+
+[Link](url) and ![Image](src)
+```
+
+For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+
+### Jekyll Themes
+
+Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/CGCookie/retopoflow/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+
+### Support or Contact
+
+Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
 
 
-## Requirements
-
-RetopoFlow v3.x requires Blender 2.83 or newer, and will work on any operating system Blender supports.
-
-
-## Download and Install
-
-You may download RetopoFlow from your [account dashboard](https://blendermarket.com/account) on the Blender Market, assuming you've already purchased it. If you have not yet purchased a copy, then you may get it [here](https://cgcookiemarkets.com/products/retopoflow/).
-
-The easiest way to install RetopoFlow is to do so directly from Blender. You can do this by going to **File > User Preferences > Add-ons > Install** from File. This will open a File Browser in Blender, allowing to you navigate to and select the .zip file you downloaded. Press Install from file.
-
-*If your browser auto-extracted the downloaded .zip file then you will need to re-compress the **RetopoFlow** folder before installing.*
-
-Once installed, Blender should automatically filter the addons list to show only RetopoFlow. You can then enable the add-on by clicking the checkbox on the upper right of the add-on panel.
-
-![Installing RetopoFlow]({{ site.baseurl }}/assets/img/rf_addon-install.png)
-
-
-## Getting Support
-
-Running into a problem or have a question that the documentation isn't answering? Reach out to us via the [retopoflow@cgcookie.com](mailto:retopoflow@cgcookie.com)
