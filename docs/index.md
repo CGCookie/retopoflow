@@ -2,7 +2,6 @@
 
 Welcome to the RetopoFlow documentation!
 
-
 RetopoFlow is a complete set of retopologize tools for Blender designed for artists. This documentation covers the installation and usage of all tools included in the add-on.
 
 If you’re brand new to RetopoFlow, check the Getting Started page, otherwise jump right over to the Tools section.
