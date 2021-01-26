@@ -145,6 +145,18 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
         return {'FINISHED'}
 RF_classes += [VIEW3D_OT_RetopoFlow_BlenderMarket]
 
+class VIEW3D_OT_RetopoFlow_Help_Online(Operator):
+    bl_idname = 'cgcookie.retopoflow_help_online'
+    bl_label = 'Online Documentation'
+    bl_description = 'Open RetopoFlow Online Documentation'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+
+    def invoke(self, context, event):
+        bpy.ops.wm.url_open(url='https://docs.retopoflow.com')
+        return {'FINISHED'}
+RF_classes += [VIEW3D_OT_RetopoFlow_Help_Online]
+
 
 
 if import_succeeded:
@@ -418,6 +430,10 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
             col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
             col.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
+
+            col = box.column()
+            col.operator('cgcookie.retopoflow_help_online', icon='HELP')
+
             col = box.column()
             col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
