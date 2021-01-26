@@ -304,7 +304,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def set_vis_bmverts(self):
         self.vis_bmverts = [
             (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
-            for bmv in self.vis_verts if bmv not in self.sel_verts
+            for bmv in self.vis_verts
+            if bmv.is_valid and bmv not in self.sel_verts
         ]
 
 
@@ -957,8 +958,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
                     crosses += [(self.actions.mouse, self.nearest_face, 1.0)]
             self.draw_crosses(crosses)
+            bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
             bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
-            if bme:
+            if bmv:
+                pass
+            elif bme:
                 bmv1, bmv2 = bme.verts
                 self.draw_lines([bmv1.co, hit_pos])
                 self.draw_lines([bmv2.co, hit_pos])
