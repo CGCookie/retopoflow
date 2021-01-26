@@ -22,12 +22,15 @@ GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.3."
 
 BUILD_DIR       = ../retopoflow_release
 DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py
+DOCS_REBUILD    = ./scripts/prep_help_for_online.py
 CGCOOKIE_BUILT  = $(NAME)/.cgcookie
 ZIP_FILE        = $(NAME)_$(VERSION).zip
 TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
 
 
 .DEFAULT_GOAL 	:= build
+
+.PHONY: docs
 
 
 # /./././././././././././././././././././././././././././././././
@@ -46,6 +49,11 @@ gittag:
 	git push origin $(GIT_TAG)
 
 
+docs:
+	# rebuild online docs
+	python3 $(DOCS_REBUILD)
+
+
 build:
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
@@ -57,6 +65,8 @@ build:
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
 	# run debug cleanup
 	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
+	# remove online docs
+	cd $(BUILD_DIR) && rm -r docs/
 	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
 

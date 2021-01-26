@@ -26,6 +26,7 @@ from copy import deepcopy
 
 import bpy
 
+from .human_readable import convert_actions_to_human_readable
 from .maths import Point2D, Vec2D
 from .debug import dprint
 from .decorators import blender_version_wrapper
@@ -117,72 +118,6 @@ kmi_to_char = {
     'SHIFT+Y':'Y', 'SHIFT+Z':'Z',
 }
 
-# these are separated into a list so that "SHIFT+ZERO" (for example) is handled
-# before the "SHIFT" gets turned into "Shift"
-kmi_to_humanreadable = [
-    {
-        # most printable characters
-        'SHIFT+ZERO':   ')',
-        'SHIFT+ONE':    '!',
-        'SHIFT+TWO':    '@',
-        'SHIFT+THREE':  '#',
-        'SHIFT+FOUR':   '$',
-        'SHIFT+FIVE':   '%',
-        'SHIFT+SIX':    '^',
-        'SHIFT+SEVEN':  '&',
-        'SHIFT+EIGHT':  '*',
-        'SHIFT+NINE':   '(',
-        'SHIFT+PERIOD': '>',
-        'SHIFT+PLUS':   '+',
-        'SHIFT+MINUS':  '_',
-        'SHIFT+SLASH':  '?',
-        'SHIFT+BACK_SLASH':   '|',
-        'SHIFT+EQUAL':        '+',
-        'SHIFT+SEMI_COLON':   ':', 'SHIFT+COMMA':         '<',
-        'SHIFT+LEFT_BRACKET': '{', 'SHIFT+RIGHT_BRACKET': '}',
-        'SHIFT+QUOTE':        '"', 'SHIFT+ACCENT_GRAVE':  '~',
-
-        'BACK_SPACE': 'Backspace',
-        'BACK_SLASH':   '\\',
-    },{
-        'SPACE':        ' ',
-
-        'ZERO':   '0', 'NUMPAD_0':       'Num0',
-        'ONE':    '1', 'NUMPAD_1':       'Num1',
-        'TWO':    '2', 'NUMPAD_2':       'Num2',
-        'THREE':  '3', 'NUMPAD_3':       'Num3',
-        'FOUR':   '4', 'NUMPAD_4':       'Num4',
-        'FIVE':   '5', 'NUMPAD_5':       'Num5',
-        'SIX':    '6', 'NUMPAD_6':       'Num6',
-        'SEVEN':  '7', 'NUMPAD_7':       'Num7',
-        'EIGHT':  '8', 'NUMPAD_8':       'Num8',
-        'NINE':   '9', 'NUMPAD_9':       'Num9',
-        'PERIOD': '.', 'NUMPAD_PERIOD':  'Num.',
-        'PLUS':   '+', 'NUMPAD_PLUS':    'Num+',
-        'MINUS':  '-', 'NUMPAD_MINUS':   'Num-',
-        'SLASH':  '/', 'NUMPAD_SLASH':   'Num/',
-                       'NUMPAD_ASTERIX': 'Num*',
-
-        'EQUAL':        '=',
-        'SEMI_COLON':   ';', 'COMMA':         ',',
-        'LEFT_BRACKET': '[', 'RIGHT_BRACKET': ']',
-        'QUOTE':        "'", 'ACCENT_GRAVE':  '&#96;', #'`',
-        # prefix modifiers
-        'SHIFT': 'Shift', 'CTRL': 'Ctrl', 'ALT': 'Alt', 'OSKEY': 'OSKey',
-
-        # non-printable characters
-        'ESC': 'Esc',
-        'RET': 'Enter', 'NUMPAD_ENTER': 'Enter',
-        'TAB': 'Tab',
-        'DEL': 'Delete',
-        'UP_ARROW': 'Up', 'DOWN_ARROW': 'Down', 'LEFT_ARROW': 'Left', 'RIGHT_ARROW': 'Right',
-        # mouse
-        'LEFTMOUSE': 'LMB', 'MIDDLEMOUSE': 'MMB', 'RIGHTMOUSE': 'RMB',
-        'WHEELUPMOUSE': 'WheelUp', 'WHEELDOWNMOUSE': 'WheelDown',
-        # postfix modifiers
-        'DRAG': 'Drag', 'DOUBLE': 'Double', 'CLICK': 'Click',
-    }
-]
 
 
 def kmi_details(kmi, event_type=None, click=False, double_click=False, drag_click=False):
@@ -563,15 +498,8 @@ class Actions:
         return ret
 
     def to_human_readable(self, actions, join=',', onlyfirst=None):
-        ret = set()
-        for action in self.convert(actions):
-            for kmi2hr in kmi_to_humanreadable:
-                for k,v in kmi2hr.items():
-                    action = action.replace(k, v)
-            ret.add(action)
-        ret = sorted(ret)
-        if onlyfirst is not None: ret = ret[:onlyfirst]
-        return join.join(ret)
+        actions = { act for action in actions for act in self.convert(action) }
+        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst)
 
 
     def unuse(self, actions):

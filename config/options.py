@@ -51,7 +51,7 @@ retopoflow_version = '3.00.3'
 retopoflow_version_tuple = (3, 0, 3)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
-retopoflow_helpdocs_url = 'https://gfx.cse.taylor.edu/projects/retopoflow'
+retopoflow_helpdocs_url = 'https://docs.retopoflow.com'
 
 # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
 # NOTE: can add number to url to start the amount off
