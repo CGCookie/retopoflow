@@ -404,6 +404,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             prev = None
             pre_e = -1
             pre_p = None
+            unfaced_verts = []
             for p,e,d in crosses:
                 if type(e) is RFVert:
                     cur = e
@@ -416,37 +417,63 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                         pass
                 if prev:
                     cur_faces = set(cur.link_faces)
-                    if not cur_faces:
-                        cur_faces = {self.rfcontext.accel_nearest2D_face(point=p, max_dist=options['select dist'])[0]}
+                    cur_under = cur_faces
+                    if not cur_under:
+                        cur_under = {self.rfcontext.accel_nearest2D_face(point=p, max_dist=options['select dist'])[0]}
                     pre_faces = set(prev.link_faces)
-                    if not pre_faces:
-                        pre_faces = {self.rfcontext.accel_nearest2D_face(point=pre_p, max_dist=options['select dist'])[0]}
-                    if cur_faces & pre_faces:
+                    pre_under = pre_faces
+                    if not pre_under:
+                        pre_under = {self.rfcontext.accel_nearest2D_face(point=pre_p, max_dist=options['select dist'])[0]}
+                    if cur_under & pre_under and not prev.share_edge(cur):
                         nedge = self.rfcontext.new_edge([prev, cur])
-                        # possibly split face, too!
-                        if type(e) is RFEdge:
-                            # find previous vert
-                            coords = []
-                            delverts = []
-                            nprev = cur
-                            nosplit = False
-                            while not prev.link_faces:
-                                coords.append(prev.co)
-                                delverts.append(prev)
-                                verts = [e.other_vert(prev) for e in prev.link_edges]
-                                pprev = next((v for v in verts if v != nprev), None)
-                                if pprev is None:
-                                    nosplit = True
-                                    break
-                                prev, nprev = pprev, prev
-                            if not nosplit:
-                                faces = set(cur.link_faces) & set(prev.link_faces)
-                                face = next(iter(faces)) if len(faces) == 1 else self.rfcontext.accel_nearest2D_face(point=Point_to_Point2D(coords[0]), max_dist=options['select dist'])[0]
-                                face.split(cur, prev, coords)
-                                self.rfcontext.delete_verts(delverts)
+                    if cur_faces & pre_faces:
+                        face = next(iter(cur_faces & pre_faces))
+                        face.split(prev, cur)
+                        
+                if not cur.link_faces:
+                    unfaced_verts.append(cur)
                 prev = cur
                 pre_e = e
                 pre_p = p
+
+            for v in unfaced_verts:
+                if not v.is_valid: continue
+                if len(v.link_edges) != 2: continue
+                nosplit = False
+                fwd = []
+                rev = []
+                e0,e1 = v.link_edges
+                v0,v1 = e0.other_vert(v),e1.other_vert(v)
+                fwd += [v0]
+                rev += [v1]
+                while not v0.link_faces:
+                    if len(v0.link_edges) != 2:
+                        nosplit = True
+                        break
+                    e0 = next(e for e in v0.link_edges if e != e0)
+                    v0 = e0.other_vert(v0)
+                    fwd += [v0]
+                if nosplit: continue
+                while not v1.link_faces:
+                    if len(v1.link_edges) != 2:
+                        nosplit = True
+                        break
+                    e1 = next(e for e in v1.link_edges if e != e1)
+                    v1 = e1.other_vert(v1)
+                    rev += [v1]
+                if nosplit: continue
+                rev.reverse()
+                verts = rev + [v] + fwd
+                coords = [vert.co for vert in verts]
+                faces = set(verts[0].link_faces) & set(verts[-1].link_faces)
+                if faces:
+                    face = next(iter(faces))
+                else:
+                    face = self.rfcontext.accel_nearest2D_face(point=Point_to_Point2D(coords[1]), max_dist=options['select dist'])[0]
+                if not face: continue
+                face.split(verts[0], verts[-1], coords=coords[1:-1])
+                self.rfcontext.delete_verts(verts[1:-1])
+                
             self.knife_start = self.actions.mouse
             self.knife_start_face = None
             return 'main'
@@ -815,7 +842,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def draw_crosses(self, crosses):
         with Globals.drawing.draw(CC_2D_POINTS) as draw:
             for p,e,d in crosses:
-                draw.color(themes['new'] if type(e) is RFEdge else themes['active'])
+                draw.color(themes['active'] if type(e) is RFVert else themes['new'])
                 draw.vertex(p)
 
     def draw_lines(self, coords, poly_alpha=0.2):
