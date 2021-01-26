@@ -300,10 +300,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.move_cancelled = 'cancel'
             return 'move'
 
-        if self.actions.pressed('knife reset'):
-            self.knife_start = None
-            self.set_next_state(force=True)
-            return
 
     def set_vis_bmverts(self):
         self.vis_bmverts = [
@@ -438,7 +434,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                         try:
                             face.split(prev, cur)
                         except Exception as ex:
-                            print(f'PolyPen Exception Caught')
+                            print(f'PolyPen caught Exception while trying to split face {face} ({prev}-{cur})')
                             print(ex)
 
                 if not cur.link_faces:

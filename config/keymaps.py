@@ -90,9 +90,6 @@ default_rf_keymaps = {
     'rotate plane': {'R'},              # rotate loops about contour plane normal
     'rotate screen': {'R', 'SHIFT+R'},  # rotate loops in screen space.  note: R only works when rotating in plane
 
-    # polypen
-    'knife reset': {'E'},
-
     # loops
     'slide': {'G'},     # slide loop
 
