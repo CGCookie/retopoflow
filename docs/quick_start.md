@@ -17,7 +17,7 @@ To start retopologizing for the first time:
     - "RF: New target at Active" will create a new target mesh located and oriented by the active source mesh.
     - Note: RetopoFlow follows Blender's convention where symmetry is based on the origin of the object.
 
-![](start_rf_create_new_target.png max-height:400px)
+![](start_rf_create_new_target.png)
 
 
 
@@ -27,7 +27,7 @@ To continue working on a previous retopology session:
 2. Switch to Edit Mode
 3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
 
-![](start_rf_tool.png max-height:400px)
+![](start_rf_tool.png)
 
 
 ## Other Help

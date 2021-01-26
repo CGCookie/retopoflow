@@ -2,7 +2,7 @@
 
 RetopoFlow might present a warning if it detects a situation which is not ideal to start in.
 
-![](warnings.png max-height:300px)
+![](warnings.png)
 
 
 ## Setup: Source / Target Meshes
@@ -24,7 +24,7 @@ Running RetopoFlow with Quad View turned on or with multiple 3D Views can result
 If either Lock to Object or Lock to 3D View are enabled, navigating in RetopoFlow can be incorrect.
 Disable either of these settings in the 3D View Sidebar (`N`) before starting RetopoFlow.
 
-![View Locks](warning_viewlock.png max-height:103px)
+![View Locks](warning_viewlock.png)
 
 ## Auto Save / Save
 

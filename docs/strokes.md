@@ -52,7 +52,7 @@ This means that a smaller brush will insert more, smaller spans, and a larger br
 
 If the Span Insert Mode is set to Fixed, the number of spans will be exactly equal to the number specified by Fixed spans.
 
-![](help_strokes_modes_options_pie.png max-height:250px)
+![](help_strokes_modes_options_pie.png)
 
 
 ## Tips

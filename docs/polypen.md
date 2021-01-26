@@ -43,7 +43,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 Creating vertices/edges/faces is dependent on the selected mode and the selected geometry.
 Switch between modes using the PolyPen Options, or hold {{ site.data.keymaps.pie_menu_alt0 }} to bring up a the PolyPen pie menu.
 
-![](help_polypen_modes_options_pie.png max-height:250px)
+![](help_polypen_modes_options_pie.png)
 
 
 

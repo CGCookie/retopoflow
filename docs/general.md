@@ -40,7 +40,7 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 Note: selection and the undo stack is maintained between tools.
 
-![Pie menu](pie_menu.png max-height:167.5px)
+![Pie menu](pie_menu.png)
 
 Press {{ site.data.keymaps.pie_menu }} at any time to show the tool pie menu.
 
@@ -74,7 +74,7 @@ Pressing {{ site.data.keymaps.delete }} will bring up the Delete/Dissolve dialog
 Pressing and holding {{ site.data.keymaps.delete_pie_menu }} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
 
-![Delete dialog and pie menu](delete_dialog_pie.png max-height:250px)
+![Delete dialog and pie menu](delete_dialog_pie.png)
 
 
 
@@ -105,7 +105,7 @@ The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
-![](help_themes.png max-height:100px)
+![](help_themes.png)
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.
