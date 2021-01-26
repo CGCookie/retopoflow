@@ -1,57 +1,57 @@
-toggle_full_area: `Ctrl+Down`, `Ctrl+Up`
-action: `LMB+Drag`
-action_alt0: `Shift+LMB`
-action_alt1: `Ctrl+Shift+LMB`
-select_single: `LMB+Click`
-select_single_add: `Shift+LMB+Click`
-select_smart: `LMB+Double`
-select_smart_add: `Shift+LMB+Double`
-select_paint: `LMB+Drag`
-select_paint_add: `Shift+LMB+Drag`
-select_all: `A`
-select_invert: `Ctrl+I`
-deselect_all: `Alt+A`
-all_help: `Shift+F1`
-general_help: `F1`
-tool_help: `F2`
-toggle_ui: `F9`
-autosave: `TIMER_AUTOSAVE`
-cancel: `Esc`, `RMB`
-cancel_no_select: `Esc`
-confirm: `Enter`, `LMB+Click`
-done: `Tab`
-done_alt0: `Esc`
-insert: `Ctrl+LMB`, `Ctrl+LMB+Double`
-insert_alt0: `Shift+LMB`, `Shift+LMB+Double`
-insert_alt1: `Ctrl+Shift+LMB`, `Ctrl+Shift+LMB+Double`
-grab: `G`
-rotate: `R`
-scale: `S`
-delete: `Backspace`, `Delete`, `X`
-delete_pie_menu: `Ctrl+Backspace`, `Ctrl+Delete`, `Ctrl+X`
-smooth_edge_flow: `Shift+S`
-increase_count: `+`, `=`, `Shift+Up`, `Shift+WheelUp`
-decrease_count: `-`, `Shift+Down`, `Shift+WheelDown`
-rotate_plane: `R`
-rotate_screen: `R`, `Shift+R`
-slide: `G`
-fill: `Enter`, `F`
-grease_clear: `C`
-brush: `LMB`, `LMB+Double`, `LMB+Drag`
-brush_alt: `Shift+LMB`, `Shift+LMB+Double`, `Shift+LMB+Drag`
-brush_radius: `F`
-brush_falloff: `Ctrl+F`
-brush_strength: `Shift+F`
-pie_menu: `&#96;`
-pie_menu_alt0: `Ctrl+&#96;`
-pie_menu_confirm: `LMB+Click`, `LMB+Drag`
-contours_tool: `1`, `Ctrl+Alt+C`
-polystrips_tool: `2`, `Ctrl+Alt+P`
-strokes_tool: `3`, `Ctrl+Alt+B`
-patches_tool: `4`, `Ctrl+Alt+F`
-polypen_tool: `5`, `Ctrl+Alt+V`
-loops_tool: `6`, `Ctrl+Alt+Q`, `Ctrl+R`
-tweak_tool: `7`, `Ctrl+Alt+G`
-relax_tool: `8`, `Ctrl+Alt+X`
-stretch_tool: `9`
-grease_pencil_tool: `0`
+toggle_full_area: "`Ctrl+Down`, `Ctrl+Up`"
+action: "`LMB+Drag`"
+action_alt0: "`Shift+LMB`"
+action_alt1: "`Ctrl+Shift+LMB`"
+select_single: "`LMB+Click`"
+select_single_add: "`Shift+LMB+Click`"
+select_smart: "`LMB+Double`"
+select_smart_add: "`Shift+LMB+Double`"
+select_paint: "`LMB+Drag`"
+select_paint_add: "`Shift+LMB+Drag`"
+select_all: "`A`"
+select_invert: "`Ctrl+I`"
+deselect_all: "`Alt+A`"
+all_help: "`Shift+F1`"
+general_help: "`F1`"
+tool_help: "`F2`"
+toggle_ui: "`F9`"
+autosave: "`TIMER_AUTOSAVE`"
+cancel: "`Esc`, `RMB`"
+cancel_no_select: "`Esc`"
+confirm: "`Enter`, `LMB+Click`"
+done: "`Tab`"
+done_alt0: "`Esc`"
+insert: "`Ctrl+LMB`, `Ctrl+LMB+Double`"
+insert_alt0: "`Shift+LMB`, `Shift+LMB+Double`"
+insert_alt1: "`Ctrl+Shift+LMB`, `Ctrl+Shift+LMB+Double`"
+grab: "`G`"
+rotate: "`R`"
+scale: "`S`"
+delete: "`Backspace`, `Delete`, `X`"
+delete_pie_menu: "`Ctrl+Backspace`, `Ctrl+Delete`, `Ctrl+X`"
+smooth_edge_flow: "`Shift+S`"
+increase_count: "`+`, `=`, `Shift+Up`, `Shift+WheelUp`"
+decrease_count: "`-`, `Shift+Down`, `Shift+WheelDown`"
+rotate_plane: "`R`"
+rotate_screen: "`R`, `Shift+R`"
+slide: "`G`"
+fill: "`Enter`, `F`"
+grease_clear: "`C`"
+brush: "`LMB`, `LMB+Double`, `LMB+Drag`"
+brush_alt: "`Shift+LMB`, `Shift+LMB+Double`, `Shift+LMB+Drag`"
+brush_radius: "`F`"
+brush_falloff: "`Ctrl+F`"
+brush_strength: "`Shift+F`"
+pie_menu: "`&#96;`"
+pie_menu_alt0: "`Ctrl+&#96;`"
+pie_menu_confirm: "`LMB+Click`, `LMB+Drag`"
+contours_tool: "`1`, `Ctrl+Alt+C`"
+polystrips_tool: "`2`, `Ctrl+Alt+P`"
+strokes_tool: "`3`, `Ctrl+Alt+B`"
+patches_tool: "`4`, `Ctrl+Alt+F`"
+polypen_tool: "`5`, `Ctrl+Alt+V`"
+loops_tool: "`6`, `Ctrl+Alt+Q`, `Ctrl+R`"
+tweak_tool: "`7`, `Ctrl+Alt+G`"
+relax_tool: "`8`, `Ctrl+Alt+X`"
+stretch_tool: "`9`"
+grease_pencil_tool: "`0`"
