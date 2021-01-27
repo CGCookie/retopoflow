@@ -10,7 +10,7 @@ Select the strip of boundary edges that you wish to fill.
 
 ## Creating
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action_alt1 }}    | : | toggle vertex as a corner |
 | {{ site.data.keymaps.fill }}           | : | create visualized patch |
@@ -20,7 +20,7 @@ Select the strip of boundary edges that you wish to fill.
 
 ## Selecting
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edge |
 | {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select boundary edges |
@@ -31,7 +31,7 @@ Select the strip of boundary edges that you wish to fill.
 
 ## Transforming
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action }}  | : | grab and move selected geometry under mouse |
 | {{ site.data.keymaps.grab }}    | : | grab and move selected geometry |

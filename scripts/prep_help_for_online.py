@@ -8,12 +8,14 @@ import shutil
 import codecs
 
 CLEAR_OLD_DOCS   = False
+DELETE_ALL_OLD   = False
 PROCESS_MARKDOWN = True
 COPY_IMAGES      = True
 
 re_keymap  = re.compile(r'{{(?P<key>.*?)}}')
 re_options = re.compile(r'{\[(?P<key>.*?)\]}')
 re_table   = re.compile(r'\|(?P<pre> +)(?P<dashes>--+)(?P<post> +)\|')
+re_emptyth = re.compile(r'\|( +\|){2,}')
 re_input   = re.compile(r'<input[^>]*>[^<]*</input>')
 re_image   = re.compile(r'!\[(?P<caption>[^\]]*)\]\((?P<filename>[^ \)]+)(?P<styling>[^\)]*)\)')
 
@@ -79,6 +81,9 @@ def process_mdown(mdown):
         nf += [l]
     mdown = '\n'.join(nf)
 
+    # delete empty table headers
+    mdown = re_emptyth.sub('', mdown)
+
     # remove inline image styling
     nf = []
     for l in mdown.splitlines():
@@ -116,24 +121,41 @@ def delete_all(path):
         fn_full = os.path.join(path, fn)
         if os.path.isdir(fn):
             delete_all(fn_full)
-        else:
+        elif fn.endswith('.png'):
+            os.remove(fn_full)
+        elif fn.endswith('.md'):
+            os.remove(fn_full)
+        elif DELETE_ALL_OLD:
             os.remove(fn_full)
     os.chdir(ppath)
     os.rmdir(path)
 
 
-path_here = os.path.dirname(__file__)
-path_root = os.path.abspath(os.path.join(path_here, '..'))
-path_help = os.path.join(path_root, 'help')
+path_here  = os.path.dirname(__file__)
+path_root  = os.path.abspath(os.path.join(path_here, '..'))
+
+path_help  = os.path.join(path_root, 'help')
 path_icons = os.path.join(path_root, 'icons')
-path_docs = os.path.join(path_root, 'docs')
-path_data = os.path.join(path_docs, '_data')
-path_keymaps = os.path.join(path_data, 'keymaps.yml')
-path_options = os.path.join(path_data, 'options.yml')
 
 path_keys  = os.path.join(path_root, 'config', 'keymaps.py')
 path_opts  = os.path.join(path_root, 'config', 'options.py')
 path_human = os.path.join(path_root, 'addon_common', 'common', 'human_readable.py')
+
+path_docs_config = os.path.join(path_root, 'docs_config')
+path_docs    = os.path.join(path_root, 'docs')
+path_data    = os.path.join(path_docs, '_data')
+path_keymaps = os.path.join(path_data, 'keymaps.yml')
+path_options = os.path.join(path_data, 'options.yml')
+
+paths_config = {
+    ('CNAME',        os.path.join(path_docs)),
+    ('Gemfile',      os.path.join(path_docs)),
+    ('Gemfile.lock', os.path.join(path_docs)),
+    ('_config.yml',  os.path.join(path_docs)),
+    ('default.html', os.path.join(path_docs, '_layouts')),
+    ('main.css',     os.path.join(path_docs, 'assets', 'css'))
+}
+
 
 os.chdir(path_root)
 
@@ -172,6 +194,14 @@ if COPY_IMAGES:
         print(f'Copying: {fn}')
         shutil.copyfile(fn, os.path.join(path_docs, fn))
 
+# copy docs config files
+os.chdir(path_docs_config)
+for fn, path in paths_config:
+    if not os.path.exists(path):
+        os.makedirs(path)
+    shutil.copyfile(fn, os.path.join(path, fn))
+
+
 # load convert_actions_to_human_readable()
 human_readable = read_file(path_human)
 human_readable = '\n'.join(l for l in human_readable.splitlines() if not re.match(r'(from|import) ', l))
@@ -183,11 +213,17 @@ keymaps = '\n'.join(l for l in keymaps.splitlines() if not re.match(r'(from|impo
 exec(keymaps, globals(), locals())
 keymaps = dict(default_rf_keymaps)
 keymaps.update(left_rf_keymaps)
+keymaps.update({
+    'blender save': {'CTRL+S'},
+    'blender undo': {'CTRL+Z'},
+    'blender redo': {'SHIFT+CTRL+Z'},
+})
 keymaps_data = []
 for k,v in keymaps.items():
     k = k.replace(' ', '_')
     # f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
-    v = '`' + convert_actions_to_human_readable(v, join='`, `') + '`'
+    # v = '`' + convert_actions_to_human_readable(v, join='`, `') + '`'
+    v = '<code>' + convert_actions_to_human_readable(v, join='</code>, <code>') + '</code>'
     keymaps_data.append(f'{k}: "{v}"')
 keymaps_data = '\n'.join(keymaps_data)
 open(path_keymaps, 'wt').write(keymaps_data)
@@ -209,9 +245,4 @@ for k,r in grab:
     options_data.append(f"{k}: {m.group('val')}")
 options_data = '\n'.join(options_data)
 open(path_options, 'wt').write(options_data)
-
-'''retopoflow_version'''
-'''options['warning max target']'''
-'''options['warning max sources']'''
-
 

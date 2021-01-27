@@ -13,7 +13,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 ## RetopoFlow Shortcuts
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.done }}, {{ site.data.keymaps.done_alt0 }} | : | quit RetopoFlow |
 | {{ site.data.keymaps.blender_save }}   | : | save blend file (same as Blender's save) |
@@ -27,7 +27,7 @@ For more details, see the tooltips when hovering or the product documentation pa
 Pressing the tool's shortcut will automatically switch to that tool.
 The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
-|  |  |  |  |
+
 | :--- | :--- | :--- | :--- |
 | {{ site.data.keymaps.contours_tool }}   | : | Contours | [help](contours.md) |
 | {{ site.data.keymaps.polystrips_tool }} | : | PolyStrips | [help](polystrips.md) |
@@ -51,7 +51,7 @@ Press {{ site.data.keymaps.pie_menu }} at any time to show the tool pie menu.
 The following shortcuts work across all the tools, although each tool may have a distinct way of performing the action.
 For example, pressing `G` in Contours will slide the selected loop.
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }}                            | : | create new geometry with current tool / apply relax or tweak |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }}  | : | select single |

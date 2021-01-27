@@ -1,6 +1,6 @@
-# RetopoFlow {{ site.data.options.rf_version }} Quick Start Guide
+# RetopoFlow Quick Start Guide
 
-This guide will help you get started with the RetopoFlow.
+This guide will help you get started with RetopoFlow {{ site.data.options.rf_version }}.
 
 More detailed help is available by pressing {{ site.data.keymaps.general_help }} after you start RetopoFlow.
 
@@ -41,7 +41,7 @@ The following documents provide additional help.
 
 ## Terminology
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | Source Object(s) | : | The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode) |
 | Target Object    | : | The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow. |

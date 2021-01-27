@@ -10,7 +10,7 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ## Creating
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }}         | : | insert edge strip and bridge from selected geometry |
 | {{ site.data.keymaps.increase_count }} | : | increase span/loop counts in bridge |
@@ -19,7 +19,7 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ## Selecting
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edges |
 | {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select loop |
@@ -30,14 +30,14 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ## Transforming
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action }}        | : | grab and slide selected geometry under mouse |
 | {{ site.data.keymaps.grab }}          | : | slide selected loop |
 
 ## Other
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.delete }}         | : | delete/dissolve selected |
 

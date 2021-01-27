@@ -119,6 +119,8 @@ class UI_Markdown:
             if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
             if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
 
+        self._src_mdown_path = mdown_path or ''
+
         if mdown_path: mdown = load_text_file(get_mdown_path(mdown_path))
         if preprocess_fns:
             for preprocess_fn in preprocess_fns:

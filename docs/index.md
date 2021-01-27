@@ -7,7 +7,7 @@ RetopoFlow is a complete set of retopologize tools for Blender designed for arti
 
 If you’re brand new to RetopoFlow, check the Getting Started page, otherwise jump right over to the Tools section.
 
-![RetopoFlow Viewport]()
+![](retopoflow_3_feature.png)
 
 ## Requirements
 
@@ -23,7 +23,7 @@ _If your browser auto-extracted the downloaded .zip file then you will need to r
 
 Once installed, Blender should automatically filter the addons list to show only RetopoFlow. You can then enable the add-on by clicking the checkbox on the upper right of the add-on panel.
 
-![Installing RetopoFlow]()
+![Installing RetopoFlow](install.png)
 
 
 ## Getting Support

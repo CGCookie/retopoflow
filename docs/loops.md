@@ -10,14 +10,14 @@ The Loops tool also works on any strip of edges.
 
 ## Creating
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }} | : | insert edge loop |
 
 
 ## Selecting
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edges |
 | {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select loop |
@@ -28,7 +28,7 @@ The Loops tool also works on any strip of edges.
 
 ## Transforming
 
-|  |  |  |
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.slide }}  | : | slide loop |
 | {{ site.data.keymaps.action }} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |

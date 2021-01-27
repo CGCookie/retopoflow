@@ -87,13 +87,20 @@ kmi_to_humanreadable = [
     }
 ]
 
-def convert_actions_to_human_readable(actions, join=',', onlyfirst=None):
+html_char = {
+    '&#96;': '`',
+}
+
+def convert_actions_to_human_readable(actions, join=',', onlyfirst=None, translate_html_char=False):
     ret = set()
     for action in actions:
         for kmi2hr in kmi_to_humanreadable:
             for k,v in kmi2hr.items():
                 action = action.replace(k, v)
         ret.add(action)
+    if translate_html_char:
+        for k,v in html_char.items():
+            ret = {r.replace(k,v) for r in ret}
     ret = sorted(ret)
     if onlyfirst is not None: ret = ret[:onlyfirst]
     return join.join(ret)

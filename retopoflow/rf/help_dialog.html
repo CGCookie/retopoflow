@@ -1,3 +1,13 @@
+<script type="python">
+def open_online(self):
+    url = retopoflow_helpdocs_url
+    path = self.document.body.getElementById('helpsystem-mdown')._src_mdown_path
+    if path:
+        path = path.replace('.md', '.html')
+        url = f'{url}/{path}'
+    bpy.ops.wm.url_open(url=url)
+</script>
+
 <dialog class='framed closeable' id='helpsystem' on_close="close()" on_keypress="key(event)">
     <h1>RetopoFlow Help System</h1>
     <div class="contents">
@@ -5,7 +15,7 @@
     </div>
     <div id='helpsystem-buttons'>
         <button title='Click to open table of contents for help' on_mouseclick="self.helpsystem_open('table_of_contents.md')">Table of Contents</button>
-        <button title='Click to open online help documents.  Note: this is an experimental feature.' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_helpdocs_url)">View Online Docs</button>
+        <button title='Click to open online help documents.  Note: this is an experimental feature.' on_mouseclick="open_online(self)">View Online Docs</button>
         <button title='Click to close this help dialog' on_mouseclick="close()">Close (Esc)</button>
     </div>
 </dialog>
