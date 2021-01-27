@@ -1,7 +1,6 @@
-
 # theme: jekyll-theme-tactile
 theme: jekyll-theme-minimal
 title: RetopoFlow
 description: A suite of retopology tools for Blender
 logo: retopoflow_3_feature.png
-show_downloads: true
+show_downloads: false
