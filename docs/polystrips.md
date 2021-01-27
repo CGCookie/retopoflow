@@ -15,7 +15,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 ## Creating
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }}         | : | draw strip of quads |
 | {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
@@ -26,7 +26,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 ## Selecting
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select face |
 | {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint face selection |
@@ -38,7 +38,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 The following actions apply to when the mouse is hovering over control points of selected strip.
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action }}      | : | grab and move control point under mouse |
 | {{ site.data.keymaps.action_alt0 }} | : | grab and move all inner control points around neighboring outer control point |
@@ -47,7 +47,7 @@ The following actions apply to when the mouse is hovering over control points of
 
 ## Transforming
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action }}  | : | grab and move selected geometry under mouse |
 | {{ site.data.keymaps.grab }}    | : | grab and move selected geometry |
@@ -55,6 +55,6 @@ The following actions apply to when the mouse is hovering over control points of
 
 ## Other
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.delete }} | : | delete/dissolve selected |

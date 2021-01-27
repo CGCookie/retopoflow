@@ -15,7 +15,7 @@ You may draw strokes in any order, from any direction.
 
 ## Creating
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }}                           | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
 | {{ site.data.keymaps.increase_count }}                   | : | increase segment counts in selected loop |
@@ -25,7 +25,7 @@ You may draw strokes in any order, from any direction.
 
 ## Selecting
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edge |
 | {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select loop |
@@ -35,7 +35,7 @@ You may draw strokes in any order, from any direction.
 
 ## Transforming
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.action }}           | : | grab and slide selected geometry under mouse |
 | {{ site.data.keymaps.grab }}             | : | slide selected loop |
@@ -45,7 +45,7 @@ You may draw strokes in any order, from any direction.
 
 ## Other
 
-|  |  |  |
+  
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.delete }}         | : | delete/dissolve selected |
 
