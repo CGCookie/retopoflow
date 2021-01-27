@@ -1,6 +1,6 @@
-# RetopoFlow {{ site.data.options.rf_version }} Quick Start Guide
+# RetopoFlow Quick Start Guide
 
-This guide will help you get started with the RetopoFlow.
+This guide will help you get started with RetopoFlow {{ site.data.options.rf_version }}.
 
 More detailed help is available by pressing {{ site.data.keymaps.general_help }} after you start RetopoFlow.
 
