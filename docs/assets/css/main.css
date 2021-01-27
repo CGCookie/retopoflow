@@ -14,6 +14,10 @@ h1, h2, h3 {
     color: rgba(224, 224, 224, 1.0);
 }
 
+strong {
+    color: white;
+}
+
 code {
     /*display: inline-block;*/
     border: 1px solid rgba(0,0,0,0.5);
@@ -41,12 +45,12 @@ a {
 }
 
 a:hover {
-    font-weight: normal;
+    font-weight: unset;
     color: white;
 }
 
 
-/* undo theme styling */
+/* undo theme styling on header and footer */
 header ul {
     list-style: none;
     height: auto;
@@ -67,7 +71,7 @@ header ul li a {
     color: rgb(221, 221, 221);
 }
 header ul li a:hover {
-    font-weight: normal;
+    font-weight: unset;
     color: white;
 }
 header ul li a:hover {
