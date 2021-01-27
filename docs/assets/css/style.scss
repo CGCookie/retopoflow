@@ -3,6 +3,18 @@
 
 @import "{{ site.theme }}";
 
+wrapper {
+    background-color: black;
+}
+
+p {
+    color: white;
+}
+
+a {
+    color: orange;
+}
+
 downloads {
-    background-color: white;
+    background-color: darkslategray;
 }
