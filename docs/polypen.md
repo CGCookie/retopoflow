@@ -9,13 +9,13 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ## Creating
 
-  
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.insert }} | : | insert geometry connected to selected geometry |
 
 ## Selecting
 
-  
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select geometry |
 | {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint geometry selection |
@@ -25,7 +25,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ## Transforming
 
-  
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
 | {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
@@ -33,7 +33,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ## Other
 
-  
+
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.delete }} | : | delete/dissolve selected |
 

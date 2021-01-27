@@ -14,6 +14,11 @@ h1, h2, h3 {
     color: rgba(224, 224, 224, 1.0);
 }
 
+h2 {
+    margin-top: 48px;
+    margin-bottom: 12px;
+}
+
 strong {
     color: white;
 }
@@ -49,6 +54,10 @@ a:hover {
     color: white;
 }
 
+th, td {
+    border: 0px;
+}
+
 
 /* undo theme styling on header and footer */
 header ul {
@@ -74,7 +83,12 @@ header ul li a:hover {
     font-weight: unset;
     color: white;
 }
-header ul li a:hover {
+header ul li a:focus {
+    font-weight: unset;
+    color: white;
+    border: 0px;
+}
+header ul li a:active {
     background: transparent;
 }
 footer {
