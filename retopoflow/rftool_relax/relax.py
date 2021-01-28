@@ -43,6 +43,7 @@ class RFTool_Relax(RFTool):
     icon        = 'relax-icon.png'
     help        = 'relax.md'
     shortcut    = 'relax tool'
+    quick_shortcut = 'relax quick'
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'relax_options.html'
 

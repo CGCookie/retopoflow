@@ -510,7 +510,10 @@ class RetopoFlow_UI:
             ui_ttools = self.ui_tiny.getElementById('ttools')
             def add_tool(rftool):               # IMPORTANT: must be a fn so that local vars are unique and correctly captured
                 nonlocal self, humanread        # IMPORTANT: need this so that these are captured
-                title = f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}'
+                shortcut = humanread({rftool.shortcut})
+                quick = humanread({rftool.quick_shortcut}) if rftool.quick_shortcut else ''
+                title = f'{rftool.name}: {rftool.description}. Shortcut: {shortcut}.'
+                if quick: title += f' Quick: {quick}.'
                 val = f'{rftool.name.lower()}'
                 ui_tools.append_child(UI_Element.fromHTML(
                     f'<label title="{title}" class="tool">'

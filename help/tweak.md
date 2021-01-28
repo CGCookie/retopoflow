@@ -2,6 +2,8 @@
 
 Shortcut: {{tweak tool}}
 
+Quick Shortcut: {{tweak quick}}
+
 
 The Tweak tool allows you to easily adjust vertex positions with a brush.
 

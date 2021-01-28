@@ -47,6 +47,7 @@ class RFTool_Tweak(RFTool):
     icon        = 'tweak-icon.png'
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
+    quick_shortcut = 'tweak quick'
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'tweak_options.html'
 

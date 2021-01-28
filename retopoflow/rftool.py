@@ -62,6 +62,8 @@ class RFTool:
                 'view change':   [],    # called whenever view has changed
                 'mouse move':    [],    # called whenever mouse has moved
             }
+            if not hasattr(cls, 'quick_shortcut'):
+                cls.quick_shortcut = None
         else:
             # update registry, but do not add new FSM
             RFTool.registry[cls._rftool_index] = cls

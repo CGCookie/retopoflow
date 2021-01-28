@@ -241,6 +241,14 @@ class RetopoFlow_States(CookieCutter):
                     self.select_rftool(rftool)
                     return
 
+            for rftool in self.rftools:
+                if not rftool.quick_shortcut: continue
+                if self.actions.pressed(rftool.quick_shortcut):
+                    print(f'quick shortcut for {rftool} is pressed!')
+                    self.rftool_return = self.rftool
+                    self.select_rftool(rftool)
+                    return 'quick switch'
+
             # if self.actions.pressed('F7'):
             #     assert False, 'test exception throwing'
             #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
@@ -297,7 +305,9 @@ class RetopoFlow_States(CookieCutter):
                 self.smooth_edge_flow(iterations=options['smooth edge flow iterations'])
                 return
 
+        return self.modal_main_rest()
 
+    def modal_main_rest(self):
         self.ignore_ui_events = False
 
         ct, nt = time.time(), self._next_normal_check
@@ -332,6 +342,18 @@ class RetopoFlow_States(CookieCutter):
 
             if self.actions.pressed('scale'):
                 return 'scale selected'
+
+
+    @CookieCutter.FSM_State('quick switch')
+    def quick_switch(self):
+        if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
+            if self.actions.released(self.rftool.quick_shortcut):
+                return 'main'
+        self.modal_main_rest()
+
+    @CookieCutter.FSM_State('quick switch', 'exit')
+    def quick_switch_exit(self):
+        self.select_rftool(self.rftool_return)
 
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):

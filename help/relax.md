@@ -2,6 +2,8 @@
 
 Shortcut: {{relax tool}}
 
+Quick Shortcut: {{relax quick}}
+
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
 

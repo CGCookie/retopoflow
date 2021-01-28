@@ -119,7 +119,9 @@ default_rf_keymaps = {
     'polypen tool': {'FIVE', 'CTRL+ALT+V'},
     'loops tool': {'SIX', 'CTRL+ALT+Q', 'CTRL+R'},
     'tweak tool': {'SEVEN', 'CTRL+ALT+G'},
+    'tweak quick': {'C'},
     'relax tool': {'EIGHT', 'CTRL+ALT+X'},
+    'relax quick': {'Z'},
     'stretch tool': {'NINE'},          # not ported from rf279, yet
     'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }

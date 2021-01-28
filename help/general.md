@@ -45,6 +45,16 @@ Note: selection and the undo stack is maintained between tools.
 Press {{pie menu}} at any time to show the tool pie menu.
 
 
+## Quick Tool Shortcuts
+
+Pressing and holding the tool's quick shortcut will temporarily switch to that tool.
+As soon as you release the quick shortcut, RetopoFlow will switch back to the previously selected tool.
+
+|  |  |  |
+| --- | --- | --- |
+| {{tweak quick}} | : | Tweak |
+| {{relax quick}} | : | Relax |
+
 
 ## Universal Shortcuts
 
