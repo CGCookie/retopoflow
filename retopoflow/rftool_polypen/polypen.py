@@ -380,7 +380,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
             bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
             bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen snap dist'])[0]
-            print(f'{bmv} {bmf}')
             if bmv:
                 # just select the hovered vert
                 self.rfcontext.select(bmv)
