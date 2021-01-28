@@ -419,6 +419,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 dist_to_last = (crosses[-1][0] - self.actions.mouse).length
                 if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
                     crosses = [*crosses, (self.actions.mouse, self.nearest_face, None)]
+            elif self.nearest_edge:
+                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
+                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
+                    crosses += [(self.actions.mouse, self.nearest_edge, None)]
             prev = None
             pre_e = -1
             pre_p = None
@@ -830,11 +834,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             clc1 = closest2d_point_segment(c1, p0, p1)
             clp0 = closest2d_point_segment(p0, c0, c1)
             clp1 = closest2d_point_segment(p1, c0, c1)
-            if   (clc0 - c0).length < dist: add(c0,   v0)
-            elif (clc1 - c1).length < dist: add(c1,   v1)
-            elif (clp0 - p0).length < dist: add(clp0, e)
-            elif (clp1 - p1).length < dist: add(clp1, e)
-            elif i:                         add(Point2D(i), e)
+            if   (clc0 - c0).length <= dist: add(c0,   v0)
+            elif (clc1 - c1).length <= dist: add(c1,   v1)
+            elif (clp0 - p0).length <= dist: add(clp0, e)
+            elif (clp1 - p1).length <= dist: add(clp1, e)
+            elif i:                          add(Point2D(i), e)
         crosses = sorted(crosses, key=lambda cross: cross[2])
         return crosses
 
@@ -895,6 +899,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.next_state == 'knife start':
             bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
             bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
+            bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen snap dist'])[0]
             if bmv:
                 c = themes['active']
                 p = self.rfcontext.Point_to_Point2D(bmv.co)
@@ -905,12 +910,15 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     self.draw_lines([bmv2.co, hit_pos])
                 c = themes['new']
                 p = self.actions.mouse
-            else:
+            elif bmf:
                 c = themes['new']
                 p = self.actions.mouse
-            with Globals.drawing.draw(CC_2D_POINTS) as draw:
-                draw.color(c)
-                draw.vertex(p)
+            else:
+                p,c = None,None
+            if p and c:
+                with Globals.drawing.draw(CC_2D_POINTS) as draw:
+                    draw.color(c)
+                    draw.vertex(p)
 
         elif self.next_state == 'knife cut':
             knife_start = self.knife_start or self.rfcontext.Point_to_Point2D(next(iter(self.sel_verts)).co)
@@ -924,6 +932,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 dist_to_last = (crosses[-1][0] - self.actions.mouse).length
                 if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
                     crosses += [(self.actions.mouse, self.nearest_face, 1.0)]
+            elif self.nearest_edge:
+                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
+                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
+                    crosses += [(self.actions.mouse, self.nearest_edge, 1.0)]
             self.draw_crosses(crosses)
             bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
             bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
