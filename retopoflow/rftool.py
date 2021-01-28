@@ -64,6 +64,8 @@ class RFTool:
             }
             if not hasattr(cls, 'quick_shortcut'):
                 cls.quick_shortcut = None
+            if not hasattr(cls, 'ui_config'):
+                cls.ui_config = None
         else:
             # update registry, but do not add new FSM
             RFTool.registry[cls._rftool_index] = cls

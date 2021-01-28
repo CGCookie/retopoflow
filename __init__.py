@@ -245,21 +245,23 @@ if import_succeeded:
         bl_options = {'UNDO', 'BLOCKING'}
     RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
-    def VIEW3D_OT_RetopoFlow_Tool_Factory(starting_tool):
+    def VIEW3D_OT_RetopoFlow_Tool_Factory(rftool):
+        name = rftool.name
+        description = rftool.description
         class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
             """Start RetopoFlow with a specific tool"""
-            bl_idname = "cgcookie.retopoflow_%s" % starting_tool.lower()
-            bl_label = "RF: %s" % starting_tool
-            bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s" % starting_tool
+            bl_idname = "cgcookie.retopoflow_%s" % name.lower()
+            bl_label = "RF: %s" % name
+            bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s: %s" % (name, description)
             bl_space_type = "VIEW_3D"
             bl_region_type = "TOOLS"
             bl_options = {'REGISTER', 'UNDO'}
-            rf_starting_tool = starting_tool
+            rf_starting_tool = name
         # just in case: remove spaces, so that class name is proper
-        VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % starting_tool.replace(' ', '')
+        VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % name.replace(' ', '')
         return VIEW3D_OT_RetopoFlow_Tool
     RF_tool_classes = [
-        VIEW3D_OT_RetopoFlow_Tool_Factory(rftool.name)
+        VIEW3D_OT_RetopoFlow_Tool_Factory(rftool)
         for rftool in RFTool.registry
     ]
     RF_classes += RF_tool_classes
