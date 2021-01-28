@@ -437,6 +437,7 @@ class RetopoFlow_Target:
         vert.normal = norm
 
     def set2D_vert(self, vert:RFVert, xy:Point2D, snap_to_symmetry=None):
+        if not vert: return
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         if snap_to_symmetry:

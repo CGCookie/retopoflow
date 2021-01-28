@@ -464,7 +464,7 @@ class Drawing:
 
     def get_view_version(self):
         if not self.r3d: return None
-        return Hasher(self.r3d.view_matrix, self.space.lens)
+        return Hasher(self.r3d.view_matrix, self.space.lens, self.r3d.view_distance)
 
     def get_view_matrix_buffer(self):
         if not self.r3d: return None

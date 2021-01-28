@@ -1628,6 +1628,7 @@ class RFTarget(RFMesh):
         bmf.normal_update()
 
     def clean_duplicate_bmedges(self, vert):
+        if not vert.is_valid: return {}
         bmv = self._unwrap(vert)
         # search for two edges between the same pair of verts
         lbme = list(bmv.link_edges)

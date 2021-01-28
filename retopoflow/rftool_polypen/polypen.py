@@ -402,7 +402,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 self.rfcontext.undo_cancel()    # remove undo, because no geometry was changed
             self.set_next_state(force=True)
             self.mousedown = self.actions.mouse
-            self.bmverts = [(bmv, self.actions.mouse)]
+            self.bmverts = [(bmv, self.actions.mouse)] if bmv else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -423,6 +423,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             pre_e = -1
             pre_p = None
             unfaced_verts = []
+            bmfs_to_shatter = set()
             for p,e,d in crosses:
                 if type(e) is RFVert:
                     cur = e
@@ -442,6 +443,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     pre_under = pre_faces
                     if not pre_under:
                         pre_under = {self.rfcontext.accel_nearest2D_face(point=pre_p, max_dist=options['polypen snap dist'])[0]}
+                    bmfs_to_shatter |= cur_under | pre_under
                     if cur_under & pre_under and not prev.share_edge(cur):
                         nedge = self.rfcontext.new_edge([prev, cur])
                     if cur_faces & pre_faces:
@@ -460,48 +462,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
             self.rfcontext.select(prev)
 
-            for v in unfaced_verts:
-                if not v.is_valid: continue
-                if len(v.link_edges) != 2: continue
-                nosplit = False
-                fwd = []
-                rev = []
-                e0,e1 = v.link_edges
-                v0,v1 = e0.other_vert(v),e1.other_vert(v)
-                fwd += [v0]
-                rev += [v1]
-                while not v0.link_faces:
-                    if len(v0.link_edges) != 2:
-                        nosplit = True
-                        break
-                    e0 = next(e for e in v0.link_edges if e != e0)
-                    v0 = e0.other_vert(v0)
-                    fwd += [v0]
-                if nosplit: continue
-                while not v1.link_faces:
-                    if len(v1.link_edges) != 2:
-                        nosplit = True
-                        break
-                    e1 = next(e for e in v1.link_edges if e != e1)
-                    v1 = e1.other_vert(v1)
-                    rev += [v1]
-                if nosplit: continue
-                rev.reverse()
-                verts = rev + [v] + fwd
-                coords = [vert.co for vert in verts]
-                faces = set(verts[0].link_faces) & set(verts[-1].link_faces)
-                if faces:
-                    face = next(iter(faces))
-                else:
-                    face = self.rfcontext.accel_nearest2D_face(point=Point_to_Point2D(coords[1]), max_dist=options['polypen snap dist'])[0]
-                if not face: continue
-                face.split(verts[0], verts[-1], coords=coords[1:-1])
-                self.rfcontext.delete_verts(verts[1:-1])
+            for bmf in bmfs_to_shatter:
+                bmf.shatter()
 
             if (pre_p - self.actions.mouse).length < self.rfcontext.drawing.scale(options['polypen snap dist']):
                 self.knife_start = None
                 self.mousedown = self.actions.mouse
-                self.bmverts = [(prev, self.actions.mouse)]
+                self.bmverts = [(prev, self.actions.mouse)] if prev else []
                 self.set_vis_bmverts()
                 return 'move'
             self.knife_start = self.actions.mouse
@@ -532,7 +499,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 #print('Could not insert: ' + str(bmv.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv, xy)]
+            self.bmverts = [(bmv, xy)] if bmv else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -597,7 +564,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)]
+            self.bmverts = [(bmv1, xy)] if bmv1 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -624,7 +591,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 dprint('Could not insert: ' + str(bmv2.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv2, xy)]
+            self.bmverts = [(bmv2, xy)] if bmv2 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -649,10 +616,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
             self.mousedown = self.actions.mousedown
-            self.bmverts = [
-                (bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)),
-                (bmv3, self.rfcontext.Point_to_Point2D(bmv3.co))
-            ]
+            self.bmverts = []
+            if bmv2: self.bmverts.append((bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)))
+            if bmv3: self.bmverts.append((bmv3, self.rfcontext.Point_to_Point2D(bmv3.co)))
             self.set_vis_bmverts()
             return 'move'
 
@@ -703,7 +669,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 dprint('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)]
+            self.bmverts = [(bmv1, xy)] if bmv1 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -722,7 +688,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             dprint('Could not insert: ' + str(bmv.co))
             self.rfcontext.undo_cancel()
             return 'main'
-        self.bmverts = [(bmv, xy)]
+        self.bmverts = [(bmv, xy)] if bmv else []
         self.set_vis_bmverts()
         return 'move'
 
@@ -766,7 +732,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     def prep_move(self, bmverts=None, defer_recomputing=True):
         if not bmverts: bmverts = self.sel_verts
-        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts if bmv and bmv.is_valid]
         self.set_vis_bmverts()
         self.mousedown = self.actions.mouse
         self.last_delta = None
@@ -917,7 +883,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
         hit_pos = self.actions.hit_pos
-        if not hit_pos: return
+        if not hit_pos and self.next_state not in {'knife start', 'knife cut'}: return
 
         self.set_next_state()
 
@@ -934,8 +900,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 p = self.rfcontext.Point_to_Point2D(bmv.co)
             elif bme:
                 bmv1, bmv2 = bme.verts
-                self.draw_lines([bmv1.co, hit_pos])
-                self.draw_lines([bmv2.co, hit_pos])
+                if hit_pos:
+                    self.draw_lines([bmv1.co, hit_pos])
+                    self.draw_lines([bmv2.co, hit_pos])
                 c = themes['new']
                 p = self.actions.mouse
             else:
@@ -964,8 +931,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 pass
             elif bme:
                 bmv1, bmv2 = bme.verts
-                self.draw_lines([bmv1.co, hit_pos])
-                self.draw_lines([bmv2.co, hit_pos])
+                if hit_pos:
+                    self.draw_lines([bmv1.co, hit_pos])
+                    self.draw_lines([bmv2.co, hit_pos])
                 c = themes['new']
                 p = self.actions.mouse
             # print(crosses)
