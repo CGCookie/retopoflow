@@ -45,6 +45,7 @@ class RFTool_Loops(RFTool):
     icon        = 'loops-icon.png'
     help        = 'loops.md'
     shortcut    = 'loops tool'
+    quick_shortcut = 'loops quick'
     statusbar   = '{{insert}} Insert edge loop\t{{smooth edge flow}} Smooth edge flow'
 
 class Loops_RFWidgets:
@@ -72,6 +73,9 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.on_reset
     def reset(self):
+        if self.actions.using('loops quick'):
+            self._fsm.force_set_state('quick')
+
         self.nearest_edge = None
         self.set_next_state()
         self.hovering_edge = None
@@ -104,6 +108,21 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
+    @RFTool_Loops.FSM_State('quick', 'enter')
+    def quick_enter(self):
+        self.hovering_sel_edge = None
+        self.rfwidget = self.rfwidgets['cut']
+
+    @RFTool_Loops.FSM_State('quick')
+    def quick_main(self):
+        if self.actions.pressed({'confirm', 'cancel'}):
+            return 'main'
+
+        self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
+
+        if self.hovering_edge and self.rfcontext.actions.pressed('quick insert'):
+            return self.insert_edge_loop_strip()
 
     @RFTool_Loops.FSM_State('main')
     def main(self):
@@ -274,7 +293,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     @RFTool_Loops.on_target_change
     @RFTool_Loops.on_view_change
     @RFTool_Loops.on_mouse_move
-    @RFTool_Loops.FSM_OnlyInState('main')
+    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
     def update_next_state(self):
         self.set_next_state()
 
@@ -283,7 +302,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.actions.mouse is None: return
         self.edges_ = None
 
-        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
+        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
 
         self.percent = 0
         self.edges = None
@@ -466,11 +485,12 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
 
     @RFTool_Loops.Draw('post2d')
-    @RFTool_Loops.FSM_OnlyInState('main')
+    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
     @profiler.function
     def draw_postview(self):
         if self.rfcontext._nav or not self.nearest_edge: return
-        if not (self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift): return
+        if self._fsm.state != 'quick':
+            if not (self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift): return
 
         # draw new edge strip/loop
         Point_to_Point2D = self.rfcontext.Point_to_Point2D

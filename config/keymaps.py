@@ -65,7 +65,6 @@ default_rf_keymaps = {
     'autosave': {'TIMER_AUTOSAVE'},
 
     'cancel': {'ESC', 'RIGHTMOUSE'},
-    'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
 
     'done': {'TAB'},
@@ -74,6 +73,7 @@ default_rf_keymaps = {
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE', 'CTRL+SHIFT+LEFTMOUSE+DOUBLE'},
+    'quick insert': {'LEFTMOUSE'},
 
     # general commands
     'grab': {'G'},
@@ -117,7 +117,8 @@ default_rf_keymaps = {
     'strokes tool': {'THREE', 'CTRL+ALT+B'},
     'patches tool': {'FOUR', 'CTRL+ALT+F'},
     'polypen tool': {'FIVE', 'CTRL+ALT+V'},
-    'loops tool': {'SIX', 'CTRL+ALT+Q', 'CTRL+R'},
+    'loops tool': {'SIX', 'CTRL+ALT+Q'},
+    'loops quick': {'CTRL+R'},
     'tweak tool': {'SEVEN', 'CTRL+ALT+G'},
     'tweak quick': {'C'},
     'relax tool': {'EIGHT', 'CTRL+ALT+X'},

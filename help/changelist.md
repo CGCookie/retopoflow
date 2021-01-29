@@ -25,6 +25,7 @@ Below is a list of major changes.
 
 - PolyPen: new knife mode for cutting existing geometry
 - General: selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
+- Loops, Tweak, and Relax now have quick shortcuts
 - UI: major performance improvements from redesign and reimplementation of underlying UI system
 - Added button on help system to view help documents in web browser
 - Added Blender operator for creating new target mesh based on active source mesh

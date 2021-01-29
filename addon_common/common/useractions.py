@@ -163,8 +163,9 @@ def translate_blenderop(action, keyconfig=None):
 
 
 
-def strip_mods(action, ctrl=True, shift=True, alt=True, oskey=True, click=True, double_click=True, drag_click=True):
+def strip_mods(action, ctrl=True, shift=True, alt=True, oskey=True, click=True, double_click=True, drag_click=True, mouse=False):
     if action is None: return None
+    if mouse and 'MOUSE' in action: return ''
     if ctrl:  action = action.replace('CTRL+',  '')
     if shift: action = action.replace('SHIFT+', '')
     if alt:   action = action.replace('ALT+',   '')
@@ -554,14 +555,15 @@ class Actions:
         if any(p in actions for p in self.now_pressed.values()): return True
         return False
 
-    def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, debug=False):
+    def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, ignoremouse=False, debug=False):
         if actions is None: return False
+        if not self.just_pressed: return False
         if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
         if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
         if debug: print('Actions.pressed 0: actions =', actions)
         actions = self.convert(actions)
         if debug: print('Actions.pressed 1: actions =', actions)
-        just_pressed = strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag)
+        just_pressed = strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
         if debug: print('Actions.pressed 2: just_pressed =', just_pressed, self.just_pressed, ', actions =', actions)
         ret = just_pressed in actions
         if ret and unpress: self.unpress()
