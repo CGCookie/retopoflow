@@ -237,6 +237,10 @@ class Options:
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
 
+        'knife automerge':              True,
+        'knife merge dist':             10,         # pixels away to merge
+        'knife snap dist':              3,          # pixels away to snap
+
         'polypen merge dist':           10,         # pixels away to merge
         'polypen snap dist':            3,          # pixels away to snap
         'polypen automerge':            True,

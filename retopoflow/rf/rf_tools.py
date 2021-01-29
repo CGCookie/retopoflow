@@ -25,6 +25,7 @@ from ..rftool_polystrips.polystrips import PolyStrips
 from ..rftool_strokes.strokes       import Strokes
 from ..rftool_patches.patches       import Patches
 from ..rftool_polypen.polypen       import PolyPen
+from ..rftool_knife.knife           import Knife
 from ..rftool_loops.loops           import Loops
 from ..rftool_tweak.tweak           import Tweak
 from ..rftool_relax.relax           import Relax
@@ -35,10 +36,14 @@ from ...config.options import options
 
 class RetopoFlow_Tools:
     def setup_rftools(self):
+        self.rftool = None
         self.rftools = [rftool(self) for rftool in RFTool.registry]
 
-    def select_rftool(self, rftool):
+    def select_rftool(self, rftool, quick=False):
         assert rftool in self.rftools
+        if rftool == self.rftool: return
+        if quick: self.rftool_return = self.rftool
+        else:     self.rftool_return = None
         self.rftool = rftool
         self.rftool._reset()
         e = self.document.body.getElementById(f'tool-{rftool.name.lower()}')
@@ -51,5 +56,5 @@ class RetopoFlow_Tools:
         statusbar = statusbar.replace('\t', '    ')
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
         self.update_ui()
-        options['quickstart tool'] = rftool.name
+        if not quick: options['quickstart tool'] = rftool.name
 

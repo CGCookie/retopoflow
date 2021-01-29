@@ -241,8 +241,7 @@ class RetopoFlow_States(CookieCutter):
                     self.select_rftool(rftool)
                     return
                 if self.actions.pressed(rftool.quick_shortcut, unpress=False):
-                    self.rftool_return = self.rftool
-                    self.select_rftool(rftool)
+                    self.select_rftool(rftool, quick=True)
                     return 'quick switch'
 
             # if self.actions.pressed('F7'):

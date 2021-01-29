@@ -565,6 +565,7 @@ class Actions:
         if debug: print('Actions.pressed 1: actions =', actions)
         just_pressed = strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
         if debug: print('Actions.pressed 2: just_pressed =', just_pressed, self.just_pressed, ', actions =', actions)
+        if not just_pressed: return False
         ret = just_pressed in actions
         if ret and unpress: self.unpress()
         return ret

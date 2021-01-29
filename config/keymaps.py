@@ -96,6 +96,9 @@ default_rf_keymaps = {
     # patches
     'fill': {'F', 'RET', 'NUMPAD_ENTER'},
 
+    # knife
+    'knife reset': {'E'},
+
     # grease pencil
     'grease clear': {'C'},
 
@@ -116,6 +119,8 @@ default_rf_keymaps = {
     'polystrips tool': {'TWO', 'CTRL+ALT+P'},
     'strokes tool': {'THREE', 'CTRL+ALT+B'},
     'patches tool': {'FOUR', 'CTRL+ALT+F'},
+    'knife tool': {'CTRL+K', 'K+DOUBLE'},
+    'knife quick': {'K'},
     'polypen tool': {'FIVE', 'CTRL+ALT+V'},
     'loops tool': {'SIX', 'CTRL+ALT+Q'},
     'loops quick': {'CTRL+R'},

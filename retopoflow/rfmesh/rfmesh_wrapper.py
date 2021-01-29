@@ -708,6 +708,7 @@ class RFFace(BMElemWrapper):
                 continue
             for bmv_old in path[1:-1]:
                 bmv_new,_ = min(((bmv,(bmv.co-bmv_old.co).length) for bmv in nbmf.verts), key=lambda d:d[1])
+                if bmv_old.select: bmv_new.select = True
                 bmv_new.merge(bmv_old)
             for bmv in bmf.verts + nbmf.verts:
                 self.rftarget.clean_duplicate_bmedges(bmv)
