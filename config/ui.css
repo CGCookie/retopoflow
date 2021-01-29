@@ -1013,46 +1013,47 @@ dialog#pie-menu {
     z-index: 10000;
     overflow: hidden;
 }
-dialog#pie-menu * {
-    overflow: hidden;
-}
 
-table#pie-menu-table {
+div#pie-menu-contents {
+    /*   width, height, padding, border-radius are set in rf_states.py   */
+    display: block;
     position: absolute;
     left: 0px;
     top: 0px;
     background-color: rgba(0,0,0,0.15); /* transparent;*/
     margin: 0px;
-    padding: 100px;
     border: 0px rgba(0, 0, 0, 0.25);
-    border-radius: 250px;
-}
-table#pie-menu-table tr {
-    margin: 0px;
-    padding: 0px;
-    border: 0px transparent;
-}
-table#pie-menu-table td {
-    margin:  0px;
-    padding: 0px;
-    border:  0px transparent;
-    width:   134; /* pie-menu-option: 100+16+16+1+1+8+8; */
-    height:  134; /* pie-menu-option: 100+16+16+1+1+8+?; */
+    overflow: visible;
 }
 div.pie-menu-option {
-    width: 100px;
-    height: 100px;
+    /*  width, height are set in rf_states.py  */
+    position: absolute;
+    display: block;
     background-color: rgba(64, 64, 64, 0.975);
-    margin: 16px;
-    padding-top: 8px;
+    margin: 0px;
     border: 1px rgba(0, 0, 0, 0.95);
+    padding: 0px;
     border-radius: 5px;
 }
-table#pie-menu-table div.pie-menu-option-text {
+div.pie-menu-option.highlighted {
+    background-color: var(--button-selected-background);
+}
+div.pie-menu-option:hover {
+    background-color: var(--button-selected-background);
+}
+
+div.pie-menu-option-text {
+    margin-top: 8px;
     color: var(--text);
     text-align: center;
 }
-table#pie-menu-table img.pie-menu-option-image {
+div.pie-menu-option.highlighted div.pie-menu-option-text {
+    color: white;
+}
+div.pie-menu-option:hover div.pie-menu-option-text {
+    color: white;
+}
+img.pie-menu-option-image {
     display: block;
     width: 64px;
     height: 20px;
@@ -1061,24 +1062,15 @@ table#pie-menu-table img.pie-menu-option-image {
     border: 0px;
     background-color: transparent;
 }
-table#pie-menu-table div.pie-menu-option.highlighted {
-    background-color: var(--button-selected-background);
-}
-table#pie-menu-table td.highlighted div.pie-menu-option-text {
-    color: white;
-}
-div.pie-menu-option:hover {
-    background-color: var(--button-selected-background);
-}
-div.pie-menu-option:hover div.pie-menu-option-text {
-    color: white;
-}
-table#pie-menu-table div#pie-menu-middlecenter {
+
+div.pie-menu-center {
+    position: absolute;
     background-color: rgba(0, 0, 0, 0.15);
+    margin: 0px;
     border: 1px rgba(0, 0, 0, 0.25);
+    padding: 0px;
     border-radius: 35px;
 }
-
 
 /***************************************************/
 /* tooltip                                         */

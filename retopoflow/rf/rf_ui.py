@@ -111,24 +111,12 @@ class RetopoFlow_UI:
         self.ui_pie_menu = UI_Element.fromHTMLFile(path_pie_menu_html)[0]
         self.ui_pie_menu.can_hover = False
         self.document.body.append_child(self.ui_pie_menu)
-        self.ui_pie_table = self.ui_pie_menu.getElementById('pie-menu-table')
-        # 7 0 1
-        # 6   2
-        # 5 4 3
-        self.ui_pie_sections = [
-            (
-                self.ui_pie_menu.getElementById(f'pie-menu-{n}'),
-                self.ui_pie_menu.getElementById(f'pie-menu-{n}-text'),
-                self.ui_pie_menu.getElementById(f'pie-menu-{n}-image'),
-            )
-            for n in ['topcenter', 'topright', 'middleright', 'bottomright', 'bottomcenter', 'bottomleft', 'middleleft', 'topleft']
-        ]
 
-    def show_pie_menu(self, options, fn_callback, highlighted=None, release=None, always_callback=False):
+    def show_pie_menu(self, options, fn_callback, highlighted=None, release=None, always_callback=False, rotate=0):
         if len(options) == 0: return
-        assert len(options) <= 8, f'Unhandled number of pie menu options ({len(options)}): {options}'
+        self.pie_menu_rotation = rotate - 90
         self.pie_menu_callback = fn_callback
-        self.pie_menu_options = options
+        self.pie_menu_options = list(options)
         self.pie_menu_highlighted = highlighted
         self.pie_menu_release = release or 'pie menu'
         self.pie_menu_always_callback = always_callback
