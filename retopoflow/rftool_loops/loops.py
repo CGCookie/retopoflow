@@ -115,7 +115,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('quick')
     def quick_main(self):
-        if self.actions.pressed({'confirm', 'cancel'}):
+        if self.actions.pressed('cancel'):
             return 'main'
 
         self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
