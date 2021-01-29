@@ -2,6 +2,8 @@
 
 Shortcut: {{knife tool}}
 
+Quick Shortcut: {{knife quick}}
+
 The Knife tool allows you to cut up existing geometry.
 
 <!-- ![](help_polypen.png) -->
