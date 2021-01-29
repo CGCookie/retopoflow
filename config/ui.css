@@ -1054,8 +1054,9 @@ div.pie-menu-option:hover div.pie-menu-option-text {
     color: white;
 }
 img.pie-menu-option-image {
+    /* width is set in rf_states.py */
     display: block;
-    width: 64px;
+    width: 20px;
     height: 20px;
     margin: 0px;
     padding: 0px;
@@ -1064,12 +1065,12 @@ img.pie-menu-option-image {
 }
 
 div.pie-menu-center {
+    /*  width, height, border-radius are set in rf_states.py  */
     position: absolute;
     background-color: rgba(0, 0, 0, 0.15);
     margin: 0px;
     border: 1px rgba(0, 0, 0, 0.25);
     padding: 0px;
-    border-radius: 35px;
 }
 
 /***************************************************/
