@@ -239,10 +239,9 @@ class Options:
 
         'knife automerge':              True,
         'knife merge dist':             10,         # pixels away to merge
-        'knife snap dist':              3,          # pixels away to snap
+        'knife snap dist':              5,          # pixels away to snap
 
         'polypen merge dist':           10,         # pixels away to merge
-        'polypen snap dist':            3,          # pixels away to snap
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 

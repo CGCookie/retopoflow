@@ -73,19 +73,16 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.on_init
     def init(self):
         self.init_rfwidgets()
-        self.delay_update = False
         self.update_state_info()
         self.first_time = True
         self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
         self._var_automerge   = BoundBool(  '''options['polypen automerge']  ''')
         self._var_insert_mode = BoundString('''options['polypen insert mode']''')
-        self.knife_start = None
 
     def update_insert_mode(self):
         mode = options['polypen insert mode']
         self.ui_options_label.innerText = f'PolyPen: {mode}'
         self.ui_insert_modes.dirty(cause='insert mode change', children=True)
-        if mode == 'Knife': self.knife_start = None
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
@@ -100,7 +97,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
     def update_state_info(self):
-        if self.delay_update: return
         with profiler.code('getting selected geometry'):
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
             self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
@@ -133,13 +129,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         num_edges = len(self.sel_edges)
         num_faces = len(self.sel_faces)
 
-        if options['polypen insert mode'] == 'Knife':
-            if self.knife_start is None and num_verts == 0:
-                self.next_state = 'knife start'
-            else:
-                self.next_state = 'knife cut'
-
-        elif self.nearest_edge and self.nearest_edge.select:      # overriding: if hovering over a selected edge, knife it!
+        if self.nearest_edge and self.nearest_edge.select:      # overriding: if hovering over a selected edge, knife it!
             self.next_state = 'knife selected edge'
 
         elif options['polypen insert mode'] == 'Tri/Quad':
@@ -207,9 +197,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 else:
                     self.next_state = 'vert-edge-vert'
 
-        elif options['polypen insert mode'] == 'Knife':
-            pass
-
         else:
             assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
 
@@ -219,16 +206,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if options['polypen insert mode'] == 'Knife' and not self.actions.using_onlymods('insert'):
-            self.knife_start = None
-
         if self.first_time or self.actions.mousemove:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')
 
         if self.actions.using_onlymods('insert'):
-            if options['polypen insert mode'] == 'Knife':
+            if self.next_state == 'knife selected edge':
                 self.rfwidget = self.rfwidgets['knife']
             else:
                 self.rfwidget = self.rfwidgets['insert']
@@ -253,7 +237,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 'Quad-Only',
                 'Tri-Only',
                 'Edge-Only',
-                'Knife',
             ], callback, highlighted=options['polypen insert mode'])
             return
 
@@ -375,107 +358,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.move_done_pressed = None
         self.move_done_released = 'insert'
         self.move_cancelled = 'cancel'
-
-        if self.next_state == 'knife start':
-            bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
-            bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
-            bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen snap dist'])[0]
-            if bmv:
-                # just select the hovered vert
-                self.rfcontext.select(bmv)
-            elif bme:
-                # split the hovered edge
-                bmv = self.rfcontext.new2D_vert_mouse()
-                if not bmv:
-                    self.rfcontext.undo_cancel()
-                    return 'main'
-                bme0,bmv2 = bme.split()
-                bmv.merge(bmv2)
-                self.rfcontext.select(bmv)
-            elif bmf:
-                # add point at mouse
-                bmv = self.rfcontext.new2D_vert_mouse()
-                self.rfcontext.select(bmv)
-            else:
-                self.knife_start = self.actions.mouse
-                self.rfcontext.undo_cancel()    # remove undo, because no geometry was changed
-            self.set_next_state(force=True)
-            self.mousedown = self.actions.mouse
-            self.bmverts = [(bmv, self.actions.mouse)] if bmv else []
-            self.set_vis_bmverts()
-            return 'move'
-
-        elif self.next_state == 'knife cut':
-            Point_to_Point2D = self.rfcontext.Point_to_Point2D
-            knife_start = self.knife_start or Point_to_Point2D(next(iter(self.sel_verts)).co)
-            knife_start_face = self.rfcontext.accel_nearest2D_face(point=knife_start, max_dist=options['polypen snap dist'])[0]
-            crosses = self._get_crosses(knife_start, self.actions.mouse)
-            if not crosses:
-                self.knife_start = self.actions.mouse
-                return 'main'
-            # add additional point if mouse is hovering a face
-            if self.nearest_face:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
-                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
-                    crosses = [*crosses, (self.actions.mouse, self.nearest_face, None)]
-            elif self.nearest_edge:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
-                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
-                    crosses += [(self.actions.mouse, self.nearest_edge, None)]
-            prev = None
-            pre_e = -1
-            pre_p = None
-            unfaced_verts = []
-            bmfs_to_shatter = set()
-            for p,e,d in crosses:
-                if type(e) is RFVert:
-                    cur = e
-                else:
-                    cur = self.rfcontext.new2D_vert_point(p)
-                    if type(e) is RFEdge:
-                        eo,bmv = e.split()
-                        cur.merge(bmv)
-                    elif type(e) is RFFace:
-                        pass
-                if prev:
-                    cur_faces = set(cur.link_faces)
-                    cur_under = cur_faces
-                    if not cur_under:
-                        cur_under = {self.rfcontext.accel_nearest2D_face(point=p, max_dist=options['polypen snap dist'])[0]}
-                    pre_faces = set(prev.link_faces)
-                    pre_under = pre_faces
-                    if not pre_under:
-                        pre_under = {self.rfcontext.accel_nearest2D_face(point=pre_p, max_dist=options['polypen snap dist'])[0]}
-                    bmfs_to_shatter |= cur_under | pre_under
-                    if cur_under & pre_under and not prev.share_edge(cur):
-                        nedge = self.rfcontext.new_edge([prev, cur])
-                    if cur_faces & pre_faces:
-                        face = next(iter(cur_faces & pre_faces))
-                        try:
-                            face.split(prev, cur)
-                        except Exception as ex:
-                            print(f'PolyPen caught Exception while trying to split face {face} ({prev}-{cur})')
-                            print(ex)
-
-                if not cur.link_faces:
-                    unfaced_verts.append(cur)
-                prev = cur
-                pre_e = e
-                pre_p = p
-
-            self.rfcontext.select(prev)
-
-            for bmf in bmfs_to_shatter:
-                bmf.shatter()
-
-            if (pre_p - self.actions.mouse).length < self.rfcontext.drawing.scale(options['polypen snap dist']):
-                self.knife_start = None
-                self.mousedown = self.actions.mouse
-                self.bmverts = [(prev, self.actions.mouse)] if prev else []
-                self.set_vis_bmverts()
-                return 'move'
-            self.knife_start = self.actions.mouse
-            return 'main'
 
         if self.actions.shift and not self.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
@@ -807,46 +689,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self._timer.done()
 
 
-    def _get_crosses(self, p0, p1):
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        dist = self.rfcontext.drawing.scale(options['polypen snap dist'])
-        crosses = set()
-        touched = set()
-        #p0 = Point_to_Point2D(p0)
-        #p1 = Point_to_Point2D(p1)
-        v01 = Vec2D(p1 - p0)
-        lv01 = max(v01.length, 0.00001)
-        d01 = v01 / lv01
-        def add(p, e):
-            if e in touched: return
-            p.freeze()
-            touched.add(e)
-            crosses.add((p, e, d01.dot(p - p0) / lv01))
-        p0v = self.rfcontext.accel_nearest2D_vert(point=p0, max_dist=options['polypen snap dist'])[0]
-        if p0v and not p0v.link_edges:
-            add(p0, p0v)
-        for e in self.vis_edges:
-            v0, v1 = e.verts
-            c0, c1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
-            i = intersect2d_segment_segment(p0, p1, c0, c1)
-            clc0 = closest2d_point_segment(c0, p0, p1)
-            clc1 = closest2d_point_segment(c1, p0, p1)
-            clp0 = closest2d_point_segment(p0, c0, c1)
-            clp1 = closest2d_point_segment(p1, c0, c1)
-            if   (clc0 - c0).length <= dist: add(c0,   v0)
-            elif (clc1 - c1).length <= dist: add(c1,   v1)
-            elif (clp0 - p0).length <= dist: add(clp0, e)
-            elif (clp1 - p1).length <= dist: add(clp1, e)
-            elif i:                          add(Point2D(i), e)
-        crosses = sorted(crosses, key=lambda cross: cross[2])
-        return crosses
-
-    def draw_crosses(self, crosses):
-        with Globals.drawing.draw(CC_2D_POINTS) as draw:
-            for p,e,d in crosses:
-                draw.color(themes['active'] if type(e) is RFVert else themes['new'])
-                draw.vertex(p)
-
     def draw_lines(self, coords, poly_alpha=0.2):
         line_color = themes['new']
         poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
@@ -886,7 +728,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
         hit_pos = self.actions.hit_pos
-        if not hit_pos and self.next_state not in {'knife start', 'knife cut'}: return
+        if not hit_pos: return
 
         self.set_next_state()
 
@@ -895,61 +737,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         CC_DRAW.point_size(8)
         CC_DRAW.line_width(2)
 
-        if self.next_state == 'knife start':
-            bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
-            bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
-            bmf = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen snap dist'])[0]
-            if bmv:
-                c = themes['active']
-                p = self.rfcontext.Point_to_Point2D(bmv.co)
-            elif bme:
-                bmv1, bmv2 = bme.verts
-                if hit_pos:
-                    self.draw_lines([bmv1.co, hit_pos])
-                    self.draw_lines([bmv2.co, hit_pos])
-                c = themes['new']
-                p = self.actions.mouse
-            elif bmf:
-                c = themes['new']
-                p = self.actions.mouse
-            else:
-                p,c = None,None
-            if p and c:
-                with Globals.drawing.draw(CC_2D_POINTS) as draw:
-                    draw.color(c)
-                    draw.vertex(p)
-
-        elif self.next_state == 'knife cut':
-            knife_start = self.knife_start or self.rfcontext.Point_to_Point2D(next(iter(self.sel_verts)).co)
-            with Globals.drawing.draw(CC_2D_LINES) as draw:
-                draw.color(themes['stroke'])
-                draw.vertex(knife_start)
-                draw.vertex(self.actions.mouse)
-            crosses = self._get_crosses(knife_start, self.actions.mouse)
-            if not crosses: return
-            if self.nearest_face:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
-                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
-                    crosses += [(self.actions.mouse, self.nearest_face, 1.0)]
-            elif self.nearest_edge:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
-                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
-                    crosses += [(self.actions.mouse, self.nearest_edge, 1.0)]
-            self.draw_crosses(crosses)
-            bmv = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen snap dist'])[0]
-            bme = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen snap dist'])[0]
-            if bmv:
-                pass
-            elif bme:
-                bmv1, bmv2 = bme.verts
-                if hit_pos:
-                    self.draw_lines([bmv1.co, hit_pos])
-                    self.draw_lines([bmv2.co, hit_pos])
-                c = themes['new']
-                p = self.actions.mouse
-            # print(crosses)
-
-        elif self.next_state == 'knife selected edge':
+        if self.next_state == 'knife selected edge':
             bmv1,bmv2 = self.nearest_edge.verts
             faces = self.nearest_edge.link_faces
             if faces:

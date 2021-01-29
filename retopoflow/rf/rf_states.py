@@ -216,7 +216,10 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             if self.actions.pressed('pie menu'):
-                self.show_pie_menu([{'text':rftool.name, 'image':rftool.icon, 'value':rftool} for rftool in self.rftools], self.select_rftool, highlighted=self.rftool)
+                self.show_pie_menu([
+                    {'text':rftool.name, 'image':rftool.icon, 'value':rftool}
+                    for rftool in self.rftools[:8]
+                ], self.select_rftool, highlighted=self.rftool)
                 return
 
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0

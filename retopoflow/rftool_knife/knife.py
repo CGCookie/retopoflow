@@ -644,7 +644,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
                     crosses += [(self.actions.mouse, bmf, 1.0)]
             elif bme:
                 dist_to_last = (crosses[-1][0] - self.actions.mouse).length
-                if dist_to_last > self.rfcontext.drawing.scale(options['polypen snap dist']):
+                if dist_to_last > self.rfcontext.drawing.scale(options['knife snap dist']):
                     crosses += [(self.actions.mouse, bme, 1.0)]
             self.draw_crosses(crosses)
             if bmv:

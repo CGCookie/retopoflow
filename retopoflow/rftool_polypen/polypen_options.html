@@ -15,38 +15,24 @@
             </div>
         </div>
         <div class="collection">
-            <h1>Knife Options</h1>
-            <div class="contents">
-                <div class="labeled-input-text">
-                    <label title="Pixel distance for snapping">Snap distance</label>
-                    <input type="number" value="BoundInt( '''options['polypen snap dist'] ''')">
-                </div>
-            </div>
-        </div>
-        <div class="collection">
             <h1>Insert Mode</h1>
             <div class="contents" id="polypen-insert-modes">
-                <label title="Inserting alternates between Triangles and Quads" class="full-size">
+                <label title="Inserting alternates between Triangles and Quads" class="half-size">
                     Tri/Quad
                     <input type="radio" value="Tri/Quad" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
                 </label>
-                <br> <!-- this is a hack to make Tri-Only radio below size correctly -->
                 <label title="Inserting Quads only" class="half-size">
                     <input type="radio" value="Quad-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
                     Quad-Only
                 </label>
+                <br> <!-- this is a hack to make Tri-Only radio below size correctly -->
                 <label title="Inserting Triangles only" class="half-size">
                     <input type="radio" value="Tri-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
                     Tri-Only
                 </label>
-                <br> <!-- this is a hack to make Tri-Only radio below size correctly -->
                 <label title="Inserting Edges only" class="half-size">
                     <input type="radio" value="Edge-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
                     Edge-Only
-                </label>
-                <label title="Knife" class="half-size">
-                    <input type="radio" value="Knife" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
-                    Knife
                 </label>
             </div>
         </div>
