@@ -1563,6 +1563,7 @@ class Accel2D:
         self.bins = {}
 
         self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
+        self.v2Ds = [p for p in self.v2Ds if p]
         self.map_v_v2D = {v: v2d for (v, v2d) in zip(verts, self.v2Ds)}
         if self.v2Ds:
             self.min = Point2D((
