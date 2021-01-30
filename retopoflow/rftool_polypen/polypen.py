@@ -513,8 +513,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if not e0 or not e1: return
             bmv0,bmv1 = e0.verts
             bmv2,bmv3 = e1.verts
-            if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
-                bmv2,bmv3 = bmv3,bmv2
+            p0,p1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
+            p2,p3 = self.rfcontext.Point_to_Point2D(bmv2.co),self.rfcontext.Point_to_Point2D(bmv3.co)
+            if intersect2d_segment_segment(p1, p2, p3, p0): bmv2,bmv3 = bmv3,bmv2
+            # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+            #     bmv2,bmv3 = bmv3,bmv2
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             # select all non-manifold edges that share vertex with e1
             bmes = [e for e in bmv2.link_edges + bmv3.link_edges if not e.is_manifold and not e.share_face(e1)]
@@ -852,8 +855,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if not e0 or not e1: return
                 bmv0,bmv1 = e0.verts
                 bmv2,bmv3 = e1.verts
-                if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
-                    bmv2,bmv3 = bmv3,bmv2
+                p0,p1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
+                p2,p3 = self.rfcontext.Point_to_Point2D(bmv2.co),self.rfcontext.Point_to_Point2D(bmv3.co)
+                if intersect2d_segment_segment(p1, p2, p3, p0): bmv2,bmv3 = bmv3,bmv2
+                # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+                #     bmv2,bmv3 = bmv3,bmv2
                 self.draw_lines([bmv0.co, bmv1.co, bmv2.co, bmv3.co])
 
             elif self.next_state == 'tri-quad':
