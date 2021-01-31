@@ -803,22 +803,16 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             prev = cur
 
         if edges0:
-            if len(edges0) == 1:
-                side_verts = list(edges0[0].verts)
-                if side_verts[1] == verts[0]: side_verts.reverse()
-            else:
-                side_verts = get_strip_verts(edges0)
+            side_verts = get_strip_verts(edges0)
+            if side_verts[1] == verts[0]: side_verts.reverse()
             for a,b in zip(side_verts[1:], patch[0][1:]):
                 co = a.co
                 b.merge(a)
                 b.co = co
                 self.rfcontext.clean_duplicate_bmedges(b)
         if edges1:
-            if len(edges1) == 1:
-                side_verts = list(edges1[0].verts)
-                if side_verts[1] == verts[-1]: side_verts.reverse()
-            else:
-                side_verts = get_strip_verts(edges1)
+            side_verts = get_strip_verts(edges1)
+            if side_verts[1] == verts[-1]: side_verts.reverse()
             for a,b in zip(side_verts[1:], patch[-1][1:]):
                 co = a.co
                 b.merge(a)

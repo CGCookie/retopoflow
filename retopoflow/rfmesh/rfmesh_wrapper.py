@@ -225,6 +225,10 @@ class RFVert(BMElemWrapper):
         return [RFFace(bmf) for bmf in bmv0.link_faces if bmv1 in bmf.verts]
 
     def merge(self, other):
+        if self.share_face(other):
+            # issue #927 shows that vert_splice cannot operate on two verts that share a face?
+            # other.dissolve()
+            return
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
         vert_splice(bmv1, bmv0)
