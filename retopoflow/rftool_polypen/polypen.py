@@ -581,6 +581,28 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         return 'move'
 
 
+    def merge_verts_with_faces(self, bmv0, bmv1):
+        if bmv0.share_edge(bmv1):
+            bmv0 = bmv0.shared_edge(bmv1).collapse()
+            self.rfcontext.remove_duplicate_bmfaces(bmv0)
+            self.rfcontext.clean_duplicate_bmedges(bmv0)
+            return bmv0
+
+        if not bmv0.share_face(bmv1):
+            bmv0.merge(bmv1)
+            self.rfcontext.remove_duplicate_bmfaces(bmv0)
+            self.rfcontext.clean_duplicate_bmedges(bmv0)
+            return bmv0
+
+        bmfs = bmv0.shared_faces(bmv1)
+        for bmf in bmfs: bmf.split(bmv0, bmv1)
+        self.rfcontext.remove_duplicate_bmfaces(bmv0)
+        self.rfcontext.clean_duplicate_bmedges(bmv0)
+        bmv0 = bmv0.shared_edge(bmv1).collapse()
+        self.rfcontext.remove_duplicate_bmfaces(bmv0)
+        self.rfcontext.clean_duplicate_bmedges(bmv0)
+        return bmv0
+
     def mergeSnapped(self):
         """ Merging colocated visible verts """
 
@@ -600,19 +622,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if bmv1 == bmv: continue
                 if not bmv1.is_valid: continue
                 d = (xy_updated - xy1).length
-                if (xy_updated - xy1).length < merge_dist:
-                    shared_edge = bmv.shared_edge(bmv1)
-                    if shared_edge:
-                        bmv1 = shared_edge.collapse()
-                    else:
-                        shared_faces = bmv.shared_faces(bmv1)
-                        self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
-                        bmv1.merge(bmv)
-                        self.rfcontext.remove_duplicate_bmfaces(bmv1)
-                        self.rfcontext.clean_duplicate_bmedges(bmv1)
-                    self.rfcontext.select(bmv1)
-                    update_verts += [bmv1]
-                    break
+                if (xy_updated - xy1).length > merge_dist:
+                    continue
+                bmv1 = self.merge_verts_with_faces(bmv1, bmv)
+                self.rfcontext.select(bmv1)
+                update_verts += [bmv1]
+                break
         if update_verts:
             self.rfcontext.update_verts_faces(update_verts)
             self.set_next_state()
