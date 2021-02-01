@@ -505,7 +505,7 @@ class RetopoFlow_States(CookieCutter):
         opts['timer'].done()
 
 
-    def setup_smart_selection_painting(self, bmelem_types, selecting, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
+    def setup_smart_selection_painting(self, bmelem_types, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         kwargs_filter = kwargs_filter or {}
         fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
 
