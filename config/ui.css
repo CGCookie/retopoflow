@@ -617,7 +617,7 @@ label.tool {
     background: var(--option-background);
     margin: 1px 0px;
     border: 0px;
-    padding: 2px 2px;
+    padding: 4px 2px;
 }
 label.tool:hover {
     background: var(--option-hover-background);
@@ -668,7 +668,7 @@ label.symmetry-enable {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 375px;
+    width: 392px;
     padding: 0px;
     overflow: hidden;
 }
@@ -690,15 +690,14 @@ div#ttools > * {
 
 
 dialog#tinydialog div#ttools {
-    margin: 0px;
+    margin: 2px;
 }
 label.ttool {
     background: var(--option-background);
     display: inline;
     margin: 0px 2px 0px 2px;
-    border: 0px;
-    padding: 2px;
-    width: 40px;
+    padding: 4px;
+    width: 42px;
 }
 label.ttool:hover {
     background: var(--option-hover-background);
