@@ -581,28 +581,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         return 'move'
 
 
-    def merge_verts_with_faces(self, bmv0, bmv1):
-        if bmv0.share_edge(bmv1):
-            bmv0 = bmv0.shared_edge(bmv1).collapse()
-            self.rfcontext.remove_duplicate_bmfaces(bmv0)
-            self.rfcontext.clean_duplicate_bmedges(bmv0)
-            return bmv0
-
-        if not bmv0.share_face(bmv1):
-            bmv0.merge(bmv1)
-            self.rfcontext.remove_duplicate_bmfaces(bmv0)
-            self.rfcontext.clean_duplicate_bmedges(bmv0)
-            return bmv0
-
-        bmfs = bmv0.shared_faces(bmv1)
-        for bmf in bmfs: bmf.split(bmv0, bmv1)
-        self.rfcontext.remove_duplicate_bmfaces(bmv0)
-        self.rfcontext.clean_duplicate_bmedges(bmv0)
-        bmv0 = bmv0.shared_edge(bmv1).collapse()
-        self.rfcontext.remove_duplicate_bmfaces(bmv0)
-        self.rfcontext.clean_duplicate_bmedges(bmv0)
-        return bmv0
-
     def mergeSnapped(self):
         """ Merging colocated visible verts """
 
@@ -624,7 +602,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 d = (xy_updated - xy1).length
                 if (xy_updated - xy1).length > merge_dist:
                     continue
-                bmv1 = self.merge_verts_with_faces(bmv1, bmv)
+                bmv1.merge_robust(bmv)
                 self.rfcontext.select(bmv1)
                 update_verts += [bmv1]
                 break

@@ -225,13 +225,40 @@ class RFVert(BMElemWrapper):
         return [RFFace(bmf) for bmf in bmv0.link_faces if bmv1 in bmf.verts]
 
     def merge(self, other):
-        if self.share_face(other):
-            # issue #927 shows that vert_splice cannot operate on two verts that share a face?
-            # other.dissolve()
-            return
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        vert_splice(bmv1, bmv0)
+        try:
+            vert_splice(bmv1, bmv0)
+            return bmv0
+        except Exception as e:
+            print(f'Caught Exception while trying to merge')
+            print(e)
+            print(f'Will try more robust merge')
+            return self.merge_robust(other)
+
+    def merge_robust(self, other):
+        rftarget = self.rftarget
+
+        if self.share_edge(other):
+            bmv = self.shared_edge(other).collapse()
+            rftarget.remove_duplicate_bmfaces(bmv)
+            rftarget.clean_duplicate_bmedges(bmv)
+            return bmv
+
+        if not self.share_face(other):
+            bmv = self.merge(other)
+            rftarget.remove_duplicate_bmfaces(bmv)
+            rftarget.clean_duplicate_bmedges(bmv)
+            return bmv
+
+        bmfs = self.shared_faces(other)
+        for bmf in bmfs: bmf.split(self, other)
+        rftarget.remove_duplicate_bmfaces(self)
+        rftarget.clean_duplicate_bmedges(self)
+        bmv = self.shared_edge(other).collapse()
+        rftarget.remove_duplicate_bmfaces(bmv)
+        rftarget.clean_duplicate_bmedges(bmv)
+        return bmv
 
     def dissolve(self):
         bmv = BMElemWrapper._unwrap(self)
