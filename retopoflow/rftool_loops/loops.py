@@ -181,8 +181,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.rfcontext.actions.pressed({'select paint'}):
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
-                #selecting=not sel_only,
-                #deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
