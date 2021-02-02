@@ -613,7 +613,9 @@ class RetopoFlow_UI:
         self.update_ui()
 
     def show_welcome_message(self):
-        if not options['welcome']: return
+        show = options['welcome'] or options['version update']
+        if not show: return
+        options['version update'] = False
         self.document.defer_cleaning = True
         self.helpsystem_open('welcome.md')
         self.document.defer_cleaning = False

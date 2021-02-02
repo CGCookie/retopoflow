@@ -21,7 +21,7 @@ Below are more details about the current version of RetopoFlow.
 
 Below is a list of major changes.
 
-### RetopoFlow 3.00.2&rarr;3.00.3
+### RetopoFlow 3.00.2&rarr;3.1.0
 
 - Knife is a new tool for cutting into existing geometry!
 - General: selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position

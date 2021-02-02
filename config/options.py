@@ -47,8 +47,8 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.00.3'
-retopoflow_version_tuple = (3, 0, 3)
+retopoflow_version = '3.1.0'
+retopoflow_version_tuple = (3, 1, 0)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
 retopoflow_helpdocs_url = 'https://docs.retopoflow.com'
@@ -110,6 +110,7 @@ class Options:
 
     default_options = {                 # all the default settings for unset or reset
         'rf version':           None,   # if versions differ, flush stored options
+        'version update':       False,
 
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
@@ -321,9 +322,8 @@ class Options:
             # Options.fndb = self.get_path('options filename')
             print('RetopoFlow options path: %s' % Options.fndb)
             self.read()
-            if self['rf version'] != retopoflow_version:
-                print('RetopoFlow version has changed.  Reseting options')
-                self.reset()
+            self['version update'] = (self['rf version'] != retopoflow_version)
+            self['rf version'] = retopoflow_version
         self.update_external_vars()
 
     def __getitem__(self, key):

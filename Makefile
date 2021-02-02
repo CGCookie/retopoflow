@@ -16,16 +16,17 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 NAME            = RetopoFlow
-VERSION         = v3.00.3
-GIT_TAG         = "v3.00.3"
-GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.0.3."
+VERSION         = v3.1.0
+GIT_TAG         = "v3.1.0"
+GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.1.0."
 
-BUILD_DIR       = ../retopoflow_release
-DEBUG_CLEANUP   = $(NAME)/addon_common/scripts/strip_debugging.py
-DOCS_REBUILD    = ./scripts/prep_help_for_online.py
-CGCOOKIE_BUILT  = $(NAME)/.cgcookie
-ZIP_FILE        = $(NAME)_$(VERSION).zip
-TGZ_FILE        = $(NAME)_$(VERSION).tar.gz
+BUILD_DIR         = ../retopoflow_release
+DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
+DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
+CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
+CGCOOKIE_BUILT    = $(NAME)/.cgcookie
+ZIP_FILE          = $(NAME)_$(VERSION).zip
+TGZ_FILE          = $(NAME)_$(VERSION).tar.gz
 
 
 .DEFAULT_GOAL 	:= build
@@ -53,8 +54,12 @@ docs:
 	# rebuild online docs
 	python3 $(DOCS_REBUILD)
 
+check:
+	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
+	# most Windows setups have issues with these
+	./scripts/detect_filename_case_conflicts.py
 
-build:
+build: check
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
@@ -65,8 +70,8 @@ build:
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow." > $(CGCOOKIE_BUILT)
 	# run debug cleanup
 	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
-	# remove online docs
-	cd $(BUILD_DIR) && rm -r docs/
+	# create thumbnails
+	cd $(BUILD_DIR)/$(NAME)/help && python3 $(CREATE_THUMBNAILS)
 	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
 
