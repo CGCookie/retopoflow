@@ -24,6 +24,10 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 | {{brush strength}} | : | adjust brush strength |
 | {{brush falloff}}  | : | adjust brush falloff |
 
+These options can also be stored as presets in the Brush Options panel. 
+
+To quickly switch between presets, use the {{pie menu alt0}} pie menu. 
+
 ## Masking
 
 Relax has several options to control which vertices are or are not moved.

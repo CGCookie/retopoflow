@@ -4,11 +4,9 @@ RetopoFlow is a suite of Blender tools that automatically generate geometry whic
 
 The tools work because of our custom "Retopology Mode", which gets more information about the objects you're drawing on than Blender can give in Edit Mode. It also alows us to display the polygons in a cleaner, more helful style. 
 
-
-![feature](retopoflow_3_feature.png)
-
 <input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
 
+![feature](retopoflow_3_feature.png)
 
 ## Getting Started
 
