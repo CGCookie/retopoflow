@@ -499,6 +499,7 @@ class Actions:
         return ret
 
     def to_human_readable(self, actions, join=',', onlyfirst=None):
+        if type(actions) is str: actions = {actions}
         actions = { act for action in actions for act in self.convert(action) }
         return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst)
 
