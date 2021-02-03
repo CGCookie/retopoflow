@@ -506,14 +506,14 @@ class RetopoFlow_UI:
                 ui_tools.append_child(UI_Element.fromHTML(
                     f'<label title="{title}" class="tool">'
                     f'<input type="radio" id="tool-{val}" value="{val}" name="tool" class="tool" on_input="if this.checked: self.select_rftool(rftool)">'
-                    f'<img src="{rftool.icon}">'
-                    f'<span>{rftool.name}</span>'
+                    f'<img src="{rftool.icon}" title="{title}">'
+                    f'<span title="{title}">{rftool.name}</span>'
                     f'</label>'
                 )[0])
                 ui_ttools.append_child(UI_Element.fromHTML(
                     f'<label title="{title}" class="ttool">'
                     f'<input type="radio" id="ttool-{val}" value="{val}" name="ttool" class="ttool" on_input="if this.checked: self.select_rftool(rftool)">'
-                    f'<img src="{rftool.icon}">'
+                    f'<img src="{rftool.icon}" title="{title}">'
                     f'</label>'
                 )[0])
             for rftool in self.rftools: add_tool(rftool)
