@@ -239,11 +239,12 @@ input[type="range"]:active > *.inputrange-left {
 }
 input[type="range"] > *.inputrange-handle {
     left: 0px;
-    top: 0px;
-    width: 16px;
-    height: 16px;
-    background-color: hsl(200, 0%, 60%);
+    top: -4px;
+    width: 8px;
+    height: 10px;
+    background-color: hsl(200, 0%, 70%);
     z-index: 1;
+    border-radius: 3px;
 }
 
 
@@ -563,7 +564,7 @@ div.collection > h1 {
     display: block;
     width: 100%;
     margin: 0px 0px 2px 0px;
-    border: 1px transparent;
+    border: 0px transparent;
     border-bottom-color: rgba(0, 0, 0, 0.20);
     border-radius: 0px;
     padding: 2px 6px;
