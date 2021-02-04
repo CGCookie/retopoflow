@@ -34,6 +34,7 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 | {{strokes tool}}    | : | Strokes | [help](strokes.md) |
 | {{patches tool}}    | : | Patches | [help](patches.md) |
 | {{polypen tool}}    | : | PolyPen | [help](polypen.md) |
+| {{knife tool}}      | : | Knife | [help](knife.md) |
 | {{loops tool}}      | : | Loops | [help](loops.md) |
 | {{tweak tool}}      | : | Tweak | [help](tweak.md) |
 | {{relax tool}}      | : | Relax | [help](relax.md) |
@@ -53,6 +54,7 @@ RetopoFlow will switch back to the previously selected tool once you are done.
 |  |  |  |
 | --- | --- | --- |
 | {{loops quick}} | : | Loops |
+| {{knife quick}} | : | Knife |
 | {{tweak quick}} | : | Tweak |
 | {{relax quick}} | : | Relax |
 

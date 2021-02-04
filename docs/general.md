@@ -34,6 +34,7 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 | {{ site.data.keymaps.strokes_tool }}    | : | Strokes | [help](strokes.md) |
 | {{ site.data.keymaps.patches_tool }}    | : | Patches | [help](patches.md) |
 | {{ site.data.keymaps.polypen_tool }}    | : | PolyPen | [help](polypen.md) |
+| {{ site.data.keymaps.knife_tool }}      | : | Knife | [help](knife.md) |
 | {{ site.data.keymaps.loops_tool }}      | : | Loops | [help](loops.md) |
 | {{ site.data.keymaps.tweak_tool }}      | : | Tweak | [help](tweak.md) |
 | {{ site.data.keymaps.relax_tool }}      | : | Relax | [help](relax.md) |
@@ -53,6 +54,7 @@ RetopoFlow will switch back to the previously selected tool once you are done.
 
 | :--- | :--- | :--- |
 | {{ site.data.keymaps.loops_quick }} | : | Loops |
+| {{ site.data.keymaps.knife_quick }} | : | Knife |
 | {{ site.data.keymaps.tweak_quick }} | : | Tweak |
 | {{ site.data.keymaps.relax_quick }} | : | Relax |
 
