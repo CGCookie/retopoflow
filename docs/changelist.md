@@ -29,6 +29,7 @@ Below is a list of major changes.
 - UI: major performance improvements from redesign and reimplementation of underlying UI system
 - Added button on help system to view help documents in web browser
 - Added Blender operator for creating new target mesh based on active source mesh
+- Visualizing non-manifold edges and detached vertices
 - Several bug fixes and UX improvements
 
 ### RetopoFlow 3.00.1&rarr;3.00.2
