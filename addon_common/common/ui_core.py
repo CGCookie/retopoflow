@@ -239,7 +239,7 @@ def load_image(fn):
         # have not seen this image before
         path = get_image_path(fn)
         _,ext = os.path.splitext(fn)
-        print(f'UI: Loading image "{fn}" (path={path})')
+        # print(f'UI: Loading image "{fn}" (path={path})')
         if   ext == '.png':  img = load_image_png(path)
         elif ext == '.apng': img = load_image_apng(path)
         else: assert False, f'load_image: unhandled type ({ext}) for {fn}'
@@ -282,7 +282,7 @@ def preload_image(*fns):
 def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, image=None):
     if fn_image not in load_texture._cache:
         if image is None: image = load_image(fn_image)
-        print(f'UI: Buffering texture "{fn_image}"')
+        # print(f'UI: Buffering texture "{fn_image}"')
         height,width,depth = len(image),len(image[0]),len(image[0][0])
         assert depth == 4, 'Expected texture %s to have 4 channels per pixel (RGBA), not %d' % (fn_image, depth)
         image = reversed(image) # flip image
@@ -1433,7 +1433,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         elif self.src: # and not self._src:
             if ASYNC_IMAGE_LOADING and not self._pseudoelement and not is_image_cached(self.src):
-                print(f'LOADING {self.src} ASYNC')
+                # print(f'LOADING {self.src} ASYNC')
                 if self._src == 'image':
                     self._new_content = True
                 elif self._src == 'image loading':

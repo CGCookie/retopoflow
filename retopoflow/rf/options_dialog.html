@@ -4,10 +4,36 @@ def theme_change(e):
     if e.target.value is None: return
     options['color theme'] = e.target.value
 
-def reset_options():
+def reset_options(self):
     options.reset()
     self.update_ui()
     self.document.body.dirty(children=True)
+
+def reset_alpha_options(self):
+    options.reset([
+        'target alpha point',
+        'target alpha point selected',
+        'target alpha point warning',
+        'target alpha point mirror',
+        'target alpha point mirror selected',
+        'target alpha point mirror warning',
+        'target alpha point highlight',
+        'target alpha line',
+        'target alpha line selected',
+        'target alpha line warning',
+        'target alpha line mirror',
+        'target alpha line mirror selected',
+        'target alpha line mirror warning',
+        'target alpha poly',
+        'target alpha poly selected',
+        'target alpha poly warning',
+        'target alpha poly mirror',
+        'target alpha poly mirror selected',
+        'target alpha poly mirror warning',
+    ], version=False)
+    self.update_ui()
+    self.document.body.dirty(children=True)
+
 
 def update_hide_overlays():
     if options['hide overlays']: self.overlays_hide()
@@ -106,7 +132,7 @@ def symmetry_changed(self):
                                 </label>
                             </div>
                         </div>
-                        <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options()">Reset All Settings</button>
+                        <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options(self)">Reset All Settings</button>
                     </div>
                 </details>
             </div>
@@ -195,12 +221,20 @@ def symmetry_changed(self):
                                         <input type="number" value="BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
+                                        <label title='Set transparency of warning target vertices'>Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point warning']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
                                         <label title='Set transparency of mirrored target vertices'>Mirror</label>
                                         <input type="number" value="BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
                                         <label title='Set transparency of selected, mirrored target vertices'>Mirror Selected</label>
                                         <input type="number" value="BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of warning, mirrored target vertices'>Mirror Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha point mirror warning']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
                                         <label title='Set transparency of highlighted target vertices'>Highlight</label>
@@ -220,12 +254,20 @@ def symmetry_changed(self):
                                         <input type="number" value="BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
+                                        <label title='Set transparency of warning target edges'>Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line warning']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
                                         <label title='Set transparency of mirrored target edges'>Mirror</label>
                                         <input type="number" value="BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
                                         <label title='Set transparency of selected, mirrored target edges'>Mirror Selected</label>
                                         <input type="number" value="BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of warning, mirrored target edges'>Mirror Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha line mirror warning']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                 </div>
                             </div>
@@ -241,6 +283,10 @@ def symmetry_changed(self):
                                         <input type="number" value="BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)">
                                     </div>
                                     <div class="labeled-input-text">
+                                        <label title='Set transparency of warning target faces'>Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly warning']''', min_value=0.0, max_value=1.0)">
+                                    </div>
+                                    <div class="labeled-input-text">
                                         <label title='Set transparency of mirrored target faces'>Mirror</label>
                                         <input type="number" value="BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)">
                                     </div>
@@ -248,8 +294,13 @@ def symmetry_changed(self):
                                         <label title='Set transparency of selected, mirrored target faces'>Mirror Selected</label>
                                         <input type="number" value="BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)">
                                     </div>
+                                    <div class="labeled-input-text">
+                                        <label title='Set transparency of warning, mirrored target faces'>Mirror Warning</label>
+                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror warning']''', min_value=0.0, max_value=1.0)">
+                                    </div>
                                 </div>
                             </div>
+                            <button title="Reset individual alpha settings to default" on_mouseclick="reset_alpha_options(self)">Reset Individual Alpha Settings</button>
                         </div>
                     </details>
                 </div>
