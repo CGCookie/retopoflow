@@ -689,6 +689,17 @@ class UI_Element_Elements():
             self._new_content = True
         return [self._ui_marker, *self._children]
 
+    def _init_input_radio(self):
+        def on_input(e):
+            if not self.checked: return
+            ui_elements = self.get_root().getElementsByName(self.name)
+            for ui_element in ui_elements:
+                if ui_element != self:
+                    ui_element.checked = False
+        def on_click(e):
+            self.checked = True
+        self.add_eventListener('on_mouseclick', on_click)
+        self.add_eventListener('on_input', on_input)
     def _process_input_radio(self):
         if self._ui_marker is None:
             self._ui_marker = self._generate_new_ui_elem(
@@ -698,16 +709,6 @@ class UI_Element_Elements():
                 classes=self._classes_str,
                 pseudoelement='marker',
             )
-            def on_input(e):
-                if not self.checked: return
-                ui_elements = self.get_root().getElementsByName(self.name)
-                for ui_element in ui_elements:
-                    if ui_element != self:
-                        ui_element.checked = False
-            def on_click(e):
-                self.checked = True
-            self.add_eventListener('on_mouseclick', on_click)
-            self.add_eventListener('on_input', on_input)
         else:
             self._children_gen += [self._ui_marker]
             self._new_content = True
@@ -827,6 +828,14 @@ class UI_Element_Elements():
             return self._children
 
         return self._children
+
+    def _init_element(self):
+        tagtype = f'{self._tagName}{f" {self._type}" if self._type else ""}'
+        processors = {
+            'input radio':    self._init_input_radio,
+        }
+        if tagtype not in processors: return
+        processors[tagtype]()
 
     def _process_children(self):
         if self._innerTextAsIs is not None: return []

@@ -1010,12 +1010,14 @@ class UI_Element_Properties:
             return self._checked
     @checked.setter
     def checked(self, v):
-        # v = "checked" if v else None
         if self._checked_bound:
             if not self._value_bound and self._value is not None:
-                if bool(v): self._checked.value = self._value
-            else:
+                if bool(v) and self._checked.value != self._value:
+                    self._checked.value = self._value
+                    self._checked_change()
+            elif self._checked.value != v:
                 self._checked.value = v
+                self._checked_change()
         elif self._checked != v:
             self._checked = v
             self._checked_change()

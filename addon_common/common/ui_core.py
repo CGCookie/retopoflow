@@ -956,6 +956,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 for k in unhandled_keys:
                     print(f'  {k}={kwargs[k]}')
 
+        self._init_element()
         self.dirty(cause='initially dirty')
 
     def __del__(self):
@@ -2020,19 +2021,21 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
     def _fire_event(self, event, details):
         ph = details.event_phase
         cap, bub, df = details.capturing, details.bubbling, not details.default_prevented
-        if (cap and ph == 'capturing') or (df and ph == 'at target'):
-            for (cap,cb,old_cb) in self._events[event]:
-                if cap: cb(details)
-        if (bub and ph == 'bubbling') or (df and ph == 'at target'):
-            try:
+        try:
+            if (cap and ph == 'capturing') or (df and ph == 'at target'):
                 for (cap,cb,old_cb) in self._events[event]:
-                    if not cap: cb(details)
-            except Exception as e:
-                print(f'COOKIE CUTTER >> Exception Caught while trying to callback event handlers')
-                print(f'UI_Element: {self}')
-                print(f'event: {event}')
-                print(f'exception: {e}')
-                raise e
+                    if not cap: continue
+                    cb(details)
+            if (bub and ph == 'bubbling') or (df and ph == 'at target'):
+                for (cap,cb,old_cb) in self._events[event]:
+                    if cap: continue
+                    cb(details)
+        except Exception as e:
+            print(f'COOKIE CUTTER >> Exception Caught while trying to callback event handlers')
+            print(f'UI_Element: {self}')
+            print(f'event: {event}')
+            print(f'exception: {e}')
+            raise e
 
     @profiler.function
     def dispatch_event(self, event, mouse=None, button=None, key=None, ui_event=None, stop_at=None):
@@ -2049,21 +2052,28 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         # else:
         #     if mouse is None or button is None:
         #         print(f'UI_Element.dispatch_event: {event} dispatched on {self}, but self.document = {self.document}  (root={self.get_root()}')
-        if ui_event is None: ui_event = UI_Event(target=self, mouse=mouse, button=button, key=key)
+
+        if ui_event is None:
+            ui_event = UI_Event(target=self, mouse=mouse, button=button, key=key)
+
         path = self.get_pathToRoot()[1:] # skipping first item, which is self
         if stop_at is not None and stop_at in path:
             path = path[:path.index(stop_at)]
+
         ui_event.event_phase = 'capturing'
         for cur in path[::-1]:
             cur._fire_event(event, ui_event)
             if not ui_event.capturing: return ui_event.default_prevented
+
         ui_event.event_phase = 'at target'
         self._fire_event(event, ui_event)
+
         ui_event.event_phase = 'bubbling'
         if not ui_event.bubbling: return ui_event.default_prevented
         for cur in path:
             cur._fire_event(event, ui_event)
             if not ui_event.bubbling: return ui_event.default_prevented
+
         return ui_event.default_prevented
 
 

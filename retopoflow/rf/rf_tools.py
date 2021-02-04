@@ -42,19 +42,23 @@ class RetopoFlow_Tools:
     def select_rftool(self, rftool, quick=False):
         assert rftool in self.rftools
         if rftool == self.rftool: return
+
         if quick: self.rftool_return = self.rftool
         else:     self.rftool_return = None
+
         self.rftool = rftool
         self.rftool._reset()
-        e = self.document.body.getElementById(f'tool-{rftool.name.lower()}')
-        if e: e.checked = True
-        e = self.document.body.getElementById(f'ttool-{rftool.name.lower()}')
-        if e: e.checked = True
-        self.ui_tiny.dirty(cause='changed tools', children=True)
+
+        self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
+        self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
         self.ui_main.dirty(cause='changed tools', children=True)
+        self.ui_tiny.dirty(cause='changed tools', children=True)
+
         statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
         statusbar = statusbar.replace('\t', '    ')
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
         self.update_ui()
-        if not quick: options['quickstart tool'] = rftool.name
+
+        if not quick:
+            options['quickstart tool'] = rftool.name
 
