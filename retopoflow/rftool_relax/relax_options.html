@@ -1,0 +1,267 @@
+<details id='relax-options'>
+    <summary>Relax</summary>
+    <div class="contents">
+        <div class='collection' id='relax-masking'>
+            <h1>Masking Options</h1>
+            <div class='collection'>
+                <h1>Boundary</h1>
+                <div class='contents'>
+                    <label class='half-size'>
+                        <input type="radio" title='Relax vertices not along boundary' value='exclude' checked="BoundString('''options['relax mask boundary']''')" name='relax-boundary'>
+                        Exclude
+                    </label>
+                    <label class="half-size">
+                        <input type="radio" title="Relax all vertices within brush, regardless of being along boundary" value='include' checked="BoundString('''options['relax mask boundary']''')" name='relax-boundary'>
+                        Include
+                    </label>
+                </div>
+            </div>
+            <div class='collection'>
+                <h1>Symmetry</h1>
+                <div class='contents'>
+                    <label class='third-size'>
+                        <input type="radio" title='Relax vertices not along symmetry plane' value='exclude' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
+                        Exclude
+                    </label>
+                    <label class='third-size'>
+                        <input type="radio" title='Relax vertices along symmetry plane, but keep them on symmetry plane' value='maintain' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
+                        Maintain
+                    </label>
+                    <label class='third-size'>
+                        <input type="radio" title='Relax all vertices within brush, regardless of being along symmetry plane' value='include' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
+                        Include
+                    </label>
+                </div>
+            </div>
+            <div class='collection'>
+                <h1>Hidden</h1>
+                <div class='contents'>
+                    <label class='half-size'>
+                        <input type="radio" title="Relax only visible vertices" value='exclude' checked="BoundString('''options['relax mask hidden']''')" name='relax-hidden'>
+                        Exclude
+                    </label>
+                    <label class='half-size'>
+                        <input type="radio" title="Relax all vertices within brush, regardless of visibility" value='include' checked="BoundString('''options['relax mask hidden']''')" name='relax-hidden'>
+                        Include
+                    </label>
+                </div>
+            </div>
+            <div class="collection">
+                <h1>Selected</h1>
+                <div class="contents">
+                    <label class="third-size">
+                        <input type="radio" title='Relax only unselected vertices' value='exclude' checked="BoundString('''options['relax mask selected']''')" name='relax-selected'>
+                        Exclude
+                    </label>
+                    <label class="third-size">
+                        <input type="radio" title='Relax only selected vertices' value='only' checked="BoundString('''options['relax mask selected']''')" name='relax-selected'>
+                        Only
+                    </label>
+                    <label class="third-size">
+                        <input type="radio" title='Relax all vertices within brush, regardless of selection' value='all' checked="BoundString('''options['relax mask selected']''')" name='relax-selected'>
+                        All
+                    </label>
+                </div>
+            </div>
+        </div>
+        <details>
+            <summary>Algorithm Options</summary>
+            <div class="contents">
+                <div class='collection'>
+                    <h1>Iterations</h1>
+                    <div class='contents'>
+                        <div class='labeled-input-text'>
+                            <label for="relax-alg-steps">Steps</label>
+                            <input type="number" id="relax-alg-steps" title="Number of times to iterate" value="BoundInt('''options['relax steps']''', min_value=1, max_value=10)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-alg-strength">Strength</label>
+                            <input type="number" id="relax-alg-strength" title="Strength multiplier for each iteration" value="BoundFloat('''options['relax force multiplier']''', min_value=0.1, max_value=10.0)">
+                        </div>
+                    </div>
+                </div>
+                <div class='collection'>
+                    <h1>Edge</h1>
+                    <div class='contents'>
+                        <label>
+                            <input type="checkbox" title="Squash / stretch each edge toward the average edge length" checked="BoundBool('''options['relax edge length']''')">
+                            Average edge length
+                        </label>
+                        <label>
+                            <input type="checkbox" title="Try to straighten edges" checked="BoundBool('''options['relax straight edges']''')">
+                            Straighten edges
+                        </label>
+                    </div>
+                </div>
+                <div class='collection'>
+                    <h1>Face</h1>
+                    <div class='contents'>
+                        <label>
+                            <input type="checkbox" title="Move face vertices so their distance to face center is equalized" checked="BoundBool('''options['relax face radius']''')">
+                            Face radius
+                        </label>
+                        <label>
+                            <input type="checkbox" title="Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)" checked="BoundBool('''options['relax face sides']''')">
+                            Average face edge length
+                        </label>
+                        <label>
+                            <input type="checkbox" title="Move face vertices so they are equally spread around face center" checked="BoundBool('''options['relax face angles']''')">
+                            Face angles
+                        </label>
+                    </div>
+                </div>
+                <div class='collection'>
+                    <h1>Experimental</h1>
+                    <div class='contents'>
+                        <label>
+                            <input type="checkbox" title="Try to move vertices so faces are not flipped" checked="BoundBool('''options['relax correct flipped faces']''')">
+                            Correct flipped faces
+                        </label>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Presets</h1>
+                    <div class="contents">
+                        <button title="Reset Algorithm options to default values" on_mouseclick="self.reset_algorithm_options()">Reset</button>
+                        <button title="Disable all Algorithm options" on_mouseclick="self.disable_all_options()">Disable All</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+        <details>
+            <summary>Brush Options</summary>
+            <div class="contents">
+                <div class="collection" id='relax-current-brush'>
+                    <h1>Current</h1>
+                    <div class="contents">
+                        <div class='labeled-input-text'>
+                            <label for='relax-current-radius'>Size</label>
+                            <input type="number" title="Adjust brush size" id='relax-current-radius' value="self.rfwidget.get_radius_boundvar()">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for='relax-current-strength'>Strength</label>
+                            <input type="number" title="Adjust brush strength" id='relax-current-strength' value="self.rfwidget.get_strength_boundvar()">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for='relax-current-falloff'>Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='relax-current-falloff' value="self.rfwidget.get_falloff_boundvar()">
+                        </div>
+                        <button title="Reset brush options to defaults" on_mouseclick="self.reset_current_brush()">Reset</button>
+                    </div>
+                </div>
+                <details id='relax-preset-1'>
+                    <summary id='relax-preset-1-summary'>Preset: Preset 1</summary>
+                    <div class="contents">
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-1-name">Name</label>
+                            <input type="text" title="Change name of preset" id='relax-preset-1-name' value="BoundString('''options['relax preset 1 name']''')" on_change="self.update_preset_name(1)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-1-radius">Size</label>
+                            <input type="number" title="Adjust brush size" id='relax-preset-1-radius' value="BoundInt('''options['relax preset 1 radius']''', min_value=1)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-1-strength">Strength</label>
+                            <input type="number" title="Adjust brush strength" id='relax-preset-1-strength' value="BoundFloat('''options['relax preset 1 strength']''', min_value=0.01, max_value=1.0)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-1-falloff">Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='relax-preset-1-falloff' value="BoundFloat('''options['relax preset 1 falloff']''', min_value=0.0, max_value=100.0)">
+                        </div>
+                        <div class='collection'>
+                            <h1>Copy Brush Settings</h1>
+                            <div class='contents'>
+                                <button title="Copy current brush settings to this preset" on_mouseclick="self.copy_current_to_preset(1)">Current to Preset</button>
+                                <button title="Copy this preset to current brush settings" on_mouseclick="self.copy_preset_to_current(1)">Preset to Current</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                <details id='relax-preset-2'>
+                    <summary id='relax-preset-2-summary'>Preset: Preset 2</summary>
+                    <div class="contents">
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-2-name">Name</label>
+                            <input type="text" title="Change name of preset" id='relax-preset-2-name' value="BoundString('''options['relax preset 2 name']''')" on_change="self.update_preset_name(2)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-2-radius">Size</label>
+                            <input type="number" title="Adjust brush size" id='relax-preset-2-radius' value="BoundInt('''options['relax preset 2 radius']''', min_value=1)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-2-strength">Strength</label>
+                            <input type="number" title="Adjust brush strength" id='relax-preset-2-strength' value="BoundFloat('''options['relax preset 2 strength']''', min_value=0.01, max_value=1.0)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-2-falloff">Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='relax-preset-2-falloff' value="BoundFloat('''options['relax preset 2 falloff']''', min_value=0.0, max_value=100.0)">
+                        </div>
+                        <div class='collection'>
+                            <h1>Copy Brush Settings</h1>
+                            <div class='contents'>
+                                <button title="Copy current brush settings to this preset" on_mouseclick="self.copy_current_to_preset(2)">Current to Preset</button>
+                                <button title="Copy this preset to current brush settings" on_mouseclick="self.copy_preset_to_current(2)">Preset to Current</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                <details id='relax-preset-3'>
+                    <summary id='relax-preset-3-summary'>Preset: Preset 3</summary>
+                    <div class="contents">
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-3-name">Name</label>
+                            <input type="text" title="Change name of preset" id='relax-preset-3-name' value="BoundString('''options['relax preset 3 name']''')" on_change="self.update_preset_name(3)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-3-radius">Size</label>
+                            <input type="number" title="Adjust brush size" id='relax-preset-3-radius' value="BoundInt('''options['relax preset 3 radius']''', min_value=1)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-3-strength">Strength</label>
+                            <input type="number" title="Adjust brush strength" id='relax-preset-3-strength' value="BoundFloat('''options['relax preset 3 strength']''', min_value=0.01, max_value=1.0)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-3-falloff">Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='relax-preset-3-falloff' value="BoundFloat('''options['relax preset 3 falloff']''', min_value=0.0, max_value=100.0)">
+                        </div>
+                        <div class='collection'>
+                            <h1>Copy Brush Settings</h1>
+                            <div class='contents'>
+                                <button title="Copy current brush settings to this preset" on_mouseclick="self.copy_current_to_preset(3)">Current to Preset</button>
+                                <button title="Copy this preset to current brush settings" on_mouseclick="self.copy_preset_to_current(3)">Preset to Current</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                <details id='relax-preset-4'>
+                    <summary id='relax-preset-4-summary'>Preset: Preset 4</summary>
+                    <div class="contents">
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-4-name">Name</label>
+                            <input type="text" title="Change name of preset" id='relax-preset-4-name' value="BoundString('''options['relax preset 4 name']''')" on_change="self.update_preset_name(4)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-4-radius">Size</label>
+                            <input type="number" title="Adjust brush size" id='relax-preset-4-radius' value="BoundInt('''options['relax preset 4 radius']''', min_value=1)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-4-strength">Strength</label>
+                            <input type="number" title="Adjust brush strength" id='relax-preset-4-strength' value="BoundFloat('''options['relax preset 4 strength']''', min_value=0.01, max_value=1.0)">
+                        </div>
+                        <div class='labeled-input-text'>
+                            <label for="relax-preset-4-falloff">Falloff</label>
+                            <input type="number" title="Adjust brush falloff" id='relax-preset-4-falloff' value="BoundFloat('''options['relax preset 4 falloff']''', min_value=0.0, max_value=100.0)">
+                        </div>
+                        <div class='collection'>
+                            <h1>Copy Brush Settings</h1>
+                            <div class='contents'>
+                                <button title="Copy current brush settings to this preset" on_mouseclick="self.copy_current_to_preset(4)">Current to Preset</button>
+                                <button title="Copy this preset to current brush settings" on_mouseclick="self.copy_preset_to_current(4)">Preset to Current</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </details>
+    </div>
+</details>

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -181,7 +181,7 @@ class RFWidget_BrushFalloff_Factory:
                 return (getter, setter)
 
             def get_radius_boundvar(self):
-                return BoundFloat('''self.radius''', min_value=1)
+                return radius
 
             ##################
             # strength
@@ -208,7 +208,7 @@ class RFWidget_BrushFalloff_Factory:
                 return (getter, setter)
 
             def get_strength_boundvar(self):
-                return BoundFloat('''self.strength''', min_value=0.01, max_value=1.0)
+                return strength
 
             ##################
             # falloff
@@ -236,7 +236,7 @@ class RFWidget_BrushFalloff_Factory:
                 return (getter, setter)
 
             def get_falloff_boundvar(self):
-                return BoundFloat('''self.falloff''', min_value=0.00, max_value=100.0)
+                return falloff
 
             ##################
             # fill_color_scale

@@ -1,0 +1,39 @@
+<details id="strokes-options">
+    <summary id="strokes-summary">Strokes</summary>
+    <div class="contents">
+        <div class='collection' id="strokes-insert-modes">
+            <h1>Span Insert Mode</h1>
+            <div class='contents'>
+                <label title="Insert spans based on brush size" class="half-size">
+                    <input type="radio" id='strokes-span-mode-brush' value='Brush Size' checked="BoundString('''options['strokes span insert mode']''')"  name='strokes-span-mode' on_input="self.update_span_mode()">
+                    Brush Size
+                </label>
+                <label title="Insert fixed number of spans" class="half-size">
+                    <input type="radio" id='strokes-span-mode-fixed' value='Fixed' checked="BoundString('''options['strokes span insert mode']''')" name='strokes-span-mode' on_input="self.update_span_mode()">
+                    Fixed
+                </label>
+                <div class="labeled-input-text">
+                    <label title="Adjust brush size">Brush size</label>
+                    <input type="number" id='strokes-radius' value="self.rfwidgets['brush'].get_radius_boundvar()">
+                </div>
+                <div class="labeled-input-text">
+                    <label title="Number of spans to insert when Span Insert Mode is set to Fixed">Fixed spans</label>
+                    <input type="number" value="self._var_fixed_span_count">
+                </div>
+            </div>
+        </div>
+        <div class="collection">
+            <h1>New Geometry Edits</h1>
+            <div class="contents">
+                <div class="labeled-input-text">
+                    <label title="Number of spans between previously selected strip and newly created strip">Spans</label>
+                    <input type="number" value="self._var_cross_count">
+                </div>
+                <div class="labeled-input-text">
+                    <label title="Number of loops between previously selected loop and newly created loop">Loops</label>
+                    <input type="number" value="self._var_loop_count">
+                </div>
+            </div>
+        </div>
+    </div>
+</details>

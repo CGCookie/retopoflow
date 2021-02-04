@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -407,6 +407,10 @@ class RetopoFlow_Target:
         self.undo_push('remove selected doubles')
         self.rftarget.remove_selected_doubles(options['remove doubles dist'])
 
+    def flip_face_normals(self):
+        self.undo_push('flipping face normals')
+        self.rftarget.flip_face_normals()
+
     #######################################
     # target manipulation functions
     #
@@ -433,6 +437,7 @@ class RetopoFlow_Target:
         vert.normal = norm
 
     def set2D_vert(self, vert:RFVert, xy:Point2D, snap_to_symmetry=None):
+        if not vert: return
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         if snap_to_symmetry:
@@ -675,18 +680,22 @@ class RetopoFlow_Target:
         sel_verts = self.rftarget.get_selected_verts()
         sel_edges = self.rftarget.get_selected_edges()
         sel_faces = self.rftarget.get_selected_faces()
-        self.undo_push('dissolve %s' % opt)
-        if opt == 'Vertices' and sel_verts:
-            self.dissolve_verts(sel_verts)
-        elif opt == 'Edges' and sel_edges:
-            self.dissolve_edges(sel_edges)
-        elif opt == 'Faces' and sel_faces:
-            self.dissolve_faces(sel_faces)
-        elif opt == 'Loops' and sel_edges:
-            self.dissolve_edges(sel_edges)
-            self.dissolve_verts(self.rftarget.get_selected_verts())
-            #self.dissolve_loops()
-        self.dirty()
+        try:
+            self.undo_push('dissolve %s' % opt)
+            if opt == 'Vertices' and sel_verts:
+                self.dissolve_verts(sel_verts)
+            elif opt == 'Edges' and sel_edges:
+                self.dissolve_edges(sel_edges)
+            elif opt == 'Faces' and sel_faces:
+                self.dissolve_faces(sel_faces)
+            elif opt == 'Loops' and sel_edges:
+                self.dissolve_edges(sel_edges)
+                self.dissolve_verts(self.rftarget.get_selected_verts())
+                #self.dissolve_loops()
+            self.dirty()
+        except RuntimeError as e:
+            self.undo_cancel()
+            self.alert_user('Error while dissolving:\n' + '\n'.join(e.args))
 
     def delete_option(self, opt):
         del_empty_edges=True
@@ -711,9 +720,13 @@ class RetopoFlow_Target:
             del_empty_verts = False
             del_empty_edges = False
 
-        self.undo_push('delete %s' % opt)
-        self.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
-        self.dirty()
+        try:
+            self.undo_push('delete %s' % opt)
+            self.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)
+            self.dirty()
+        except RuntimeError as e:
+            self.undo_cancel()
+            self.alert_user('Error while deleting:\n' + '\n'.join(e.args))
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)

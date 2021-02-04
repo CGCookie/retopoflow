@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -38,7 +38,7 @@ from ..addon_common.common.maths import Color
 from ..addon_common.common.profiler import Profiler
 from ..addon_common.common.utils import git_info
 from ..addon_common.common.ui_document import UI_Document
-from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 
 ###########################################
@@ -47,10 +47,11 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.00.2'
-retopoflow_version_tuple = (3, 0, 2)
+retopoflow_version = '3.1.0'
+retopoflow_version_tuple = (3, 1, 0)
 
 retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
+retopoflow_helpdocs_url = 'https://docs.retopoflow.com'
 
 # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
 # NOTE: can add number to url to start the amount off
@@ -109,6 +110,7 @@ class Options:
 
     default_options = {                 # all the default settings for unset or reset
         'rf version':           None,   # if versions differ, flush stored options
+        'version update':       False,
 
         'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
         'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
@@ -165,6 +167,7 @@ class Options:
         'undo depth':           100,    # size of undo stack
 
         'async mesh loading':   True,   # True: load source meshes asynchronously
+        'async image loading':  True,
 
         'select dist':          10,             # pixels away to select
         'action dist':          20,             # pixels away to allow action
@@ -175,6 +178,7 @@ class Options:
         'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
 
         # VISUALIZATION SETTINGS
+        'warn non-manifold':        True,       # visualize non-manifold warnings
         'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
         'color theme':              'Green',
         'symmetry view':            'Edge',
@@ -190,16 +194,22 @@ class Options:
         'target cull backfaces':    False,
         'target alpha poly':                  0.65,
         'target alpha poly selected':         0.75,
+        'target alpha poly warning':          0.25,
         'target alpha poly mirror':           0.25,
         'target alpha poly mirror selected':  0.25,
+        'target alpha poly mirror warning':   0.15,
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
-        'target alpha line mirror':           0.1,
-        'target alpha line mirror selected':  0.5,
+        'target alpha line warning':          0.25,
+        'target alpha line mirror':           0.10,
+        'target alpha line mirror selected':  0.50,
+        'target alpha line mirror warning':   0.15,
         'target alpha point':                 0.25,
         'target alpha point selected':        1.00,
-        'target alpha point mirror':          0.0,
-        'target alpha point mirror selected': 0.5,
+        'target alpha point warning':         0.50,
+        'target alpha point mirror':          0.00,
+        'target alpha point mirror selected': 0.50,
+        'target alpha point mirror warning':  0.15,
         'target alpha point highlight':       1.00,
         'target alpha mirror':                1.00,
 
@@ -222,7 +232,7 @@ class Options:
         'contours uniform':             True,   # should new cuts be made uniformly about circumference?
         'contours non-manifold check':  True,
 
-        'polystrips radius':            40.0,
+        'polystrips radius':            40,
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
@@ -231,15 +241,19 @@ class Options:
         'polystrips handle outer size': 20,
         'polystrips handle border':     3,
 
-        'strokes radius':               40.0,
+        'strokes radius':               40,
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
+
+        'knife automerge':              True,
+        'knife merge dist':             10,         # pixels away to merge
+        'knife snap dist':              5,          # pixels away to snap
 
         'polypen merge dist':           10,         # pixels away to merge
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
-        'relax radius':                 50.0,
+        'relax radius':                 50,
         'relax falloff':                1.5,
         'relax strength':               0.5,
         'relax algorithm':              '3D',
@@ -256,23 +270,23 @@ class Options:
         'relax correct flipped faces':  False,
         'relax straight edges':         True,
         'relax preset 1 name':         'Preset 1',
-        'relax preset 1 radius':        50.0,
+        'relax preset 1 radius':        50,
         'relax preset 1 falloff':       1.5,
         'relax preset 1 strength':      0.5,
         'relax preset 2 name':         'Preset 2',
-        'relax preset 2 radius':        50.0,
+        'relax preset 2 radius':        50,
         'relax preset 2 falloff':       1.5,
         'relax preset 2 strength':      0.5,
         'relax preset 3 name':         'Preset 3',
-        'relax preset 3 radius':        50.0,
+        'relax preset 3 radius':        50,
         'relax preset 3 falloff':       1.5,
         'relax preset 3 strength':      0.5,
         'relax preset 4 name':         'Preset 4',
-        'relax preset 4 radius':        50.0,
+        'relax preset 4 radius':        50,
         'relax preset 4 falloff':       1.5,
         'relax preset 4 strength':      0.5,
 
-        'tweak radius':                 50.0,
+        'tweak radius':                 50,
         'tweak falloff':                1.5,
         'tweak strength':               0.5,
         'tweak mask boundary':          'include',
@@ -280,19 +294,19 @@ class Options:
         'tweak mask hidden':            'exclude',
         'tweak mask selected':          'all',
         'tweak preset 1 name':         'Preset 1',
-        'tweak preset 1 radius':        50.0,
+        'tweak preset 1 radius':        50,
         'tweak preset 1 falloff':       1.5,
         'tweak preset 1 strength':      0.5,
         'tweak preset 2 name':         'Preset 2',
-        'tweak preset 2 radius':        50.0,
+        'tweak preset 2 radius':        50,
         'tweak preset 2 falloff':       1.5,
         'tweak preset 2 strength':      0.5,
         'tweak preset 3 name':         'Preset 3',
-        'tweak preset 3 radius':        50.0,
+        'tweak preset 3 radius':        50,
         'tweak preset 3 falloff':       1.5,
         'tweak preset 3 strength':      0.5,
         'tweak preset 4 name':         'Preset 4',
-        'tweak preset 4 radius':        50.0,
+        'tweak preset 4 radius':        50,
         'tweak preset 4 falloff':       1.5,
         'tweak preset 4 strength':      0.5,
 
@@ -315,9 +329,8 @@ class Options:
             # Options.fndb = self.get_path('options filename')
             print('RetopoFlow options path: %s' % Options.fndb)
             self.read()
-            if self['rf version'] != retopoflow_version:
-                print('RetopoFlow version has changed.  Reseting options')
-                self.reset()
+            self['version update'] = (self['rf version'] != retopoflow_version)
+            self['rf version'] = retopoflow_version
         self.update_external_vars()
 
     def __getitem__(self, key):
@@ -474,17 +487,23 @@ class Themes:
         'Blue': {
             'select':  ints_to_Color( 55, 160, 255),
             'new':     ints_to_Color( 40,  40, 255),
-            'active':  ints_to_Color( 55, 160, 255),
+            'active':  ints_to_Color( 40, 255, 255),
+            # 'active':  ints_to_Color( 55, 160, 255),
+            'warn':    ints_to_Color(182,  31,   0),
         },
         'Green': {
             'select':  ints_to_Color( 78, 207,  81),
             'new':     ints_to_Color( 40, 255,  40),
-            'active':  ints_to_Color( 78, 207,  81),
+            'active':  ints_to_Color( 40, 255, 255),
+            # 'active':  ints_to_Color( 78, 207,  81),
+            'warn':    ints_to_Color(182,  31,   0),
         },
         'Orange': {
             'select':  ints_to_Color(255, 135,  54),
             'new':     ints_to_Color(255, 128,  64),
-            'active':  ints_to_Color(255, 135,  54),
+            'active':  ints_to_Color(255, 80,  64),
+            # 'active':  ints_to_Color(255, 135,  54),
+            'warn':    ints_to_Color(182,  31,   0),
         },
     }
 
@@ -509,15 +528,21 @@ class Visualization_Settings:
             'target edge size',
             'target alpha poly',
             'target alpha poly selected',
+            'target alpha poly warning',
             'target alpha poly mirror selected',
+            'target alpha poly mirror warning',
             'target alpha line',
             'target alpha line selected',
+            'target alpha line warning',
             'target alpha line mirror',
             'target alpha line mirror selected',
+            'target alpha line mirror warning',
             'target alpha point',
             'target alpha point selected',
+            'target alpha point warning',
             'target alpha point mirror',
             'target alpha point mirror selected',
+            'target alpha point mirror warning',
             'target alpha point highlight',
             'target alpha mirror',
         ]
@@ -526,6 +551,7 @@ class Visualization_Settings:
 
         color_mesh = themes['mesh']
         color_select = themes['select']
+        color_warn = themes['warn']
         color_hilight = themes['highlight']
         normal_offset_multiplier = options['normal offset multiplier']
         constrain_offset = options['constrain offset']
@@ -541,6 +567,7 @@ class Visualization_Settings:
             'load edges':     False,
             'load verts':     False,
             'no selection':   True,
+            'no warning':     True,
             'no below':       True,
             'triangles only': True,     # source bmeshes are triangles only!
             'cull backfaces': True,
@@ -554,26 +581,31 @@ class Visualization_Settings:
         self._target_settings = {
             'poly color':                  (*color_mesh[:3],   options['target alpha poly']),
             'poly color selected':         (*color_select[:3], options['target alpha poly selected']),
+            'poly color warning':          (*color_warn[:3], options['target alpha poly warning']),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
             'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror'] * mirror_alpha_factor),
             'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected'] * mirror_alpha_factor),
+            'poly mirror color warning':   (*color_warn[:3], options['target alpha poly mirror warning'] * mirror_alpha_factor),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
             'line color':                  (*color_mesh[:3],   options['target alpha line']),
             'line color selected':         (*color_select[:3], options['target alpha line selected']),
+            'line color warning':          (*color_warn[:3], options['target alpha line warning']),
             'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
             'line mirror color':           (*color_mesh[:3],   options['target alpha line mirror'] * mirror_alpha_factor),
             'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected'] * mirror_alpha_factor),
+            'line mirror color warning':   (*color_warn[:3], options['target alpha line mirror warning'] * mirror_alpha_factor),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
 
             'point color':                 (*color_mesh[:3],   options['target alpha point']),
             'point color selected':        (*color_select[:3], options['target alpha point selected']),
+            'point color warning':         (*color_warn[:3], options['target alpha point warning']),
             'point color highlight':       (*color_hilight[:3],options['target alpha point highlight']),
             'point size':                  vert_size,
             'point size highlight':        10.0,
@@ -581,6 +613,7 @@ class Visualization_Settings:
             'point dotoffset':             1.0,
             'point mirror color':          (*color_mesh[:3],   options['target alpha point mirror'] * mirror_alpha_factor),
             'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected'] * mirror_alpha_factor),
+            'point mirror color warning':  (*color_warn[:3], options['target alpha point mirror warning'] * mirror_alpha_factor),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,

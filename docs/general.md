@@ -45,6 +45,17 @@ Note: selection and the undo stack is maintained between tools.
 Press {{ site.data.keymaps.pie_menu }} at any time to show the tool pie menu.
 
 
+## Quick Tool Shortcuts
+
+Pressing the tool's quick shortcut will temporarily switch to that tool.
+RetopoFlow will switch back to the previously selected tool once you are done.
+
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.loops_quick }} | : | Loops |
+| {{ site.data.keymaps.tweak_quick }} | : | Tweak |
+| {{ site.data.keymaps.relax_quick }} | : | Relax |
+
 
 ## Universal Shortcuts
 

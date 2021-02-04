@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -41,7 +41,7 @@ from ...config.options import options, visualization
 
 class RetopoFlow_Drawing:
     def get_view_version(self):
-        return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens)
+        return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens, self.actions.r3d.view_distance)
 
     def setup_drawing(self):
         def callback():

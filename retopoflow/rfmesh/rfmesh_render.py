@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -44,7 +44,6 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Direction, Normal, Frame
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
-from ...addon_common.common.ui import Drawing
 from ...addon_common.common.utils import min_index
 from ...addon_common.common.hasher import hash_object, hash_bmesh
 from ...addon_common.common.decorators import stats_wrapper
@@ -154,7 +153,7 @@ class RFMeshRender():
     @profiler.function
     def add_buffered_render(self, bgl_type, data):
         batch = BufferedRender_Batch(bgl_type)
-        batch.buffer(data['vco'], data['vno'], data['sel'])
+        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'])
         self.buffered_renders.append(batch)
         # buffered_render = BGLBufferedRender(bgl_type)
         # buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
@@ -174,6 +173,12 @@ class RFMeshRender():
             '''
             def sel(g):
                 return 1.0 if g.select else 0.0
+            def warn_vert(g):
+                return 0.0 if g.is_manifold and not g.is_boundary else 1.0
+            def warn_edge(g):
+                return 0.0 if g.is_manifold else 1.0
+            def warn_face(g):
+                return 1.0
 
             try:
                 time_start = time.time()
@@ -205,6 +210,11 @@ class RFMeshRender():
                                     for bmf, verts in tri_faces[i0:i1]
                                     for bmv in verts
                                 ],
+                                'warn': [
+                                    warn_face(bmf)
+                                    for bmf, verts in tri_faces[i0:i1]
+                                    for bmv in verts
+                                ],
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
                             if self.async_load:
@@ -220,17 +230,22 @@ class RFMeshRender():
                             edge_data = {
                                 'vco': [
                                     tuple(bmv.co)
-                                    for bme in self.bmesh.edges[i0:i1]
+                                    for bme in edges[i0:i1]
                                     for bmv in bme.verts
                                 ],
                                 'vno': [
                                     tuple(bmv.normal)
-                                    for bme in self.bmesh.edges[i0:i1]
+                                    for bme in edges[i0:i1]
                                     for bmv in bme.verts
                                 ],
                                 'sel': [
                                     sel(bme)
-                                    for bme in self.bmesh.edges[i0:i1]
+                                    for bme in edges[i0:i1]
+                                    for bmv in bme.verts
+                                ],
+                                'warn': [
+                                    warn_edge(bme)
+                                    for bme in edges[i0:i1]
                                     for bmv in bme.verts
                                 ],
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
@@ -249,6 +264,7 @@ class RFMeshRender():
                                 'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
                                 'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
                                 'sel': [sel(bmv) for bmv in verts[i0:i1]],
+                                'warn': [warn_vert(bmv) for bmv in verts[i0:i1]],
                                 'idx': None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
@@ -348,6 +364,8 @@ class RFMeshRender():
             opts['symmetry effect'] = symmetry_effect
 
             bmegl.glSetDefaultOptions()
+
+            opts['no warning'] = not options['warn non-manifold']
 
             opts['cull backfaces'] = cull_backfaces
             opts['alpha backface'] = alpha_backface

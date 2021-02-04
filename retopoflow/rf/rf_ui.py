@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -35,12 +35,11 @@ from concurrent.futures import ThreadPoolExecutor
 import bpy
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
-from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat
-from ...addon_common.common.utils import delay_exec
+from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat, BoundString
+from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import get_preferences
-from ...addon_common.common import ui
-from ...addon_common.common.ui_proxy import UI_Proxy
+from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
 
@@ -108,88 +107,16 @@ class RetopoFlow_UI:
     # pie menu
 
     def setup_pie_menu(self):
-        self.ui_pie_menu = ui.div(id='pie-menu', atomic=True, can_hover=False, parent=self.document.body, children=[
-            ui.table(id='pie-menu-table', children=[
-                ui.tr(id='pie-menu-top', children=[
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-topleft', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-topleft-text',       classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-topleft-image',      classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-topcenter', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-topcenter-text',     classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-topcenter-image',    classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-topright', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-topright-text',      classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-topright-image',     classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                ]),
-                ui.tr(id='pie-menu-middle', children=[
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-middleleft', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-middleleft-text',    classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-middleleft-image',   classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-middlecenter', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-middlecenter-text',  classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-middlecenter-image', classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-middleright', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-middleright-text',   classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-middleright-image',  classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                ]),
-                ui.tr(id='pie-menu-bottom', children=[
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-bottomleft', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-bottomleft-text',    classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-bottomleft-image',   classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-bottomcenter', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-bottomcenter-text',  classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-bottomcenter-image', classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                    ui.td(classes='pie-menu-section', children=[
-                        ui.div(id='pie-menu-bottomright', classes='pie-menu-option', children=[
-                            ui.div(id='pie-menu-bottomright-text',   classes='pie-menu-option-text'),
-                            ui.img(id='pie-menu-bottomright-image',  classes='pie-menu-option-image'),
-                        ]),
-                    ]),
-                ]),
-            ])
-        ])
-        self.ui_pie_table = self.document.body.getElementById('pie-menu-table')
-        # 7 0 1
-        # 6   2
-        # 5 4 3
-        self.ui_pie_sections = [
-            (
-                self.document.body.getElementById(f'pie-menu-{n}'),
-                self.document.body.getElementById(f'pie-menu-{n}-text'),
-                self.document.body.getElementById(f'pie-menu-{n}-image'),
-            )
-            for n in ['topcenter', 'topright', 'middleright', 'bottomright', 'bottomcenter', 'bottomleft', 'middleleft', 'topleft']
-        ]
+        path_pie_menu_html = abspath('pie_menu.html')
+        self.ui_pie_menu = UI_Element.fromHTMLFile(path_pie_menu_html)[0]
+        self.ui_pie_menu.can_hover = False
+        self.document.body.append_child(self.ui_pie_menu)
 
-    def show_pie_menu(self, options, fn_callback, highlighted=None, release=None, always_callback=False):
+    def show_pie_menu(self, options, fn_callback, highlighted=None, release=None, always_callback=False, rotate=0):
         if len(options) == 0: return
-        assert len(options) <= 8, f'Unhandled number of pie menu options ({len(options)}): {options}'
+        self.pie_menu_rotation = rotate - 90
         self.pie_menu_callback = fn_callback
-        self.pie_menu_options = options
+        self.pie_menu_options = list(options)
         self.pie_menu_highlighted = highlighted
         self.pie_menu_release = release or 'pie menu'
         self.pie_menu_always_callback = always_callback
@@ -198,6 +125,10 @@ class RetopoFlow_UI:
 
 
     def alert_user(self, message=None, title=None, level=None, msghash=None):
+        if not getattr(self, '_msghashes', None): self._msghashes = set()
+        if msghash and msghash in self._msghashes: return # have already seen this error!!
+        self._msghashes.add(msghash)
+
         show_quit = False
         level = level.lower() if level else 'note'
         blender_version = '%d.%02d.%d' % bpy.app.version
@@ -206,10 +137,10 @@ class RetopoFlow_UI:
         darken = False
 
         ui_checker = None
-        ui_details = None
         ui_show = None
         message_orig = message
         report_details = ''
+        msg_report = None
 
         if title is None and self.rftool: title = self.rftool.name
 
@@ -233,7 +164,7 @@ class RetopoFlow_UI:
             nonlocal msg_report
             nonlocal report_details
 
-            path = os.path.join(os.path.dirname(__file__), '..', '..', 'help', 'issue_template_simple.md')
+            path = abspath('..', '..', 'help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
                 'title': f'{self.rftool.name}: {title}',
@@ -243,12 +174,16 @@ class RetopoFlow_UI:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = ui.collapsible(label='Report an issue', classes='issue-checker', collapsed=False)
-            ui_label = ui.markdown(mdown='Checking reported issues...', parent=ui_checker)
-            ui_buttons = ui.div(parent=ui_checker, classes='action-buttons')
+            ui_checker = UI_Element.DETAILS(classes='issue-checker', open=True)
+            UI_Element.SUMMARY(innerText='Report an issue', parent=ui_checker)
+            ui_label = UI_Element.ARTICLE(classes='mdown', parent=ui_checker)
+            ui_buttons = UI_Element.DIV(parent=ui_checker, classes='action-buttons')
+
+            ui_label.set_markdown(mdown='Checking reported issues...')
 
             def check_github():
                 nonlocal win, ui_buttons
+                buttons = 4
                 try:
                     if self.GitHub_checks < self.GitHub_limit:
                         self.GitHub_checks += 1
@@ -275,31 +210,33 @@ class RetopoFlow_UI:
                             if issue['state'] == 'closed': solved = True
                         if not exists:
                             print('GitHub: Not reported, yet')
-                            ui.set_markdown(ui_label, 'This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
+                            ui_label.set_markdown(mdown='This issue does not appear to be reported, yet.\n\nPlease consider reporting it so we can fix it.')
                         else:
                             if not solved:
                                 print('GitHub: Already reported!')
-                                ui.set_markdown(ui_label, 'This issue appears to have been reported already.\n\nClick Open button to see the current status.')
+                                ui_label.set_markdown('This issue appears to have been reported already.\n\nClick Open button to see the current status.')
                             else:
                                 print('GitHub: Already solved!')
-                                ui.set_markdown(ui_label, 'This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
+                                ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
                             def go():
                                 bpy.ops.wm.url_open(url=issueurl)
-                            ui.button(label='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                            UI_Element.BUTTON(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
+                            buttons = 5
                     else:
-                        ui.set_markdown(ui_label, 'Could not run the check.\n\nPlease consider reporting it so we can fix it.')
+                        ui_label.set_markdown('Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
-                    ui.set_markdown(ui_label, 'Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
+                    ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
                     pass
                     print('Caught exception while trying to pull issues from GitHub')
                     print(f'URL: "{url}"')
                     print(e)
                     # ignore for now
                     pass
-                ui.button(label='Screenshot', classes='action', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
-                ui.button(label='Similar', classes='action', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
-                ui.button(label='All Issues', classes='action', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
-                ui.button(label='Report', classes='action', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                size = f'{"fourth" if buttons==4 else "fifth"}-size'
+                UI_Element.BUTTON(innerText='Screenshot', classes=f'action {size}', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='Similar',    classes=f'action {size}', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='All Issues', classes=f'action {size}', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
+                UI_Element.BUTTON(innerText='Report',     classes=f'action {size}', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
@@ -338,13 +275,6 @@ class RetopoFlow_UI:
                 try: bpy.context.window_manager.clipboard = msg_report
                 except: pass
 
-            ui_details = ui.collapsible(id='crashdetails', label='Crash details')
-            ui_details.builder([
-                ui.label(innerText='Crash Details:', style="border:0px; padding:0px; margin:0px"),  # align=0
-                ui.pre(innerText=msg_report),    # fontid=fontid
-                ui.button(label='Copy details to clipboard', on_mouseclick=clipboard, title='Copy crash details to clipboard'), # bgcolor=(0.5,0.5,0.5,0.4),margin=1
-            ])
-
             show_quit = True
             darken = True
         else:
@@ -371,20 +301,19 @@ class RetopoFlow_UI:
             return
             #self.exit = True
 
-        win = ui.framed_dialog(label=title, classes=f'alertdialog {level}', close_callback=close, parent=self.document.body)
-        ui.markdown(mdown=message, parent=win)
-        if ui_details or ui_checker:
-            container = ui.div(parent=win)
-            if ui_details:
-                container.append_child(ui_details)
-            if ui_checker:
-                container.append_child(ui_checker)
-        ui_bottombuttons = ui.div(classes='alertdialog-buttons', parent=win)
-        ui_close = ui.button(label='Close', on_mouseclick=close, title='Close this alert window', parent=ui_bottombuttons)
-        if show_quit:
-            ui.button(label='Exit', on_mouseclick=quit, title='Exit RetopoFlow', parent=ui_bottombuttons)
-        else:
-            ui_close.style = 'width:100%'
+        win = UI_Element.fromHTMLFile(abspath('alert_dialog.html'))[0]
+        self.document.body.append_child(win)
+        win.getElementById('alert-title').innerText = title
+        win.getElementById('alert-message').set_markdown(mdown=message)
+        if not msg_report and not ui_checker:
+            win.getElementById('alert-details').is_visible = False
+        if msg_report: win.getElementById('alert-report').innerText = msg_report
+        else:          win.getElementById('alert-report').is_visible = False
+        if ui_checker: win.getElementById('alert-checker').append_child(ui_checker)
+        else:          win.getElementById('alert-checker').is_visible = False
+        if not show_quit:
+            win.getElementById('alert-close').style = 'width:100%'
+            win.getElementById('alert-quit').is_visible = False
 
         self.document.focus(win)
         self.alert_windows += 1
@@ -468,20 +397,30 @@ class RetopoFlow_UI:
     def show_geometry_window(self):
         options['show geometry window'] = True
         self.ui_geometry.is_visible = True
-        self.ui_show_geometry.disabled = True
+        self.ui_main.getElementById('show-geometry').disabled = True
     def hide_geometry_window(self):
         options['show geometry window'] = False
         self.ui_geometry.is_visible = False
-        self.ui_show_geometry.disabled = False
+        self.ui_main.getElementById('show-geometry').disabled = False
+    def update_geometry_window_visibility(self):
+        if self.ui_hide: return
+        visible = self.ui_geometry.is_visible
+        options['show geometry window'] = visible
+        self.ui_main.getElementById('show-geometry').disabled = visible
 
     def show_options_window(self):
         options['show options window'] = True
         self.ui_options.is_visible = True
-        self.ui_show_options.disabled = True
+        self.ui_main.getElementById('show-options').disabled = True
     def hide_options_window(self):
         options['show options window'] = False
         self.ui_options.is_visible = False
-        self.ui_show_options.disabled = False
+        self.ui_main.getElementById('show-options').disabled = False
+    def update_options_window_visibility(self):
+        if self.ui_hide: return
+        visible = self.ui_options.is_visible
+        options['show options window'] = visible
+        self.ui_main.getElementById('show-options').disabled = visible
 
     def show_main_ui_window(self):
         options['show main window'] = True
@@ -491,6 +430,38 @@ class RetopoFlow_UI:
         options['show main window'] = False
         self.ui_tiny.is_visible = True
         self.ui_main.is_visible = False
+    def update_main_ui_window(self):
+        if self.ui_hide: return
+        if self._ui_windows_updating: return
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        options['show main window'] = self.ui_main.is_visible
+        if not options['show main window']:
+            self.ui_tiny.is_visible = True
+            self.ui_tiny.left = self.ui_main.left
+            self.ui_tiny.top = self.ui_main.top
+            # self.ui_tiny.clean()
+        self._ui_windows_updating = pre
+    def update_tiny_ui_window(self):
+        if self.ui_hide: return
+        if self._ui_windows_updating: return
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        options['show main window'] = not self.ui_tiny.is_visible
+        if options['show main window']:
+            self.ui_main.is_visible = True
+            self.ui_main.left = self.ui_tiny.left
+            self.ui_main.top = self.ui_tiny.top
+            # self.ui_main.clean()
+        self._ui_windows_updating = pre
+    def update_main_tiny_ui_windows(self):
+        if self.ui_hide: return
+
+        pre = self._ui_windows_updating
+        self._ui_windows_updating = True
+        self.ui_main.is_visible = options['show main window']
+        self.ui_tiny.is_visible = not options['show main window']
+        self._ui_windows_updating = pre
 
     def setup_ui(self):
         # NOTE: lambda is needed on next line so that RF keymaps are bound!
@@ -500,6 +471,7 @@ class RetopoFlow_UI:
 
         # load ui.css
         self.reload_stylings()
+        self.ui_hide = False
 
         self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
 
@@ -507,417 +479,85 @@ class RetopoFlow_UI:
         rf_starting_tool = getattr(self, 'rf_starting_tool', None) or options['quickstart tool']
 
         def setup_counts_ui():
-            self.ui_geometry = ui.framed_dialog(
-                label="Poly Count",
-                id="geometrydialog",
-                left=0,
-                resizable=False,
-                closeable=True,
-                hide_on_close=True,
-                close_callback=self.hide_geometry_window,
-                parent=self.document.body,
-                children=[
-                    ui.table(children=[
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Verts:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-verts')]),
-                        ]),
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Edges:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-edges')]),
-                        ]),
-                        ui.tr(children=[
-                            ui.td(children=[ui.div(innerText='Faces:')]),
-                            ui.td(children=[ui.div(innerText='0', id='geometry-faces')]),
-                        ]),
-                    ])
-                ],
-            )
-            self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
-            self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
-            self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
-            self.update_ui_geometry()
+            self.ui_geometry = UI_Element.fromHTMLFile(abspath('geometry.html'))[0]
             if options['show geometry window']:
                 self.show_geometry_window()
             else:
                 self.hide_geometry_window()
+            self.document.body.append_child(self.ui_geometry)
+            self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
+            self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
+            self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
+            self.update_ui_geometry()
 
         def setup_tiny_ui():
-            self.ui_tiny = ui.framed_dialog(
-                label=f'RetopoFlow {retopoflow_version}',
-                id='tinydialog',
-                closeable=False,
-                hide_on_close=True,
-                close_callback=self.show_main_ui_window,
-                is_visible=False,
-                parent=self.document.body,
-            )
-            ui_tools = ui.div(id='ttools', parent=self.ui_tiny)
-            ui.button(title='Maximize this window', classes='dialog-expand', on_mouseclick=self.show_main_ui_window, parent=ui_tools)
-            def add_tool(rftool):
-                nonlocal ui_tools
-                # must be a fn so that local vars are unique and correctly captured
-                lbl, img = rftool.name, rftool.icon
-                checked = (rftool.name == rf_starting_tool)
-                if checked: self.select_rftool(rftool)
-                radio = ui.input_radio(
-                    id=f'ttool-{lbl.lower()}',
-                    value=lbl.lower(),
-                    title=f'{rftool.name}: {rftool.description}. Shortcut: {humanread(rftool.shortcut)}',
-                    name="ttool",
-                    classes="ttool",
-                    checked=checked,
-                    parent=ui_tools,
-                )
-                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
-                ui.img(src=img, parent=radio, title=rftool.description)
-            for rftool in self.rftools: add_tool(rftool)
-            # ui_close = UI_Element(tagName='button', classes='dialog-close', title=title, on_mouseclick=close, parent=ui_header)
-
-        def debug_doc(ui, level=0):
-            print(f"{'  '*level} {ui}: document={ui.document}, root={ui.get_root()}")
-            if type(ui) is UI_Proxy:
-                print(f"{'  '*(level+1)} {ui.proxy_default_element}: document={ui.proxy_default_element.document}, root={ui.proxy_default_element.get_root()}")
-            for c in ui.children:
-                debug_doc(c, level+1)
+            nonlocal humanread
+            self.ui_tiny = UI_Element.fromHTMLFile(abspath('main_tiny.html'))[0]
+            self.document.body.append_child(self.ui_tiny)
 
         def setup_main_ui():
-            self.ui_main = ui.framed_dialog(
-                label=f'RetopoFlow {retopoflow_version}',
-                id="maindialog",
-                closeable=False,
-                parent=self.document.body,
-            )
+            nonlocal humanread
+            self.ui_main = UI_Element.fromHTMLFile(abspath('main_full.html'))[0]
+            self.document.body.append_child(self.ui_main)
 
-            # tools
-            ui_tools = ui.div(id="tools", parent=self.ui_main)
-            def add_tool(rftool):
-                nonlocal ui_tools
-                # must be a fn so that local vars are unique and correctly captured
-                lbl, img = rftool.name, rftool.icon
-                checked = (rftool.name == rf_starting_tool)
-                if checked: self.select_rftool(rftool)
-                radio = ui.input_radio(
-                    id=f'tool-{lbl.lower()}',
-                    value=lbl.lower(),
-                    title=f'{rftool.description}. Shortcut: {humanread(rftool.shortcut)}',
-                    name="tool",
-                    classes="tool",
-                    checked=checked,
-                    parent=ui_tools
-                )
-                radio.add_eventListener('on_input', delay_exec('''if radio.checked: self.select_rftool(rftool)'''))
-                ui.img(src=img, parent=radio, title=rftool.description)
-                ui.label(innerText=lbl, parent=radio, title=rftool.description)
+        def setup_tool_buttons():
+            ui_tools  = self.ui_main.getElementById('tools')
+            ui_ttools = self.ui_tiny.getElementById('ttools')
+            def add_tool(rftool):               # IMPORTANT: must be a fn so that local vars are unique and correctly captured
+                nonlocal self, humanread        # IMPORTANT: need this so that these are captured
+                shortcut = humanread({rftool.shortcut})
+                quick = humanread({rftool.quick_shortcut}) if rftool.quick_shortcut else ''
+                title = f'{rftool.name}: {rftool.description}. Shortcut: {shortcut}.'
+                if quick: title += f' Quick: {quick}.'
+                val = f'{rftool.name.lower()}'
+                ui_tools.append_child(UI_Element.fromHTML(
+                    f'<label title="{title}" class="tool">'
+                    f'''<input type="radio" id="tool-{val}" value="{val}" name="tool" class="tool" on_input="if this.checked: self.select_rftool(rftool)">'''
+                    f'<img src="{rftool.icon}" title="{title}">'
+                    f'<span title="{title}">{rftool.name}</span>'
+                    f'</label>'
+                )[0])
+                ui_ttools.append_child(UI_Element.fromHTML(
+                    f'<label title="{title}" class="ttool">'
+                    f'''<input type="radio" id="ttool-{val}" value="{val}" name="ttool" class="ttool" on_input="if this.checked: self.select_rftool(rftool)">'''
+                    f'<img src="{rftool.icon}" title="{title}">'
+                    f'</label>'
+                )[0])
             for rftool in self.rftools: add_tool(rftool)
 
-            ui_help = ui.collapsible(label='Documentation', id='help-buttons', parent=self.ui_main, children=[
-                ui.button(
-                    label='Welcome!',
-                    title='Show the "Welcome!" message from the RetopoFlow team',
-                    on_mouseclick=delay_exec("self.helpsystem_open('welcome.md')")
-                ),
-                ui.button(
-                    label='Table of Contents',
-                    title=f'Show help table of contents ({humanread("all help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open('table_of_contents.md')")
-                ),
-                ui.button(
-                    label='Quick start guide',
-                    title='Show how to get started with RetopoFlow',
-                    on_mouseclick=delay_exec("self.helpsystem_open('quick_start.md')")
-                ),
-                ui.button(
-                    label='General',
-                    title=f'Show general help ({humanread("general help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open('general.md')")
-                ),
-                ui.button(
-                    label='Active Tool',
-                    title=f'Show help for currently selected tool ({humanread("tool help")})',
-                    on_mouseclick=delay_exec("self.helpsystem_open(self.rftool.help)")
-                ),
-            ])
-            ui_show = ui.collapsible(label='Windows', parent=self.ui_main)
-            ui.button(label='Minimize Tools', title='Minimize this window', on_mouseclick=self.show_tiny_ui_window, parent=ui_show)
-            self.ui_show_options = ui.button(label='Show Options', title='Show options window', disabled=True, parent=ui_show, on_mouseclick=self.show_options_window)
-            self.ui_show_geometry = ui.button(label='Show Poly Count', title='Show poly count window', disabled=True, parent=ui_show, on_mouseclick=self.show_geometry_window)
-            ui.button(label='Report Issue', title='Report an issue with RetopoFlow', parent=self.ui_main, on_mouseclick=delay_exec("bpy.ops.wm.url_open(url=retopoflow_issues_url)"))
-            ui.button(label='Exit', title=f'Quit RetopoFlow ({humanread("done")})', parent=self.ui_main, on_mouseclick=self.done)
-            if False:
-                ui.button(label='Reload Styles', parent=self.ui_main, on_mouseclick=self.reload_stylings)
-            if False:
-                def printout_profiler():
-                    profiler.printout()
-                    print("Children: %d" % self.document.body.count_children())
-                ui.button(label='Profiler', parent=self.ui_main, on_mouseclick=printout_profiler)
-                ui.button(label='Profiler Clear', parent=self.ui_main, on_mouseclick=profiler.reset)
-
-
         def setup_options():
-            self.ui_options = ui.framed_dialog(
-                label='Options',
-                id='optionsdialog',
-                right=0,
-                closeable=True,
-                hide_on_close=True,
-                close_callback=self.hide_options_window,
-                parent=self.document.body,
-            )
+            nonlocal self
+
             self.document.defer_cleaning = True
 
-            options['remove doubles dist']
-
-            def theme_change(e):
-                if not e.target.checked: return
-                if e.target.value is None: return
-                options['color theme'] = e.target.value
-            def reset_options():
-                options.reset()
-                self.update_ui()
-                self.document.body.dirty(children=True)
-            def update_hide_overlays():
-                if options['hide overlays']: self.overlays_hide()
-                else: self.overlays_restore()
-
-            ui.collapsible(label='General', title='General options', id='generaloptions', parent=self.ui_options, children=[
-                ui.collection(label='Quit Options', title='These options control quitting RetopoFlow', children=[
-                    ui.input_checkbox(
-                        label='Confirm quit on Tab',
-                        title='Check to confirm quitting when pressing Tab',
-                        checked=BoundBool('''options['confirm tab quit']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Escape to Quit',
-                        title='Check to allow Esc key to quit RetopoFlow',
-                        checked=BoundBool('''options['escape to quit']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                # ui.button(label='Maximize Area'),
-                ui.collection(label='Start Up Checks', title='These options control what checks are run when RetopoFlow starts', children=[
-                    ui.input_checkbox(
-                        label='Check Auto Save',
-                        title='If enabled, check if Auto Save is disabled at start',
-                        checked=BoundBool('''options['check auto save']'''),
-                        style='display:block; width:100%',
-                    ),
-                    ui.input_checkbox(
-                        label='Check Unsaved',
-                        title='If enabled, check if blend file is unsaved at start',
-                        checked=BoundBool('''options['check unsaved']'''),
-                        style='display:block; width:100%',
-                    ),
-                ]),
-                ui.collapsible(label='Advanced', children=[
-                    ui.collection(label='Keyboard Settings', children=[
-                        ui.labeled_input_text(label='Repeat Delay', title='Set delay time before keyboard start repeating', value=BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)),
-                        ui.labeled_input_text(label='Repeat Pause', title='Set pause time between keyboard repeats', value=BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)),
-                        ui.button(label='Reset Keyboard Settings', on_mouseclick=delay_exec('''options.reset(keys=['keyboard repeat delay','keyboard repeat pause'], version=False)''')),
-                    ]),
-                    ui.collection(label='Visibility Testing', title='These options are used to tune the parameters for visibility testing', children=[
-                        ui.labeled_input_text(label='BBox Factor', title='Factor on minimum bounding box dimension', value=BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                        ui.labeled_input_text(label='Distance Offset', title='Offset added to max distance', value=BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0, on_change=self.get_vis_accel)),
-                        ui.collection(label='Presets', id='vistest-presets', children=[
-                            ui.button(label='Tiny', title='Preset options for working on tiny objects', on_mouseclick=self.visibility_preset_tiny),
-                            ui.button(label='Normal', title='Preset options for working on normal-sized objects', on_mouseclick=self.visibility_preset_normal),
-                        ]),
-                    ]),
-                    ui.collection(label='Debugging', children=[
-                    ui.div(innerText='FPS: 0', id='fpsdiv'),
-                        ui.input_checkbox(label='Print actions', title='Check to print (most) input actions to system console', checked=BoundBool('''self._debug_print_actions''')),
-                    ]),
-                    ui.button(label='Reset All Settings', title='Reset RetopoFlow back to factory settings', on_mouseclick=reset_options)
-                ])
-            ]),
-            ui.collapsible(label='Display', title='Display options', id='view-options', parent=self.ui_options, children=[
-                ui.input_checkbox(
-                    label='Auto Hide Tool Options',
-                    title='If enabled, options for selected tool will show while other tool options hide.',
-                    checked=self._var_auto_hide_options,
-                    style='display:block; width:100%',
-                ),
-                ui.input_checkbox(
-                    label='Hide Overlays',
-                    title='If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.',
-                    checked=BoundBool('''options['hide overlays']'''),
-                    on_input=update_hide_overlays,
-                    style='display:block; width:100%',
-                ),
-                ui.labeled_input_text(label='UI Scale', title='Custom UI scaling setting', value=BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)),
-                ui.collection(label='Theme', children=[
-                    ui.input_radio(
-                        id='theme-color-green',
-                        title='Draw the target mesh using a green theme.',
-                        value='Green',
-                        checked=(options['color theme']=='Green'),
-                        name='theme-color',
-                        classes='third-size',
-                        children=[ui.label(innerText='Green')],
-                        on_input=theme_change,
-                    ),
-                    ui.input_radio(
-                        id='theme-color-blue',
-                        title='Draw the target mesh using a blue theme.',
-                        value='Blue',
-                        checked=(options['color theme']=='Blue'),
-                        name='theme-color',
-                        classes='third-size',
-                        children=[ui.label(innerText='Blue')],
-                        on_input=theme_change,
-                    ),
-                    ui.input_radio(
-                        id='theme-color-orange',
-                        title='Draw the target mesh using a orange theme.',
-                        value='Orange',
-                        checked=(options['color theme']=='Orange'),
-                        name='theme-color',
-                        classes='third-size',
-                        children=[ui.label(innerText='Orange')],
-                        on_input=theme_change,
-                    ),
-                ]),
-                ui.collection(label='Clipping', id='clipping', children=[
-                    ui.labeled_input_text(label='Start', title='Near clipping distance', value=BoundFloat('''self.actions.space.clip_start''', min_value=0)),
-                    ui.labeled_input_text(label='End', title='Far clipping distance', value=BoundFloat('''self.actions.space.clip_end''', min_value=0)),
-                ]),
-                ui.collection(label='Target Drawing', children=[
-                    ui.labeled_input_text(label='Normal Offset', title='Sets how far geometry is pushed in visualization', value=BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)),
-                    ui.labeled_input_text(label='Alpha Above', title='Set transparency of target mesh that is above the source', value=BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)),
-                    ui.labeled_input_text(label='Alpha Below', title='Set transparency of target mesh that is below the source', value=BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)),
-                    ui.labeled_input_text(label='Vertex Size', title='Draw radius of vertices.', value=BoundFloat('''options['target vert size']''', min_value=0.1)),
-                    ui.labeled_input_text(label='Edge Size', title='Draw width of edges.', value=BoundFloat('''options['target edge size']''', min_value=0.1)),
-                    ui.collapsible(label='Individual Alpha Values', children=[
-                        ui.collection(label='Verts', children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target vertices', value=BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target vertices', value=BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target vertices', value=BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target vertices', value=BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Highlight', title='Set transparency of highlighted target vertices', value=BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)),
-                        ]),
-                        ui.collection(label="Edges", children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target edges', value=BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target edges', value=BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target edges', value=BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target edges', value=BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)),
-                        ]),
-                        ui.collection(label='Faces', children=[
-                            ui.labeled_input_text(label='Normal', title='Set transparency of normal target faces', value=BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Selected', title='Set transparency of selected target faces', value=BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror', title='Set transparency of mirrored target faces', value=BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)),
-                            ui.labeled_input_text(label='Mirror Selected', title='Set transparency of selected, mirrored target faces', value=BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)),
-                        ]),
-                    ]),
-                ]),
-                ui.collapsible(label='Tooltips', children=[
-                    ui.input_checkbox(label='Show', title='Check to show tooltips', checked=BoundVar('''options['show tooltips']''')),
-                    ui.labeled_input_text(label='Delay', title='Set delay before tooltips show', value=BoundFloat('''options['tooltip delay']''', min_value=0.0)),
-                ])
-            ]),
-            ui.collapsible(label='Target Cleaning', title='Target cleaning options', parent=self.ui_options, id='target-cleaning', children=[
-                ui.collection(label='Snap Verts', id='snap-verts', children=[
-                    ui.button(label="All", title='Snap all target vertices to nearest point on source(s).', on_mouseclick=self.snap_all_verts),
-                    ui.button(label="Selected", title='Snap selected target vertices to nearest point on source(s).', on_mouseclick=self.snap_selected_verts),
-                ]),
-                ui.collection(label='Merge by Distance', id='merge-by-distance', children=[
-                    ui.labeled_input_text(label='Distance', title='Distance within which vertices will be merged.', value=BoundFloat('''options['remove doubles dist']''', min_value=0)),
-                    ui.button(label='All', title='Merge all vertices within given distance.', on_mouseclick=self.remove_all_doubles),
-                    ui.button(label='Selected', title='Merge selected vertices within given distance.', on_mouseclick=self.remove_selected_doubles)
-                ]),
-            ])
-
-            def symmetry_viz_change(e):
-                if not e.target.checked: return
-                options['symmetry view'] = e.target.value
-            symmetryoptions = ui.collapsible(label='Symmetry', title='Symmetry (mirroring) options', id='symmetryoptions', parent=self.ui_options, children=[
-                ui.input_checkbox(label='x', title='Check to mirror along x-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.x''')),
-                ui.input_checkbox(label='y', title='Check to mirror along y-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.y''')),
-                ui.input_checkbox(label='z', title='Check to mirror along z-axis', classes='symmetry-enable', checked=BoundVar('''self.rftarget.mirror_mod.z''')),
-                ui.collection(label='Visualization', children=[
-                    ui.input_radio(
-                        id='symmetry-viz-none',
-                        title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).',
-                        value='None',
-                        checked=(options['symmetry view']=='None'),
-                        name='symmetry-viz',
-                        classes='third-size',
-                        children=[ui.label(innerText='None')],
-                        on_input=symmetry_viz_change
-                    ),
-                    ui.input_radio(
-                        id='symmetry-viz-edge',
-                        title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).',
-                        value='Edge',
-                        checked=(options['symmetry view']=='Edge'),
-                        name='symmetry-viz',
-                        classes='third-size',
-                        children=[ui.label(innerText='Edge')],
-                        on_input=symmetry_viz_change
-                    ),
-                    ui.input_radio(
-                        id='symmetry-viz-face',
-                        title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).',
-                        value='Face',
-                        checked=(options['symmetry view']=='Face'),
-                        name='symmetry-viz',
-                        classes='third-size',
-                        children=[ui.label(innerText='Face')],
-                        on_input=symmetry_viz_change
-                    ),
-                    ui.labeled_input_text(
-                        label='Source Effect',
-                        title='Effect of symmetry source visualization.',
-                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                        scrub=True,
-                    ),
-                    ui.input_range(
-                        title='Effect of symmetry source visualization.',
-                        value=BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0),
-                    ),
-                    ui.labeled_input_text(
-                        label='Target Effect',
-                        title='Factor for alpha of mirrored target visualization.',
-                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
-                        scrub=True,
-                    ),
-                    ui.input_range(
-                        title='Factor for alpha of mirrored target visualization.',
-                        value=BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0),
-                    ),
-                ]),
-                ui.labeled_input_text(
-                    label='Threshold',
-                    title='Distance within which mirrored vertices will be merged.',
-                    value=BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0, step_size=0.01),
-                    scrub=True,
-                ),
-                ui.button(
-                    label='Apply symmetry',
-                    title='Apply symmetry to target mesh',
-                    on_mouseclick=delay_exec('''self.apply_symmetry()'''),
-                ),
-            ])
-            def symmetry_changed():
-                s = []
-                if self.rftarget.mirror_mod.x: s += ['X']
-                if self.rftarget.mirror_mod.y: s += ['Y']
-                if self.rftarget.mirror_mod.z: s += ['Z']
-                if not s: s = ['(none)']
-                symmetryoptions.innerText = f'Symmetry: {",".join(s)}'
-            symmetry_changed()
-            for opt in self.ui_options.getElementsByClassName('symmetry-enable'):
-                opt.add_eventListener('on_input', symmetry_changed)
-
+            self.ui_options = UI_Element.fromHTMLFile(abspath('options_dialog.html'))[0]
+            self.document.body.append_child(self.ui_options)
 
             self.setup_pie_menu()
 
             self.rftools_ui = {}
             for rftool in self.rftools:
-                ui_elems = rftool._callback('ui setup')
+                ui_elems = []
+                def add_elem(ui_elem):
+                    if not ui_elem:
+                        return
+                    if type(ui_elem) is list:
+                        for ui in ui_elem:
+                            add_elem(ui)
+                        return
+                    ui_elems.append(ui_elem)
+                    self.ui_options.getElementById('options-contents').append_child(ui_elem)
+                if rftool.ui_config:
+                    path_folder = os.path.dirname(inspect.getfile(rftool.__class__))
+                    path_html = os.path.join(path_folder, rftool.ui_config)
+                    ret = rftool.call_with_self_in_context(UI_Element.fromHTMLFile, path_html)
+                    add_elem(ret)
+                ret = rftool._callback('ui setup')
+                add_elem(ret)
+
                 self.rftools_ui[rftool] = ui_elems
                 for ui_elem in ui_elems:
-                    self.ui_options.append_child(ui_elem)
+                    self.ui_options.getElementById('options-contents').append_child(ui_elem)
 
             if options['show options window']:
                 self.show_options_window()
@@ -932,90 +572,57 @@ class RetopoFlow_UI:
                 self.ui_quit.is_visible = False
                 self.document.sticky_element = None
                 self.document.clear_last_under()
-            def mouseleave_event(e):
+            def mouseleave_event():
                 if self.ui_quit.is_hovered: return
                 hide_ui_quit()
             def key(e):
                 if e.key in {'ESC', 'TAB'}: hide_ui_quit()
                 if e.key in {'RET', 'NUMPAD_ENTER'}: self.done()
 
-            self.ui_quit = ui.framed_dialog(
-                label='Quit RetopoFlow?',
-                id='quitdialog',
-                parent=self.document.body,
-                resizable_x=False,
-                hide_on_close=True,
-                close_callback=hide_ui_quit,
-                style='width:200px',
-            )
+            self.ui_quit = UI_Element.fromHTMLFile(abspath('quit_dialog.html'))[0]
             self.ui_quit.is_visible = False
-            self.ui_quit.add_eventListener('on_mouseleave', mouseleave_event)
-            self.ui_quit.add_eventListener('on_keypress', key)
-            ui.div(children=[
-                ui.button(label='Yes (Enter)', on_mouseclick=delay_exec('''self.done()'''), classes='half-size'),
-                ui.button(label='No (Esc)', on_mouseclick=delay_exec('''hide_ui_quit()'''), classes='half-size'),
-            ], parent=self.ui_quit)
-            ui.input_checkbox(label='Confirm quit on Tab', title='Check to confirm quitting when pressing Tab', checked=BoundVar('''options['confirm tab quit']'''), parent=self.ui_quit)
+            self.document.body.append_child(self.ui_quit)
 
         def setup_delete_ui():
             def hide_ui_delete():
                 self.ui_delete.is_visible = False
                 self.document.sticky_element = None
                 self.document.clear_last_under()
-            def mouseleave_event(e):
+            def mouseleave_event():
                 if self.ui_delete.is_hovered: return
                 hide_ui_delete()
             def key(e):
                 if e.key == 'ESC': hide_ui_delete()
-
-            self.ui_delete = ui.framed_dialog(
-                label='Delete/Dissolve',
-                id='deletedialog',
-                parent=self.document.body,
-                resizable_x=False,
-                hide_on_close=True,
-                close_callback=hide_ui_delete,
-                style='width:200px',
-                )
-            self.ui_delete.is_visible = False
-            # self.ui_delete.add_eventListener('on_focusout', hide_ui_delete)
-            self.ui_delete.add_eventListener('on_mouseleave', mouseleave_event)
-            self.ui_delete.add_eventListener('on_keypress', key)
-
             def act(opt):
                 self.delete_dissolve_option(opt)
                 hide_ui_delete()
 
-            ui_delete = ui.collection('Delete', parent=self.ui_delete)
-            ui.button(label='Vertices', title='Delete selected vertices',                     on_mouseclick=delay_exec('''act(('Delete','Vertices'))'''), parent=ui_delete)
-            ui.button(label='Edges', title='Delete selected edges and vertices',              on_mouseclick=delay_exec('''act(('Delete','Edges'))'''), parent=ui_delete)
-            ui.button(label='Faces', title='Delete selected faces, edges, and vertices',      on_mouseclick=delay_exec('''act(('Delete','Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Edges & Faces', title='Delete only selected edges & faces', on_mouseclick=delay_exec('''act(('Delete','Only Edges & Faces'))'''), parent=ui_delete)
-            ui.button(label='Only Faces', title='Delete only selected faces',                 on_mouseclick=delay_exec('''act(('Delete','Only Faces'))'''), parent=ui_delete)
+            self.ui_delete = UI_Element.fromHTMLFile(abspath('delete_dialog.html'))[0]
+            self.ui_delete.is_visible = False
+            self.document.body.append_child(self.ui_delete)
 
-            ui_dissolve = ui.collection('Dissolve', parent=self.ui_delete)
-            ui.button(label='Vertices', title='Dissolve selected vertices', on_mouseclick=delay_exec('''act(('Dissolve','Vertices'))'''), parent=ui_dissolve)
-            ui.button(label='Edges', title='Dissolve selected edges',       on_mouseclick=delay_exec('''act(('Dissolve','Edges'))'''), parent=ui_dissolve)
-            ui.button(label='Faces', title='Dissolve selected faces',       on_mouseclick=delay_exec('''act(('Dissolve','Faces'))'''), parent=ui_dissolve)
-            ui.button(label='Loops', title='Dissolve selected edge loops',  on_mouseclick=delay_exec('''act(('Dissolve','Loops'))'''), parent=ui_dissolve)
-
+        self._ui_windows_updating = True
         setup_main_ui()
         setup_tiny_ui()
+        setup_tool_buttons()
         setup_options()
         setup_quit_ui()
         setup_delete_ui()
         setup_counts_ui()
+        self.update_main_tiny_ui_windows()
+        self._ui_windows_updating = False
 
-        if options['show main window']:
-            self.show_main_ui_window()
-        else:
-            self.show_tiny_ui_window()
+        for rftool in self.rftools:
+            if rftool.name == rf_starting_tool:
+                self.select_rftool(rftool)
 
         self.ui_tools = self.document.body.getElementsByName('tool')
         self.update_ui()
 
     def show_welcome_message(self):
-        if not options['welcome']: return
+        show = options['welcome'] or options['version update']
+        if not show: return
+        options['version update'] = False
         self.document.defer_cleaning = True
         self.helpsystem_open('welcome.md')
         self.document.defer_cleaning = False

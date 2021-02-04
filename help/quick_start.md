@@ -1,8 +1,8 @@
-# RetopoFlow {[rf version]} Quick Start Guide
+# RetopoFlow Quick Start Guide
 
-This guide will help you get started with the RetopoFlow.
+This guide will help you get started with RetopoFlow {[rf version]}.
 
-More detailed help is available by pressing `F1` after you start RetopoFlow.
+More detailed help is available by pressing {{general help}} after you start RetopoFlow.
 
 
 ## The Short, Short Version
@@ -11,11 +11,15 @@ To start retopologizing for the first time:
 
 1. Switch to Object mode
 2. Click on the "RetopoFlow" menu
-3. Click the "RF: Create new target" menu item
+3. Either click the "RF: New target at Cursor"or "RF: New target at Active" menu item
 
-![](start_rf_create_new_target.png height:300px)
+    - "RF: New target at Cursor" will create a new target mesh located and oriented by the 3D Cursor.
+    - "RF: New target at Active" will create a new target mesh located and oriented by the active source mesh.
+    - Note: RetopoFlow follows Blender's convention where symmetry is based on the origin of the object.
 
-<br>
+![](start_rf_create_new_target.png max-height:400px)
+
+
 
 To continue working on a previous retopology session:
 
@@ -23,7 +27,7 @@ To continue working on a previous retopology session:
 2. Switch to Edit Mode
 3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
 
-![](start_rf_tool.png height:300px)
+![](start_rf_tool.png max-height:400px)
 
 
 ## Other Help

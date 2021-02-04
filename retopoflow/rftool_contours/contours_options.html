@@ -1,0 +1,29 @@
+<details>
+    <summary>Contours</summary>
+    <div class="contents">
+        <label title="If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.">
+            <input type="checkbox" checked="BoundBool('''options['contours uniform']''')">
+            Uniform Cut
+        </label>
+        <label title="Check for non-manifold edges under each cut.">
+            <input type="checkbox" checked="BoundBool('''options['contours non-manifold check']''')">
+            Non-manifold check
+        </label>
+        <div class="labeled-input-text">
+            <label title="Number of vertices to create in a new cut.">
+                Initial Count
+            </label>
+            <input type="number" value="BoundInt('''options['contours count']''', min_value=3, max_value=500)">
+        </div>
+        <div class="labeled-input-text">
+            <label title="Number of vertices in currently selected cut.">
+                Cut Count
+            </label>
+            <input type="number" value="self._var_cut_count">
+        </div>
+        <!--<label title="Number of vertices in currently selected cut." class="input-text">
+            Cut Count
+            <input type="text" value="BoundInt('''self.var_cut_count''', min_value=3, max_value=500)">
+        </label>-->
+    </div>
+</details>

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin
+from math import sqrt, acos, cos, sin, floor, ceil, isinf
 import re
 from typing import List
 
@@ -1250,6 +1250,9 @@ class Size2D:
     def height(self, v): self._height = v
 
     @property
+    def size(self): return (self.width, self.height)
+
+    @property
     def min_width(self): return self._min_width
     @min_width.setter
     def min_width(self, v): self._min_width = v
@@ -1560,6 +1563,7 @@ class Accel2D:
         self.bins = {}
 
         self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
+        self.v2Ds = [p for p in self.v2Ds if p]
         self.map_v_v2D = {v: v2d for (v, v2d) in zip(verts, self.v2Ds)}
         if self.v2Ds:
             self.min = Point2D((
@@ -1807,6 +1811,13 @@ class NumberUnit:
         return NumberUnit(self._num / other, self._unit, self._base)
 
 NumberUnit.zero = NumberUnit(0, 'px')
+
+
+
+def floor_if_finite(v):
+    return v if v is None or isinf(v) else floor(v)
+def ceil_if_finite(v):
+    return v if v is None or isinf(v) else ceil(v)
 
 
 
@@ -2107,6 +2118,23 @@ def intersection2d_line_line(p0, p1, p2, p3):
     if td == 0: return None
     t = tn / td
     return (x0 + t * (x1 - x0), y0 + t * (y1 - y0))
+
+
+def closest2d_point_line(pt:Point2D, p0:Point2D, p1:Point2D):
+    d = Direction2D(p1 - p0)
+    v = Vec2D(pt - p0)
+    u = d * d.dot(v)
+    return Point2D(p0 + u)
+
+def closest2d_point_segment(pt:Point2D, p0:Point2D, p1:Point2D):
+    dv = Vec2D(p1 - p0)
+    ld = dv.length
+    if abs(ld) <= 0.00001: return p0
+    dd = dv / ld
+    v = Vec2D(pt - p0)
+    p = Point2D(p0 + dd * clamp(dd.dot(v), 0, ld))
+    p.freeze()
+    return p
 
 
 if __name__ == '__main__':

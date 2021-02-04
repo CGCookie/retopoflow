@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -41,10 +41,8 @@ __all__ = [
     'parse',
     'profiler',
     'shaders',
-    'ui',
     'ui_core',
     'ui_document',
-    'ui_proxy',
     'ui_styling',
     'ui_utilities',
     'updater_core',

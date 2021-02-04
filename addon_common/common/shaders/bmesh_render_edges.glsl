@@ -1,7 +1,9 @@
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
+uniform vec4  color_warning;    // color of geometry if warning
 
 uniform bool  use_selection;    // false: ignore selected, true: consider selected
+uniform bool  use_warning;      // false: ignore warning, true: consider warning
 uniform bool  use_rounding;
 
 uniform mat4  matrix_m;         // model xform matrix
@@ -49,6 +51,7 @@ attribute vec3  vert_pos1;      // position wrt model
 attribute vec2  vert_offset;
 attribute vec3  vert_norm;      // normal wrt model
 attribute float selected;       // is vertex selected?  0=no; 1=yes
+attribute float warning;        // is vertex warning?  0=no; 1=yes
 
 
 varying vec4 vPPosition;        // final position (projected)
@@ -137,9 +140,14 @@ void main() {
 
     gl_Position = vPPosition;
 
-    vColor = (!use_selection || selected < 0.5) ? color : color_selected;
-    vColor.a *= (selected > 0.5) ? 1.0 : 1.0 - hidden;
-    //vColor.a *= 1.0 - hidden;
+    if(use_selection && selected > 0.5) {
+        vColor = color_selected;
+    } else if(use_warning && warning > 0.5) {
+        vColor = color_warning;
+    } else {
+        vColor = color;
+    }
+    vColor.a *= 1.0 - hidden;
 }
 
 

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -22,10 +22,11 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import random
 
 import bgl
-from mathutils.geometry import intersect_line_line
+from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_segment
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -34,12 +35,11 @@ from ...addon_common.common.drawing import (
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D, intersection2d_line_line
+from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D, intersection2d_line_line, closest2d_point_segment
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 
 from ...config.options import options, themes
@@ -52,116 +52,44 @@ class RFTool_PolyPen(RFTool):
     help        = 'polypen.md'
     shortcut    = 'polypen tool'
     statusbar   = '{{insert}} Insert'
+    ui_config   = 'polypen_options.html'
 
 class PolyPen_RFWidgets:
-    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Default   = RFWidget_Default_Factory.create()
     RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
-    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Move      = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Knife     = RFWidget_Default_Factory.create('KNIFE')
 
     def init_rfwidgets(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
             'insert':  self.RFWidget_Crosshair(self),
             'hover':   self.RFWidget_Move(self),
+            'knife':   self.RFWidget_Knife(self),
         }
         self.rfwidget = None
 
 class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
-    insert_modes = ['Tri/Quad', 'Tri-Only', 'Edge-Only']
-
     @RFTool_PolyPen.on_init
     def init(self):
         self.init_rfwidgets()
-        self.delay_update = False
         self.update_state_info()
         self.first_time = True
-        self._var_merge_dist = BoundFloat('''options['polypen merge dist']''')
-        self._var_automerge = BoundBool('''options['polypen automerge']''')
+        self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
+        self._var_automerge   = BoundBool(  '''options['polypen automerge']  ''')
+        self._var_insert_mode = BoundString('''options['polypen insert mode']''')
 
     def update_insert_mode(self):
         mode = options['polypen insert mode']
-        self.ui_options.label = f'PolyPen: {mode}'
-        self.ui_insert_mode_triquad.checked  = (mode == 'Tri/Quad')
-        self.ui_insert_mode_quadonly.checked = (mode == 'Quad-Only')
-        self.ui_insert_mode_trionly.checked  = (mode == 'Tri-Only')
-        self.ui_insert_mode_edgeonly.checked = (mode == 'Edge-Only')
+        self.ui_options_label.innerText = f'PolyPen: {mode}'
+        self.ui_insert_modes.dirty(cause='insert mode change', children=True)
 
     @RFTool_PolyPen.on_ui_setup
     def ui(self):
-        def insert_mode_change(e):
-            if not e.target.checked: return
-            if e.target.value is None: return
-            options['polypen insert mode'] = e.target.value
-            self.update_insert_mode()
-
-        self.ui_options = ui.collapsible('PolyPen', children=[
-            ui.collection(label='Automerge', children=[
-                ui.input_checkbox(
-                    label='Enable Automerge',
-                    title='If enabled, grabbed vertices automatically merge with nearby vertices',
-                    checked=self._var_automerge,
-                    style='display:block',
-                ),
-                ui.labeled_input_text(
-                    label='Merge Dist',
-                    title='Pixel distance for merging and snapping',
-                    value=self._var_merge_dist,
-                ),
-            ]),
-            ui.collection(label='Insert Mode', children=[
-                ui.input_radio(
-                    id='polypen-insert-mode-triquad',
-                    title='Inserting alternates between Triangles and Quads',
-                    value='Tri/Quad',
-                    checked=(options['polypen insert mode']=='Tri/Quad'),
-                    name='polypen-insert-mode',
-                    classes='half-size',
-                    children=[ui.label(innerText='Tri/Quad')],
-                    on_input=insert_mode_change,
-                ),
-                ui.input_radio(
-                    id='polypen-insert-mode-quadonly',
-                    title='Inserting Quads only',
-                    value='Quad-Only',
-                    checked=(options['polypen insert mode']=='Quad-Only'),
-                    name='polypen-insert-mode',
-                    classes='half-size',
-                    children=[ui.label(innerText='Quad-Only')],
-                    on_input=insert_mode_change,
-                ),
-                # HACK: THE FOLLOWING LINE IS A HACK TO FORCE THE "Tri-Only" INPUT TO RESIZE CORRECTLY!
-                ui.p(
-                    style='display:none',
-                ),
-                ui.input_radio(
-                    id='polypen-insert-mode-trionly',
-                    title='Inserting Triangles only',
-                    value='Tri-Only',
-                    checked=(options['polypen insert mode']=='Tri-Only'),
-                    name='polypen-insert-mode',
-                    classes='half-size',
-                    children=[ui.label(innerText='Tri-Only')],
-                    on_input=insert_mode_change,
-                ),
-                ui.input_radio(
-                    id='polypen-insert-mode-edgeonly',
-                    title='Inserting Edges only',
-                    value='Edge-Only',
-                    checked=(options['polypen insert mode']=='Edge-Only'),
-                    name='polypen-insert-mode',
-                    classes='half-size',
-                    children=[ui.label(innerText='Edge-Only')],
-                    on_input=insert_mode_change,
-                ),
-            ]),
-        ])
-        self.ui_insert_mode_triquad  = self.ui_options.getElementById('polypen-insert-mode-triquad')
-        self.ui_insert_mode_quadonly = self.ui_options.getElementById('polypen-insert-mode-quadonly')
-        self.ui_insert_mode_trionly  = self.ui_options.getElementById('polypen-insert-mode-trionly')
-        self.ui_insert_mode_edgeonly = self.ui_options.getElementById('polypen-insert-mode-edgeonly')
+        ui_options = self.document.body.getElementById('polypen-options')
+        self.ui_options_label = ui_options.getElementById('polypen-summary-label')
+        self.ui_insert_modes  = ui_options.getElementById('polypen-insert-modes')
         self.update_insert_mode()
-
-        return self.ui_options
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
@@ -169,7 +97,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.FSM_OnlyInState('main')
     @profiler.function
     def update_state_info(self):
-        if self.delay_update: return
         with profiler.code('getting selected geometry'):
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
             self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
@@ -186,7 +113,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @profiler.function
     def set_next_state(self, force=False):
-        if not self.rfcontext.actions.mouse and not force: return
+        '''
+        determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
+        '''
+        if not self.actions.mouse and not force: return
 
         with profiler.code('getting nearest geometry'):
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
@@ -199,9 +129,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         num_edges = len(self.sel_edges)
         num_faces = len(self.sel_faces)
 
-        # overriding
-        # if hovering over a selected edge, knife it!
-        if self.nearest_edge and self.nearest_edge.select:
+        if self.nearest_edge and self.nearest_edge.select:      # overriding: if hovering over a selected edge, knife it!
             self.next_state = 'knife selected edge'
 
         elif options['polypen insert mode'] == 'Tri/Quad':
@@ -278,13 +206,16 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if self.first_time or self.rfcontext.actions.mousemove:
+        if self.first_time or self.actions.mousemove:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')
 
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['insert']
+            if self.next_state == 'knife selected edge':
+                self.rfwidget = self.rfwidgets['knife']
+            else:
+                self.rfwidget = self.rfwidgets['insert']
         elif self.nearest_geom and self.nearest_geom.select:
             self.rfwidget = self.rfwidgets['hover']
         else:
@@ -296,7 +227,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 self.rfwidget = rfwidget
                 return
 
-        if self.rfcontext.actions.pressed('pie menu alt0'):
+        if self.actions.pressed('pie menu alt0'):
             def callback(option):
                 if not option: return
                 options['polypen insert mode'] = option
@@ -309,11 +240,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             ], callback, highlighted=options['polypen insert mode'])
             return
 
-        if self.rfcontext.actions.pressed('insert'):
+        if self.actions.pressed('insert'):
             return 'insert'
 
         if self.nearest_geom and self.nearest_geom.select:
-            if self.rfcontext.actions.pressed('action'):
+            if self.actions.pressed('action'):
                 self.rfcontext.undo_push('grab')
                 self.prep_move(defer_recomputing=False)
                 return 'move after select'
@@ -321,10 +252,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()
-            return self.rfcontext.setup_selection_painting(
+            return self.rfcontext.setup_smart_selection_painting(
                 {'vert','edge','face'},
-                sel_only=sel_only,
-                #fn_filter_bmelem=self.filter_edge_selection,
+                selecting=not sel_only,
+                deselect_all=sel_only,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
@@ -344,7 +275,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
             return
 
-        if self.rfcontext.actions.pressed('grab'):
+        if self.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
             self.move_done_pressed = 'confirm'
@@ -352,10 +283,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.move_cancelled = 'cancel'
             return 'move'
 
+
     def set_vis_bmverts(self):
         self.vis_bmverts = [
             (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
-            for bmv in self.vis_verts if bmv not in self.sel_verts
+            for bmv in self.vis_verts
+            if bmv.is_valid and bmv not in self.sel_verts
         ]
 
 
@@ -365,7 +298,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         return self._insert()
 
     def _get_edge_quad_verts(self):
-        # a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
+        '''
+        this function is used in quad-only mode to find positions of quad verts based on selected edge and mouse position
+        a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
+        '''
         e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
         if not e0: return (None, None, None, None)
         bmv0,bmv1 = e0.verts
@@ -420,10 +356,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def _insert(self):
         self.last_delta = None
         self.move_done_pressed = None
-        self.move_done_released = ['insert', 'insert alt1']
+        self.move_done_released = 'insert'
         self.move_cancelled = 'cancel'
 
-        if self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
+        if self.actions.shift and not self.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
             nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
             self.rfcontext.select(nearest_vert)
@@ -432,9 +368,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         sel_edges = self.sel_edges
         sel_faces = self.sel_faces
 
-        # overriding
-        # if hovering over a selected edge, knife it!
-        if self.next_state == 'knife selected edge':  # self.nearest_edge and self.nearest_edge.select:
+        if self.next_state == 'knife selected edge':            # overriding: if hovering over a selected edge, knife it!
+            # self.nearest_edge and self.nearest_edge.select:
             #print('knifing selected, hovered edge')
             bmv = self.rfcontext.new2D_vert_mouse()
             if not bmv:
@@ -443,13 +378,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bme0,bmv2 = self.nearest_edge.split()
             bmv.merge(bmv2)
             self.rfcontext.select(bmv)
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv.co)
             if not xy:
                 #print('Could not insert: ' + str(bmv.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv, xy)]
+            self.bmverts = [(bmv, xy)] if bmv else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -508,13 +443,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             else:
                 return 'main'
 
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
                 dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)]
+            self.bmverts = [(bmv1, xy)] if bmv1 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -535,13 +470,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
 
             self.rfcontext.select(bmf)
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
             if not xy:
                 dprint('Could not insert: ' + str(bmv2.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv2, xy)]
+            self.bmverts = [(bmv2, xy)] if bmv2 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -565,11 +500,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
-            self.mousedown = self.rfcontext.actions.mousedown
-            self.bmverts = [
-                (bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)),
-                (bmv3, self.rfcontext.Point_to_Point2D(bmv3.co))
-            ]
+            self.mousedown = self.actions.mousedown
+            self.bmverts = []
+            if bmv2: self.bmverts.append((bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)))
+            if bmv3: self.bmverts.append((bmv3, self.rfcontext.Point_to_Point2D(bmv3.co)))
             self.set_vis_bmverts()
             return 'move'
 
@@ -579,8 +513,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if not e0 or not e1: return
             bmv0,bmv1 = e0.verts
             bmv2,bmv3 = e1.verts
-            if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
-                bmv2,bmv3 = bmv3,bmv2
+            p0,p1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
+            p2,p3 = self.rfcontext.Point_to_Point2D(bmv2.co),self.rfcontext.Point_to_Point2D(bmv3.co)
+            if intersect2d_segment_segment(p1, p2, p3, p0): bmv2,bmv3 = bmv3,bmv2
+            # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+            #     bmv2,bmv3 = bmv3,bmv2
             bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             # select all non-manifold edges that share vertex with e1
             bmes = [e for e in bmv2.link_edges + bmv3.link_edges if not e.is_manifold and not e.share_face(e1)]
@@ -590,7 +527,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             return 'main'
 
         if self.next_state == 'tri-quad':
-            hit_pos = self.rfcontext.actions.hit_pos
+            hit_pos = self.actions.hit_pos
             if not hit_pos:
                 self.rfcontext.undo_cancel()
                 return 'main'
@@ -613,14 +550,14 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if len(bme12.link_faces) == 1: bme12.select = True
             else:
                 bmv1.co = hit_pos
-            self.mousedown = self.rfcontext.actions.mousedown
+            self.mousedown = self.actions.mousedown
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
                 dprint('Could not insert: ' + str(bmv3.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)]
+            self.bmverts = [(bmv1, xy)] if bmv1 else []
             self.set_vis_bmverts()
             return 'move'
 
@@ -633,13 +570,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             bme0,bmv2 = nearest_edge.split()
             bmv.merge(bmv2)
         self.rfcontext.select(bmv)
-        self.mousedown = self.rfcontext.actions.mousedown
+        self.mousedown = self.actions.mousedown
         xy = self.rfcontext.Point_to_Point2D(bmv.co)
         if not xy:
             dprint('Could not insert: ' + str(bmv.co))
             self.rfcontext.undo_cancel()
             return 'main'
-        self.bmverts = [(bmv, xy)]
+        self.bmverts = [(bmv, xy)] if bmv else []
         self.set_vis_bmverts()
         return 'move'
 
@@ -651,7 +588,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         # TODO: remove colocated faces
         if self.mousedown is None: return
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         update_verts = []
         merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
@@ -663,19 +600,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if bmv1 == bmv: continue
                 if not bmv1.is_valid: continue
                 d = (xy_updated - xy1).length
-                if (xy_updated - xy1).length < merge_dist:
-                    shared_edge = bmv.shared_edge(bmv1)
-                    if shared_edge:
-                        bmv1 = shared_edge.collapse()
-                    else:
-                        shared_faces = bmv.shared_faces(bmv1)
-                        self.rfcontext.delete_faces(shared_faces, del_empty_edges=False, del_empty_verts=False)
-                        bmv1.merge(bmv)
-                        self.rfcontext.remove_duplicate_bmfaces(bmv1)
-                        self.rfcontext.clean_duplicate_bmedges(bmv1)
-                    self.rfcontext.select(bmv1)
-                    update_verts += [bmv1]
-                    break
+                if (xy_updated - xy1).length > merge_dist:
+                    continue
+                bmv1.merge_robust(bmv)
+                self.rfcontext.select(bmv1)
+                update_verts += [bmv1]
+                break
         if update_verts:
             self.rfcontext.update_verts_faces(update_verts)
             self.set_next_state()
@@ -683,9 +613,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     def prep_move(self, bmverts=None, defer_recomputing=True):
         if not bmverts: bmverts = self.sel_verts
-        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts if bmv and bmv.is_valid]
         self.set_vis_bmverts()
-        self.mousedown = self.rfcontext.actions.mouse
+        self.mousedown = self.actions.mouse
         self.last_delta = None
         self.defer_recomputing = defer_recomputing
 
@@ -693,12 +623,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @profiler.function
     @RFTool_PolyPen.dirty_when_done
     def modal_move_after_select(self):
-        if self.rfcontext.actions.released('action'):
+        if self.actions.released('action'):
             return 'main'
-        if (self.rfcontext.actions.mouse - self.mousedown).length > 7:
+        if (self.actions.mouse - self.mousedown).length > 7:
             self.last_delta = None
             self.move_done_pressed = None
-            self.move_done_released = ['action']
+            self.move_done_released = 'action'
             self.move_cancelled = 'cancel'
             self.rfcontext.undo_push('move after select')
             return 'move'
@@ -711,25 +641,24 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @profiler.function
     @RFTool_PolyPen.dirty_when_done
     def modal_move(self):
-        released = self.rfcontext.actions.released
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
             self.mergeSnapped()
             return 'main'
-        if self.move_done_released and all(released(item) for item in self.move_done_released):
+        if self.move_done_released and self.actions.released(self.move_done_released, ignoremods=True):
             self.defer_recomputing = False
             self.mergeSnapped()
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.move_cancelled and self.actions.pressed('cancel'):
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
 
         # only update verts on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
+        if not self.actions.timer: return
         if self.actions.mouse_prev == self.actions.mouse: return
 
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
@@ -741,6 +670,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             if options['polypen automerge']:
                 for bmv1,xy1 in self.vis_bmverts:
                     if not xy1: continue
+                    if bmv == bmv1: continue
                     if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
                         set2D_vert(bmv, xy1)
                         break
@@ -793,7 +723,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
-        hit_pos = self.rfcontext.actions.hit_pos
+        hit_pos = self.actions.hit_pos
         if not hit_pos: return
 
         self.set_next_state()
@@ -868,13 +798,13 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 return
             self.draw_lines([bmv0.co, p0])
 
-        elif self.rfcontext.actions.shift and not self.rfcontext.actions.ctrl:
+        elif self.actions.shift and not self.actions.ctrl:
             if self.next_state in ['edge-face', 'edge-quad', 'edge-quad-snap', 'tri-quad']:
                 nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
                 if nearest_vert:
                     self.draw_lines([nearest_vert.co, hit_pos])
 
-        elif not self.rfcontext.actions.shift and self.rfcontext.actions.ctrl:
+        elif not self.actions.shift and self.actions.ctrl:
             if self.next_state == 'edge-face':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
                 if not e0: return
@@ -918,8 +848,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 if not e0 or not e1: return
                 bmv0,bmv1 = e0.verts
                 bmv2,bmv3 = e1.verts
-                if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
-                    bmv2,bmv3 = bmv3,bmv2
+                p0,p1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
+                p2,p3 = self.rfcontext.Point_to_Point2D(bmv2.co),self.rfcontext.Point_to_Point2D(bmv3.co)
+                if intersect2d_segment_segment(p1, p2, p3, p0): bmv2,bmv3 = bmv3,bmv2
+                # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
+                #     bmv2,bmv3 = bmv3,bmv2
                 self.draw_lines([bmv0.co, bmv1.co, bmv2.co, bmv3.co])
 
             elif self.next_state == 'tri-quad':

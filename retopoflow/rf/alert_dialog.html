@@ -1,0 +1,16 @@
+<dialog class="alertdialog framed moveable closeable {level}">
+    <h1 id='alert-title'></h1>
+    <div class="contents" id='alert-contents'>
+        <article id='alert-message' class="mdown"></article>
+        <details id='alert-details'>
+            <summary>Crash Details</summary>
+            <pre id='alert-report'></pre>
+            <button title="Copy crash details to clipboard" on_mouseclick="clipboard()">Copy details to clipboard</button>
+        </details>
+        <div id='alert-checker'></div>
+    </div>
+    <div class="alertdialog-buttons">
+        <button id='alert-close' title="Close this alert window" on_mouseclick="close()">Close</button>
+        <button id='alert-quit' title="Exit RetopoFlow" on_mouseclick="quit()">Exit</button>
+    </div>
+</dialog>

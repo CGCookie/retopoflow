@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -227,7 +227,38 @@ class RFVert(BMElemWrapper):
     def merge(self, other):
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        vert_splice(bmv1, bmv0)
+        try:
+            vert_splice(bmv1, bmv0)
+            return bmv0
+        except Exception as e:
+            print(f'Caught Exception while trying to merge')
+            print(e)
+            print(f'Will try more robust merge')
+            return self.merge_robust(other)
+
+    def merge_robust(self, other):
+        rftarget = self.rftarget
+
+        if self.share_edge(other):
+            bmv = self.shared_edge(other).collapse()
+            rftarget.remove_duplicate_bmfaces(bmv)
+            rftarget.clean_duplicate_bmedges(bmv)
+            return bmv
+
+        if not self.share_face(other):
+            bmv = self.merge(other)
+            rftarget.remove_duplicate_bmfaces(bmv)
+            rftarget.clean_duplicate_bmedges(bmv)
+            return bmv
+
+        bmfs = self.shared_faces(other)
+        for bmf in bmfs: bmf.split(self, other)
+        rftarget.remove_duplicate_bmfaces(self)
+        rftarget.clean_duplicate_bmedges(self)
+        bmv = self.shared_edge(other).collapse()
+        rftarget.remove_duplicate_bmfaces(bmv)
+        rftarget.clean_duplicate_bmedges(bmv)
+        return bmv
 
     def dissolve(self):
         bmv = BMElemWrapper._unwrap(self)
@@ -660,12 +691,62 @@ class RFFace(BMElemWrapper):
 
     #############################################
 
-    def split(self, vert_a, vert_b):
+    def split(self, vert_a, vert_b, coords=[]):
         bmf = BMElemWrapper._unwrap(self)
         bmva = BMElemWrapper._unwrap(vert_a)
         bmvb = BMElemWrapper._unwrap(vert_b)
-        bmf_new, bml_new = face_split(bmf, bmva, bmvb)
+        coords = [BMElemWrapper.w2l_point(c) for c in coords]
+        bmf_new, bml_new = face_split(bmf, bmva, bmvb, coords=coords)
         return RFFace(bmf_new)
+
+    def shatter(self):
+        working = [ self ]
+        ret = set()
+
+        while working:
+            bmf = working.pop()
+            if not bmf.is_valid: continue
+            ret.add(bmf)
+            # see if one bmv connects to another
+            touched_bmvs, path = set(), []
+            def find_exit(bmv0):
+                nonlocal touched_bmvs, path, bmf
+                touched_bmvs.add(bmv0)
+                path.append(bmv0)
+                for bme in bmv0.link_edges:
+                    if bme.link_faces: continue  # not a potential edge
+                    bmv1 = bme.other_vert(bmv0)
+                    if bmv1 in touched_bmvs: continue # already seen bmv1 (loop?)
+                    if bmf in bmv1.link_faces:
+                        path += [bmv1]
+                        return True
+                    if find_exit(bmv1): return True
+                path.pop() # working with bmv0 does not work, so remove bmv0 from path
+            # find bmvs around perimeter of bmf that could possibly be an entrance for shatter
+            for bmv in bmf.verts:
+                if not any(len(bme.link_faces)==0 for bme in bmv.link_edges):
+                    continue
+                if find_exit(bmv): break
+            else:
+                # could not shatter current bmf
+                continue
+            # found a path to shatter bmf
+            try:
+                nbmf = bmf.split(path[0], path[-1], coords=[bmv.co for bmv in path[1:-1]])
+            except Exception as e:
+                print(f'shatter: Caught exception while trying to split {bmf} along {path}')
+                print(e)
+                continue
+            for bmv_old in path[1:-1]:
+                bmv_new,_ = min(((bmv,(bmv.co-bmv_old.co).length) for bmv in nbmf.verts), key=lambda d:d[1])
+                if bmv_old.select: bmv_new.select = True
+                bmv_new.merge(bmv_old)
+            for bmv in bmf.verts + nbmf.verts:
+                self.rftarget.clean_duplicate_bmedges(bmv)
+            working.append(bmf)  # check bmf again!
+            working.append(nbmf) # check new bmf
+
+        return ret
 
 
 class RFEdgeSequence:

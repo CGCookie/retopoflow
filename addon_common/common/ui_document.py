@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -41,7 +41,6 @@ from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
 from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
-from .ui_proxy import UI_Proxy
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
@@ -239,8 +238,8 @@ class UI_Document(UI_Document_FSM):
                         self._under_mouse = self._sticky_element
 
         next_message = None
-        if self._under_mouse and self._under_mouse.title: # and not self._under_mouse.disabled:
-            next_message = self._under_mouse.title
+        if self._under_mouse and self._under_mouse.title_with_for(): # and not self._under_mouse.disabled:
+            next_message = self._under_mouse.title_with_for()
             if self._under_mouse.disabled:
                 next_message = f'(Disabled) {next_message}'
         if self._tooltip_message != next_message:
@@ -294,6 +293,11 @@ class UI_Document(UI_Document_FSM):
         print('')
         print('UI_Document.debug_print')
         self._body.debug_print(0, set())
+    def debug_print_toroot(self, fromHovered=True, fromFocused=False):
+        print('')
+        print('UI_Document.debug_print_toroot')
+        if fromHovered: self._debug_print(self._under_mouse)
+        if fromFocused: self._debug_print(self._focus)
     def _debug_print(self, ui_from):
         # debug print!
         path = ui_from.get_pathToRoot()
@@ -302,16 +306,14 @@ class UI_Document(UI_Document_FSM):
                 print('  '*(i+extra), end='')
                 print(*args, **kwargs)
             tprint(str(ui_elem))
-            tprint(ui_elem._selector, extra=1)
-            tprint(ui_elem._l, ui_elem._t, ui_elem._w, ui_elem._h, extra=1)
+            tprint(f'selector={ui_elem._selector}', extra=1)
+            tprint(f'l={ui_elem._l} t={ui_elem._t}  w={ui_elem._w} h={ui_elem._h}', extra=1)
 
     @property
     def sticky_element(self):
         return self._sticky_element
     @sticky_element.setter
     def sticky_element(self, element):
-        if type(element) is UI_Proxy:
-            element = element.proxy_default_element
         self._sticky_element = element
 
     def clear_last_under(self):
@@ -400,6 +402,10 @@ class UI_Document(UI_Document_FSM):
             profiler.printout()
             self.debug_print()
             return
+        if self.actions.pressed('CTRL+SHIFT+F11'):
+            self.debug_print_toroot()
+            print(f'{self._under_mouse._computed_styles}')
+            return
 
         # if self.actions.pressed('RIGHTMOUSE') and self._under_mouse:
         #     self._debug_print(self._under_mouse)
@@ -451,7 +457,7 @@ class UI_Document(UI_Document_FSM):
     def _get_scrollable(self):
         # find first along root to path that can scroll
         if not self._under_mouse: return None
-        self._scroll_element = next((e for e in self._under_mouse.get_pathToRoot() if e.is_scrollable), None)
+        self._scroll_element = next((e for e in self._under_mouse.get_pathToRoot() if e.is_scrollable_y), None)
         if self._scroll_element:
             self._scroll_last = RelPoint2D((self._scroll_element.scrollLeft, self._scroll_element.scrollTop))
         return self._scroll_element
@@ -485,7 +491,9 @@ class UI_Document(UI_Document_FSM):
 
     @UI_Document_FSM.FSM_State('mousedown', 'can enter')
     def mousedown_canenter(self):
-        return self._under_mouse and self._under_mouse != self._body and not self._under_mouse.is_disabled
+        return self._focus or (
+                self._under_mouse and self._under_mouse != self._body and not self._under_mouse.is_disabled
+            )
 
     @UI_Document_FSM.FSM_State('mousedown', 'enter')
     def mousedown_enter(self):
@@ -495,6 +503,7 @@ class UI_Document(UI_Document_FSM):
             # likely, self._under_mouse or an ancestor was deleted?
             # mousedown main event handler below will switch FSM back to main, effectively ignoring the mousedown event
             # see RetopoFlow issue #857
+            self.blur()
             return
         self._addrem_pseudoclass('active', add_to=self._under_mousedown)
         self._under_mousedown.dispatch_event('on_mousedown')
@@ -536,25 +545,36 @@ class UI_Document(UI_Document_FSM):
             self.ignore_hover_change = False
             return
         self._under_mousedown.dispatch_event('on_mouseup')
+        under_mouseclick = self._under_mousedown
         click = False
         click |= time.time() - self._mousedown_time < self.allow_click_time
         click |= self._under_mousedown.get_mouse_distance(self.actions.mouse) <= self.max_click_dist * self._ui_scale
+        if not click:
+            # find closest common ancestor of self._under_mouse and self._under_mousedown that is getting clicked
+            ancestors0 = self._under_mousedown.get_pathFromRoot()
+            ancestors1 = self._under_mouse.get_pathFromRoot() if self._under_mouse else []
+            ancestors = [a0 for (a0, a1) in zip(ancestors0, ancestors1) if a0 == a1 and a0.get_mouse_distance(self.actions.mouse) < 1]
+            if ancestors:
+                under_mouseclick = ancestors[-1]
+                click = True
         # print('mousedown_exit', time.time()-self._mousedown_time, self.allow_click_time, self.actions.mouse, self._under_mousedown.get_mouse_distance(self.actions.mouse), self.max_click_dist)
         if click:
             # old/simple: self._under_mouse == self._under_mousedown:
             dblclick = True
-            dblclick &= self._under_mousedown == self._last_under_click
+            dblclick &= under_mouseclick == self._last_under_click
             dblclick &= time.time() < self._last_click_time + self.doubleclick_time
-            self._under_mousedown.dispatch_event('on_mouseclick')
-            self._last_under_click = self._under_mousedown
+            under_mouseclick.dispatch_event('on_mouseclick')
+            self._last_under_click = under_mouseclick
             if dblclick:
-                self._under_mousedown.dispatch_event('on_mousedblclick')
+                under_mouseclick.dispatch_event('on_mousedblclick')
                 # self._last_under_click = None
-            if self._under_mousedown and self._under_mousedown.forId:
-                # send mouseclick events to ui_element indicated by forId!
-                ui_for = self._under_mousedown.get_root().getElementById(self._under_mousedown.forId)
-                if ui_for is None: return
-                ui_for.dispatch_event('mouseclick', ui_event=e)
+            # if self._under_mousedown:
+            #     # if applicable, send mouseclick events to ui_element indicated by forId
+            #     ui_for = self._under_mousedown.get_for_element()
+            #     print(f'mousedown_exit:')
+            #     print(f'    ui under: {self._under_mousedown}')
+            #     print(f'    ui for: {ui_for}')
+            #     if ui_for: ui_for.dispatch_event('on_mouseclick')
             self._last_click_time = time.time()
         else:
             self._last_under_click = None
@@ -563,13 +583,7 @@ class UI_Document(UI_Document_FSM):
         # self._under_mousedown.del_pseudoclass('active')
 
     def _is_ancestor(self, ancestor, descendant):
-        if type(ancestor) is UI_Proxy:
-            ancestors = set(ancestor._all_elements)
-        else:
-            ancestors = { ancestor }
-        descendant_ancestors = set(descendant.get_pathToRoot())
-        common = ancestors & descendant_ancestors
-        return len(common)>0
+        return ancestor in descendant.get_pathToRoot()
 
     def blur(self, stop_at=None):
         if self._focus is None: return
@@ -581,8 +595,6 @@ class UI_Document(UI_Document_FSM):
 
     def focus(self, ui_element):
         if ui_element is None: return
-        if type(ui_element) is UI_Proxy:
-            ui_element = ui_element.proxy_default_element
         if self._focus == ui_element: return
 
         stop_focus_at = None
@@ -628,6 +640,8 @@ class UI_Document(UI_Document_FSM):
         if not self._focus: return 'main'
 
     def force_clean(self, context):
+        if self.defer_cleaning: return
+
         time_start = time.time()
 
         w,h = context.region.width, context.region.height
@@ -651,14 +665,28 @@ class UI_Document(UI_Document_FSM):
         for o in self._callbacks['preclean']: o._call_preclean()
         self._body.clean()
         for o in self._callbacks['postclean']: o._call_postclean()
-        self._body._layout(first_on_line=True, fitting_size=sz, fitting_pos=Point2D((0,h-1)), parent_size=sz, nonstatic_elem=None, document_elem=self._body, table_data={}, first_run=True)
+        self._body._layout(
+            first_on_line=True,
+            fitting_size=sz,
+            fitting_pos=Point2D((0,h-1)),
+            parent_size=sz,
+            nonstatic_elem=self._body,
+            table_data={},
+        )
         self._body.set_view_size(sz)
         for o in self._callbacks['postflow']: o._call_postflow()
         for fn in self._callbacks['postflow once']: fn()
         self._callbacks['postflow once'].clear()
 
         # UI_Element_PreventMultiCalls.reset_multicalls()
-        self._body._layout(first_on_line=True, fitting_size=sz, fitting_pos=Point2D((0,h-1)), parent_size=sz, nonstatic_elem=None, document_elem=self._body, table_data={}, first_run=False)
+        self._body._layout(
+            first_on_line=True,
+            fitting_size=sz,
+            fitting_pos=Point2D((0,h-1)),
+            parent_size=sz,
+            nonstatic_elem=self._body,
+            table_data={},
+        )
         self._body.set_view_size(sz)
         if self._reposition_tooltip_before_draw:
             self._reposition_tooltip_before_draw = False
@@ -690,7 +718,8 @@ class UI_Document(UI_Document_FSM):
         self._draw_count += 1
         self._draw_time += time.time() - time_start
         if self._draw_count % 100 == 0:
-            self._draw_fps = (self._draw_count / self._draw_time) if self._draw_time>0 else float('inf')
+            fps = (self._draw_count / self._draw_time) if self._draw_time>0 else float('inf')
+            self._draw_fps = fps
             # print('~%f fps  (%f / %d = %f)' % (self._draw_fps, self._draw_time, self._draw_count, self._draw_time / self._draw_count))
             self._draw_count = 0
             self._draw_time = 0

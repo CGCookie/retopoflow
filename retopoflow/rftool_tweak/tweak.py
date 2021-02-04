@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -31,7 +31,6 @@ from ...addon_common.common.drawing import (
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
 
-from ...addon_common.common import ui
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
@@ -48,13 +47,15 @@ class RFTool_Tweak(RFTool):
     icon        = 'tweak-icon.png'
     help        = 'tweak.md'
     shortcut    = 'tweak tool'
+    quick_shortcut = 'tweak quick'
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
+    ui_config   = 'tweak_options.html'
 
 class Tweak_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
-        BoundFloat('''options['tweak radius']'''),
-        BoundFloat('''options['tweak falloff']'''),
-        BoundFloat('''options['tweak strength']'''),
+        BoundInt('''options['tweak radius']''', min_value=1),
+        BoundFloat('''options['tweak falloff']''', min_value=0.00, max_value=100.0),
+        BoundFloat('''options['tweak strength']''', min_value=0.01, max_value=1.0),
         fill_color=themes['tweak'],
     )
 
@@ -67,173 +68,38 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     def init(self):
         self.init_rfwidgets()
 
+    def reset_current_brush(self):
+        options.reset(keys={'tweak radius', 'tweak falloff', 'tweak strength'})
+        self.document.body.getElementById(f'tweak-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-falloff').dirty(cause='copied preset to current brush')
+
+    def update_preset_name(self, n):
+        name = options[f'tweak preset {n} name']
+        self.document.body.getElementById(f'tweak-preset-{n}-summary').innerText = f'Preset: {name}'
+
+    def copy_current_to_preset(self, n):
+        options[f'tweak preset {n} radius']   = options['tweak radius']
+        options[f'tweak preset {n} strength'] = options['tweak strength']
+        options[f'tweak preset {n} falloff']  = options['tweak falloff']
+        self.document.body.getElementById(f'tweak-preset-{n}-radius').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'tweak-preset-{n}-strength').dirty(cause='copied current brush to preset')
+        self.document.body.getElementById(f'tweak-preset-{n}-falloff').dirty(cause='copied current brush to preset')
+
+    def copy_preset_to_current(self, n):
+        options['tweak radius']   = options[f'tweak preset {n} radius']
+        options['tweak strength'] = options[f'tweak preset {n} strength']
+        options['tweak falloff']  = options[f'tweak preset {n} falloff']
+        self.document.body.getElementById(f'tweak-current-radius').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-strength').dirty(cause='copied preset to current brush')
+        self.document.body.getElementById(f'tweak-current-falloff').dirty(cause='copied preset to current brush')
+
     @RFTool_Tweak.on_ui_setup
     def ui(self):
-        def tweak_mask_boundary_change(e):
-            if not e.target.checked: return
-            options['tweak mask boundary'] = e.target.value
-        def tweak_mask_symmetry_change(e):
-            if not e.target.checked: return
-            options['tweak mask symmetry'] = e.target.value
-        def tweak_mask_hidden_change(e):
-            if not e.target.checked: return
-            options['tweak mask hidden'] = e.target.value
-        def tweak_mask_selected_change(e):
-            if not e.target.checked: return
-            options['tweak mask selected'] = e.target.value
-        def assign_preset_to_current(n):
-            options[f'tweak preset {n} radius']   = options['tweak radius']
-            options[f'tweak preset {n} strength'] = options['tweak strength']
-            options[f'tweak preset {n} falloff']  = options['tweak falloff']
-        def update_preset_name(n):
-            nonlocal tweak_options
-            ui = f'tweak-preset-{n}_check_label'
-            name = options[f'tweak preset {n} name']
-            tweak_options.getElementById(ui).innerText = f'Preset: {name}'
-
-        tweak_options = ui.collapsible('Tweak', children=[
-            ui.collection('Masking Options', id='tweak-masking', children=[
-                ui.collection('Boundary', children=[
-                    ui.input_radio(
-                        title='Tweak vertices not along boundary',
-                        value='exclude',
-                        checked=(options['tweak mask boundary']=='exclude'),
-                        name='tweak-boundary',
-                        classes='half-size',
-                        children=[ui.label(innerText='Exclude')],
-                        on_input=tweak_mask_boundary_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak all vertices within brush, regardless of being along boundary',
-                        value='include',
-                        checked=(options['tweak mask boundary']=='include'),
-                        name='tweak-boundary',
-                        classes='half-size',
-                        children=[ui.label(innerText='Include')],
-                        on_input=tweak_mask_boundary_change,
-                    ),
-                ]),
-                ui.collection('Symmetry', children=[
-                    ui.input_radio(
-                        title='Tweak vertices not along symmetry plane',
-                        value='exclude',
-                        checked=(options['tweak mask symmetry']=='exclude'),
-                        name='tweak-symmetry',
-                        classes='third-size',
-                        children=[ui.label(innerText='Exclude')],
-                        on_input=tweak_mask_symmetry_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak vertices along symmetry plane, but keep them on symmetry plane',
-                        value='maintain',
-                        checked=(options['tweak mask symmetry']=='maintain'),
-                        name='tweak-symmetry',
-                        classes='third-size',
-                        children=[ui.label(innerText='Maintain')],
-                        on_input=tweak_mask_symmetry_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak all vertices within brush, regardless of being along symmetry plane',
-                        value='include',
-                        checked=(options['tweak mask symmetry']=='include'),
-                        name='tweak-symmetry',
-                        classes='third-size',
-                        children=[ui.label(innerText='Include')],
-                        on_input=tweak_mask_symmetry_change,
-                    ),
-                ]),
-                ui.collection('Hidden', children=[
-                    ui.input_radio(
-                        title='Tweak only visible vertices',
-                        value='exclude',
-                        checked=(options['tweak mask hidden']=='exclude'),
-                        name='tweak-hidden',
-                        classes='half-size',
-                        children=[ui.label(innerText='Exclude')],
-                        on_input=tweak_mask_hidden_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak all vertices within brush, regardless of visibility',
-                        value='include',
-                        checked=(options['tweak mask hidden']=='include'),
-                        name='tweak-hidden',
-                        classes='half-size',
-                        children=[ui.label(innerText='Include')],
-                        on_input=tweak_mask_hidden_change,
-                    ),
-                ]),
-                ui.collection('Selected', children=[
-                    ui.input_radio(
-                        title='Tweak only unselected vertices',
-                        value='exclude',
-                        checked=(options['tweak mask selected']=='exclude'),
-                        name='tweak-selected',
-                        classes='third-size',
-                        children=[ui.label(innerText='Exclude')],
-                        on_input=tweak_mask_selected_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak only selected vertices',
-                        value='only',
-                        checked=(options['tweak mask selected']=='only'),
-                        name='tweak-selected',
-                        classes='third-size',
-                        children=[ui.label(innerText='Only')],
-                        on_input=tweak_mask_selected_change,
-                    ),
-                    ui.input_radio(
-                        title='Tweak all vertices within brush, regardless of selection',
-                        value='all',
-                        checked=(options['tweak mask selected']=='all'),
-                        name='tweak-selected',
-                        classes='third-size',
-                        children=[ui.label(innerText='All')],
-                        on_input=tweak_mask_selected_change,
-                    ),
-                ]),
-            ]),
-            ui.collapsible('Brush Options', children=[
-                ui.collection(label='Current', children=[
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size',     value=self.rfwidget.get_radius_boundvar()),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength', value=self.rfwidget.get_strength_boundvar()),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff',  value=self.rfwidget.get_falloff_boundvar()),
-                    ui.button(label='Reset', title='Reset brush options to defaults', on_mouseclick=delay_exec('''options.reset(keys={"tweak radius","tweak falloff","tweak strength"})''')),
-                ]),
-                ui.collapsible(label='Preset: Preset 1',    id='tweak-preset-1', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 1',            id='tweak-preset-1-name',     value=BoundString('''options['tweak preset 1 name']''',    on_change=delay_exec('''update_preset_name(1)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 1',     id='tweak-preset-1-size',     value=BoundFloat('''options['tweak preset 1 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 1', id='tweak-preset-1-strength', value=BoundFloat('''options['tweak preset 1 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 1',  id='tweak-preset-1-falloff',  value=BoundFloat('''options['tweak preset 1 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 1 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(1)'''))
-                ]),
-                ui.collapsible(label='Preset: Preset 2',    id='tweak-preset-2', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 2',            id='tweak-preset-2-name',     value=BoundString('''options['tweak preset 2 name']''',    on_change=delay_exec('''update_preset_name(2)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 2',     id='tweak-preset-2-size',     value=BoundFloat('''options['tweak preset 2 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 2', id='tweak-preset-2-strength', value=BoundFloat('''options['tweak preset 2 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 2',  id='tweak-preset-2-falloff',  value=BoundFloat('''options['tweak preset 2 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 2 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(2)'''))
-                ]),
-                ui.collapsible(label='Preset: Preset 3',    id='tweak-preset-3', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 3',            id='tweak-preset-3-name',     value=BoundString('''options['tweak preset 3 name']''',    on_change=delay_exec('''update_preset_name(3)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 3',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 3 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 3', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 3 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 3',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 3 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 3 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(3)'''))
-                ]),
-                ui.collapsible(label='Preset: Preset 4',    id='tweak-preset-4', children=[
-                    ui.labeled_input_text(label='Name',     title='Adjust name of preset 4',            id='tweak-preset-4-name',     value=BoundString('''options['tweak preset 4 name']''',    on_change=delay_exec('''update_preset_name(4)'''))),
-                    ui.labeled_input_text(label='Size',     title='Adjust brush size for preset 4',     id='tweak-preset-3-size',     value=BoundFloat('''options['tweak preset 4 radius']''',   min_value=1.0)),
-                    ui.labeled_input_text(label='Strength', title='Adjust brush strength for preset 4', id='tweak-preset-3-strength', value=BoundFloat('''options['tweak preset 4 strength']''', min_value=0.01, max_value=1.0)),
-                    ui.labeled_input_text(label='Falloff',  title='Adjust brush falloff for preset 4',  id='tweak-preset-3-falloff',  value=BoundFloat('''options['tweak preset 4 falloff']''',  min_value=0.0,  max_value=100.0)),
-                    ui.button(label='Current to Preset',    title='Assign preset 4 setting to current brush settings', on_mouseclick=delay_exec('''assign_preset_to_current(4)'''))
-                ]),
-            ]),
-        ])
-        update_preset_name(1)
-        update_preset_name(2)
-        update_preset_name(3)
-        update_preset_name(4)
-        return tweak_options
+        self.update_preset_name(1)
+        self.update_preset_name(2)
+        self.update_preset_name(3)
+        self.update_preset_name(4)
 
     @RFTool_Tweak.on_reset
     def reset(self):
@@ -249,9 +115,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         if self.rfcontext.actions.pressed('pie menu alt0', unpress=False):
             def callback(option):
                 if option is None: return
-                options['tweak radius']   = options[f'tweak preset {option} radius']
-                options['tweak strength'] = options[f'tweak preset {option} strength']
-                options['tweak falloff']  = options[f'tweak preset {option} falloff']
+                self.copy_preset_to_current(option)
             self.rfcontext.show_pie_menu([
                 (f'Preset: {options["tweak preset 1 name"]}', 1),
                 (f'Preset: {options["tweak preset 2 name"]}', 2),

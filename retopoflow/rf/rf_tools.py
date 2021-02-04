@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -25,6 +25,7 @@ from ..rftool_polystrips.polystrips import PolyStrips
 from ..rftool_strokes.strokes       import Strokes
 from ..rftool_patches.patches       import Patches
 from ..rftool_polypen.polypen       import PolyPen
+from ..rftool_knife.knife           import Knife
 from ..rftool_loops.loops           import Loops
 from ..rftool_tweak.tweak           import Tweak
 from ..rftool_relax.relax           import Relax
@@ -35,19 +36,29 @@ from ...config.options import options
 
 class RetopoFlow_Tools:
     def setup_rftools(self):
+        self.rftool = None
         self.rftools = [rftool(self) for rftool in RFTool.registry]
 
-    def select_rftool(self, rftool):
+    def select_rftool(self, rftool, quick=False):
         assert rftool in self.rftools
+        if rftool == self.rftool: return
+
+        if quick: self.rftool_return = self.rftool
+        else:     self.rftool_return = None
+
         self.rftool = rftool
         self.rftool._reset()
-        e = self.document.body.getElementById('tool-%s'%rftool.name.lower())
-        if e: e.checked = True
-        e = self.document.body.getElementById('ttool-%s'%rftool.name.lower())
-        if e: e.checked = True
+
+        self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
+        self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
+        self.ui_main.dirty(cause='changed tools', children=True)
+        self.ui_tiny.dirty(cause='changed tools', children=True)
+
         statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
         statusbar = statusbar.replace('\t', '    ')
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
         self.update_ui()
-        options['quickstart tool'] = rftool.name
+
+        if not quick:
+            options['quickstart tool'] = rftool.name
 

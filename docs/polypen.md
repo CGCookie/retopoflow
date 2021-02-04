@@ -83,16 +83,6 @@ The Edge-Only mode inserts only edges.
 - When nothing is selected, a new vertex is added.
 - When a single vertex is selected, an edge is added between mouse and selected vertex.
 
-### Knife Mode
-
-The Knife mode allows you to cut into the existing geometry similarly to Blender's Knife tool.
-Note: PolyPen in knife mode will only cut into existing geometry; it will not create new vertices, edges, or faces.
-
-- When nothing is selected and mouse is hovering a face, a new vertex is added.
-- When nothing is selected and mouse is not hovering a face, the knife starting point is set to the current mouse position.
-- When a single vertex is selected or starting point is set, vertices and edges are cut into existing geometry, and existing faces are split accordingly.
-- Releasing all inserting keys or deselecting all geometry will start a new knife cut session.
-
 
 ## Additional Tips
 

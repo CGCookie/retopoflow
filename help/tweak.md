@@ -2,6 +2,8 @@
 
 Shortcut: {{tweak tool}}
 
+Quick Shortcut: {{tweak quick}}
+
 
 The Tweak tool allows you to easily adjust vertex positions with a brush.
 
@@ -21,6 +23,10 @@ The Tweak tool allows you to easily adjust vertex positions with a brush.
 | {{brush radius}}   | : | adjust brush size |
 | {{brush strength}} | : | adjust brush strength |
 | {{brush falloff}}  | : | adjust brush falloff |
+
+These options can also be stored as presets in the Brush Options panel. 
+
+To quickly switch between presets, use the {{pie menu alt0}} pie menu. 
 
 ## Masking
 

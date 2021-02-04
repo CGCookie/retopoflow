@@ -1,0 +1,17 @@
+<details>
+    <summary>Patches</summary>
+    <div class="contents">
+        <div class="labeled-input-text">
+            <label title="A vertex between connected edges that form an angles below this threshold is a corner">
+                Angle
+            </label>
+            <input type="number" value="BoundInt('''options['patches angle']''', min_value=0, max_value=180)">
+        </div>
+        <div class="labeled-input-text">
+            <label title="Number of crosses">
+                Crosses
+            </label>
+            <input type="number" value="BoundInt('''self.var_crosses''', min_value=1, max_value=500)">
+        </div>
+    </div>
+</details>

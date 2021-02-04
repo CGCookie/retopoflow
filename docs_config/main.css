@@ -1,0 +1,96 @@
+/*
+---
+---
+
+@import "{{ site.theme }}";
+*/
+
+body {
+    background: rgba(32, 32, 32, 1.0);
+    color: white;
+}
+
+h1, h2, h3 {
+    color: rgba(224, 224, 224, 1.0);
+}
+
+h2 {
+    margin-top: 48px;
+    margin-bottom: 12px;
+}
+
+strong {
+    color: white;
+}
+
+code {
+    /*display: inline-block;*/
+    border: 1px solid rgba(0,0,0,0.5);
+    background: rgba(64, 64, 64, 0.75);
+    color: white;
+    padding: 2px 4px;
+}
+
+img {
+    vertical-align: bottom;
+}
+
+li img {
+    width: 24px;
+    height: 24px;
+}
+
+h1 img {
+    width: 32px;
+    height: 32px;
+}
+
+a {
+    color: rgb(221, 221, 221);
+}
+
+a:hover {
+    font-weight: unset;
+    color: white;
+}
+
+th, td {
+    border: 0px;
+}
+
+
+/* undo theme styling on header and footer */
+header ul {
+    list-style: none;
+    height: auto;
+    background: initial;
+    border: 0px;
+    width: auto;
+}
+header li {
+    width: auto;
+    float: none;
+    border: 0px;
+    height: auto;
+}
+header ul li a {
+    line-height: unset;
+    text-align: left;
+    height: auto;
+    color: rgb(221, 221, 221);
+}
+header ul li a:hover {
+    font-weight: unset;
+    color: white;
+}
+header ul li a:focus {
+    font-weight: unset;
+    color: white;
+    border: 0px;
+}
+header ul li a:active {
+    background: transparent;
+}
+footer {
+    color: rgb(96, 96, 96);
+}

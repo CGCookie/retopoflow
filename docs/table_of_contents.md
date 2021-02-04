@@ -10,7 +10,7 @@ The following documents provide help generally across all of RetopoFlow.
 
 - [Quick Start Guide](quick_start.md)
 - [A Welcome to You from Us](welcome.md)
-- [General RetopoFlow Help](general.md)
+- [General Hotkeys and Options](general.md)
 
 ## Tools
 
@@ -21,6 +21,7 @@ The following documents provide help for specific RetopoFlow tools.
 - ![Strokes icon](strokes-icon.png) [Strokes](strokes.md)
 - ![Patches icon](patches-icon.png) [Patches](patches.md)
 - ![PolyPen icon](polypen-icon.png) [PolyPen](polypen.md)
+- ![Knife icon](knife-icon.png) [Knife](knife.md)
 - ![Loops icon](loops-icon.png) [Loops](loops.md)
 - ![Tweak icon](tweak-icon.png) [Tweak](tweak.md)
 - ![Relax icon](relax-icon.png) [Relax](relax.md)

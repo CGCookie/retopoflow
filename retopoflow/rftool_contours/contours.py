@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import math
 import random
 
@@ -34,7 +35,6 @@ from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.boundvar import BoundVar, BoundInt
 
 from ...config.options import options
 
@@ -45,6 +45,7 @@ class RFTool_Contours(RFTool):
     help        = 'contours.md'
     shortcut    = 'contours tool'
     statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
+    ui_config   = 'contours_options.html'
 
 
 ################################################################################################
@@ -53,7 +54,6 @@ class RFTool_Contours(RFTool):
 
 from .contours_ops import Contours_Ops
 from .contours_props import Contours_Props
-from .contours_ui import Contours_UI
 from .contours_rfwidgets import Contours_RFWidgets
 from .contours_utils import (
     find_loops,
@@ -63,7 +63,7 @@ from .contours_utils import (
     Contours_Utils,
 )
 
-class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_UI, Contours_RFWidgets):
+class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
     @RFTool_Contours.on_init
     def init(self):
         self.init_rfwidgets()
@@ -198,24 +198,40 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
-            return self.rfcontext.setup_selection_painting(
-                'edge',
-                sel_only=sel_only,
+            return self.rfcontext.setup_smart_selection_painting(
+                {'edge'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'edge',
+            #     sel_only=sel_only,
+            #     fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             # TODO: DO NOT PAINT!
             sel_only = self.actions.pressed('select single')
-            return self.rfcontext.setup_selection_painting(
-                'edge',
-                sel_only=sel_only,
+            return self.rfcontext.setup_smart_selection_painting(
+                {'edge'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'edge',
+            #     sel_only=sel_only,
+            #     fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')

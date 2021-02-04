@@ -2,6 +2,8 @@
 
 Shortcut: {{ site.data.keymaps.relax_tool }}
 
+Quick Shortcut: {{ site.data.keymaps.relax_quick }}
+
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
 
@@ -21,6 +23,10 @@ The Relax tool allows you to easily relax the vertex positions using a brush.
 | {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
 | {{ site.data.keymaps.brush_strength }} | : | adjust brush strength |
 | {{ site.data.keymaps.brush_falloff }}  | : | adjust brush falloff |
+
+These options can also be stored as presets in the Brush Options panel. 
+
+To quickly switch between presets, use the {{ site.data.keymaps.pie_menu_alt0 }} pie menu. 
 
 ## Masking
 

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 
 https://github.com/CGCookie/retopoflow
 
@@ -23,7 +23,6 @@ import bgl
 from .cookiecutter import CookieCutter
 
 from ..common.maths import Point2D
-from ..common import ui
 from ..common.drawing import Drawing
 
 class CookieCutter_Test(CookieCutter):

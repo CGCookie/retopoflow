@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -164,17 +164,21 @@ def find_and_import_all_subclasses(cls, root_path=None):
 
 #########################################################
 
-def delay_exec(action, f_globals=None, f_locals=None):
+def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None, precall=None):
     if f_globals is None or f_locals is None:
         frame = inspect.currentframe().f_back               # get frame   of calling function
         if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
         if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
     def run_it(*args, **kwargs):
         # args are ignored!?
-        d = dict(f_locals)
-        d.update(kwargs)
+        nf_locals = dict(f_locals)
+        if ordered_parameters:
+            for k,v in zip(ordered_parameters, args):
+                nf_locals[k] = v
+        nf_locals.update(kwargs)
         try:
-            return exec(action, f_globals, f_locals)
+            if precall: precall(nf_locals)
+            return exec(action, f_globals, nf_locals)
         except Exception as e:
             print('Caught exception while trying to run a delay_exec')
             print('  action:', action)
@@ -198,7 +202,7 @@ def git_info(start_at_caller=True):
                 # found it!
                 path_git_head = path_test
                 break
-            if os.path.split(path_root)[1] == 'addons':
+            if os.path.split(path_root)[1] in {'addons', 'addons_contrib'}:
                 break
             path_root = os.path.dirname(path_root)  # try next level up
         if not path_git_head:
@@ -277,10 +281,44 @@ def kwargs_splitter(keys, kwargs):
 def any_args(*args):
     return any(bool(a) for a in args)
 
+def get_and_discard(d, k, default=None):
+    if k not in d: return default
+    v = d[k]
+    del d[k]
+    return v
+
 
 
 #################################################
 
+
+def abspath(*args, frame_depth=1, **kwargs):
+    frame = inspect.currentframe()
+    for i in range(frame_depth): frame = frame.f_back
+    module = inspect.getmodule(frame)
+    path = os.path.dirname(module.__file__)
+    return os.path.abspath(os.path.join(path, *args, **kwargs))
+
+
+
+#################################################
+
+def strshort(s, l=50):
+    s = str(s)
+    return s[:l] + ('...' if len(s) > l else '')
+
+
+def join(sep, iterable, preSep='', postSep='', toStr=str):
+    '''
+    this function adds features on to sep.join(iterable)
+    if iterable is not empty, preSep is prepended and postSep is appended
+    also, all items of iterable are turned to strings using toStr, which can be customized
+    ex: join(', ', [1,2,3])                   => '1, 2, 3'
+    ex: join('.', ['foo', 'bar'], preSep='.') => '.foo.bar'
+    '''
+    s = sep.join(map(toStr, iterable))
+    if not s: return ''
+    return f'{preSep}{s}{postSep}'
 
 def accumulate_last(iterable, *args, **kwargs):
     # returns last result when accumulating
@@ -300,7 +338,7 @@ def get_settings():
         folderpath = os.path.dirname(os.path.abspath(__file__))
         while folderpath:
             folderpath,foldername = os.path.split(folderpath)
-            if foldername in {'lib','addons'}: continue
+            if foldername in {'lib','addons', 'addons_contrib'}: continue
             if foldername in addons: break
         else:
             assert False, 'Could not find non-"lib" folder'
@@ -419,3 +457,5 @@ class Dict():
                 self[k] = v
         for k,v in kwargs.items():
             self[k] = v
+    def __str__(self): return str(self.__dict__['__d'])
+    def __repr__(self): return repr(self.__dict__['__d'])

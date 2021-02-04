@@ -10,7 +10,7 @@ The following documents provide help generally across all of RetopoFlow.
 
 - [Quick Start Guide](quick_start.md)
 - [A Welcome to You from Us](welcome.md)
-- [General RetopoFlow Help](general.md)
+- [General Hotkeys and Options](general.md)
 
 ## Tools
 
@@ -21,6 +21,7 @@ The following documents provide help for specific RetopoFlow tools.
 - ![Strokes icon](strokes-icon.png width:24px;height:24px;padding:0px) [Strokes](strokes.md)
 - ![Patches icon](patches-icon.png width:24px;height:24px;padding:0px) [Patches](patches.md)
 - ![PolyPen icon](polypen-icon.png width:24px;height:24px;padding:0px) [PolyPen](polypen.md)
+- ![Knife icon](knife-icon.png width:24px;height:24px;padding:0px) [Knife](knife.md)
 - ![Loops icon](loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
 - ![Tweak icon](tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
 - ![Relax icon](relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
@@ -30,8 +31,8 @@ The following documents provide help for specific RetopoFlow tools.
 The following links provide additional information.
 
 - [Change list](changelist.md)
+- [Warnings Details](warnings.md)
 - [Blender Market](https://blendermarket.com/products/retopoflow)
 - [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)
 - [GitHub Issues](https://github.com/CGCookie/retopoflow/issues)
-- [Warnings Details](warnings.md)
 

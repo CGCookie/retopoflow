@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -142,6 +142,7 @@ def glSetOptions(prefix, opts):
     set_if_set('dotoffset',      lambda v: bmeshShader.assign('dotoffset', v))
     set_if_set('color',          lambda v: bmeshShader.assign('color', v))
     set_if_set('color selected', lambda v: bmeshShader.assign('color_selected', v))
+    set_if_set('color warning',  lambda v: bmeshShader.assign('color_warning', v))
     set_if_set('hidden',         lambda v: bmeshShader.assign('hidden', v))
     set_if_set('width',          set_linewidth)
     set_if_set('size',           set_pointsize)
@@ -212,13 +213,14 @@ class BufferedRender_Batch:
         self.batch = None
         self._quarantine.setdefault(self.shader, set())
 
-    def buffer(self, pos, norm, sel):
+    def buffer(self, pos, norm, sel, warn):
         if self.shader == None: return
         if self.shader_type == 'POINTS':
             data = {
                 'vert_pos':    [p for p in pos  for __ in range(6)],
                 'vert_norm':   [n for n in norm for __ in range(6)],
                 'selected':    [s for s in sel  for __ in range(6)],
+                'warning':     [w for w in warn for __ in range(6)],
                 'vert_offset': [o for _ in pos for o in [(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)]],
             }
         elif self.shader_type == 'LINES':
@@ -227,6 +229,7 @@ class BufferedRender_Batch:
                 'vert_pos1':   [p1 for (p0,p1) in zip(pos[0::2], pos[1::2] ) for __ in range(6)],
                 'vert_norm':   [n0 for (n0,n1) in zip(norm[0::2],norm[1::2]) for __ in range(6)],
                 'selected':    [s0 for (s0,s1) in zip(sel[0::2], sel[1::2] ) for __ in range(6)],
+                'warning':     [s0 for (s0,s1) in zip(warn[0::2], warn[1::2] ) for __ in range(6)],
                 'vert_offset': [o  for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
         }
         elif self.shader_type == 'TRIS':
@@ -255,6 +258,7 @@ class BufferedRender_Batch:
         dpi_mult = opts.get('dpi mult', 1.0)
         set_if_set('color',          lambda v: self.uniform_float('color', v))
         set_if_set('color selected', lambda v: self.uniform_float('color_selected', v))
+        set_if_set('color warning',  lambda v: self.uniform_float('color_warning', v))
         set_if_set('hidden',         lambda v: self.uniform_float('hidden', v))
         set_if_set('offset',         lambda v: self.uniform_float('offset', v))
         set_if_set('dotoffset',      lambda v: self.uniform_float('dotoffset', v))
@@ -298,6 +302,7 @@ class BufferedRender_Batch:
         # set defaults
         self.uniform_float('color',          (1,1,1,0.5))
         self.uniform_float('color_selected', (0.5,1,0.5,0.5))
+        self.uniform_float('color_warning',  (1.0,0.5,0.0,0.5))
         self.uniform_float('hidden',         0.9)
         self.uniform_float('offset',         0)
         self.uniform_float('dotoffset',      0)
@@ -305,7 +310,9 @@ class BufferedRender_Batch:
         self.uniform_float('radius',         1) #random.random()*10)
 
         nosel = opts.get('no selection', False)
-        self.uniform_bool('use_selection', [not nosel]) # must be a sequence!?
+        nowarn = opts.get('no warning', False)
+        self.uniform_bool('use_selection', [not nosel])  # must be a sequence!?
+        self.uniform_bool('use_warning',   [not nowarn]) # must be a sequence!?
         self.uniform_bool('use_rounding',  [self.gltype == bgl.GL_POINTS]) # must be a sequence!?
 
         self.uniform_float('matrix_m',    opts['matrix model'])

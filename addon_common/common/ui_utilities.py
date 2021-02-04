@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,15 +19,56 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import re
+import sys
+import math
+import time
 import random
+import asyncio
+import inspect
+import traceback
+import contextlib
+from math import floor, ceil
+from inspect import signature
 from functools import lru_cache
+from itertools import dropwhile, zip_longest
+from concurrent.futures import ThreadPoolExecutor
 
+import bpy
+import bgl
+import blf
+import gpu
+
+
+from gpu.types import GPUOffScreen
+from gpu_extras.presets import draw_texture_2d
+from mathutils import Vector, Matrix
+
+from .blender import tag_redraw_all
+from .drawing import ScissorStack, FrameBuffer
+from .fsm import FSM
+
+from .useractions import ActionHandler, kmi_to_keycode
+
+from .boundvar import BoundVar
 from .colors import colorname_to_color
-from .globals import Globals
+from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .maths import Color, NumberUnit
+from .drawing import Drawing
+from .fontmanager import FontManager
+from .globals import Globals
+from .hasher import Hasher
+from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
+from .maths import floor_if_finite, ceil_if_finite
+from .profiler import profiler, time_it
 from .shaders import Shader
+from .utils import iter_head, any_args, join, abspath
+
+from ..ext import png
+from ..ext.apng import APNG
+
+
 
 '''
 Links to useful resources
@@ -45,6 +86,107 @@ Links to useful resources
 - Render-tree Construction, Layout, and Paint: https://developers.google.com/web/fundamentals/performance/critical-rendering-path/render-tree-construction
 - Beginner's Guide to Choose Between CSS Grid and Flexbox: https://medium.com/youstart-labs/beginners-guide-to-choose-between-css-grid-and-flexbox-783005dd2412
 '''
+
+
+
+
+
+
+class UI_Element_Utils:
+    executor = ThreadPoolExecutor()
+
+    @staticmethod
+    def defer_dirty_wrapper(cause, properties=None, parent=True, children=False):
+        ''' prevents dirty propagation until the wrapped fn has finished '''
+        def wrapper(fn):
+            def wrapped(self, *args, **kwargs):
+                self._defer_dirty = True
+                ret = fn(self, *args, **kwargs)
+                self._defer_dirty = False
+                self.dirty(cause=f'dirtying deferred dirtied properties now: {cause}', properties=properties, parent=parent, children=children)
+                return ret
+            return wrapped
+        return wrapper
+
+    @contextlib.contextmanager
+    def defer_dirty(self, cause, properties=None, parent=True, children=False):
+        ''' prevents dirty propagation until the end of with has finished '''
+        self._defer_dirty = True
+        self.defer_dirty_propagation = True
+        yield
+        self.defer_dirty_propagation = False
+        self._defer_dirty = False
+        self.dirty(cause=f'dirtying deferred dirtied properties now: {cause}', properties=properties, parent=parent, children=children)
+
+    _option_callbacks = {}
+    @staticmethod
+    def add_option_callback(option):
+        def wrapper(fn):
+            def wrapped(self, *args, **kwargs):
+                ret = fn(self, *args, **kwargs)
+                return ret
+            UI_Element_Utils._option_callbacks[option] = wrapped
+            return wrapped
+        return wrapper
+
+    def call_option_callback(self, option, default, *args, **kwargs):
+        option = option if option not in UI_Element_Utils._option_callbacks else default
+        UI_Element_Utils._option_callbacks[option](self, *args, **kwargs)
+
+    _cleaning_graph = {}
+    _cleaning_graph_roots = set()
+    _cleaning_graph_nodes = set()
+    @staticmethod
+    def add_cleaning_callback(label, labels_dirtied=None):
+        # NOTE: this function decorator does NOT call self.dirty!
+        UI_Element_Utils._cleaning_graph_nodes.add(label)
+        g = UI_Element_Utils._cleaning_graph
+        labels_dirtied = list(labels_dirtied) if labels_dirtied else []
+        for l in [label]+labels_dirtied: g.setdefault(l, {'fn':None, 'children':[], 'parents':[]})
+        def wrapper(fn):
+            g[label]['name'] = label
+            g[label]['fn'] = fn
+            g[label]['children'] = labels_dirtied
+            for l in labels_dirtied: g[l]['parents'].append(label)
+
+            # find roots of graph (any label that is not dirtied by another cleaning callback)
+            UI_Element_Utils._cleaning_graph_roots = set(k for (k,v) in g.items() if not v['parents'])
+            assert UI_Element_Utils._cleaning_graph_roots, 'cycle detected in cleaning callbacks'
+            # TODO: also detect cycles such as: a->b->c->d->b->...
+            #       done in call_cleaning_callbacks, but could be done here instead?
+
+            return fn
+        return wrapper
+
+
+    #####################################################################
+    # helper functions
+    # these functions use self._computed_style, so these functions
+    # MUST BE CALLED AFTER `compute_style()` METHOD IS CALLED!
+
+    def _get_style_num(self, k, def_v=None, percent_of=None, scale=None):
+        v = self._computed_styles.get(k, 'auto')
+        if v == 'auto': v = def_v or 'auto'
+        if v == 'auto': return 'auto'
+        # v must be NumberUnit here!
+        if v.unit == '%': scale = None
+        v = v.val(base=(float(def_v) if percent_of is None else percent_of))
+        v = float(v)
+        if scale is not None: v *= scale
+        return floor_if_finite(v)
+
+    def _get_style_trbl(self, kb, scale=None):
+        cache = self._style_trbl_cache
+        key = f'{kb} {scale}'
+        if key not in cache:
+            t = self._get_style_num(f'{kb}-top',    def_v=NumberUnit.zero, scale=scale)
+            r = self._get_style_num(f'{kb}-right',  def_v=NumberUnit.zero, scale=scale)
+            b = self._get_style_num(f'{kb}-bottom', def_v=NumberUnit.zero, scale=scale)
+            l = self._get_style_num(f'{kb}-left',   def_v=NumberUnit.zero, scale=scale)
+            cache[key] = (t, r, b, l)
+        return cache[key]
+
+
 
 
 ###########################################################################
@@ -180,23 +322,22 @@ def get_converter_to_string(group):
 # below are various helper functions for ui functions
 
 @lru_cache(maxsize=1024)
-def helper_wraptext(text='', width=None, fontid=0, fontsize=12, preserve_newlines=False, collapse_spaces=True, wrap_text=True, **kwargs):
+def helper_wraptext(text='', width=float('inf'), fontid=0, fontsize=12, preserve_newlines=False, collapse_spaces=True, wrap_text=True, **kwargs):
     if type(text) is not str:
         assert False, 'unknown type: %s (%s)' % (str(type(text)), str(text))
     # TODO: get textwidth of space and each word rather than rebuilding the string
     size_prev = Globals.drawing.set_font_size(fontsize, fontid=fontid, force=True)
     tw = Globals.drawing.get_text_width
-    wrap_text &= width is not None
+    wrap_text &= math.isfinite(width)
 
     if not preserve_newlines: text = re.sub(r'\n', ' ', text)
     if collapse_spaces: text = re.sub(r' +', ' ', text)
     if wrap_text:
-        if width is None: width = float('inf')
         cline,*ltext = text.split(' ')
         nlines = []
         for cword in ltext:
             if not collapse_spaces and cword == '': cword = ' '
-            nline = '%s %s'%(cline,cword)
+            nline = f'{cline} {cword}'
             if tw(nline) <= width: cline = nline
             else: nlines,cline = nlines+[cline],cword
         nlines += [cline]

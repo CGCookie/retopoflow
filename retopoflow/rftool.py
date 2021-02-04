@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -23,6 +23,13 @@ from functools import wraps
 
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
+from ..addon_common.common.boundvar import (
+    BoundVar,
+    BoundBool,
+    BoundInt, BoundFloat,
+    BoundString, BoundStringToBool,
+)
+from ..config.options import options, themes, visualization
 
 
 rftools = {}
@@ -55,6 +62,10 @@ class RFTool:
                 'view change':   [],    # called whenever view has changed
                 'mouse move':    [],    # called whenever mouse has moved
             }
+            if not hasattr(cls, 'quick_shortcut'):
+                cls.quick_shortcut = None
+            if not hasattr(cls, 'ui_config'):
+                cls.ui_config = None
         else:
             # update registry, but do not add new FSM
             RFTool.registry[cls._rftool_index] = cls
@@ -105,12 +116,15 @@ class RFTool:
             ret.append(fn(self, *args, **kwargs))
         return ret
 
+    def call_with_self_in_context(self, fn, *args, **kwargs):
+        return fn(*args, **kwargs)
 
 
     def __init__(self, rfcontext):
         RFTool.rfcontext = rfcontext
         RFTool.drawing = rfcontext.drawing
         RFTool.actions = rfcontext.actions
+        RFTool.document = rfcontext.document
         self.rfwidget = None
         self._last_mouse = None
         self._fsm.init(self, start='main')

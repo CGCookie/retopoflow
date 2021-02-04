@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -49,7 +49,7 @@ class RFWidget_LineCut_Factory:
         class RFW_LineCut(RFWidget):
             rfw_name = 'Line'
             rfw_cursor = 'CROSSHAIR'
-            
+
 
         class RFWidget_LineCut(RFW_LineCut):
             @RFW_LineCut.on_init

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -43,7 +43,7 @@ class RetopoFlow_Blender:
 
     @staticmethod
     @blender_version_wrapper('<','2.80')
-    def is_valid_source(o):
+    def is_valid_source(o, test_poly_count=True):
         assert False, "TODO: NEED TO UPDATE!!! SEE 2.80+ VERSION BELOW"
         if not o: return False
         if type(o) is not bpy.types.Object: return False
@@ -51,19 +51,19 @@ class RetopoFlow_Blender:
         if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
         if o.hide: return False
         if o.select and o == get_active_object(): return False
-        if not o.data.polygons: return False
+        if test_poly_count and not o.data.polygons: return False
         return True
 
     @staticmethod
     @blender_version_wrapper('>=','2.80')
-    def is_valid_source(o):
+    def is_valid_source(o, test_poly_count=True):
         if not o: return False
         # if o == get_active_object(): return False
         if o == bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         if not o.visible_get(): return False
-        if not o.data.polygons: return False
+        if test_poly_count and not o.data.polygons: return False
         return True
 
     @staticmethod

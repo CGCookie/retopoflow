@@ -9,6 +9,8 @@ tmp/
 /scripts/
 /test/
 /test-models/*
+/docs/
+/devnotes/
 
 updater_tmp/*.json
 
@@ -48,6 +50,7 @@ b283
 b290
 b291
 b292
+b293
 
 .git
 .gitmodules

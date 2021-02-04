@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -42,15 +42,15 @@ from .rf.rf_tools       import RetopoFlow_Tools
 from .rf.rf_ui          import RetopoFlow_UI
 from .rf.rf_undo        import RetopoFlow_Undo
 
-from ..addon_common.common import ui
 from ..addon_common.common.blender import tag_redraw_all
 from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
-from ..addon_common.common.utils import delay_exec
+from ..addon_common.common.utils import delay_exec, abspath
 from ..addon_common.common.ui_styling import load_defaultstylings
-from ..addon_common.common.ui_core import preload_image, set_image_cache
+from ..addon_common.common.ui_core import preload_image, set_image_cache, UI_Element
+from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -69,6 +69,8 @@ def preload_help_images(version='thread'):
     os.chdir(os.path.join(path_here, '..', 'help'))
     path_images += list(glob.glob('*.png'))
     os.chdir(os.path.join(path_here, '..', 'icons'))
+    path_images += list(glob.glob('*.png'))
+    os.chdir(os.path.join(path_here, '..', 'addon_common', 'common', 'images'))
     path_images += list(glob.glob('*.png'))
     os.chdir(path_cur)
 
@@ -132,12 +134,14 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         self.header_text_set('RetopoFlow')
 
     def start(self):
+        ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
+
         preload_help_images.paused = True
         keymaps = get_keymaps()
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
-        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=False)
+        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=True, on_close=self.done)
         Globals.ui_document.body.dirty(cause='changed document size', children=True)
 
     def end(self):
@@ -192,15 +196,18 @@ class RetopoFlow(
 
     @CookieCutter.FSM_State('loading', 'enter')
     def setup_next_stage_enter(self):
+        win = UI_Element.fromHTMLFile(abspath('rf/loading_dialog.html'))[0]
+        self.document.body.append_child(win)
+
         d = {}
         d['working'] = False
-        d['timer'] = self.actions.start_timer(30)
-        d['ui_window'] = ui.framed_dialog(label='RetopoFlow is loading...', id='loadingdialog', closeable=False, parent=self.document.body)
-        d['ui_div'] = ui.markdown(id='loadingdiv', mdown='Loading...', parent=d['ui_window'])
+        d['timer'] = self.actions.start_timer(120)
+        d['ui_window'] = win
+        d['ui_div'] = win.getElementById('loadingdiv')
         d['i_stage'] = 0
         d['i_step'] = 0
         d['time'] = 0           # will be updated to current time
-        d['delay'] = 0.01
+        d['delay'] = 0.001
         d['stages'] = [
             ('Pausing help image preloading',       self.preload_help_pause),
             ('Setting up target mesh',              self.setup_target),
@@ -229,8 +236,8 @@ class RetopoFlow(
         try:
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
-                print('RetopoFlow: %s' % stage_name)
-                ui.set_markdown(d['ui_div'], mdown='%s' % stage_name)
+                print(f'RetopoFlow: {stage_name} ({time.time()-d["time"]})')
+                d['ui_div'].set_markdown(mdown=stage_name)
             else:
                 stage_fn()
         except Exception as e:
@@ -243,7 +250,7 @@ class RetopoFlow(
             print('RetopoFlow: done with start')
             self.loading_done = True
             self.fsm.force_set_state('main')
-            self.document.body.delete_child(d['ui_window'].proxy_default_element)
+            self.document.body.delete_child(d['ui_window'])
             d['timer'].done()
         d['working'] = False
 
@@ -254,6 +261,8 @@ class RetopoFlow(
         preload_help_images.paused = False
 
     def start(self):
+        ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
+
         self.loading_done = False
 
         keymaps = get_keymaps()

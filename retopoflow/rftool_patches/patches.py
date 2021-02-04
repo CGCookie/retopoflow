@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import math
 from itertools import chain
 
@@ -42,8 +43,7 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
-from ...addon_common.common import ui
-from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ...addon_common.common.boundvar import BoundInt
 
 from ...config.options import options, themes, visualization
 
@@ -55,6 +55,7 @@ class RFTool_Patches(RFTool):
     help        = 'patches.md'
     shortcut    = 'patches tool'
     statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
+    ui_config   = 'patches_options.html'
 
 class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
@@ -82,7 +83,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
     @property
     def var_crosses(self):
-        if self.crosses is None: return 0
+        if self.crosses is None: return 1
         return self.crosses - 1
     @var_crosses.setter
     def var_crosses(self, v):
@@ -90,21 +91,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         if self.crosses == nv: return
         self.crosses = nv
         self._recompute()
-
-    @RFTool_Patches.on_ui_setup
-    def ui(self):
-        return ui.collapsible('Patches', children=[
-            ui.labeled_input_text(
-                label='Angle',
-                title='A vertex between connected edges that form an angles below this threshold is a corner',
-                value=self._var_angle,
-            ),
-            ui.labeled_input_text(
-                label='Crosses',
-                title='Number of crosses',
-                value=self._var_crosses,
-            ),
-        ])
 
     def update_ui(self):
         self._var_crosses.disabled = (self.crosses is None)
@@ -200,13 +186,22 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
-            return self.rfcontext.setup_selection_painting(
-                'edge',
-                sel_only=sel_only,
+            self.actions.unpress()
+            return self.rfcontext.setup_smart_selection_painting(
+                {'edge'},
+                selecting=not sel_only,
+                deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
+            # return self.rfcontext.setup_selection_painting(
+            #     'edge',
+            #     sel_only=sel_only,
+            #     fn_filter_bmelem=self.filter_edge_selection,
+            #     kwargs_select={'supparts': False},
+            #     kwargs_deselect={'subparts': False},
+            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             sel_only = self.actions.pressed('select single')

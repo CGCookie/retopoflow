@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -65,7 +65,6 @@ default_rf_keymaps = {
     'autosave': {'TIMER_AUTOSAVE'},
 
     'cancel': {'ESC', 'RIGHTMOUSE'},
-    'cancel no select': {'ESC'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
 
     'done': {'TAB'},
@@ -74,6 +73,7 @@ default_rf_keymaps = {
     'insert': {'CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'},
     'insert alt0': {'SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'},
     'insert alt1': {'CTRL+SHIFT+LEFTMOUSE', 'CTRL+SHIFT+LEFTMOUSE+DOUBLE'},
+    'quick insert': {'LEFTMOUSE'},
 
     # general commands
     'grab': {'G'},
@@ -96,6 +96,9 @@ default_rf_keymaps = {
     # patches
     'fill': {'F', 'RET', 'NUMPAD_ENTER'},
 
+    # knife
+    'knife reset': {'E'},
+
     # grease pencil
     'grease clear': {'C'},
 
@@ -107,8 +110,8 @@ default_rf_keymaps = {
     'brush strength': {'SHIFT+F'},
 
     # pie menu
-    'pie menu': {'ACCENT_GRAVE'},
-    'pie menu alt0': {'CTRL+ACCENT_GRAVE'},
+    'pie menu': {'Q'},
+    'pie menu alt0': {'SHIFT+Q'},
     'pie menu confirm': {'LEFTMOUSE+CLICK', 'LEFTMOUSE+DRAG'},
 
     # shortcuts to tools
@@ -117,9 +120,14 @@ default_rf_keymaps = {
     'strokes tool': {'THREE', 'CTRL+ALT+B'},
     'patches tool': {'FOUR', 'CTRL+ALT+F'},
     'polypen tool': {'FIVE', 'CTRL+ALT+V'},
-    'loops tool': {'SIX', 'CTRL+ALT+Q', 'CTRL+R'},
+    'knife tool': {'CTRL+FIVE', 'CTRL+K'},
+    'knife quick': {'K'},
+    'loops tool': {'SIX', 'CTRL+ALT+Q'},
+    'loops quick': {'CTRL+R'},
     'tweak tool': {'SEVEN', 'CTRL+ALT+G'},
+    'tweak quick': {'C'},
     'relax tool': {'EIGHT', 'CTRL+ALT+X'},
+    'relax quick': {'Z'},
     'stretch tool': {'NINE'},          # not ported from rf279, yet
     'grease pencil tool': {'ZERO'},    # not ported from rf279, yet
 }

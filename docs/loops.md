@@ -2,6 +2,8 @@
 
 Shortcut: {{ site.data.keymaps.loops_tool }}
 
+Quick Shortcut: {{ site.data.keymaps.loops_quick }}
+
 
 The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
 The Loops tool also works on any strip of edges.

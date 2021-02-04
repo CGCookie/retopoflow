@@ -4,11 +4,9 @@ RetopoFlow is a suite of Blender tools that automatically generate geometry whic
 
 The tools work because of our custom "Retopology Mode", which gets more information about the objects you're drawing on than Blender can give in Edit Mode. It also alows us to display the polygons in a cleaner, more helful style. 
 
-
-![feature](retopoflow_3_feature.png)
-
 <input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
 
+![feature](retopoflow_3_feature.png)
 
 ## Getting Started
 
@@ -41,12 +39,17 @@ Our small team works hard at making RetopoFlow the best retopology tool you can 
 
 Below is a list of known issues that we are currently working on.
 
-- UI can take about a half second to register hovering or clicking.
+- UI can take about a split second to register hovering or clicking.
+- UI wrapping is not quite correct.
 - Patches supports only basic fills.
 - Starting RF with large source or target meshes can be slow.
 - RF actions are not tied into Blender keymaps.
 - RF does not allow execution of other add-ons, pie menus, Blender operators, etc.
 - RF does not work correctly with more than one 3D View.
+- Some non-mesh objects and some modifiers do not work well with RetopoFlow.
+
+    - Non-mesh objects appear to scale too big or too small
+    - Modifiers cause output to appear incorrect
 
 
 ## Final Words

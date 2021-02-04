@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2020 CG Cookie
+Copyright (C) 2021 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -1628,6 +1628,7 @@ class RFTarget(RFMesh):
         bmf.normal_update()
 
     def clean_duplicate_bmedges(self, vert):
+        if not vert.is_valid: return {}
         bmv = self._unwrap(vert)
         # search for two edges between the same pair of verts
         lbme = list(bmv.link_edges)
@@ -1705,5 +1706,14 @@ class RFTarget(RFMesh):
 
     def remove_selected_doubles(self, dist):
         remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
+        self.dirty()
+
+    def flip_face_normals(self):
+        verts = set()
+        for bmf in self.get_selected_faces():
+            bmf.normal_flip()
+            for bmv in bmf.verts: verts.add(bmv)
+        for bmv in verts:
+            bmv.normal_update()
         self.dirty()
 
