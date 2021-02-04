@@ -140,6 +140,10 @@ def symmetry_changed(self):
         <details id="view-options">
             <summary title="Display options">Display</summary>
             <div class="contents">
+                <label title="Visualize non-manifold/detached vertices and edges">
+                    <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
+                    Non-manifold warning
+                </label>
                 <label title="If enabled, options for selected tool will show while other tool options hide.">
                     <input type="checkbox" checked="self._var_auto_hide_options">
                     Auto Hide Tool Options

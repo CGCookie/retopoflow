@@ -178,6 +178,7 @@ class Options:
         'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
 
         # VISUALIZATION SETTINGS
+        'warn non-manifold':        True,       # visualize non-manifold warnings
         'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
         'color theme':              'Green',
         'symmetry view':            'Edge',

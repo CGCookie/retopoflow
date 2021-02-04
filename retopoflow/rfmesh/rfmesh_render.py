@@ -174,9 +174,9 @@ class RFMeshRender():
             def sel(g):
                 return 1.0 if g.select else 0.0
             def warn_vert(g):
-                return 0.0 if g.link_edges else 1.0
+                return 0.0 if g.is_manifold and not g.is_boundary else 1.0
             def warn_edge(g):
-                return 0.0 if len(g.link_faces) == 2 else 1.0
+                return 0.0 if g.is_manifold else 1.0
             def warn_face(g):
                 return 1.0
 
@@ -364,6 +364,8 @@ class RFMeshRender():
             opts['symmetry effect'] = symmetry_effect
 
             bmegl.glSetDefaultOptions()
+
+            opts['no warning'] = not options['warn non-manifold']
 
             opts['cull backfaces'] = cull_backfaces
             opts['alpha backface'] = alpha_backface
