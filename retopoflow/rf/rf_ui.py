@@ -403,6 +403,7 @@ class RetopoFlow_UI:
         self.ui_geometry.is_visible = False
         self.ui_main.getElementById('show-geometry').disabled = False
     def update_geometry_window_visibility(self):
+        if self.ui_hide: return
         visible = self.ui_geometry.is_visible
         options['show geometry window'] = visible
         self.ui_main.getElementById('show-geometry').disabled = visible
@@ -416,6 +417,7 @@ class RetopoFlow_UI:
         self.ui_options.is_visible = False
         self.ui_main.getElementById('show-options').disabled = False
     def update_options_window_visibility(self):
+        if self.ui_hide: return
         visible = self.ui_options.is_visible
         options['show options window'] = visible
         self.ui_main.getElementById('show-options').disabled = visible
@@ -429,6 +431,7 @@ class RetopoFlow_UI:
         self.ui_tiny.is_visible = True
         self.ui_main.is_visible = False
     def update_main_ui_window(self):
+        if self.ui_hide: return
         if self._ui_windows_updating: return
         pre = self._ui_windows_updating
         self._ui_windows_updating = True
@@ -440,6 +443,7 @@ class RetopoFlow_UI:
             # self.ui_tiny.clean()
         self._ui_windows_updating = pre
     def update_tiny_ui_window(self):
+        if self.ui_hide: return
         if self._ui_windows_updating: return
         pre = self._ui_windows_updating
         self._ui_windows_updating = True
@@ -451,6 +455,8 @@ class RetopoFlow_UI:
             # self.ui_main.clean()
         self._ui_windows_updating = pre
     def update_main_tiny_ui_windows(self):
+        if self.ui_hide: return
+
         pre = self._ui_windows_updating
         self._ui_windows_updating = True
         self.ui_main.is_visible = options['show main window']
@@ -465,6 +471,7 @@ class RetopoFlow_UI:
 
         # load ui.css
         self.reload_stylings()
+        self.ui_hide = False
 
         self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
 

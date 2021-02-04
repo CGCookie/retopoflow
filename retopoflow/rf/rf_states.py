@@ -201,8 +201,8 @@ class RetopoFlow_States(CookieCutter):
 
             # toggle ui
             if self.actions.pressed('toggle ui'):
-                hide = self.ui_main.is_visible or self.ui_tiny.is_visible
-                if hide:
+                self.ui_hide = self.ui_main.is_visible or self.ui_tiny.is_visible
+                if self.ui_hide:
                     self._reshow_main = self.ui_main.is_visible
                     self.ui_main.is_visible = False
                     self.ui_tiny.is_visible = False
@@ -213,8 +213,8 @@ class RetopoFlow_States(CookieCutter):
                         self.ui_main.is_visible = True
                     else:
                         self.ui_tiny.is_visible = True
-                    self.ui_options.is_visible = self.ui_show_options.disabled
-                    self.ui_geometry.is_visible = self.ui_show_geometry.disabled
+                    self.ui_options.is_visible = self.ui_main.getElementById('show-options').disabled
+                    self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
                 return
 
             if self.actions.pressed('pie menu'):
