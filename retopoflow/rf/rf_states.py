@@ -417,6 +417,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
+        self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('rotate selected')
     @profiler.function
@@ -454,6 +455,7 @@ class RetopoFlow_States(CookieCutter):
     def rotate_selected_exit(self):
         opts = self.rotate_selected_opts
         opts['timer'].done()
+        self.set_accel_defer(False)
 
 
 
@@ -477,6 +479,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
+        self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('scale selected')
     @profiler.function
@@ -510,6 +513,7 @@ class RetopoFlow_States(CookieCutter):
     def scale_selected_exit(self):
         opts = self.scale_selected_opts
         opts['timer'].done()
+        self.set_accel_defer(False)
 
 
     def setup_smart_selection_painting(self, bmelem_types, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
@@ -596,6 +600,7 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('smart selection painting', 'enter')
     def smart_selection_painting_enter(self):
         self._last_mouse = None
+        self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('smart selection painting')
     def smart_selection_painting(self):
@@ -631,6 +636,7 @@ class RetopoFlow_States(CookieCutter):
     @CookieCutter.FSM_State('smart selection painting', 'exit')
     def smart_selection_painting_exit(self):
         self.selection_painting_opts = None
+        self.set_accel_defer(False)
 
 
     def setup_selection_painting(self, bmelem_type, select=None, sel_only=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):

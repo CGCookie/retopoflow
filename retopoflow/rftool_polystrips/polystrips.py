@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 import bpy
 import math
+import time
 import random
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
@@ -85,8 +86,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
     @RFTool_PolyStrips.on_target_change
     @profiler.function
-    def update_target(self):
-        if self._fsm.state in {'move handle', 'rotate', 'scale'}: return
+    def update_target(self, force=False):
+        if not force and self._fsm.state in {'move handle', 'rotate', 'scale'}: return
 
         self.strips = []
         self._var_cut_count.disabled = True
@@ -285,6 +286,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move handle')
     @RFTool_PolyStrips.dirty_when_done
@@ -321,6 +323,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     @RFTool_PolyStrips.FSM_State('move handle', 'exit')
     def movehandle_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
+        self.update_target(force=True)
 
 
     @RFTool_PolyStrips.FSM_State('rotate', 'can enter')
@@ -362,6 +366,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('rotate')
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('rotate')
     @RFTool_PolyStrips.dirty_when_done
@@ -395,6 +400,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     @RFTool_PolyStrips.FSM_State('rotate', 'exit')
     def rotate_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
+        self.update_target(force=True)
 
 
 
@@ -461,6 +468,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 self.scale_bmv[bmv] += [(c, bmv.co-c, s)]
 
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('scale')
     @RFTool.dirty_when_done
@@ -491,6 +499,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     @RFTool_PolyStrips.FSM_State('scale', 'exit')
     def scale_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
+        self.update_target(force=True)
 
 
     @RFTool_PolyStrips.FSM_State('move all', 'can enter')
@@ -505,27 +515,39 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def moveall_enter(self):
         lmb_drag = self.actions.using('action')
         self.actions.unpress()
-        self.mousedown = self.actions.mouse
         self.rfwidget = None  # self.rfwidgets['default']
         self.rfcontext.undo_push('move grabbed')
-        self.move_done_pressed = None if lmb_drag else 'confirm'
-        self.move_done_released = 'action' if lmb_drag else None
-        self.move_cancelled = 'cancel'
-        self._timer = self.actions.start_timer(120.0)
+        self.moveall_opts = {
+            'mousedown': self.actions.mouse,
+            'move_done_pressed': None if lmb_drag else 'confirm',
+            'move_done_released': 'action' if lmb_drag else None,
+            'move_cancelled': 'cancel',
+            'timer': self.actions.start_timer(120.0),
+            'lasttime': 0,
+            'lastmouse': None,
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move all')
     @RFTool_PolyStrips.dirty_when_done
     @profiler.function
     def moveall(self):
-        if self.actions.pressed(self.move_done_pressed):
+        opts = self.moveall_opts
+
+        if self.actions.pressed(opts['move_done_pressed']):
             return 'main'
-        if self.actions.released(self.move_done_released):
+        if self.actions.released(opts['move_done_released']):
             return 'main'
-        if self.actions.pressed(self.move_cancelled):
+        if self.actions.pressed(opts['move_cancelled']):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        delta = Vec2D(self.actions.mouse - self.mousedown)
+        if self.actions.mouse == opts['lastmouse']: return
+        if time.time() < opts['lasttime'] + 0.1: return
+        opts['lastmouse'] = self.actions.mouse
+        opts['lasttime'] = time.time()
+
+        delta = Vec2D(self.actions.mouse - opts['mousedown'])
         set2D_vert = self.rfcontext.set2D_vert
         for bmv,xy in self.bmverts:
             if not bmv.is_valid: continue
@@ -535,7 +557,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
     @RFTool_PolyStrips.FSM_State('move all', 'exit')
     def moveall_exit(self):
-        self._timer.done()
+        self.moveall_opts['timer'].done()
+        self.rfcontext.set_accel_defer(False)
+        self.update_target(force=True)
 
 
 
