@@ -6,6 +6,8 @@ Quick Shortcut: {{ site.data.keymaps.knife_quick }}
 
 The Knife tool allows you to cut into the existing geometry similarly to Blender's Knife tool.
 
+![](help_knife.png)
+
 Note: the Knife tool will only cut into existing geometry; it will not create new vertices, edges, or faces.
 
 If nothing is selected, the first insert will

@@ -7,11 +7,21 @@
 
 body {
     background: rgba(32, 32, 32, 1.0);
-    color: white;
+    color: rgb(216, 216, 216);
+    font-size: 14px;
+}
+
+section a {
+    text-decoration-line: underline;
+    color: rgb(221, 221, 221);
 }
 
 h1, h2, h3 {
-    color: rgba(224, 224, 224, 1.0);
+    color: white;
+}
+
+h1 a {
+    color: white;
 }
 
 h2 {
@@ -38,15 +48,13 @@ img {
 li img {
     width: 24px;
     height: 24px;
+    padding-top: 8px;
+    padding-right: 8px;
 }
 
 h1 img {
     width: 32px;
     height: 32px;
-}
-
-a {
-    color: rgb(221, 221, 221);
 }
 
 a:hover {
@@ -60,6 +68,7 @@ th, td {
 
 
 /* undo theme styling on header and footer */
+
 header ul {
     list-style: none;
     height: auto;
@@ -78,6 +87,7 @@ header ul li a {
     text-align: left;
     height: auto;
     color: rgb(221, 221, 221);
+    font-size: 16px;
 }
 header ul li a:hover {
     font-weight: unset;

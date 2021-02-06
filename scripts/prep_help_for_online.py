@@ -26,6 +26,9 @@ def read_file(filename):
     except: pass
     return None
 
+def write_file(filename, contents):
+    codecs.open(filename, mode='w', encoding='utf-8').write(contents)
+
 def process_mdown(mdown):
     # convert keymaps {{something foo, bar}}  ==>  {{ keymaps.something_foo }}, {{ keymaps.bar }}
     nf = []
@@ -179,7 +182,7 @@ if PROCESS_MARKDOWN:
         print(f'Processing: {fn}')
         mdown = read_file(fn)
         mdown = process_mdown(mdown)
-        f = open(os.path.join(path_docs, fn), 'wt').write(mdown)
+        write_file(os.path.join(path_docs, fn), mdown)
 
 if COPY_IMAGES:
     # copy over PNG files (except for thumbnails)
@@ -226,7 +229,7 @@ for k,v in keymaps.items():
     v = '<code>' + convert_actions_to_human_readable(v, join='</code>, <code>') + '</code>'
     keymaps_data.append(f'{k}: "{v}"')
 keymaps_data = '\n'.join(keymaps_data)
-open(path_keymaps, 'wt').write(keymaps_data)
+write_file(path_keymaps, keymaps_data)
 
 
 # process options
@@ -244,5 +247,5 @@ for k,r in grab:
         continue
     options_data.append(f"{k}: {m.group('val')}")
 options_data = '\n'.join(options_data)
-open(path_options, 'wt').write(options_data)
+write_file(path_options, options_data)
 
