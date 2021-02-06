@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import math
+import time
 import random
 
 import bgl
@@ -314,6 +315,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_prevmouse = None
 
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('rotate plane')
     @RFTool_Contours.dirty_when_done
@@ -374,6 +376,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.FSM_State('rotate plane', 'exit')
     def rotateplane_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
 
 
     def action_setup(self):
@@ -435,15 +438,20 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         #self.grab_along = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
         #self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
-        self.mousedown = self.actions.mouse
-        self.move_prevmouse = None
-
-        self._timer = self.actions.start_timer(120.0)
+        self.grab_opts = {
+            'mousedown': self.actions.mouse,
+            'lastmouse': None,
+            'lasttime': 0,
+            'timer': self.actions.start_timer(120.0),
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('grab')
     @RFTool_Contours.dirty_when_done
     @profiler.function
     def grab(self):
+        opts = self.grab_opts
+
         if self.rfcontext.actions.pressed(self.move_done_pressed):
             return 'main'
         if self.rfcontext.actions.released(self.move_done_released, ignoredrag=True):
@@ -454,11 +462,12 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         # only update cut on timer events and when mouse has moved
         if not self.rfcontext.actions.timer: return
-        # if not self.rfcontext.actions.mousemove: return
-        if self.move_prevmouse == self.rfcontext.actions.mouse: return
-        self.move_prevmouse = self.rfcontext.actions.mouse
+        if opts['lastmouse'] == self.actions.mouse: return
+        if time.time() < opts['lasttime'] + 0.1: return
+        opts['lastmouse'] = self.actions.mouse
+        opts['lasttime'] = time.time()
 
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - opts['mousedown'])
         # self.crawl_viz = []
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
@@ -509,7 +518,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
     @RFTool_Contours.FSM_State('grab', 'exit')
     def grab_exit(self):
-        self._timer.done()
+        self.grab_opts['timer'].done()
+        self.rfcontext.set_accel_defer(False)
 
 
     @RFTool_Contours.FSM_State('rotate screen', 'can enter')
@@ -545,6 +555,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.move_prevmouse = None
 
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('rotate screen')
     @RFTool_Contours.dirty_when_done
@@ -616,6 +627,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.FSM_State('rotate screen', 'exit')
     def rotatescreen_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
 
 
     @Contours_RFWidgets.RFWidget_LineCut.on_action
@@ -657,7 +669,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def draw_post2d_grab(self):
         project = self.rfcontext.Point_to_Point2D
         intersect = self.rfcontext.raycast_sources_Point2D
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.grab_opts['mousedown'])
         c0_good, c1_good = (1.0, 0.1, 1.0, 0.5), (1.0, 0.1, 1.0, 0.0)
         c0_bad,  c1_bad  = (1.0, 0.1, 0.1, 1.0), (1.0, 0.1, 0.1, 0.0)
         bgl.glEnable(bgl.GL_BLEND)
