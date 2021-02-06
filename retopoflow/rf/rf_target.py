@@ -28,6 +28,7 @@ import bpy
 from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import matrix_vector_mult
+from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox

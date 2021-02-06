@@ -111,6 +111,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.rfcontext.loading_done:
             self.set_next_state(force=True)
 
+    @RFTool_PolyPen.on_mouse_stop
+    @RFTool_PolyPen.FSM_OnlyInState({'main'})
+    def update_next_state_mouse(self):
+        self.set_next_state(force=True)
+        tag_redraw_all('PolyPen mouse stop')
+
     @profiler.function
     def set_next_state(self, force=False):
         '''
@@ -206,7 +212,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('main')
     def main(self):
-        if self.first_time or self.actions.mousemove:
+        if self.first_time:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')

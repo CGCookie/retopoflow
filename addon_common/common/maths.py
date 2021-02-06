@@ -1562,17 +1562,17 @@ class Accel2D:
         self.face_type = type(self.faces[0]) if self.faces else None
         self.bins = {}
 
-        self.v2Ds = [Point_to_Point2D(v.co) for v in verts]
-        self.v2Ds = [p for p in self.v2Ds if p]
-        self.map_v_v2D = {v: v2d for (v, v2d) in zip(verts, self.v2Ds)}
-        if self.v2Ds:
+        v2Ds = [Point_to_Point2D(v.co) for v in verts]
+        self.map_v_v2D = {v: v2d for (v, v2d) in zip(verts, v2Ds)}
+        v2Ds = [p for p in v2Ds if p]
+        if v2Ds:
             self.min = Point2D((
-                min(x - 0.001 for (x, _) in self.v2Ds),
-                min(y - 0.001 for (_, y) in self.v2Ds)
+                min(x - 0.001 for (x, _) in v2Ds),
+                min(y - 0.001 for (_, y) in v2Ds)
             ))
             self.max = Point2D((
-                max(x + 0.001 for (x, _) in self.v2Ds),
-                max(y + 0.001 for (_, y) in self.v2Ds)
+                max(x + 0.001 for (x, _) in v2Ds),
+                max(y + 0.001 for (_, y) in v2Ds)
             ))
         else:
             self.min = Point2D((0, 0))
@@ -1580,13 +1580,15 @@ class Accel2D:
         self.size = self.max - self.min
 
         # inserting verts
-        for (v, v2d) in zip(verts, self.v2Ds):
+        for (v, v2d) in zip(verts, v2Ds):
+            if not v2d: continue
             i, j = self.compute_ij(v2d)
             self._put(i, j, v)
 
         # inserting edges
         for e in edges:
             v0, v1 = self.map_v_v2D[e.verts[0]], self.map_v_v2D[e.verts[1]]
+            if not v0 or not v1: continue
             ij0, ij1 = self.compute_ij(v0), self.compute_ij(v1)
             mini, minj = min(ij0[0], ij1[0]), min(ij0[1], ij1[1])
             maxi, maxj = max(ij0[0], ij1[0]), max(ij0[1], ij1[1])
@@ -1599,8 +1601,7 @@ class Accel2D:
         # inserting faces
         for f in faces:
             v2ds = [self.map_v_v2D[v] for v in f.verts]
-            if not v2ds:
-                continue
+            if not all(v2ds): continue
             ijs = list(map(self.compute_ij, v2ds))
             mini, minj = min(i for (i, j) in ijs), min(j for (i, j) in ijs)
             maxi, maxj = max(i for (i, j) in ijs), max(j for (i, j) in ijs)

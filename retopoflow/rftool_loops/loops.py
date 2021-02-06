@@ -31,6 +31,7 @@ from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.drawing import CC_2D_LINE_STRIP, CC_2D_LINE_LOOP, CC_DRAW
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
@@ -126,6 +127,8 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('main')
     def main(self):
+        if self.actions.mousemove: return  # ignore mouse moves
+
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
@@ -290,10 +293,15 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.on_target_change
     @RFTool_Loops.on_view_change
-    @RFTool_Loops.on_mouse_move
     @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
     def update_next_state(self):
         self.set_next_state()
+
+    @RFTool_Loops.on_mouse_stop
+    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
+    def update_next_state_mouse(self):
+        self.set_next_state()
+        tag_redraw_all('Loops mouse stop')
 
     @profiler.function
     def set_next_state(self):
@@ -335,7 +343,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             self.edges = None
             return
         self.percent = a.dot(b) / adota;
-
 
 
     def prep_edit(self):
