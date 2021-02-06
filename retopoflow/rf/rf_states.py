@@ -414,6 +414,7 @@ class RetopoFlow_States(CookieCutter):
         opts['move_cancelled'] = 'cancel'
         opts['timer'] = self.actions.start_timer(120.0)
         opts['mouselast'] = self.actions.mouse
+        opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
 
@@ -430,7 +431,9 @@ class RetopoFlow_States(CookieCutter):
             return 'main'
 
         if (self.actions.mouse - opts['mouselast']).length == 0: return
+        if time.time() < opts['lasttime'] + 0.05: return
         opts['mouselast'] = self.actions.mouse
+        opts['lasttime'] = time.time()
 
         delta = Direction2D(self.actions.mouse - opts['center'])
         dx,dy = opts['rotate_x'].dot(delta),opts['rotate_y'].dot(delta)
@@ -471,6 +474,7 @@ class RetopoFlow_States(CookieCutter):
         opts['move_cancelled'] = 'cancel'
         opts['timer'] = self.actions.start_timer(120.0)
         opts['mouselast'] = self.actions.mouse
+        opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
 
@@ -487,7 +491,9 @@ class RetopoFlow_States(CookieCutter):
             return 'main'
 
         if (self.actions.mouse - opts['mouselast']).length == 0: return
+        if time.time() < opts['lasttime'] + 0.05: return
         opts['mouselast'] = self.actions.mouse
+        opts['lasttime'] = time.time()
 
         dist = (self.actions.mouse - opts['center']).length
 

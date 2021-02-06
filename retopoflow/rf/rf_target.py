@@ -64,6 +64,8 @@ class RetopoFlow_Target:
         self.accel_vis_accel = None
         self._last_visible_bbox_factor = None
         self._last_visible_dist_offset = None
+        self._last_draw_count = -1
+        self._draw_count = 0
 
     def hide_target(self):
         self.rftarget.obj_viewport_hide()
@@ -101,6 +103,7 @@ class RetopoFlow_Target:
         recompute |= options['visible dist offset'] != self._last_visible_dist_offset
         recompute &= not self.accel_defer_recomputing
         recompute &= not self._nav and (time.time() - self._nav_time) > 0.25
+        recompute &= self._draw_count != self._last_draw_count
 
         self.accel_recompute = False
 
@@ -114,6 +117,7 @@ class RetopoFlow_Target:
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
             self._last_visible_bbox_factor = options['visible bbox factor']
             self._last_visible_dist_offset = options['visible dist offset']
+            self._last_draw_count = self._draw_count
         else:
             self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid } if self.accel_vis_verts is not None else None
             self.accel_vis_edges = { bme for bme in self.accel_vis_edges if bme.is_valid } if self.accel_vis_edges is not None else None
