@@ -602,7 +602,7 @@ class RetopoFlow_States(CookieCutter):
         opts = self.selection_painting_opts
 
         if opts['lastmouse'] == self.actions.mouse: return
-        if time.time() < opts['lasttime'] + 0.25: return
+        if time.time() < opts['lasttime'] + 0.05: return
 
         bmelem = opts['get']()
         if not bmelem: return
