@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin, floor, ceil, isinf
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt
 import re
 from typing import List
 
@@ -1578,6 +1578,9 @@ class Accel2D:
             self.min = Point2D((0, 0))
             self.max = Point2D((1, 1))
         self.size = self.max - self.min
+
+        self.bin_cols = ceil(sqrt(len(v2Ds)))
+        self.bin_rows = ceil(sqrt(len(v2Ds)))
 
         # inserting verts
         for (v, v2d) in zip(verts, v2Ds):

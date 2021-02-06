@@ -148,13 +148,17 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def update_strip_viz(self):
         self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
 
+    @RFTool_PolyStrips.on_target_change
+    @RFTool_PolyStrips.on_view_change
+    @RFTool_PolyStrips.FSM_OnlyInState('main')
+    def update_next_state(self):
+        self.vis_accel = self.rfcontext.get_vis_accel()
+
 
     @RFTool_PolyStrips.FSM_State('main')
     def main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         mouse = self.actions.mouse
-
-        self.vis_accel = self.rfcontext.get_vis_accel()
 
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
