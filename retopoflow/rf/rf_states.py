@@ -28,6 +28,7 @@ from collections import deque
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.drawing import Cursors
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
@@ -509,17 +510,19 @@ class RetopoFlow_States(CookieCutter):
         kwargs_filter = kwargs_filter or {}
         fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
 
+        vis_accel = self.get_vis_accel()
+
         def get_bmelem(*args, **kwargs):
-            nonlocal fn_filter, bmelem_types
+            nonlocal fn_filter, bmelem_types, vis_accel
             bmelem, dist = None, float('inf')
             if 'vert' in bmelem_types:
-                _bmelem, _dist = self.accel_nearest2D_vert(*args, **kwargs)
+                _bmelem, _dist = self.accel_nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
                 if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem, dist = _bmelem, _dist
             if 'edge' in bmelem_types:
-                _bmelem, _dist = self.accel_nearest2D_edge(*args, **kwargs)
+                _bmelem, _dist = self.accel_nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
                 if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
             if 'face' in bmelem_types:
-                _bmelem, _dist = self.accel_nearest2D_face(*args, **kwargs)
+                _bmelem, _dist = self.accel_nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
                 if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
             return bmelem
 
@@ -573,6 +576,9 @@ class RetopoFlow_States(CookieCutter):
             'op':        op,
             'deselect':  deselect_all,
             'previous':  [],
+            'lastmouse': None,
+            'lasttime':  0,
+            'lastelem':  None,
         }
 
         self.undo_push('smart select' if selecting else 'smart deselect')
@@ -587,22 +593,25 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('smart selection painting')
     def smart_selection_painting(self):
-        assert self.selection_painting_opts
-        opts = self.selection_painting_opts
-
-        if self.actions.mousemove:
-            tag_redraw_all('RF selection_painting')
         if self.actions.pressed('cancel'):
             self.undo_cancel()
             return 'main'
         if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):
             return 'main'
-        if self._last_mouse == self.actions.mouse: return
-        self._last_mouse = self.actions.mouse
+
+        opts = self.selection_painting_opts
+
+        if opts['lastmouse'] == self.actions.mouse: return
+        if time.time() < opts['lasttime'] + 0.25: return
 
         bmelem = opts['get']()
         if not bmelem: return
         if bmelem not in opts['path']: return
+        if bmelem == opts['lastelem']: return
+
+        opts['lasttime'] = time.time()
+        opts['lastmouse'] = self.actions.mouse
+        opts['lastelem'] = bmelem
 
         for bme,s in opts['previous']: bme.select = s
         opts['previous'] = []
@@ -610,6 +619,8 @@ class RetopoFlow_States(CookieCutter):
             opts['previous'].append((bmelem, bmelem.select))
             opts['op'](bmelem)
             bmelem = opts['path'][bmelem]
+
+        tag_redraw_all('RF selection_painting')
 
     @CookieCutter.FSM_State('smart selection painting', 'exit')
     def smart_selection_painting_exit(self):
