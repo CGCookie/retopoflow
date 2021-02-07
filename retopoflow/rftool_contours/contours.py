@@ -298,13 +298,11 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rfcontext.undo_push('rotate plane contours')
 
         self.mousedown = self.rfcontext.actions.mouse
-        self.move_prevmouse = None
 
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('rotate plane')
-    @RFTool_Contours.dirty_when_done
     @profiler.function
     def rotateplane_main(self):
         if self.rfcontext.actions.pressed('confirm'):
@@ -317,10 +315,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'rotate screen'
 
-        # only update cut on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.move_prevmouse == self.rfcontext.actions.mouse: return
-        self.move_prevmouse = self.rfcontext.actions.mouse
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        # # only update cut on timer events and when mouse has moved
+        # if not self.rfcontext.actions.timer: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         shift_offset = self.rfcontext.drawing.unscale(self.rot_perp2D.dot(delta)) / 1000
@@ -358,6 +355,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 if i == l: break
 
             self.rfcontext.update_verts_faces(verts)
+        self.rfcontext.dirty()
 
     @RFTool_Contours.FSM_State('rotate plane', 'exit')
     def rotateplane_exit(self):
@@ -426,14 +424,11 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
         self.grab_opts = {
             'mousedown': self.actions.mouse,
-            'lastmouse': None,
-            'lasttime': 0,
             'timer': self.actions.start_timer(120.0),
         }
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('grab')
-    @RFTool_Contours.dirty_when_done
     @profiler.function
     def grab(self):
         opts = self.grab_opts
@@ -446,12 +441,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'main'
 
-        # only update cut on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if opts['lastmouse'] == self.actions.mouse: return
-        if time.time() < opts['lasttime'] + 0.1: return
-        opts['lastmouse'] = self.actions.mouse
-        opts['lasttime'] = time.time()
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        # # only update cut on timer events and when mouse has moved
+        # if not self.rfcontext.actions.timer: return
 
         delta = Vec2D(self.actions.mouse - opts['mousedown'])
         # self.crawl_viz = []
@@ -501,6 +493,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 if i == l: break
 
             self.rfcontext.update_verts_faces(verts)
+        self.rfcontext.dirty()
 
     @RFTool_Contours.FSM_State('grab', 'exit')
     def grab_exit(self):
@@ -538,13 +531,10 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rotate_about = self.rfcontext.Point_to_Point2D(sum(self.move_origins, Vec((0,0,0))) / len(self.move_origins))
         self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
-        self.move_prevmouse = None
-
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('rotate screen')
-    @RFTool_Contours.dirty_when_done
     @profiler.function
     def rotatescreen_main(self):
         if self.rfcontext.actions.pressed('confirm'):
@@ -557,10 +547,9 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'rotate plane'
 
-        # only update cut on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.move_prevmouse == self.rfcontext.actions.mouse: return
-        self.move_prevmouse = self.rfcontext.actions.mouse
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        # # only update cut on timer events and when mouse has moved
+        # if not self.rfcontext.actions.timer: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.rotate_about)
         rotate = (math.atan2(delta.y, delta.x) - self.rotate_start + math.pi) % (math.pi * 2)
@@ -609,6 +598,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 if i == l: break
 
             self.rfcontext.update_verts_faces(verts)
+        self.rfcontext.dirty()
 
     @RFTool_Contours.FSM_State('rotate screen', 'exit')
     def rotatescreen_exit(self):
