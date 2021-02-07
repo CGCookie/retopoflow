@@ -237,7 +237,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Patches.FSM_State('move')
-    @RFTool.dirty_when_done
     def move_main(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
@@ -253,9 +252,10 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
-        # if not self.actions.mousemove: return
+        if not self.actions.mousemove_stop: return
+        # if not self.rfcontext.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
+        # # if not self.actions.mousemove: return
 
         delta = Vec2D(self.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -274,6 +274,8 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             # else:
             #     set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+
+        self.rfcontext.dirty()
 
     @RFTool_Patches.FSM_State('move', 'exit')
     def move_exit(self):
