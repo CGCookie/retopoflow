@@ -641,11 +641,14 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('move', 'enter')
     def move_enter(self):
-        self._timer = self.actions.start_timer(120)
+        self.move_opts = {
+            # 'timer': self.actions.start_timer(120),
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyPen.FSM_State('move')
     @profiler.function
-    @RFTool_PolyPen.dirty_when_done
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -660,9 +663,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        # only update verts on timer events and when mouse has moved
-        if not self.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        if not self.actions.mousemove_stop: return
+        # # only update verts on timer events and when mouse has moved
+        # if not self.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
 
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
@@ -674,21 +678,32 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if not xy1: continue
-                    if bmv == bmv1: continue
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
+                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_opts['vis_accel'], max_dist=options['polypen merge dist'])
+                if bmv1 is None:
                     set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
+                # for bmv1,xy1 in self.vis_bmverts:
+                #     if not xy1: continue
+                #     if bmv == bmv1: continue
+                #     if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
+                #         set2D_vert(bmv, xy1)
+                #         break
+                # else:
+                #     set2D_vert(bmv, xy_updated)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        self.rfcontext.dirty()
 
     @RFTool_PolyPen.FSM_State('move', 'exit')
     def move_exit(self):
-        self._timer.done()
+        # self.move_opts['timer'].dine()
+        self.rfcontext.set_accel_defer(False)
 
 
     def draw_lines(self, coords, poly_alpha=0.2):

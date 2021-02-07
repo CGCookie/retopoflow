@@ -125,6 +125,17 @@ class RetopoFlow_Target:
 
         return self.accel_vis_accel
 
+    def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True):
+        vis_verts = self.visible_verts()
+        verts = vis_verts                           if include_verts else []
+        edges = self.visible_edges(verts=vis_verts) if include_edges else []
+        faces = self.visible_faces(verts=vis_verts) if include_faces else []
+        if selection_only is not None:
+            verts = [v for v in verts if v.select == selection_only]
+            edges = [e for e in edges if e.select == selection_only]
+            faces = [f for f in faces if f.select == selection_only]
+        return Accel2D(verts, edges, faces, self.get_point2D)
+
     @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         xy = self.get_point2D(point or self.actions.mouse)

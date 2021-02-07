@@ -234,6 +234,8 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         self.rfcontext.undo_push('move grabbed')
 
+        self.rfcontext.set_accel_defer(True)
+
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Patches.FSM_State('move')
@@ -280,6 +282,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
     @RFTool_Patches.FSM_State('move', 'exit')
     def move_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
 
     @RFTool.dirty_when_done
     def fill_patch(self):
