@@ -266,7 +266,6 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
 
         self.sel_cbpts = [(cbpt, cbpt in inners, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.actions.mouse
-        self.mouselast = self.actions.mouse
         self.rfwidget = self.rfwidgets['move']
         self.move_done_pressed = 'confirm'
         self.move_done_released = 'action'
@@ -276,7 +275,6 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move handle')
-    @RFTool_PolyStrips.dirty_when_done
     def movehandle(self):
         if self.actions.pressed(self.move_done_pressed):
             return 'main'
@@ -286,8 +284,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if (self.actions.mouse - self.mouselast).length == 0: return
-        self.mouselast = self.actions.mouse
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
 
         delta = Vec2D(self.actions.mouse - self.mousedown)
         up,rt,fw = self.rfcontext.Vec_up(),self.rfcontext.Vec_right(),self.rfcontext.Vec_forward()
@@ -306,6 +303,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()
+        self.rfcontext.dirty()
 
     @RFTool_PolyStrips.FSM_State('move handle', 'exit')
     def movehandle_exit(self):
@@ -356,7 +354,6 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('rotate')
-    @RFTool_PolyStrips.dirty_when_done
     @profiler.function
     def rotate(self):
         if not self.rotate_about: return 'main'
@@ -367,6 +364,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if self.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
 
         prev_diff = self.mousedown - self.rotate_about
         prev_rot = math.atan2(prev_diff.x, prev_diff.y)
@@ -383,6 +382,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             strip.update(self.rfcontext.nearest_sources_Point, self.rfcontext.raycast_sources_Point, self.rfcontext.update_face_normal)
 
         self.update_strip_viz()
+        self.rfcontext.dirty()
 
     @RFTool_PolyStrips.FSM_State('rotate', 'exit')
     def rotate_exit(self):
@@ -458,7 +458,6 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('scale')
-    @RFTool.dirty_when_done
     @profiler.function
     def scale(self):
         if self.actions.pressed(self.move_done_pressed):
@@ -468,6 +467,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if self.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
             return 'main'
+
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
 
         vec0 = self.mousedown - self.scale_from
         vec1 = self.actions.mouse - self.scale_from
@@ -482,6 +483,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                 n += c + v * max(0, 1 + (scale-1) * sc)
             bmv.co = n / len(l)
             snap_vert(bmv)
+
+        self.rfcontext.dirty()
 
     @RFTool_PolyStrips.FSM_State('scale', 'exit')
     def scale_exit(self):
@@ -510,13 +513,10 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             'move_done_released': 'action' if lmb_drag else None,
             'move_cancelled': 'cancel',
             'timer': self.actions.start_timer(120.0),
-            'lasttime': 0,
-            'lastmouse': None,
         }
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move all')
-    @RFTool_PolyStrips.dirty_when_done
     @profiler.function
     def moveall(self):
         opts = self.moveall_opts
@@ -529,10 +529,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if self.actions.mouse == opts['lastmouse']: return
-        if time.time() < opts['lasttime'] + 0.1: return
-        opts['lastmouse'] = self.actions.mouse
-        opts['lasttime'] = time.time()
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
 
         delta = Vec2D(self.actions.mouse - opts['mousedown'])
         set2D_vert = self.rfcontext.set2D_vert
@@ -540,6 +537,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             if not bmv.is_valid: continue
             set2D_vert(bmv, xy + delta)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        self.rfcontext.dirty()
         #self.update()
 
     @RFTool_PolyStrips.FSM_State('move all', 'exit')
