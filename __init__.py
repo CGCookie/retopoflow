@@ -27,6 +27,7 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+import bgl
 from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
@@ -45,36 +46,40 @@ bl_info = {
 }
 
 import_succeeded = False
-try:
-    if "retopoflow" in locals():
-        print('RetopoFlow: RELOADING!')
-        # reloading RF modules
-        importlib.reload(retopoflow)
-        importlib.reload(configoptions)
-        importlib.reload(updater)
-        importlib.reload(rftool)
-    else:
-        print('RetopoFlow: Initial load')
-        from .retopoflow import retopoflow
-        from .config import options as configoptions
-        from .retopoflow import updater
-        from .addon_common.common.maths import convert_numstr_num
-        from .addon_common.common.blender import get_active_object
-        from .retopoflow import rftool
-    options = configoptions.options
-    retopoflow_version = configoptions.retopoflow_version
-    import_succeeded = True
-    RFTool = rftool.RFTool
-except ModuleNotFoundError as e:
-    print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
-    print(e)
-except Exception as e:
-    print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
-    print(e)
-    from .addon_common.common.debug import Debugger
-    message,h = Debugger.get_exception_info_and_hash()
-    message = '\n'.join('- %s'%l for l in message.splitlines())
-    print(message)
+
+if bpy.app.background:
+    print(f'RetopoFlow: Blender is running in background; skipping any RF initializations')
+else:
+    try:
+        if "retopoflow" in locals():
+            print('RetopoFlow: RELOADING!')
+            # reloading RF modules
+            importlib.reload(retopoflow)
+            importlib.reload(configoptions)
+            importlib.reload(updater)
+            importlib.reload(rftool)
+        else:
+            print('RetopoFlow: Initial load')
+            from .retopoflow import retopoflow
+            from .config import options as configoptions
+            from .retopoflow import updater
+            from .addon_common.common.maths import convert_numstr_num
+            from .addon_common.common.blender import get_active_object
+            from .retopoflow import rftool
+        options = configoptions.options
+        retopoflow_version = configoptions.retopoflow_version
+        import_succeeded = True
+        RFTool = rftool.RFTool
+    except ModuleNotFoundError as e:
+        print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
+        print(e)
+    except Exception as e:
+        print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
+        print(e)
+        from .addon_common.common.debug import Debugger
+        message,h = Debugger.get_exception_info_and_hash()
+        message = '\n'.join('- %s'%l for l in message.splitlines())
+        print(message)
 
 
 # the classes to register/unregister
