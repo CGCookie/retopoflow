@@ -449,7 +449,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Loops.FSM_State('slide')
-    @RFTool_Loops.dirty_when_done
     @profiler.function
     def slide(self):
         released = self.rfcontext.actions.released
@@ -463,9 +462,10 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
         self.rfwidget = self.rfwidgets['hover']
 
-        # only update loop on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        if not self.actions.mousemove_stop: return
+        # # only update loop on timer events and when mouse has moved
+        # if not self.rfcontext.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
 
         mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
         a,b = self.vector, mouse_delta.project(self.tangent)
@@ -477,6 +477,8 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             delta = sum((v*percent for v in vecs), Vec((0,0,0))) / len(vecs)
             bmv.co = co + delta
             self.rfcontext.snap_vert(bmv)
+
+        self.rfcontext.dirty()
 
     @RFTool_Loops.FSM_State('slide', 'exit')
     def slide_exit(self):
