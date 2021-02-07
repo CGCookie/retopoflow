@@ -356,6 +356,7 @@ class Actions:
         self.mouse_lastb      = None    # last button pressed on mouse
         self.mousemove        = False   # is the current action a mouse move?
         self.mousemove_prev   = False   # was the previous action a mouse move?
+        self.mousemove_stop   = False   # did the mouse just stop moving?
         self.mousedown        = None    # mouse position when a mouse button was pressed
         self.mousedown_left   = None    # mouse position when LMB was pressed
         self.mousedown_middle = None    # mouse position when MMB was pressed
@@ -398,6 +399,7 @@ class Actions:
         self.trackpad = (event_type in Actions.trackpad_actions)
         self.ndof = (event_type in Actions.ndof_actions)
         self.navevent = (event_type in self.keymap['navigate'])
+        self.mousemove_stop = not self.mousemove and self.mousemove_prev
 
         if event_type in self.ignore_actions: return
 

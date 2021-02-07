@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import time
 import random
 
 import bgl
@@ -40,6 +41,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.decorators import timed_call
 
 
 from ...config.options import options, themes
@@ -127,7 +129,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.quick_knife = False
             return 'main'
 
-        if self.first_time or self.actions.mousemove:
+        if self.first_time or self.actions.mousemove_prev:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('Knife mousemove')
@@ -156,7 +158,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         if not self.actions.using_onlymods('insert'):
             self.knife_start = None
 
-        if self.first_time or self.actions.mousemove:
+        if self.first_time or self.actions.mousemove_stop:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('Knife mousemove')
@@ -464,7 +466,6 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
     @RFTool_Knife.FSM_State('move')
     @profiler.function
-    @RFTool_Knife.dirty_when_done
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -479,9 +480,9 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main' if not self.quick_knife else 'quick'
 
-        # only update verts on timer events and when mouse has moved
-        if not self.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        # # only update verts on timer events and when mouse has moved
+        # if not self.actions.timer: return
 
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
@@ -504,6 +505,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        self.rfcontext.dirty()
 
     @RFTool_Knife.FSM_State('move', 'exit')
     def move_exit(self):
