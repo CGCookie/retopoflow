@@ -527,17 +527,27 @@ class RetopoFlow_States(CookieCutter):
 
         def get_bmelem(*args, **kwargs):
             nonlocal fn_filter, bmelem_types, vis_accel, nearest2D_vert, nearest2D_edge, nearest2D_face
-            bmelem, dist = None, float('inf')
             if 'vert' in bmelem_types:
-                _bmelem, _dist = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
-                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem, dist = _bmelem, _dist
+                bmelem, _ = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
             if 'edge' in bmelem_types:
-                _bmelem, _dist = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
-                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
+                bmelem, _ = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
             if 'face' in bmelem_types:
-                _bmelem, _dist = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
-                if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
-            return bmelem
+                bmelem, _ = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
+            return None
+            # bmelem, dist = None, float('inf')
+            # if 'vert' in bmelem_types:
+            #     _bmelem, _dist = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
+            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem, dist = _bmelem, _dist
+            # if 'edge' in bmelem_types:
+            #     _bmelem, _dist = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
+            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
+            # if 'face' in bmelem_types:
+            #     _bmelem, _dist = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
+            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
+            # return bmelem
 
         bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
         if not bmelem: return   # nothing there; leave!
