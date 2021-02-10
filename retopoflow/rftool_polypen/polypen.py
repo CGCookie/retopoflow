@@ -78,6 +78,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
         self._var_automerge   = BoundBool(  '''options['polypen automerge']  ''')
         self._var_insert_mode = BoundString('''options['polypen insert mode']''')
+        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     def update_insert_mode(self):
         mode = options['polypen insert mode']
@@ -90,6 +91,10 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.ui_options_label = ui_options.getElementById('polypen-summary-label')
         self.ui_insert_modes  = ui_options.getElementById('polypen-insert-modes')
         self.update_insert_mode()
+
+    @RFTool_PolyPen.on_reset
+    def reset(self):
+        self.previs_timer.stop()
 
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
@@ -217,6 +222,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')
 
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             if self.next_state == 'knife selected edge':
                 self.rfwidget = self.rfwidgets['knife']
@@ -642,9 +648,9 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.FSM_State('move', 'enter')
     def move_enter(self):
         self.move_opts = {
-            # 'timer': self.actions.start_timer(120),
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
         }
+        self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyPen.FSM_State('move')
@@ -694,7 +700,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('move', 'exit')
     def move_exit(self):
-        # self.move_opts['timer'].dine()
+        self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
 
 
