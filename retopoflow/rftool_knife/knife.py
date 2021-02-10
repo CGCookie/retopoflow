@@ -462,7 +462,11 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
     @RFTool_Knife.FSM_State('move', 'enter')
     def move_enter(self):
-        self._timer = self.actions.start_timer(120)
+        self.move_opts = {
+            'timer': self.actions.start_timer(120),
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Knife.FSM_State('move')
     @profiler.function
@@ -484,6 +488,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         # # only update verts on timer events and when mouse has moved
         # if not self.actions.timer: return
 
+        if not self.actions.mousemove_stop: return
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
@@ -494,14 +499,15 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['knife automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if not xy1: continue
-                    if bmv == bmv1: continue
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['knife merge dist']):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
+                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_opts['vis_accel'], max_dist=options['knife merge dist'])
+                if bmv1 is None:
                     set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
@@ -509,8 +515,8 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
     @RFTool_Knife.FSM_State('move', 'exit')
     def move_exit(self):
-        self._timer.done()
-
+        self.move_opts['timer'].done()
+        self.rfcontext.set_accel_defer(False)
 
     def _get_crosses(self, p0, p1):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
