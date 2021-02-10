@@ -687,14 +687,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     set2D_vert(bmv, xy_updated)
                     continue
                 set2D_vert(bmv, xy1)
-                # for bmv1,xy1 in self.vis_bmverts:
-                #     if not xy1: continue
-                #     if bmv == bmv1: continue
-                #     if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['polypen merge dist']):
-                #         set2D_vert(bmv, xy1)
-                #         break
-                # else:
-                #     set2D_vert(bmv, xy_updated)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)

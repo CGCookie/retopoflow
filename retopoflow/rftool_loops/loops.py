@@ -446,7 +446,10 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'enter')
     def slide_enter(self):
-        self._timer = self.actions.start_timer(120)
+        self.slide_opts = {
+            'timer': self.actions.start_timer(120),
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Loops.FSM_State('slide')
     @profiler.function
@@ -482,7 +485,8 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'exit')
     def slide_exit(self):
-        self._timer.done()
+        self.slide_opts['timer'].done()
+        self.rfcontext.set_accel_defer(False)
 
 
     @RFTool_Loops.Draw('post2d')
