@@ -78,11 +78,15 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         self.knife_start = None
         self.quick_knife = False
         self.update_state_info()
+        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     @RFTool_Knife.on_reset
     def reset(self):
         if self.actions.using('knife quick'):
             self._fsm.force_set_state('quick')
+            self.previs_timer.start()
+        else:
+            self.previs_timer.stop()
 
     @RFTool_Knife.on_reset
     @RFTool_Knife.on_target_change
@@ -127,9 +131,10 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
     def quick_main(self):
         if self.actions.pressed({'confirm','cancel'}, ignoremouse=True):
             self.quick_knife = False
+            self.previs_timer.stop()
             return 'main'
 
-        if self.first_time or self.actions.mousemove_prev:
+        if self.first_time or self.actions.mousemove_stop:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('Knife mousemove')
@@ -163,6 +168,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.first_time = False
             tag_redraw_all('Knife mousemove')
 
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['knife']
         elif self.nearest_geom and self.nearest_geom.select:

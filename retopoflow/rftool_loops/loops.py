@@ -67,6 +67,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     @RFTool_Loops.on_init
     def init(self):
         self.init_rfwidgets()
+        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     @RFTool_Loops.on_mouse_move
     def mouse_move(self):
@@ -81,6 +82,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self.set_next_state()
         self.hovering_edge = None
         self.hovering_sel_edge = None
+        self.previs_timer.stop()
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -137,6 +139,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
         if self.hovering_sel_edge and not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
 
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
         elif self.hovering_edge:

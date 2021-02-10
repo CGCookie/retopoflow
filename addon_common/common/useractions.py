@@ -181,15 +181,26 @@ def i18n_translate(text):
 
 
 class TimerHandler:
-    def __init__(self, wm, win, hz):
+    def __init__(self, wm, win, hz, enabled=True):
+        self._win = win
         self._wm = wm
-        self._timer = wm.event_timer_add(1.0 / hz, window=win)
+        self._hz = hz
+        self._timer = None
+        self.enable(enabled)
     def __del__(self):
         self.done()
+    def start(self):
+        if self._timer: return
+        self._timer = self._wm.event_timer_add(1.0 / self._hz, window=self._win)
+    def stop(self):
+        if not self._timer: return
+        self._wm.event_timer_remove(self._timer)
+        self._timer = None
     def done(self):
-        if self._timer:
-            self._wm.event_timer_remove(self._timer)
-            self._timer = None
+        self.stop()
+    def enable(self, v):
+        if v: self.start()
+        else: self.stop()
 
 
 class Actions:
@@ -593,8 +604,8 @@ class Actions:
         #assert ftype in kmi_to_char, 'Trying to convert unhandled key "%s"' % str(self.just_pressed)
         return kmi_to_char.get(ftype, None)
 
-    def start_timer(self, hz):
-        return TimerHandler(self.context.window_manager, self.context.window, hz)
+    def start_timer(self, hz, enabled=True):
+        return TimerHandler(self.context.window_manager, self.context.window, hz, enabled=enabled)
 
 
 class ActionHandler:
