@@ -315,7 +315,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'rotate screen'
 
-        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        if not self.actions.mousemove_stop: return
         # # only update cut on timer events and when mouse has moved
         # if not self.rfcontext.actions.timer: return
 
@@ -441,7 +441,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        if not self.actions.mousemove_stop: return
         # # only update cut on timer events and when mouse has moved
         # if not self.rfcontext.actions.timer: return
 
@@ -547,7 +547,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.undo_cancel()
             return 'rotate plane'
 
-        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        if not self.actions.mousemove_stop: return
         # # only update cut on timer events and when mouse has moved
         # if not self.rfcontext.actions.timer: return
 
