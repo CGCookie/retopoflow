@@ -77,12 +77,14 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     def reset(self):
         if self.actions.using('loops quick'):
             self._fsm.force_set_state('quick')
+            self.previs_timer.start()
+        else:
+            self.previs_timer.stop()
 
         self.nearest_edge = None
         self.set_next_state()
         self.hovering_edge = None
         self.hovering_sel_edge = None
-        self.previs_timer.stop()
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -119,10 +121,12 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     @RFTool_Loops.FSM_State('quick')
     def quick_main(self):
         if self.actions.pressed('cancel'):
+            self.previs_timer.stop()
             return 'main'
 
-        self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
+        if self.actions.mousemove_stop:
+            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+            if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
 
         if self.hovering_edge and self.rfcontext.actions.pressed('quick insert'):
             return self.insert_edge_loop_strip()
@@ -449,9 +453,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'enter')
     def slide_enter(self):
-        self.slide_opts = {
-            'timer': self.actions.start_timer(120),
-        }
+        self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Loops.FSM_State('slide')
@@ -488,7 +490,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'exit')
     def slide_exit(self):
-        self.slide_opts['timer'].done()
+        self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
 
 
