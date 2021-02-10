@@ -197,7 +197,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.connection_post = None
         if self.actions.using_onlymods('insert'):
             hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-            if hovering_sel_vert:
+            if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
                 point_to_point2d = self.rfcontext.Point_to_Point2D
                 self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
 
@@ -297,7 +297,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def stroking(self):
         self.connection_post = None
         hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-        if hovering_sel_vert:
+        if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
             point_to_point2d = self.rfcontext.Point_to_Point2D
             self.connection_post = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
 
@@ -338,6 +338,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 s0,s1 = Point_to_Point2D(stroke3D[0]),Point_to_Point2D(stroke3D[-1])
                 bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
                 bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+                if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
+                if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
                 bmv0_sel = bmv0 and bmv0 in sel_verts
                 bmv1_sel = bmv1 and bmv1 in sel_verts
                 if bmv0_sel or bmv1_sel:
@@ -410,6 +412,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].radius)
         snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].radius)
+        if not options['strokes snap stroke'] and snap0 and not snap0.select: snap0 = None
+        if not options['strokes snap stroke'] and snap1 and not snap1.select: snap1 = None
 
         self.defer_recomputing = True
 
@@ -709,6 +713,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         # check if verts near stroke ends connect to any of the selected strips
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+        if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
+        if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
         edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
