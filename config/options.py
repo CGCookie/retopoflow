@@ -175,7 +175,7 @@ class Options:
 
         # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.001,          # rf_sources.visibility_preset_*
-        'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
+        'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
 
         # VISUALIZATION SETTINGS
         'warn non-manifold':        True,       # visualize non-manifold warnings
