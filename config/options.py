@@ -50,8 +50,9 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 retopoflow_version = '3.1.0'
 retopoflow_version_tuple = (3, 1, 0)
 
-retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
-retopoflow_helpdocs_url = 'https://docs.retopoflow.com'
+retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
+retopoflow_issues_url        = "https://github.com/CGCookie/retopoflow/issues"
+retopoflow_helpdocs_url      = 'https://docs.retopoflow.com'
 
 # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
 # NOTE: can add number to url to start the amount off

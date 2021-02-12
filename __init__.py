@@ -135,7 +135,18 @@ if import_succeeded:
         rf_startdoc = 'warnings.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
+    class VIEW3D_OT_RetopoFlow_UpdaterSystem(retopoflow.RetopoFlow_OpenUpdaterSystem):
+        """Open RetopoFlow Updater System"""
+        bl_idname = "cgcookie.retopoflow_updater"
+        bl_label = "Updater"
+        bl_description = "Open RetopoFlow Updater"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
+
     if options['preload help images']: retopoflow.preload_help_images()
+
 
 
 class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
@@ -459,6 +470,7 @@ if import_succeeded:
             else:
                 col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
+            col.operator('cgcookie.retopoflow_updater', text='RetopoFlow Updater System', icon='SETTINGS')
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu

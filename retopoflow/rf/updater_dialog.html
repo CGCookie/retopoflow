@@ -1,0 +1,25 @@
+<dialog id='updatersystem' class="updatersystem framed closeable" on_close="close()" on_keypress="key(event)">
+    <h1>RetopoFlow Updater System</h1>
+    <div class="contents" id='alert-contents'>
+        <p>You can use the RetopoFlow Updater System to download and install a specific version of RetopoFlow.</p>
+        <p>Current RetopoFlow Version: <span id="current-version"></span></p>
+        <p>NOTE: Versions before 3.1.0 do NOT have the RetopoFlow Updater System.</p>
+        <div class="collection">
+            <h1>Versions</h1>
+            <div class="contents">
+                <div id="version-options" class="options"></div>
+                <div id="custom-input" class="labeled-input-text">
+                    <label>Enter Commit Hash:</label>
+                    <input type="text" id="custom" value="" disabled>
+                </div>
+                <div class="actions">
+                    <button title="Load" id='load-version' on_mouseclick="load()" disabled>Load</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="updatersystem-buttons">
+        <button title="Click to open RetopoFlow Blender Market page" on_mouseclick="blendermarket()">Blender Market</button>
+        <button title="Click to close this updater dialog" on_mouseclick="close()">Close (Esc)</button>
+    </div>
+</dialog>
