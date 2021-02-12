@@ -453,7 +453,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'enter')
     def slide_enter(self):
-        self.previs_timer.start()
+        # self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Loops.FSM_State('slide')
@@ -490,7 +490,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'exit')
     def slide_exit(self):
-        self.previs_timer.stop()
+        # self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
 
 
