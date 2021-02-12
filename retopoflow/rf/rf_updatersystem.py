@@ -137,8 +137,7 @@ class RetopoFlow_UpdaterSystem:
             nonlocal version_on_input
             ui_versions = ui_updater.getElementById('version-options')
             ui_versions.append_child(UI_Element.fromHTML(
-                f'''<label><input type="radio" name="version" value="none" on_input="version_on_input(this)" checked>Keep current version</label>
-'''
+                f'''<label><input type="radio" name="version" value="none" on_input="version_on_input(this)" checked>Keep current version</label>'''
             )[0])
             for tag in updater.tags:
                 tag = tag.replace('\n', '').replace('\r', '').replace('\t','')
@@ -150,40 +149,4 @@ class RetopoFlow_UpdaterSystem:
             )[0])
 
         updater.check_for_update_now(cb)
-
-
-        # if not ui_markdown:
-        #     keymaps = get_keymaps()
-        #     def close():
-        #         nonlocal done_on_esc
-        #         if done_on_esc:
-        #             self.done()
-        #         else:
-        #             e = self.document.body.getElementById('helpsystem')
-        #             if not e: return
-        #             self.document.body.delete_child(e)
-        #     def key(e):
-        #         nonlocal keymaps, self
-        #         if e.key in keymaps['all help']:
-        #             self.helpsystem_open('table_of_contents.md')
-        #         elif e.key in keymaps['general help']:
-        #             self.helpsystem_open('general.md')
-        #         elif e.key in keymaps['tool help']:
-        #             if hasattr(self, 'rftool'):
-        #                 self.helpsystem_open(self.rftool.help)
-        #         elif e.key == 'ESC':
-        #             close()
-        #     ui_help = UI_Element.fromHTMLFile(abspath('help_dialog.html'))[0]
-        #     ui_markdown = ui_help.getElementById('helpsystem-mdown')
-        #     self.document.body.append_child(ui_help)
-        #     self.document.body.dirty()
-
-        # ui_markdown.set_markdown(
-        #     mdown_path=mdown_path,
-        #     preprocess_fns=[
-        #         self.substitute_keymaps,
-        #         self.substitute_options,
-        #         self.substitute_python
-        #     ],
-        # )
 
