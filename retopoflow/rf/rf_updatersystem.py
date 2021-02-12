@@ -102,11 +102,12 @@ class RetopoFlow_UpdaterSystem:
                 print('error!')
         def load():
             uis = self.document.body.getElementsByName('version')
+            tag = None
             for ui in uis:
-                if not ui.checked: continue
-                tag = ui.value
-            else:
-                assert False
+                if ui.checked:
+                    tag = ui.value
+                    break
+            assert tag
             if tag == 'custom':
                 # handle custom commit
                 pass
