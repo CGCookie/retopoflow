@@ -619,12 +619,15 @@ class ActionHandler:
             _keymap[k] = { op for action in v for op in translate_blenderop(action) }
         self.__dict__['_keymap'] = _keymap
     def __getattr__(self, key):
+        if not ActionHandler._actions: return None
         ActionHandler._actions.keymap2 = self._keymap
         return getattr(ActionHandler._actions, key)
     def __setattr__(self, key, value):
+        if not ActionHandler._actions: return
         ActionHandler._actions.keymap2 = self._keymap
         return setattr(ActionHandler._actions, key, value)
     def done(self):
+        if not ActionHandler._actions: return
         ActionHandler._actions.done()
         ActionHandler._actions = None
 
