@@ -115,7 +115,7 @@ class RetopoFlow_UpdaterSystem:
                 # commit specified
                 # ex: https://github.com/CGCookie/retopoflow/commit/512d3fd
                 commit = ui_updater.getElementById('custom-commit').value
-                link = f'https://github.com/CGCookie/retopoflow/commit/{commit}.zip'
+                link = f'https://github.com/CGCookie/retopoflow/archive/{commit}.zip'
                 print(f'commit: {link}')
                 updater._update_ready = True
                 updater._update_version = None
