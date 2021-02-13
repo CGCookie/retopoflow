@@ -835,6 +835,11 @@ div#version-options input#custom-branch {
     width: 50%;
 }
 
+dialog#updatersystem div#update-failed div.actions button {
+    display: inline;
+    width: 50%;
+}
+
 
 /***************************************************/
 /* alert window                                    */

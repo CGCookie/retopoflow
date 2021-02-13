@@ -82,6 +82,7 @@ class RetopoFlow_UpdaterSystem:
         return mdown
 
     def updater_open(self): #, mdown_path, done_on_esc=False, closeable=True, *args, **kwargs):
+        newversion = ''
         keymaps = get_keymaps()
         def close():
             self.done()
@@ -94,13 +95,28 @@ class RetopoFlow_UpdaterSystem:
                 close()
         def blendermarket():
             bpy.ops.wm.url_open(url=retopoflow_blendermarket_url)
+
         def done_updating(module_name, res=None):
+            ui_updater.getElementById('select-version').is_visible = False
             if res is None:
                 # success!
-                print('success!')
+                ui_updater.getElementById('update-succeeded').is_visible = True
+                ui_updater.getElementById('new-version').innerText = newversion
             else:
-                print('error!')
+                # error
+                ui_updater.getElementById('update-failed').is_visible = True
+                ui_updater.getElementById('fail-version').innerText = newversion
+                ui_updater.getElementById('fail-message').innerText = str(res)
+            ui_updater.dirty(children=True)
+
+        def try_again():
+            ui_updater.getElementById('update-succeeded').is_visible = False
+            ui_updater.getElementById('update-failed').is_visible = False
+            ui_updater.getElementById('select-version').is_visible = True
+            ui_updater.dirty(children=True)
+
         def load():
+            nonlocal newversion
             uis = self.document.body.getElementsByName('version')
             tag = None
             for ui in uis:
@@ -115,6 +131,7 @@ class RetopoFlow_UpdaterSystem:
                 # commit specified
                 # ex: https://github.com/CGCookie/retopoflow/commit/512d3fd
                 commit = ui_updater.getElementById('custom-commit').value
+                newversion += commit
                 link = f'https://github.com/CGCookie/retopoflow/archive/{commit}.zip'
                 print(f'commit: {link}')
                 updater._update_ready = True
@@ -124,6 +141,7 @@ class RetopoFlow_UpdaterSystem:
                 # branch specified
                 # ex: https://github.com/CGCookie/retopoflow/archive/v3.1.1.zip
                 branch = ui_updater.getElementById('custom-branch').value
+                newversion += branch
                 link = f'https://github.com/CGCookie/retopoflow/archive/{branch}.zip'
                 print(f'branch: {link}')
                 updater._update_ready = True
@@ -131,26 +149,29 @@ class RetopoFlow_UpdaterSystem:
                 updater._update_link = link
             else:
                 # release/tag specified
+                newversion += tag
                 updater._update_ready = True
                 updater.set_tag(tag)
             updater.run_update(callback=done_updating)
 
         ui_updater = UI_Element.fromHTMLFile(abspath('updater_dialog.html'))[0]
         ui_updater.getElementById('current-version').innerText = retopoflow_version
+        ui_updater.getElementById('update-succeeded').is_visible = False
+        ui_updater.getElementById('update-failed').is_visible = False
         self.document.body.append_child(ui_updater)
         self.document.body.dirty()
 
         def version_on_input(this):
             if this is None: return
-            if this.value == 'custom-commit':
-                ui_updater.getElementById('custom-commit').disabled = not this.checked
-            if this.value == 'custom-branch':
-                ui_updater.getElementById('custom-branch').disabled = not this.checked
             if this.value == 'none':
                 self.document.body.getElementById('load-version').disabled = this.checked
 
+        def set_option(value):
+            for ui in ui_updater.getElementsByName('version'):
+                if ui.value == value: ui.checked = True
+
         def add_version_options(update_status):
-            nonlocal version_on_input
+            nonlocal version_on_input, set_option
             ui_versions = ui_updater.getElementById('version-options')
             ui_versions.append_children(UI_Element.fromHTML(
                 f'''<label><input type="radio" name="version" value="none" on_input="version_on_input(this)" checked>Keep current version</label>'''
@@ -163,10 +184,10 @@ class RetopoFlow_UpdaterSystem:
                     f'''<label><input type="radio" name="version" on_input="version_on_input(this)" value="{tag}">{tag}</label>'''
                 ))
             ui_versions.append_children(UI_Element.fromHTML(
-                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-commit">Advanced: Specific Commit</label><input type="text" id="custom-commit" value="" title="Enter commit hash" disabled>'''
+                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-commit">Advanced: Specific Commit</label><input type="text" id="custom-commit" value="" title="Enter commit hash" on_focus="set_option('custom-commit')">'''
             ))
             ui_versions.append_children(UI_Element.fromHTML(
-                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-branch">Advanced: Branch</label><input type="text" id="custom-branch" value="" title="Enter branch name" disabled>'''
+                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-branch">Advanced: Branch</label><input type="text" id="custom-branch" value="" title="Enter branch name" on_focus="set_option('custom-branch')">'''
             ))
 
         updater.include_branches = False

@@ -21,6 +21,7 @@ GIT_TAG         = "v3.1.0"
 GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.1.0."
 
 BUILD_DIR         = ../retopoflow_release
+INSTALL_DIR       = ~/.config/blender/addons
 DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
@@ -77,3 +78,8 @@ build: check
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"
+
+install:
+	rm -r $(INSTALL_DIR)/$(NAME)
+	cp -r $(BUILD_DIR)/$(NAME) $(INSTALL_DIR)/$(NAME)
+
