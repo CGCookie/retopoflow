@@ -127,6 +127,7 @@ class RetopoFlow_UpdaterSystem:
                 updater._update_link = f'https://github.com/CGCookie/retopoflow/archive/{branch}'
             else:
                 # release/tag specified
+                updater._update_ready = True
                 updater.set_tag(tag)
             updater.run_update(callback=done_updating)
 

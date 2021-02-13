@@ -470,7 +470,7 @@ if import_succeeded:
             else:
                 col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
-                col.operator('cgcookie.retopoflow_updater', text='RetopoFlow Updater System', icon='SETTINGS')
+                col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu
