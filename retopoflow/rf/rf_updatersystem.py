@@ -115,16 +115,22 @@ class RetopoFlow_UpdaterSystem:
                 # commit specified
                 # ex: https://github.com/CGCookie/retopoflow/commit/512d3fd
                 commit = ui_updater.getElementById('custom-commit').value
+                link = f'https://github.com/CGCookie/retopoflow/commit/{commit}.zip'
+                print(f'commit: {link}')
                 updater._update_ready = True
                 updater._update_version = None
-                updater._update_link = f'https://github.com/CGCookie/retopoflow/commit/{commit}'
+                updater._update_link = link
+                return
             elif tag == 'custom-branch':
                 # branch specified
                 # ex: https://github.com/CGCookie/retopoflow/archive/v3.1.1.zip
                 branch = ui_updater.getElementById('custom-branch').value
+                link = f'https://github.com/CGCookie/retopoflow/archive/{branch}.zip'
+                print(f'branch: {link}')
                 updater._update_ready = True
                 updater._update_version = None
-                updater._update_link = f'https://github.com/CGCookie/retopoflow/archive/{branch}'
+                updater._update_link = link
+                return
             else:
                 # release/tag specified
                 updater._update_ready = True
