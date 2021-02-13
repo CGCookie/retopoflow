@@ -127,23 +127,11 @@ class RetopoFlow_UpdaterSystem:
             if tag == 'none':
                 # do nothing (should never get here, though)
                 return
-            elif tag == 'custom-commit':
-                # commit specified
-                # ex: https://github.com/CGCookie/retopoflow/commit/512d3fd
-                commit = ui_updater.getElementById('custom-commit').value
-                newversion += commit
-                link = f'https://github.com/CGCookie/retopoflow/archive/{commit}.zip'
-                print(f'commit: {link}')
-                updater._update_ready = True
-                updater._update_version = None
-                updater._update_link = link
-            elif tag == 'custom-branch':
-                # branch specified
-                # ex: https://github.com/CGCookie/retopoflow/archive/v3.1.1.zip
-                branch = ui_updater.getElementById('custom-branch').value
-                newversion += branch
-                link = f'https://github.com/CGCookie/retopoflow/archive/{branch}.zip'
-                print(f'branch: {link}')
+            elif tag == 'custom':
+                # commit or branch specified
+                tag = ui_updater.getElementById('custom').value
+                newversion += tag
+                link = f'https://github.com/CGCookie/retopoflow/archive/{tag}.zip'
                 updater._update_ready = True
                 updater._update_version = None
                 updater._update_link = link
@@ -184,10 +172,7 @@ class RetopoFlow_UpdaterSystem:
                     f'''<label><input type="radio" name="version" on_input="version_on_input(this)" value="{tag}">{tag}</label>'''
                 ))
             ui_versions.append_children(UI_Element.fromHTML(
-                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-commit">Advanced: Specific Commit</label><input type="text" id="custom-commit" value="" title="Enter commit hash" on_focus="set_option('custom-commit')">'''
-            ))
-            ui_versions.append_children(UI_Element.fromHTML(
-                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-branch">Advanced: Branch</label><input type="text" id="custom-branch" value="" title="Enter branch name" on_focus="set_option('custom-branch')">'''
+                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom">Advanced: Commit / Branch</label><input type="text" id="custom" value="" title="Enter commit hash or branch name" on_focus="set_option('custom')">'''
             ))
 
         updater.include_branches = False

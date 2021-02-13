@@ -825,12 +825,7 @@ div#version-options > label.option-custom {
     width: 50%;
 }
 
-div#version-options input#custom-commit {
-    display: inline;
-    width: 50%;
-}
-
-div#version-options input#custom-branch {
+div#version-options input#custom {
     display: inline;
     width: 50%;
 }
