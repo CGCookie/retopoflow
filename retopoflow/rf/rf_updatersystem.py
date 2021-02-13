@@ -94,7 +94,7 @@ class RetopoFlow_UpdaterSystem:
                 close()
         def blendermarket():
             bpy.ops.wm.url_open(url=retopoflow_blendermarket_url)
-        def done(module_name, res=None):
+        def done_updating(module_name, res=None):
             if res is None:
                 # success!
                 print('success!')
@@ -108,45 +108,64 @@ class RetopoFlow_UpdaterSystem:
                     tag = ui.value
                     break
             assert tag
-            if tag == 'custom':
-                # handle custom commit
-                pass
+            if tag == 'none':
+                # do nothing (should never get here, though)
+                return
+            elif tag == 'custom-commit':
+                # commit specified
+                # ex: https://github.com/CGCookie/retopoflow/commit/512d3fd
+                commit = ui_updater.getElementById('custom-commit').value
+                updater._update_ready = True
+                updater._update_version = None
+                updater._update_link = f'https://github.com/CGCookie/retopoflow/commit/{commit}'
+            elif tag == 'custom-branch':
+                # branch specified
+                # ex: https://github.com/CGCookie/retopoflow/archive/v3.1.1.zip
+                branch = ui_updater.getElementById('custom-branch').value
+                updater._update_ready = True
+                updater._update_version = None
+                updater._update_link = f'https://github.com/CGCookie/retopoflow/archive/{branch}'
             else:
+                # release/tag specified
                 updater.set_tag(tag)
-                updater.run_update(callback=done)
+            updater.run_update(callback=done_updating)
 
         ui_updater = UI_Element.fromHTMLFile(abspath('updater_dialog.html'))[0]
         ui_updater.getElementById('current-version').innerText = retopoflow_version
-        ui_mdown = ui_updater.getElementById('updater-mdown')
-        ui_updater.getElementById('custom-input').is_visible = False
         self.document.body.append_child(ui_updater)
         self.document.body.dirty()
 
         def version_on_input(this):
             if this is None: return
-            if this.value == 'custom':
-                ui_updater.getElementById('custom-input').is_visible = this.checked
-                ui_updater.dirty(children=True)
+            if this.value == 'custom-commit':
+                ui_updater.getElementById('custom-commit').disabled = not this.checked
+            if this.value == 'custom-branch':
+                ui_updater.getElementById('custom-branch').disabled = not this.checked
             if this.value == 'none':
                 self.document.body.getElementById('load-version').disabled = this.checked
-        def custom_on_input(this):
-            print(this.checked)
-            ui = self.document.body.getElementById('custom')
-            ui.disabled = not this.checked
-        def cb(update_status):
+
+        def add_version_options(update_status):
             nonlocal version_on_input
             ui_versions = ui_updater.getElementById('version-options')
-            ui_versions.append_child(UI_Element.fromHTML(
+            ui_versions.append_children(UI_Element.fromHTML(
                 f'''<label><input type="radio" name="version" value="none" on_input="version_on_input(this)" checked>Keep current version</label>'''
-            )[0])
+            ))
+            for tag in updater._tags:
+                print(tag)
             for tag in updater.tags:
                 tag = tag.replace('\n', '').replace('\r', '').replace('\t','')
-                ui_versions.append_child(UI_Element.fromHTML(
+                ui_versions.append_children(UI_Element.fromHTML(
                     f'''<label><input type="radio" name="version" on_input="version_on_input(this)" value="{tag}">{tag}</label>'''
-                )[0])
-            ui_versions.append_child(UI_Element.fromHTML(
-                f'''<label><input type="radio" name="version" id="option-custom" on_input="version_on_input(this)" value='custom'>Advanced: custom commit</label>'''
-            )[0])
+                ))
+            ui_versions.append_children(UI_Element.fromHTML(
+                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-commit">Advanced: Specific Commit</label><input type="text" id="custom-commit" value="" title="Enter commit hash" disabled>'''
+            ))
+            ui_versions.append_children(UI_Element.fromHTML(
+                f'''<label class="option-custom"><input type="radio" name="version" on_input="version_on_input(this)" value="custom-branch">Advanced: Branch</label><input type="text" id="custom-branch" value="" title="Enter branch name" disabled>'''
+            ))
 
-        updater.check_for_update_now(cb)
+        updater.include_branches = False
+        updater.get_tags()
+        add_version_options(None)
+        #updater.check_for_update_now(add_version_options)
 

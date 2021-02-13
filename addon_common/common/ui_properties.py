@@ -220,6 +220,8 @@ class UI_Element_Properties:
         self._new_content = True
         return child
     def append_child(self, child): return self._append_child(child)
+    def append_children(self, children):
+        for child in children: self._append_child(child)
     def prepend_child(self, child):
         assert child
         if child in self._children:

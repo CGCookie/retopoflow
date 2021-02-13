@@ -297,6 +297,13 @@ class Actions:
             'operators': [
                 'Screen | ed.redo',
             ],
+        }, {
+            'name': 'clipboard paste',
+            'operators': [
+                'Text | text.paste',
+                '3D View | view3d.pastebuffer',
+                'Console | console.paste',
+            ],
         },
     ]
 
