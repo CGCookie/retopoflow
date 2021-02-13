@@ -120,7 +120,6 @@ class RetopoFlow_UpdaterSystem:
                 updater._update_ready = True
                 updater._update_version = None
                 updater._update_link = link
-                return
             elif tag == 'custom-branch':
                 # branch specified
                 # ex: https://github.com/CGCookie/retopoflow/archive/v3.1.1.zip
@@ -130,7 +129,6 @@ class RetopoFlow_UpdaterSystem:
                 updater._update_ready = True
                 updater._update_version = None
                 updater._update_link = link
-                return
             else:
                 # release/tag specified
                 updater._update_ready = True
