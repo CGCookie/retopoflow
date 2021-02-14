@@ -307,6 +307,8 @@ class RetopoFlow(
 
         self.loading_done = False
 
+        self.undo, self.redo = [], []   # hack to work around issue #949
+
         keymaps = get_keymaps()
         self.actions = ActionHandler(self.context, keymaps)
 
