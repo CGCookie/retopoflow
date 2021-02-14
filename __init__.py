@@ -98,7 +98,7 @@ if import_succeeded:
         bl_description = "Open RetopoFlow Quick Start Guide"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'quick_start.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_QuickStart]
 
@@ -109,7 +109,7 @@ if import_succeeded:
         bl_description = "Open RetopoFlow Welcome Message"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
@@ -120,7 +120,7 @@ if import_succeeded:
         bl_description = "Open RetopoFlow Table of Contents"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'table_of_contents.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
 
@@ -131,7 +131,7 @@ if import_succeeded:
         bl_description = "See details on the RetopoFlow warnings"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'warnings.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
@@ -142,7 +142,7 @@ if import_succeeded:
         bl_description = "Open RetopoFlow Updater"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
     if options['preload help images']: retopoflow.preload_help_images()
@@ -155,6 +155,7 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     bl_description = 'Open the Blender Market RetopoFlow page'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
+    bl_options = set()
 
     def invoke(self, context, event):
         bpy.ops.wm.url_open(url='https://blendermarket.com/products/retopoflow')
@@ -167,6 +168,7 @@ class VIEW3D_OT_RetopoFlow_Help_Online(Operator):
     bl_description = 'Open RetopoFlow Online Documentation'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
+    bl_options = set()
 
     def invoke(self, context, event):
         bpy.ops.wm.url_open(url='https://docs.retopoflow.com')
@@ -187,7 +189,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
         @classmethod
         def poll(cls, context):
@@ -220,7 +222,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the active source and start RetopoFlow"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
         @classmethod
         def poll(cls, context):
@@ -258,7 +260,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'UNDO', 'BLOCKING'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
     RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
     def VIEW3D_OT_RetopoFlow_Tool_Factory(rftool):
@@ -271,7 +273,7 @@ if import_succeeded:
             bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s: %s" % (name, description)
             bl_space_type = "VIEW_3D"
             bl_region_type = "TOOLS"
-            bl_options = {'REGISTER', 'UNDO'}
+            bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
             rf_starting_tool = name
         # just in case: remove spaces, so that class name is proper
         VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % name.replace(' ', '')
@@ -294,6 +296,7 @@ if import_succeeded:
         bl_description = 'Recover from RetopoFlow auto save'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'TOOLS'
+        bl_options = set()
         rf_icon = 'rf_recover_icon'
 
         @classmethod
