@@ -117,7 +117,7 @@ class BMElemWrapper:
 
     @property
     def select(self):
-        return self.bmelem.select
+        return self.bmelem.select and not self.bmelem.hide
 
     @select.setter
     def select(self, v):

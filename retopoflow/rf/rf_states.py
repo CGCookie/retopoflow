@@ -283,6 +283,33 @@ class RetopoFlow_States(CookieCutter):
                 self.select_invert()
                 return
 
+            if self.actions.pressed('hide selected'):
+                self.undo_push('hide selected')
+                selected = set()
+                for bmv in self.get_selected_verts():
+                    selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+                for bme in self.get_selected_edges():
+                    selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+                for bmf in self.get_selected_faces():
+                    selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+                for e in selected: e.hide = True
+                self.dirty()
+                return
+
+            if self.actions.pressed('hide unselected'):
+                self.undo_push('hide unselected')
+                selected = self.get_unselected_verts() | self.get_unselected_edges() | self.get_unselected_faces()
+                for e in selected: e.hide = True
+                self.dirty()
+                return
+
+            if self.actions.pressed('reveal hidden'):
+                self.undo_push('reveal hidden')
+                hidden = self.get_hidden_verts() | self.get_hidden_edges() | self.get_hidden_faces()
+                for e in hidden: e.hide = False
+                self.dirty()
+                return
+
             if self.actions.pressed('delete'):
                 self.show_delete_dialog()
                 return

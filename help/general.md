@@ -73,6 +73,9 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{select all}}                        | : | select / deselect all |
 | {{deselect all}}                      | : | deselect all |
 | {{select invert}}                     | : | invert selection |
+| {{hide selected}}                     | : | hide selected geometry |
+| {{hide unselected}}                   | : | hide unselected geometry |
+| {{reveal hidden}}                     | : | reveal hidden geometry |
 | {{action}}                            | : | transform selection when mouse hovers selected geometry |
 | {{grab}}                              | : | grab and move selected geometry |
 | {{rotate}}                            | : | rotate selected geometry |

@@ -943,18 +943,39 @@ class RFMesh():
     def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.select}
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.select and not bmv.hide}
     def get_selected_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.select}
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.select and not bme.hide}
     def get_selected_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select}
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select and not bmf.hide}
+
+    def get_unselected_verts(self):
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and not bmv.select and not bmv.hide}
+    def get_unselected_edges(self):
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and not bme.select and not bme.hide}
+    def get_unselected_faces(self):
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and not bmf.select and not bmf.hide}
+
+    def get_hidden_verts(self):
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.hide}
+    def get_hidden_edges(self):
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.hide}
+    def get_hidden_faces(self):
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.hide}
+
+    def get_revealed_verts(self):
+        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and not bmv.hide}
+    def get_revealed_edges(self):
+        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and not bme.hide}
+    def get_revealed_faces(self):
+        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and not bmf.hide}
 
     def any_verts_selected(self):
-        return any(bmv.select for bmv in self.bme.verts if bmv.is_valid)
+        return any(bmv.select for bmv in self.bme.verts if bmv.is_valid and not bmv.hide)
     def any_edges_selected(self):
-        return any(bme.select for bme in self.bme.edges if bme.is_valid)
+        return any(bme.select for bme in self.bme.edges if bme.is_valid and not bme.hide)
     def any_faces_selected(self):
-        return any(bmf.select for bmf in self.bme.faces if bmf.is_valid)
+        return any(bmf.select for bmf in self.bme.faces if bmf.is_valid and not bmf.hide)
     def any_selected(self):
         return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
 
@@ -1250,10 +1271,7 @@ class RFMesh():
         self.dirty(selectionOnly=True)
 
     def select_toggle(self):
-        sel = False
-        sel |= any(bmv.select for bmv in self.bme.verts)
-        sel |= any(bme.select for bme in self.bme.edges)
-        sel |= any(bmf.select for bmf in self.bme.faces)
+        sel = self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
         if sel: self.deselect_all()
         else:   self.select_all()
 

@@ -83,6 +83,10 @@ default_rf_keymaps = {
     'delete pie menu': {'CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'},
     'smooth edge flow': {'SHIFT+S'},
 
+    'hide selected': {'H'},
+    'hide unselected': {'SHIFT+H'},
+    'reveal hidden': {'ALT+H'},
+
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
 

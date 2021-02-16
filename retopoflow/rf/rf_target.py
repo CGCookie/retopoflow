@@ -558,14 +558,21 @@ class RetopoFlow_Target:
 
     ###################################################
 
-    def get_selected_verts(self):
-        return self.rftarget.get_selected_verts()
+    def get_selected_verts(self): return self.rftarget.get_selected_verts()
+    def get_selected_edges(self): return self.rftarget.get_selected_edges()
+    def get_selected_faces(self): return self.rftarget.get_selected_faces()
 
-    def get_selected_edges(self):
-        return self.rftarget.get_selected_edges()
+    def get_unselected_verts(self): return self.rftarget.get_unselected_verts()
+    def get_unselected_edges(self): return self.rftarget.get_unselected_edges()
+    def get_unselected_faces(self): return self.rftarget.get_unselected_faces()
 
-    def get_selected_faces(self):
-        return self.rftarget.get_selected_faces()
+    def get_hidden_verts(self): return self.rftarget.get_hidden_verts()
+    def get_hidden_edges(self): return self.rftarget.get_hidden_edges()
+    def get_hidden_faces(self): return self.rftarget.get_hidden_faces()
+
+    def get_revealed_verts(self): return self.rftarget.get_revealed_verts()
+    def get_revealed_edges(self): return self.rftarget.get_revealed_edges()
+    def get_revealed_faces(self): return self.rftarget.get_revealed_faces()
 
     def any_verts_selected(self):
         return self.rftarget.any_verts_selected()
