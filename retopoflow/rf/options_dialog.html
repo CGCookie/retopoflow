@@ -140,10 +140,6 @@ def symmetry_changed(self):
         <details id="view-options">
             <summary title="Display options">Display</summary>
             <div class="contents">
-                <label title="Visualize non-manifold/detached vertices and edges">
-                    <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
-                    Non-manifold warning
-                </label>
                 <label title="If enabled, options for selected tool will show while other tool options hide.">
                     <input type="checkbox" checked="self._var_auto_hide_options">
                     Auto Hide Tool Options
@@ -321,6 +317,31 @@ def symmetry_changed(self):
                         </div>
                     </div>
                 </details>
+            </div>
+        </details>
+        <details>
+            <summary>Target Display</summary>
+            <div class="contents">
+                <label title="Visualize non-manifold/detached vertices and edges">
+                    <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
+                    Non-manifold warning
+                </label>
+                <div class="collection">
+                    <h1>Hide</h1>
+                    <div class="contents">
+                        <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
+                        <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
+                        <br> <!-- this is a hack to make buttons below size correctly -->
+                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
+                        <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Reveal</h1>
+                    <div class="contents">
+                        <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
+                    </div>
+                </div>
             </div>
         </details>
         <details>

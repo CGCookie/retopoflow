@@ -526,7 +526,7 @@ class RetopoFlow_UI:
             for rftool in self.rftools: add_tool(rftool)
 
         def setup_options():
-            nonlocal self
+            nonlocal self, humanread
 
             self.document.defer_cleaning = True
 

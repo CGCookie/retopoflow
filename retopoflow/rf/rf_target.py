@@ -301,6 +301,19 @@ class RetopoFlow_Target:
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
 
 
+    @profiler.function
+    def nonvisible_verts(self):
+        return self.rftarget.visible_verts(self.is_nonvisible)
+
+    @profiler.function
+    def nonvisible_edges(self, verts=None):
+        return self.rftarget.visible_edges(self.is_nonvisible, verts=verts)
+
+    @profiler.function
+    def nonvisible_faces(self, verts=None):
+        return self.rftarget.visible_faces(self.is_nonvisible, verts=verts)
+
+
     def iter_verts(self):
         yield from self.rftarget.iter_verts()
     def iter_edges(self):
@@ -611,6 +624,62 @@ class RetopoFlow_Target:
     def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
+
+    def hide_selected(self):
+        self.undo_push('hide selected')
+        selected = set()
+        for bmv in self.get_selected_verts():
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in self.get_selected_edges():
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in self.get_selected_faces():
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_visible(self):
+        self.undo_push('hide visible')
+        selected = set()
+        visible_verts = self.visible_verts()
+        visible_edges = self.visible_edges(verts=visible_verts)
+        visible_faces = self.visible_faces(verts=visible_verts)
+        for bmv in visible_verts:
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in visible_edges:
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in visible_faces:
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_nonvisible(self):
+        self.undo_push('hide visible')
+        selected = set()
+        nonvisible_verts = self.nonvisible_verts()
+        nonvisible_edges = self.nonvisible_edges(verts=nonvisible_verts)
+        nonvisible_faces = self.nonvisible_faces(verts=nonvisible_verts)
+        for bmv in nonvisible_verts:
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in nonvisible_edges:
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in nonvisible_faces:
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_unselected(self):
+        self.undo_push('hide unselected')
+        selected = self.get_unselected_verts() | self.get_unselected_edges() | self.get_unselected_faces()
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def reveal_hidden(self):
+        self.undo_push('reveal hidden')
+        hidden = self.get_hidden_verts() | self.get_hidden_edges() | self.get_hidden_faces()
+        for e in hidden: e.hide = False
+        self.dirty()
+        return
+
 
     #######################################################
 
