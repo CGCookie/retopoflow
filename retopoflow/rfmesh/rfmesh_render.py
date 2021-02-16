@@ -190,6 +190,7 @@ class RFMeshRender():
                         tri_faces = [(bmf, list(bmvs))
                                      for bmf in self.bmesh.faces
                                      for bmvs in triangulateFace(bmf.verts)
+                                     if not bmf.hide
                                      ]
                         l = len(tri_faces)
                         for i0 in range(0, l, face_count):
@@ -223,7 +224,7 @@ class RFMeshRender():
                                 self.add_buffered_render(bgl.GL_TRIANGLES, face_data)
 
                     if self.load_edges:
-                        edges = self.bmesh.edges
+                        edges = [bme for bme in self.bmesh.edges if not bme.hide]
                         l = len(edges)
                         for i0 in range(0, l, edge_count):
                             i1 = min(l, i0 + edge_count)
@@ -256,7 +257,7 @@ class RFMeshRender():
                                 self.add_buffered_render(bgl.GL_LINES, edge_data)
 
                     if self.load_verts:
-                        verts = self.bmesh.verts
+                        verts = [bmv for bmv in self.bmesh.verts if not bmv.hide]
                         l = len(verts)
                         for i0 in range(0, l, vert_count):
                             i1 = min(l, i0 + vert_count)
