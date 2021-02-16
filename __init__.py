@@ -145,6 +145,17 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
+    class VIEW3D_OT_RetopoFlow_Help_Updater(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Updater Help"""
+        bl_idname = "cgcookie.retopoflow_help_updater"
+        bl_label = "Updater Help"
+        bl_description = "Open RetopoFlow Updater Help"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'addon_updater.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
+
     if options['preload help images']: retopoflow.preload_help_images()
 
 
@@ -474,6 +485,7 @@ if import_succeeded:
                 col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
                 col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+                # col.operator('cgcookie.retopoflow_help_updater', text='Updater System Help', icon='HELP')
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu
