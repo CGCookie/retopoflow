@@ -188,6 +188,13 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             # insert edge loop / strip, select it, prep slide!
             return self.insert_edge_loop_strip()
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+            )
+
         if self.rfcontext.actions.pressed({'select paint'}):
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},

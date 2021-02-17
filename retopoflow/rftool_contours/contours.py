@@ -208,6 +208,13 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 kwargs_deselect={'subparts': False},
             )
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+            )
+
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             # TODO: DO NOT PAINT!
             sel_only = self.actions.pressed('select single')

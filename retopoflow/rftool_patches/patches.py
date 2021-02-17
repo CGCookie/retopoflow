@@ -184,6 +184,13 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                 self.crosses -= 1
                 self._recompute()
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+            )
+
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()

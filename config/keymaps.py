@@ -50,6 +50,7 @@ default_rf_keymaps = {
     'select smart add': {},
     'select paint': {},
     'select paint add': {},
+    'select path add': {},
 
     'select all': {'A'},
     'select invert': {'CTRL+I'},
@@ -143,6 +144,7 @@ left_rf_keymaps = {
     'select smart add': {'SHIFT+LEFTMOUSE+DOUBLE'},
     'select paint': {'LEFTMOUSE+DRAG'},
     'select paint add': {'SHIFT+LEFTMOUSE+DRAG'},
+    'select path add': {'SHIFT+ALT+LEFTMOUSE+DOUBLE'},
 }
 
 right_rf_keymaps = {
@@ -152,6 +154,7 @@ right_rf_keymaps = {
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE', 'SHIFT+RIGHTMOUSE+DOUBLE'},
     'select paint': {'RIGHTMOUSE+DRAG'},
     'select paint add': {'SHIFT+RIGHTMOUSE+DRAG'},
+    'select path add': {'SHIFT+ALT+RIGHTMOUSE+DOUBLE'},
 }
 
 def get_keymaps():

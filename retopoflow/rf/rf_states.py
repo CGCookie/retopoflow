@@ -528,6 +528,82 @@ class RetopoFlow_States(CookieCutter):
         self.set_accel_defer(False)
 
 
+    def select_path(self, bmelem_types, fn_filter_bmelem=None, kwargs_select=None, kwargs_filter=None, **kwargs):
+        kwargs_filter = kwargs_filter or {}
+        fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
+
+        vis_accel = self.get_vis_accel()
+        nearest2D_vert = self.accel_nearest2D_vert
+        nearest2D_edge = self.accel_nearest2D_edge
+        nearest2D_face = self.accel_nearest2D_face
+
+        def get_bmelem(*args, **kwargs):
+            nonlocal fn_filter, bmelem_types, vis_accel, nearest2D_vert, nearest2D_edge, nearest2D_face
+            if 'vert' in bmelem_types:
+                bmelem, _ = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
+            if 'edge' in bmelem_types:
+                bmelem, _ = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
+            if 'face' in bmelem_types:
+                bmelem, _ = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
+                if bmelem and fn_filter(bmelem): return bmelem
+            return None
+
+        bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
+        if not bmelem:
+            # print('found nothing under mouse')
+            return   # nothing there; leave!
+
+        bmelem_types = { RFVert: {'vert'}, RFEdge: {'edge'}, RFFace: {'face'} }[type(bmelem)]
+        kwargs_select   = kwargs_select   or {}
+        kwargs.update(kwargs_select)
+        kwargs['only'] = False
+
+        # find all other visible elements
+        vis_elems = self.accel_vis_verts | self.accel_vis_edges | self.accel_vis_faces
+
+        # walk from bmelem to all other connected visible geometry
+        path = {}
+        working = deque()
+        working.append((bmelem, None))
+        def add(o, bme):
+            nonlocal vis_elems, path, working
+            if o not in vis_elems or o in path: return
+            if not fn_filter(o): return
+            working.append((o, bme))
+        closest = None
+        while working:
+            bme, from_bme = working.popleft()
+            if bme in path: continue
+            path[bme] = from_bme
+            if bme.select:
+                # found closest!
+                closest = bme
+                break
+            if 'vert' in bmelem_types:
+                for c in bme.link_edges:
+                    o = c.other_vert(bme)
+                    add(o, bme)
+            if 'edge' in bmelem_types:
+                for c in bme.verts:
+                    for o in c.link_edges:
+                        add(o, bme)
+            if 'face' in bmelem_types:
+                for c in bme.edges:
+                    for o in c.link_faces:
+                        add(o, bme)
+
+        if not closest:
+            # print('could not find closest element')
+            return
+
+        self.undo_push('select path')
+        while closest:
+            self.select(closest, **kwargs)
+            closest = path[closest]
+
+
     def setup_smart_selection_painting(self, bmelem_types, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         kwargs_filter = kwargs_filter or {}
         fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
@@ -549,17 +625,6 @@ class RetopoFlow_States(CookieCutter):
                 bmelem, _ = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
                 if bmelem and fn_filter(bmelem): return bmelem
             return None
-            # bmelem, dist = None, float('inf')
-            # if 'vert' in bmelem_types:
-            #     _bmelem, _dist = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
-            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem, dist = _bmelem, _dist
-            # if 'edge' in bmelem_types:
-            #     _bmelem, _dist = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
-            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
-            # if 'face' in bmelem_types:
-            #     _bmelem, _dist = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
-            #     if _bmelem and _dist < dist and fn_filter(_bmelem): bmelem,dist = _bmelem,_dist
-            # return bmelem
 
         bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
         if not bmelem: return   # nothing there; leave!
@@ -635,7 +700,7 @@ class RetopoFlow_States(CookieCutter):
 
         opts = self.selection_painting_opts
 
-        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        if not self.actions.mousemove_stop: return
 
         bmelem = opts['get']()
         if not bmelem: return

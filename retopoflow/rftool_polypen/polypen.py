@@ -261,6 +261,12 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                 self.prep_move(defer_recomputing=False)
                 return 'move after select'
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge', 'face'},
+                kwargs_select={'supparts': False},
+            )
+
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()

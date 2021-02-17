@@ -70,6 +70,7 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{select single, select single add}}  | : | select single |
 | {{select paint, select paint add}}    | : | selection painting |
 | {{select smart, select smart add}}    | : | smart selection |
+| {{select path add}}                   | : | select along shortest path |
 | {{select all}}                        | : | select / deselect all |
 | {{deselect all}}                      | : | deselect all |
 | {{select invert}}                     | : | invert selection |

@@ -217,6 +217,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             self.change_count(delta=delta)
             return
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'face'},
+                kwargs_select={'supparts': False},
+            )
+
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             return self.rfcontext.setup_smart_selection_painting(
