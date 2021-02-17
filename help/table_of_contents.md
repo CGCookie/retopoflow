@@ -10,6 +10,7 @@ The following documents provide help generally across all of RetopoFlow.
 
 - [Quick Start Guide](quick_start.md)
 - [A Welcome to You from Us](welcome.md)
+- [RetopoFlow FAQ](faq.md)
 - [General Hotkeys and Options](general.md)
 
 ## Tools

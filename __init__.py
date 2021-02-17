@@ -124,6 +124,17 @@ if import_succeeded:
         rf_startdoc = 'table_of_contents.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
 
+    class VIEW3D_OT_RetopoFlow_Help_FAQ(retopoflow.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Table of Contents"""
+        bl_idname = "cgcookie.retopoflow_help_faq"
+        bl_label = "RetopoFlow FAQ"
+        bl_description = "Open RetopoFlow Frequently Asked Questions"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'faq.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_FAQ]
+
     class VIEW3D_OT_RetopoFlow_Help_Warnings(retopoflow.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Warnings Document"""
         bl_idname = "cgcookie.retopoflow_help_warnings"
@@ -462,6 +473,7 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
             col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
             col.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
+            col.operator('cgcookie.retopoflow_help_faq', icon='HELP')
 
             col = box.column()
             col.operator('cgcookie.retopoflow_help_online', icon='HELP')
