@@ -596,6 +596,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
                     faces_drawn.add(bmf1)
                 if is_visible(p1): pts_inner += [Point_to_Point2D(p1)]
                 if is_visible(p2): pts_inner += [Point_to_Point2D(p2)]
+            pts_outer = [p for p in pts_outer if p]
+            pts_inner = [p for p in pts_inner if p]
             self.rfcontext.drawing.draw2D_points(pts_outer, (1.00,1.00,1.00,1.0), radius=size_outer, border=border_outer, borderColor=(0.00,0.00,0.00,0.5))
             self.rfcontext.drawing.draw2D_points(pts_inner, (0.25,0.25,0.25,0.8), radius=size_inner, border=border_inner, borderColor=(0.75,0.75,0.75,0.4))
 

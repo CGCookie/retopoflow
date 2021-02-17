@@ -420,6 +420,19 @@ class RetopoFlow_Target:
     def clamp_point_to_symmetry(self, point):
         return self.rftarget.symmetry_real(point)
 
+    def push_then_snap_all_verts(self):
+        self.undo_push('push then snap all verts')
+        d = options['push and snap distance']
+        for bmv in self.rftarget.get_verts(): bmv.co += bmv.normal * d
+        self.rftarget.snap_all_verts(self.nearest_sources_Point)
+
+    def push_then_snap_selected_verts(self):
+        self.undo_push('push then snap selected verts')
+        d = options['push and snap distance']
+        for bmv in self.rftarget.get_verts():
+            if bmv.select: bmv.co += bmv.normal * d
+        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+
     def snap_all_verts(self):
         self.undo_push('snap all verts')
         self.rftarget.snap_all_verts(self.nearest_sources_Point)

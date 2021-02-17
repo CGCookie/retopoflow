@@ -70,9 +70,13 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }}  | : | select single |
 | {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}    | : | selection painting |
 | {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}    | : | smart selection |
+| {{ site.data.keymaps.select_path_add }}                   | : | select along shortest path |
 | {{ site.data.keymaps.select_all }}                        | : | select / deselect all |
 | {{ site.data.keymaps.deselect_all }}                      | : | deselect all |
 | {{ site.data.keymaps.select_invert }}                     | : | invert selection |
+| {{ site.data.keymaps.hide_selected }}                     | : | hide selected geometry |
+| {{ site.data.keymaps.hide_unselected }}                   | : | hide unselected geometry |
+| {{ site.data.keymaps.reveal_hidden }}                     | : | reveal hidden geometry |
 | {{ site.data.keymaps.action }}                            | : | transform selection when mouse hovers selected geometry |
 | {{ site.data.keymaps.grab }}                              | : | grab and move selected geometry |
 | {{ site.data.keymaps.rotate }}                            | : | rotate selected geometry |

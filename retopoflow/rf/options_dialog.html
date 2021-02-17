@@ -355,6 +355,17 @@ def symmetry_changed(self):
                     </div>
                 </div>
                 <div class="collection">
+                    <h1>Push and Snap Vertices</h1>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title="Distance to push vertex out along normal before snapping back to source surface.">Distance</label>
+                            <input type="number" value="BoundFloat('''options['push and snap distance']''', min_value=0)">
+                        </div>
+                        <button title="Push all target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_all_verts()">All</button>
+                        <button title="Push selected target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_selected_verts()">Selected</button>
+                    </div>
+                </div>
+                <div class="collection">
                     <h1>Merge by Distance</h1>
                     <div class="contents">
                         <div class="labeled-input-text">

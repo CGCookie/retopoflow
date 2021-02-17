@@ -5,21 +5,14 @@ Below are answers to some common questions with RetopoFlow.
 
 ## Q: I cannot create new geometry!  Help!?
 
-All of the tools (except Patches, Tweak, and Relax) create geometry using {{insert}} action.
-Selection uses the {{select single}} action.
+All of the tools (except Patches, Tweak, and Relax) create geometry using {{ site.data.keymaps.insert }} action.
+Selection uses the {{ site.data.keymaps.select_single }} action.
 See [General Help](general.md) for more actions.
 
 
 ## Q: Why can I not select the geometry?
 
 If you have symmetry turned on, you can only select the geometry on the non-mirrored side of the model.
-Sometimes the geometry can snap to source surfaces that are "hidden" (see next Q).
-
-
-## Q: Why is my geometry below the source mesh?
-
-Sometimes when the source mesh contains objects that overlap (or nearly overlap), RetopoFlow will snap geometry to the inner surface.
-Use the "Push and Snap" operation under Options > Target Cleaning to push the vertices out along normal before snapping them back to the source surface.
 
 
 ## Q: I have symmetry turned on, but why is it not working?
@@ -34,4 +27,3 @@ If you have already started working on a target mesh, edit the origin as you wou
 ## Q: How do I continue working on a previous target?
 
 To continue working on a target mesh, select the target, switch to Edit Mode, then choose one of the RetopoFlow tools from the RetopoFlow menu.
-
