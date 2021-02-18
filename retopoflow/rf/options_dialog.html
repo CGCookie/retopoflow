@@ -60,19 +60,6 @@ def symmetry_changed(self):
             <summary title="General options">General</summary>
             <div class="contents">
                 <div class="collection">
-                    <h1 title="These options control quitting RetopoFlow">Quit Options</h1>
-                    <div class="contents">
-                        <label title="Check to confirm quitting when pressing Tab">
-                            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
-                            Confirm quit on Tab
-                        </label>
-                        <label title="Check to allow Esc key to quit RetopoFlow">
-                            <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
-                            Escape to Quit
-                        </label>
-                    </div>
-                </div>
-                <div class="collection">
                     <h1 title="These options control what checks are run when RetopoFlow starts">Start Up Checks</h1>
                     <div class="contents">
                         <label title="If enabled, check if Auto Save is disabled at start">
@@ -85,6 +72,32 @@ def symmetry_changed(self):
                         </label>
                     </div>
                 </div>
+                <div class="collection">
+                    <h1 title="These options control quitting RetopoFlow">Quit Options</h1>
+                    <div class="contents">
+                        <label title="Check to confirm quitting when pressing Tab">
+                            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
+                            Confirm quit on Tab
+                        </label>
+                        <label title="Check to allow Esc key to quit RetopoFlow">
+                            <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
+                            Escape to Quit
+                        </label>
+                    </div>
+                </div>
+                <details>
+                    <summary>Tooltips</summary>
+                    <div class="contents">
+                        <label title="Check to show tooltips">
+                            <input type="checkbox" checked="BoundBool('''options['show tooltips']''')">
+                            Show tooltips
+                        </label>
+                        <div class="labeled-input-text">
+                            <label title="Set delay before tooltips show">Delay</label>
+                            <input type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)">
+                        </div>
+                    </div>
+                </details>
                 <details>
                     <summary>Advanced</summary>
                     <div class="contents">
@@ -170,7 +183,7 @@ def symmetry_changed(self):
                     </div>
                 </div>
                 <div class="collection">
-                    <h1>Clipping</h1>
+                    <h1>View Clipping</h1>
                     <div class="contents">
                         <div class="labeled-input-text">
                             <label title="Near clipping distance">Start</label>
@@ -183,7 +196,11 @@ def symmetry_changed(self):
                     </div>
                 </div>
                 <div class="collection">
-                    <h1>Target Drawing</h1>
+                    <h1>Target Mesh Drawing</h1>
+                    <label title="Visualize non-manifold/detached vertices and edges">
+                        <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
+                        Non-manifold Outline
+                    </label>
                     <div class="contents">
                         <div class="labeled-input-text">
                             <label title='Sets how far geometry is pushed in visualization'>Normal Offset</label>
@@ -304,44 +321,6 @@ def symmetry_changed(self):
                         </div>
                     </details>
                 </div>
-                <details>
-                    <summary>Tooltips</summary>
-                    <div class="contents">
-                        <label title="Check to show tooltips">
-                            <input type="checkbox" checked="BoundBool('''options['show tooltips']''')">
-                            Show tooltips
-                        </label>
-                        <div class="labeled-input-text">
-                            <label title="Set delay before tooltips show">Delay</label>
-                            <input type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)">
-                        </div>
-                    </div>
-                </details>
-            </div>
-        </details>
-        <details>
-            <summary>Target Display</summary>
-            <div class="contents">
-                <label title="Visualize non-manifold/detached vertices and edges">
-                    <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
-                    Non-manifold warning
-                </label>
-                <div class="collection">
-                    <h1>Hide</h1>
-                    <div class="contents">
-                        <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
-                        <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
-                        <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
-                        <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
-                    </div>
-                </div>
-                <div class="collection">
-                    <h1>Reveal</h1>
-                    <div class="contents">
-                        <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
-                    </div>
-                </div>
             </div>
         </details>
         <details>
@@ -380,6 +359,27 @@ def symmetry_changed(self):
                     <h1>Normals</h1>
                     <div class="contents">
                         <button title="Flip normal of selected faces" class="full-size" on_mouseclick="self.flip_face_normals()">Flip Normals</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+        <details>
+            <summary>Target Visibility</summary>
+            <div class="contents">
+                <div class="collection">
+                    <h1>Hide</h1>
+                    <div class="contents">
+                        <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
+                        <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
+                        <br> <!-- this is a hack to make buttons below size correctly -->
+                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
+                        <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Reveal</h1>
+                    <div class="contents">
+                        <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
                     </div>
                 </div>
             </div>
