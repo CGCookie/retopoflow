@@ -19,7 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi
+import random
 import re
 from typing import List
 
@@ -441,6 +442,16 @@ class Direction(VecUtils, Entity3D):
     def from_vector(self, v):
         super().from_vector(v)
         self.normalize()
+
+    @classmethod
+    def uniform(cls):
+        # http://corysimon.github.io/articles/uniformdistn-on-sphere/
+        theta = random.uniform(0, pi*2)
+        phi = acos(random.uniform(-1, 1))
+        x = sin(phi) * cos(theta)
+        y = sin(phi) * sin(theta)
+        z = cos(phi)
+        return cls((x,y,z))
 
 
 class Normal(VecUtils, Entity3D):

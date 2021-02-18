@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import time
 from itertools import chain
 from mathutils import Vector
+from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
 
 import bpy
 
@@ -563,6 +564,33 @@ class RetopoFlow_Target:
 
     def get_target_geometry_counts(self):
         return self.rftarget.get_geometry_counts()
+
+    ###################################################
+
+    # determines if any of the edges cross
+    # uses face normal to compute 2D projection
+    # returns None if any of the points cannot project
+    def is_face_twisted(self, bmverts, Point_to_Point2D=None):
+        if not Point_to_Point2D:
+            # estimate a normal
+            v0, v1, v2 = bmverts[:3]
+            n = (v1.co-v0.co).cross(v2.co-v0.co)
+            t = Direction.uniform()
+            y = Direction(t.cross(n))
+            x = Direction(y.cross(n))
+            Point_to_Point2D = lambda point: Vec2D((x.dot(point), y.dot(point)))
+        pts = [Point_to_Point2D(bmv.co) for bmv in bmverts]
+        if not all(pts): return None
+        l = len(pts)
+        for i0 in range(l):
+            i1 = (i0 + 1) % l
+            p0, p1 = pts[i0], pts[i1]
+            for j0 in range(i1 + 1, l):
+                j1 = (j0 + 1) % l
+                p2, p3 = pts[j0], pts[j1]
+                if intersect_segment_segment_2d(p0, p1, p2, p3): return True
+        return False
+
 
     ###################################################
 

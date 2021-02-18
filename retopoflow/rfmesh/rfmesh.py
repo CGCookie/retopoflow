@@ -943,9 +943,13 @@ class RFMesh():
     def get_face_count(self): return len(self.bme.faces)
 
     def get_selected_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.select and not bmv.hide}
+        # sel_verts = { e for e in self.bme.select_history if type(e) is BMVert and e.is_valid and e.select and not e.hide }
+        sel_verts = { bmv for bmv in self.bme.verts if bmv.is_valid and bmv.select and not bmv.hide }
+        return { self._wrap_bmvert(bmv) for bmv in sel_verts }
     def get_selected_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.select and not bme.hide}
+        # sel_edges = { e for e in self.bme.select_history if type(e) is BMEdge and e.is_valid and e.select and not e.hide }
+        sel_edges = { bme for bme in self.bme.edges if bme.is_valid and bme.select and not bme.hide }
+        return { self._wrap_bmedge(bme) for bme in sel_edges }
     def get_selected_faces(self):
         return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select and not bmf.hide}
 

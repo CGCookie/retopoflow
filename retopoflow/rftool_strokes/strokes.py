@@ -760,6 +760,19 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             )
             return
 
+        if len(best) == 1:
+            # special case where reversing the edge strip will NOT prevent twisted faces
+            verts = best[0].verts
+            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+            if p0 and p1:
+                pd = p1 - p0
+                dot = pd.x * sd.x + pd.y * sd.y
+                if dot < 0:
+                    # reverse stroke!
+                    stroke.reverse()
+                    s0, s1 = s1, s0
+                    sd = -sd
+
         # tessellate stroke to match edge
         edges = best
         verts = get_strip_verts(edges)
