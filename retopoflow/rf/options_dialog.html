@@ -50,6 +50,7 @@ def symmetry_changed(self):
     if self.rftarget.mirror_mod.z: s += ['Z']
     if not s: s = ['(none)']
     self.ui_options.getElementById('symmetryoptions_summary').innerText = f'Symmetry: {",".join(s)}'
+    self.dirty_render()
 
 </script>
 

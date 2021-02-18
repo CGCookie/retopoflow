@@ -555,6 +555,9 @@ class RetopoFlow_Target:
     def dirty(self):
         self.rftarget.dirty()
 
+    def dirty_render(self):
+        self.rftarget_draw.dirty()
+
     def get_target_version(self, selection=True):
         return self.rftarget.get_version(selection=selection)
 

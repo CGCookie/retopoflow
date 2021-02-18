@@ -150,6 +150,9 @@ class RFMeshRender():
         self.bmesh = rfmesh.bme
         self.rfmesh_version = None
 
+    def dirty(self):
+        self.rfmesh_version = None
+
     @profiler.function
     def add_buffered_render(self, bgl_type, data):
         batch = BufferedRender_Batch(bgl_type)
@@ -162,6 +165,10 @@ class RFMeshRender():
     @profiler.function
     def _gather_data(self):
         self.buffered_renders = []
+        mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
+        mirror_x = 'x' in mirror_axes
+        mirror_y = 'y' in mirror_axes
+        mirror_z = 'z' in mirror_axes
 
         def gather():
             vert_count = 100000
@@ -174,8 +181,20 @@ class RFMeshRender():
             def sel(g):
                 return 1.0 if g.select else 0.0
             def warn_vert(g):
+                if mirror_x and g.co.x <= 0.0001: return 0.0
+                if mirror_y and g.co.y >= -0.0001: return 0.0
+                if mirror_z and g.co.z <= 0.0001: return 0.0
                 return 0.0 if g.is_manifold and not g.is_boundary else 1.0
             def warn_edge(g):
+                if mirror_x:
+                    v0,v1 = g.verts
+                    if v0.co.x <= 0.0001 and v1.co.x <= 0.0001: return 0.0
+                if mirror_y:
+                    v0,v1 = g.verts
+                    if v0.co.y >= -0.0001 and v1.co.y >= -0.0001: return 0.0
+                if mirror_z:
+                    v0,v1 = g.verts
+                    if v0.co.z <= 0.0001 and v1.co.z <= 0.0001: return 0.0
                 return 0.0 if g.is_manifold else 1.0
             def warn_face(g):
                 return 1.0
