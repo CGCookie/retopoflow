@@ -35,7 +35,7 @@ def reset_alpha_options(self):
     self.document.body.dirty(children=True)
 
 
-def update_hide_overlays():
+def update_hide_overlays(self):
     if options['hide overlays']: self.overlays_hide()
     else: self.overlays_restore()
 
@@ -145,7 +145,7 @@ def symmetry_changed(self):
                     Auto Hide Tool Options
                 </label>
                 <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
-                    <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays()">
+                    <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)">
                     Hide Overlays
                 </label>
                 <div class="labeled-input-text">
