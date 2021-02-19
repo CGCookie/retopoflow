@@ -1576,7 +1576,13 @@ class RFTarget(RFMesh):
         face_in_common = accumulate_last((set(v.link_faces) for v in verts), lambda s0,s1: s0 & s1)
         if face_in_common: return face_in_common
         verts = [self._unwrap(v) for v in verts]
-        bmf = self.bme.faces.new(verts)
+        # make sure there are now duplicate verts (issue #957)
+        seen, nverts = set(), list()
+        for v in verts:
+            if v in seen: continue
+            seen.add(v)
+            nverts.append(v)
+        bmf = self.bme.faces.new(nverts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
 
