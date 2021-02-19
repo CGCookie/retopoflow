@@ -17,8 +17,12 @@ from ..common.fsm import FSM
 from ..common.debug import debugger
 
 class CookieCutter_FSM:
-    fsm = FSM()
-    FSM_State = fsm.wrapper
+    # fsm = FSM()
+    # FSM_State = fsm.wrapper
+    @classmethod
+    def create_FSM(cls):
+        cls.fsm = FSM()
+        cls.FSM_State = cls.fsm.wrapper
 
     def _cc_fsm_init(self):
         self.fsm.init(self, start='main')
@@ -28,3 +32,4 @@ class CookieCutter_FSM:
     def _cc_fsm_update(self):
         self.fsm.update()
 
+CookieCutter_FSM.create_FSM()

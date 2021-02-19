@@ -164,8 +164,8 @@ class RetopoFlow_UpdaterSystem:
             ui_versions.append_children(UI_Element.fromHTML(
                 f'''<label><input type="radio" name="version" value="none" on_input="version_on_input(this)" checked>Keep current version</label>'''
             ))
-            for tag in updater._tags:
-                print(tag)
+            # for tag in updater._tags:
+            #     print(tag)
             for tag in updater.tags:
                 tag = tag.replace('\n', '').replace('\r', '').replace('\t','')
                 ui_versions.append_children(UI_Element.fromHTML(

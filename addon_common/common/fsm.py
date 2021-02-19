@@ -34,7 +34,7 @@ class FSM:
 
     def _create_wrapper(self):
         fsm = self
-        seen = set()
+        seen = {}
         class FSM_State:
             def __init__(self, state, substate='main'):
                 self.state = state
@@ -43,12 +43,16 @@ class FSM:
             def __call__(self, fn):
                 self.fn = fn
                 self.fnname = fn.__name__
+                fr = inspect.getframeinfo(inspect.currentframe().f_back)
+                fndata = f'{fr.filename}:{fr.lineno}'
+                # if self.state == 'main':
+                #     print(f'FSM Notes: "{self.fnname}"')
+                #     print(f'  {fndata}')
                 if self.fnname in seen:
-                    print('FSM Warning: detected multiple functions with same name: "%s"' % self.fnname)
-                    st = inspect.stack()
-                    f = st[1]
-                    print('  %s:%d' % (f.filename, f.lineno))
-                seen.add(self.fnname)
+                    print(f'FSM Warning: detected multiple functions with same name: "{self.fnname}"')
+                    print(f'  pre: {seen[self.fnname]}')
+                    print(f'  cur: {fndata}')
+                seen[self.fnname] = fndata
                 def run(*args, **kwargs):
                     try:
                         return fn(*args, **kwargs)

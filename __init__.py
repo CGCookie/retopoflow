@@ -55,12 +55,16 @@ else:
             print('RetopoFlow: RELOADING!')
             # reloading RF modules
             importlib.reload(retopoflow)
+            importlib.reload(helpsystem)
+            importlib.reload(updatersystem)
             importlib.reload(configoptions)
             importlib.reload(updater)
             importlib.reload(rftool)
         else:
             print('RetopoFlow: Initial load')
             from .retopoflow import retopoflow
+            from .retopoflow import helpsystem
+            from .retopoflow import updatersystem
             from .config import options as configoptions
             from .retopoflow import updater
             from .addon_common.common.maths import convert_numstr_num
@@ -91,7 +95,7 @@ if import_succeeded:
     create operators for viewing RetopoFlow help documents
     '''
 
-    class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_QuickStart(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Quick Start Guide"""
         bl_idname = "cgcookie.retopoflow_help_quickstart"
         bl_label = "Quick Start Guide"
@@ -102,7 +106,7 @@ if import_succeeded:
         rf_startdoc = 'quick_start.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_QuickStart]
 
-    class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_Welcome(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Welcome"""
         bl_idname = "cgcookie.retopoflow_help_welcome"
         bl_label = "Welcome Message"
@@ -113,7 +117,7 @@ if import_succeeded:
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
-    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Table of Contents"""
         bl_idname = "cgcookie.retopoflow_help_tableofcontents"
         bl_label = "Table of Contents"
@@ -124,7 +128,7 @@ if import_succeeded:
         rf_startdoc = 'table_of_contents.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
 
-    class VIEW3D_OT_RetopoFlow_Help_FAQ(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_FAQ(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Table of Contents"""
         bl_idname = "cgcookie.retopoflow_help_faq"
         bl_label = "RetopoFlow FAQ"
@@ -135,7 +139,7 @@ if import_succeeded:
         rf_startdoc = 'faq.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_FAQ]
 
-    class VIEW3D_OT_RetopoFlow_Help_Warnings(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_Warnings(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Warnings Document"""
         bl_idname = "cgcookie.retopoflow_help_warnings"
         bl_label = "See details on these warnings"
@@ -146,7 +150,7 @@ if import_succeeded:
         rf_startdoc = 'warnings.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
-    class VIEW3D_OT_RetopoFlow_UpdaterSystem(retopoflow.RetopoFlow_OpenUpdaterSystem):
+    class VIEW3D_OT_RetopoFlow_UpdaterSystem(updatersystem.RetopoFlow_OpenUpdaterSystem):
         """Open RetopoFlow Updater System"""
         bl_idname = "cgcookie.retopoflow_updater"
         bl_label = "Updater"
@@ -156,7 +160,7 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
-    class VIEW3D_OT_RetopoFlow_Help_Updater(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Updater Help"""
         bl_idname = "cgcookie.retopoflow_help_updater"
         bl_label = "Updater Help"
@@ -493,6 +497,7 @@ if import_succeeded:
             if configoptions.retopoflow_version_git:
                 col.label(text='RetopoFlow under Git control', icon='DOT')
                 col.label(text='Use Git to Pull latest updates', icon='DOT')
+                # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
             else:
                 col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")

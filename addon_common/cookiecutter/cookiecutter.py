@@ -18,6 +18,7 @@ https://github.com/CGCookie/retopoflow
 '''
 
 import sys
+import copy
 import math
 import time
 
@@ -154,10 +155,10 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         try: self.update()
         except Exception as e: self._handle_exception(e, 'call update')
 
-        
+
         if self.should_pass_through(context, event):
             ret = {'PASS_THROUGH'}
-        
+
         if not ret:
             self._cc_fsm_update()
             ret = {'RUNNING_MODAL'}
