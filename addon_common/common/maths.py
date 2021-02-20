@@ -128,6 +128,16 @@ class Vec(VecUtils, Entity3D):
         if olen2 <= zero_threshold: return Vec3D((0,0,0))
         return (self.dot(other) / olen2) * other
 
+    @staticmethod
+    def average(vecs):
+        ax, ay, az, ac = 0, 0, 0, 0
+        for v in vecs:
+            vx,vy,vz = v
+            ax,ay,az,ac = ax+vx,ay+vy,az+vz,ac+1
+        if ac == 0:
+            return Vec((0, 0, 0))
+        return Vec((ax / ac, ay / ac, az / ac))
+
 
 class Index2D:
     def __init__(self, i, j):

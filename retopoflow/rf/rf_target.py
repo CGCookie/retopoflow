@@ -290,12 +290,12 @@ class RetopoFlow_Target:
     # get visible geometry
 
     @profiler.function
-    def visible_verts(self):
-        return self.rftarget.visible_verts(self.is_visible)
+    def visible_verts(self, verts=None):
+        return self.rftarget.visible_verts(self.is_visible, verts=verts)
 
     @profiler.function
-    def visible_edges(self, verts=None):
-        return self.rftarget.visible_edges(self.is_visible, verts=verts)
+    def visible_edges(self, verts=None, edges=None):
+        return self.rftarget.visible_edges(self.is_visible, verts=verts, edges=edges)
 
     @profiler.function
     def visible_faces(self, verts=None):

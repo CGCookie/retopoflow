@@ -886,29 +886,33 @@ class RFMesh():
 
     ##########################################################
 
-    def _visible_verts(self, is_visible):
+    def _visible_verts(self, is_visible, bmvs=None):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
+        if bmvs is None: bmvs = self.bme.verts
         is_vis = lambda bmv: (
             is_visible(l2w_point(bmv.co), None) or
             is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), None)
         )
-        return { bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide and is_vis(bmv) }
+        return { bmv for bmv in bmvs if bmv.is_valid and not bmv.hide and is_vis(bmv) }
 
-    def _visible_edges(self, is_visible, bmvs=None):
+    def _visible_edges(self, is_visible, bmvs=None, bmes=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bme for bme in self.bme.edges if bme.is_valid and not bme.hide and all(bmv in bmvs for bmv in bme.verts) }
+        if bmes is None: bmes = self.bme.edges
+        return { bme for bme in bmes if bme.is_valid and not bme.hide and all(bmv in bmvs for bmv in bme.verts) }
 
     def _visible_faces(self, is_visible, bmvs=None):
         if bmvs is None: bmvs = self._visible_verts(is_visible)
         return { bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide and all(bmv in bmvs for bmv in bmf.verts) }
 
-    def visible_verts(self, is_visible):
-        return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible) if bmv.is_valid and not bmv.hide }
-
-    def visible_edges(self, is_visible, verts=None):
+    def visible_verts(self, is_visible, verts=None):
         bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
-        return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs) if bme.is_valid and not bme.hide }
+        return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible, bmvs=bmvs) if bmv.is_valid and not bmv.hide }
+
+    def visible_edges(self, is_visible, verts=None, edges=None):
+        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
+        bmes = None if edges is None else { self._unwrap(bme) for bme in edges if bme.is_valid }
+        return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs, bmes=bmes) if bme.is_valid and not bme.hide }
 
     def visible_faces(self, is_visible, verts=None):
         bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
