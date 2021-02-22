@@ -316,6 +316,10 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         else:
             next_state = 'knife cut'
 
+        if bme and any(v.select for v in bme.verts):
+            # special case that we are hovering an edge has a selected vert (should split edge!)
+            next_state = 'knife start'
+
 
         if next_state == 'knife start':
             if bmv:
