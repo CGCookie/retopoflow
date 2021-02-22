@@ -1578,7 +1578,7 @@ class RFTarget(RFMesh):
     def new_face(self, verts):
         # see if a face happens to exist already...
         face_in_common = accumulate_last((set(v.link_faces) for v in verts), lambda s0,s1: s0 & s1)
-        if face_in_common: return face_in_common
+        if face_in_common: return next(iter(face_in_common))
         verts = [self._unwrap(v) for v in verts]
         # make sure there are now duplicate verts (issue #957)
         seen, nverts = set(), list()
@@ -1608,7 +1608,8 @@ class RFTarget(RFMesh):
 
 
     def delete_verts(self, verts):
-        for bmv in map(self._unwrap, verts): self.bme.verts.remove(bmv)
+        for bmv in map(self._unwrap, verts):
+            if bmv.is_valid: self.bme.verts.remove(bmv)
 
     def delete_edges(self, edges, del_empty_verts=True):
         edges = set(self._unwrap(e) for e in edges)

@@ -59,6 +59,10 @@ class RetopoFlow_Undo:
             self.select_rftool(state['tool']) #, forceUpdate=True, changeTool=options['undo change tool'])
         tag_redraw_all('restoring state')
 
+    def undo_last_action(self):
+        if not self.undo: return None
+        return self.undo[-1]['action']
+
     def undo_push(self, action, repeatable=False):
         # skip pushing to undo if action is repeatable and we are repeating actions
         if repeatable and self.undo and self.undo[-1]['action'] == action: return

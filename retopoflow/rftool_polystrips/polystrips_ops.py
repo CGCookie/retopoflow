@@ -35,7 +35,6 @@ from .polystrips_rfwidgets import PolyStrips_RFWidgets
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
     hash_face_pair,
-    strip_details,
     crawl_strip,
     is_boundaryvert, is_boundaryedge,
     process_stroke_filter, process_stroke_source,
@@ -248,20 +247,17 @@ class PolyStrips_Ops:
         self.rfcontext.select(new_geom, supparts=False)
 
 
-    @RFTool_PolyStrips.dirty_when_done
-    def change_count(self, *, count=None, delta=None):
-        '''
-        find parallel strips of boundary edges, fit curve to verts of strips, then
-        recompute faces based on curves.
-
-        note: this op will only change counts along boundaries.  otherwise, use loop cut
-        '''
-
-        nfaces = []
+    def setup_change_count(self):
+        self.count_data = {
+            'delta': 0,
+            'delta adjust': 0,
+            'update fns': [],
+            'nfaces': [],
+            'splines': [],
+            'points': [],
+        }
 
         def process(bmfs, bmes):
-            nonlocal nfaces
-
             # find edge strips
             strip0,strip1 = [bmes[0].verts[0]], [bmes[0].verts[1]]
             edges0,edges1 = [],[]
@@ -272,43 +268,76 @@ class PolyStrips_Ops:
                 strip1.append(bme2.other_vert(strip1[-1]))
                 edges0.append(bme1)
                 edges1.append(bme2)
+            if len(strip0) < 3: return
             pts0,pts1 = [v.co for v in strip0],[v.co for v in strip1]
-            lengths0 = [(p0-p1).length for p0,p1 in iter_pairs(pts0, False)]
-            lengths1 = [(p0-p1).length for p0,p1 in iter_pairs(pts1, False)]
-            length0,length1 = sum(lengths0),sum(lengths1)
+            lengths0,lengths1 = [e.length for e in edges0],[e.length for e in edges1]
+            #length0,length1 = sum(lengths0),sum(lengths1)
 
             max_error = min(min(lengths0),min(lengths1)) / 100.0   # arbitrary!
-            spline0 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts0]], max_error)
-            spline1 = CubicBezierSpline.create_from_points([[Vector(p) for p in pts1]], max_error)
+            spline0 = CubicBezierSpline.create_from_points([pts0], max_error, min_count_split=3)
+            spline1 = CubicBezierSpline.create_from_points([pts1], max_error, min_count_split=3)
+            spline0.tessellate_uniform(lambda a,b: (a-b).length, 50)
+            spline1.tessellate_uniform(lambda a,b: (a-b).length, 50)
             len0,len1 = len(spline0), len(spline1)
+            self.count_data['splines'] += [spline0, spline1]
+            self.count_data['points'] += pts0 + pts1
 
             ccount = len(bmfs)
-            if count is not None: ncount = count
-            else: ncount = ccount + delta
-            ncount = max(1, ncount)
 
-            # approximate ts along each strip
-            def approx_ts(spline_len, lengths):
-                nonlocal ncount,ccount
-                accum_ts_old = [0]
-                for l in lengths: accum_ts_old.append(accum_ts_old[-1] + l)
-                total_ts_old = sum(lengths)
-                ts_old = [Vector((i, t / total_ts_old, 0)) for i,t in enumerate(accum_ts_old)]
-                spline_ts_old = CubicBezierSpline.create_from_points([ts_old], 0.01)
-                spline_ts_old_len = len(spline_ts_old)
-                ts = [spline_len * spline_ts_old.eval(spline_ts_old_len * i / ncount).y for i in range(ncount+1)]
-                return ts
-            ts0 = approx_ts(len0, lengths0)
-            ts1 = approx_ts(len1, lengths1)
+            nfaces = []
+            nedges = []
+            nverts = [bmv for bme in bmes[1:-1] for bmv in bme.verts]
 
-            self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
+            def fn(count=None, delta=None):
+                nonlocal nverts
+                if count is not None: ncount = count
+                else: ncount = ccount + delta
+                if ncount < 1:
+                    self.count_data['delta adjust'] = max(self.count_data['delta adjust'], 1 - ncount)
+                    ncount = 1
+                ncount = max(1, ncount)
 
-            new_vert = self.rfcontext.new_vert_point
-            verts0 = strip0[:1] + [new_vert(spline0.eval(t)) for t in ts0[1:-1]] + strip0[-1:]
-            verts1 = strip1[:1] + [new_vert(spline1.eval(t)) for t in ts1[1:-1]] + strip1[-1:]
+                # approximate ts along each strip
+                def approx_ts(spline_len, lengths):
+                    nonlocal ncount,ccount
+                    accum_ts_old = [0]
+                    for l in lengths: accum_ts_old.append(accum_ts_old[-1] + l)
+                    total_ts_old = sum(lengths)
+                    ts_old = [Vector((i, t / total_ts_old, 0)) for i,t in enumerate(accum_ts_old)]
+                    spline_ts_old = CubicBezierSpline.create_from_points([ts_old], 0.01)
+                    spline_ts_old_len = len(spline_ts_old)
+                    ts = [spline_len * spline_ts_old.eval(spline_ts_old_len * i / ncount).y for i in range(ncount+1)]
+                    return ts
+                ts0 = approx_ts(len0, lengths0)
+                ts1 = approx_ts(len1, lengths1)
 
-            for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
-                nfaces.append(self.rfcontext.new_face([v00,v01,v11,v10]))
+                if not nverts:
+                    #self.rfcontext.delete_faces(nfaces)
+                    self.rfcontext.delete_edges(nedges)
+                else:
+                    self.rfcontext.delete_verts(nverts)
+                nverts.clear()
+                nedges.clear()
+                nfaces.clear()
+                # self.rfcontext.delete_edges(edges0 + edges1 + bmes[1:-1])
+
+                def new_vert(p):
+                    v = self.rfcontext.new_vert_point(p)
+                    nverts.append(v)
+                    return v
+                verts0 = strip0[:1] + [new_vert(spline0.eval(t)) for t in ts0[1:-1]] + strip0[-1:]
+                verts1 = strip1[:1] + [new_vert(spline1.eval(t)) for t in ts1[1:-1]] + strip1[-1:]
+
+                for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
+                    nf = self.rfcontext.new_face([v00,v01,v11,v10])
+                    self.count_data['nfaces'].append(nf)
+                    nfaces.append(nf)
+                for (v00, v01) in iter_pairs(verts0, False):
+                    nedges.append(v00.shared_edge(v01))
+                for (v10, v11) in iter_pairs(verts1, False):
+                    nedges.append(v10.shared_edge(v11))
+
+            self.count_data['update fns'].append(fn)
 
 
 
@@ -358,9 +387,26 @@ class PolyStrips_Ops:
             if not bmfs: continue
             process(bmfs, bmes)
 
-        if nfaces:
-            self.rfcontext.select(nfaces, supparts=False, only=False)
-        else:
-            #self.rfcontext.alert_user('Could not find a strip to adjust')
-            pass
+    @RFTool_PolyStrips.dirty_when_done
+    def change_count(self, *, count=None, delta=None):
+        '''
+        find parallel strips of boundary edges, fit curve to verts of strips, then
+        recompute faces based on curves.
+
+        note: this op will only change counts along boundaries.  otherwise, use loop cut
+        '''
+
+        self.count_data['nfaces'].clear()
+        self.count_data['delta adjust'] = 0
+        if delta is not None:
+            self.count_data['delta'] += delta
+            delta = self.count_data['delta']
+        for fn in self.count_data['update fns']:
+            fn(count=count, delta=delta)
+        if self.count_data['nfaces']:
+            self.rfcontext.select(self.count_data['nfaces'], supparts=False, only=False)
+        if delta is not None:
+            self.count_data['delta'] += self.count_data['delta adjust']
+
+
 

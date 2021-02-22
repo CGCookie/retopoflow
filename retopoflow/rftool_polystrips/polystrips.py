@@ -51,7 +51,6 @@ from .polystrips_rfwidgets import PolyStrips_RFWidgets
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
     hash_face_pair,
-    strip_details,
     crawl_strip,
     is_boundaryvert, is_boundaryedge,
     process_stroke_filter, process_stroke_source,
@@ -213,6 +212,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if self.actions.pressed({'increase count', 'decrease count'}, unpress=False):
             delta = 1 if self.actions.pressed('increase count') else -1
             self.actions.unpress()
+            if self.rfcontext.undo_last_action() != 'change segment count':
+                print(f'starting over')
+                self.setup_change_count()
             self.rfcontext.undo_push('change segment count', repeatable=True)
             self.change_count(delta=delta)
             return
@@ -636,6 +638,36 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             bgl.glDepthRange(0.0, 1.0)
             bgl.glDepthMask(bgl.GL_TRUE)
 
+        if False:
+            # draw spline for each strip
+            for strip in self.strips:
+                pp = None
+                for (_,p,_) in strip.curve.tessellation:
+                    p = self.rfcontext.Point_to_Point2D(p)
+                    if p and pp:
+                        self.rfcontext.drawing.draw2D_line(
+                            pp, p,
+                            (1,1,1,0.5),
+                            width=2, stipple=[2,2],
+                        )
+                    pp = p
+        if False and hasattr(self, 'count_data'):
+            # draw strip segment count change data (splines for edges)
+            splines = self.count_data['splines']
+            for spline in splines:
+                for cb in spline.tessellation:
+                    pp = None
+                    for (_,p,_) in cb:
+                        p = self.rfcontext.Point_to_Point2D(p)
+                        if p and pp:
+                            self.rfcontext.drawing.draw2D_line(
+                                pp, p,
+                                (1,1,0.2,0.5),
+                                width=2, stipple=[2,2],
+                            )
+                        pp = p
+            # self.rfcontext.drawing.draw2D_points([self.rfcontext.Point_to_Point2D(p) for p in self.count_data['points']], (1, 0.5, 0.5, 1.0), radius=5)
+
     @RFTool_PolyStrips.Draw('post2d')
     def draw_post2d(self):
         self.rfcontext.drawing.set_font_size(12)
@@ -643,6 +675,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         text_draw2D = self.rfcontext.drawing.text_draw2D
 
         for strip in self.strips:
+            strip = [f for f in strip if f.is_valid]
             c = len(strip)
             vs = [Point_to_Point2D(f.center()) for f in strip]
             vs = [Vec2D(v) for v in vs if v]
