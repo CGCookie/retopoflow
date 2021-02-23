@@ -24,10 +24,11 @@ Below is a list of major changes.
 ### RetopoFlow 3.00.2&rarr;3.1.0
 
 - Knife is a new tool for cutting into existing geometry!
-- General: selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
+- Selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
 - Tools are much more responsive when working on targets with high geometry counts
 - Loops, Tweak, and Relax now have quick shortcuts
-- UI: major performance improvements from redesign and reimplementation of underlying UI system
+- The tools pie menu is now 'Q' instead of '~' to reduce finger gymnastics
+- Major UI performance improvements from redesign and reimplementation of underlying UI system
 - Improved smart selection and added actions for selecting geometry along shortest path
 - Added button to push target vertices along normal before snapping to fix vertices snapping to inner source surfaces
 - Added updater system for updating to specific branches or commits
