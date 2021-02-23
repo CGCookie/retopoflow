@@ -27,7 +27,7 @@ Below is a list of major changes.
 - Selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
 - Tools are much more responsive when working on targets with high geometry counts
 - Loops, Tweak, and Relax now have quick shortcuts
-- The tools pie menu is now 'Q' instead of '~' to reduce finger gymnastics
+- The tools pie menu is now 'Q' as well as '~' to help reduce finger gymnastics
 - Major UI performance improvements from redesign and reimplementation of underlying UI system
 - Improved smart selection and added actions for selecting geometry along shortest path
 - Added button to push target vertices along normal before snapping to fix vertices snapping to inner source surfaces
