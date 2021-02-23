@@ -30,6 +30,7 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 | --- | --- | --- |
 | {{select single, select single add}} | : | select face |
 | {{select paint, select paint add}}   | : | paint face selection |
+| {{select path add}}                  | : | select faces along shortest path |
 | {{select all}}                       | : | select / deselect all |
 | {{deselect all}}                     | : | deselect all |
 

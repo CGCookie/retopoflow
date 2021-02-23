@@ -117,7 +117,7 @@ class BMElemWrapper:
 
     @property
     def select(self):
-        return self.bmelem.select
+        return self.bmelem.select and not self.bmelem.hide
 
     @select.setter
     def select(self, v):
@@ -577,8 +577,6 @@ class RFFace(BMElemWrapper):
 
     def center(self):
         return Point.average(self.l2w_point(bmv.co) for bmv in self.bmelem.verts)
-        cos = [Vec(self.l2w_point(bmv.co)) for bmv in self.bmelem.verts]
-        return Point(sum(cos, Vec((0, 0, 0))) / len(cos))
 
     #############################################
 

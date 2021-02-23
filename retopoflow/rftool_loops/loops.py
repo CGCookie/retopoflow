@@ -23,14 +23,20 @@ import bgl
 import bpy
 import math
 import random
+import itertools
 
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 
-from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Accel2D,Direction2D, clamp, Color
+from ...addon_common.common.maths import (
+    Point, Vec, Normal, Direction,
+    Point2D, Vec2D, Direction2D,
+    Accel2D, clamp, Color, Plane,
+)
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.drawing import CC_2D_LINE_STRIP, CC_2D_LINE_LOOP, CC_DRAW
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
@@ -66,6 +72,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     @RFTool_Loops.on_init
     def init(self):
         self.init_rfwidgets()
+        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     @RFTool_Loops.on_mouse_move
     def mouse_move(self):
@@ -75,6 +82,9 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     def reset(self):
         if self.actions.using('loops quick'):
             self._fsm.force_set_state('quick')
+            self.previs_timer.start()
+        else:
+            self.previs_timer.stop()
 
         self.nearest_edge = None
         self.set_next_state()
@@ -116,16 +126,20 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
     @RFTool_Loops.FSM_State('quick')
     def quick_main(self):
         if self.actions.pressed('cancel'):
+            self.previs_timer.stop()
             return 'main'
 
-        self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
+        if self.actions.mousemove_stop:
+            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+            if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
 
         if self.hovering_edge and self.rfcontext.actions.pressed('quick insert'):
             return self.insert_edge_loop_strip()
 
     @RFTool_Loops.FSM_State('main')
     def main(self):
+        if self.actions.mousemove: return  # ignore mouse moves
+
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
@@ -134,6 +148,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
         if self.hovering_sel_edge and not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
 
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['cut']
         elif self.hovering_edge:
@@ -148,7 +163,9 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                 return
 
         if self.hovering_edge:
-            if self.rfcontext.actions.pressed('action', unpress=False):
+            #print(f'hovering edge {self.actions.using("action")} {self.hovering_edge} {self.hovering_sel_edge}')
+            if self.actions.using('action'):
+                #print('acting!')
                 self.rfcontext.undo_push('slide edge loop/strip')
                 if not self.hovering_sel_edge:
                     self.rfcontext.select_edge_loop(self.hovering_edge, supparts=False)
@@ -178,6 +195,13 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             # insert edge loop / strip, select it, prep slide!
             return self.insert_edge_loop_strip()
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+            )
+
         if self.rfcontext.actions.pressed({'select paint'}):
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
@@ -185,12 +209,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
-            # return self.rfcontext.setup_selection_painting(
-            #     'edge',
-            #     fn_filter_bmelem=self.filter_edge_selection,
-            #     kwargs_select={'supparts': False},
-            #     kwargs_deselect={'subparts': False},
-            # )
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
             sel_only = self.rfcontext.actions.pressed('select smart')
@@ -290,10 +308,15 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.on_target_change
     @RFTool_Loops.on_view_change
-    @RFTool_Loops.on_mouse_move
     @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
     def update_next_state(self):
         self.set_next_state()
+
+    @RFTool_Loops.on_mouse_stop
+    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
+    def update_next_state_mouse(self):
+        self.set_next_state()
+        tag_redraw_all('Loops mouse stop')
 
     @profiler.function
     def set_next_state(self):
@@ -337,7 +360,6 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self.percent = a.dot(b) / adota;
 
 
-
     def prep_edit(self):
         self.edit_ok = False
 
@@ -346,12 +368,52 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         sel_verts = self.rfcontext.get_selected_verts()
         sel_edges = self.rfcontext.get_selected_edges()
 
+        if len(sel_verts) == 0 or len(sel_edges) == 0: return
+
+        if True:
+            # use line perpendicular to average edge direction
+            vis_verts = self.rfcontext.visible_verts(verts=sel_verts)
+            vis_edges = self.rfcontext.visible_edges(verts=vis_verts, edges=sel_edges)
+            edge_d = None
+            for edge in vis_edges:
+                v0, v1 = edge.verts
+                p0, p1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
+                if not p0 or not p1: continue
+                v = Direction2D(p1 - p0)
+                if not edge_d:
+                    edge_d = v
+                else:
+                    if edge_d.dot(v) < 0: edge_d -= v
+                    else: edge_d += v
+            if not edge_d: return
+            pts = [Point_to_Point2D(v.co) for v in vis_verts]
+            pts = [pt for pt in pts if pt]
+            if not pts: return
+            self.slide_point = Point2D.average(pts)
+            self.slide_direction = Direction2D((-edge_d.y, edge_d.x))
+        else:
+            # try to fit plane to data
+            plane_o = Point.average(bmv.co for bmv in sel_verts)
+            plane_n = Vec((0,0,0))
+            for edge in sel_edges:
+                v0, v1 = edge.verts
+                en, ev = Normal(v0.normal + v1.normal), (v0.co - v1.co)
+                perp = Direction(en.cross(ev))
+                if plane_n.dot(perp) < 0: perp = -perp
+                plane_n += perp
+            plane_n = Normal(plane_n)
+            o2d, on2d = Point_to_Point2D(plane_o), Point_to_Point2D(plane_o + plane_n)
+            if not o2d or not on2d: return
+            self.slide_direction = Direction2D(on2d - o2d)
+            self.slide_point = o2d
+        self.slide_vector = self.slide_direction * self.drawing.scale(40)
+
         # slide_data holds info on left,right vectors for moving
         slide_data = {}
         working = set(sel_edges)
         while working:
-            nearest_edge,_ = self.rfcontext.nearest2D_edge(edges=working)
-            crawl_set = { (nearest_edge, 1) }
+            crawl_set = { (next(iter(working)), 1) }
+            current_strip = set()
             while crawl_set:
                 bme,side = crawl_set.pop()
                 v0,v1 = bme.verts
@@ -362,7 +424,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                 # add verts of edge if not already added
                 for bmv in bme.verts:
                     if bmv in slide_data: continue
-                    slide_data[bmv] = { 'left':[], 'orig':bmv.co, 'right':[], 'other':set() }
+                    slide_data[bmv] = { 'left':[], 'orig':bmv.co, 'right':[], 'other':set(), 'flip': False }
 
                 # process edge
                 bmfl,bmfr = bme.get_left_right_link_faces()
@@ -378,24 +440,25 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                 col1 = bmvl1.co if bmvl1 else None
                 cor0 = bmvr0.co if bmvr0 else None
                 cor1 = bmvr1.co if bmvr1 else None
-                if col0 and cor0: pass              # found left and right sides!
-                elif col0: cor0 = co0 + (co0 - col0)  # cor0 is missing, guess
-                elif cor0: col0 = co0 + (co0 - cor0)  # col0 is missing, guess
-                else:                               # both col0 and cor0 are missing
-                    # use edge perpendicular and length to guess at col0 and cor0
-                    #assert False, "XXX: Not implemented yet!"
-                    continue
-                if col1 and cor1: pass              # found left and right sides!
-                elif col1: cor1 = co1 + (co1 - col1)  # cor1 is missing, guess
-                elif cor1: col1 = co1 + (co1 - cor1)  # col1 is missing, guess
-                else:                               # both col1 and cor1 are missing
-                    # use edge perpendicular and length to guess at col1 and cor1
-                    #assert False, "XXX: Not implemented yet!"
-                    continue
+
+                if   col0 and cor0: pass                # found left and right sides!
+                elif col0: cor0 = co0 + (co0 - col0)    # cor0 is missing, guess
+                elif cor0: col0 = co0 + (co0 - cor0)    # col0 is missing, guess
+                else: continue                          # both col0 and cor0 are missing
+                # instead of continuing, use edge perpendicular and length to guess at col0 and cor0
+                if   col1 and cor1: pass                # found left and right sides!
+                elif col1: cor1 = co1 + (co1 - col1)    # cor1 is missing, guess
+                elif cor1: col1 = co1 + (co1 - cor1)    # col1 is missing, guess
+                else: continue                          # both col1 and cor1 are missing
+                # instead of continuing, use edge perpendicular and length to guess at col1 and cor1
+
+                current_strip |= { v0, v1 }
+
                 if side < 0:
                     # edge direction is reversed, so swap left and right sides
                     col0,cor0 = cor0,col0
                     col1,cor1 = cor1,col1
+
                 if bmvl0 not in slide_data[v0]['other']:
                     slide_data[v0]['left'].append(col0-co0)
                     slide_data[v0]['other'].add(bmvl0)
@@ -417,22 +480,21 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
                     side_next = side * (1 if (v1 == v0_next or v0 == v1_next) else -1)
                     crawl_set.add((bme_next, side_next))
 
-        # find nearest selected edge
-        #   vector is perpendicular to edge
-        #   tangent is vector with unit length
-        nearest_edge,_ = self.rfcontext.nearest2D_edge(edges=sel_edges)
-        if not nearest_edge: return
-        bmv0,bmv1 = nearest_edge.verts
-        co0,co1 = self.rfcontext.Point_to_Point2D(bmv0.co),self.rfcontext.Point_to_Point2D(bmv1.co)
-        diff = co1 - co0
-        if diff.length_squared <= 0.0000001:
-            # nearest edge has no length!
-            return
-        self.tangent = Direction2D((-diff.y, diff.x))
-        self.vector = self.tangent * self.drawing.scale(40)
-        if self.vector.length_squared <= 0.0000001:
-            # nearest edge has no length!
-            return
+            # check if we need to flip the strip
+            def fn(bmv, side):
+                if not self.rfcontext.is_visible(bmv.co): return
+                p0 = Point_to_Point2D(bmv.co)
+                if not p0: return
+                m = 1 if side == 'left' else -1
+                for v in slide_data[bmv][side]:
+                     p1 = Point_to_Point2D(bmv.co + v * m)
+                     if p1: yield (p1 - p0)
+            l = [v for bmv in current_strip for v in fn(bmv, 'left')]
+            r = [v for bmv in current_strip for v in fn(bmv, 'right')]
+            wrong = [v for v in l if self.slide_direction.dot(v) < 0] + [v for v in r if self.slide_direction.dot(v) > 0]
+            if len(wrong) > (len(l) + len(r)) / 2:
+                for bmv in current_strip:
+                    slide_data[bmv]['flip'] = not slide_data[bmv]['flip']
 
         # nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=sel_verts)
         # if not nearest_vert: return
@@ -445,10 +507,11 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.FSM_State('slide', 'enter')
     def slide_enter(self):
-        self._timer = self.actions.start_timer(120)
+        self.previs_timer.start()
+        self.rfcontext.set_accel_defer(True)
+        tag_redraw_all('entering slide')
 
     @RFTool_Loops.FSM_State('slide')
-    @RFTool_Loops.dirty_when_done
     @profiler.function
     def slide(self):
         released = self.rfcontext.actions.released
@@ -462,25 +525,42 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
         self.rfwidget = self.rfwidgets['hover']
 
-        # only update loop on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        if not self.actions.mousemove_stop: return
+        # # only update loop on timer events and when mouse has moved
+        # if not self.rfcontext.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
 
         mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
-        a,b = self.vector, mouse_delta.project(self.tangent)
+        a,b = self.slide_vector, mouse_delta.project(self.slide_direction)
         percent = clamp(self.percent_start + a.dot(b) / a.dot(a), -1, 1)
         for bmv in self.slide_data.keys():
-            vecs = self.slide_data[bmv]['left' if percent > 0 else 'right']
+            mp = percent if not self.slide_data[bmv]['flip'] else -percent
+            vecs = self.slide_data[bmv]['left' if mp > 0 else 'right']
             if len(vecs) == 0: continue
             co = self.slide_data[bmv]['orig']
-            delta = sum((v*percent for v in vecs), Vec((0,0,0))) / len(vecs)
+            delta = sum((v * mp for v in vecs), Vec((0,0,0))) / len(vecs)
             bmv.co = co + delta
             self.rfcontext.snap_vert(bmv)
 
+        self.rfcontext.dirty()
+
     @RFTool_Loops.FSM_State('slide', 'exit')
     def slide_exit(self):
-        self._timer.done()
+        self.previs_timer.stop()
+        self.rfcontext.set_accel_defer(False)
 
+
+    @RFTool_Loops.Draw('post2d')
+    @RFTool_Loops.FSM_OnlyInState('slide')
+    def draw_postview_slide(self):
+        bgl.glEnable(bgl.GL_BLEND)
+        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        Globals.drawing.draw2D_line(
+            self.slide_point + self.slide_vector * 1000,
+            self.slide_point - self.slide_vector * 1000,
+            (0.1, 1.0, 1.0, 1.0), color1=(0.1, 1.0, 1.0, 0.0),
+            width=2, stipple=[2,2],
+        )
 
     @RFTool_Loops.Draw('post2d')
     @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})

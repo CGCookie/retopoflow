@@ -22,12 +22,14 @@ Created by Jonathan Denning, Jonathan Williamson
 import time
 from itertools import chain
 from mathutils import Vector
+from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
 
 import bpy
 
 from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import matrix_vector_mult
+from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
@@ -63,6 +65,8 @@ class RetopoFlow_Target:
         self.accel_vis_accel = None
         self._last_visible_bbox_factor = None
         self._last_visible_dist_offset = None
+        self._last_draw_count = -1
+        self._draw_count = 0
 
     def hide_target(self):
         self.rftarget.obj_viewport_hide()
@@ -100,6 +104,7 @@ class RetopoFlow_Target:
         recompute |= options['visible dist offset'] != self._last_visible_dist_offset
         recompute &= not self.accel_defer_recomputing
         recompute &= not self._nav and (time.time() - self._nav_time) > 0.25
+        recompute &= self._draw_count != self._last_draw_count
 
         self.accel_recompute = False
 
@@ -113,12 +118,24 @@ class RetopoFlow_Target:
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
             self._last_visible_bbox_factor = options['visible bbox factor']
             self._last_visible_dist_offset = options['visible dist offset']
+            self._last_draw_count = self._draw_count
         else:
             self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid } if self.accel_vis_verts is not None else None
             self.accel_vis_edges = { bme for bme in self.accel_vis_edges if bme.is_valid } if self.accel_vis_edges is not None else None
             self.accel_vis_faces = { bmf for bmf in self.accel_vis_faces if bmf.is_valid } if self.accel_vis_faces is not None else None
 
         return self.accel_vis_accel
+
+    def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True):
+        vis_verts = self.visible_verts()
+        verts = vis_verts                           if include_verts else []
+        edges = self.visible_edges(verts=vis_verts) if include_edges else []
+        faces = self.visible_faces(verts=vis_verts) if include_faces else []
+        if selection_only is not None:
+            verts = [v for v in verts if v.select == selection_only]
+            edges = [e for e in edges if e.select == selection_only]
+            faces = [f for f in faces if f.select == selection_only]
+        return Accel2D(verts, edges, faces, self.get_point2D)
 
     @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
@@ -273,16 +290,29 @@ class RetopoFlow_Target:
     # get visible geometry
 
     @profiler.function
-    def visible_verts(self):
-        return self.rftarget.visible_verts(self.is_visible)
+    def visible_verts(self, verts=None):
+        return self.rftarget.visible_verts(self.is_visible, verts=verts)
 
     @profiler.function
-    def visible_edges(self, verts=None):
-        return self.rftarget.visible_edges(self.is_visible, verts=verts)
+    def visible_edges(self, verts=None, edges=None):
+        return self.rftarget.visible_edges(self.is_visible, verts=verts, edges=edges)
 
     @profiler.function
     def visible_faces(self, verts=None):
         return self.rftarget.visible_faces(self.is_visible, verts=verts)
+
+
+    @profiler.function
+    def nonvisible_verts(self):
+        return self.rftarget.visible_verts(self.is_nonvisible)
+
+    @profiler.function
+    def nonvisible_edges(self, verts=None):
+        return self.rftarget.visible_edges(self.is_nonvisible, verts=verts)
+
+    @profiler.function
+    def nonvisible_faces(self, verts=None):
+        return self.rftarget.visible_faces(self.is_nonvisible, verts=verts)
 
 
     def iter_verts(self):
@@ -390,6 +420,19 @@ class RetopoFlow_Target:
 
     def clamp_point_to_symmetry(self, point):
         return self.rftarget.symmetry_real(point)
+
+    def push_then_snap_all_verts(self):
+        self.undo_push('push then snap all verts')
+        d = options['push and snap distance']
+        for bmv in self.rftarget.get_verts(): bmv.co += bmv.normal * d
+        self.rftarget.snap_all_verts(self.nearest_sources_Point)
+
+    def push_then_snap_selected_verts(self):
+        self.undo_push('push then snap selected verts')
+        d = options['push and snap distance']
+        for bmv in self.rftarget.get_verts():
+            if bmv.select: bmv.co += bmv.normal * d
+        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
 
     def snap_all_verts(self):
         self.undo_push('snap all verts')
@@ -513,11 +556,41 @@ class RetopoFlow_Target:
     def dirty(self):
         self.rftarget.dirty()
 
+    def dirty_render(self):
+        self.rftarget_draw.dirty()
+
     def get_target_version(self, selection=True):
         return self.rftarget.get_version(selection=selection)
 
     def get_target_geometry_counts(self):
         return self.rftarget.get_geometry_counts()
+
+    ###################################################
+
+    # determines if any of the edges cross
+    # uses face normal to compute 2D projection
+    # returns None if any of the points cannot project
+    def is_face_twisted(self, bmverts, Point_to_Point2D=None):
+        if not Point_to_Point2D:
+            # estimate a normal
+            v0, v1, v2 = bmverts[:3]
+            n = (v1.co-v0.co).cross(v2.co-v0.co)
+            t = Direction.uniform()
+            y = Direction(t.cross(n))
+            x = Direction(y.cross(n))
+            Point_to_Point2D = lambda point: Vec2D((x.dot(point), y.dot(point)))
+        pts = [Point_to_Point2D(bmv.co) for bmv in bmverts]
+        if not all(pts): return None
+        l = len(pts)
+        for i0 in range(l):
+            i1 = (i0 + 1) % l
+            p0, p1 = pts[i0], pts[i1]
+            for j0 in range(i1 + 1, l):
+                j1 = (j0 + 1) % l
+                p2, p3 = pts[j0], pts[j1]
+                if intersect_segment_segment_2d(p0, p1, p2, p3): return True
+        return False
+
 
     ###################################################
 
@@ -542,14 +615,21 @@ class RetopoFlow_Target:
 
     ###################################################
 
-    def get_selected_verts(self):
-        return self.rftarget.get_selected_verts()
+    def get_selected_verts(self): return self.rftarget.get_selected_verts()
+    def get_selected_edges(self): return self.rftarget.get_selected_edges()
+    def get_selected_faces(self): return self.rftarget.get_selected_faces()
 
-    def get_selected_edges(self):
-        return self.rftarget.get_selected_edges()
+    def get_unselected_verts(self): return self.rftarget.get_unselected_verts()
+    def get_unselected_edges(self): return self.rftarget.get_unselected_edges()
+    def get_unselected_faces(self): return self.rftarget.get_unselected_faces()
 
-    def get_selected_faces(self):
-        return self.rftarget.get_selected_faces()
+    def get_hidden_verts(self): return self.rftarget.get_hidden_verts()
+    def get_hidden_edges(self): return self.rftarget.get_hidden_edges()
+    def get_hidden_faces(self): return self.rftarget.get_hidden_faces()
+
+    def get_revealed_verts(self): return self.rftarget.get_revealed_verts()
+    def get_revealed_edges(self): return self.rftarget.get_revealed_edges()
+    def get_revealed_faces(self): return self.rftarget.get_revealed_faces()
 
     def any_verts_selected(self):
         return self.rftarget.any_verts_selected()
@@ -588,6 +668,62 @@ class RetopoFlow_Target:
     def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
+
+    def hide_selected(self):
+        self.undo_push('hide selected')
+        selected = set()
+        for bmv in self.get_selected_verts():
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in self.get_selected_edges():
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in self.get_selected_faces():
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_visible(self):
+        self.undo_push('hide visible')
+        selected = set()
+        visible_verts = self.visible_verts()
+        visible_edges = self.visible_edges(verts=visible_verts)
+        visible_faces = self.visible_faces(verts=visible_verts)
+        for bmv in visible_verts:
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in visible_edges:
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in visible_faces:
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_nonvisible(self):
+        self.undo_push('hide visible')
+        selected = set()
+        nonvisible_verts = self.nonvisible_verts()
+        nonvisible_edges = self.nonvisible_edges(verts=nonvisible_verts)
+        nonvisible_faces = self.nonvisible_faces(verts=nonvisible_verts)
+        for bmv in nonvisible_verts:
+            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
+        for bme in nonvisible_edges:
+            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
+        for bmf in nonvisible_faces:
+            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def hide_unselected(self):
+        self.undo_push('hide unselected')
+        selected = self.get_unselected_verts() | self.get_unselected_edges() | self.get_unselected_faces()
+        for e in selected: e.hide = True
+        self.dirty()
+
+    def reveal_hidden(self):
+        self.undo_push('reveal hidden')
+        hidden = self.get_hidden_verts() | self.get_hidden_edges() | self.get_hidden_faces()
+        for e in hidden: e.hide = False
+        self.dirty()
+        return
+
 
     #######################################################
 

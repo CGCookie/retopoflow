@@ -220,6 +220,8 @@ class UI_Element_Properties:
         self._new_content = True
         return child
     def append_child(self, child): return self._append_child(child)
+    def append_children(self, children):
+        for child in children: self._append_child(child)
     def prepend_child(self, child):
         assert child
         if child in self._children:
@@ -566,7 +568,13 @@ class UI_Element_Properties:
     def reposition(self, left=None, top=None, bottom=None, right=None, clamp_position=True):
         assert not bottom and not right, 'repositioning UI via bottom or right not implemented yet :('
         if clamp_position and self._relative_element:
-            w,h = Globals.drawing.scale(self.width_pixels),self.height_pixels #Globals.drawing.scale(self.height_pixels)
+            try:
+                w,h = Globals.drawing.scale(self.width_pixels),self.height_pixels #Globals.drawing.scale(self.height_pixels)
+            except Exception as e:
+                # sometimes the code above crashes, because self.width_pixels is not a float
+                print(f'>>>>>>>>> {self.width_pixels} {self.height_pixels}')
+                print(e)
+                w,h = 0,0
             mymbph = self._mbp_height
             rw,rh = self._relative_element.width_pixels,self._relative_element.height_pixels
             mbpw,mbph = self._relative_element._mbp_width,self._relative_element._mbp_height

@@ -52,11 +52,13 @@ class RetopoFlow_Drawing:
             # self.document.body.dirty(cause='--> options changed', children=True)
             for d in self.rfsources_draw: d.replace_opts(source_opts)
         options.add_callback(callback)
+        self._draw_count = 0
 
     @CookieCutter.PreDraw
     def predraw(self):
         if not self.loading_done: return
         self.update(timer=False)
+        self._draw_count += 1
 
     @CookieCutter.Draw('post3d')
     def draw_target_and_sources(self):

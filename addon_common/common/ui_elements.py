@@ -538,6 +538,13 @@ class UI_Element_Elements():
                     data['text'] = data['text'][0:data['idx']] + e.key + data['text'][data['idx']:]
                     data['idx'] += 1
                 preclean()
+            def paste(e):
+                if data['text'] == None: return
+                clipboardData = str(e.clipboardData)
+                if allowed: clipboardData = ''.join(c for c in clipboardData if c in allowed)
+                data['text'] = data['text'][0:data['idx']] + clipboardData + data['text'][data['idx']:]
+                data['idx'] += len(clipboardData)
+                preclean()
 
             self.preclean = preclean
             self.postflow = postflow
@@ -545,6 +552,7 @@ class UI_Element_Elements():
             self.add_eventListener('on_focus',     focus)
             self.add_eventListener('on_blur',      blur)
             self.add_eventListener('on_keypress',  keypress)
+            self.add_eventListener('on_paste',     paste)
             self.add_eventListener('on_mousedown', mousedown)
             self.add_eventListener('on_mousemove', mousemove)
             self.add_eventListener('on_mouseup',   mouseup)

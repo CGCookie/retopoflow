@@ -10,6 +10,7 @@ The following documents provide help generally across all of RetopoFlow.
 
 - [Quick Start Guide](quick_start.md)
 - [A Welcome to You from Us](welcome.md)
+- [RetopoFlow FAQ](faq.md)
 - [General Hotkeys and Options](general.md)
 
 ## Tools
@@ -31,6 +32,7 @@ The following documents provide help for specific RetopoFlow tools.
 The following links provide additional information.
 
 - [Change list](changelist.md)
+- [RetopoFlow Updater System](addon_updater.md)
 - [Warnings Details](warnings.md)
 - [Blender Market](https://blendermarket.com/products/retopoflow)
 - [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)

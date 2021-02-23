@@ -28,19 +28,20 @@ import atexit
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
-from .rf.rf_blender     import RetopoFlow_Blender
-from .rf.rf_blendersave import RetopoFlow_BlenderSave
-from .rf.rf_drawing     import RetopoFlow_Drawing
-from .rf.rf_grease      import RetopoFlow_Grease
-from .rf.rf_helpsystem  import RetopoFlow_HelpSystem
-from .rf.rf_instrument  import RetopoFlow_Instrumentation
-from .rf.rf_sources     import RetopoFlow_Sources
-from .rf.rf_spaces      import RetopoFlow_Spaces
-from .rf.rf_states      import RetopoFlow_States
-from .rf.rf_target      import RetopoFlow_Target
-from .rf.rf_tools       import RetopoFlow_Tools
-from .rf.rf_ui          import RetopoFlow_UI
-from .rf.rf_undo        import RetopoFlow_Undo
+from .rf.rf_blender       import RetopoFlow_Blender
+from .rf.rf_blendersave   import RetopoFlow_BlenderSave
+from .rf.rf_drawing       import RetopoFlow_Drawing
+from .rf.rf_grease        import RetopoFlow_Grease
+from .rf.rf_helpsystem    import RetopoFlow_HelpSystem
+from .rf.rf_instrument    import RetopoFlow_Instrumentation
+from .rf.rf_sources       import RetopoFlow_Sources
+from .rf.rf_spaces        import RetopoFlow_Spaces
+from .rf.rf_states        import RetopoFlow_States
+from .rf.rf_target        import RetopoFlow_Target
+from .rf.rf_tools         import RetopoFlow_Tools
+from .rf.rf_ui            import RetopoFlow_UI
+from .rf.rf_undo          import RetopoFlow_Undo
+from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
 
 from ..addon_common.common.blender import tag_redraw_all
 from ..addon_common.common.decorators import add_cache
@@ -120,46 +121,6 @@ def preload_help_images(version='thread'):
         ThreadPoolExecutor().submit(start)
 
 
-class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
-    @classmethod
-    def can_start(cls, context):
-        return True
-
-    def blender_ui_set(self):
-        self.viewaa_simplify()
-        # self.manipulator_hide()
-        self.panels_hide()
-        # self.overlays_hide()
-        self.region_darken()
-        self.header_text_set('RetopoFlow')
-
-    def start(self):
-        ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
-
-        preload_help_images.paused = True
-        keymaps = get_keymaps()
-        self.actions = ActionHandler(self.context, keymaps)
-        self.reload_stylings()
-        self.blender_ui_set()
-        self.helpsystem_open(self.rf_startdoc, done_on_esc=True, closeable=True, on_close=self.done)
-        Globals.ui_document.body.dirty(cause='changed document size', children=True)
-
-    def end(self):
-        self._cc_blenderui_end()
-
-    def update(self):
-        preload_help_images.paused = False
-
-    @CookieCutter.FSM_State('main')
-    def main(self):
-        if self.actions.pressed({'done', 'done alt0'}):
-            self.done()
-            return
-        if self.actions.pressed({'F12'}):
-            self.reload_stylings()
-            return
-
-
 class RetopoFlow(
     RetopoFlow_Blender,
     RetopoFlow_BlenderSave,
@@ -174,6 +135,7 @@ class RetopoFlow(
     RetopoFlow_Tools,
     RetopoFlow_UI,
     RetopoFlow_Undo,
+    RetopoFlow_UpdaterSystem,
 ):
 
     instance = None
@@ -264,6 +226,8 @@ class RetopoFlow(
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
 
         self.loading_done = False
+
+        self.undo, self.redo = [], []   # hack to work around issue #949
 
         keymaps = get_keymaps()
         self.actions = ActionHandler(self.context, keymaps)

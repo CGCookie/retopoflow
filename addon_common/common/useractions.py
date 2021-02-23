@@ -181,15 +181,26 @@ def i18n_translate(text):
 
 
 class TimerHandler:
-    def __init__(self, wm, win, hz):
+    def __init__(self, wm, win, hz, enabled=True):
+        self._win = win
         self._wm = wm
-        self._timer = wm.event_timer_add(1.0 / hz, window=win)
+        self._hz = hz
+        self._timer = None
+        self.enable(enabled)
     def __del__(self):
         self.done()
+    def start(self):
+        if self._timer: return
+        self._timer = self._wm.event_timer_add(1.0 / self._hz, window=self._win)
+    def stop(self):
+        if not self._timer: return
+        self._wm.event_timer_remove(self._timer)
+        self._timer = None
     def done(self):
-        if self._timer:
-            self._wm.event_timer_remove(self._timer)
-            self._timer = None
+        self.stop()
+    def enable(self, v):
+        if v: self.start()
+        else: self.stop()
 
 
 class Actions:
@@ -286,6 +297,13 @@ class Actions:
             'operators': [
                 'Screen | ed.redo',
             ],
+        }, {
+            'name': 'clipboard paste',
+            'operators': [
+                'Text | text.paste',
+                '3D View | view3d.pastebuffer',
+                'Console | console.paste',
+            ],
         },
     ]
 
@@ -356,6 +374,7 @@ class Actions:
         self.mouse_lastb      = None    # last button pressed on mouse
         self.mousemove        = False   # is the current action a mouse move?
         self.mousemove_prev   = False   # was the previous action a mouse move?
+        self.mousemove_stop   = False   # did the mouse just stop moving?
         self.mousedown        = None    # mouse position when a mouse button was pressed
         self.mousedown_left   = None    # mouse position when LMB was pressed
         self.mousedown_middle = None    # mouse position when MMB was pressed
@@ -398,6 +417,7 @@ class Actions:
         self.trackpad = (event_type in Actions.trackpad_actions)
         self.ndof = (event_type in Actions.ndof_actions)
         self.navevent = (event_type in self.keymap['navigate'])
+        self.mousemove_stop = not self.mousemove and self.mousemove_prev
 
         if event_type in self.ignore_actions: return
 
@@ -591,8 +611,8 @@ class Actions:
         #assert ftype in kmi_to_char, 'Trying to convert unhandled key "%s"' % str(self.just_pressed)
         return kmi_to_char.get(ftype, None)
 
-    def start_timer(self, hz):
-        return TimerHandler(self.context.window_manager, self.context.window, hz)
+    def start_timer(self, hz, enabled=True):
+        return TimerHandler(self.context.window_manager, self.context.window, hz, enabled=enabled)
 
 
 class ActionHandler:
@@ -606,12 +626,15 @@ class ActionHandler:
             _keymap[k] = { op for action in v for op in translate_blenderop(action) }
         self.__dict__['_keymap'] = _keymap
     def __getattr__(self, key):
+        if not ActionHandler._actions: return None
         ActionHandler._actions.keymap2 = self._keymap
         return getattr(ActionHandler._actions, key)
     def __setattr__(self, key, value):
+        if not ActionHandler._actions: return
         ActionHandler._actions.keymap2 = self._keymap
         return setattr(ActionHandler._actions, key, value)
     def done(self):
+        if not ActionHandler._actions: return
         ActionHandler._actions.done()
         ActionHandler._actions = None
 

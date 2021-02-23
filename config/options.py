@@ -50,8 +50,9 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 retopoflow_version = '3.1.0'
 retopoflow_version_tuple = (3, 1, 0)
 
-retopoflow_issues_url = "https://github.com/CGCookie/retopoflow/issues"
-retopoflow_helpdocs_url = 'https://docs.retopoflow.com'
+retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
+retopoflow_issues_url        = "https://github.com/CGCookie/retopoflow/issues"
+retopoflow_helpdocs_url      = 'https://docs.retopoflow.com'
 
 # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
 # NOTE: can add number to url to start the amount off
@@ -172,10 +173,11 @@ class Options:
         'select dist':          10,             # pixels away to select
         'action dist':          20,             # pixels away to allow action
         'remove doubles dist':  0.001,
+        'push and snap distance': 0.1,          # distance to push vertices out along normal before snapping back to source surface
 
         # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.001,          # rf_sources.visibility_preset_*
-        'visible dist offset':  0.0008,         # rf_sources.visibility_preset_*
+        'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
 
         # VISUALIZATION SETTINGS
         'warn non-manifold':        True,       # visualize non-manifold warnings
@@ -244,6 +246,7 @@ class Options:
         'strokes radius':               40,
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
+        'strokes snap stroke':          True,       # should stroke snap to unselected geometry?
 
         'knife automerge':              True,
         'knife merge dist':             10,         # pixels away to merge

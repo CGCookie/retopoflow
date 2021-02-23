@@ -106,14 +106,15 @@ def fit_cubicbezier(l_v, l_t):
     # solve for the unknowns in vector x
     v0, v1, v2, v3 = matrix_vector_mult(A_inv, b_vector)
 
-    err = compute_cubic_error(v0, v1, v2, v3, l_v, l_t) / len(l_v)
+    err = compute_cubic_error(v0, v1, v2, v3, l_v, l_t) #/ len(l_v)
 
     return (err, v0, v1, v2, v3)
 
 
 def fit_cubicbezier_spline(
     l_co, error_scale, depth=0,
-    t0=0, t3=-1, allow_split=True, force_split=False
+    t0=0, t3=-1, allow_split=True, force_split=False,
+    min_count_split=15, max_depth_split=4,
 ):
     '''
     fits cubic bezier to given points
@@ -125,19 +126,20 @@ def fit_cubicbezier_spline(
     count = len(l_co)
     if t3 == -1:
         t3 = count-1
-    # spc = '  ' * depth
-    # print(spc + 'count = %d' % count)
-    if count == 0:
-        assert False
-    if count == 1:
-        assert False
+    assert count > 2, "Need at least 2 points to fit cubic bezier"
     if count == 2:
+        # special case: line
         p0, p3 = l_co[0], l_co[-1]
-        diff = p3-p0
+        diff = p3 - p0
         return [(t0, t3, p0, p0+diff*0.33, p0+diff*0.66, p3)]
     if count == 3:
-        new_co = [l_co[0], (l_co[0]+l_co[1])/2, l_co[1],
-                  (l_co[1]+l_co[2])/2, l_co[2]]
+        new_co = [
+            l_co[0],
+            Point.average(l_co[:2]),
+            l_co[1],
+            Point.average(l_co[1:]),
+            l_co[2]
+        ]
         return fit_cubicbezier_spline(
             new_co, error_scale,
             depth=depth,
@@ -156,12 +158,12 @@ def fit_cubicbezier_spline(
     ey, y0, y1, y2, y3 = fit_cubicbezier([co[1] for co in l_co], l_t)
     ez, z0, z1, z2, z3 = fit_cubicbezier([co[2] for co in l_co], l_t)
     tot_error = ex+ey+ez
-    # print(spc + 'total error = %f (%f)' % (tot_error,error_scale)) #, l=4)
+    #print(f'error={tot_error}  max={error_scale}  force={force_split}  allow={allow_split}') #, l=4)
 
     if not force_split:
         do_not_split = tot_error < error_scale
-        do_not_split |= depth == 4
-        do_not_split |= len(l_co) <= 15
+        do_not_split |= depth == max_depth_split
+        do_not_split |= len(l_co) <= min_count_split
         do_not_split |= not allow_split
         if do_not_split:
             p0, p1 = Point((x0, y0, z0)), Point((x1, y1, z1))
@@ -402,16 +404,15 @@ class CubicBezier:
 class CubicBezierSpline:
 
     @staticmethod
-    def create_from_points(pts_list, max_error):
+    def create_from_points(pts_list, max_error, **kwargs):
         '''
         Estimates best spline to fit given points
         '''
         cbs = []
         inds = []
         for pts in pts_list:
-            cbs_pts = fit_cubicbezier_spline(pts, max_error)
-            cbs += [CubicBezier(p0, p1, p2, p3)
-                    for _, _, p0, p1, p2, p3 in cbs_pts]
+            cbs_pts = fit_cubicbezier_spline(pts, max_error, **kwargs)
+            cbs += [CubicBezier(p0, p1, p2, p3) for _, _, p0, p1, p2, p3 in cbs_pts]
             inds += [(ind0, ind1) for ind0, ind1, _, _, _, _ in cbs_pts]
         return CubicBezierSpline(cbs=cbs, inds=inds)
 

@@ -50,6 +50,7 @@ default_rf_keymaps = {
     'select smart add': {},
     'select paint': {},
     'select paint add': {},
+    'select path add': {},
 
     'select all': {'A'},
     'select invert': {'CTRL+I'},
@@ -83,6 +84,10 @@ default_rf_keymaps = {
     'delete pie menu': {'CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'},
     'smooth edge flow': {'SHIFT+S'},
 
+    'hide selected': {'H'},
+    'hide unselected': {'SHIFT+H'},
+    'reveal hidden': {'ALT+H'},
+
     'increase count': {'EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'},
     'decrease count': {'MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'},
 
@@ -110,8 +115,8 @@ default_rf_keymaps = {
     'brush strength': {'SHIFT+F'},
 
     # pie menu
-    'pie menu': {'Q'},
-    'pie menu alt0': {'SHIFT+Q'},
+    'pie menu': {'Q', 'ACCENT_GRAVE'},
+    'pie menu alt0': {'SHIFT+Q', 'SHIFT+ACCENT_GRAVE'},
     'pie menu confirm': {'LEFTMOUSE+CLICK', 'LEFTMOUSE+DRAG'},
 
     # shortcuts to tools
@@ -139,6 +144,7 @@ left_rf_keymaps = {
     'select smart add': {'SHIFT+LEFTMOUSE+DOUBLE'},
     'select paint': {'LEFTMOUSE+DRAG'},
     'select paint add': {'SHIFT+LEFTMOUSE+DRAG'},
+    'select path add': {'SHIFT+ALT+LEFTMOUSE+DOUBLE'},
 }
 
 right_rf_keymaps = {
@@ -148,6 +154,7 @@ right_rf_keymaps = {
     'select smart add': {'CTRL+SHIFT+RIGHTMOUSE', 'SHIFT+RIGHTMOUSE+DOUBLE'},
     'select paint': {'RIGHTMOUSE+DRAG'},
     'select paint add': {'SHIFT+RIGHTMOUSE+DRAG'},
+    'select path add': {'SHIFT+ALT+RIGHTMOUSE+DOUBLE'},
 }
 
 def get_keymaps():

@@ -783,6 +783,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             'on_keydown':       [],     # key is pressed down
             'on_keyup':         [],     # key is released
             'on_keypress':      [],     # key is entered (down+up)
+            'on_paste':         [],     # user is pasting from clipboard
             'on_mouseenter':    [],     # mouse enters self (:hover is added)
             'on_mousemove':     [],     # mouse moves over self
             'on_mousedown':     [],     # mouse button is pressed down
@@ -2038,7 +2039,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             raise e
 
     @profiler.function
-    def dispatch_event(self, event, mouse=None, button=None, key=None, ui_event=None, stop_at=None):
+    def dispatch_event(self, event, mouse=None, button=None, key=None, clipboardData=None, ui_event=None, stop_at=None):
         event = event if event.startswith('on_') else f'on_{event}'
         if self._document:
             if mouse is None:
@@ -2054,7 +2055,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         #         print(f'UI_Element.dispatch_event: {event} dispatched on {self}, but self.document = {self.document}  (root={self.get_root()}')
 
         if ui_event is None:
-            ui_event = UI_Event(target=self, mouse=mouse, button=button, key=key)
+            ui_event = UI_Event(target=self, mouse=mouse, button=button, key=key, clipboardData=clipboardData)
 
         path = self.get_pathToRoot()[1:] # skipping first item, which is self
         if stop_at is not None and stop_at in path:

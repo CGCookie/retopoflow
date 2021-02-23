@@ -38,6 +38,7 @@ Until the face can split, the created vertices and edges will be non-manifold (p
 | --- | --- | --- |
 | {{select single, select single add}} | : | select geometry |
 | {{select paint, select paint add}}   | : | paint geometry selection |
+| {{select path add}}                  | : | select along shortest path |
 | {{select all}}                       | : | select / deselect all |
 | {{deselect all}}                     | : | deselect all |
 

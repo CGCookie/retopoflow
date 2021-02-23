@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import time
 import random
 
 import bgl
@@ -40,6 +41,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.decorators import timed_call
 
 
 from ...config.options import options, themes
@@ -76,11 +78,15 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         self.knife_start = None
         self.quick_knife = False
         self.update_state_info()
+        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     @RFTool_Knife.on_reset
     def reset(self):
         if self.actions.using('knife quick'):
             self._fsm.force_set_state('quick')
+            self.previs_timer.start()
+        else:
+            self.previs_timer.stop()
 
     @RFTool_Knife.on_reset
     @RFTool_Knife.on_target_change
@@ -125,9 +131,10 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
     def quick_main(self):
         if self.actions.pressed({'confirm','cancel'}, ignoremouse=True):
             self.quick_knife = False
+            self.previs_timer.stop()
             return 'main'
 
-        if self.first_time or self.actions.mousemove:
+        if self.first_time or self.actions.mousemove_stop:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('Knife mousemove')
@@ -156,11 +163,12 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         if not self.actions.using_onlymods('insert'):
             self.knife_start = None
 
-        if self.first_time or self.actions.mousemove:
+        if self.first_time or self.actions.mousemove_stop:
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('Knife mousemove')
 
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['knife']
         elif self.nearest_geom and self.nearest_geom.select:
@@ -182,6 +190,12 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
                 self.rfcontext.undo_push('grab')
                 self.prep_move(defer_recomputing=False)
                 return 'move after select'
+
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                kwargs_select={'supparts': False},
+            )
 
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
@@ -301,6 +315,10 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             next_state = 'knife start'
         else:
             next_state = 'knife cut'
+
+        if bme and any(v.select for v in bme.verts):
+            # special case that we are hovering an edge has a selected vert (should split edge!)
+            next_state = 'knife start'
 
 
         if next_state == 'knife start':
@@ -460,11 +478,14 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
     @RFTool_Knife.FSM_State('move', 'enter')
     def move_enter(self):
-        self._timer = self.actions.start_timer(120)
+        self.move_opts = {
+            'timer': self.actions.start_timer(120),
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+        }
+        self.rfcontext.set_accel_defer(True)
 
     @RFTool_Knife.FSM_State('move')
     @profiler.function
-    @RFTool_Knife.dirty_when_done
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -479,10 +500,11 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main' if not self.quick_knife else 'quick'
 
-        # only update verts on timer events and when mouse has moved
-        if not self.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        if self.actions.mousemove or not self.actions.mousemove_prev: return
+        # # only update verts on timer events and when mouse has moved
+        # if not self.actions.timer: return
 
+        if not self.actions.mousemove_stop: return
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
@@ -493,22 +515,24 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['knife automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if not xy1: continue
-                    if bmv == bmv1: continue
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(options['knife merge dist']):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
+                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_opts['vis_accel'], max_dist=options['knife merge dist'])
+                if bmv1 is None:
                     set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        self.rfcontext.dirty()
 
     @RFTool_Knife.FSM_State('move', 'exit')
     def move_exit(self):
-        self._timer.done()
-
+        self.move_opts['timer'].done()
+        self.rfcontext.set_accel_defer(False)
 
     def _get_crosses(self, p0, p1):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D

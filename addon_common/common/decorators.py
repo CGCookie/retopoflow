@@ -150,14 +150,24 @@ class LimitRecursion:
         return wrapped
 
 
+@add_cache('data', {'nested':0, 'last':None})
 def timed_call(label):
     def wrapper(fn):
         def wrapped(*args, **kwargs):
+            data = timed_call.data
+            if data['last']: print(data['last'])
+            data['last'] = f'''{"  " * data['nested']}Timing {label}'''
+            data['nested'] += 1
             time_beg = time.time()
             ret = fn(*args, **kwargs)
             time_end = time.time()
             time_delta = time_end - time_beg
-            print('Timing: %0.4fs, %s' % (time_delta, label))
+            if data['last']:
+                print(f'''{data['last']}: {time_delta:0.4f}s''')
+                data['last'] = None
+            else:
+                print(f'''{"  " * data['nested']}{time_delta:0.4f}s''')
+            data['nested'] -= 1
             return ret
         return wrapped
     return wrapper

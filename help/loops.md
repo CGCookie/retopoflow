@@ -24,6 +24,7 @@ The Loops tool also works on any strip of edges.
 | {{select single, select single add}} | : | select edges |
 | {{select smart, select smart add}}   | : | smart select loop |
 | {{select paint, select paint add}}   | : | paint edge selection |
+| {{select path add}}                  | : | select edges along shortest path |
 | {{select all}}                       | : | select / deselect all |
 | {{deselect all}}                     | : | deselect all |
 

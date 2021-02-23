@@ -343,6 +343,10 @@ class UI_Document(UI_Document_FSM):
     def handle_keypress(self, ui_element=None):
         ui_element = ui_element or self._focus
 
+        if self.actions.pressed('clipboard paste') and ui_element:
+            # print(f'CLIPBOARD PASTE!  {bpy.context.window_manager.clipboard}')
+            ui_element.dispatch_event('on_paste', clipboardData=bpy.context.window_manager.clipboard)
+
         pressed = None
         if self.actions.using('keypress', ignoreshift=True):
             pressed = self.actions.as_char(self.actions.last_pressed)

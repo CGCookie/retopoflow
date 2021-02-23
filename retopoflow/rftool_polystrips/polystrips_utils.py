@@ -64,13 +64,16 @@ def crawl_strip(bmf0, bme0_2, only_bmfs, stop_bmfs, touched=None):
     if next_part is None: return None
     return [bmf0] + next_part
 
-def strip_details(strip):
+def strip_centers(strip):
+    return [bmf.center() for bmf in strip]
     pts = []
     radius = 0
     for bmf in strip:
         bmvs = bmf.verts
-        v = sum((Vector(bmv.co) for bmv in bmvs), Vector()) / 4
-        r = ((bmvs[0].co - bmvs[1].co).length + (bmvs[1].co - bmvs[2].co).length + (bmvs[2].co - bmvs[3].co).length + (bmvs[3].co - bmvs[0].co).length) / 8
+        pts = [bmv.co for bmv in bmf.verts]
+        v = Point.average(pts)
+        r = sum((pt - v).length for pt in pts) / 4
+        # r = ((pts[0] - pts[1]).length + (pts[1] - pts[2]).length + (pts[2] - pts[3]).length + (pts[3] - pts[0]).length) / 8
         if not pts: radius = r
         else: radius = max(radius, r)
         pts += [v]
@@ -271,9 +274,9 @@ class RFTool_PolyStrips_Strip:
     def end_faces(self): return (self.bmf_strip[0], self.bmf_strip[-1])
 
     def recompute_curve(self):
-        pts,r = strip_details(self.bmf_strip)
+        pts = strip_centers(self.bmf_strip)
         self.curve = CubicBezier.create_from_points(pts)
-        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
+        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=50)
 
     def capture_edges(self):
         self.bmes = []
@@ -303,7 +306,7 @@ class RFTool_PolyStrips_Strip:
             self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
 
     def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
-        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=10)
+        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=50)
         length = self.curve.approximate_totlength_tessellation()
         for bme,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
             pos,norm,_,_ = raycast_sources_Point(self.curve.eval(t))

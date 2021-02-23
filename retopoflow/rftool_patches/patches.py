@@ -184,6 +184,13 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                 self.crosses -= 1
                 self._recompute()
 
+        if self.actions.pressed({'select path add'}):
+            return self.rfcontext.select_path(
+                {'edge'},
+                fn_filter_bmelem=self.filter_edge_selection,
+                kwargs_select={'supparts': False},
+            )
+
         if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
             sel_only = self.actions.pressed('select paint')
             self.actions.unpress()
@@ -195,13 +202,6 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
-            # return self.rfcontext.setup_selection_painting(
-            #     'edge',
-            #     sel_only=sel_only,
-            #     fn_filter_bmelem=self.filter_edge_selection,
-            #     kwargs_select={'supparts': False},
-            #     kwargs_deselect={'subparts': False},
-            # )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             sel_only = self.actions.pressed('select single')
@@ -241,10 +241,11 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         self.rfcontext.undo_push('move grabbed')
 
+        self.rfcontext.set_accel_defer(True)
+
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Patches.FSM_State('move')
-    @RFTool.dirty_when_done
     def move_main(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
@@ -260,9 +261,10 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
-        # if not self.actions.mousemove: return
+        if not self.actions.mousemove_stop: return
+        # if not self.rfcontext.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
+        # # if not self.actions.mousemove: return
 
         delta = Vec2D(self.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -282,9 +284,12 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             #     set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
+        self.rfcontext.dirty()
+
     @RFTool_Patches.FSM_State('move', 'exit')
     def move_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
 
     @RFTool.dirty_when_done
     def fill_patch(self):

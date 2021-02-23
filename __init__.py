@@ -27,6 +27,7 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+import bgl
 from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
@@ -45,36 +46,44 @@ bl_info = {
 }
 
 import_succeeded = False
-try:
-    if "retopoflow" in locals():
-        print('RetopoFlow: RELOADING!')
-        # reloading RF modules
-        importlib.reload(retopoflow)
-        importlib.reload(configoptions)
-        importlib.reload(updater)
-        importlib.reload(rftool)
-    else:
-        print('RetopoFlow: Initial load')
-        from .retopoflow import retopoflow
-        from .config import options as configoptions
-        from .retopoflow import updater
-        from .addon_common.common.maths import convert_numstr_num
-        from .addon_common.common.blender import get_active_object
-        from .retopoflow import rftool
-    options = configoptions.options
-    retopoflow_version = configoptions.retopoflow_version
-    import_succeeded = True
-    RFTool = rftool.RFTool
-except ModuleNotFoundError as e:
-    print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
-    print(e)
-except Exception as e:
-    print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
-    print(e)
-    from .addon_common.common.debug import Debugger
-    message,h = Debugger.get_exception_info_and_hash()
-    message = '\n'.join('- %s'%l for l in message.splitlines())
-    print(message)
+
+if bpy.app.background:
+    print(f'RetopoFlow: Blender is running in background; skipping any RF initializations')
+else:
+    try:
+        if "retopoflow" in locals():
+            print('RetopoFlow: RELOADING!')
+            # reloading RF modules
+            importlib.reload(retopoflow)
+            importlib.reload(helpsystem)
+            importlib.reload(updatersystem)
+            importlib.reload(configoptions)
+            importlib.reload(updater)
+            importlib.reload(rftool)
+        else:
+            print('RetopoFlow: Initial load')
+            from .retopoflow import retopoflow
+            from .retopoflow import helpsystem
+            from .retopoflow import updatersystem
+            from .config import options as configoptions
+            from .retopoflow import updater
+            from .addon_common.common.maths import convert_numstr_num
+            from .addon_common.common.blender import get_active_object
+            from .retopoflow import rftool
+        options = configoptions.options
+        retopoflow_version = configoptions.retopoflow_version
+        import_succeeded = True
+        RFTool = rftool.RFTool
+    except ModuleNotFoundError as e:
+        print('RetopoFlow: ModuleNotFoundError caught when trying to enable add-on!')
+        print(e)
+    except Exception as e:
+        print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
+        print(e)
+        from .addon_common.common.debug import Debugger
+        message,h = Debugger.get_exception_info_and_hash()
+        message = '\n'.join('- %s'%l for l in message.splitlines())
+        print(message)
 
 
 # the classes to register/unregister
@@ -86,51 +95,84 @@ if import_succeeded:
     create operators for viewing RetopoFlow help documents
     '''
 
-    class VIEW3D_OT_RetopoFlow_Help_QuickStart(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_QuickStart(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Quick Start Guide"""
         bl_idname = "cgcookie.retopoflow_help_quickstart"
         bl_label = "Quick Start Guide"
         bl_description = "Open RetopoFlow Quick Start Guide"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'quick_start.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_QuickStart]
 
-    class VIEW3D_OT_RetopoFlow_Help_Welcome(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_Welcome(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Welcome"""
         bl_idname = "cgcookie.retopoflow_help_welcome"
         bl_label = "Welcome Message"
         bl_description = "Open RetopoFlow Welcome Message"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'welcome.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
 
-    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Table of Contents"""
         bl_idname = "cgcookie.retopoflow_help_tableofcontents"
         bl_label = "Table of Contents"
         bl_description = "Open RetopoFlow Table of Contents"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'table_of_contents.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
 
-    class VIEW3D_OT_RetopoFlow_Help_Warnings(retopoflow.RetopoFlow_OpenHelpSystem):
+    class VIEW3D_OT_RetopoFlow_Help_FAQ(helpsystem.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Table of Contents"""
+        bl_idname = "cgcookie.retopoflow_help_faq"
+        bl_label = "RetopoFlow FAQ"
+        bl_description = "Open RetopoFlow Frequently Asked Questions"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'faq.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_FAQ]
+
+    class VIEW3D_OT_RetopoFlow_Help_Warnings(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Warnings Document"""
         bl_idname = "cgcookie.retopoflow_help_warnings"
         bl_label = "See details on these warnings"
         bl_description = "See details on the RetopoFlow warnings"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = set()
         rf_startdoc = 'warnings.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
+    class VIEW3D_OT_RetopoFlow_UpdaterSystem(updatersystem.RetopoFlow_OpenUpdaterSystem):
+        """Open RetopoFlow Updater System"""
+        bl_idname = "cgcookie.retopoflow_updater"
+        bl_label = "Updater"
+        bl_description = "Open RetopoFlow Updater"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+    RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
+
+    class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Updater Help"""
+        bl_idname = "cgcookie.retopoflow_help_updater"
+        bl_label = "Updater Help"
+        bl_description = "Open RetopoFlow Updater Help"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'addon_updater.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
+
     if options['preload help images']: retopoflow.preload_help_images()
+
 
 
 class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
@@ -139,6 +181,7 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     bl_description = 'Open the Blender Market RetopoFlow page'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
+    bl_options = set()
 
     def invoke(self, context, event):
         bpy.ops.wm.url_open(url='https://blendermarket.com/products/retopoflow')
@@ -151,6 +194,7 @@ class VIEW3D_OT_RetopoFlow_Help_Online(Operator):
     bl_description = 'Open RetopoFlow Online Documentation'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
+    bl_options = set()
 
     def invoke(self, context, event):
         bpy.ops.wm.url_open(url='https://docs.retopoflow.com')
@@ -171,7 +215,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
         @classmethod
         def poll(cls, context):
@@ -204,7 +248,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the active source and start RetopoFlow"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'REGISTER', 'UNDO'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
         @classmethod
         def poll(cls, context):
@@ -242,7 +286,7 @@ if import_succeeded:
         bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = {'UNDO', 'BLOCKING'}
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
     RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
     def VIEW3D_OT_RetopoFlow_Tool_Factory(rftool):
@@ -255,7 +299,7 @@ if import_succeeded:
             bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s: %s" % (name, description)
             bl_space_type = "VIEW_3D"
             bl_region_type = "TOOLS"
-            bl_options = {'REGISTER', 'UNDO'}
+            bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
             rf_starting_tool = name
         # just in case: remove spaces, so that class name is proper
         VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % name.replace(' ', '')
@@ -278,6 +322,7 @@ if import_succeeded:
         bl_description = 'Recover from RetopoFlow auto save'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'TOOLS'
+        bl_options = set()
         rf_icon = 'rf_recover_icon'
 
         @classmethod
@@ -432,6 +477,7 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
             col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
             col.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
+            col.operator('cgcookie.retopoflow_help_faq', icon='HELP')
 
             col = box.column()
             col.operator('cgcookie.retopoflow_help_online', icon='HELP')
@@ -451,9 +497,12 @@ if import_succeeded:
             if configoptions.retopoflow_version_git:
                 col.label(text='RetopoFlow under Git control', icon='DOT')
                 col.label(text='Use Git to Pull latest updates', icon='DOT')
+                # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
             else:
                 col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
+                col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+                # col.operator('cgcookie.retopoflow_help_updater', text='Updater System Help', icon='HELP')
 
         #############################################################################
         # the following two methods add/remove RF to/from the main 3D View menu

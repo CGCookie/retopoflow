@@ -30,7 +30,7 @@ class UI_Event:
         'bubbling',
     ]
 
-    def __init__(self, target=None, mouse=None, button=None, key=None):
+    def __init__(self, target=None, mouse=None, button=None, key=None, clipboardData=None):
         self._eventPhase = 'none'
         self._cancelBubble = False
         self._cancelCapture = False
@@ -38,6 +38,7 @@ class UI_Event:
         self._mouse = mouse
         self._button = button
         self._key = key
+        self._clipboardData = clipboardData
         self._defaultPrevented = False
 
     def stop_propagation(self):
@@ -79,6 +80,9 @@ class UI_Event:
 
     @property
     def key(self): return self._key
+
+    @property
+    def clipboardData(self): return self._clipboardData
 
     @property
     def default_prevented(self): return self._defaultPrevented

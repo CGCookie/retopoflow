@@ -19,6 +19,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 | --- | --- | --- |
 | {{select single, select single add}} | : | select geometry |
 | {{select paint, select paint add}}   | : | paint geometry selection |
+| {{select path add}}                  | : | select along shortest path |
 | {{select all}}                       | : | select / deselect all |
 | {{deselect all}}                     | : | deselect all |
 

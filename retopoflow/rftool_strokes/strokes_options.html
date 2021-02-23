@@ -1,6 +1,19 @@
+<script type="python">
+def set_span_mode(self, value):
+    elems = self.document.body.getElementsByName('strokes-span-mode')
+    for e in elems:
+        if e.value == value:
+            e.checked = True
+    self.document.body.getElementById('strokes-insert-modes').dirty()
+</script>
+
 <details id="strokes-options">
     <summary id="strokes-summary">Strokes</summary>
     <div class="contents">
+        <label title="Allow stroke to snap to nearby unselected geometry">
+            <input type="checkbox" checked="BoundBool('''options['strokes snap stroke']''')">
+            Snap Stroke to Unselected
+        </label>
         <div class='collection' id="strokes-insert-modes">
             <h1>Span Insert Mode</h1>
             <div class='contents'>
@@ -14,11 +27,11 @@
                 </label>
                 <div class="labeled-input-text">
                     <label title="Adjust brush size">Brush size</label>
-                    <input type="number" id='strokes-radius' value="self.rfwidgets['brush'].get_radius_boundvar()">
+                    <input type="number" id='strokes-radius' value="self.rfwidgets['brush'].get_radius_boundvar()" on_focus="set_span_mode(self, 'Brush Size')">
                 </div>
                 <div class="labeled-input-text">
                     <label title="Number of spans to insert when Span Insert Mode is set to Fixed">Fixed spans</label>
-                    <input type="number" value="self._var_fixed_span_count">
+                    <input type="number" value="self._var_fixed_span_count" on_focus="set_span_mode(self, 'Fixed')">
                 </div>
             </div>
         </div>
