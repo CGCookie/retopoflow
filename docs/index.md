@@ -24,9 +24,23 @@ Once installed, Blender should automatically filter the addons list to show only
 
 ![Installing RetopoFlow](install.png)
 
+If you have any issues with installing, please try the following steps:
+
+* Download RetopoFlow version 3 from the Blender Market (not RetopoFlow version 2, which only works with Blender 2.79 and before).
+* Open Blender 2.83 or later
+* Head to Preferences / Addons and search for RetopoFlow
+* Expand and press Remove
+* Restart Blender to completely clear out the previous version
+* Head to your preferences again
+* Click Install
+* Navigate to your RetopoFlow 3 .zip file (please do not unzip)
+* Click Install Addon
+* Enable RetopoFlow
+
 ## Updating
 RetopoFlow 3 comes with a built-in updater. Once you've installed it the first time, simply check for updates using the RetopoFlow menu. If you need to update the addon manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.   
 
 ## Getting Support
 
 Running into a problem or have a question that the documentation isn’t answering? Reach out to us via retopoflow@cgcookie.com.
+
