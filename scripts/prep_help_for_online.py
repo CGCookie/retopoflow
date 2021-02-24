@@ -115,6 +115,8 @@ def process_mdown(mdown):
         nf += [l]
     mdown = '\n'.join(nf)
 
+    mdown += '\n\n'
+
     return mdown
 
 def delete_all(path):

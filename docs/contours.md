@@ -54,3 +54,4 @@ You may draw strokes in any order, from any direction.
 
 - Extrude Contours from an existing edge loop by selecting it first.
 - Contours works with symmetry, enabling you to contour torsos and other symmetrical objects!
+

@@ -62,3 +62,4 @@ Each option is below, along with setting and description.
 | Exclude  | : | Tweak only unselected vertices |
 | Only     | : | Tweak only selected vertices |
 | All      | : | Tweak all vertices within brush, regardless of selection |
+

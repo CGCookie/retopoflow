@@ -1,25 +1,11 @@
-# RetopoFlow&nbsp;{[rf version]} Change List
+# RetopoFlow Change List
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.1.0&rarr;3.1.1
 
-## Version 2.x&rarr;3.x Notes
-
-In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
-Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
-
-Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x uses a similar workflow to RetopoFlow&nbsp;2.x.
-
-When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
-These windows allow you to switch between RF tools, set tool options, and get more information.
-Also, this one-time Welcome message will greet you.
-
-Below are more details about the current version of RetopoFlow.
-
-
-## Change List
-
-Below is a list of major changes.
+- Improved Updater System
+- Bug fixes
 
 ### RetopoFlow 3.00.2&rarr;3.1.0
 
@@ -76,14 +62,22 @@ Below is a list of major changes.
 - Works in Blender 2.8x and 2.9x
 - Fixed many issues
 
-
-
 ## Blender versions
 
 As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.83&nbsp;(LTS)--2.92α.
 
 Note: This version of RetopoFlow will *not* work in Blender&nbsp;2.79b or earlier.
 
+## Version 2.x&rarr;3.x Notes
+
+In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
+Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
+
+Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x uses a similar workflow to RetopoFlow&nbsp;2.x.
+
+When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
+These windows allow you to switch between RF tools, set tool options, and get more information.
+Also, this one-time Welcome message will greet you.
 
 ## New Framework
 

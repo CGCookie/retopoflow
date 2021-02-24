@@ -68,13 +68,14 @@ th, td {
 
 
 /* undo theme styling on header and footer */
-
+header {
+    padding-left: 1px;
+}
 header ul {
     list-style: none;
-    height: auto;
-    background: initial;
+    height: fit-content;
+    background: rgba(32, 32, 32, 1.0);;
     border: 0px;
-    width: auto;
 }
 header li {
     width: auto;
@@ -103,4 +104,11 @@ header ul li a:active {
 }
 footer {
     color: rgb(96, 96, 96);
+    background-color: rgba(32, 32, 32, 1.0);
+    position: fixed;
+    bottom: 0;
+}
+footer a {
+    color: rgb(96, 96, 96);
+    text-decoration: underline;
 }

@@ -23,11 +23,14 @@
 
         <p>{{ site.description | default: site.github.project_tagline }}</p>
 
-        <ul class="quicklinks">
+        <ul>
           <li><a href="table_of_contents.html">Table of Contents</a></li>
-          <li><a href="faq.html">FAQ</a></li>
-          <li><a href="quick_start.html">Quick Start</a></li>
           <li><a href="welcome.html">Welcome</a></li>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
           <li><a href="general.html">General</a></li>
         </ul>
 
@@ -44,9 +47,10 @@
         </ul>
 
         <ul>
+          <li><a href="changelist.html">Change List</a></li>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
-          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">GitHub</a></li>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
         </ul>
 
       </header>
@@ -56,10 +60,7 @@
 
       </section>
       <footer>
-        {% if site.github.is_project_page %}
-        <p>This project is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a></p>
-        {% endif %}
-        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
       </footer>
     </div>
     <script src="{{ "/assets/js/scale.fix.js" | relative_url }}"></script>

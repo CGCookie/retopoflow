@@ -67,3 +67,4 @@ If a source mesh is detected to have inward facing normals, RetopoFlow will repo
 Inward facing normals will cause new geometry to be created incorrectly or to prevent it from being selected.
 
 Possible fix: exit RetopoFlow, switch to Edit Mode on the source mesh, recalculate normals, then try RetopoFlow again.
+

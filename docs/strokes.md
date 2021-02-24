@@ -67,3 +67,4 @@ Creating geometry is dependent on your selection:
 Note: only edges on boundary of target are considered in selection.
 
 If stroke starts or ends on existing vertex, the Strokes tool will try to bridge the extruded geometry.
+

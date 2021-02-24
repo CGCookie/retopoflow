@@ -140,3 +140,4 @@ Note: symmetry utilizes the mirror modifier.
 
 When symmetry is turned on, the mirroring planes can be visualized on the sources choosing either the Edge or Face option.
 The Effect setting controls the strength of the visualization.
+

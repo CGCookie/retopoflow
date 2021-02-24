@@ -62,3 +62,4 @@ Each option is below, along with setting and description.
 | Exclude  | : | Relax only unselected vertices |
 | Only     | : | Relax only selected vertices |
 | All      | : | Relax all vertices within brush, regardless of selection |
+

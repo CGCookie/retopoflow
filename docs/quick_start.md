@@ -73,3 +73,4 @@ Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x
 When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
 These windows allow you to switch between RF tools, set tool options, and get more information.
 Also, a one-time Welcome message will greet you.
+

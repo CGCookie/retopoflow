@@ -36,3 +36,4 @@ The Loops tool also works on any strip of edges.
 | {{ site.data.keymaps.slide }}  | : | slide loop |
 | {{ site.data.keymaps.action }} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |
 | {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
+
