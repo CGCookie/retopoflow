@@ -95,6 +95,18 @@ class RetopoFlow_UpdaterSystem:
                 close()
         def blendermarket():
             bpy.ops.wm.url_open(url=retopoflow_blendermarket_url)
+        def open_staging_folder():
+            path = updater.stage_path
+            if not os.path.exists(path):
+                # updater stage path does not exist
+                # attempt to create it
+                os.makedirs(path)
+            bpy.ops.wm.path_open(filepath=path)
+            # path = opath
+            # while not os.path.exists(path):
+            #     npath = os.path.abspath(os.path.join(path, '..'))
+            #     assert npath != path, f'Could not open {opath}'
+            #     path = npath
 
         def done_updating(module_name, res=None):
             ui_updater.getElementById('select-version').is_visible = False
@@ -144,6 +156,7 @@ class RetopoFlow_UpdaterSystem:
 
         ui_updater = UI_Element.fromHTMLFile(abspath('updater_dialog.html'))[0]
         ui_updater.getElementById('current-version').innerText = retopoflow_version
+        # ui_updater.getElementById('staging-folder').innerText = updater.stage_path
         ui_updater.getElementById('update-succeeded').is_visible = False
         ui_updater.getElementById('update-failed').is_visible = False
         self.document.body.append_child(ui_updater)

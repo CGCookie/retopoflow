@@ -25,6 +25,7 @@ import glob
 import time
 
 from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
+from .rf.rf_ui_alert      import RetopoFlow_UI_Alert
 
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import ui_core
@@ -37,7 +38,7 @@ from ..config.keymaps import get_keymaps
 from ..config.options import options
 
 
-class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem):
+class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, RetopoFlow_UI_Alert):
     @classmethod
     def can_start(cls, context):
         return True

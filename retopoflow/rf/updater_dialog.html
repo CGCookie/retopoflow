@@ -5,12 +5,15 @@
             <p>You can use the RetopoFlow Updater System to download and install a specific version of RetopoFlow.</p>
             <p>Current RetopoFlow Version: <span id="current-version"></span></p>
             <p>NOTE: Versions before 3.1.0 do NOT have the RetopoFlow Updater System.</p>
+            <!-- <p>Staging folder: <button id="open-staging-folder" on_mouseclick="open_staging_folder()">Open</button></p>
+            <code id="staging-folder"></code> -->
             <div class="collection">
-                <h1>Versions</h1>
+                <h1>Choose one of the following versions, then click Install</h1>
                 <div class="contents">
                     <div id="version-options" class="options"></div>
                     <div class="actions">
-                        <button title="Load" id='load-version' on_mouseclick="load()" disabled>Load</button>
+                        <button class="half-size" title="Open updater staging folder" on_mouseclick="open_staging_folder()">Open Staging Folder</button>
+                        <button class="half-size" title="Install selected version" id='load-version' on_mouseclick="load()" disabled>Install</button>
                     </div>
                 </div>
             </div>
@@ -26,8 +29,9 @@
             <p>RetopoFlow failed to update to version: <span id="fail-version"></span></p>
             <p>Error Message: <span id="fail-message"></span></p>
             <div class="actions">
-                <button title="Try a different version" on_mouseclick="try_again()">Try a Different Version</button>
-                <button title="Exit Blender" on_mouseclick="bpy.ops.wm.quit_blender()">Exit Blender</button>
+                <button class="third-size" title="Open updater staging folder" on_mouseclick="open_staging_folder()">Open Staging Folder</button>
+                <button class="third-size" title="Try a different version" on_mouseclick="try_again()">Try again</button>
+                <button class="third-size" title="Exit Blender" on_mouseclick="bpy.ops.wm.quit_blender()">Exit Blender</button>
             </div>
         </div>
     </div>

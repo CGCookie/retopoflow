@@ -4,6 +4,7 @@ test-models
 test_models
 /tools/
 /retopoflow_updater/
+/updater_tmp/
 /icons/working/
 tmp/
 /scripts/

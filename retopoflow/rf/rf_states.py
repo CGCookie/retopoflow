@@ -93,10 +93,10 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu', 'enter')
     def pie_menu_enter(self):
-        size = 512
-        size_opt = 72
+        size, size_opt = 512, 72
+        size_, size_opt_ = self.drawing.scale(size), self.drawing.scale(size_opt)
         doc_h = self.document.body.height_pixels
-        centered = self.actions.mouse - Vec2D((size / 2, doc_h - size / 2)) - Vec2D((36, -36))
+        centered = self.actions.mouse - Vec2D((size_ / 2, doc_h - size_ / 2)) - Vec2D((36, -36))
         ui_pie_menu_contents = self.ui_pie_menu.getElementById('pie-menu-contents')
         ui_pie_menu_contents.clear_children()
         ui_pie_menu_contents.style = f'left:{centered.x}px; top:{centered.y}px; width:{size}px; height:{size}px; border-radius:{int(size/2)}px; padding:{int(size/2)}px'
@@ -112,7 +112,7 @@ class RetopoFlow_States(CookieCutter):
             option.setdefault('image', '')
             self.pie_menu_options[i_option] = option['value']
             r = ((i_option / count) * 360 + self.pie_menu_rotation) * (math.pi / 180)
-            left, top = (size*0.40) * math.cos(r) - (size_opt/2), -((size*0.40) * math.sin(r) - (size_opt/2))
+            left, top = (size_*0.40) * math.cos(r) - (size_opt_/2), -((size_*0.40) * math.sin(r) - (size_opt_/2))
             ui = UI_Element.DIV(
                 style=f'left:{int(left)}px; top:{int(top)}px; width:{size_opt}px; height:{size_opt}px',
                 classes=f"pie-menu-option {'highlighted' if option['value'] == self.pie_menu_highlighted else ''}",
@@ -126,7 +126,7 @@ class RetopoFlow_States(CookieCutter):
 
         size_opt = 100
         UI_Element.DIV(
-            style=f'left:{-size_opt/2}px; top:{size_opt/2}px; width:{size_opt}px; height:{size_opt}px; border-radius:{size_opt/2}px',
+            style=f'left:{-size_opt_/2}px; top:{size_opt_/2}px; width:{size_opt}px; height:{size_opt}px; border-radius:{size_opt/2}px',
             classes=f'pie-menu-center',
             parent=ui_pie_menu_contents,
         )
