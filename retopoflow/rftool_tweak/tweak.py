@@ -191,7 +191,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         # gather options
         opt_mask_boundary = options['tweak mask boundary']
         opt_mask_symmetry = options['tweak mask symmetry']
-        opt_mask_hidden   = options['tweak mask hidden']
+        opt_mask_occluded = options['tweak mask occluded']
         opt_mask_selected = options['tweak mask selected']
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -209,7 +209,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         if self.sel_only:                  self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
         if opt_mask_boundary == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.is_on_boundary()]
         if opt_mask_symmetry == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.is_on_symmetry_plane()]
-        if opt_mask_hidden   == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if is_visible(bmv)]
+        if opt_mask_occluded == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if is_visible(bmv)]
         if opt_mask_selected == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.select]
         if opt_mask_selected == 'only':    self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
 

@@ -1085,7 +1085,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         if 'selector' not in self._dirty_properties:
             self.defer_clean = True
             with profiler.code('selector.calling back callbacks'):
-                for e in self._dirty_callbacks.get('selector', []):
+                for e in list(self._dirty_callbacks.get('selector', [])):
                     # print(self,'->', e)
                     e._compute_selector()
                 self._dirty_callbacks['selector'].clear()

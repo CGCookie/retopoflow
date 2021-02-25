@@ -693,9 +693,9 @@ class RFMesh():
 
     def nearest_bmvert_Point(self, point:Point, verts=None):
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         point_local = self.xform.w2l_point(point)
         bv,bd = None,None
         for bmv in verts:
@@ -708,8 +708,9 @@ class RFMesh():
         nearest = []
         unwrap = bmverts is not None
         for bmv in (bmverts or self.bme.verts):
-            if unwrap: bmv = self._unwrap(bmv)
+            if bmv.hide: continue
             if not bmv.is_valid: continue
+            if unwrap: bmv = self._unwrap(bmv)
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
             if d3d > dist3d: continue
@@ -718,9 +719,9 @@ class RFMesh():
 
     def nearest_bmedge_Point(self, point:Point, edges=None):
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in self.bme.edges:
@@ -739,6 +740,7 @@ class RFMesh():
         nearest = []
         for bme in self.bme.edges:
             if not bme.is_valid: continue
+            if bme.hide: continue
             bmv0,bmv1 = l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)
             diff = bmv1 - bmv0
             l = diff.length
@@ -753,9 +755,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         nearest = []
         for bmv in verts:
             p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
@@ -770,9 +772,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         l2w_point = self.xform.l2w_point
         bv,bd = None,None
         for bmv in verts:
@@ -788,9 +790,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         nearest = []
         dist2D2 = dist2D**2
@@ -812,9 +814,9 @@ class RFMesh():
     def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in edges:
@@ -840,9 +842,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
-            faces = [bmf for bmf in self.bme.faces if bmf.is_valid]
+            faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
-            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
         nearest = []
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
@@ -864,9 +866,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
-            faces = [bmf for bmf in self.bme.faces if bmf.is_valid]
+            faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
-            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
         bv,bd = None,None
         best_d = float('inf')
         best_f = None

@@ -34,14 +34,14 @@
                 </div>
             </div>
             <div class='collection'>
-                <h1>Hidden</h1>
+                <h1>Occluded</h1>
                 <div class='contents'>
                     <label class='half-size'>
-                        <input type="radio" title="Tweak only visible vertices" value='exclude' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
+                        <input type="radio" title="Tweak only vertices not occluded by other geometry" value='exclude' checked="BoundString('''options['tweak mask occluded']''')" name='tweak-occluded'>
                         Exclude
                     </label>
                     <label class='half-size'>
-                        <input type="radio" title="Tweak all vertices within brush, regardless of visibility" value='include' checked="BoundString('''options['tweak mask hidden']''')" name='tweak-hidden'>
+                        <input type="radio" title="Tweak all vertices within brush, regardless of occlusion" value='include' checked="BoundString('''options['tweak mask occluded']''')" name='tweak-occluded'>
                         Include
                     </label>
                 </div>

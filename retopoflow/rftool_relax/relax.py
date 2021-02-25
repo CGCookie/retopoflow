@@ -202,7 +202,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
         opt_mask_boundary   = options['relax mask boundary']
         opt_mask_symmetry   = options['relax mask symmetry']
-        opt_mask_hidden     = options['relax mask hidden']
+        opt_mask_occluded   = options['relax mask occluded']
         opt_mask_selected   = options['relax mask selected']
         opt_steps           = options['relax steps']
         opt_edge_length     = options['relax edge length']
@@ -219,7 +219,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             if self.sel_only and not bmv.select: continue
             if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
             if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
-            if opt_mask_hidden   == 'exclude' and not is_visible(bmv): continue
+            if opt_mask_occluded == 'exclude' and not is_visible(bmv): continue
             if opt_mask_selected == 'exclude' and bmv.select: continue
             if opt_mask_selected == 'only' and not bmv.select: continue
             self._bmverts.append(bmv)
@@ -263,7 +263,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         # gather options
         # opt_mask_boundary   = options['relax mask boundary']
         opt_mask_symmetry   = options['relax mask symmetry']
-        # opt_mask_hidden     = options['relax mask hidden']
+        # opt_mask_occluded   = options['relax mask hidden']
         # opt_mask_selected   = options['relax mask selected']
         opt_steps           = options['relax steps']
         opt_edge_length     = options['relax edge length']
