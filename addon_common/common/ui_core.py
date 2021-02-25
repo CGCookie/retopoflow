@@ -1452,7 +1452,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     def callback(image):
                         self._src = 'image loaded'
                         self._image_data = image
-                        self.dirty()
+                        self.dirty(children=True)
+                        self.dirty_styling()
+                        self.dirty_flow()
                     def load():
                         async_load_image(self.src, callback)
                     ThreadPoolExecutor().submit(load)
