@@ -519,15 +519,19 @@ class UI_Element_Elements():
                         self.blur()
                     elif is_keycode(e.key, 'END'):
                         data['idx'] = len(data['text'])
+                        self.dirty()
                         self.dirty_flow()
                     elif is_keycode(e.key, 'HOME'):
                         data['idx'] = 0
+                        self.dirty()
                         self.dirty_flow()
                     elif is_keycode(e.key, 'LEFT_ARROW'):
                         data['idx'] = max(data['idx'] - 1, 0)
+                        self.dirty()
                         self.dirty_flow()
                     elif is_keycode(e.key, 'RIGHT_ARROW'):
                         data['idx'] = min(data['idx'] + 1, len(data['text']))
+                        self.dirty()
                         self.dirty_flow()
                     elif is_keycode(e.key, 'DEL'):
                         if data['idx'] == len(data['text']): return
