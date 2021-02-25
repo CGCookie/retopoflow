@@ -575,9 +575,9 @@ class UI_Element_Properties:
                 print(f'>>>>>>>>> {self.width_pixels} {self.height_pixels}')
                 print(e)
                 w,h = 0,0
-            mymbph = self._mbp_height
+            mymbph = self._mbp_height or 0
             rw,rh = self._relative_element.width_pixels,self._relative_element.height_pixels
-            mbpw,mbph = self._relative_element._mbp_width,self._relative_element._mbp_height
+            mbpw,mbph = self._relative_element._mbp_width or 0,self._relative_element._mbp_height or 0
             # print(f'reposition: top={top} h={h} mymbp={mymbph} r={self._relative_element} rh={rh} rmbp={mbph} min={-(rh-mbph)+h+mymbph} max=0')
             if left is not None: left = clamp(left, 0, (rw - mbpw) - w)
             if top  is not None: top  = clamp(top, -(rh - mbph) + h + mymbph, 0)
