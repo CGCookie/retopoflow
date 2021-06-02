@@ -67,6 +67,7 @@ default_rf_keymaps = {
 
     'cancel': {'ESC', 'RIGHTMOUSE'},
     'confirm': {'RET', 'NUMPAD_ENTER', 'LEFTMOUSE+CLICK'},
+    'confirm drag': {'LEFTMOUSE+DRAG'},
 
     'done': {'TAB'},
     'done alt0': {'ESC'},

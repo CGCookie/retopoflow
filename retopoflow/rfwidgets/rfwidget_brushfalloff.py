@@ -86,10 +86,10 @@ class RFWidget_BrushFalloff_Factory:
                 assert self._dist_to_var_fn
                 actions = self.rfcontext.actions
 
-                if actions.pressed({'cancel','confirm'}, unpress=False, ignoremods=True):
-                    if actions.pressed('cancel', ignoremods=True):
-                        self._dist_to_var_fn(self._change_pre)
-                    actions.unpress()
+                if actions.pressed('cancel', ignoremods=True, ignoredrag=True):
+                    self._dist_to_var_fn(self._change_pre)
+                    return 'main'
+                if actions.pressed({'confirm', 'confirm drag'}, ignoremods=True):
                     return 'main'
 
                 dist = (self._change_center - actions.mouse).length

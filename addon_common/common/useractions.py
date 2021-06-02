@@ -422,7 +422,7 @@ class Actions:
         if event_type in self.ignore_actions: return
 
         if print_actions and event_type not in self.nonprintable_actions:
-            print('Actions.update: (event_type, event.value) =', (event_type, event.value))
+            print(f'Actions.update: event_type:{event_type}, event.value:{event.value}')
 
         if self.timer:
             time_cur = time.time()
@@ -505,7 +505,7 @@ class Actions:
             self.mousedown_drag = False
 
         if print_actions and event_type not in self.nonprintable_actions:
-            print('Actions.update: (ftype, pressed) =', (ftype, pressed), self.just_pressed, self.now_pressed, self.last_pressed)
+            print(f'Actions.update: ftype:{ftype}, pressed:{pressed}, just_pressed:{self.just_pressed}, now_pressed:{self.now_pressed}, last_pressed: {self.last_pressed}')
 
     def convert(self, actions):
         t = type(actions)
@@ -581,11 +581,11 @@ class Actions:
         if not self.just_pressed: return False
         if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
         if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
-        if debug: print('Actions.pressed 0: actions =', actions)
+        if debug: print(f'Actions.pressed 0: actions={actions}')
         actions = self.convert(actions)
-        if debug: print('Actions.pressed 1: actions =', actions)
+        if debug: print(f'Actions.pressed 1: actions={actions}')
         just_pressed = strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
-        if debug: print('Actions.pressed 2: just_pressed =', just_pressed, self.just_pressed, ', actions =', actions)
+        if debug: print(f'Actions.pressed 2: just_pressed={just_pressed}, self.just_pressed={self.just_pressed}, actions={actions}')
         if not just_pressed: return False
         ret = just_pressed in actions
         if ret and unpress: self.unpress()
