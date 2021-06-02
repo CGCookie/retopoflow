@@ -159,6 +159,9 @@ class CookieCutter_Blender:
     @blender_version_wrapper("<=", "2.79")
     def manipulator_set(self, v): self._space.show_manipulator = v
 
+    def shading_type_get(self): return self._space.shading.type
+    def shading_type_set(self, v): self._space.shading.type = v
+
     def scene_scale_get(self): return self._scene.unit_settings.scale_length
     def scene_scale_set(self, v): self._scene.unit_settings.scale_length = v
 

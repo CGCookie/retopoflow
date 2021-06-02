@@ -108,6 +108,9 @@ class RetopoFlow_UI:
             self.scene_scale_set(1.0)
         self.viewaa_simplify()
 
+        if self.shading_type_get() in {'WIREFRAME', 'RENDERED'}:
+            self.shading_type_set('SOLID')
+
         self.manipulator_hide() # <---------------------------------------------------------------
         self._space.show_gizmo = True
 
