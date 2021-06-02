@@ -246,7 +246,6 @@ class PolyStrips_Ops:
 
         self.rfcontext.select(new_geom, supparts=False)
 
-
     def setup_change_count(self):
         self.count_data = {
             'delta': 0,
@@ -346,7 +345,8 @@ class PolyStrips_Ops:
         #      |O|     |O|    <- with either of these selected, split into two
         #  [ | | | ]
 
-        bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
+        rffaces = self.rfcontext.get_selected_faces()
+        bmquads = [bmf for bmf in rffaces if len(bmf.verts) == 4]
         bmquads = [bmq for bmq in bmquads if not any(bmq in strip for strip in self.strips)]
         for bmf in bmquads:
             bmes = list(bmf.edges)
@@ -395,7 +395,7 @@ class PolyStrips_Ops:
 
         note: this op will only change counts along boundaries.  otherwise, use loop cut
         '''
-
+        self.rfcontext.undo_push('change segment count', repeatable=True)
         self.count_data['nfaces'].clear()
         self.count_data['delta adjust'] = 0
         if delta is not None:

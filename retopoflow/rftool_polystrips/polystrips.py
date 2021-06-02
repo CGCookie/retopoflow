@@ -145,6 +145,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             self._var_cut_count.set(len(self.strips[0]))
             self._var_cut_count.disabled = False
 
+        if self.rfcontext.undo_last_action() != 'change segment count':
+            self.setup_change_count()
+
     @profiler.function
     def update_strip_viz(self):
         self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
@@ -209,14 +212,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if self.actions.pressed('grab', unpress=False):
             return 'move all'
 
-        if self.actions.pressed({'increase count', 'decrease count'}, unpress=False):
-            delta = 1 if self.actions.pressed('increase count') else -1
-            self.actions.unpress()
-            if self.rfcontext.undo_last_action() != 'change segment count':
-                print(f'starting over')
-                self.setup_change_count()
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=delta)
+        if self.actions.pressed('increase count'):
+            self.change_count(delta=1)
+            return
+
+        if self.actions.pressed('decrease count'):
+            self.change_count(delta=-1)
             return
 
         if self.actions.pressed({'select path add'}):
