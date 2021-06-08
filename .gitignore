@@ -70,6 +70,9 @@ updater_tmp/*
 RetopoFlow_options
 RetopoFlow_options.json
 
+# RF Custom keymaps
+RetopoFlow_keymaps.json
+
 # RF backup file
 RetopoFlow_backup.blend
 
