@@ -217,6 +217,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         self.mousedown = self.rfcontext.actions.mousedown
         self._timer = self.actions.start_timer(120.0)
 
+        self.rfcontext.split_target_visualization(verts=[bmv for (bmv,_,_,_) in self.bmverts])
         self.rfcontext.undo_push('tweak move')
 
     @RFTool_Tweak.FSM_State('move')
@@ -243,4 +244,5 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
 
     @RFTool_Tweak.FSM_State('move', 'exit')
     def move_exit(self):
+        self.rfcontext.clear_split_target_visualization()
         self._timer.done()

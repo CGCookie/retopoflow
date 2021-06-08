@@ -893,8 +893,8 @@ class RFMesh():
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         if bmvs is None: bmvs = self.bme.verts
         is_vis = lambda bmv: (
-            is_visible(l2w_point(bmv.co), None) or
-            is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), None)
+            is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal)) or
+            is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), l2w_normal(bmv.normal))
         )
         return { bmv for bmv in bmvs if bmv.is_valid and not bmv.hide and is_vis(bmv) }
 

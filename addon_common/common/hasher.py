@@ -37,7 +37,7 @@ class Hasher:
     def __init__(self, *args):
         self._hasher = md5()
         self._digest = None
-        self.add(args)
+        self.add(*args)
 
     def __iadd__(self, other):
         self.add(other)
@@ -53,15 +53,23 @@ class Hasher:
         list:   'list',
         tuple:  'tuple',
         set:    'set',
-        Vector: 'vector',
-        Matrix: 'matrix',
+        #Vector: 'vector',
+        #Matrix: 'matrix',
     }
     def add(self, *args):
         self._digest = None
         llt = Hasher.list_like_types
         for arg in args:
             t = type(arg)
-            if t in llt:
+            if t is Vector:
+                self._hasher.update(bytes(f'Vector {len(arg)}', 'utf8'))
+                self.add(*arg)
+            elif t is Matrix:
+                l0 = len(arg)
+                l1 = len(arg[0])
+                self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
+                self.add(v for r in arg for v in r)
+            elif t in llt:
                 self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
                 self.add(*arg)
             else:

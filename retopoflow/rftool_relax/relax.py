@@ -223,15 +223,16 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             if opt_mask_selected == 'exclude' and bmv.select: continue
             if opt_mask_selected == 'only' and not bmv.select: continue
             self._bmverts.append(bmv)
-        print(f'Relaxing max of {len(self._bmverts)} bmverts')
+        # print(f'Relaxing max of {len(self._bmverts)} bmverts')
+        self.rfcontext.split_target_visualization(verts=self._bmverts)
 
     @RFTool_Relax.FSM_State('relax', 'exit')
     def relax_exit(self):
         self.rfcontext.update_verts_faces(self._bmverts)
+        self.rfcontext.clear_split_target_visualization()
         self._timer.done()
 
     @RFTool_Relax.FSM_State('relax')
-    @RFTool.dirty_when_done
     def relax(self):
         st = time.time()
 
@@ -408,3 +409,5 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                 self.rfcontext.snap_vert(bmv)
             self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
+
+        self.rfcontext.dirty()

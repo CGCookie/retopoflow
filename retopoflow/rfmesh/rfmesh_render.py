@@ -114,11 +114,13 @@ class RFMeshRender():
         self.load_edges = opts.get('load edges', True)
         self.load_faces = opts.get('load faces', True)
 
-        self.buf_data_queue = Queue()
-        self.buf_matrix_model = rfmesh.xform.to_bglMatrix_Model()
+        self.buf_data_queue     = Queue()
+        self.buf_matrix_model   = rfmesh.xform.to_bglMatrix_Model()
         self.buf_matrix_inverse = rfmesh.xform.to_bglMatrix_Inverse()
-        self.buf_matrix_normal = rfmesh.xform.to_bglMatrix_Normal()
-        self.buffered_renders = []
+        self.buf_matrix_normal  = rfmesh.xform.to_bglMatrix_Normal()
+        self.buffered_renders_static  = []
+        self.buffered_renders_dynamic = []
+        self.split   = None
         self.drawing = Globals.drawing
 
         self.opts = {}
@@ -129,12 +131,13 @@ class RFMeshRender():
         RFMeshRender.delete_count += 1
         # print('RFMeshRender.__del__', self.rfmesh, RFMeshRender.create_count, RFMeshRender.delete_count)
         self.bmesh.free()
-        if hasattr(self, 'buf_matrix_model'):   del self.buf_matrix_model
-        if hasattr(self, 'buf_matrix_inverse'): del self.buf_matrix_inverse
-        if hasattr(self, 'buf_matrix_normal'):  del self.buf_matrix_normal
-        if hasattr(self, 'buffered_renders'):   del self.buffered_renders
-        if hasattr(self, 'bmesh'):              del self.bmesh
-        if hasattr(self, 'rfmesh'):             del self.rfmesh
+        if hasattr(self, 'buf_matrix_model'):         del self.buf_matrix_model
+        if hasattr(self, 'buf_matrix_inverse'):       del self.buf_matrix_inverse
+        if hasattr(self, 'buf_matrix_normal'):        del self.buf_matrix_normal
+        if hasattr(self, 'buffered_renders_static'):  del self.buffered_renders_static
+        if hasattr(self, 'buffered_renders_dynamic'): del self.buffered_renders_dynamic
+        if hasattr(self, 'bmesh'):                    del self.bmesh
+        if hasattr(self, 'rfmesh'):                   del self.rfmesh
 
     @profiler.function
     def replace_opts(self, opts):
@@ -147,30 +150,64 @@ class RFMeshRender():
     @profiler.function
     def replace_rfmesh(self, rfmesh):
         self.rfmesh = rfmesh
-        self.bmesh = rfmesh.bme
+        self.bmesh  = rfmesh.bme
         self.rfmesh_version = None
 
     def dirty(self):
         self.rfmesh_version = None
 
     @profiler.function
-    def add_buffered_render(self, bgl_type, data):
+    def add_buffered_render(self, bgl_type, data, static):
         batch = BufferedRender_Batch(bgl_type)
         batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'])
-        self.buffered_renders.append(batch)
+        if static: self.buffered_renders_static.append(batch)
+        else:      self.buffered_renders_dynamic.append(batch)
         # buffered_render = BGLBufferedRender(bgl_type)
         # buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
         # self.buffered_renders.append(buffered_render)
 
+    def split_visualization(self, verts=None, edges=None, faces=None):
+        if not verts and not edges and not faces:
+            self.split = None
+        else:
+            unwrap = BMElemWrapper._unwrap
+            verts = { unwrap(v) for v in verts } if verts else set()
+            edges = { unwrap(e) for e in edges } if edges else set()
+            faces = { unwrap(f) for f in faces } if faces else set()
+            edges.update(e for v in verts for e in v.link_edges)
+            faces.update(f for e in edges for f in e.link_faces)
+            verts.update(v for e in edges for v in e.verts)
+            verts.update(v for f in faces for v in f.verts)
+            edges.update(e for f in faces for e in f.edges)
+            self.split = {
+                'gathered static': False,
+                'static verts': { v for v in self.bmesh.verts if v not in verts },
+                'static edges': { e for e in self.bmesh.edges if e not in edges },
+                'static faces': { f for f in self.bmesh.faces if f not in faces },
+                'gathered dynamic': False,
+                'dynamic verts': verts,
+                'dynamic edges': edges,
+                'dynamic faces': faces,
+            }
+        self.dirty()
+
     @profiler.function
     def _gather_data(self):
-        self.buffered_renders = []
+        if not self.split:
+            self.buffered_renders_static = []
+            self.buffered_renders_dynamic = []
+        else:
+            if not self.split['gathered dynamic']:
+                self.buffered_renders_static = []
+                self.split['gathered dynamic'] = True
+            self.buffered_renders_dynamic = []
+
         mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
         mirror_x = 'x' in mirror_axes
         mirror_y = 'y' in mirror_axes
         mirror_z = 'z' in mirror_axes
 
-        def gather():
+        def gather(verts, edges, faces, static):
             vert_count = 100000
             edge_count = 50000
             face_count = 10000
@@ -181,9 +218,9 @@ class RFMeshRender():
             def sel(g):
                 return 1.0 if g.select else 0.0
             def warn_vert(g):
-                if mirror_x and g.co.x <= 0.0001: return 0.0
+                if mirror_x and g.co.x <=  0.0001: return 0.0
                 if mirror_y and g.co.y >= -0.0001: return 0.0
-                if mirror_z and g.co.z <= 0.0001: return 0.0
+                if mirror_z and g.co.z <=  0.0001: return 0.0
                 return 0.0 if g.is_manifold and not g.is_boundary else 1.0
             def warn_edge(g):
                 if mirror_x:
@@ -207,9 +244,9 @@ class RFMeshRender():
                 with profiler.code('gathering', enabled=not self.async_load):
                     if self.load_faces:
                         tri_faces = [(bmf, list(bmvs))
-                                     for bmf in self.bmesh.faces
+                                     for bmf in faces
+                                     if bmf.is_valid and not bmf.hide
                                      for bmvs in triangulateFace(bmf.verts)
-                                     if not bmf.hide
                                      ]
                         l = len(tri_faces)
                         for i0 in range(0, l, face_count):
@@ -238,12 +275,12 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data))
+                                self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_TRIANGLES, face_data)
+                                self.add_buffered_render(bgl.GL_TRIANGLES, face_data, static)
 
                     if self.load_edges:
-                        edges = [bme for bme in self.bmesh.edges if not bme.hide]
+                        edges = [bme for bme in edges if bme.is_valid and not bme.hide]
                         l = len(edges)
                         for i0 in range(0, l, edge_count):
                             i1 = min(l, i0 + edge_count)
@@ -271,12 +308,12 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_LINES, edge_data))
+                                self.buf_data_queue.put((bgl.GL_LINES, edge_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_LINES, edge_data)
+                                self.add_buffered_render(bgl.GL_LINES, edge_data, static)
 
                     if self.load_verts:
-                        verts = [bmv for bmv in self.bmesh.verts if not bmv.hide]
+                        verts = [bmv for bmv in verts if bmv.is_valid and not bmv.hide]
                         l = len(verts)
                         for i0 in range(0, l, vert_count):
                             i1 = min(l, i0 + vert_count)
@@ -288,9 +325,9 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_POINTS, vert_data))
+                                self.buf_data_queue.put((bgl.GL_POINTS, vert_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_POINTS, vert_data)
+                                self.add_buffered_render(bgl.GL_POINTS, vert_data, static)
 
                     if self.async_load:
                         self.buf_data_queue.put('done')
@@ -307,11 +344,32 @@ class RFMeshRender():
 
         # with profiler.code('Gathering data for RFMesh (%ssync)' % ('a' if self.async_load else '')):
         if not self.async_load:
-            # print('RetopoFlow: loading mesh data for object %s synchronously' % self.rfmesh.get_obj_name())
-            profiler.function(gather)()
+            #print(f'RFMeshRender._gather: synchronous')
+            #profiler.function(gather)()
+            if not self.split:
+                #print(f'  v={len(self.bmesh.verts)} e={len(self.bmesh.edges)} f={len(self.bmesh.faces)}')
+                gather(self.bmesh.verts, self.bmesh.edges, self.bmesh.faces, True)
+            else:
+                if not self.split['gathered static']:
+                    #print(f'  sv={len(self.split["static verts"])} se={len(self.split["static edges"])} sf={len(self.split["static faces"])}')
+                    gather(self.split['static verts'],  self.split['static edges'],  self.split['static faces'],  True)
+                    self.split['gathered static'] = True
+                #print(f'  dv={len(self.split["dynamic verts"])} de={len(self.split["dynamic edges"])} df={len(self.split["dynamic faces"])}')
+                gather(self.split['dynamic verts'], self.split['dynamic edges'], self.split['dynamic faces'], False)
         else:
-            # print('RetopoFlow: loading mesh data for object %s asynchronously' % self.rfmesh.get_obj_name())
-            self._gather_submit = ThreadPoolExecutor().submit(gather)
+            #print(f'RFMeshRender._gather: asynchronous')
+            #self._gather_submit = ThreadPoolExecutor.submit(gather)
+            e = ThreadPoolExecutor()
+            if not self.split:
+                #print(f'  v={len(self.bmesh.verts)} e={len(self.bmesh.edges)} f={len(self.bmesh.faces)}')
+                e.submit(lambda : gather(self.bmesh.verts, self.bmesh.edges, self.bmesh.faces, True))
+            else:
+                if not self.split['gathered static']:
+                    #print(f'  sv={len(self.split["static verts"])} se={len(self.split["static edges"])} sf={len(self.split["static faces"])}')
+                    e.submit(lambda : gather(self.split['static verts'],  self.split['static edges'],  self.split['static faces'],  True))
+                    self.split['gathered static'] = True
+                #print(f'  dv={len(self.split["dynamic verts"])} de={len(self.split["dynamic edges"])} df={len(self.split["dynamic faces"])}')
+                e.submit(lambda : gather(self.split['dynamic verts'], self.split['dynamic edges'], self.split['dynamic faces'], False))
 
     @profiler.function
     def clean(self):
@@ -361,7 +419,7 @@ class RFMeshRender():
         symmetry_effect=0.0, symmetry_frame: Frame=None
     ):
         self.clean()
-        if not self.buffered_renders: return
+        if not self.buffered_renders_static and not self.buffered_renders_dynamic: return
 
         try:
             bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
@@ -401,7 +459,9 @@ class RFMeshRender():
             opts['line mirror hidden']  = 1 - alpha_above
             opts['point hidden']        = 1 - alpha_above
             opts['point mirror hidden'] = 1 - alpha_above
-            for buffered_render in self.buffered_renders:
+            for buffered_render in self.buffered_renders_static:
+                buffered_render.draw(opts)
+            for buffered_render in self.buffered_renders_dynamic:
                 buffered_render.draw(opts)
 
             if not opts.get('no below', False):
@@ -414,7 +474,9 @@ class RFMeshRender():
                 opts['line mirror hidden']  = 1 - alpha_below
                 opts['point hidden']        = 1 - alpha_below
                 opts['point mirror hidden'] = 1 - alpha_below
-                for buffered_render in self.buffered_renders:
+                for buffered_render in self.buffered_renders_static:
+                    buffered_render.draw(opts)
+                for buffered_render in self.buffered_renders_dynamic:
                     buffered_render.draw(opts)
 
             bgl.glDepthFunc(bgl.GL_LEQUAL)

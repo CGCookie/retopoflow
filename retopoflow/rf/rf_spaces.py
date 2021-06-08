@@ -50,6 +50,10 @@ class RetopoFlow_Spaces:
         view_cam = Point(view_loc + quat_vector_mult(view_rot, Vector((0,0,view_dist))))
         return view_cam
 
+    def get_view_direction(self):
+        view_rot = self.actions.r3d.view_rotation
+        return Direction(quat_vector_mult(view_rot, Vector((0, 0, -1))))
+
     def Point2D_to_Vec(self, xy:Point2D):
         if xy is None: return None
         return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))

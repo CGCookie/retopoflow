@@ -81,6 +81,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.hovering_sel_edge = None
 
     @RFTool_Contours.on_target_change
+    #@RFTool_Contours.FSM_OnlyInState('main')
     def update_target(self):
         self.sel_edges = set(self.rfcontext.get_selected_edges())
         #sel_faces = self.rfcontext.get_selected_faces()
@@ -433,6 +434,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             'mousedown': self.actions.mouse,
             'timer': self.actions.start_timer(120.0),
         }
+        self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('grab')
@@ -453,6 +455,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         # if not self.rfcontext.actions.timer: return
 
         delta = Vec2D(self.actions.mouse - opts['mousedown'])
+        # print(f'contours.grab: {delta}')
         # self.crawl_viz = []
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
@@ -506,6 +509,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def grab_exit(self):
         self.grab_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
 
     @RFTool_Contours.FSM_State('rotate screen', 'can enter')
