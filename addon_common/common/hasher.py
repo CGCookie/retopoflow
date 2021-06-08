@@ -29,9 +29,14 @@ from mathutils import Vector, Matrix
 from .maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
-    Ray, XForm, BBox, Plane
+    Ray, XForm, BBox, Plane,
+    Color
 )
 
+
+known_hash_types = {
+    int, float, str, bool, type(None), dict
+}
 
 class Hasher:
     def __init__(self, *args):
@@ -53,8 +58,6 @@ class Hasher:
         list:   'list',
         tuple:  'tuple',
         set:    'set',
-        #Vector: 'vector',
-        #Matrix: 'matrix',
     }
     def add(self, *args):
         self._digest = None
@@ -68,12 +71,23 @@ class Hasher:
                 l0 = len(arg)
                 l1 = len(arg[0])
                 self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
-                self.add(v for r in arg for v in r)
+                self.add_list([v for r in arg for v in r])
+            elif t is Color:
+                self._hasher.update(bytes(f'Color', 'utf8'))
+                self.add_list([arg.r, arg.g, arg.b, arg.a])
             elif t in llt:
                 self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
-                self.add(*arg)
-            else:
+                self.add_list(arg)
+            elif t in known_hash_types:
                 self._hasher.update(bytes(str(arg), 'utf8'))
+            else:
+                # unknown type.  still works, but might want to know about it
+                # to handle special cases
+                # print(f'Hasher.add: {arg} {t}')
+                self._hasher.update(bytes(str(arg), 'utf8'))
+
+    def add_list(self, args):
+        for arg in args: self.add(arg)
 
     def get_hash(self):
         if self._digest is None:
@@ -83,6 +97,8 @@ class Hasher:
     def __eq__(self, other):
         if type(other) is not Hasher: return False
         return self.get_hash() == other.get_hash()
+    def __ne__(self, other):
+        return not (self == other)
 
 def hash_cycle(cycle):
     l = len(cycle)

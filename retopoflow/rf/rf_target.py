@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import time
+import random
 from itertools import chain
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
@@ -121,8 +122,8 @@ class RetopoFlow_Target:
         view_version = self.get_view_version()
 
         recompute = self.accel_recompute
-        recompute |= self.accel_target_version != target_version
-        recompute |= self.accel_view_version != view_version
+        recompute |= target_version != self.accel_target_version
+        recompute |= view_version != self.accel_view_version
         recompute |= self.accel_vis_verts is None
         recompute |= self.accel_vis_edges is None
         recompute |= self.accel_vis_faces is None
@@ -136,7 +137,15 @@ class RetopoFlow_Target:
         self.accel_recompute = False
 
         if force or recompute:
-            # print('RECOMPUTE VIS ACCEL')
+            # print(f'RECOMPUTE VIS ACCEL {random.random()}')
+            # print(f'  accel recompute: {self.accel_recompute}')
+            # print(f'  target change: {target_version != self.accel_target_version}')
+            # print(f'  view change: {view_version != self.accel_view_version}  ({self.accel_view_version.get_hash() if self.accel_view_version else None}, {view_version.get_hash()})')
+            # print(f'  geom change: {self.accel_vis_verts is None} {self.accel_vis_edges is None} {self.accel_vis_faces is None} {self.accel_vis_accel is None}')
+            # print(f'  bbox change: {options["visible bbox factor"] != self._last_visible_bbox_factor}')
+            # print(f'  dist offset change: {options["visible dist offset"] != self._last_visible_dist_offset}')
+            # print(f'  navigating: {not self._nav}  {time.time() - self._nav_time > 0.25}')
+            # print(f'  draw change: {self._draw_count != self._last_draw_count}')
             self.accel_target_version = target_version
             self.accel_view_version = view_version
             self.accel_vis_verts = self.visible_verts()
