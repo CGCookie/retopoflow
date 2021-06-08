@@ -296,7 +296,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
-            self.move_done_pressed = 'confirm'
+            self.move_done_pressed = ['confirm', 'confirm drag']
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
