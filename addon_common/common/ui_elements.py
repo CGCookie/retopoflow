@@ -47,7 +47,6 @@ from .fontmanager import FontManager
 from .globals import Globals
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
-from .useractions import is_keycode
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .utils import iter_head, any_args, join, delay_exec, Dict
 
@@ -133,7 +132,7 @@ def setup_scrub(ui_element, value):
         nonlocal state
         if not state['pressed']: return
         if state['cancelled']: return
-        if type(e.key) is int and is_keycode(e.key, 'ESC'):
+        if e.key == 'ESC':
             cancel()
             e.stop_propagation()
 
@@ -415,7 +414,144 @@ class UI_Element_Elements():
         assert not rest, f'Could not process all of HTML\nRemaining: {rest}\nHTML: {html}'
         return lui
 
-    def _process_input_box(self, input_type):
+    def _init_input_box(self, input_type):
+        allowed = None  # allow any character
+        if input_type == 'text':
+            # could set
+            #     allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
+            # but that would exclude any non-US-keyboard inputs
+            pass
+        elif input_type == 'number':
+            allowed = '''0123456789.-'''
+        else:
+            assert False, f'UI_Element.process_input_box: unhandled type {input_type}'
+
+        data = {'orig':None, 'text':None, 'idx':0, 'pos':None}
+
+        def preclean():
+            if data['text'] is None:
+                if type(self.value) is float:
+                    self.innerText = f'{self.value:0.4g}'
+                else:
+                    self.innerText = f'{self.value}'
+            else:
+                self.innerText = data['text']
+            # self.dirty_content(cause='preclean called')
+
+        def postflow():
+            if data['text'] is None: return
+            data['pos'] = self.get_text_pos(data['idx'])
+            if self._ui_marker._absolute_size:
+                self._ui_marker.reposition(
+                    left=data['pos'].x - self._ui_marker._absolute_size.width / 2,
+                    top=data['pos'].y,
+                    clamp_position=False,
+                )
+                cursor_postflow()
+        def cursor_postflow():
+            if data['text'] is None: return
+            self._setup_ltwh()
+            self._ui_marker._setup_ltwh()
+            vl = self._l + self._mbp_left
+            vr = self._r - self._mbp_right
+            vw = self._w - self._mbp_width
+            if self._ui_marker._r > vr:
+                dx = self._ui_marker._r - vr + 2
+                self.scrollLeft = self.scrollLeft + dx
+                self._setup_ltwh()
+            if self._ui_marker._l < vl:
+                dx = self._ui_marker._l - vl - 2
+                self.scrollLeft = self.scrollLeft + dx
+                self._setup_ltwh()
+
+        def set_cursor(e):
+            data['idx'] = self.get_text_index(e.mouse)
+            data['pos'] = self.get_text_pos(data['idx'])
+            self.dirty_flow()
+
+        def focus(e):
+            s = f'{self.value:0.4g}' if type(self.value) is float else str(self.value)
+            data['orig'] = data['text'] = s
+            self._ui_marker.is_visible = True
+            set_cursor(e)
+        def blur(e):
+            changed = data['orig'] != data['text']
+            self.value = data['text']
+            data['text'] = None
+            self._ui_marker.is_visible = False
+            if changed: self.dispatch_event('on_change')
+
+        def mouseup(e):
+            if not e.button[0]: return
+            # if not self.is_focused: return
+            set_cursor(e)
+        def mousemove(e):
+            if data['text'] is None: return
+            if not e.button[0]: return
+            set_cursor(e)
+        def mousedown(e):
+            if data['text'] is None: return
+            if not e.button[0]: return
+            set_cursor(e)
+
+        def keypress(e):
+            if data['text'] == None: return
+            if e.key == 'Backspace':
+                if data['idx'] == 0: return
+                data['text'] = data['text'][0:data['idx']-1] + data['text'][data['idx']:]
+                data['idx'] -= 1
+            elif e.key == 'Enter':
+                self.blur()
+            elif e.key == 'Escape':
+                data['text'] = data['orig']
+                self.blur()
+            elif e.key == 'End':
+                data['idx'] = len(data['text'])
+                self.dirty()
+                self.dirty_flow()
+            elif e.key == 'Home':
+                data['idx'] = 0
+                self.dirty()
+                self.dirty_flow()
+            elif e.key == 'ArrowLeft':
+                data['idx'] = max(data['idx'] - 1, 0)
+                self.dirty()
+                self.dirty_flow()
+            elif e.key == 'ArrowRight':
+                data['idx'] = min(data['idx'] + 1, len(data['text']))
+                self.dirty()
+                self.dirty_flow()
+            elif e.key == 'Delete':
+                if data['idx'] == len(data['text']): return
+                data['text'] = data['text'][0:data['idx']] + data['text'][data['idx']+1:]
+            elif len(e.key) > 1:
+                return
+            elif allowed is None or e.key in allowed:
+                data['text'] = data['text'][0:data['idx']] + e.key + data['text'][data['idx']:]
+                data['idx'] += 1
+            preclean()
+        def paste(e):
+            if data['text'] == None: return
+            clipboardData = str(e.clipboardData)
+            if allowed: clipboardData = ''.join(c for c in clipboardData if c in allowed)
+            data['text'] = data['text'][0:data['idx']] + clipboardData + data['text'][data['idx']:]
+            data['idx'] += len(clipboardData)
+            preclean()
+
+        self.preclean = preclean
+        self.postflow = postflow
+
+        self.add_eventListener('on_focus',     focus)
+        self.add_eventListener('on_blur',      blur)
+        self.add_eventListener('on_keypress',  keypress)
+        self.add_eventListener('on_paste',     paste)
+        self.add_eventListener('on_mousedown', mousedown)
+        self.add_eventListener('on_mousemove', mousemove)
+        self.add_eventListener('on_mouseup',   mouseup)
+
+        preclean()
+
+    def _process_input_box(self):
         if self._ui_marker is None:
             # just got focus, so create a cursor element
             self._ui_marker = self._generate_new_ui_elem(
@@ -425,147 +561,9 @@ class UI_Element_Elements():
                 pseudoelement='marker',
             )
             self._ui_marker.is_visible = False
-
-            allowed = None  # allow any character
-            if input_type == 'text':
-                # could set
-                #     allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
-                # but that would exclude any non-US-keyboard inputs
-                pass
-            elif input_type == 'number':
-                allowed = '''0123456789.-'''
-            else:
-                assert False, f'UI_Element.process_input_box: unhandled type {input_type}'
-
-            data = {'orig':None, 'text':None, 'idx':0, 'pos':None}
-
-            def preclean():
-                if data['text'] is None:
-                    if type(self.value) is float:
-                        self.innerText = f'{self.value:0.4g}'
-                    else:
-                        self.innerText = f'{self.value}'
-                else:
-                    self.innerText = data['text']
-                # self.dirty_content(cause='preclean called')
-
-            def postflow():
-                if data['text'] is None: return
-                data['pos'] = self.get_text_pos(data['idx'])
-                if self._ui_marker._absolute_size:
-                    self._ui_marker.reposition(
-                        left=data['pos'].x - self._ui_marker._absolute_size.width / 2,
-                        top=data['pos'].y,
-                        clamp_position=False,
-                    )
-                    cursor_postflow()
-            def cursor_postflow():
-                if data['text'] is None: return
-                self._setup_ltwh()
-                self._ui_marker._setup_ltwh()
-                vl = self._l + self._mbp_left
-                vr = self._r - self._mbp_right
-                vw = self._w - self._mbp_width
-                if self._ui_marker._r > vr:
-                    dx = self._ui_marker._r - vr + 2
-                    self.scrollLeft = self.scrollLeft + dx
-                    self._setup_ltwh()
-                if self._ui_marker._l < vl:
-                    dx = self._ui_marker._l - vl - 2
-                    self.scrollLeft = self.scrollLeft + dx
-                    self._setup_ltwh()
-
-            def set_cursor(e):
-                data['idx'] = self.get_text_index(e.mouse)
-                data['pos'] = self.get_text_pos(data['idx'])
-                self.dirty_flow()
-
-            def focus(e):
-                s = f'{self.value:0.4g}' if type(self.value) is float else str(self.value)
-                data['orig'] = data['text'] = s
-                self._ui_marker.is_visible = True
-                set_cursor(e)
-            def blur(e):
-                changed = data['orig'] != data['text']
-                self.value = data['text']
-                data['text'] = None
-                self._ui_marker.is_visible = False
-                if changed: self.dispatch_event('on_change')
-
-            def mouseup(e):
-                if not e.button[0]: return
-                # if not self.is_focused: return
-                set_cursor(e)
-            def mousemove(e):
-                if data['text'] is None: return
-                if not e.button[0]: return
-                set_cursor(e)
-            def mousedown(e):
-                if data['text'] is None: return
-                if not e.button[0]: return
-                set_cursor(e)
-
-            def keypress(e):
-                if data['text'] == None: return
-                if type(e.key) is int:
-                    if is_keycode(e.key, 'BACK_SPACE'):
-                        if data['idx'] == 0: return
-                        data['text'] = data['text'][0:data['idx']-1] + data['text'][data['idx']:]
-                        data['idx'] -= 1
-                    elif is_keycode(e.key, 'RET'):
-                        self.blur()
-                    elif is_keycode(e.key, 'ESC'):
-                        data['text'] = data['orig']
-                        self.blur()
-                    elif is_keycode(e.key, 'END'):
-                        data['idx'] = len(data['text'])
-                        self.dirty()
-                        self.dirty_flow()
-                    elif is_keycode(e.key, 'HOME'):
-                        data['idx'] = 0
-                        self.dirty()
-                        self.dirty_flow()
-                    elif is_keycode(e.key, 'LEFT_ARROW'):
-                        data['idx'] = max(data['idx'] - 1, 0)
-                        self.dirty()
-                        self.dirty_flow()
-                    elif is_keycode(e.key, 'RIGHT_ARROW'):
-                        data['idx'] = min(data['idx'] + 1, len(data['text']))
-                        self.dirty()
-                        self.dirty_flow()
-                    elif is_keycode(e.key, 'DEL'):
-                        if data['idx'] == len(data['text']): return
-                        data['text'] = data['text'][0:data['idx']] + data['text'][data['idx']+1:]
-                    else:
-                        return
-                elif allowed is None or e.key in allowed:
-                    data['text'] = data['text'][0:data['idx']] + e.key + data['text'][data['idx']:]
-                    data['idx'] += 1
-                preclean()
-            def paste(e):
-                if data['text'] == None: return
-                clipboardData = str(e.clipboardData)
-                if allowed: clipboardData = ''.join(c for c in clipboardData if c in allowed)
-                data['text'] = data['text'][0:data['idx']] + clipboardData + data['text'][data['idx']:]
-                data['idx'] += len(clipboardData)
-                preclean()
-
-            self.preclean = preclean
-            self.postflow = postflow
-
-            self.add_eventListener('on_focus',     focus)
-            self.add_eventListener('on_blur',      blur)
-            self.add_eventListener('on_keypress',  keypress)
-            self.add_eventListener('on_paste',     paste)
-            self.add_eventListener('on_mousedown', mousedown)
-            self.add_eventListener('on_mousemove', mousemove)
-            self.add_eventListener('on_mouseup',   mouseup)
-
-            preclean()
         else:
             self._new_content = True
             self._children_gen += [self._ui_marker]
-
         return [*self._children, self._ui_marker]
 
         is_focused, was_focused = self.is_focused, getattr(self, '_was_focused', None)
@@ -661,7 +659,7 @@ class UI_Element_Elements():
                 postflow()
             def handle_keypress(e):
                 if not state.grabbed or state.cancelled: return
-                if type(e.key) is int and is_keycode(e.key, 'ESC'):
+                if e.key == 'ESC':
                     state.cancel()
                     e.stop_propagation()
             self.add_eventListener('on_mousemove', handle_mousemove, useCapture=True)
@@ -844,6 +842,8 @@ class UI_Element_Elements():
     def _init_element(self):
         tagtype = f'{self._tagName}{f" {self._type}" if self._type else ""}'
         processors = {
+            'input text':     lambda: self._init_input_box('text'),
+            'input number':   lambda: self._init_input_box('number'),
             'input radio':    self._init_input_radio,
         }
         if tagtype not in processors: return
@@ -857,8 +857,8 @@ class UI_Element_Elements():
         processors = {
             'input radio':    self._process_input_radio,
             'input checkbox': self._process_input_checkbox,
-            'input text':     lambda: self._process_input_box('text'),
-            'input number':   lambda: self._process_input_box('number'),
+            'input text':     self._process_input_box,
+            'input number':   self._process_input_box,
             'input range':    self._process_input_range,
             'details':        self._process_details,
             'summary':        self._process_summary,

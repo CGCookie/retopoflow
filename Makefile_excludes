@@ -27,6 +27,7 @@ updater_tmp/*.json
 *.blend*
 
 RetopoFlow_options.*
+RetopoFlow_keymaps.*
 RetopoFlow_profiler.*
 RetopoFlow_screenshot.*
 

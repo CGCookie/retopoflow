@@ -49,7 +49,6 @@ from .globals import Globals
 from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit
 from .markdown import Markdown
 from .profiler import profiler, time_it
-from .useractions import is_keycode
 from .utils import Dict, delay_exec, get_and_discard, strshort, abspath
 
 

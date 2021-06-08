@@ -47,7 +47,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -148,6 +148,7 @@ class UI_Document(UI_Document_FSM):
         self._under_mousedown = None
         self._under_down = None
         self._focus = None
+        self._focus_full = False
 
         self._last_mx = -1
         self._last_my = -1
@@ -265,6 +266,7 @@ class UI_Document(UI_Document_FSM):
         uictrld = False
         uictrld |= self._under_mouse is not None and self._under_mouse != self._body
         uictrld |= self.fsm.state != 'main'
+        uictrld |= self._focus_full
         # uictrld |= self._focus is not None
 
         return {'hover'} if uictrld else None
@@ -347,13 +349,10 @@ class UI_Document(UI_Document_FSM):
             # print(f'CLIPBOARD PASTE!  {bpy.context.window_manager.clipboard}')
             ui_element.dispatch_event('on_paste', clipboardData=bpy.context.window_manager.clipboard)
 
-        pressed = None
-        if self.actions.using('keypress', ignoreshift=True):
-            pressed = self.actions.as_char(self.actions.last_pressed)
-
-        # WHAT IS HAPPENING HERE?
-        for k,v in kmi_to_keycode.items():
-            if self.actions.using(k, ignoreshift=True): pressed = v
+        # pressed = None
+        # if self.actions.using('keypress', ignoreshift=True):
+        pressed = self.actions.as_char(self.actions.just_pressed)
+        if pressed: print(f'UI_Document.handle_keypress: {pressed}')
 
         if pressed:
             cur = time.time()
@@ -386,6 +385,18 @@ class UI_Document(UI_Document_FSM):
     @UI_Document_FSM.FSM_State('main')
     def modal_main(self):
         # print('UI_Document.main', self.actions.event_type, time.time())
+
+
+        if self.actions.just_pressed:
+            pressed = self.actions.just_pressed
+            if pressed not in {'WINDOW_DEACTIVATE'}:
+                if self._focus and self._focus_full:
+                    self._focus.dispatch_event('on_keypress', key=pressed)
+                elif self._under_mouse:
+                    self._under_mouse.dispatch_event('on_keypress', key=pressed)
+
+        self.handle_hover()
+        self.handle_mousemove()
 
         if self.actions.pressed('MIDDEMOUSE'):
             return 'scroll'
@@ -440,15 +451,6 @@ class UI_Document(UI_Document_FSM):
         #         print(e._dirty_causes)
         #         for s in e._debug_list:
         #             print(f'    {s}')
-
-        if self._under_mouse and self.actions.just_pressed:
-            pressed = self.actions.just_pressed
-            # self.actions.unpress()
-            self._under_mouse.dispatch_event('on_keypress', key=pressed)
-
-        self.handle_hover()
-        self.handle_mousemove()
-
         if False:
             print('---------------------------')
             if self._focus:      print('FOCUS', self._focus, self._focus.pseudoclasses)
@@ -590,6 +592,7 @@ class UI_Document(UI_Document_FSM):
         return ancestor in descendant.get_pathToRoot()
 
     def blur(self, stop_at=None):
+        self._focus_full = False
         if self._focus is None: return
         self._focus.del_pseudoclass('focus')
         self._focus.dispatch_event('on_blur')
@@ -597,7 +600,7 @@ class UI_Document(UI_Document_FSM):
         self._addrem_pseudoclass('active', remove_from=self._focus)
         self._focus = None
 
-    def focus(self, ui_element):
+    def focus(self, ui_element, full=False):
         if ui_element is None: return
         if self._focus == ui_element: return
 
@@ -614,6 +617,7 @@ class UI_Document(UI_Document_FSM):
             self.blur(stop_at=stop_blur_at)
             #print('focusout to', p_blur, stop_blur_at)
             #print('focusin from', p_focus, stop_focus_at)
+        self._focus_full = full
         self._focus = ui_element
         self._focus.add_pseudoclass('focus')
         self._focus.dispatch_event('on_focus')
@@ -629,6 +633,10 @@ class UI_Document(UI_Document_FSM):
     def focus_main(self):
         if not self._focus:
             return 'main'
+
+        if self._focus_full:
+            pass
+
         if self.actions.pressed('LEFTMOUSE', unpress=False):
             return 'mousedown'
         # if self.actions.pressed('RIGHTMOUSE'):

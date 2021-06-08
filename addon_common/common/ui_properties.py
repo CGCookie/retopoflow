@@ -52,7 +52,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -1078,7 +1078,8 @@ class UI_Element_Properties:
         self.update_document()
 
     @property
-    def can_focus(self): return self._can_focus and self._tagName == 'input' and self._type in {'text', 'number'}
+    def can_focus(self):
+        return (self._can_focus is None and self._tagName == 'input' and self._type in {'text', 'number'}) or bool(self._can_focus)
     @can_focus.setter
     def can_focus(self, v): self._can_focus = v
 

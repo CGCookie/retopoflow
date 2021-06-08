@@ -129,7 +129,7 @@ class CookieCutter_UI:
 
     def _cc_ui_update(self):
         self.drawing.update_dpi()
-        if self._ignore_ui_events: return False
+        if self.ignore_ui_events: return False
         ret = self.document.update(self.context, self.event)
         self._hover_ui = ret and 'hover' in ret
         return self._hover_ui

@@ -26,40 +26,12 @@ from copy import deepcopy
 
 import bpy
 
-from .human_readable import convert_actions_to_human_readable
+from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
 from .maths import Point2D, Vec2D
 from .debug import dprint
 from .decorators import blender_version_wrapper
 from . import blender_preferences as bprefs
 
-
-# https://www.w3schools.com/jsref/tryit.asp?filename=tryjsref_event_key_keycode2
-
-kmi_to_keycode = {
-    'BACK_SPACE':    8,
-    'RET':          13,
-    'NUMPAD_ENTER': 13,
-    'ESC':          27,
-    'END':          35,
-    'HOME':         36,
-    'LEFT_ARROW':   37,
-    'RIGHT_ARROW':  39,
-    'DEL':          46,
-}
-
-keycode_to_kmi = {
-     8: {'BACK_SPACE'},
-    13: {'RET', 'NUMPAD_ENTER'},
-    27: {'ESC'},
-    35: {'END'},
-    36: {'HOME'},
-    37: {'LEFT_ARROW'},
-    39: {'RIGHT_ARROW'},
-    46: {'DEL'},
-}
-
-def is_keycode(keycode, kmi):
-    return keycode == kmi_to_keycode[kmi]
 
 kmi_to_char = {
     'ZERO':   '0', 'NUMPAD_0':       '0',
@@ -116,6 +88,16 @@ kmi_to_char = {
     'SHIFT+Q':'Q', 'SHIFT+R':'R', 'SHIFT+S':'S', 'SHIFT+T':'T',
     'SHIFT+U':'U', 'SHIFT+V':'V', 'SHIFT+W':'W', 'SHIFT+X':'X',
     'SHIFT+Y':'Y', 'SHIFT+Z':'Z',
+
+    'ESC': 'Escape',
+    'BACK_SPACE': 'Backspace',
+    'RET': 'Enter', 'NUMPAD_ENTER': 'Enter',
+    'HOME': 'Home', 'END': 'End',
+    'LEFT_ARROW': 'ArrowLeft', 'RIGHT_ARROW': 'ArrowRight',
+    'UP_ARROW': 'ArrowUp', 'DOWN_ARROW': 'ArrowDown',
+    'PAGE_UP': 'PageUp', 'PAGE_DOWN': 'PageDown',
+    'DEL': 'Delete',
+    'TAB': 'Tab',
 }
 
 
@@ -518,10 +500,14 @@ class Actions:
             ret |= (self.keymap.get(action, set()) | self.keymap2.get(action, set())) or { action }
         return ret
 
-    def to_human_readable(self, actions, join=',', onlyfirst=None):
-        if type(actions) is str: actions = {actions}
-        actions = { act for action in actions for act in self.convert(action) }
-        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst)
+    def to_human_readable(self, actions, join=',', onlyfirst=None, visible=False):
+        if type(actions) is str: actions = [actions]
+        actions = [ act for action in actions for act in self.convert(action) ]
+        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst, visible=visible)
+
+    def from_human_readable(self, actions):
+        if type(actions) is str: actions = [actions]
+        return convert_human_readable_to_actions(actions)
 
 
     def unuse(self, actions):
@@ -607,9 +593,8 @@ class Actions:
         return 0 <= mx < sx and 0 <= my < sy
 
     def as_char(self, ftype):
-        if ftype is None: return ''
         #assert ftype in kmi_to_char, 'Trying to convert unhandled key "%s"' % str(self.just_pressed)
-        return kmi_to_char.get(ftype, None)
+        return kmi_to_char.get(ftype, '')
 
     def start_timer(self, hz, enabled=True):
         return TimerHandler(self.context.window_manager, self.context.window, hz, enabled=enabled)

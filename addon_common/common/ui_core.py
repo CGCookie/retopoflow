@@ -59,7 +59,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -678,7 +678,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._style_str     = ''        # custom style string
         self._innerText     = None      # text to display (converted to UI_Elements)
         self._src_str       = None      # path to resource, such as image
-        self._can_focus     = True      # True:self can take focus if focusable element (ex: <input type="text">)
+        self._can_focus     = None      # None/True:self can take focus if focusable element (ex: <input type="text">)
         self._can_hover     = True      # True:self can take hover
         self._title         = None      # tooltip
         self._forId         = None      # used for labels

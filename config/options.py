@@ -122,6 +122,7 @@ class Options:
         'backup_filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
         'quickstart_filename':  'RetopoFlow_quickstart',
         'profiler_filename':    'RetopoFlow_profiler.txt',
+        'keymaps filename':     'RetopoFlow_keymaps.json',
         'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
         'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 

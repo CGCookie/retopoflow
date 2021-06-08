@@ -24,8 +24,8 @@ import bpy
 import glob
 import time
 
-from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
-from .rf.rf_ui_alert      import RetopoFlow_UI_Alert
+from .rf.rf_keymapsystem import RetopoFlow_KeymapSystem
+from .rf.rf_ui_alert     import RetopoFlow_UI_Alert
 
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import ui_core
@@ -38,7 +38,7 @@ from ..config.keymaps import get_keymaps
 from ..config.options import options
 
 
-class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, RetopoFlow_UI_Alert):
+class RetopoFlow_OpenKeymapSystem(CookieCutter, RetopoFlow_KeymapSystem, RetopoFlow_UI_Alert):
     @classmethod
     def can_start(cls, context):
         return True
@@ -49,7 +49,7 @@ class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, Retop
         self.panels_hide()
         # self.overlays_hide()
         self.region_darken()
-        self.header_text_set('RetopoFlow Updater System')
+        self.header_text_set('RetopoFlow Keymap Config System`')
 
     def start(self):
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
@@ -59,7 +59,7 @@ class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, Retop
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
-        self.updater_open() #self.rf_startdoc, done_on_esc=True, closeable=True, on_close=self.done)
+        self.keymap_config_open() #self.rf_startdoc, done_on_esc=True, closeable=True, on_close=self.done)
         Globals.ui_document.body.dirty(cause='changed document size', children=True)
 
     def end(self):

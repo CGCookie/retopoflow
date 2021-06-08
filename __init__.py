@@ -57,6 +57,7 @@ else:
             importlib.reload(retopoflow)
             importlib.reload(helpsystem)
             importlib.reload(updatersystem)
+            importlib.reload(keymapsystem)
             importlib.reload(configoptions)
             importlib.reload(updater)
             importlib.reload(rftool)
@@ -65,6 +66,7 @@ else:
             from .retopoflow import retopoflow
             from .retopoflow import helpsystem
             from .retopoflow import updatersystem
+            from .retopoflow import keymapsystem
             from .config import options as configoptions
             from .retopoflow import updater
             from .addon_common.common.maths import convert_numstr_num
@@ -159,6 +161,16 @@ if import_succeeded:
         bl_region_type = "TOOLS"
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
+
+    class VIEW3D_OT_RetopoFlow_KeymapSystem(keymapsystem.RetopoFlow_OpenKeymapSystem):
+        """Open RetopoFlow Updater System"""
+        bl_idname = "cgcookie.retopoflow_keymap"
+        bl_label = "Keymap"
+        bl_description = "Open RetopoFlow Keymap System"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+    RF_classes += [VIEW3D_OT_RetopoFlow_KeymapSystem]
 
     class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Updater Help"""
@@ -486,6 +498,10 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
             box = layout.box()
+            box.label(text='Config')
+            box.operator('cgcookie.retopoflow_keymap', icon='PREFERENCES')
+
+            box = layout.box()
             box.label(text='Auto Save') # , icon='FILE_TICK')
             box.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
             # if retopoflow.RetopoFlow.has_backup():
@@ -528,6 +544,7 @@ if import_succeeded:
                         row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
+                    row.operator('cgcookie.retopoflow_keymap', text="", icon='PREFERENCES')
                     row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
 
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked

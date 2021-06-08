@@ -74,11 +74,20 @@ kmi_to_humanreadable = [
         'SHIFT': 'Shift', 'CTRL': 'Ctrl', 'ALT': 'Alt', 'OSKEY': 'OSKey',
 
         # non-printable characters
-        'ESC': 'Esc',
-        'RET': 'Enter', 'NUMPAD_ENTER': 'Enter',
-        'TAB': 'Tab',
+        # 'ESC': 'Esc',
+        # 'RET': 'Enter', 'NUMPAD_ENTER': 'Enter',
+        # 'TAB': 'Tab',
+        # 'DEL': 'Delete',
+        # 'UP_ARROW': 'Up', 'DOWN_ARROW': 'Down', 'LEFT_ARROW': 'Left', 'RIGHT_ARROW': 'Right',
+        'ESC': 'Escape',
+        'BACK_SPACE': 'Backspace',
+        'RET': 'Enter', 'NUMPAD_ENTER': 'NumEnter',
+        'HOME': 'Home', 'END': 'End',
+        'LEFT_ARROW': 'ArrowLeft', 'RIGHT_ARROW': 'ArrowRight',
+        'UP_ARROW': 'ArrowUp', 'DOWN_ARROW': 'ArrowDown',
+        'PAGE_UP': 'PageUp', 'PAGE_DOWN': 'PageDown',
         'DEL': 'Delete',
-        'UP_ARROW': 'Up', 'DOWN_ARROW': 'Down', 'LEFT_ARROW': 'Left', 'RIGHT_ARROW': 'Right',
+        'TAB': 'Tab',
         # mouse
         'LEFTMOUSE': 'LMB', 'MIDDLEMOUSE': 'MMB', 'RIGHTMOUSE': 'RMB',
         'WHEELUPMOUSE': 'WheelUp', 'WHEELDOWNMOUSE': 'WheelDown',
@@ -87,20 +96,43 @@ kmi_to_humanreadable = [
     }
 ]
 
+humanreadable_to_kmi = {
+    v:k
+    for s in kmi_to_humanreadable
+    for (k,v) in s.items()
+} | {'Space': 'SPACE'}
+
 html_char = {
     '&#96;': '`',
 }
 
-def convert_actions_to_human_readable(actions, join=',', onlyfirst=None, translate_html_char=False):
+visible_char = {
+    ' ': 'Space',
+}
+
+def convert_actions_to_human_readable(actions, join=',', onlyfirst=None, translate_html_char=False, visible=False):
     ret = set()
     for action in actions:
         for kmi2hr in kmi_to_humanreadable:
             for k,v in kmi2hr.items():
                 action = action.replace(k, v)
         ret.add(action)
+    if visible:
+        ret = { visible_char.get(r, r) for r in ret }
     if translate_html_char:
         for k,v in html_char.items():
             ret = {r.replace(k,v) for r in ret}
     ret = sorted(ret)
     if onlyfirst is not None: ret = ret[:onlyfirst]
     return join.join(ret)
+
+def convert_human_readable_to_actions(actions):
+    ret = []
+    for action in actions:
+        kmi = humanreadable_to_kmi.get(action, action)
+        kmi = kmi.replace('Ctrl+', 'CTRL+')
+        kmi = kmi.replace('Shift+', 'SHIFT+')
+        kmi = kmi.replace('Alt+', 'ALT+')
+        kmi = kmi.replace('Cmd+', 'OSKEY+')
+        ret.append(kmi)
+    return ret

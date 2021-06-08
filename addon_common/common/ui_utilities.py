@@ -49,7 +49,7 @@ from .blender import tag_redraw_all
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .colors import colorname_to_color
