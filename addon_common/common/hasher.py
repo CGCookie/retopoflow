@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import time
+from struct import pack
 from hashlib import md5
 
 import bpy
@@ -35,7 +36,7 @@ from .maths import (
 
 
 known_hash_types = {
-    int, float, str, bool, type(None), dict
+    str, type(None), dict
 }
 
 class Hasher:
@@ -78,6 +79,12 @@ class Hasher:
             elif t in llt:
                 self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
                 self.add_list(arg)
+            elif t is int:
+                self._hasher.update(pack('i', arg))
+            elif t is float:
+                self._hasher.update(pack('f', arg))
+            elif t is bool:
+                self._hasher.update(pack('b', arg))
             elif t in known_hash_types:
                 self._hasher.update(bytes(str(arg), 'utf8'))
             else:

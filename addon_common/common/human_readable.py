@@ -100,7 +100,8 @@ humanreadable_to_kmi = {
     v:k
     for s in kmi_to_humanreadable
     for (k,v) in s.items()
-} | {'Space': 'SPACE'}
+} # | {'Space': 'SPACE'}  # does not work in Blender 2.92
+humanreadable_to_kmi['Space'] = 'SPACE'
 
 html_char = {
     '&#96;': '`',
