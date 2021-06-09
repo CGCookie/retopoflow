@@ -81,7 +81,7 @@ class RFMesh():
         bme = bmesh.new()
         if deform:
             depsgraph = bpy.context.evaluated_depsgraph_get()
-            bme.from_object(obj, depsgraph, deform=deform)
+            bme.from_object(obj, depsgraph)
         else:
             bme.from_mesh(obj.data)
         return bme
