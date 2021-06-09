@@ -539,7 +539,8 @@ class RetopoFlow_Target:
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
-        if rfvert.normal.dot(self.Point_to_Direction(xyz)) > 0 and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
+        d = self.Point_to_Direction(xyz)
+        if (d is None or rfvert.normal.dot(d) > 0) and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
             self._detected_bad_normals = True
         return rfvert
 
