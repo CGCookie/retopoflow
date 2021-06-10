@@ -73,7 +73,8 @@ header {
 }
 header ul {
     list-style: none;
-    height: fit-content;
+    /*height: fit-content;*/
+    height: auto;
     background: rgba(32, 32, 32, 1.0);;
     border: 0px;
 }

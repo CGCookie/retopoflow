@@ -25,7 +25,6 @@ import copy
 import json
 
 from .options import options
-from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.blender_preferences import mouse_select
 
 
@@ -165,8 +164,6 @@ right_rf_keymaps = {
     'select path add': ['SHIFT+ALT+RIGHTMOUSE+DOUBLE'],
 }
 
-@add_cache('keymap', None)
-@add_cache('orig', None)
 def get_keymaps(force_reload=False):
     if not get_keymaps.keymap or force_reload:
         keymap = copy.deepcopy(default_rf_keymaps)
@@ -189,6 +186,8 @@ def get_keymaps(force_reload=False):
             keymap[k] = v
         get_keymaps.keymap = keymap
     return get_keymaps.keymap
+get_keymaps.keymap = None
+get_keymaps.orig = None
 
 def reset_all_keymaps():
     get_keymaps()
