@@ -16,9 +16,11 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 NAME            = RetopoFlow
-VERSION         = v3.1.1
+VERSION         = v3.1.1-beta
 GIT_TAG         = "v3.1.1"
-GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.1.1."
+# GIT_TAG_MESSAGE = "This is the alpha release for RetopoFlow 3.1.1."
+GIT_TAG_MESSAGE = "This is the beta release for RetopoFlow 3.1.1."
+# GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.1.1."
 
 BUILD_DIR         = ../retopoflow_release
 INSTALL_DIR       = ~/.config/blender/addons
