@@ -32,9 +32,12 @@ The following documents provide help for specific RetopoFlow tools.
 The following links provide additional information.
 
 - [Change list](changelist.md)
-- [RetopoFlow Updater System](addon_updater.md)
 - [Warnings Details](warnings.md)
-- [Blender Market](https://blendermarket.com/products/retopoflow)
-- [RF Dev Twitter](https://twitter.com/RetopoFlow_Dev)
-- [GitHub Issues](https://github.com/CGCookie/retopoflow/issues)
+- Blender Market: [RetopoFlow](https://blendermarket.com/products/retopoflow)
+- Twitter: [RetopoFlow](https://twitter.com/RetopoFlow), [RetopoFlow Dev](https://twitter.com/RetopoFlow_Dev)
+- GitHub: [Issues](https://github.com/CGCookie/retopoflow/issues)
 
+The following provide additional information about more advanced RetopoFlow features.
+
+- [Updater System](addon_updater.md)
+- [Keymap Editor](keymap_editor.md)

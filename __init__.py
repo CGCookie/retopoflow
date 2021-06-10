@@ -163,10 +163,10 @@ if import_succeeded:
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
     class VIEW3D_OT_RetopoFlow_KeymapSystem(keymapsystem.RetopoFlow_OpenKeymapSystem):
-        """Open RetopoFlow Updater System"""
+        """Open RetopoFlow Keymap Editor"""
         bl_idname = "cgcookie.retopoflow_keymap"
-        bl_label = "Keymap"
-        bl_description = "Open RetopoFlow Keymap System"
+        bl_label = "Keymap Editor"
+        bl_description = "Open RetopoFlow Keymap Editor"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()
@@ -182,6 +182,17 @@ if import_succeeded:
         bl_options = set()
         rf_startdoc = 'addon_updater.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
+
+    class VIEW3D_OT_RetopoFlow_Help_Keymap(helpsystem.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Keymap Editor Help"""
+        bl_idname = "cgcookie.retopoflow_help_keymap"
+        bl_label = "Keymap Editor Help"
+        bl_description = "Open RetopoFlow Keymap Editor Help"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'keymap_editor.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Keymap]
 
     if options['preload help images']: retopoflow.preload_help_images()
 

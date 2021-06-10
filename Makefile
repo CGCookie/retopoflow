@@ -55,6 +55,12 @@ docs:
 	# rebuild online docs
 	python3 $(DOCS_REBUILD)
 
+docs-serve:
+	cd docs && bundle exec jekyll serve
+
+docs-clean:
+	cd docs && bundle exec jekyll clean
+
 check:
 	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
 	# most Windows setups have issues with these
