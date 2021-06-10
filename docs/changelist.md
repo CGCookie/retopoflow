@@ -4,8 +4,14 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.1.0&rarr;3.1.1
 
+- Significantly improved performance of tools with large target meshes!
+- Now target mesh visualization will split (under the hood) when working on a small portion, improving feedback performance for some actions
 - Improved Updater System
-- Bug fixes
+- Added builtin Keymap Editor (prototype)
+- Able to hide/reveal target mesh geometry
+- General code cleanup and refactoring
+- Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.09)
+- Many bug fixes and UX improvements
 
 ### RetopoFlow 3.00.2&rarr;3.1.0
 
