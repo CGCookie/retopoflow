@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import math
+import time
 import bgl
 import bpy
 from mathutils import Vector, Matrix
@@ -136,8 +137,10 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.just_created = False
         self.defer_recomputing = False
         self.hovering_edge = None
+        self.hovering_edge_time = 0
         self.hovering_sel_edge = None
         self.connection_pre = None
+        self.connection_pre_time = 0
         self.connection_post = None
         self.update_ui()
 
@@ -190,16 +193,24 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
-            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+            if time.time() - self.hovering_edge_time > 0.125:
+                self.hovering_edge_time = time.time()
+                self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+                self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+            pass
 
-        self.connection_pre = None
         self.connection_post = None
         if self.actions.using_onlymods('insert'):
-            hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-            if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
-                point_to_point2d = self.rfcontext.Point_to_Point2D
-                self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+            if time.time() - self.connection_pre_time > 0.01:
+                self.connection_pre_time = time.time()
+                hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
+                if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
+                    point_to_point2d = self.rfcontext.Point_to_Point2D
+                    self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+                else:
+                    self.connection_pre = None
+        else:
+            self.connection_pre = None
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['brush']
