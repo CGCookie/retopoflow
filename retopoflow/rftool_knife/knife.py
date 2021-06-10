@@ -410,7 +410,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.rfcontext.select(prev)
 
             for bmf in bmfs_to_shatter:
-                bmf.shatter()
+                if bmf: bmf.shatter()
 
             if (pre_p - self.actions.mouse).length <= self.rfcontext.drawing.scale(options['knife snap dist']):
                 self.knife_start = None
