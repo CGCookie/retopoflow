@@ -1579,7 +1579,12 @@ class RFTarget(RFMesh):
 
     def new_face(self, verts):
         # see if a face happens to exist already...
-        face_in_common = accumulate_last((set(v.link_faces) for v in verts), lambda s0,s1: s0 & s1)
+        face_in_common = accumulate_last(
+            (
+                set(f for f in v.link_faces if f.is_valid)
+                for v in verts if v.is_valid
+            ), lambda s0,s1: s0 & s1
+        )
         if face_in_common: return next(iter(face_in_common))
         verts = [self._unwrap(v) for v in verts]
         # make sure there are now duplicate verts (issue #957)
