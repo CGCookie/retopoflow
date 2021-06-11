@@ -553,7 +553,7 @@ if import_succeeded:
                     row = layout.row(align=True)
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                        row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
+                        row.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
                     row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
 
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
