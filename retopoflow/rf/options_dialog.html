@@ -331,13 +331,13 @@ def symmetry_changed(self):
                     <h1>Snap Vertices</h1>
                     <div class="contents">
                         <button title='Snap all non-hidden target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_nonhidden_verts()">All Non-hidden</button>
-                        <button title='Snap selected and visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
-                        <button title='Snap unselected and visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_unselected_verts()">Unselected</button>
+                        <button title='Snap selected and non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
+                        <button title='Snap unselected and non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_unselected_verts()">Unselected</button>
                         <br> <!-- this is a hack to make buttons below size correctly -->
                         <button title='Snap visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_visible_verts()">Visible</button>
-                        <button title='Snap non-visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_nonvisible_verts()">Non-visible</button>
+                        <button title='Snap non-visible (occluded and non-hidden) target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_nonvisible_verts()">Non-visible</button>
                         <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title='Snap all (visible or hidden, selected or not) target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_verts()">All</button>
+                        <button title='Snap all (visible or occluded, non-hidden or hidden, selected or unselected) target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_verts()">All (including hidden)</button>
                     </div>
                 </div>
                 <div class="collection">
