@@ -612,7 +612,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if self._fsm.state != 'quick':
-            if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
+            if not self.actions.using_onlymods('insert'): return   #'insert alt1'??
         hit_pos = self.actions.hit_pos
 
         if self.knife_start is None and len(self.sel_verts) == 0:
