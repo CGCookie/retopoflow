@@ -116,32 +116,48 @@ class RetopoFlow_KeymapSystem:
             aid = a.replace(' ', '_')
             return aid
 
+        def set_edit_key_span(hk, is_key=True):
+            if not is_key:
+                clear_edit_key_span()
+                return
+            span = self.document.body.getElementById('edit-key-span')
+            span.innerText  = f'Key: {hk}'
+            # span.style = ''
+        def capture_edit_key_span():
+            span = self.document.body.getElementById('edit-key-span')
+            span.innerText = '(capturing... press key to capture)'
+            # span.style = 'color: rgba(255, 255, 255, 0.5)'
+        def clear_edit_key_span():
+            span = self.document.body.getElementById('edit-key-span')
+            span.innerText = '(click to start capture)'
+            # span.style = 'color: rgba(255, 255, 255, 0.5)'
+
         edit_data = {}
         def edit_capture():
             ui_button = self.document.body.getElementById('edit-key-span')
             ui_button.can_focus = True
             self.document.focus(ui_button, full=True)
-            ui_button.innerText = '(capturing)'
+            capture_edit_key_span()
         def edit_lmb():
-            self.document.body.getElementById('edit-key-span').innerText = ''
+            clear_edit_key_span()
             edit_data['key'] = 'LMB'
         def edit_mmb():
-            self.document.body.getElementById('edit-key-span').innerText = ''
+            clear_edit_key_span()
             edit_data['key'] = 'MMB'
         def edit_rmb():
-            self.document.body.getElementById('edit-key-span').innerText = ''
+            clear_edit_key_span()
             edit_data['key'] = 'RMB'
         def edit_wheelup():
-            self.document.body.getElementById('edit-key-span').innerText = ''
+            clear_edit_key_span()
             edit_data['key'] = 'WheelUp'
         def edit_wheeldown():
-            self.document.body.getElementById('edit-key-span').innerText = ''
+            clear_edit_key_span()
             edit_data['key'] = 'WheelDown'
         def edit_capture_key(event):
             ui_button = self.document.body.getElementById('edit-key-span')
             if self.document.activeElement != ui_button: return
             key = event.key.replace('CTRL+','').replace('SHIFT+','').replace('ALT+','').replace('OSKEY+','')
-            ui_button.innerText = f'Key: {humanread([key], visible=True)}' #str(event.key) #humanread([event.key])
+            set_edit_key_span(humanread([key], visible=True))
             edit_data['key'] = key
             self.document.blur()
         def edit_ok():
@@ -166,10 +182,9 @@ class RetopoFlow_KeymapSystem:
             nk += '+DOUBLE' if editor.getElementById('edit-double').checked else ''
             nk += '+DRAG'   if editor.getElementById('edit-drag').checked   else ''
             a = edit_data['action']
+            # do not change ordering of keymaps, just update
             idx = keymaps[a].index(edit_data['keymap'])
             keymaps[a][idx] = nk
-            #keymaps[a].remove(edit_data['keymap'])
-            #keymaps[a].add(nk)
             rebuild_action(a)
         def edit_cancel():
             self.document.body.getElementById('keymapconfig').style = "display: none"
@@ -202,7 +217,7 @@ class RetopoFlow_KeymapSystem:
             editor = self.document.body.getElementById('keymapconfig')
             editor.style = ''
             editor.getElementById('edit-action').innerText = action_to_label(a)
-            editor.getElementById('edit-key-span').innerText  = f'Key: {hk}' if is_key else ''
+            set_edit_key_span(hk, is_key)
             editor.getElementById('edit-key').checked = is_key
             editor.getElementById('edit-lmb').checked = (hm == 'LMB')
             editor.getElementById('edit-mmb').checked = (hm == 'MMB')
@@ -279,8 +294,8 @@ class RetopoFlow_KeymapSystem:
 keymap_details = [
     ('Insert, Move, Rotate, Scale', [
         ('insert', 'Insert new geometry'),
-        ('insert alt0', 'Insert new geometry (alt0)'),
-        ('insert alt1', 'Insert new geometry (alt1)'),
+        # ('insert alt0', 'Insert new geometry (alt0)'),
+        # ('insert alt1', 'Insert new geometry (alt1)'),
         ('quick insert', 'Quick insert (Knife, Loops)'),
         ('increase count', 'Increase Count'),
         ('decrease count', 'Decrease Count'),
@@ -306,6 +321,13 @@ keymap_details = [
         ('hide selected', 'Hide selected geometry'),
         ('hide unselected', 'Hide unselected geometry'),
         ('reveal hidden', 'Reveal hidden geometry'),
+        ('select single', 'Select single item (default depends on Blender selection setting)'),
+        ('select single add', 'Add single item to selection (default depends on Blender selection setting)'),
+        ('select smart', 'Smart selection (default depends on Blender selection setting)'),
+        ('select smart add', 'Smart add to selection (default depends on Blender selection setting)'),
+        ('select paint', 'Selection painting (default depends on Blender selection setting)'),
+        ('select paint add', 'Paint to add to selection (default depends on Blender selection setting)'),
+        ('select path add', 'Select along shortest path (default depends on Blender selection setting)'),
     ]),
     ('Switching Between Tools', [
         ('contours tool', 'Switch to Contours'),

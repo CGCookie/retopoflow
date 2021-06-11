@@ -924,6 +924,22 @@ dialog#keymapconfig {
     background: hsla(200, 0%, 10%, 0.98);
 }
 
+/*dialog#keymapconfig table {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+dialog#keymapconfig tr {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+dialog#keymapconfig td {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+*/
 dialog#keymapconfig span#edit-action {
     margin: 0px;
     padding: 0px;
@@ -942,7 +958,7 @@ dialog#keymapconfig div#edit-key-mouse label input {
 }
 
 dialog#keymapconfig label#edit-key-label {
-    width: 100%;
+    width: 95%;
 }
 dialog#keymapconfig label#edit-key-label span {
     display: inline;
@@ -951,13 +967,13 @@ dialog#keymapconfig label#edit-key-label span {
     padding: 0px;
 }
 dialog#keymapconfig label#edit-lmb-label {
-    width: 33.33%;
+    width: 33.3333%;
 }
 dialog#keymapconfig label#edit-mmb-label {
-    width: 33.33%;
+    width: 33.3333%;
 }
 dialog#keymapconfig label#edit-rmb-label {
-    width: 33.33%;
+    width: 33.3333%;
 }
 
 dialog#keymapconfig label#edit-wu-label {
