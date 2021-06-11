@@ -25,7 +25,9 @@ To continue working on a previous retopology session:
 
 1. Select the low-poly retopo target mesh
 2. Switch to Edit Mode
-3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
+3. Either click on the triangle over square button next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
+
+![](start_rf_quickstart.png)
 
 ![](start_rf_tool.png)
 
