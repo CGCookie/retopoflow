@@ -551,12 +551,10 @@ if import_succeeded:
 
                 if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
                     row = layout.row(align=True)
+                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     if VIEW3D_PT_RetopoFlow.is_editing_target(context):
                         row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
-                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
-                    row.operator('cgcookie.retopoflow_keymap', text="", icon='PREFERENCES')
-                    row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
 
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
 
