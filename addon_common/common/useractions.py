@@ -545,14 +545,25 @@ class Actions:
             for p in self.now_pressed.values()
         )
 
-    def using_onlymods(self, actions):
+    def using_onlymods(self, actions, exact=True):
         if actions is None: return False
         def action_good(action):
-            for p in action.split('+'):
-                if p == 'CTRL' and not self.ctrl: return False
-                if p == 'SHIFT' and not self.shift: return False
-                if p == 'ALT' and not self.alt: return False
-            return True
+            nonlocal exact
+            act_c = 'CTRL+' in action
+            act_s = 'SHIFT+' in action
+            act_a = 'ALT+' in action
+            # act_o = 'OSKEY+' in action
+            ret = True
+            if exact:
+                ret &= act_c == self.ctrl
+                ret &= act_s == self.shift
+                ret &= act_a == self.alt
+            else:
+                ret &= not act_c or self.ctrl
+                ret &= not act_s or self.shift
+                ret &= not act_a or self.alt
+            #print(f'{exact}: {act_c} {act_s} {act_a}  {self.ctrl} {self.shift} {self.alt} = {ret}')
+            return ret
         return any(action_good(action) for action in self.convert(actions))
 
     def navigating(self):

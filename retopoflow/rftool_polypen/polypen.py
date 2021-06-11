@@ -748,7 +748,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
         #if self.rfcontext.nav or self.mode != 'main': return
-        if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
+        if not self.actions.using_onlymods('insert'): return  # 'insert alt1'??
         hit_pos = self.actions.hit_pos
         if not hit_pos: return
 
