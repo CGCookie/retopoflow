@@ -330,8 +330,14 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>Snap Vertices</h1>
                     <div class="contents">
-                        <button title='Snap all target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_all_verts()">All</button>
-                        <button title='Snap selected target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
+                        <button title='Snap all non-hidden target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_nonhidden_verts()">All Non-hidden</button>
+                        <button title='Snap selected and visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
+                        <button title='Snap unselected and visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_unselected_verts()">Unselected</button>
+                        <br> <!-- this is a hack to make buttons below size correctly -->
+                        <button title='Snap visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_visible_verts()">Visible</button>
+                        <button title='Snap non-visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_nonvisible_verts()">Non-visible</button>
+                        <br> <!-- this is a hack to make buttons below size correctly -->
+                        <button title='Snap all (visible or hidden, selected or not) target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_verts()">All</button>
                     </div>
                 </div>
                 <div class="collection">
@@ -373,8 +379,8 @@ def symmetry_changed(self):
                         <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
                         <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
                         <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
                         <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
+                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
                     </div>
                 </div>
                 <div class="collection">

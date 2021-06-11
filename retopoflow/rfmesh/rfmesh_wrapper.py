@@ -124,6 +124,10 @@ class BMElemWrapper:
         self.bmelem.select = v
 
     @property
+    def unselect(self):
+        return not self.bmelem.select and not self.bmelem.hide
+
+    @property
     def tag(self):
         return self.bmelem.tag
 

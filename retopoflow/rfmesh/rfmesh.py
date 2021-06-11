@@ -1725,20 +1725,28 @@ class RFTarget(RFMesh):
                 if check: break
         return mapping
 
-    def snap_all_verts(self, nearest):
+    def snap_verts_filter(self, nearest, fn_filter):
+        '''
+        snap verts when fn_filter returns True
+        '''
         for v in self.get_verts():
+            if not fn_filter(v): continue
             xyz,norm,_,_ = nearest(v.co)
             v.co = xyz
             v.normal = norm
         self.dirty()
 
+    def snap_all_verts(self, nearest):
+        self.snap_verts_filter(nearest, lambda _: True)
+
+    def snap_all_nonhidden_verts(self, nearest):
+        self.snap_verts_filter(nearest, lambda v: not v.hide)
+
     def snap_selected_verts(self, nearest):
-        for v in self.get_verts():
-            if not v.select: continue
-            xyz,norm,_,_ = nearest(v.co)
-            v.co = xyz
-            v.normal = norm
-        self.dirty()
+        self.snap_verts_filter(nearest, lambda v: v.select)
+
+    def snap_unselected_verts(self, nearest):
+        self.snap_verts_filter(nearest, lambda v: v.unselect)
 
     def remove_all_doubles(self, dist):
         remove_doubles(self.bme, verts=self.bme.verts, dist=dist)
