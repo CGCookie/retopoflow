@@ -8,6 +8,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Significantly improved performance of tools with large target meshes!
 - Now target mesh visualization will split (under the hood) when working on a small portion, improving feedback performance for some actions
 - Improved Updater System
+- Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
 - Able to hide/reveal target mesh geometry
 - General code cleanup and refactoring
 - Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.09)
