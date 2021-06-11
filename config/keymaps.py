@@ -182,7 +182,7 @@ def get_keymaps(force_reload=False):
                 print(str(e))
         # apply custom keymaps
         for k,v in keymap_custom.items():
-            print(f'keymap["{k}"] = {v} (was {keymap[k]})')
+            # print(f'keymap["{k}"] = {v} (was {keymap[k]})')
             keymap[k] = v
         get_keymaps.keymap = keymap
     return get_keymaps.keymap
@@ -203,8 +203,8 @@ def save_custom_keymaps():
     custom = {}
     for k in keymap.keys():
         if set(keymap[k]) == set(orig.get(k,[])): continue
-        print(f'keymap["{k}"] = {keymap[k]}')
-        print(f'orig["{k}"]   = {orig[k]}')
+        # print(f'keymap["{k}"] = {keymap[k]}')
+        # print(f'orig["{k}"]   = {orig[k]}')
         custom[k] = keymap[k]
     path_custom = options.get_path('keymaps filename')
     json.dump(custom, open(path_custom, 'wt'))
