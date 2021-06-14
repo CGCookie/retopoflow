@@ -14,6 +14,19 @@ def set_span_mode(self, value):
             <input type="checkbox" checked="BoundBool('''options['strokes snap stroke']''')">
             Snap Stroke to Unselected
         </label>
+        <div class="collection">
+            <h1>Automerge</h1>
+            <div class="contents">
+                <label title="If enabled, grabbed vertices automatically merged with nearby vertices">
+                    <input type="checkbox" checked="BoundBool('''options['strokes automerge']''')">
+                    Enable Automerge
+                </label>
+                <div class="labeled-input-text">
+                    <label title="Pixel distance for merging and snapping">Merge distance</label>
+                    <input type="number" value="BoundInt( '''options['strokes merge dist'] ''')">
+                </div>
+            </div>
+        </div>
         <div class='collection' id="strokes-insert-modes">
             <h1>Span Insert Mode</h1>
             <div class='contents'>

@@ -244,6 +244,8 @@ class Options:
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
         'strokes snap stroke':          True,       # should stroke snap to unselected geometry?
+        'strokes merge dist':           10,         # pixels away to merge
+        'strokes automerge':            True,
 
         'knife automerge':              True,
         'knife merge dist':             10,         # pixels away to merge

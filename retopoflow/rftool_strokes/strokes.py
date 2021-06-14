@@ -856,20 +856,55 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.defer_recomputing = False
         self.update()
 
+    def mergeSnapped(self):
+        """ Merging colocated visible verts """
+
+        if not options['strokes automerge']: return
+
+        # TODO: remove colocated faces
+        if self.mousedown is None: return
+        delta = Vec2D(self.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        update_verts = []
+        merge_dist = self.rfcontext.drawing.scale(options['strokes merge dist'])
+        for bmv,xy in self.bmverts:
+            if not xy: continue
+            xy_updated = xy + delta
+            for bmv1,xy1 in self.vis_bmverts:
+                if not xy1: continue
+                if bmv1 == bmv: continue
+                if not bmv1.is_valid: continue
+                d = (xy_updated - xy1).length
+                if (xy_updated - xy1).length > merge_dist:
+                    continue
+                bmv1.merge_robust(bmv)
+                self.rfcontext.select(bmv1)
+                update_verts += [bmv1]
+                break
+        if update_verts:
+            self.rfcontext.update_verts_faces(update_verts)
+            #self.set_next_state()
+
     @RFTool_Strokes.FSM_State('move', 'enter')
     def move_enter(self, bmverts=None, defer_recomputing=True):
         self.rfcontext.undo_push('move grabbed')
 
-        self.sel_verts = self.rfcontext.get_selected_verts()
-        self.vis_accel = self.rfcontext.get_vis_accel()
-        self.vis_verts = self.rfcontext.accel_vis_verts
+        self.move_opts = {
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+        }
+
+        sel_verts = self.rfcontext.get_selected_verts()
+        vis_accel = self.rfcontext.get_vis_accel()
+        vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
-        if not bmverts: bmverts = self.sel_verts
+        if not bmverts: bmverts = sel_verts
         self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
+        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in vis_verts if bmv.is_valid and bmv not in sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
         self.defer_recomputing = defer_recomputing
+        self.rfcontext.split_target_visualization_selected()
+        self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Strokes.FSM_State('move')
@@ -879,11 +914,11 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         released = self.rfcontext.actions.released
         if self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
-            #self.mergeSnapped()
+            self.mergeSnapped()
             return 'main'
         if self.actions.released(self.move_done_released):
             self.defer_recomputing = False
-            #self.mergeSnapped()
+            self.mergeSnapped()
             return 'main'
         if self.actions.pressed('cancel'):
             self.defer_recomputing = False
@@ -891,8 +926,9 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             return 'main'
 
         # only update verts on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        #if not self.rfcontext.actions.timer: return
+        #if self.actions.mouse_prev == self.actions.mouse: return
+        if not self.actions.mousemove_stop: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -901,12 +937,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
+                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_opts['vis_accel'], max_dist=options['strokes merge dist'])
+                if bmv1 is None:
                     set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
@@ -914,9 +953,12 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @RFTool_Strokes.FSM_State('move', 'exit')
     def move_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
     @RFTool_Strokes.Draw('post2d')
     def draw_postpixel(self):
+        if self._fsm.state == 'move': return
         bgl.glEnable(bgl.GL_BLEND)
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
