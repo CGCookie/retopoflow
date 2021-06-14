@@ -87,7 +87,7 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{blender undo}}                      | : | undo |
 | {{blender redo}}                      | : | redo |
 
-Pressing {{delete}} will bring up the Delete/Dissolve dialog, allowing you to delete/dissolve the selected geometry.
+Pressing {{delete}} will bring up the Delete/Dissolve/Collapse dialog, allowing you to delete/dissolve/collapse the selected geometry.
 Pressing and holding {{delete pie menu}} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
 

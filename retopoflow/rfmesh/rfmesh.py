@@ -1602,6 +1602,40 @@ class RFTarget(RFMesh):
         ret = holes_fill(self.bme, edges=edges, sides=sides)
         print('RetopoFlow holes_fill', ret)
 
+
+    def collapse_edges_faces(self, nearest):
+        # find all connected components
+        # for each component:
+        #     compute average vert position
+        #     merge all selected verts to point located at average
+        verts = set(self.get_selected_verts())
+        edges = set(self.get_selected_edges())
+        faces = set(self.get_selected_faces())
+        remaining = set(verts)
+        while remaining:
+            working = set()
+            working_next = set([ next(iter(remaining)) ])
+            while working_next:
+                v = working_next.pop()
+                if v not in remaining: continue
+                remaining.remove(v)
+                working.add(v)
+                for e in v.link_edges:
+                    if e not in edges: continue
+                    working_next |= {v_ for v_ in e.verts if v_ in remaining}
+                for f in v.link_faces:
+                    if f not in faces: continue
+                    working_next |= {v_ for v_ in f.verts if v_ in remaining}
+            average = Point.average([v.co for v in working])
+            p, n, _, _ = nearest(average)
+            bmv = self.new_vert(p, n)
+            for v in working:
+                bmv = bmv.merge_robust(v)
+            bmv.co = p
+            bmv.normal = n
+            bmv.select = True
+
+
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         if del_faces:
             faces = set(f for f in self.bme.faces if f.select)

@@ -1,5 +1,5 @@
 <dialog class="framed" id="deletedialog" style="width:200px" on_mouseleave="mouseleave_event()" on_keypress="key(event)">
-    <h1>Delete/Dissolve</h1>
+    <h1>Delete / Dissolve / Collapse</h1>
     <div class="contents">
         <div class="collection">
             <h1>Delete</h1>
@@ -18,6 +18,12 @@
                 <button title='Dissolve selected edges'      on_mouseclick="act(('Dissolve','Edges'))">Edges</button>
                 <button title='Dissolve selected faces'      on_mouseclick="act(('Dissolve','Faces'))">Faces</button>
                 <button title='Dissolve selected edge loops' on_mouseclick="act(('Dissolve','Loops'))">Loops</button>
+            </div>
+        </div>
+        <div class="collection">
+            <h1>Collapse</h1>
+            <div class="contents">
+                <button title='Collapse isolated edge and face regions.  This can collapse edge-rings as well as regions of connected faces into vertices.' on_mouseclick="act(('Collapse','Edges & Faces'))">Collapse Edges & Faces</button>
             </div>
         </div>
     </div>

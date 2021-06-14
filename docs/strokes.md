@@ -40,7 +40,7 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }}         | : | delete/dissolve selected |
+| {{ site.data.keymaps.delete }}         | : | delete/dissolve/collapse selected |
 
 
 ## Span Insertion Modes

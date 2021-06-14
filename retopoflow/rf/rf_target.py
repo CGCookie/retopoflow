@@ -864,12 +864,16 @@ class RetopoFlow_Target:
     #######################################################
     # delete / dissolve
 
-    def delete_dissolve_option(self, opt):
-        self.last_delete_dissolve_option = opt
-        if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces'), ('Dissolve','Loops')]:
+    def delete_dissolve_collapse_option(self, opt):
+        if opt is None: return
+        if opt[0] == 'Dissolve':
             self.dissolve_option(opt[1])
-        elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
+        elif opt[0] == 'Delete':
             self.delete_option(opt[1])
+        elif opt[0] == 'Collapse':
+            self.collapse_option(opt[1])
+        else:
+            return
 
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
@@ -922,6 +926,29 @@ class RetopoFlow_Target:
         except RuntimeError as e:
             self.undo_cancel()
             self.alert_user('Error while deleting:\n' + '\n'.join(e.args))
+
+    def collapse_option(self, opt):
+        del_empty_edges=True
+        del_empty_verts=True
+        del_verts=True
+        del_edges=True
+        del_faces=True
+
+        if opt == 'Edges & Faces':
+            pass
+        else:
+            return
+
+        try:
+            self.undo_push('collapse %s' % opt)
+            self.collapse_edges_faces()
+            self.dirty()
+        except RuntimeError as e:
+            self.undo_cancel()
+            self.alert_user('Error while collapsing:\n' + '\n'.join(e.args))
+
+    def collapse_edges_faces(self):
+        self.rftarget.collapse_edges_faces(self.nearest_sources_Point)
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)

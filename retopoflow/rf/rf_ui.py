@@ -352,7 +352,7 @@ class RetopoFlow_UI:
             def key(e):
                 if e.key == 'ESC': hide_ui_delete()
             def act(opt):
-                self.delete_dissolve_option(opt)
+                self.delete_dissolve_collapse_option(opt)
                 hide_ui_delete()
 
             self.ui_delete = UI_Element.fromHTMLFile(abspath('delete_dialog.html'))[0]

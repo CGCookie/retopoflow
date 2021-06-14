@@ -58,4 +58,4 @@ The following actions apply to when the mouse is hovering over control points of
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}} | : | delete/dissolve selected |
+| {{delete}} | : | delete/dissolve/collapse selected |

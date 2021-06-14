@@ -55,7 +55,7 @@ Until the face can split, the created vertices and edges will be non-manifold (p
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}} | : | delete/dissolve selected |
+| {{delete}} | : | delete/dissolve/collapse selected |
 
 
 

@@ -302,7 +302,7 @@ class RetopoFlow_States(CookieCutter):
             if self.actions.pressed('delete pie menu'):
                 def callback(option):
                     if not option: return
-                    self.delete_dissolve_option(option)
+                    self.delete_dissolve_collapse_option(option)
                 self.show_pie_menu([
                     ('Delete Verts',   ('Delete',   'Vertices')),
                     ('Delete Edges',   ('Delete',   'Edges')),
@@ -310,6 +310,7 @@ class RetopoFlow_States(CookieCutter):
                     ('Dissolve Faces', ('Dissolve', 'Faces')),
                     ('Dissolve Edges', ('Dissolve', 'Edges')),
                     ('Dissolve Verts', ('Dissolve', 'Vertices')),
+                    # ('Collapse Edges & Faces', ('Collapse', 'Edges & Faces')),
                     #'Dissolve Loops',
                 ], callback, release='delete pie menu', always_callback=True, rotate=-60)
                 return
