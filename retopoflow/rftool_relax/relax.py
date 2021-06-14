@@ -399,6 +399,8 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             elif options['relax algorithm'] == '2D':
                 relax_2d()
 
+            if len(displace) <= 1: continue
+
             # update
             for bmv in displace:
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv])
