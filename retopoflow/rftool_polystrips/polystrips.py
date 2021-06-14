@@ -523,6 +523,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             'move_cancelled': 'cancel',
             'timer': self.actions.start_timer(120.0),
         }
+        self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move all')
@@ -553,6 +554,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def moveall_exit(self):
         self.moveall_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
         self.update_target(force=True)
 
 

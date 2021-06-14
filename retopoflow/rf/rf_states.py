@@ -429,6 +429,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
+        self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('rotate selected')
@@ -467,6 +468,7 @@ class RetopoFlow_States(CookieCutter):
     def rotate_selected_exit(self):
         opts = self.rotate_selected_opts
         opts['timer'].done()
+        self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
 
@@ -491,6 +493,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
+        self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('scale selected')
@@ -525,6 +528,7 @@ class RetopoFlow_States(CookieCutter):
     def scale_selected_exit(self):
         opts = self.scale_selected_opts
         opts['timer'].done()
+        self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
 

@@ -482,6 +482,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             'timer': self.actions.start_timer(120),
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
         }
+        self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Knife.FSM_State('move')
@@ -533,6 +534,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
     def move_exit(self):
         self.move_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
     def _get_crosses(self, p0, p1):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
