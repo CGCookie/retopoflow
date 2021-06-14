@@ -88,8 +88,6 @@ class UI_Document(UI_Document_FSM):
     doubleclick_time = bpy.context.preferences.inputs.mouse_double_click_time / 1000 # 0.25
     wheel_scroll_lines = 3 # bpy.context.preferences.inputs.wheel_scroll_lines, see https://developer.blender.org/rBbec583951d736776d2096368ef8d2b764287ac11
     allow_disabled_to_blur = False
-    key_repeat_delay = 0.25
-    key_repeat_pause = 0.10
     show_tooltips = True
     tooltip_delay = 0.50
     max_click_dist = 10         # allows mouse to travel off element and still register a click event
@@ -346,36 +344,12 @@ class UI_Document(UI_Document_FSM):
         ui_element = ui_element or self._focus
 
         if self.actions.pressed('clipboard paste') and ui_element:
-            # print(f'CLIPBOARD PASTE!  {bpy.context.window_manager.clipboard}')
             ui_element.dispatch_event('on_paste', clipboardData=bpy.context.window_manager.clipboard)
 
-        # pressed = None
-        # if self.actions.using('keypress', ignoreshift=True):
         pressed = self.actions.as_char(self.actions.just_pressed)
-        # if pressed: print(f'UI_Document.handle_keypress: {pressed}')
 
-        if pressed:
-            cur = time.time()
-            # print('focus_main', pressed, self.actions.last_pressed, self.actions.get_last_press_time(self.actions.last_pressed))
-            if self._last_pressed != pressed:
-                self._last_press_start = cur
-                self._last_press_time = 0
-                # self._last_press_time2 = self.actions.get_last_press_time(pressed)[1]
-                if ui_element:
-                    ui_element.dispatch_event('on_keypress', key=pressed)
-            # elif self.actions.get_last_press_time(self.actions.last_pressed)[1] != self._last_press_time2:
-            #     self._last_press_time2 = self.actions.get_last_press_time(self.actions.last_pressed)[1]
-            #     if ui_element:
-            #         ui_element.dispatch_event('on_keypress', key=pressed)
-            elif cur >= self._last_press_start + UI_Document.key_repeat_delay and cur >= self._last_press_time + UI_Document.key_repeat_pause:
-                self._last_press_time = cur
-                if ui_element:
-                    ui_element.dispatch_event('on_keypress', key=pressed)
-
-        else:
-            self._last_press_time2 = 0
-
-        self._last_pressed = pressed
+        if pressed and ui_element:
+            ui_element.dispatch_event('on_keypress', key=pressed)
 
 
     @UI_Document_FSM.FSM_State('main', 'enter')
@@ -623,11 +597,6 @@ class UI_Document(UI_Document_FSM):
         self._focus.dispatch_event('on_focus')
         self._focus.dispatch_event('on_focusin', stop_at=stop_focus_at)
 
-    @UI_Document_FSM.FSM_State('focus', 'enter')
-    def focus_enter(self):
-        self._last_pressed = None
-        self._last_press_time = 0
-        self._last_press_start = 0
 
     @UI_Document_FSM.FSM_State('focus')
     def focus_main(self):

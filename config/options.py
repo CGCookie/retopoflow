@@ -161,10 +161,6 @@ class Options:
         'escape to quit':       False,  # True:ESC is action for quitting
         'confirm tab quit':     True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
 
-        # TODO: USE THE REPEAT KEY EVENTS INSTEAD (BASED ON SYSTEM SETTINGS)
-        'keyboard repeat delay': 0.25,  # delay before repeating
-        'keyboard repeat pause': 0.10,  # pause between repeats
-
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
@@ -378,8 +374,6 @@ class Options:
         # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self.get_path('profiler_filename'))
         Drawing.set_custom_dpi_mult(self['ui scale'])
-        UI_Document.key_repeat_delay = self['keyboard repeat delay']
-        UI_Document.key_repeat_pause = self['keyboard repeat pause']
         UI_Document.show_tooltips = self['show tooltips']
         UI_Document.tooltip_delay = self['tooltip delay']
         self.call_callbacks()

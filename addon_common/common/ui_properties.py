@@ -1102,6 +1102,9 @@ class UI_Element_Properties:
         offset = m['offset']
         pre = m['pre']
         tw = Globals.drawing.get_text_width(pre, fontsize=self._fontsize, fontid=self._fontid)
+        if e._relative_pos is None: return None
+        if e._relative_offset is None: return None
+        if e._scroll_offset is None: return None
         e_pos = e._relative_pos + e._relative_offset + e._scroll_offset + RelPoint2D((tw, 0))
         return e_pos
 

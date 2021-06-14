@@ -442,12 +442,17 @@ class UI_Element_Elements():
             if data['text'] is None: return
             data['pos'] = self.get_text_pos(data['idx'])
             if self._ui_marker._absolute_size:
-                self._ui_marker.reposition(
-                    left=data['pos'].x - self._ui_marker._absolute_size.width / 2,
-                    top=data['pos'].y,
-                    clamp_position=False,
-                )
-                cursor_postflow()
+                if data['pos']:
+                    self._ui_marker.reposition(
+                        left=data['pos'].x - self._ui_marker._absolute_size.width / 2,
+                        top=data['pos'].y,
+                        clamp_position=False,
+                    )
+                    cursor_postflow()
+                else:
+                    # sometimes, content can change too quickly, so data isn't filled
+                    # in this case, just dirty ourselves so that we will re-render
+                    self.dirty_content()
         def cursor_postflow():
             if data['text'] is None: return
             self._setup_ltwh()

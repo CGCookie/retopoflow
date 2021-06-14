@@ -102,20 +102,6 @@ def symmetry_changed(self):
                 <details>
                     <summary>Advanced</summary>
                     <div class="contents">
-                        <div class="collection">
-                            <h1>Keyboard Settings</h1>
-                            <div classes="contents">
-                                <div class="labeled-input-text">
-                                    <label title="Set delay time in seconds before keyboard start repeating">Repeat Delay</label>
-                                    <input type="number" value="BoundFloat('''options['keyboard repeat delay']''', min_value=0.02)">
-                                </div>
-                                <div class="labeled-input-text">
-                                    <label title="Set pause time in seconds between keyboard repeats">Repeat Pause</label>
-                                    <input type="number" value="BoundFloat('''options['keyboard repeat pause']''', min_value=0.02)">
-                                </div>
-                                <button title="Reset keyboard settings to default" on_mouseclick="options.reset(['keyboard repeat delay','keyboard repeat pause'], version=False)">Reset Keyboard Settings</button>
-                            </div>
-                        </div>
                          <div class="collection">
                             <h1 title="These options are used to tune the parameters for visibility testing">Visibility Testing</h1>
                             <div class="contents">
