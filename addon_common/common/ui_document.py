@@ -352,7 +352,7 @@ class UI_Document(UI_Document_FSM):
         # pressed = None
         # if self.actions.using('keypress', ignoreshift=True):
         pressed = self.actions.as_char(self.actions.just_pressed)
-        if pressed: print(f'UI_Document.handle_keypress: {pressed}')
+        # if pressed: print(f'UI_Document.handle_keypress: {pressed}')
 
         if pressed:
             cur = time.time()
