@@ -292,6 +292,11 @@ class RetopoFlow_KeymapSystem:
 
 
 keymap_details = [
+    ('General', [
+        ('confirm', 'Confirm'),
+        ('confirm drag', 'Confirm with Drag (sometimes this is needed for certain actions)'),
+        ('cancel', 'Cancel'),
+    ]),
     ('Insert, Move, Rotate, Scale', [
         ('insert', 'Insert new geometry'),
         # ('insert alt0', 'Insert new geometry (alt0)'),
