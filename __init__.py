@@ -32,6 +32,8 @@ from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
+# a hack to check if we're under git version control
+is_git = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
@@ -40,7 +42,7 @@ bl_info = {
     "blender":     (2, 83, 0),
     "location":    "View 3D > Header",
     "warning":     "Beta", #"Release Candidate 2",  # used for warning icon and text in addons panel
-    "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
+    "doc_url":     "https://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
 }
