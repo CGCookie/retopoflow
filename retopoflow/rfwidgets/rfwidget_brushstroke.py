@@ -40,7 +40,7 @@ class RFWidget_BrushStroke_Factory:
     '''
 
     @staticmethod
-    def create(radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5))):
+    def create(radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.5))):
 
         class RFW_BrushStroke(RFWidget):
             rfw_name = 'Brush Stroke'
@@ -56,7 +56,7 @@ class RFWidget_BrushStroke_Factory:
                 self.outer_border_color = outer_border_color
                 self.outer_color = outer_color
                 self.inner_color = inner_color
-                self.color_mult_below = Color((1, 1, 1, 0.25))
+                self.color_mult_below = below_alpha
 
             @RFW_BrushStroke.FSM_State('main', 'enter')
             def modal_main_enter(self):

@@ -232,6 +232,7 @@ class Options:
         'contours non-manifold check':  True,
 
         'polystrips radius':            40,
+        'polystrips below alpha':       0.6,
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
@@ -241,6 +242,7 @@ class Options:
         'polystrips handle border':     3,
 
         'strokes radius':               40,
+        'strokes below alpha':          0.6,
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
         'strokes snap stroke':          True,       # should stroke snap to unselected geometry?
@@ -258,6 +260,7 @@ class Options:
         'relax radius':                 50,
         'relax falloff':                1.5,
         'relax strength':               0.5,
+        'relax below alpha':            0.6,
         'relax algorithm':              '3D',
         'relax mask boundary':          'include',
         'relax mask symmetry':          'maintain',
@@ -291,6 +294,7 @@ class Options:
         'tweak radius':                 50,
         'tweak falloff':                1.5,
         'tweak strength':               0.5,
+        'tweak below alpha':            0.6,
         'tweak mask boundary':          'include',
         'tweak mask symmetry':          'maintain',
         'tweak mask occluded':          'exclude',
