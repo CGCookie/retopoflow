@@ -621,19 +621,19 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
             bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-            # draw in front of geometry
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            draw(
-                options['target alpha'],
-                options['target alpha'], # hover
-                False, #options['polystrips handle hover']
-            )
-
             # draw behind geometry
             bgl.glDepthFunc(bgl.GL_GREATER)
             draw(
                 options['target hidden alpha'],
                 options['target hidden alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
+
+            # draw in front of geometry
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            draw(
+                options['target alpha'],
+                options['target alpha'], # hover
                 False, #options['polystrips handle hover']
             )
 

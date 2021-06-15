@@ -120,14 +120,6 @@ class RFWidget_BrushFalloff_Factory:
                 ff = math.pow(0.5, 1.0 / self.falloff)
                 fs = (1-ff) * r
 
-                # draw above
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs)
-                bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale)
-
                 # draw below
                 bgl.glDepthFunc(bgl.GL_GREATER)
                 bgl.glDepthRange(0.0, 0.99995)
@@ -135,6 +127,14 @@ class RFWidget_BrushFalloff_Factory:
                 Globals.drawing.draw3D_circle(p, r * ff, ci * self.color_mult_below, n=n, width=2*self.scale)
                 bgl.glDepthRange(0.0, 0.99996)
                 Globals.drawing.draw3D_circle(p, r - fs, cc * self.color_mult_below, n=n, width=fs)
+
+                # draw above
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
+                bgl.glDepthRange(0.0, 0.99996)
+                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs)
+                bgl.glDepthRange(0.0, 0.99995)
+                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale)
 
                 bgl.glDepthFunc(bgl.GL_LEQUAL)
                 bgl.glDepthRange(0.0, 1.0)

@@ -451,19 +451,6 @@ class RFMeshRender():
             mirror_axes = self.rfmesh.mirror_mod.xyz if self.rfmesh.mirror_mod else []
             for axis in mirror_axes: opts['mirror %s' % axis] = True
 
-            # geometry above
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            opts['poly hidden']         = 1 - alpha_above
-            opts['poly mirror hidden']  = 1 - alpha_above
-            opts['line hidden']         = 1 - alpha_above
-            opts['line mirror hidden']  = 1 - alpha_above
-            opts['point hidden']        = 1 - alpha_above
-            opts['point mirror hidden'] = 1 - alpha_above
-            for buffered_render in self.buffered_renders_static:
-                buffered_render.draw(opts)
-            for buffered_render in self.buffered_renders_dynamic:
-                buffered_render.draw(opts)
-
             if not opts.get('no below', False):
                 # draw geometry hidden behind
                 # geometry below
@@ -478,6 +465,19 @@ class RFMeshRender():
                     buffered_render.draw(opts)
                 for buffered_render in self.buffered_renders_dynamic:
                     buffered_render.draw(opts)
+
+            # geometry above
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            opts['poly hidden']         = 1 - alpha_above
+            opts['poly mirror hidden']  = 1 - alpha_above
+            opts['line hidden']         = 1 - alpha_above
+            opts['line mirror hidden']  = 1 - alpha_above
+            opts['point hidden']        = 1 - alpha_above
+            opts['point mirror hidden'] = 1 - alpha_above
+            for buffered_render in self.buffered_renders_static:
+                buffered_render.draw(opts)
+            for buffered_render in self.buffered_renders_dynamic:
+                buffered_render.draw(opts)
 
             bgl.glDepthFunc(bgl.GL_LEQUAL)
             bgl.glDepthMask(bgl.GL_TRUE)

@@ -596,17 +596,19 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         #self.drawing.line_width(2.0)
         # bgl.glDisable(bgl.GL_CULL_FACE)
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDepthMask(bgl.GL_FALSE)
+        bgl.glDepthMask(bgl.GL_TRUE)
+        bgl.glEnable(bgl.GL_DEPTH_TEST)
         bgl.glDepthRange(0, 0.9990)     # squeeze depth just a bit
 
+        # draw below
+        # NOTE: THERE IS NO "BELOW" WHEN DRAWING IN POST2D!
+        # need to implement 3D line drawing first
+        # bgl.glDepthFunc(bgl.GL_GREATER)
+        # draw(Color((0.15, 1.00, 0.15, 0.25)))
+
         # draw above
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
         bgl.glDepthFunc(bgl.GL_LEQUAL)
         draw(Color((0.15, 1.00, 0.15, 1.00)))
-
-        # draw below
-        bgl.glDepthFunc(bgl.GL_GREATER)
-        draw(Color((0.15, 1.00, 0.15, 0.25)))
 
         # bgl.glEnable(bgl.GL_CULL_FACE)
         bgl.glDepthMask(bgl.GL_TRUE)
