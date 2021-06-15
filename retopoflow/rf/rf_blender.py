@@ -140,7 +140,7 @@ class RetopoFlow_Blender:
         if tar_object is None: tar_object = RetopoFlow_Blender.get_target()
         if tar_object: scale_object(tar_object)
 
-    def _scale_by(self, factor):
+    def _scale_by(self, factor, clip_override=True, clip_start=None, clip_end=None, clip_restore=False):
         # RetopoFlow_Blender.scale_by(factor, self.actions.r3d, self.actions.space, tar_object=getattr(self, 'tar_object', None))
         r3d = self.actions.r3d
         space = self.actions.space
@@ -155,8 +155,26 @@ class RetopoFlow_Blender:
         # scale view
         r3d.view_distance *= factor
         r3d.view_location *= factor
-        space.clip_start  *= factor
-        space.clip_end    *= factor
+
+        # override/scale clipping distances
+        if not hasattr(self, '_clip_distances'):
+            # store original clip distances
+            self._clip_distances = {
+                'start': space.clip_start,
+                'end':   space.clip_end,
+            }
+        if clip_restore:
+            space.clip_start = self._clip_distances['start']
+            space.clip_end   = self._clip_distances['end']
+        else:
+            if clip_override and clip_start is not None:
+                space.clip_start = clip_start
+            else:
+                space.clip_start *= factor
+            if clip_override and clip_end is not None:
+                space.clip_end = clip_end
+            else:
+                space.clip_end *= factor
 
         # scale sources
         for src in self.src_objects: scale_object(src)
@@ -164,11 +182,11 @@ class RetopoFlow_Blender:
         # scale target
         scale_object(self.tar_object)
 
-    def scale_to_unit_box(self):
-        self._scale_by(1.0 / self.unit_scaling_factor)
+    def scale_to_unit_box(self, clip_override=True, clip_start=None, clip_end=None):
+        self._scale_by(1.0 / self.unit_scaling_factor, clip_override=clip_override, clip_start=clip_start, clip_end=clip_end)
 
     def unscale_from_unit_box(self):
-        self._scale_by(self.unit_scaling_factor)
+        self._scale_by(self.unit_scaling_factor, clip_restore=True)
 
     @staticmethod
     def get_unit_scaling_factor():

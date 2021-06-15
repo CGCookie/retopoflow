@@ -104,7 +104,7 @@ class RetopoFlow_UI:
         # print('RetopoFlow: blender_ui_set', 'scale_to_unit_box='+str(scale_to_unit_box), 'add_rotate='+str(add_rotate))
         bpy.ops.object.mode_set(mode='OBJECT')
         if scale_to_unit_box:
-            self.scale_to_unit_box()
+            self.scale_to_unit_box(clip_override=options['clip override'], clip_start=options['clip start override'], clip_end=options['clip end override'])
             self.scene_scale_set(1.0)
         self.viewaa_simplify()
 

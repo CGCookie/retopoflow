@@ -252,7 +252,7 @@ class RetopoFlow(
         print('RetopoFlow: setting up scaling factor')
         self.unit_scaling_factor = self.get_unit_scaling_factor()
         print('Unit scaling factor:', self.unit_scaling_factor)
-        self.scale_to_unit_box()
+        self.scale_to_unit_box(clip_override=options['clip override'], clip_start=options['clip start override'], clip_end=options['clip end override'])
 
         self.setup_ui_blender()
         self.reload_stylings()
