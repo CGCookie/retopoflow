@@ -51,6 +51,7 @@ class RFWidget_BrushFalloff_Factory:
                 self.outer_color = outer_color
                 self.inner_color = inner_color
                 self.fill_color = fill_color
+                self.color_mult_below = Color((1, 1, 1, 0.25))
                 self.last_mouse = None
                 self.scale = 1.0
                 self.redraw_on_mouse = True
@@ -112,17 +113,30 @@ class RFWidget_BrushFalloff_Factory:
                 if not depth: return
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
-                r = self.radius
+                r = self.radius * self.scale
                 co = self.outer_color
                 ci = self.inner_color
                 cc = self.fill_color * self.fill_color_scale
                 ff = math.pow(0.5, 1.0 / self.falloff)
-                fs = (1-ff) * r * self.scale
+                fs = (1-ff) * r
+
+                # draw above
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
                 bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, r*self.scale - fs, cc, n=n, width=fs)
+                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs)
                 bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, r*self.scale, co, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, r*self.scale*ff, ci, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale)
+
+                # draw below
+                bgl.glDepthFunc(bgl.GL_GREATER)
+                bgl.glDepthRange(0.0, 0.99995)
+                Globals.drawing.draw3D_circle(p, r,      co * self.color_mult_below, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, r * ff, ci * self.color_mult_below, n=n, width=2*self.scale)
+                bgl.glDepthRange(0.0, 0.99996)
+                Globals.drawing.draw3D_circle(p, r - fs, cc * self.color_mult_below, n=n, width=fs)
+
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
                 bgl.glDepthRange(0.0, 1.0)
 
             @RFW_BrushFalloff.Draw('post2d')
@@ -136,8 +150,8 @@ class RFWidget_BrushFalloff_Factory:
                 ff = math.pow(0.5, 1.0 / self.falloff)
                 fs = (1-ff) * self.radius
                 Globals.drawing.draw2D_circle(self._change_center, r-fs/2, cc, width=fs)
-                Globals.drawing.draw2D_circle(self._change_center, r, co, width=1)
-                Globals.drawing.draw2D_circle(self._change_center, r*ff, ci, width=1)
+                Globals.drawing.draw2D_circle(self._change_center, r,      co, width=1)
+                Globals.drawing.draw2D_circle(self._change_center, r*ff,   ci, width=1)
 
 
             ##################

@@ -56,6 +56,7 @@ class RFWidget_BrushStroke_Factory:
                 self.outer_border_color = outer_border_color
                 self.outer_color = outer_color
                 self.inner_color = inner_color
+                self.color_mult_below = Color((1, 1, 1, 0.25))
 
             @RFW_BrushStroke.FSM_State('main', 'enter')
             def modal_main_enter(self):
@@ -146,11 +147,23 @@ class RFWidget_BrushStroke_Factory:
                 if not depth: return
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
 
+                # draw above
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
                 bgl.glDepthRange(0.0, 0.99996)
                 Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale)
                 bgl.glDepthRange(0.0, 0.99995)
                 Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color, n=n, width=2*self.scale)
                 Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color, n=n, width=2*self.scale)
+
+                # draw below
+                bgl.glDepthFunc(bgl.GL_GREATER)
+                bgl.glDepthRange(0.0, 0.99995)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color * self.color_mult_below, n=n, width=2*self.scale)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color * self.color_mult_below, n=n, width=2*self.scale)
+                bgl.glDepthRange(0.0, 0.99996)
+                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color * self.color_mult_below, n=n, width=8*self.scale)
+
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
                 bgl.glDepthRange(0.0, 1.0)
 
             @RFW_BrushStroke.Draw('post2d')
