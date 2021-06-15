@@ -378,7 +378,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
                 # push verts toward equal spread
                 if opt_face_angles:
-                    avg_angle = 2.0 * math.pi / cnt
+                    avg_angle = math.pi - 2.0 * math.pi / cnt
                     for i0 in range(cnt):
                         i1 = (i0 + 1) % cnt
                         rel0,bmv0 = rels[i0],bmvs[i0]
@@ -388,7 +388,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         fvec1 = rel1.cross(rel1.cross(vec)).normalize()
                         vec_len = vec.length
                         angle = rel0.angle(rel1)
-                        f_mag = (0.025 * (avg_angle - angle) * strength) / cnt #/ vec_len
+                        f_mag = (0.05 * (avg_angle - angle) * strength) / cnt #/ vec_len
                         add_force(bmv0, fvec0 * -f_mag)
                         add_force(bmv1, fvec1 * -f_mag)
 
@@ -401,9 +401,16 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
             if len(displace) <= 1: continue
 
+            # compute max displacement length
+            displace_max = max(displace[bmv].length * (opt_mult * vert_strength[bmv]) for bmv in displace)
+            if displace_max > radius * 0.5:
+                mult = radius * 0.5 / displace_max
+            else:
+                mult = 1.0
+
             # update
             for bmv in displace:
-                co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv])
+                co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv]) * mult
                 if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
                     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
                     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
