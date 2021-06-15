@@ -40,7 +40,7 @@ class RFWidget_BrushFalloff_Factory:
     '''
 
     @staticmethod
-    def create(radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.5))):
+    def create(radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
         class RFW_BrushFalloff(RFWidget):
             rfw_name = 'Brush Falloff'
             rfw_cursor = 'CROSSHAIR'
