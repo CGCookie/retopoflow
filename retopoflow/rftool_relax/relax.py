@@ -388,7 +388,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         fvec1 = rel1.cross(rel1.cross(vec)).normalize()
                         vec_len = vec.length
                         angle = rel0.angle(rel1)
-                        f_mag = (0.1 * (avg_angle - angle) * strength) / cnt #/ vec_len
+                        f_mag = (0.025 * (avg_angle - angle) * strength) / cnt #/ vec_len
                         add_force(bmv0, fvec0 * -f_mag)
                         add_force(bmv1, fvec1 * -f_mag)
 
