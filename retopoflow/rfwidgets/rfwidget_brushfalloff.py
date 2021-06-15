@@ -51,7 +51,7 @@ class RFWidget_BrushFalloff_Factory:
                 self.outer_color = outer_color
                 self.inner_color = inner_color
                 self.fill_color = fill_color
-                self.color_mult_below = Color((1, 1, 1, 0.25))
+                self.color_mult_below = Color((1, 1, 1, 0.65))
                 self.last_mouse = None
                 self.scale = 1.0
                 self.redraw_on_mouse = True

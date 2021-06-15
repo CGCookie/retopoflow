@@ -56,7 +56,7 @@ class RFWidget_BrushStroke_Factory:
                 self.outer_border_color = outer_border_color
                 self.outer_color = outer_color
                 self.inner_color = inner_color
-                self.color_mult_below = Color((1, 1, 1, 0.25))
+                self.color_mult_below = Color((1, 1, 1, 0.65))
 
             @RFW_BrushStroke.FSM_State('main', 'enter')
             def modal_main_enter(self):
