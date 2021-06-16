@@ -1,22 +1,22 @@
 <details>
     <summary>Contours</summary>
     <div class="contents">
-        <label title="If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.">
-            <input type="checkbox" checked="BoundBool('''options['contours uniform']''')">
+        <label>
+            <input type="checkbox" checked="BoundBool('''options['contours uniform']''')" title="If enabled, all new vertices will be spread uniformly (equal distance) around the circumference of the new cut. If disabled, new vertices will try to match distances between vertices of the extended cut.">
             Uniform Cut
         </label>
-        <label title="If enabled, a warning message will appear if a new cut crosses a non-manifold edge in the source mesh.  This check is useful when the source mesh is not water tight.">
-            <input type="checkbox" checked="BoundBool('''options['contours non-manifold check']''')">
+        <label>
+            <input type="checkbox" checked="BoundBool('''options['contours non-manifold check']''')" title="If enabled, a warning message will appear if a new cut crosses a non-manifold edge in the source mesh.  This check is useful when the source mesh is not water tight.">
             Non-manifold Check
         </label>
         <div class="labeled-input-text">
-            <label title="Number of vertices to create in a new cut." for="contours-initial-count">
+            <label for="contours-initial-count">
                 Initial Count
             </label>
             <input id="contours-initial-count" type="number" value="BoundInt('''options['contours count']''', min_value=3, max_value=500)" title="Number of vertices to create in a new cut.">
         </div>
         <div class="labeled-input-text">
-            <label title="Number of vertices in currently selected cut." for="contours-current-count">
+            <label for="contours-current-count">
                 Cut Count
             </label>
             <input id="contours-current-count" type="number" value="self._var_cut_count" title="Number of vertices in currently selected cut.">
