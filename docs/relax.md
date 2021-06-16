@@ -38,6 +38,7 @@ Each option is below, along with setting and description.
 
 | :--- | :--- | :--- |
 | Exclude  | : | Relax vertices not along boundary |
+| Slide    | : | Relax vertices along boundary, but move them by sliding along boundary |
 | Include  | : | Relax all vertices within brush, regardless of being along boundary |
 
 ### Symmetry
@@ -45,7 +46,7 @@ Each option is below, along with setting and description.
 
 | :--- | :--- | :--- |
 | Exclude  | : | Relax vertices not along symmetry plane |
-| Maintain | : | Relax vertices along symmetry plane, but keep them on symmetry plane |
+| Slide    | : | Relax vertices along symmetry plane, but move them by sliding along symmetry plane |
 | Include  | : | Relax all vertices within brush, regardless of being along symmetry plane |
 
 ### Hidden

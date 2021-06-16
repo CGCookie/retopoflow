@@ -11,6 +11,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved Updater System
 - Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
 - Added ability to Collapse Edges & Faces from delete/dissolve/collapse menu
+- Tweak and Relax can now slide vertices on boundary along boundary
 - General code cleanup and refactoring
 - Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.09)
 - Many bug fixes and UX improvements
