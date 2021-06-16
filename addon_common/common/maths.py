@@ -2161,6 +2161,16 @@ def closest2d_point_segment(pt:Point2D, p0:Point2D, p1:Point2D):
     p.freeze()
     return p
 
+def closest_point_segment(pt:Point, p0:Point, p1:Point):
+    dv = Vec(p1 - p0)
+    ld = dv.length
+    if abs(ld) <= 0.00001: return p0
+    dd = dv / ld
+    v = Vec(pt - p0)
+    p = Point(p0 + dd * clamp(dd.dot(v), 0, ld))
+    p.freeze()
+    return p
+
 
 if __name__ == '__main__':
     # run tests

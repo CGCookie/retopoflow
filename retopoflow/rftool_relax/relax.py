@@ -30,6 +30,7 @@ from ...addon_common.common.maths import (
     Direction,
     Accel2D,
     Color,
+    closest_point_segment,
 )
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
@@ -215,6 +216,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
 
         self._bmverts = []
+        self._boundary = []
         for bmv in self.rfcontext.iter_verts():
             if self.sel_only and not bmv.select: continue
             if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
@@ -223,6 +225,11 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
             if opt_mask_selected == 'exclude' and bmv.select: continue
             if opt_mask_selected == 'only' and not bmv.select: continue
             self._bmverts.append(bmv)
+
+        if opt_mask_boundary == 'slide':
+            # find all boundary edges
+            self._boundary = [(bme.verts[0].co, bme.verts[1].co) for bme in self.rfcontext.iter_edges() if not bme.is_manifold]
+
         # print(f'Relaxing max of {len(self._bmverts)} bmverts')
         self.rfcontext.split_target_visualization(verts=self._bmverts)
 
@@ -262,7 +269,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         vert_strength = vert_strength or {}
 
         # gather options
-        # opt_mask_boundary   = options['relax mask boundary']
+        opt_mask_boundary   = options['relax mask boundary']
         opt_mask_symmetry   = options['relax mask symmetry']
         # opt_mask_occluded   = options['relax mask hidden']
         # opt_mask_selected   = options['relax mask selected']
@@ -378,15 +385,15 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
                 # push verts toward equal spread
                 if opt_face_angles:
-                    avg_angle = math.pi - 2.0 * math.pi / cnt
+                    avg_angle = 2.0 * math.pi / cnt
                     for i0 in range(cnt):
                         i1 = (i0 + 1) % cnt
                         rel0,bmv0 = rels[i0],bmvs[i0]
                         rel1,bmv1 = rels[i1],bmvs[i1]
                         vec = bmv1.co - bmv0.co
+                        vec_len = vec.length
                         fvec0 = rel0.cross(vec).cross(rel0).normalize()
                         fvec1 = rel1.cross(rel1.cross(vec)).normalize()
-                        vec_len = vec.length
                         angle = rel0.angle(rel1)
                         f_mag = (0.05 * (avg_angle - angle) * strength) / cnt #/ vec_len
                         add_force(bmv0, fvec0 * -f_mag)
@@ -403,17 +410,29 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
 
             # compute max displacement length
             displace_max = max(displace[bmv].length * (opt_mult * vert_strength[bmv]) for bmv in displace)
-            if displace_max > radius * 0.5:
-                mult = radius * 0.5 / displace_max
+            if displace_max > radius * 0.125:
+                # limit the displace_max
+                mult = radius * 0.125 / displace_max
             else:
                 mult = 1.0
 
             # update
             for bmv in displace:
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv]) * mult
+
                 if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
                     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
                     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
+
+                if opt_mask_boundary == 'slide' and bmv.is_on_boundary():
+                    p, d = None, None
+                    for (v0, v1) in self._boundary:
+                        p_ = closest_point_segment(co, v0, v1)
+                        d_ = (p_ - co).length
+                        if p is None or d_ < d: p, d = p_, d_
+                    if p is not None:
+                        co = p
+
                 bmv.co = co
                 self.rfcontext.snap_vert(bmv)
             self.rfcontext.update_verts_faces(displace)
