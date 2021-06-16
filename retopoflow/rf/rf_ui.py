@@ -168,6 +168,8 @@ class RetopoFlow_UI:
         options['show geometry window'] = False
         self.ui_main.getElementById('show-geometry').disabled = False
         self.ui_geometry = None
+        if options['show geometry open note']:
+            self.show_show_geometry_dialog()
 
     def show_options_window(self):
         options['show options window'] = True
@@ -177,9 +179,11 @@ class RetopoFlow_UI:
         options['show options window'] = False
         self.ui_options.is_visible = False
         self.ui_main.getElementById('show-options').disabled = False
-    def update_options_window_visibility(self):
+    def options_window_visibility_changed(self):
         if self.ui_hide: return
         visible = self.ui_options.is_visible
+        if not visible and options['show options open note']:
+            self.show_show_options_dialog()
         options['show options window'] = visible
         self.ui_main.getElementById('show-options').disabled = visible
 
@@ -322,6 +326,36 @@ class RetopoFlow_UI:
             self.document.defer_cleaning = False
 
 
+        def setup_show_options_dialog():
+            def hide_dialog():
+                self.ui_show_options_dialog.is_visible = False
+                self.document.sticky_element = None
+                self.document.clear_last_under()
+            def mouseleave_event():
+                if self.ui_show_options_dialog.is_hovered: return
+                hide_dialog()
+            def key(e):
+                if e.key in {'ESC', 'TAB'}: hide_dialog()
+
+            self.ui_show_options_dialog = UI_Element.fromHTMLFile(abspath('show_options_dialog.html'))[0]
+            self.ui_show_options_dialog.is_visible = False
+            self.document.body.append_child(self.ui_show_options_dialog)
+
+        def setup_show_geometry_dialog():
+            def hide_dialog():
+                self.ui_show_geometry_dialog.is_visible = False
+                self.document.sticky_element = None
+                self.document.clear_last_under()
+            def mouseleave_event():
+                if self.ui_show_geometry_dialog.is_hovered: return
+                hide_dialog()
+            def key(e):
+                if e.key in {'ESC', 'TAB'}: hide_dialog()
+
+            self.ui_show_geometry_dialog = UI_Element.fromHTMLFile(abspath('show_geometry_dialog.html'))[0]
+            self.ui_show_geometry_dialog.is_visible = False
+            self.document.body.append_child(self.ui_show_geometry_dialog)
+
         def setup_quit_ui():
             def hide_ui_quit():
                 self.ui_quit.is_visible = False
@@ -361,6 +395,8 @@ class RetopoFlow_UI:
         setup_tiny_ui()
         setup_tool_buttons()
         setup_options()
+        setup_show_options_dialog()
+        setup_show_geometry_dialog()
         setup_quit_ui()
         setup_delete_ui()
         setup_counts_ui()
@@ -391,6 +427,26 @@ class RetopoFlow_UI:
         self.ui_quit.is_visible = True
         self.document.focus(self.ui_quit)
         self.document.sticky_element = self.ui_quit
+
+    def show_show_options_dialog(self):
+        w,h = self.actions.region.width,self.actions.region.height
+        self.ui_show_options_dialog.reposition(
+            left = self.actions.mouse.x - 100,
+            top = self.actions.mouse.y - h + 20,
+        )
+        self.ui_show_options_dialog.is_visible = True
+        self.document.focus(self.ui_show_options_dialog)
+        self.document.sticky_element = self.ui_show_options_dialog
+
+    def show_show_geometry_dialog(self):
+        w,h = self.actions.region.width,self.actions.region.height
+        self.ui_show_geometry_dialog.reposition(
+            left = self.actions.mouse.x - 100,
+            top = self.actions.mouse.y - h + 20,
+        )
+        self.ui_show_geometry_dialog.is_visible = True
+        self.document.focus(self.ui_show_geometry_dialog)
+        self.document.sticky_element = self.ui_show_geometry_dialog
 
 
     def show_delete_dialog(self):
