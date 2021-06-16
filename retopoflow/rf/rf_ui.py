@@ -141,6 +141,7 @@ class RetopoFlow_UI:
         self.blender_ui_set()
 
     def update_ui_geometry(self):
+        if not self.ui_geometry: return
         vis = self.ui_geometry.is_visible
         # TODO: FIX WORKAROUND HACK!
         #       toggle visibility as workaround hack for relaying out table :(
@@ -155,17 +156,18 @@ class RetopoFlow_UI:
 
     def show_geometry_window(self):
         options['show geometry window'] = True
-        self.ui_geometry.is_visible = True
         self.ui_main.getElementById('show-geometry').disabled = True
-    def hide_geometry_window(self):
+        self.ui_geometry = UI_Element.fromHTMLFile(abspath('geometry.html'))[0]
+        self.document.body.append_child(self.ui_geometry)
+        self.ui_geometry.is_visible = True
+        self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
+        self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
+        self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
+        self.update_ui_geometry()
+    def geometry_window_closed(self):
         options['show geometry window'] = False
-        self.ui_geometry.is_visible = False
         self.ui_main.getElementById('show-geometry').disabled = False
-    def update_geometry_window_visibility(self):
-        if self.ui_hide: return
-        visible = self.ui_geometry.is_visible
-        options['show geometry window'] = visible
-        self.ui_main.getElementById('show-geometry').disabled = visible
+        self.ui_geometry = None
 
     def show_options_window(self):
         options['show options window'] = True
@@ -237,16 +239,11 @@ class RetopoFlow_UI:
         rf_starting_tool = getattr(self, 'rf_starting_tool', None) or options['quickstart tool']
 
         def setup_counts_ui():
-            self.ui_geometry = UI_Element.fromHTMLFile(abspath('geometry.html'))[0]
-            if options['show geometry window']:
-                self.show_geometry_window()
+            self.ui_geometry = None
+            if not options['show geometry window']:
+                self.ui_main.getElementById('show-geometry').disabled = False
             else:
-                self.hide_geometry_window()
-            self.document.body.append_child(self.ui_geometry)
-            self.ui_geometry_verts = self.ui_geometry.getElementById('geometry-verts')
-            self.ui_geometry_edges = self.ui_geometry.getElementById('geometry-edges')
-            self.ui_geometry_faces = self.ui_geometry.getElementById('geometry-faces')
-            self.update_ui_geometry()
+                self.show_geometry_window()
 
         def setup_tiny_ui():
             nonlocal humanread

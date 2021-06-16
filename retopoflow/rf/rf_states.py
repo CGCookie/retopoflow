@@ -208,14 +208,14 @@ class RetopoFlow_States(CookieCutter):
                     self.ui_main.is_visible = False
                     self.ui_tiny.is_visible = False
                     self.ui_options.is_visible = False
-                    self.ui_geometry.is_visible = False
+                    if self.ui_geometry: self.ui_geometry.is_visible = False
                 else:
                     if self._reshow_main:
                         self.ui_main.is_visible = True
                     else:
                         self.ui_tiny.is_visible = True
                     self.ui_options.is_visible = self.ui_main.getElementById('show-options').disabled
-                    self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
+                    if self.ui_geometry: self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
                 return
 
             if self.actions.pressed('pie menu'):
