@@ -4,34 +4,34 @@
         <div class="collection">
             <h1>Automerge</h1>
             <div class="contents">
-                <label title="If enabled, grabbed vertices automatically merged with nearby vertices">
-                    <input type="checkbox" checked="BoundBool('''options['polypen automerge']''')">
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['polypen automerge']''')" title="If enabled, grabbed vertices automatically merged with nearby vertices">
                     Enable Automerge
                 </label>
                 <div class="labeled-input-text">
-                    <label title="Pixel distance for merging and snapping">Merge distance</label>
-                    <input type="number" value="BoundInt( '''options['polypen merge dist'] ''')">
+                    <label for="polypen-merge-distance">Merge distance</label>
+                    <input id="polypen-merge-distance" type="number" value="BoundInt( '''options['polypen merge dist'] ''')" title="Pixel distance for merging and snapping">
                 </div>
             </div>
         </div>
         <div class="collection">
             <h1>Insert Mode</h1>
             <div class="contents" id="polypen-insert-modes">
-                <label title="Inserting alternates between Triangles and Quads" class="half-size">
+                <label class="half-size">
                     Tri/Quad
-                    <input type="radio" value="Tri/Quad" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
+                    <input type="radio" value="Tri/Quad" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()" title="Inserting alternates between Triangles and Quads">
                 </label>
-                <label title="Inserting Quads only" class="half-size">
-                    <input type="radio" value="Quad-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
+                <label class="half-size">
+                    <input type="radio" value="Quad-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()" title="Inserting Quads only">
                     Quad-Only
                 </label>
                 <br> <!-- this is a hack to make Tri-Only radio below size correctly -->
-                <label title="Inserting Triangles only" class="half-size">
-                    <input type="radio" value="Tri-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
+                <label class="half-size">
+                    <input type="radio" value="Tri-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()" title="Inserting Triangles only">
                     Tri-Only
                 </label>
-                <label title="Inserting Edges only" class="half-size">
-                    <input type="radio" value="Edge-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()">
+                <label class="half-size">
+                    <input type="radio" value="Edge-Only" checked="BoundString('''options['polypen insert mode']''')" name="polypen-insert-mode" on_input="self.update_insert_mode()" title="Inserting Edges only">
                     Edge-Only
                 </label>
             </div>
