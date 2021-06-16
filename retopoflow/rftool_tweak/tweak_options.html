@@ -6,11 +6,15 @@
             <div class='collection'>
                 <h1>Boundary</h1>
                 <div class='contents'>
-                    <label class='half-size'>
+                    <label class='third-size'>
                         <input type="radio" title='Tweak vertices not along boundary' value='exclude' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
                         Exclude
                     </label>
-                    <label class="half-size">
+                    <label class='third-size'>
+                        <input type="radio" title='Tweak vertices along boundary, but move them by sliding along boundary' value='slide' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
+                        Slide
+                    </label>
+                    <label class="third-size">
                         <input type="radio" title="Tweak all vertices within brush, regardless of being along boundary" value='include' checked="BoundString('''options['tweak mask boundary']''')" name='tweak-boundary'>
                         Include
                     </label>
@@ -24,8 +28,8 @@
                         Exclude
                     </label>
                     <label class='third-size'>
-                        <input type="radio" title='Tweak vertices along symmetry plane, but keep them on symmetry plane' value='maintain' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
-                        Maintain
+                        <input type="radio" title='Tweak vertices along symmetry plane, but move them by sliding along symmetry plane' value='maintain' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>
+                        Slide
                     </label>
                     <label class='third-size'>
                         <input type="radio" title='Tweak all vertices within brush, regardless of being along symmetry plane' value='include' checked="BoundString('''options['tweak mask symmetry']''')" name='tweak-symmetry'>

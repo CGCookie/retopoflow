@@ -33,7 +33,7 @@ from ...addon_common.common.drawing import (
 
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.maths import Point, Point2D, Vec2D, Color
+from ...addon_common.common.maths import Point, Point2D, Vec2D, Color, closest_point_segment
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...addon_common.common.blender import tag_redraw_all
@@ -213,6 +213,11 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         if opt_mask_selected == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.select]
         if opt_mask_selected == 'only':    self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
 
+        if opt_mask_boundary == 'slide':
+            self._boundary = [(bme.verts[0].co, bme.verts[1].co) for bme in self.rfcontext.iter_edges() if not bme.is_manifold]
+        else:
+            self._boundary = []
+
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
         self.mousedown = self.rfcontext.actions.mousedown
         self._timer = self.actions.start_timer(120.0)
@@ -233,12 +238,24 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         if not self.rfcontext.actions.timer: return
         if self.actions.mouse_prev == self.actions.mouse: return
 
+        opt_mask_boundary = options['tweak mask boundary']
+
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
         update_face_normal = self.rfcontext.update_face_normal
 
         for bmv,sympl,xy,strength in self.bmverts:
-            nco = set2D_vert(bmv, xy + delta*strength, sympl)
+            co = set2D_vert(bmv, xy + delta * strength, sympl)
+
+            if opt_mask_boundary == 'slide' and bmv.is_on_boundary():
+                p, d = None, None
+                for (v0, v1) in self._boundary:
+                    p_ = closest_point_segment(co, v0, v1)
+                    d_ = (p_ - co).length
+                    if p is None or d_ < d: p, d = p_, d_
+                if p is not None:
+                    bmv.co = p
+                    self.rfcontext.snap_vert(bmv)
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 
