@@ -451,7 +451,7 @@ def symmetry_changed(self):
                     <div class="contents">
                         <div class="labeled-input-text">
                             <label title='Distance within which mirrored vertices will be merged'>Threshold</label>
-                            <input type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.01)"> <!-- scrub -->
+                            <input type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.001)"> <!-- scrub -->
                         </div>
                         <button title="Apply symmetry to target mesh" on_mouseclick="self.apply_symmetry()">Apply Symmetry</button>
                     </div>
