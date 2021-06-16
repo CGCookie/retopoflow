@@ -495,7 +495,7 @@ class UI_Document(UI_Document_FSM):
                 # element under mouse takes focus (or whichever it's for points to)
                 if self._under_mouse.forId:
                     f = self._under_mouse.get_for_element()
-                    if f: self.focus(f)
+                    if f and f.can_focus: self.focus(f)
                     else: self.focus(self._under_mouse)
                 else: self.focus(self._under_mouse)
             elif self._focus and self._is_ancestor(self._focus, self._under_mouse):
