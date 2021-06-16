@@ -177,7 +177,7 @@ class Options:
         'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
 
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
-        'clip start override':  0.025,
+        'clip start override':  0.050,
         'clip end override':    100.0,
 
         # VISUALIZATION SETTINGS
