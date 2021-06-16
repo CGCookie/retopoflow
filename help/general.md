@@ -41,7 +41,7 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 Note: selection and the undo stack is maintained between tools.
 
-![Pie menu](pie_menu.png max-height:167.5px)
+![Pie menu](pie_menu.png max-height:240px)
 
 Press {{pie menu}} at any time to show the tool pie menu.
 
