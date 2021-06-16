@@ -55,6 +55,7 @@ def symmetry_viz_change(e):
     options['symmetry view'] = e.target.value
 
 def symmetry_changed(self):
+    if not hasattr(self, 'ui_options'): return
     s = []
     if self.rftarget.mirror_mod.x: s += ['X']
     if self.rftarget.mirror_mod.y: s += ['Y']
@@ -65,7 +66,11 @@ def symmetry_changed(self):
 
 </script>
 
-<dialog id="optionsdialog" class="framed minimizeable moveable" on_visibilitychange="self.options_window_visibility_changed()">
+<dialog class="framed moveable minimizeable" id="optionsdialog-minimized" on_toggle="self.restore_options_window(event.target)">
+    <h1>Options</h1>
+</dialog>
+
+<dialog id="optionsdialog" class="framed minimizeable moveable" on_toggle="self.minimize_options_window(event.target)">
     <h1>Options</h1>
     <div class="contents" id='options-contents'>
         <details id="generaloptions">
@@ -93,19 +98,6 @@ def symmetry_changed(self):
                         <label title="Check to allow Esc key to quit RetopoFlow">
                             <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
                             Escape to Quit
-                        </label>
-                    </div>
-                </div>
-                <div class="collection">
-                    <h1 title="These options control which useful notes will displayed">Useful Notes</h1>
-                    <div class="contents">
-                        <label>
-                            <input type="checkbox" checked="BoundBool('''options['show options open note']''')" title="If enabled, a dialog will appear explaining how to reopen the Options window when it is closed.">
-                            Reopen Options Window
-                        </label>
-                        <label>
-                            <input type="checkbox" checked="BoundBool('''options['show geometry open note']''')" title="If enabled, a dialog will appear explaining how to reopen the Poly Count window when it is closed.">
-                            Reopen Poly Count Window
                         </label>
                     </div>
                 </div>

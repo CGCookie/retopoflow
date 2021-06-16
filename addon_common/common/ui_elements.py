@@ -786,6 +786,7 @@ class UI_Element_Elements():
                 # add minimize button to <h1> (only visible if dialog has minimizeable class)
                 def minimize():
                     dialog.is_visible = False
+                    dialog.dispatch_event('on_toggle')  # hijack the toggle event to catch minimize events
                 self.prepend_new_child(tagName='button', title="Minimize dialog", classes='dialog-minimize dialog-action', on_mouseclick=minimize)
 
                 # add close button to <h1> (only visible if dialog has closeable class)

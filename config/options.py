@@ -145,12 +145,10 @@ class Options:
         'quickstart tool':      'PolyPen',  # which tool to start with when clicking diamond
 
         # DIALOGS
-        'show main window':        True, # True: show main window; False: show tiny
-        'show options window':     True, # show options window
-        'show options open note':  True, # show a note on how to open options dialog if closed
-        'show geometry window':    True, # show geometry counts window
-        'show geometry open note': True, # show a note on how to open geometry window if closed
-        'tools autohide':          True, # should tool's options auto-hide/-show when switching tools?
+        'show main window':     True,   # True: show main window; False: show tiny
+        'show options window':  True,   # show options window
+        'show geometry window': True,   # show geometry counts window
+        'tools autohide':       True,   # should tool's options auto-hide/-show when switching tools?
 
         # DEBUGGING SETTINGS
         'profiler':             False,  # enable profiler?

@@ -740,6 +740,15 @@ dialog#optionsdialog {
     min-width: 150px;
     max-width: 500px;
 }
+dialog#optionsdialog-minimized {
+    left: 100%;
+    width: 225px;
+    min-width: 150px;
+    max-width: 500px;
+}
+dialog#optionsdialog-minimized button.dialog-minimize {
+    background-image: url('collapse_close.png');
+}
 
 
 /***************************************************/
@@ -1093,6 +1102,16 @@ dialog#geometrydialog {
     width: 120px;
     max-width: 120px;  /* this is needed to force 120px wide dialog!? */
     height: 98px;
+}
+
+dialog#geometrydialog-minimized {
+    width: 120px;
+    max-width: 120px;
+    left: 0px;
+    top: -100%;
+}
+dialog#geometrydialog-minimized button.dialog-minimize {
+    background-image: url('collapse_close.png');
 }
 
 dialog#geometrydialog table {
