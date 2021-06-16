@@ -492,8 +492,12 @@ class UI_Document(UI_Document_FSM):
         change_focus = self._focus != self._under_mouse
         if change_focus:
             if self._under_mouse.can_focus:
-                # element under mouse takes focus
-                self.focus(self._under_mouse)
+                # element under mouse takes focus (or whichever it's for points to)
+                if self._under_mouse.forId:
+                    f = self._under_mouse.get_for_element()
+                    if f: self.focus(f)
+                    else: self.focus(self._under_mouse)
+                else: self.focus(self._under_mouse)
             elif self._focus and self._is_ancestor(self._focus, self._under_mouse):
                 # current focus is an ancestor of new element, so don't blur!
                 pass

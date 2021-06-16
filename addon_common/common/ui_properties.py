@@ -1079,7 +1079,13 @@ class UI_Element_Properties:
 
     @property
     def can_focus(self):
-        return (self._can_focus is None and self._tagName == 'input' and self._type in {'text', 'number'}) or bool(self._can_focus)
+        if self._can_focus is not None: return bool(self._can_focus)
+        if self._tagName == 'input' and self._type in {'text', 'number'}: return True
+        if self._forId:
+            f = self.get_for_element()
+            if f: return f.can_focus
+        return False
+        # return (self._can_focus is None and self._tagName == 'input' and self._type in {'text', 'number'}) or bool(self._can_focus)
     @can_focus.setter
     def can_focus(self, v): self._can_focus = v
 
