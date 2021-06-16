@@ -79,12 +79,19 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.cuts = []
         self.crawl_viz = [] # for debugging
         self.hovering_sel_edge = None
+        self.ui_initial_count = None
 
     @RFTool_Contours.on_target_change
     #@RFTool_Contours.FSM_OnlyInState('main')
     def update_target(self):
         self.sel_edges = set(self.rfcontext.get_selected_edges())
         #sel_faces = self.rfcontext.get_selected_faces()
+
+        # disable initial count input box if anything is selected
+        if not self.ui_initial_count:
+            self.ui_initial_count = self.document.body.getElementById('contours-initial-count')
+        if self.ui_initial_count:
+            self.ui_initial_count.disabled = bool(self.sel_edges)
 
         # find verts along selected loops and strings
         sel_loops = find_loops(self.sel_edges)
