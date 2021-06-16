@@ -72,24 +72,23 @@ def symmetry_changed(self):
             <summary title="General options">General</summary>
             <div class="contents">
                 <div class="collection">
-                    <h1 title="These options control what checks are run when RetopoFlow starts">Start Up Checks</h1>
+                    <h1 title="These options control what runs when RetopoFlow starts and quits">Start Up and Quit</h1>
                     <div class="contents">
+                        <label title="If enabled, the welcome message is displayed when RetopoFlow starts">
+                            <input type="checkbox" checked="BoundBool('''options['welcome']''')">
+                            Show Welcome on Start
+                        </label>
                         <label title="If enabled, check if Auto Save is disabled at start">
                             <input type="checkbox" checked="BoundBool('''options['check auto save']''')">
-                            Check Auto Save
+                            Check Auto Save on Start
                         </label>
                         <label title="If enabled, check if blend file is unsaved at start">
                             <input type="checkbox" checked="BoundBool('''options['check unsaved']''')">
-                            Check Unsaved
+                            Check Unsaved on Start
                         </label>
-                    </div>
-                </div>
-                <div class="collection">
-                    <h1 title="These options control quitting RetopoFlow">Quit Options</h1>
-                    <div class="contents">
                         <label title="Check to confirm quitting when pressing Tab">
                             <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
-                            Confirm quit on Tab
+                            Confirm Quit on Tab
                         </label>
                         <label title="Check to allow Esc key to quit RetopoFlow">
                             <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
@@ -97,19 +96,27 @@ def symmetry_changed(self):
                         </label>
                     </div>
                 </div>
-                <details>
-                    <summary>Tooltips</summary>
+                <div class="collection">
+                    <h1 title="These options control the RetopoFlow UI">Interface</h1>
                     <div class="contents">
+                        <div class="labeled-input-text">
+                            <label title="Custom UI scaling setting">UI Scale</label>
+                            <input type="number" value="BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)">
+                        </div>
+                        <label title="If enabled, options for selected tool will show while other tool options hide.">
+                            <input type="checkbox" checked="self._var_auto_hide_options">
+                            Auto Hide Tool Options
+                        </label>
                         <label title="Check to show tooltips">
                             <input type="checkbox" checked="BoundBool('''options['show tooltips']''')">
-                            Show tooltips
+                            Show Tooltips
                         </label>
                         <div class="labeled-input-text">
-                            <label title="Set delay before tooltips show">Delay</label>
+                            <label title="Set delay before tooltips show">Tooltips Delay</label>
                             <input type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)">
                         </div>
                     </div>
-                </details>
+                </div>
                 <details>
                     <summary>Advanced</summary>
                     <div class="contents">
@@ -149,37 +156,12 @@ def symmetry_changed(self):
             </div>
         </details>
         <details id="view-options">
-            <summary title="Display options">Display</summary>
+            <summary title="Display options">Viewport Display</summary>
             <div class="contents">
-                <label title="If enabled, options for selected tool will show while other tool options hide.">
-                    <input type="checkbox" checked="self._var_auto_hide_options">
-                    Auto Hide Tool Options
-                </label>
                 <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
                     <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)">
                     Hide Overlays
                 </label>
-                <div class="labeled-input-text">
-                    <label title="Custom UI scaling setting">UI Scale</label>
-                    <input type="number" value="BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)">
-                </div>
-                <div class="collection">
-                    <h1>Theme</h1>
-                    <div class="contents">
-                        <label title="Draw the target mesh using a green theme." class="third-size">
-                            <input type="radio" id='theme-color-green' name="theme-color" value="Green" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
-                            Green
-                        </label>
-                        <label title="Draw the target mesh using a blue theme." class="third-size">
-                            <input type="radio" id='theme-color-blue' name="theme-color" value="Blue" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
-                            Blue
-                        </label>
-                        <label title="Draw the target mesh using a orange theme." class="third-size">
-                            <input type="radio" id='theme-color-orange' name="theme-color" value="Orange" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
-                            Orange
-                        </label>
-                    </div>
-                </div>
                 <div class="collection">
                     <h1>View Clipping</h1>
                     <div class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
@@ -210,12 +192,29 @@ def symmetry_changed(self):
                     </div>
                 </div>
                 <div class="collection">
-                    <h1>Target Mesh Drawing</h1>
-                    <label title="Visualize non-manifold/detached vertices and edges">
-                        <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
-                        Non-manifold Outline
-                    </label>
+                    <h1>Selection Theme</h1>
                     <div class="contents">
+                        <label title="Draw the target mesh using a green theme." class="third-size">
+                            <input type="radio" id='theme-color-green' name="theme-color" value="Green" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Green
+                        </label>
+                        <label title="Draw the target mesh using a blue theme." class="third-size">
+                            <input type="radio" id='theme-color-blue' name="theme-color" value="Blue" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Blue
+                        </label>
+                        <label title="Draw the target mesh using a orange theme." class="third-size">
+                            <input type="radio" id='theme-color-orange' name="theme-color" value="Orange" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                            Orange
+                        </label>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Target Mesh Drawing</h1>
+                    <div class="contents">
+                        <label title="Visualize non-manifold/detached vertices and edges">
+                            <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
+                            Non-manifold Outline
+                        </label>
                         <div class="labeled-input-text">
                             <label title='Sets how far geometry is pushed in visualization'>Normal Offset</label>
                             <input type="number" value="BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)">
@@ -338,6 +337,27 @@ def symmetry_changed(self):
             </div>
         </details>
         <details>
+            <summary>Target Visibility</summary>
+            <div class="contents">
+                <div class="collection">
+                    <h1>Hide</h1>
+                    <div class="contents">
+                        <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
+                        <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
+                        <br> <!-- this is a hack to make buttons below size correctly -->
+                        <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
+                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Reveal</h1>
+                    <div class="contents">
+                        <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+        <details>
             <summary>Target Cleaning</summary>
             <div class="contents">
                 <div class="collection">
@@ -379,27 +399,6 @@ def symmetry_changed(self):
                     <h1>Normals</h1>
                     <div class="contents">
                         <button title="Flip normal of selected faces" class="full-size" on_mouseclick="self.flip_face_normals()">Flip Normals</button>
-                    </div>
-                </div>
-            </div>
-        </details>
-        <details>
-            <summary>Target Visibility</summary>
-            <div class="contents">
-                <div class="collection">
-                    <h1>Hide</h1>
-                    <div class="contents">
-                        <button title="Hide all currently selected geometry ({humanread('hide selected')})" class="half-size" on_mouseclick="self.hide_selected()">Selected</button>
-                        <button title="Hide all currently unselected geometry ({humanread('hide unselected')})" class="half-size" on_mouseclick="self.hide_unselected()">Unselected</button>
-                        <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title="Hide all geometry currently visible" class="half-size" on_mouseclick="self.hide_visible()">Visible</button>
-                        <button title="Hide all geometry currently not visible (obscured, offscreen, etc.)" class="half-size" on_mouseclick="self.hide_nonvisible()">Non-visible</button>
-                    </div>
-                </div>
-                <div class="collection">
-                    <h1>Reveal</h1>
-                    <div class="contents">
-                        <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
                     </div>
                 </div>
             </div>
