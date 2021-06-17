@@ -183,6 +183,10 @@ class Options:
         # VISUALIZATION SETTINGS
         'warn non-manifold':        True,       # visualize non-manifold warnings
         'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
+        'override xray':            'off',      # xray shading:    'off': turn off, 'on': turn on, 'leave': do not override
+        'override shadows':         'off',      # shadows shading: 'off': turn off, 'on': turn on, 'leave': do not override
+        'override cavity':          'off',      # cavity shading:  'off': turn off, 'on': turn on, 'leave': do not override
+        'override outline':         'off',      # outline shading: 'off': turn off, 'on': turn on, 'leave': do not override
         'color theme':              'Green',
         'symmetry view':            'Edge',
         'symmetry effect':          0.5,

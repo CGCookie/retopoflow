@@ -45,8 +45,10 @@ class CookieCutter_Blender:
         self.overlays_store()
         self.statusbar_stats_store()
         self.quadview_store()
+        self.shading_store()
 
     def _cc_blenderui_end(self, ignore_panels=False):
+        self.shading_restore()
         self.quadview_restore()
         self.overlays_restore()
         if not ignore_panels: self.panels_restore()
@@ -141,6 +143,39 @@ class CookieCutter_Blender:
         if show_toolshelf: toggle_screen_toolbar(ctx)
         if show_properties: toggle_screen_properties(ctx)
         if show_hud: toggle_screen_lastop(ctx)
+
+
+    #########################################
+    # Viewport Shading
+
+    def shading_shadows_get(self): return self._space.shading.show_shadows
+    def shading_shadows_set(self, v): self._space.shading.show_shadows = v
+
+    def shading_xray_get(self): return self._space.shading.show_xray
+    def shading_xray_set(self, v): self._space.shading.show_xray = v
+
+    def shading_cavity_get(self): return self._space.shading.show_cavity
+    def shading_cavity_set(self, v): self._space.shading.show_cavity = v
+
+    def shading_outline_get(self): return self._space.shading.show_object_outline
+    def shading_outline_set(self, v): self._space.shading.show_object_outline = v
+
+    def shading_store(self):
+        self._shading = {
+            'shadows': self.shading_shadows_get(),
+            'xray': self.shading_xray_get(),
+            'cavity': self.shading_cavity_get(),
+            'outline': self.shading_outline_get(),
+        }
+    def shading_restore(self, only_shadows=False, only_xray=False, only_cavity=False, only_outline=False):
+        if only_shadows: return self.shading_shadows_set(self._shading['shadows'])
+        if only_xray:    return self.shading_xray_set(self._shading['xray'])
+        if only_cavity:  return self.shading_cavity_set(self._shading['cavity'])
+        if only_outline: return self.shading_outline_set(self._shading['outline'])
+        self.shading_shadows_set(self._shading['shadows'])
+        self.shading_xray_set(self._shading['xray'])
+        self.shading_cavity_set(self._shading['cavity'])
+        self.shading_outline_set(self._shading['outline'])
 
 
     #########################################

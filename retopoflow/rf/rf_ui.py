@@ -119,12 +119,34 @@ class RetopoFlow_UI:
             # bug in 282a (at least)
             self.panels_hide()
         if options['hide overlays']: self.overlays_hide()
+        self.blender_shading_update()
         self.quadview_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow')
         self.statusbar_stats_hide()
         if add_rotate: self.setup_rotate_about_active()
         if hide_target: self.hide_target()
+
+    def blender_shading_update(self):
+        if options['override shadows'] == 'leave':
+            self.shading_restore(only_shadows=True)
+        else:
+            self.shading_shadows_set(options['override shadows'] == 'on')
+
+        if options['override xray'] == 'leave':
+            self.shading_restore(only_xray=True)
+        else:
+            self.shading_xray_set(options['override xray']    == 'on')
+
+        if options['override cavity'] == 'leave':
+            self.shading_restore(only_cavity=True)
+        else:
+            self.shading_cavity_set(options['override cavity']  == 'on')
+
+        if options['override outline'] == 'leave':
+            self.shading_restore(only_outline=True)
+        else:
+            self.shading_outline_set(options['override outline'] == 'on')
 
     def blender_ui_reset(self, ignore_panels=False):
         # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()

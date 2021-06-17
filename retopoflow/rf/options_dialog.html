@@ -4,6 +4,10 @@ def theme_change(e):
     if e.target.value is None: return
     options['color theme'] = e.target.value
 
+def shading_change(self, which, e):
+    options[f'override {which}'] = e.target.value
+    self.blender_shading_update()
+
 def reset_options(self):
     options.reset()
     self.update_ui()
@@ -163,10 +167,83 @@ def symmetry_changed(self):
         <details id="view-options">
             <summary title="Display options">Viewport Display</summary>
             <div class="contents">
-                <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
-                    <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)">
-                    Hide Overlays
-                </label>
+                <div class="collection">
+                    <h1>Viewport Settings</h1>
+                    <div class="contents">
+                        <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
+                            <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)">
+                            Hide Overlays
+                        </label>
+                        <div class="collection">
+                            <h1>X-Ray</h1>
+                            <div class="contents">
+                                <label class="third-size">
+                                    <input type="radio" name="xray-off" value="off" checked="BoundString('''options['override xray']''')" on_input="shading_change(self, 'xray', event)" title="Disable viewport x-ray">
+                                    Off
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="xray-on" value="on" checked="BoundString('''options['override xray']''')" on_input="shading_change(self, 'xray', event)" title="Enable viewport x-ray (caution: this can affect ability to see target geometry)">
+                                    On
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="xray-leave" value="leave" checked="BoundString('''options['override xray']''')" on_input="shading_change(self, 'xray', event)" title="Do not override viewport x-ray setting">
+                                    Leave
+                                </label>
+                            </div>
+                        </div>
+                        <div class="collection">
+                            <h1>Shadows</h1>
+                            <div class="contents">
+                                <label class="third-size">
+                                    <input type="radio" name="shadows-off" value="off" checked="BoundString('''options['override shadows']''')" on_input="shading_change(self, 'shadows', event)" title="Disable viewport shadows">
+                                    Off
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="shadows-on" value="on" checked="BoundString('''options['override shadows']''')" on_input="shading_change(self, 'shadows', event)" title="Enable viewport shadows (caution: this can affect performance)">
+                                    On
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="shadows-leave" value="leave" checked="BoundString('''options['override shadows']''')" on_input="shading_change(self, 'shadows', event)" title="Do not override viewport shadows setting">
+                                    Leave
+                                </label>
+                            </div>
+                        </div>
+                        <div class="collection">
+                            <h1>Cavity</h1>
+                            <div class="contents">
+                                <label class="third-size">
+                                    <input type="radio" name="cavity-off" value="off" checked="BoundString('''options['override cavity']''')" on_input="shading_change(self, 'cavity', event)" title="Disable viewport cavity">
+                                    Off
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="cavity-on" value="on" checked="BoundString('''options['override cavity']''')" on_input="shading_change(self, 'cavity', event)" title="Enable viewport cavity (caution: this can affect performance)">
+                                    On
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="cavity-leave" value="leave" checked="BoundString('''options['override cavity']''')" on_input="shading_change(self, 'cavity', event)" title="Do not override viewport cavity setting">
+                                    Leave
+                                </label>
+                            </div>
+                        </div>
+                        <div class="collection">
+                            <h1>Outline</h1>
+                            <div class="contents">
+                                <label class="third-size">
+                                    <input type="radio" name="outline-off" value="off" checked="BoundString('''options['override outline']''')" on_input="shading_change(self, 'outline', event)" title="Disable viewport outline">
+                                    Off
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="outline-on" value="on" checked="BoundString('''options['override outline']''')" on_input="shading_change(self, 'outline', event)" title="Enable viewport outline (caution: this can affect performance)">
+                                    On
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="outline-leave" value="leave" checked="BoundString('''options['override outline']''')" on_input="shading_change(self, 'outline', event)" title="Do not override viewport outline setting">
+                                    Leave
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="collection">
                     <h1>View Clipping</h1>
                     <div class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
