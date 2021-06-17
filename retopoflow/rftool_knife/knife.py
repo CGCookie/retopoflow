@@ -141,7 +141,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
         if self.rfcontext.actions.pressed('knife reset'):
             self.knife_start = None
-            tag_redraw_all('reset knife')
+            self.rfcontext.deselect_all()
             return
 
         if self.rfcontext.actions.pressed({'select all', 'deselect all'}):
@@ -221,6 +221,11 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             if not sel: return
             if sel.select: self.rfcontext.deselect(sel, subparts=False)
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
+            return
+
+        if self.rfcontext.actions.pressed('knife reset'):
+            self.knife_start = None
+            self.rfcontext.deselect_all()
             return
 
         if self.actions.pressed('grab'):
