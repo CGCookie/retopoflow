@@ -175,6 +175,23 @@ def symmetry_changed(self):
                             Hide Overlays
                         </label>
                         <div class="collection">
+                            <h1>Backface Culling</h1>
+                            <div class="contents">
+                                <label class="third-size">
+                                    <input type="radio" name="backface-off" value="off" checked="BoundString('''options['override backface']''')" on_input="shading_change(self, 'backface', event)" title="Disable viewport backface culling">
+                                    Off
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="backface-on" value="on" checked="BoundString('''options['override backface']''')" on_input="shading_change(self, 'backface', event)" title="Enable viewport backface culling (caution: this can affect ability to see source geometry)">
+                                    On
+                                </label>
+                                <label class="third-size">
+                                    <input type="radio" name="backface-leave" value="leave" checked="BoundString('''options['override backface']''')" on_input="shading_change(self, 'backface', event)" title="Do not override viewport backface culling setting">
+                                    Leave
+                                </label>
+                            </div>
+                        </div>
+                        <div class="collection">
                             <h1>X-Ray</h1>
                             <div class="contents">
                                 <label class="third-size">

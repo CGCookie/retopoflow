@@ -148,6 +148,9 @@ class CookieCutter_Blender:
     #########################################
     # Viewport Shading
 
+    def shading_backface_get(self): return self._space.shading.show_backface_culling
+    def shading_backface_set(self, v): self._space.shading.show_backface_culling = v
+
     def shading_shadows_get(self): return self._space.shading.show_shadows
     def shading_shadows_set(self, v): self._space.shading.show_shadows = v
 
@@ -162,16 +165,19 @@ class CookieCutter_Blender:
 
     def shading_store(self):
         self._shading = {
+            'backface': self.shading_backface_get(),
             'shadows': self.shading_shadows_get(),
             'xray': self.shading_xray_get(),
             'cavity': self.shading_cavity_get(),
             'outline': self.shading_outline_get(),
         }
-    def shading_restore(self, only_shadows=False, only_xray=False, only_cavity=False, only_outline=False):
-        if only_shadows: return self.shading_shadows_set(self._shading['shadows'])
-        if only_xray:    return self.shading_xray_set(self._shading['xray'])
-        if only_cavity:  return self.shading_cavity_set(self._shading['cavity'])
-        if only_outline: return self.shading_outline_set(self._shading['outline'])
+    def shading_restore(self, only_backface=False, only_shadows=False, only_xray=False, only_cavity=False, only_outline=False):
+        if only_backface: return self.shading_backface_set(self._shading['backface'])
+        if only_shadows:  return self.shading_shadows_set(self._shading['shadows'])
+        if only_xray:     return self.shading_xray_set(self._shading['xray'])
+        if only_cavity:   return self.shading_cavity_set(self._shading['cavity'])
+        if only_outline:  return self.shading_outline_set(self._shading['outline'])
+        self.shading_backface_set(self._shading['backface'])
         self.shading_shadows_set(self._shading['shadows'])
         self.shading_xray_set(self._shading['xray'])
         self.shading_cavity_set(self._shading['cavity'])

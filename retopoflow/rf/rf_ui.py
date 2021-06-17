@@ -128,6 +128,11 @@ class RetopoFlow_UI:
         if hide_target: self.hide_target()
 
     def blender_shading_update(self):
+        if options['override backface'] == 'leave':
+            self.shading_restore(only_backface=True)
+        else:
+            self.shading_backface_set(options['override backface'] == 'on')
+
         if options['override shadows'] == 'leave':
             self.shading_restore(only_shadows=True)
         else:
