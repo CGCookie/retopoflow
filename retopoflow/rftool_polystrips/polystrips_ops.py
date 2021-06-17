@@ -83,17 +83,7 @@ class PolyStrips_Ops:
 
         def create_edge(center, tangent, mult, perpendicular):
             nonlocal new_geom
-
-            # find direction of projecting tangent
-            # p0,n0,_,d0 = raycast(center)
-            # p1 = raycast(center+tangent*0.01)[0] # snap_point(center+tangent*0.0001, d0)
-            # d01 = (p1 - p0).normalize()
-            # t = n0.cross(d01).normalize()
-            # r = Point2D_to_Ray(center)
-            # print(tangent,p0,p1,d01,n0,t,r.d,t.dot(r.d), mult)
-            # rad = radius * abs(t.dot(r.d))
             rad = radius
-
             hd,mmult = None,mult
             while not hd:
                 p = center + tangent * mmult
