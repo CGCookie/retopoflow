@@ -48,6 +48,7 @@ class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, Retop
         # self.manipulator_hide()
         self.panels_hide()
         # self.overlays_hide()
+        self.quadview_hide()
         self.region_darken()
         self.header_text_set('RetopoFlow Updater System')
 

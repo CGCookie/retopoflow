@@ -275,6 +275,7 @@ class RetopoFlow_Blender:
                             data_space = {}
                             data_space['type'] = space.type
                             if space.type == 'VIEW_3D':
+                                data_space['quadview'] = bool(space.region_quadviews)
                                 data_space['lock_cursor'] = space.lock_cursor
                                 data_space['show_gizmo'] = space.show_gizmo
                                 data_space['show_overlays'] = space.overlay.show_overlays

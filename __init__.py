@@ -373,6 +373,10 @@ if import_succeeded:
         bl_region_type = 'HEADER'
 
         @staticmethod
+        def has_sources(context):
+            return retopoflow.RetopoFlow.has_valid_source()
+
+        @staticmethod
         def is_editing_target(context):
             obj = context.active_object
             mode_string = context.mode
@@ -452,7 +456,7 @@ if import_succeeded:
                 box.label(text='Multiple 3D Views', icon='DOT')
             if VIEW3D_PT_RetopoFlow.in_quadview(context):
                 box = add_warning_subbox('Layout Issue')
-                box.label(text='Using Quad View', icon='DOT')
+                box.label(text='Quad View will be disabled', icon='DOT')
             lock_cursor = any(
                 space.lock_cursor
                 for space in context.area.spaces
@@ -551,7 +555,7 @@ if import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                if context.mode in {'EDIT_MESH', 'OBJECT'}:
                     row = layout.row(align=True)
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
                     if VIEW3D_PT_RetopoFlow.is_editing_target(context):

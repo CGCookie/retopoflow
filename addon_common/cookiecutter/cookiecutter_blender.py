@@ -44,8 +44,10 @@ class CookieCutter_Blender:
         self.panels_store()
         self.overlays_store()
         self.statusbar_stats_store()
+        self.quadview_store()
 
     def _cc_blenderui_end(self, ignore_panels=False):
+        self.quadview_restore()
         self.overlays_restore()
         if not ignore_panels: self.panels_restore()
         self.statusbar_stats_restore()
@@ -198,6 +200,15 @@ class CookieCutter_Blender:
     def overlays_restore(self): self.overlays_set(self._overlays)
     def overlays_hide(self):    self.overlays_set(False)
     def overlays_show(self):    self.overlays_set(True)
+
+    def quadview_get(self):     return bool(self._space.region_quadviews)
+    def quadview_toggle(self):  bpy.ops.screen.region_quadview({'area': self._area, 'region': self._area.regions[5]})
+    def quadview_set(self, v):
+        if self.quadview_get() != v: self.quadview_toggle()
+    def quadview_store(self):   self._quadview = bool(self._space.region_quadviews)
+    def quadview_restore(self): self.quadview_set(self._quadview)
+    def quadview_hide(self):    self.quadview_set(False)
+    def quadview_show(self):    self.quadview_set(True)
 
     def scene_scale_store(self):   self._scene_scale = self.scene_scale_get()
     def scene_scale_restore(self): self.scene_scale_set(self._scene_scale)
