@@ -124,7 +124,7 @@ class FSM:
         except Exception as e:
             print('Caught exception in state ("%s")' % (s))
             debugger.print_exception()
-            self._exceptionhandler.hondle_exception(e)
+            self._exceptionhandler.handle_exception(e)
             return
 
     def update(self):
