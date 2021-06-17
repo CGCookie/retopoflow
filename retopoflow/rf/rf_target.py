@@ -562,8 +562,10 @@ class RetopoFlow_Target:
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
         d = self.Point_to_Direction(xyz)
-        if (d is None or rfvert.normal.dot(d) > 0) and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
-            self._detected_bad_normals = True
+        _,n,_,_ = self.raycast_sources_Point(xyz)
+        if d and n and n.dot(d) > 0.5: self._detected_bad_normals = True
+        # if (d is None or norm.dot(d) > 0.5) and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
+        #     self._detected_bad_normals = True
         return rfvert
 
     def new2D_vert_point(self, xy:Point2D):
