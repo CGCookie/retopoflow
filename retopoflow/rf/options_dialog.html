@@ -83,24 +83,24 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1 title="These options control what runs when RetopoFlow starts and quits">Start Up and Quit</h1>
                     <div class="contents">
-                        <label title="If enabled, the welcome message is displayed when RetopoFlow starts">
-                            <input type="checkbox" checked="BoundBool('''options['welcome']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['welcome']''')" title="If enabled, the welcome message is displayed when RetopoFlow starts">
                             Show Welcome on Start
                         </label>
-                        <label title="If enabled, check if Auto Save is disabled at start">
-                            <input type="checkbox" checked="BoundBool('''options['check auto save']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['check auto save']''')" title="If enabled, check if Auto Save is disabled at start">
                             Check Auto Save on Start
                         </label>
-                        <label title="If enabled, check if blend file is unsaved at start">
-                            <input type="checkbox" checked="BoundBool('''options['check unsaved']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['check unsaved']''')" title="If enabled, check if blend file is unsaved at start">
                             Check Unsaved on Start
                         </label>
-                        <label title="Check to confirm quitting when pressing Tab">
-                            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['confirm tab quit']''')" title="Check to confirm quitting when pressing Tab">
                             Confirm Quit on Tab
                         </label>
-                        <label title="Check to allow Esc key to quit RetopoFlow">
-                            <input type="checkbox" checked="BoundBool('''options['escape to quit']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['escape to quit']''')" title="Check to allow Esc key to quit RetopoFlow">
                             Escape to Quit
                         </label>
                     </div>
@@ -109,20 +109,20 @@ def symmetry_changed(self):
                     <h1 title="These options control the RetopoFlow UI">Interface</h1>
                     <div class="contents">
                         <div class="labeled-input-text">
-                            <label title="Custom UI scaling setting">UI Scale</label>
-                            <input type="number" value="BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)">
+                            <label for="interface-ui-scale">UI Scale</label>
+                            <input id="interface-ui-scale" type="number" value="BoundFloat('''options['ui scale']''', min_value=0.25, max_value=4)" title="Custom UI scaling setting">
                         </div>
-                        <label title="If enabled, options for selected tool will show while other tool options hide.">
-                            <input type="checkbox" checked="self._var_auto_hide_options">
+                        <label>
+                            <input type="checkbox" checked="self._var_auto_hide_options" title="If enabled, options for selected tool will show while other tool options hide.">
                             Auto Hide Tool Options
                         </label>
-                        <label title="Check to show tooltips">
-                            <input type="checkbox" checked="BoundBool('''options['show tooltips']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show tooltips']''')" title="Check to show tooltips">
                             Show Tooltips
                         </label>
                         <div class="labeled-input-text">
-                            <label title="Set delay before tooltips show">Tooltips Delay</label>
-                            <input type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)">
+                            <label for="interface-tooltips-delay">Tooltips Delay</label>
+                            <input id="interface-tooltips-delay" type="number" value="BoundFloat('''options['tooltip delay']''', min_value=0.0)" title="Set delay before tooltips show">
                         </div>
                     </div>
                 </div>
@@ -133,12 +133,12 @@ def symmetry_changed(self):
                             <h1 title="These options are used to tune the parameters for visibility testing">Visibility Testing</h1>
                             <div class="contents">
                                 <div class="labeled-input-text">
-                                    <label title="Factor on minimum bounding box dimension">BBox factor</label>
-                                    <input type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()">
+                                    <label for="advanced-bbox-factor">BBox factor</label>
+                                    <input id="advanced-bbox-factor" type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Factor on minimum bounding box dimension">
                                 </div>
                                 <div class="labeled-input-text">
-                                    <label title="Offset added to max distance">Distance offset</label>
-                                    <input type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()">
+                                    <label for="advanced-distance-offset">Distance offset</label>
+                                    <input id="advanced-distance-offset" type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Offset added to max distance">
                                 </div>
                                 <div class="collection">
                                     <h1>Presets</h1>
@@ -153,8 +153,8 @@ def symmetry_changed(self):
                             <h1>Debugging</h1>
                             <div class="contents">
                                 <div id='fpsdiv'>FPS: 0</div>
-                                <label title="Check to print (most) input actions to system console">
-                                    <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')">
+                                <label>
+                                    <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')" title="Check to print (most) input actions to system console">
                                     Print actions
                                 </label>
                             </div>
@@ -170,8 +170,8 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>Viewport Settings</h1>
                     <div class="contents">
-                        <label title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
-                            <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)" title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
                             Hide Overlays
                         </label>
                         <div class="collection">
@@ -247,28 +247,28 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>View Clipping</h1>
                     <div class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
-                        <label title="If enabled, clipping distances will be set to fixed override values rather than scaled.">
-                            <input type="checkbox" checked="BoundBool('''options['clip override']''')" on_input="update_clip_distances(self)">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['clip override']''')" on_input="update_clip_distances(self)" title="If enabled, clipping distances will be set to fixed override values rather than scaled.">
                             Override with Fixed Values
                         </label>
                         <div id="scaled-clipping-distances">
                             <div class="labeled-input-text">
-                                <label title="Near clipping distance (scaled)">Start (scaled)</label>
-                                <input type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)">
+                                <label for="clip-start-scaled">Start (scaled)</label>
+                                <input id="clip-start-scaled" type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)" title="Near clipping distance (scaled)">
                             </div>
                             <div class="labeled-input-text">
-                                <label title="Far clipping distance (scaled)">End (scaled)</label>
-                                <input type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)">
+                                <label for="clip-end-scaled">End (scaled)</label>
+                                <input id="clip-end-scaled" type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)" title="Far clipping distance (scaled)">
                             </div>
                         </div>
                         <div id="fixed-clipping-distances">
                             <div class="labeled-input-text">
-                                <label title="Near clipping distance (fixed)">Start</label>
-                                <input type="number" value="BoundFloat('''options['clip start override']''', min_value=0)" on_input="update_clip_distances(self)">
+                                <label for="clip-start-fixed">Start</label>
+                                <input id="clip-start-fixed" type="number" value="BoundFloat('''options['clip start override']''', min_value=0)" on_input="update_clip_distances(self)" title="Near clipping distance (fixed)">
                             </div>
                             <div class="labeled-input-text">
-                                <label title="Far clipping distance (fixed)">End</label>
-                                <input type="number" value="BoundFloat('''options['clip end override']''', min_value=0)" on_input="update_clip_distances(self)">
+                                <label for="clip-end-fixed">End</label>
+                                <input id="clip-end-fixed" type="number" value="BoundFloat('''options['clip end override']''', min_value=0)" on_input="update_clip_distances(self)" title="Far clipping distance (fixed)">
                             </div>
                         </div>
                     </div>
@@ -276,16 +276,16 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>Selection Theme</h1>
                     <div class="contents">
-                        <label title="Draw the target mesh using a green theme." class="third-size">
-                            <input type="radio" id='theme-color-green' name="theme-color" value="Green" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                        <label class="third-size">
+                            <input type="radio" id='theme-color-green' name="theme-color" value="Green" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)" title="Draw the target mesh using a green theme.">
                             Green
                         </label>
-                        <label title="Draw the target mesh using a blue theme." class="third-size">
-                            <input type="radio" id='theme-color-blue' name="theme-color" value="Blue" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                        <label class="third-size">
+                            <input type="radio" id='theme-color-blue' name="theme-color" value="Blue" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)" title="Draw the target mesh using a blue theme.">
                             Blue
                         </label>
-                        <label title="Draw the target mesh using a orange theme." class="third-size">
-                            <input type="radio" id='theme-color-orange' name="theme-color" value="Orange" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)">
+                        <label class="third-size">
+                            <input type="radio" id='theme-color-orange' name="theme-color" value="Orange" checked="BoundString('''options['color theme']''')" on_input="theme_change(event)" title="Draw the target mesh using a orange theme.">
                             Orange
                         </label>
                     </div>
@@ -293,29 +293,29 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>Target Mesh Drawing</h1>
                     <div class="contents">
-                        <label title="Visualize non-manifold/detached vertices and edges">
-                            <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')">
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')" title="Visualize non-manifold/detached vertices and edges">
                             Non-manifold Outline
                         </label>
                         <div class="labeled-input-text">
-                            <label title='Sets how far geometry is pushed in visualization'>Normal Offset</label>
-                            <input type="number" value="BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)">
+                            <label for="target-draw-normal-offset">Normal Offset</label>
+                            <input id="target-draw-normal-offset" type="number" value="BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)" title="Sets how far geometry is pushed in visualization">
                         </div>
                         <div class="labeled-input-text">
-                            <label title='Set transparency of target mesh that is above the source'>Alpha Above</label>
-                            <input type="number" value="BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)">
+                            <label for="target-draw-alpha-above">Alpha Above</label>
+                            <input id="target-draw-alpha-above" type="number" value="BoundFloat('''options['target alpha']''', min_value=0.0, max_value=1.0)" title="Set transparency of target mesh that is above the source">
                         </div>
                         <div class="labeled-input-text">
-                            <label title='Set transparency of target mesh that is below the source'>Alpha Below</label>
-                            <input type="number" value="BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)">
+                            <label for="target-draw-alpha-below">Alpha Below</label>
+                            <input id="target-draw-alpha-below" type="number" value="BoundFloat('''options['target hidden alpha']''', min_value=0.0, max_value=1.0)" title="Set transparency of target mesh that is below the source">
                         </div>
                         <div class="labeled-input-text">
-                            <label title='Draw radius of vertices.'>Vertex Size</label>
-                            <input type="number" value="BoundFloat('''options['target vert size']''', min_value=0.1)">
+                            <label for="target-draw-vertex-size">Vertex Size</label>
+                            <input id="target-draw-vertex-size" type="number" value="BoundFloat('''options['target vert size']''', min_value=0.1)" title="Draw radius of vertices.">
                         </div>
                         <div class="labeled-input-text">
-                            <label title='Draw width of edges.'>Edge Size</label>
-                            <input type="number" value="BoundFloat('''options['target edge size']''', min_value=0.1)">
+                            <label for="target-draw-edge-size">Edge Size</label>
+                            <input id="target-draw-edge-size" type="number" value="BoundFloat('''options['target edge size']''', min_value=0.1)" title="Draw width of edges.">
                         </div>
                     </div>
                     <details>
@@ -325,32 +325,32 @@ def symmetry_changed(self):
                                 <h1>Verts</h1>
                                 <div class="contents">
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of normal target vertices'>Normal</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-normal">Normal</label>
+                                        <input id="indiv-alpha-vert-normal" type="number" value="BoundFloat('''options['target alpha point']''', min_value=0.0, max_value=1.0)" title='Set transparency of normal target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected target vertices'>Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-selected">Selected</label>
+                                        <input id="indiv-alpha-vert-selected" type="number" value="BoundFloat('''options['target alpha point selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning target vertices'>Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-warning">Warning</label>
+                                        <input id="indiv-alpha-vert-warning" type="number" value="BoundFloat('''options['target alpha point warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of mirrored target vertices'>Mirror</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-mirror">Mirror</label>
+                                        <input id="indiv-alpha-vert-mirror" type="number" value="BoundFloat('''options['target alpha point mirror']''', min_value=0.0, max_value=1.0)" title='Set transparency of mirrored target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected, mirrored target vertices'>Mirror Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-mirror-selected">Mirror Selected</label>
+                                        <input id="indiv-alpha-vert-mirror-selected" type="number" value="BoundFloat('''options['target alpha point mirror selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected, mirrored target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning, mirrored target vertices'>Mirror Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point mirror warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-mirror-warning">Mirror Warning</label>
+                                        <input id="indiv-alpha-vert-mirror-warning" type="number" value="BoundFloat('''options['target alpha point mirror warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning, mirrored target vertices'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of highlighted target vertices'>Highlight</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-vert-highlight">Highlight</label>
+                                        <input id="indiv-alpha-vert-highlight" type="number" value="BoundFloat('''options['target alpha point highlight']''', min_value=0.0, max_value=1.0)" title='Set transparency of highlighted target vertices'>
                                     </div>
                                 </div>
                             </div>
@@ -358,28 +358,28 @@ def symmetry_changed(self):
                                 <h1>Edges</h1>
                                 <div class="contents">
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of normal target edges'>Normal</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-normal">Normal</label>
+                                        <input id="indiv-alpha-edge-normal" type="number" value="BoundFloat('''options['target alpha line']''', min_value=0.0, max_value=1.0)" title='Set transparency of normal target edges'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected target edges'>Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-selected">Selected</label>
+                                        <input id="indiv-alpha-edge-selected" type="number" value="BoundFloat('''options['target alpha line selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected target edges'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning target edges'>Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-warning">Warning</label>
+                                        <input id="indiv-alpha-edge-warning" type="number" value="BoundFloat('''options['target alpha line warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning target edges'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of mirrored target edges'>Mirror</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-mirror">Mirror</label>
+                                        <input id="indiv-alpha-edge-mirror" type="number" value="BoundFloat('''options['target alpha line mirror']''', min_value=0.0, max_value=1.0)" title='Set transparency of mirrored target edges'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected, mirrored target edges'>Mirror Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-mirror-selected">Mirror Selected</label>
+                                        <input id="indiv-alpha-edge-mirror-selected" type="number" value="BoundFloat('''options['target alpha line mirror selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected, mirrored target edges'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning, mirrored target edges'>Mirror Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha line mirror warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-edge-mirror-warning">Mirror Warning</label>
+                                        <input id="indiv-alpha-edge-mirror-warning" type="number" value="BoundFloat('''options['target alpha line mirror warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning, mirrored target edges'>
                                     </div>
                                 </div>
                             </div>
@@ -387,28 +387,28 @@ def symmetry_changed(self):
                                 <h1>Faces</h1>
                                 <div class="contents">
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of normal target faces'>Normal</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-normal">Normal</label>
+                                        <input id="indiv-alpha-face-normal" type="number" value="BoundFloat('''options['target alpha poly']''', min_value=0.0, max_value=1.0)" title='Set transparency of normal target faces'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected target faces'>Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-selected">Selected</label>
+                                        <input id="indiv-alpha-face-selected" type="number" value="BoundFloat('''options['target alpha poly selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected target faces'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning target faces'>Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-warning">Warning</label>
+                                        <input id="indiv-alpha-face-warning" type="number" value="BoundFloat('''options['target alpha poly warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning target faces'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of mirrored target faces'>Mirror</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-mirror">Mirror</label>
+                                        <input id="indiv-alpha-face-mirror" type="number" value="BoundFloat('''options['target alpha poly mirror']''', min_value=0.0, max_value=1.0)" title='Set transparency of mirrored target faces'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of selected, mirrored target faces'>Mirror Selected</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-mirror-selected">Mirror Selected</label>
+                                        <input id="indiv-alpha-face-mirror-selected" type="number" value="BoundFloat('''options['target alpha poly mirror selected']''', min_value=0.0, max_value=1.0)" title='Set transparency of selected, mirrored target faces'>
                                     </div>
                                     <div class="labeled-input-text">
-                                        <label title='Set transparency of warning, mirrored target faces'>Mirror Warning</label>
-                                        <input type="number" value="BoundFloat('''options['target alpha poly mirror warning']''', min_value=0.0, max_value=1.0)">
+                                        <label for="indiv-alpha-face-mirror-warning">Mirror Warning</label>
+                                        <input id="indiv-alpha-face-mirror-warning" type="number" value="BoundFloat('''options['target alpha poly mirror warning']''', min_value=0.0, max_value=1.0)" title='Set transparency of warning, mirrored target faces'>
                                     </div>
                                 </div>
                             </div>
@@ -459,8 +459,8 @@ def symmetry_changed(self):
                     <h1>Push and Snap Vertices</h1>
                     <div class="contents">
                         <div class="labeled-input-text">
-                            <label title="Distance to push vertex out along normal before snapping back to source surface.">Distance</label>
-                            <input type="number" value="BoundFloat('''options['push and snap distance']''', min_value=0)">
+                            <label for="push-snap-distance">Distance</label>
+                            <input id="push-snap-distance" type="number" value="BoundFloat('''options['push and snap distance']''', min_value=0)" title="Distance to push vertex out along normal before snapping back to source surface.">
                         </div>
                         <button title="Push all target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_all_verts()">All</button>
                         <button title="Push selected target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_selected_verts()">Selected</button>
@@ -470,8 +470,8 @@ def symmetry_changed(self):
                     <h1>Merge by Distance</h1>
                     <div class="contents">
                         <div class="labeled-input-text">
-                            <label title='Distance within which vertices will be merged.'>Distance</label>
-                            <input type="number" value="BoundFloat('''options['remove doubles dist']''', min_value=0)">
+                            <label for="merge-by-distance">Distance</label>
+                            <input id="merge-by-distance" type="number" value="BoundFloat('''options['remove doubles dist']''', min_value=0)" title='Distance within which vertices will be merged.'>
                         </div>
                         <button title='Merge all vertices within given distance.' classes='half-size' on_mouseclick="self.remove_all_doubles()">All</button>
                         <button title='Merge selected vertices within given distance.' classes='half-size' on_mouseclick="self.remove_selected_doubles()">Selected</button>
@@ -488,41 +488,41 @@ def symmetry_changed(self):
         <details>
             <summary id="symmetryoptions_summary" title="Symmetry (mirroring) options" on_load='symmetry_changed(self)'>Symmetry</summary>
             <div class="contents">
-                <label title="Check to mirror along x-axis" class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.x''')" on_input="symmetry_changed(self)">
+                <label class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.x''')" on_input="symmetry_changed(self)" title="Check to mirror along x-axis">
                     x
                 </label>
-                <label title="Check to mirror along y-axis" class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.y''')" on_input="symmetry_changed(self)">
+                <label class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.y''')" on_input="symmetry_changed(self)" title="Check to mirror along y-axis">
                     y
                 </label>
-                <label title="Check to mirror along z-axis" class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.z''')" on_input="symmetry_changed(self)">
+                <label class="symmetry-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.z''')" on_input="symmetry_changed(self)" title="Check to mirror along z-axis">
                     z
                 </label>
                 <div class="collection">
                     <h1>Visualization</h1>
                     <div class="contents">
-                        <label title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).' class='third-size'>
-                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                        <label class='third-size'>
+                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).'>
                             None
                         </label>
-                        <label title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).' class='third-size'>
-                            <input type="radio" id="symmetry-viz-edge" name="symmetry-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                        <label class='third-size'>
+                            <input type="radio" id="symmetry-viz-edge" name="symmetry-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).'>
                             Edge
                         </label>
-                        <label title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).' class='third-size'>
-                            <input type="radio" id="symmetry-viz-face" name="symmetry-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)">
+                        <label class='third-size'>
+                            <input type="radio" id="symmetry-viz-face" name="symmetry-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).'>
                             Face
                         </label>
                         <div class="labeled-input-text">
-                            <label title="Effect of symmetry source visualization">Source Effect</label>
-                            <input type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
+                            <label for="visualization-source-effect">Source Effect</label>
+                            <input id="visualization-source-effect" type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)" title="Effect of symmetry source visualization">  <!-- scrub -->
                         </div>
                         <input type="range" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">
                         <div class="labeled-input-text">
-                            <label title="Factor for alpha of mirrored target visualization">Target Effect</label>
-                            <input type="number" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">  <!-- scrub -->
+                            <label for="visualization-target-effect">Target Effect</label>
+                            <input id="visualization-target-effect" type="number" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)" title="Factor for alpha of mirrored target visualization">  <!-- scrub -->
                         </div>
                         <input type="range" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">
                     </div>
@@ -531,8 +531,8 @@ def symmetry_changed(self):
                     <h1>Merge / Apply</h1>
                     <div class="contents">
                         <div class="labeled-input-text">
-                            <label title='Distance within which mirrored vertices will be merged'>Threshold</label>
-                            <input type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.001)"> <!-- scrub -->
+                            <label for="merge-apply-threshold">Threshold</label>
+                            <input id="merge-apply-threshold" type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.001)" title='Distance within which mirrored vertices will be merged'> <!-- scrub -->
                         </div>
                         <button title="Apply symmetry to target mesh" on_mouseclick="self.apply_symmetry()">Apply Symmetry</button>
                     </div>
