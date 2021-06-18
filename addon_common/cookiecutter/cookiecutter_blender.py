@@ -192,16 +192,21 @@ class CookieCutter_Blender:
             'outline': self.shading_outline_get(),
         }
     def shading_restore(self):
-        self.shading_type_set(self._shading['type'])
-        self.shading_light_set(self._shading['light'])
-        self.shading_matcap_set(self._shading['matcap'])
-        self.shading_colortype_set(self._shading['colortype'])
-        self.shading_color_set(self._shading['color'])
-        self.shading_backface_set(self._shading['backface'])
-        self.shading_shadows_set(self._shading['shadows'])
-        self.shading_xray_set(self._shading['xray'])
-        self.shading_cavity_set(self._shading['cavity'])
-        self.shading_outline_set(self._shading['outline'])
+        if self._shading['type'] == 'WIREFRAME':
+            self.shading_type_set(self._shading['type'])
+            self.shading_xray_set(self._shading['xray'])
+            self.shading_outline_set(self._shading['outline'])
+        else:
+            self.shading_type_set(self._shading['type'])
+            self.shading_light_set(self._shading['light'])
+            self.shading_matcap_set(self._shading['matcap'])
+            self.shading_colortype_set(self._shading['colortype'])
+            self.shading_color_set(self._shading['color'])
+            self.shading_backface_set(self._shading['backface'])
+            self.shading_shadows_set(self._shading['shadows'])
+            self.shading_xray_set(self._shading['xray'])
+            self.shading_cavity_set(self._shading['cavity'])
+            self.shading_outline_set(self._shading['outline'])
 
 
     #########################################
