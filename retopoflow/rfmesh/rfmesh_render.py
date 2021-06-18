@@ -415,6 +415,7 @@ class RFMeshRender():
         buf_matrix_proj,
         alpha_above, alpha_below,
         cull_backfaces, alpha_backface,
+        draw_mirrored,
         symmetry=None, symmetry_view=None,
         symmetry_effect=0.0, symmetry_frame: Frame=None
     ):
@@ -440,6 +441,7 @@ class RFMeshRender():
             opts['symmetry frame'] = symmetry_frame
             opts['symmetry view'] = symmetry_view
             opts['symmetry effect'] = symmetry_effect
+            opts['draw mirrored'] = draw_mirrored
 
             bmegl.glSetDefaultOptions()
 
