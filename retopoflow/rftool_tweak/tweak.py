@@ -205,6 +205,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         self.bmverts = [(bmv, on_planes(bmv), Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for (bmv, d3d) in nearest]
+
         # filter verts based on options
         if self.sel_only:                  self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if bmv.select]
         if opt_mask_boundary == 'exclude': self.bmverts = [(bmv,sympl,p2d,s) for (bmv,sympl,p2d,s) in self.bmverts if not bmv.is_on_boundary()]
@@ -246,6 +247,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
 
         for bmv,sympl,xy,strength in self.bmverts:
             co = set2D_vert(bmv, xy + delta * strength, sympl)
+            if not co: co = bmv.co  # vert cannot move there
 
             if opt_mask_boundary == 'slide' and bmv.is_on_boundary():
                 p, d = None, None
