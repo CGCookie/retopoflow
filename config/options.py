@@ -173,7 +173,7 @@ class Options:
         'push and snap distance': 0.1,          # distance to push vertices out along normal before snapping back to source surface
 
         # VISIBILITY TEST TUNING PARAMETERS
-        'visible bbox factor':  0.001,          # rf_sources.visibility_preset_*
+        'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
         'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
 
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
