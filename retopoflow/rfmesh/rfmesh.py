@@ -30,7 +30,7 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
     dissolve_verts, dissolve_edges, dissolve_faces,
-    remove_doubles, mirror
+    remove_doubles, mirror, recalc_face_normals
 )
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -1799,3 +1799,9 @@ class RFTarget(RFMesh):
             bmv.normal_update()
         self.dirty()
 
+    def recalculate_face_normals(self):
+        verts = [bmv for bmv in self.bme.verts if bmv.select]
+        recalc_face_normals(self.bme, faces=[bmf for bmf in self.bme.faces if bmf.select])
+        for bmv in verts:
+            bmv.normal_update()
+        self.dirty()
