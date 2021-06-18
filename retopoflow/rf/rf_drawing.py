@@ -94,6 +94,44 @@ class RetopoFlow_Drawing:
                     symmetry_effect=options['symmetry effect'],
                     symmetry_frame=ft,
                 )
+            if options['symmetry view'] == 'Plane':
+                # draw symmetry planes
+                drawing = Globals.drawing
+                a = options['symmetry effect']
+                r = (1,0.2,0.2,a)
+                g = (0.2,1,0.2,a)
+                b = (0.2,0.2,1,a)
+                sz = 7  # could be an option??
+                if self.rftarget.mirror_mod.x:
+                    drawing.draw3D_triangles(
+                        [
+                            (0, sz, sz), (0, -sz, sz), (0, -sz, -sz),
+                            (0, sz, sz), (0, -sz, -sz), (0, sz, -sz),
+                        ], [
+                            r, r, r,
+                            r, r, r,
+                        ]
+                    )
+                if self.rftarget.mirror_mod.y:
+                    drawing.draw3D_triangles(
+                        [
+                            (sz, 0, sz), (-sz, 0, sz), (-sz, 0, -sz),
+                            (sz, 0, sz), (-sz, 0, -sz), (sz, 0, -sz),
+                        ], [
+                            g, g, g,
+                            g, g, g,
+                        ]
+                    )
+                if self.rftarget.mirror_mod.z:
+                    drawing.draw3D_triangles(
+                        [
+                            (sz, sz, 0), (-sz, sz, 0), (-sz, -sz, 0),
+                            (sz, sz, 0), (-sz, -sz, 0), (sz, -sz, 0),
+                        ], [
+                            b, b, b,
+                            b, b, b,
+                        ]
+                    )
 
         # render target
         # bgl.glEnable(bgl.GL_MULTISAMPLE)

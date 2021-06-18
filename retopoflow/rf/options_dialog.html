@@ -448,15 +448,19 @@ def symmetry_changed(self):
                 <div class="collection">
                     <h1>Visualization</h1>
                     <div class="contents">
-                        <label class='third-size'>
-                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).'>
+                        <label class='fourth-size'>
+                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).  This setting will improve overall performance when working with very large source mesh(es).'>
                             None
                         </label>
-                        <label class='third-size'>
+                        <label class='fourth-size'>
+                            <input type="radio" id="symmetry-viz-plane" name="symmetry-viz" value="Plane" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized by drawing the symmetry planes as colored quads.  This setting will improve overall performance when working with very large source mesh(es).'>
+                            Plane
+                        </label>
+                        <label class='fourth-size'>
                             <input type="radio" id="symmetry-viz-edge" name="symmetry-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).'>
                             Edge
                         </label>
-                        <label class='third-size'>
+                        <label class='fourth-size'>
                             <input type="radio" id="symmetry-viz-face" name="symmetry-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).'>
                             Face
                         </label>
