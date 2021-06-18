@@ -6,12 +6,13 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - Added builtin Keymap Editor (prototype)
 - Significantly improved performance of tools with large target meshes!
-- Able to hide/reveal target mesh geometry
+- Added ability to hide/reveal target mesh geometry
+- Added button to recalculate normals in the Target Cleaning panel
+- Added ability to Collapse Edges & Faces from delete/dissolve/collapse menu
 - Now target mesh visualization will split (under the hood) when working on a small portion, improving feedback performance for some actions
 - Improved Updater System
 - Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
-- Added ability to Collapse Edges & Faces from delete/dissolve/collapse menu
-- Tweak and Relax can now slide vertices on boundary along boundary
+- Tweak and Relax can now slide vertices along a boundary
 - General code cleanup and refactoring
 - Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.09)
 - Many bug fixes and UX improvements

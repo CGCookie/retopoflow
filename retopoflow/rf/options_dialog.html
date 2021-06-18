@@ -363,7 +363,7 @@ def symmetry_changed(self):
                 </div>
             </div>
         </details>
-        <details>
+        <details id='visibility-options'>
             <summary>Target Visibility</summary>
             <div class="contents">
                 <div class="collection">
@@ -384,31 +384,18 @@ def symmetry_changed(self):
                 </div>
             </div>
         </details>
-        <details>
+        <details id='cleaning-options'>
             <summary>Target Cleaning</summary>
             <div class="contents">
                 <div class="collection">
                     <h1>Snap Vertices</h1>
                     <div class="contents">
-                        <button title='Snap all non-hidden target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_nonhidden_verts()">All Non-hidden</button>
-                        <button title='Snap selected and non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_selected_verts()">Selected</button>
-                        <button title='Snap unselected and non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_unselected_verts()">Unselected</button>
-                        <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title='Snap visible target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_visible_verts()">Visible</button>
-                        <button title='Snap non-visible (occluded and non-hidden) target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.snap_nonvisible_verts()">Non-visible</button>
-                        <br> <!-- this is a hack to make buttons below size correctly -->
-                        <button title='Snap all (visible or occluded, non-hidden or hidden, selected or unselected) target vertices to nearest point on source(s).' on_mouseclick="self.snap_all_verts()">All (including hidden)</button>
-                    </div>
-                </div>
-                <div class="collection">
-                    <h1>Push and Snap Vertices</h1>
-                    <div class="contents">
                         <div class="labeled-input-text">
-                            <label for="push-snap-distance">Distance</label>
+                            <label for="push-snap-distance">Push Distance</label>
                             <input id="push-snap-distance" type="number" value="BoundFloat('''options['push and snap distance']''', min_value=0)" title="Distance to push vertex out along normal before snapping back to source surface.">
                         </div>
-                        <button title="Push all target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_all_verts()">All</button>
-                        <button title="Push selected target vertices out along their normal, then snap them back to the source surface" class="half-size" on_mouseclick="self.push_then_snap_selected_verts()">Selected</button>
+                        <button title='Snap selected and non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.push_then_snap_selected_verts()">Selected</button>
+                        <button title='Snap all non-hidden target vertices to nearest point on source(s).' classes="half-size" on_mouseclick="self.push_then_snap_all_verts()">All</button>
                     </div>
                 </div>
                 <div class="collection">
@@ -418,8 +405,8 @@ def symmetry_changed(self):
                             <label for="merge-by-distance">Distance</label>
                             <input id="merge-by-distance" type="number" value="BoundFloat('''options['remove doubles dist']''', min_value=0)" title='Distance within which vertices will be merged.'>
                         </div>
-                        <button title='Merge all vertices within given distance.' classes='half-size' on_mouseclick="self.remove_all_doubles()">All</button>
                         <button title='Merge selected vertices within given distance.' classes='half-size' on_mouseclick="self.remove_selected_doubles()">Selected</button>
+                        <button title='Merge all non-hidden vertices within given distance.' classes='half-size' on_mouseclick="self.remove_all_doubles()">All</button>
                     </div>
                 </div>
                 <div class="collection">

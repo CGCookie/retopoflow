@@ -1770,8 +1770,8 @@ class RFTarget(RFMesh):
             v.normal = norm
         self.dirty()
 
-    def snap_all_verts(self, nearest):
-        self.snap_verts_filter(nearest, lambda _: True)
+#    def snap_all_verts(self, nearest):
+#        self.snap_verts_filter(nearest, lambda _: True)
 
     def snap_all_nonhidden_verts(self, nearest):
         self.snap_verts_filter(nearest, lambda v: not v.hide)
@@ -1779,11 +1779,12 @@ class RFTarget(RFMesh):
     def snap_selected_verts(self, nearest):
         self.snap_verts_filter(nearest, lambda v: v.select)
 
-    def snap_unselected_verts(self, nearest):
-        self.snap_verts_filter(nearest, lambda v: v.unselect)
+#     def snap_unselected_verts(self, nearest):
+#         self.snap_verts_filter(nearest, lambda v: v.unselect)
 
     def remove_all_doubles(self, dist):
-        remove_doubles(self.bme, verts=self.bme.verts, dist=dist)
+        bmv = [v for v in self.bme.verts if not v.hide]
+        remove_doubles(self.bme, verts=bmv, dist=dist)
         self.dirty()
 
     def remove_selected_doubles(self, dist):
