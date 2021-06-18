@@ -80,59 +80,54 @@ class RetopoFlow_Drawing:
         # bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
-            # get frame of target, used for symmetry decorations on sources
-            ft = self.rftarget.get_frame()
-            # render sources
-            for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(
-                    view_forward, self.unit_scaling_factor,
-                    buf_matrix_target, buf_matrix_target_inv,
-                    buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                    1.00, 0.05, False, 0.5,
-                    False,
-                    symmetry=self.rftarget.mirror_mod.xyz,
-                    symmetry_view=options['symmetry view'],
-                    symmetry_effect=options['symmetry effect'],
-                    symmetry_frame=ft,
-                )
-            if options['symmetry view'] == 'Plane':
+            if options['symmetry view'] in {'Edge', 'Face'}:
+                # get frame of target, used for symmetry decorations on sources
+                ft = self.rftarget.get_frame()
+                # render sources
+                for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+                    rfs.draw(
+                        view_forward, self.unit_scaling_factor,
+                        buf_matrix_target, buf_matrix_target_inv,
+                        buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                        1.00, 0.05, False, 0.5,
+                        False,
+                        symmetry=self.rftarget.mirror_mod.xyz,
+                        symmetry_view=options['symmetry view'],
+                        symmetry_effect=options['symmetry effect'],
+                        symmetry_frame=ft,
+                    )
+            elif options['symmetry view'] == 'Plane':
                 # draw symmetry planes
+                bgl.glEnable(bgl.GL_DEPTH_TEST)
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
+                bgl.glDisable(bgl.GL_CULL_FACE)
                 drawing = Globals.drawing
-                a = options['symmetry effect']
+                a = pow(options['symmetry effect'], 2.0) # fudge this value, because effect is different with plane than edge/face
                 r = (1,0.2,0.2,a)
                 g = (0.2,1,0.2,a)
                 b = (0.2,0.2,1,a)
-                sz = 7  # could be an option??
+                sz = self.unit_scaling_factor * 1.1  # slightly larger
+                bbox = self.sources_bbox
+                mx, my, mz = bbox.mx * sz, bbox.my * sz, bbox.mz * sz
+                Mx, My, Mz = bbox.Mx * sz, bbox.My * sz, bbox.Mz * sz
                 if self.rftarget.mirror_mod.x:
-                    drawing.draw3D_triangles(
-                        [
-                            (0, sz, sz), (0, -sz, sz), (0, -sz, -sz),
-                            (0, sz, sz), (0, -sz, -sz), (0, sz, -sz),
-                        ], [
-                            r, r, r,
-                            r, r, r,
-                        ]
-                    )
+                    p0 = buf_matrix_target @ Point((0, My, Mz))
+                    p1 = buf_matrix_target @ Point((0, my, Mz))
+                    p2 = buf_matrix_target @ Point((0, my, mz))
+                    p3 = buf_matrix_target @ Point((0, My, mz))
+                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [r, r, r, r, r, r])
                 if self.rftarget.mirror_mod.y:
-                    drawing.draw3D_triangles(
-                        [
-                            (sz, 0, sz), (-sz, 0, sz), (-sz, 0, -sz),
-                            (sz, 0, sz), (-sz, 0, -sz), (sz, 0, -sz),
-                        ], [
-                            g, g, g,
-                            g, g, g,
-                        ]
-                    )
+                    p0 = buf_matrix_target @ Point((Mx, 0, Mz))
+                    p1 = buf_matrix_target @ Point((mx, 0, Mz))
+                    p2 = buf_matrix_target @ Point((mx, 0, mz))
+                    p3 = buf_matrix_target @ Point((Mx, 0, mz))
+                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [g, g, g, g, g, g])
                 if self.rftarget.mirror_mod.z:
-                    drawing.draw3D_triangles(
-                        [
-                            (sz, sz, 0), (-sz, sz, 0), (-sz, -sz, 0),
-                            (sz, sz, 0), (-sz, -sz, 0), (sz, -sz, 0),
-                        ], [
-                            b, b, b,
-                            b, b, b,
-                        ]
-                    )
+                    p0 = buf_matrix_target @ Point((Mx, My, 0))
+                    p1 = buf_matrix_target @ Point((mx, My, 0))
+                    p2 = buf_matrix_target @ Point((mx, my, 0))
+                    p3 = buf_matrix_target @ Point((Mx, my, 0))
+                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [b, b, b, b, b, b])
 
         # render target
         # bgl.glEnable(bgl.GL_MULTISAMPLE)

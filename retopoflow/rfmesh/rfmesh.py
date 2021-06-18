@@ -192,7 +192,7 @@ class RFMesh():
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
-            self.bbox = BBox(from_bmverts=self.bme.verts)
+            self.bbox = BBox(from_bmverts=self.bme.verts, xform_point=self.l2w_point)
             self.bbox_version = ver
         return self.bbox
 

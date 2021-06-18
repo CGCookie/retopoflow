@@ -1112,7 +1112,7 @@ class XForm:
 
 class BBox:
     @stats_wrapper
-    def __init__(self, from_bmverts=None, from_coords=None):
+    def __init__(self, from_bmverts=None, from_coords=None, xform_point=None):
         if not (from_bmverts or from_coords):
             nan = float('nan')
             self.min = None
@@ -1126,6 +1126,8 @@ class BBox:
             from_coords = [bmv.co for bmv in from_bmverts]
         else:
             from_coords = list(from_coords)
+        if xform_point:
+            from_coords = [xform_point(co) for co in from_coords]
         Mx, My, Mz = mx, my, mz = from_coords[0]
         for x, y, z in from_coords:
             mx, my, mz = min(mx, x), min(my, y), min(mz, z)
@@ -1134,16 +1136,15 @@ class BBox:
         self.max = Point((Mx, My, Mz))
         self.mx, self.my, self.mz = mx, my, mz
         self.Mx, self.My, self.Mz = Mx, My, Mz
-        self.min_dim = min(
-            self.Mx - self.mx,
-            self.My - self.my,
-            self.Mz - self.mz
-        )
-        self.max_dim = max(
-            self.Mx - self.mx,
-            self.My - self.my,
-            self.Mz - self.mz
-        )
+        self.min_dim = min(self.size_x, self.size_y, self.size_z)
+        self.max_dim = max(self.size_x, self.size_y, self.size_z)
+
+    @property
+    def size_x(self): return self.Mx - self.mx
+    @property
+    def size_y(self): return self.My - self.my
+    @property
+    def size_z(self): return self.Mz - self.mz
 
     @staticmethod
     def merge(boxes):
