@@ -404,8 +404,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
@@ -416,6 +416,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         else:
             self.rfcontext.undo_push('create strip')
 
+        self.rfcontext.get_vis_accel(force=True)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
@@ -449,8 +450,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             verts[-1].co = co
             self.rfcontext.clean_duplicate_bmedges(verts[-1])
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
@@ -545,8 +546,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         end_verts = [l[-1] for l in patch]
         edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
@@ -557,6 +558,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         else:
             self.rfcontext.undo_push('extrude C')
 
+        self.rfcontext.get_vis_accel(force=True)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
@@ -650,6 +652,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         else:
             self.rfcontext.undo_push('extrude L')
 
+        self.rfcontext.get_vis_accel(force=True)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
@@ -706,8 +709,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             nedges.append(bmv0.shared_edge(bmv1))
             bmv0 = bmv1
 
-        self.just_created = True
         self.rfcontext.select(nedges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
@@ -718,6 +721,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         else:
             self.rfcontext.undo_push('extrude strip')
 
+        self.rfcontext.get_vis_accel(force=True)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
@@ -851,8 +855,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
 
-        self.just_created = True
         self.rfcontext.select(nedges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
