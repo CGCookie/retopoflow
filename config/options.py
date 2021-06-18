@@ -178,28 +178,36 @@ class Options:
 
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
         'clip start override':  0.050,
-        'clip end override':    100.0,
+        'clip end override':    5000.0,
 
         # VISUALIZATION SETTINGS
-        'warn non-manifold':        True,       # visualize non-manifold warnings
-        'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
-        'override backface':        'off',      # backface culling: 'off': turn off, 'on': turn on, 'leave': do not override
-        'override xray':            'off',      # xray shading:     'off': turn off, 'on': turn on, 'leave': do not override
-        'override shadows':         'off',      # shadows shading:  'off': turn off, 'on': turn on, 'leave': do not override
-        'override cavity':          'off',      # cavity shading:   'off': turn off, 'on': turn on, 'leave': do not override
-        'override outline':         'off',      # outline shading:  'off': turn off, 'on': turn on, 'leave': do not override
-        'color theme':              'Green',
-        'symmetry view':            'Edge',
-        'symmetry effect':          0.5,
-        'normal offset multiplier': 1.0,
-        'constrain offset':         True,
-        'ui scale':                 1.0,
-        'target vert size':         4.0,
-        'target edge size':         1.0,
-        'target alpha':             1.00,
-        'target hidden alpha':      0.02,
-        'target alpha backface':    0.2,
-        'target cull backfaces':    False,
+        'warn non-manifold':               True,       # visualize non-manifold warnings
+        'hide overlays':                   True,       # hide overlays (wireframe, grid, axes, etc.)
+        'override shading':                'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
+        'shading view':                    'SOLID',
+        'shading light':                   'MATCAP',
+        'shading matcap light':            'basic_1.exr',
+        'shading matcap dark':             'basic_dark.exr',
+        'shading colortype':               'SINGLE',
+        'shading color light':             [0.5, 0.5, 0.5],
+        'shading color dark':              [0.9, 0.9, 0.9],
+        'shading backface culling':        True, 
+        'shading xray':                    False, 
+        'shading shadows':                 False, 
+        'shading cavity':                  False, 
+        'shading outline':                 False, 
+        'color theme':                     'Green',
+        'symmetry view':                   'Edge',
+        'symmetry effect':                 0.5,
+        'normal offset multiplier':        1.0,
+        'constrain offset':                True,
+        'ui scale':                        1.0,
+        'target vert size':                4.0,
+        'target edge size':                1.0,
+        'target alpha':                    1.00,
+        'target hidden alpha':             0.02,
+        'target alpha backface':           0.2,
+        'target cull backfaces':           False,
         'target alpha poly':                  0.65,
         'target alpha poly selected':         0.75,
         'target alpha poly warning':          0.25,

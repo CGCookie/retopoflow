@@ -148,6 +148,21 @@ class CookieCutter_Blender:
     #########################################
     # Viewport Shading
 
+    def shading_type_get(self): return self._space.shading.type
+    def shading_type_set(self, v): self._space.shading.type = v
+
+    def shading_light_get(self): return self._space.shading.light
+    def shading_light_set(self, v): self._space.shading.light = v
+
+    def shading_matcap_get(self): return self._space.shading.studio_light
+    def shading_matcap_set(self, v): self._space.shading.studio_light = v
+
+    def shading_colortype_get(self): return self._space.shading.color_type
+    def shading_colortype_set(self, v): self._space.shading.color_type = v
+
+    def shading_color_get(self): return self._space.shading.single_color
+    def shading_color_set(self, v): self._space.shading.single_color = v
+
     def shading_backface_get(self): return self._space.shading.show_backface_culling
     def shading_backface_set(self, v): self._space.shading.show_backface_culling = v
 
@@ -165,23 +180,28 @@ class CookieCutter_Blender:
 
     def shading_store(self):
         self._shading = {
+            'type': self.shading_type_get(),
+            'light': self.shading_light_get(),
+            'matcap': self.shading_matcap_get(),
+            'colortype': self.shading_colortype_get(),
+            'color': self.shading_color_get(),
             'backface': self.shading_backface_get(),
             'shadows': self.shading_shadows_get(),
             'xray': self.shading_xray_get(),
             'cavity': self.shading_cavity_get(),
             'outline': self.shading_outline_get(),
         }
-    def shading_restore(self, only_backface=False, only_shadows=False, only_xray=False, only_cavity=False, only_outline=False):
-        if only_backface: return self.shading_backface_set(self._shading['backface'])
-        if only_shadows:  return self.shading_shadows_set(self._shading['shadows'])
-        if only_xray:     return self.shading_xray_set(self._shading['xray'])
-        if only_cavity:   return self.shading_cavity_set(self._shading['cavity'])
-        if only_outline:  return self.shading_outline_set(self._shading['outline'])
-        self.shading_backface_set(self._shading['backface'])
-        self.shading_shadows_set(self._shading['shadows'])
-        self.shading_xray_set(self._shading['xray'])
-        self.shading_cavity_set(self._shading['cavity'])
-        self.shading_outline_set(self._shading['outline'])
+    def shading_restore(self):
+            self.shading_type_set(self._shading['type'])
+            self.shading_light_set(self._shading['light'])
+            self.shading_matcap_set(self._shading['matcap'])
+            self.shading_colortype_set(self._shading['colortype'])
+            self.shading_color_set(self._shading['color'])
+            self.shading_backface_set(self._shading['backface'])
+            self.shading_shadows_set(self._shading['shadows'])
+            self.shading_xray_set(self._shading['xray'])
+            self.shading_cavity_set(self._shading['cavity'])
+            self.shading_outline_set(self._shading['outline'])
 
 
     #########################################

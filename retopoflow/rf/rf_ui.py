@@ -128,30 +128,25 @@ class RetopoFlow_UI:
         if hide_target: self.hide_target()
 
     def blender_shading_update(self):
-        if options['override backface'] == 'leave':
-            self.shading_restore(only_backface=True)
+        if options['override shading'] != 'off':
+            self.shading_type_set(options['shading view'])
+            self.shading_backface_set(options['shading backface culling'])
+            self.shading_shadows_set(options['shading shadows'])
+            self.shading_xray_set(options['shading xray'])
+            self.shading_cavity_set(options['shading cavity'])
+            self.shading_outline_set(options['shading outline'])
+            if options['override shading'] == 'light':
+                self.shading_light_set(options['shading light'])
+                self.shading_colortype_set(options['shading colortype'])
+                self.shading_matcap_set(options['shading matcap light'])
+                self.shading_color_set(options['shading color light'])
+            elif options['override shading'] == 'dark':
+                self.shading_light_set(options['shading light'])
+                self.shading_colortype_set(options['shading colortype'])
+                self.shading_matcap_set(options['shading matcap dark'])
+                self.shading_color_set(options['shading color dark'])
         else:
-            self.shading_backface_set(options['override backface'] == 'on')
-
-        if options['override shadows'] == 'leave':
-            self.shading_restore(only_shadows=True)
-        else:
-            self.shading_shadows_set(options['override shadows'] == 'on')
-
-        if options['override xray'] == 'leave':
-            self.shading_restore(only_xray=True)
-        else:
-            self.shading_xray_set(options['override xray']    == 'on')
-
-        if options['override cavity'] == 'leave':
-            self.shading_restore(only_cavity=True)
-        else:
-            self.shading_cavity_set(options['override cavity']  == 'on')
-
-        if options['override outline'] == 'leave':
-            self.shading_restore(only_outline=True)
-        else:
-            self.shading_outline_set(options['override outline'] == 'on')
+            self.shading_restore()
 
     def blender_ui_reset(self, ignore_panels=False):
         # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
