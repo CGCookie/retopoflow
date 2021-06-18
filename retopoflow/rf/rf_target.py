@@ -512,6 +512,10 @@ class RetopoFlow_Target:
         self.undo_push('flipping face normals')
         self.rftarget.flip_face_normals()
 
+    def recalculate_face_normals(self):
+        self.undo_push('recalculating face normals')
+        self.rftarget.recalculate_face_normals()
+
     #######################################
     # target manipulation functions
     #
