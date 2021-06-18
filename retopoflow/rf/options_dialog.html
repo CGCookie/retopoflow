@@ -50,9 +50,6 @@ def update_hide_overlays(self):
     if options['hide overlays']: self.overlays_hide()
     else: self.overlays_restore()
 
-def update_shading(self):
-    self.blender_shading_update()
-
 def symmetry_viz_change(e):
     if not e.target.checked: return
     options['symmetry view'] = e.target.value
@@ -177,15 +174,15 @@ def symmetry_changed(self):
                             <h1>Optimize Shading</h1>
                             <div class="contents">
                                 <label class="third-size">
-                                    <input type="radio" name="shading-light" value="light" checked="BoundString('''options['override shading']''')" on_input="update_shading(self)" title="Override shading settings for better performance and use a light matcap">
+                                    <input type="radio" name="shading-light" value="light" checked="BoundString('''options['override shading']''')" on_input="self.blender_shading_update()" title="Override shading settings for better performance and use a light matcap">
                                     Light
                                 </label>
                                 <label class="third-size">
-                                    <input type="radio" name="shading-dark" value="dark" checked="BoundString('''options['override shading']''')" on_input="update_shading(self)" title="Override shading settings for better performance and use a dark matcap">
+                                    <input type="radio" name="shading-dark" value="dark" checked="BoundString('''options['override shading']''')" on_input="self.blender_shading_update()" title="Override shading settings for better performance and use a dark matcap">
                                     Dark
                                 </label>
                                 <label class="third-size">
-                                    <input type="radio" name="shading-custom" value="off" checked="BoundString('''options['override shading']''')" on_input="update_shading(self)" title="Do not override shading">
+                                    <input type="radio" name="shading-custom" value="off" checked="BoundString('''options['override shading']''')" on_input="self.blender_shading_update()" title="Do not override shading">
                                     Off
                                 </label>
                             </div>
