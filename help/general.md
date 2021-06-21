@@ -138,5 +138,5 @@ Vertex Size and Edge Size control how large the vertices and how think the edges
 The X, Y, Z checkboxes turn on/off symmetry or mirroring along the X, Y, Z axes.
 Note: symmetry utilizes the mirror modifier.
 
-When symmetry is turned on, the mirroring planes can be visualized on the sources choosing either the Edge or Face option.
+When symmetry is turned on, the mirroring planes can be visualized directly using Plane option, or indirectly by coloring the sources choosing either the Edge or Face option.
 The Effect setting controls the strength of the visualization.
