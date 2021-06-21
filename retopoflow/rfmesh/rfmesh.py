@@ -202,7 +202,8 @@ class RFMesh():
         ver = self.get_version(selection=False)
         if not hasattr(self, 'local_bbox') or self.local_bbox_version != ver or self.local_w2l_point != w2l_point:
             fn = lambda p: w2l_point(self.l2w_point(p))
-            self.local_bbox = BBox(from_bmverts=self.bme.verts, xform_point=fn)
+            # self.local_bbox = BBox(from_bmverts=self.bme.verts, xform_point=fn)
+            self.local_bbox = BBox(from_object=self.obj, xform_point=fn)
             self.local_bbox_version = ver
             self.local_w2l_point = w2l_point
         return self.local_bbox
