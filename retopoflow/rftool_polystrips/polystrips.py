@@ -83,6 +83,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.hovering_sel_face = None
         self.sel_cbpts = []
         self.stroke_cbs = CubicBezierSpline()
+        self.clear_count_data()
 
     @RFTool_PolyStrips.on_target_change
     @profiler.function

@@ -236,7 +236,7 @@ class PolyStrips_Ops:
 
         self.rfcontext.select(new_geom, supparts=False)
 
-    def setup_change_count(self):
+    def clear_count_data(self):
         self.count_data = {
             'delta': 0,
             'delta adjust': 0,
@@ -245,6 +245,9 @@ class PolyStrips_Ops:
             'splines': [],
             'points': [],
         }
+
+    def setup_change_count(self):
+        self.clear_count_data()
 
         def process(bmfs, bmes):
             # find edge strips
