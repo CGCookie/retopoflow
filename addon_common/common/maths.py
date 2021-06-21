@@ -1727,8 +1727,10 @@ class Accel2D:
     @profiler.function
     def get(self, v2d, within):
         delta = Vec2D((within, within))
-        i0, j0 = self.compute_ij(v2d - delta)
-        i1, j1 = self.compute_ij(v2d + delta)
+        p0, p1 = v2d - delta, v2d + delta
+        if isinf(p0.x) or isinf(p0.y) or isinf(p1.x) or isinf(p1.y): return set()
+        i0, j0 = self.compute_ij(p0)
+        i1, j1 = self.compute_ij(p1)
         l = set()
         for i in range(i0, i1 + 1):
             for j in range(j0, j1 + 1):
