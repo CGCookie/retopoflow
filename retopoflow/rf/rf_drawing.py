@@ -106,8 +106,10 @@ class RetopoFlow_Drawing:
                 r = (1.0, 0.2, 0.2, a)
                 g = (0.2, 1.0, 0.2, a)
                 b = (0.2, 0.2, 1.0, a)
-                sz = self.unit_scaling_factor * 1.1  # slightly larger
-                corners = [buf_matrix_target_inv @ c for c in self.sources_bbox.corners]
+                w2l = self.rftarget_draw.rfmesh.xform.w2l_point
+                l2w = self.rftarget_draw.rfmesh.xform.l2w_point
+                # corners = [w2l(c) for c in self.sources_bbox.corners]
+                corners = [w2l(c) for s in self.rfsources for c in s.get_bbox().corners]
                 mx, Mx = min(c.x for c in corners), max(c.x for c in corners)
                 my, My = min(c.y for c in corners), max(c.y for c in corners)
                 mz, Mz = min(c.z for c in corners), max(c.z for c in corners)
@@ -115,26 +117,23 @@ class RetopoFlow_Drawing:
                 mx, Mx = cx + (mx - cx) * 1.1, cx + (Mx - cx) * 1.1
                 my, My = cy + (my - cy) * 1.1, cy + (My - cy) * 1.1
                 mz, Mz = cz + (mz - cz) * 1.1, cz + (Mz - cz) * 1.1
-                # bbox = self.sources_bbox
-                # mx, my, mz = bbox.mx * sz, bbox.my * sz, bbox.mz * sz
-                # Mx, My, Mz = bbox.Mx * sz, bbox.My * sz, bbox.Mz * sz
                 if self.rftarget.mirror_mod.x:
-                    p0 = buf_matrix_target @ Point((0, My, Mz))
-                    p1 = buf_matrix_target @ Point((0, my, Mz))
-                    p2 = buf_matrix_target @ Point((0, my, mz))
-                    p3 = buf_matrix_target @ Point((0, My, mz))
+                    p2 = l2w(Point((0, my, mz)))
+                    p1 = l2w(Point((0, my, Mz)))
+                    p0 = l2w(Point((0, My, Mz)))
+                    p3 = l2w(Point((0, My, mz)))
                     drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [r, r, r, r, r, r])
                 if self.rftarget.mirror_mod.y:
-                    p0 = buf_matrix_target @ Point((Mx, 0, Mz))
-                    p1 = buf_matrix_target @ Point((mx, 0, Mz))
-                    p2 = buf_matrix_target @ Point((mx, 0, mz))
-                    p3 = buf_matrix_target @ Point((Mx, 0, mz))
+                    p2 = l2w(Point((mx, 0, mz)))
+                    p1 = l2w(Point((mx, 0, Mz)))
+                    p0 = l2w(Point((Mx, 0, Mz)))
+                    p3 = l2w(Point((Mx, 0, mz)))
                     drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [g, g, g, g, g, g])
                 if self.rftarget.mirror_mod.z:
-                    p0 = buf_matrix_target @ Point((Mx, My, 0))
-                    p1 = buf_matrix_target @ Point((mx, My, 0))
-                    p2 = buf_matrix_target @ Point((mx, my, 0))
-                    p3 = buf_matrix_target @ Point((Mx, my, 0))
+                    p2 = l2w(Point((mx, my, 0)))
+                    p1 = l2w(Point((mx, My, 0)))
+                    p0 = l2w(Point((Mx, My, 0)))
+                    p3 = l2w(Point((Mx, my, 0)))
                     drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [b, b, b, b, b, b])
 
         # render target

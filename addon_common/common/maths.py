@@ -1123,15 +1123,11 @@ class BBox:
             self.max_dim = nan
             return
 
-        if from_object:
-            from_coords = [Point(c) for c in from_object.bound_box]
-        elif from_bmverts:
-            from_coords = [bmv.co for bmv in from_bmverts]
-        elif from_coords:
-            from_coords = list(from_coords)
+        if   from_object:  from_coords = [Point(c) for c in from_object.bound_box]
+        elif from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
+        elif from_coords:  from_coords = list(from_coords)
 
-        if xform_point:
-            from_coords = [xform_point(co) for co in from_coords]
+        if xform_point: from_coords = [xform_point(co) for co in from_coords]
 
         mx, Mx = min(x for (x,y,z) in from_coords), max(x for (x,y,z) in from_coords)
         my, My = min(y for (x,y,z) in from_coords), max(y for (x,y,z) in from_coords)
