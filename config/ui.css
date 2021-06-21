@@ -669,7 +669,8 @@ label.symmetry-enable {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 396px;
+    width: 57px;
+    min-width: 56px;
     padding: 0px;
     overflow: hidden;
 }
@@ -680,23 +681,22 @@ dialog#tinydialog > div.contents {
     overflow: hidden;
 }
 dialog#tinydialog span.dialog-title {
+    display: none;
+    font-size: 0px;
     padding: 0px 2px;
     margin-left: -2px;
-    font-size: 9pt;
     height: 12px;
 }
 div#ttools > * {
     display: inline;
 }
-
-
 dialog#tinydialog div#ttools {
     margin: 2px;
 }
 label.ttool {
+    display: none;
     background: var(--option-background);
-    display: inline;
-    margin: 0px 2px 0px 2px;
+    margin: 2px;
     padding: 4px;
     width: 42px;
 }
@@ -717,7 +717,6 @@ label.ttool > img {
     width:32px;
     height:32px;
 }
-
 dialog#tinydialog div#ttools button.dialog-expand {
     display: inline;
     padding: 12px 4px 16px 4px;
@@ -726,8 +725,6 @@ dialog#tinydialog div#ttools button.dialog-expand {
     height: 40px;
     background: transparent url('collapse_close.png');
 }
-
-
 
 
 /***************************************************/
