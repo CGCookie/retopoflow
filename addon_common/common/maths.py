@@ -938,24 +938,24 @@ class XForm:
         self.mx_t = mats['mx_t']
 
         self.fn_l2w_typed = {
-            Ray: lambda x: self.l2w_ray(x),
-            Vec: lambda x: self.l2w_vector(x),
-            Plane: lambda x: self.l2w_plane(x),
-            Point: lambda x: self.l2w_point(x),
-            BMVert: lambda x: self.l2w_bmvert(x),
-            Normal: lambda x: self.l2w_normal(x),
-            Vector: lambda x: self.l2w_vector(x),
-            Direction: lambda x: self.l2w_direction(x),
+            Ray: self.l2w_ray,
+            Vec: self.l2w_vector,
+            Plane: self.l2w_plane,
+            Point: self.l2w_point,
+            BMVert: self.l2w_bmvert,
+            Normal: self.l2w_normal,
+            Vector: self.l2w_vector,
+            Direction: self.l2w_direction,
         }
         self.fn_w2l_typed = {
-            Ray: lambda x: self.w2l_ray(x),
-            Vec: lambda x: self.w2l_vector(x),
-            Plane: lambda x: self.w2l_plane(x),
-            Point: lambda x: self.w2l_point(x),
-            BMVert: lambda x: self.w2l_bmvert(x),
-            Normal: lambda x: self.w2l_normal(x),
-            Vector: lambda x: self.w2l_vector(x),
-            Direction: lambda x: self.w2l_direction(x),
+            Ray: self.w2l_ray,
+            Vec: self.w2l_vector,
+            Plane: self.w2l_plane,
+            Point: self.w2l_point,
+            BMVert: self.w2l_bmvert,
+            Normal: self.w2l_normal,
+            Vector: self.w2l_vector,
+            Direction: self.w2l_direction,
         }
         return self
 
@@ -1022,42 +1022,48 @@ class XForm:
     @blender_version_wrapper('<', '2.80')
     def l2w_point(self, p: Point) -> Point: return Point(self.mx_p * p)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_point(self, p: Point) -> Point: return Point(self.mx_p @ p)
+    def l2w_point(self, p: Point) -> Point:
+        #return Point(self.mx_p @ p)
+        v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
+        return Point(v.xyz / v.w)
 
     @blender_version_wrapper('<', '2.80')
     def w2l_point(self, p: Point) -> Point: return Point(self.imx_p * p)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_point(self, p: Point) -> Point: return Point(self.imx_p @ p)
+    def w2l_point(self, p: Point) -> Point:
+        # return Point(self.imx_p @ p)
+        v = self.imx_p @ Vector((p.x, p.y, p.z, 1.0))
+        return Point(v.xyz / v.w)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d * d)
+    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() * d)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d @ d)
+    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() @ d)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d * d)
+    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() * d)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d @ d)
+    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() @ d)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n * n)
+    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() * n)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n @ n)
+    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() @ n)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n * n)
+    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() * n)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n @ n)
+    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() @ n)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d * v)
+    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() * v)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d @ v)
+    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() @ v)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d * v)
+    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() * v)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d @ v)
+    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() @ v)
 
     def l2w_ray(self, ray: Ray) -> Ray:
         o = self.l2w_point(ray.o)
@@ -1089,9 +1095,9 @@ class XForm:
     def l2w_bmvert(self, bmv: BMVert) -> Point: return Point(self.mx_p @ bmv.co)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_bmevrt(self, bmv: BMVert) -> Point: return Point(self.imx_p * bmv.co)
+    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p * bmv.co)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_bmevrt(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
+    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
 
     @staticmethod
     def to_bglMatrix(mat):

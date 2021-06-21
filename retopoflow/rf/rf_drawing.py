@@ -108,33 +108,26 @@ class RetopoFlow_Drawing:
                 b = (0.2, 0.2, 1.0, a)
                 w2l = self.rftarget_draw.rfmesh.xform.w2l_point
                 l2w = self.rftarget_draw.rfmesh.xform.l2w_point
-                # corners = [w2l(c) for c in self.sources_bbox.corners]
-                corners = [w2l(c) for s in self.rfsources for c in s.get_bbox().corners]
+                # for rfs in self.rfsources:
+                #     corners = [self.Point_to_Point2D(l2w(p)) for p in rfs.get_local_bbox(w2l).corners]
+                #     drawing.draw2D_lines(corners, (1,1,1,1))
+                corners = [ c for s in self.rfsources for c in s.get_local_bbox(w2l).corners ]
                 mx, Mx = min(c.x for c in corners), max(c.x for c in corners)
                 my, My = min(c.y for c in corners), max(c.y for c in corners)
                 mz, Mz = min(c.z for c in corners), max(c.z for c in corners)
                 cx, cy, cz = mx + (Mx - mx) / 2, my + (My - my) / 2, mz + (Mz - mz) / 2
-                mx, Mx = cx + (mx - cx) * 1.1, cx + (Mx - cx) * 1.1
-                my, My = cy + (my - cy) * 1.1, cy + (My - cy) * 1.1
-                mz, Mz = cz + (mz - cz) * 1.1, cz + (Mz - cz) * 1.1
+                mx, Mx = cx + (mx - cx) * 1.2, cx + (Mx - cx) * 1.2
+                my, My = cy + (my - cy) * 1.2, cy + (My - cy) * 1.2
+                mz, Mz = cz + (mz - cz) * 1.2, cz + (Mz - cz) * 1.2
                 if self.rftarget.mirror_mod.x:
-                    p2 = l2w(Point((0, my, mz)))
-                    p1 = l2w(Point((0, my, Mz)))
-                    p0 = l2w(Point((0, My, Mz)))
-                    p3 = l2w(Point((0, My, mz)))
-                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [r, r, r, r, r, r])
+                    quad = [ l2w(Point((0, my, mz))), l2w(Point((0, my, Mz))), l2w(Point((0, My, Mz))), l2w(Point((0, My, mz))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [r, r, r, r, r, r])
                 if self.rftarget.mirror_mod.y:
-                    p2 = l2w(Point((mx, 0, mz)))
-                    p1 = l2w(Point((mx, 0, Mz)))
-                    p0 = l2w(Point((Mx, 0, Mz)))
-                    p3 = l2w(Point((Mx, 0, mz)))
-                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [g, g, g, g, g, g])
+                    quad = [ l2w(Point((mx, 0, mz))), l2w(Point((mx, 0, Mz))), l2w(Point((Mx, 0, Mz))), l2w(Point((Mx, 0, mz))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [g, g, g, g, g, g])
                 if self.rftarget.mirror_mod.z:
-                    p2 = l2w(Point((mx, my, 0)))
-                    p1 = l2w(Point((mx, My, 0)))
-                    p0 = l2w(Point((Mx, My, 0)))
-                    p3 = l2w(Point((Mx, my, 0)))
-                    drawing.draw3D_triangles([p0, p1, p2, p0, p2, p3], [b, b, b, b, b, b])
+                    quad = [ l2w(Point((mx, my, 0))), l2w(Point((mx, My, 0))), l2w(Point((Mx, My, 0))), l2w(Point((Mx, my, 0))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [b, b, b, b, b, b])
 
         # render target
         # bgl.glEnable(bgl.GL_MULTISAMPLE)
