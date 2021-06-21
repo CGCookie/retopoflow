@@ -460,7 +460,7 @@ class RetopoFlow_Target:
     def push_then_snap_all_verts(self):
         self.undo_push('push then snap all non-hidden verts')
         d = options['push and snap distance']
-        for bmv in self.rftarget.get_verts(): 
+        for bmv in self.rftarget.get_verts():
             if not bmv.hide: bmv.co += bmv.normal * d
         self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
 

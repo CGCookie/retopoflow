@@ -1078,7 +1078,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return True
 
 
-    @UI_Element_Utils.add_cleaning_callback('selector', {'style'})
+    @UI_Element_Utils.add_cleaning_callback('selector', {'style', 'style parent'})
     @profiler.function
     def _compute_selector(self):
         if self.defer_clean: return
@@ -1304,7 +1304,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         # self.defer_dirty_propagation = False
 
-    @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf'})
+    @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf', 'style'})
     @profiler.function
     def _compute_content(self):
         if self.defer_clean:
