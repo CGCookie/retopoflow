@@ -655,8 +655,8 @@ class RFMesh():
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
         if p is None: return (None,None,None,None)
-        if not self.get_bbox().Point_within(p, margin=1):
-            return (None,None,None,None)
+        #if not self.get_bbox().Point_within(p, margin=1):
+        #    return (None,None,None,None)
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)

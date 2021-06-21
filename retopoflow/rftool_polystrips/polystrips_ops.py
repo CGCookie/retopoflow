@@ -93,6 +93,7 @@ class PolyStrips_Ops:
             p1 = snap_point(center + tangent * mult - perpendicular * rad, hd)
             bmv0 = self.rfcontext.new_vert_point(p0)
             bmv1 = self.rfcontext.new_vert_point(p1)
+            if not bmv0 or not bmv1: return None
             bme = self.rfcontext.new_edge([bmv0,bmv1])
             add_edge(bme)
             new_geom += [bme]
@@ -122,6 +123,7 @@ class PolyStrips_Ops:
             #  |  |  ->  |  |
             #  1  2      1--2
             nonlocal new_geom
+            if not bme01 or not bme23: return None
             if bme01.share_vert(bme23): return create_face_in_l(bme01, bme23)
             bmv0,bmv1 = bme01.verts
             bmv2,bmv3 = bme23.verts
