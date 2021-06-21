@@ -103,13 +103,21 @@ class RetopoFlow_Drawing:
                 bgl.glDisable(bgl.GL_CULL_FACE)
                 drawing = Globals.drawing
                 a = pow(options['symmetry effect'], 2.0) # fudge this value, because effect is different with plane than edge/face
-                r = (1,0.2,0.2,a)
-                g = (0.2,1,0.2,a)
-                b = (0.2,0.2,1,a)
+                r = (1.0, 0.2, 0.2, a)
+                g = (0.2, 1.0, 0.2, a)
+                b = (0.2, 0.2, 1.0, a)
                 sz = self.unit_scaling_factor * 1.1  # slightly larger
-                bbox = self.sources_bbox
-                mx, my, mz = bbox.mx * sz, bbox.my * sz, bbox.mz * sz
-                Mx, My, Mz = bbox.Mx * sz, bbox.My * sz, bbox.Mz * sz
+                corners = [buf_matrix_target_inv @ c for c in self.sources_bbox.corners]
+                mx, Mx = min(c.x for c in corners), max(c.x for c in corners)
+                my, My = min(c.y for c in corners), max(c.y for c in corners)
+                mz, Mz = min(c.z for c in corners), max(c.z for c in corners)
+                cx, cy, cz = mx + (Mx - mx) / 2, my + (My - my) / 2, mz + (Mz - mz) / 2
+                mx, Mx = cx + (mx - cx) * 1.1, cx + (Mx - cx) * 1.1
+                my, My = cy + (my - cy) * 1.1, cy + (My - cy) * 1.1
+                mz, Mz = cz + (mz - cz) * 1.1, cz + (Mz - cz) * 1.1
+                # bbox = self.sources_bbox
+                # mx, my, mz = bbox.mx * sz, bbox.my * sz, bbox.mz * sz
+                # Mx, My, Mz = bbox.Mx * sz, bbox.My * sz, bbox.Mz * sz
                 if self.rftarget.mirror_mod.x:
                     p0 = buf_matrix_target @ Point((0, My, Mz))
                     p1 = buf_matrix_target @ Point((0, my, Mz))

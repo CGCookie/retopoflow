@@ -1142,6 +1142,19 @@ class BBox:
         self.Mx, self.My, self.Mz = Mx, My, Mz
         self.min_dim = min(self.size_x, self.size_y, self.size_z)
         self.max_dim = max(self.size_x, self.size_y, self.size_z)
+        self._corners = [
+            Point((self.mx, self.my, self.mz)),
+            Point((self.mx, self.my, self.Mz)),
+            Point((self.mx, self.My, self.mz)),
+            Point((self.mx, self.My, self.Mz)),
+            Point((self.Mx, self.my, self.mz)),
+            Point((self.Mx, self.my, self.Mz)),
+            Point((self.Mx, self.My, self.mz)),
+            Point((self.Mx, self.My, self.Mz)),
+        ]
+
+    @property
+    def corners(self): yield from self._corners
 
     @property
     def size_x(self): return self.Mx - self.mx
