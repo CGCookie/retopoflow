@@ -94,18 +94,19 @@ class RFMesh():
         selection=True, keepeme=False
     ):
         # checking for NaNs
+        # print('RFMesh.__setup__: checking for NaNs')
         hasnan = any(
             math.isnan(v)
             for emv in obj.data.vertices
             for v in emv.co
         )
         if hasnan:
-            print('Mesh data contains NaN in vertex coordinate!')
-            print('Cleaning mesh')
+            # print('RFMesh.__setup__: Mesh data contains NaN in vertex coordinate! Cleaning and validating mesh...')
             obj.data.validate(verbose=True, clean_customdata=False)
         else:
             # cleaning mesh quietly
             # print('skipping mesh validation')
+            # print('RFMesh.__setup__: validating')
             obj.data.validate(verbose=False, clean_customdata=False)
 
         # setup init
@@ -119,11 +120,11 @@ class RFMesh():
         if bme is not None:
             self.bme = bme
         else:
-            # print('creating bmesh from object')
+            # print('RFMesh.__setup__: creating bmesh from object')
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
-                # print('copying selection')
+                # print('RFMesh.__setup__: copying selection')
                 with profiler.code('copying selection'):
                     self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                     # copy selection from editmesh
@@ -137,15 +138,15 @@ class RFMesh():
                 self.deselect_all()
 
         if triangulate:
-            # print('triangulating')
+            # print('RFMesh.__setup__: triangulating')
             self.triangulate()
 
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()
-        # print('dirtying')
+        # print('RFMesh.__setup__: dirtying')
         self.dirty()
-        # print('done')
+        # print('RFMesh.__setup__: done')
 
     def __del__(self):
         RFMesh.delete_count += 1
@@ -192,7 +193,8 @@ class RFMesh():
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
-            self.bbox = BBox(from_bmverts=self.bme.verts, xform_point=self.l2w_point)
+            # self.bbox = BBox(from_bmverts=self.bme.verts, xform_point=self.l2w_point)
+            self.bbox = BBox(from_object=self.obj, xform_point=self.l2w_point)
             self.bbox_version = ver
         return self.bbox
 
@@ -284,7 +286,7 @@ class RFMesh():
     @profiler.function
     def triangulate(self):
         faces = [face for face in self.bme.faces if len(face.verts) != 3]
-        dprint('%d non-triangles' % len(faces))
+        # print('RFMesh.triangulate: found %d non-triangles' % len(faces))
         bmesh.ops.triangulate(self.bme, faces=faces)
 
     @profiler.function
@@ -330,14 +332,13 @@ class RFMesh():
             for bmf in bme.link_faces
         }
         # intersections
-        intersection = [
+        yield from (
             (l2w_point(p0), l2w_point(p1))
             for bmf in faces
             for (p0, p1) in triangle_intersection([
                 bmv.co for bmv in bmf.verts
             ])
-        ]
-        return intersection
+        )
 
     def get_xy_plane(self):
         o = self.xform.l2w_point(Point((0, 0, 0)))

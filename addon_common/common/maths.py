@@ -1112,8 +1112,8 @@ class XForm:
 
 class BBox:
     @stats_wrapper
-    def __init__(self, from_bmverts=None, from_coords=None, xform_point=None):
-        if not (from_bmverts or from_coords):
+    def __init__(self, from_object=None, from_bmverts=None, from_coords=None, xform_point=None):
+        if not any([from_object, from_bmverts, from_coords]):
             nan = float('nan')
             self.min = None
             self.max = None
@@ -1122,16 +1122,20 @@ class BBox:
             self.min_dim = nan
             self.max_dim = nan
             return
-        if from_bmverts:
+
+        if from_object:
+            from_coords = [Point(c) for c in from_object.bound_box]
+        elif from_bmverts:
             from_coords = [bmv.co for bmv in from_bmverts]
-        else:
+        elif from_coords:
             from_coords = list(from_coords)
+
         if xform_point:
             from_coords = [xform_point(co) for co in from_coords]
-        Mx, My, Mz = mx, my, mz = from_coords[0]
-        for x, y, z in from_coords:
-            mx, my, mz = min(mx, x), min(my, y), min(mz, z)
-            Mx, My, Mz = max(Mx, x), max(My, y), max(Mz, z)
+
+        mx, Mx = min(x for (x,y,z) in from_coords), max(x for (x,y,z) in from_coords)
+        my, My = min(y for (x,y,z) in from_coords), max(y for (x,y,z) in from_coords)
+        mz, Mz = min(z for (x,y,z) in from_coords), max(z for (x,y,z) in from_coords)
         self.min = Point((mx, my, mz))
         self.max = Point((Mx, My, Mz))
         self.mx, self.my, self.mz = mx, my, mz

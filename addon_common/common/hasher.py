@@ -123,13 +123,16 @@ def hash_object(obj:bpy.types.Object):
     if obj is None: return None
     assert type(obj) is bpy.types.Object, "Only call hash_object on mesh objects!"
     assert type(obj.data) is bpy.types.Mesh, "Only call hash_object on mesh objects!"
+    #print(f'hashing object {obj.name}')
+    t = time.time()
     # get object data to act as a hash
     me = obj.data
     counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
-    if me.vertices:
-        bbox = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-    else:
-        bbox = (None, None)
+    bbox = obj.bound_box
+    bbox = (
+        (min(c[0] for c in bbox), min(c[1] for c in bbox), min(c[2] for c in bbox)),
+        (max(c[0] for c in bbox), max(c[1] for c in bbox), max(c[2] for c in bbox)),
+    )
     vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
     xform  = tuple(e for l in obj.matrix_world for e in l)
     mods = []
@@ -141,6 +144,8 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
+    #print(f'hash_object({obj.name}): {hashed}')
+    #print(f'  {time.time() - t}')
     return hashed
 
 def hash_bmesh(bme:BMesh):
