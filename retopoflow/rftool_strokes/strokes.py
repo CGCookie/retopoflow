@@ -383,14 +383,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def create_cycle(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke += stroke[:1]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('create cycle')
         else:
             self.rfcontext.undo_push('create cycle')
-
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
-        stroke += stroke[:1]
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -411,14 +412,16 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def create_strip(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('create strip')
         else:
             self.rfcontext.undo_push('create strip')
 
         self.rfcontext.get_vis_accel(force=True)
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -457,14 +460,16 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def extrude_cycle(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_loops is not None:
             self.rfcontext.undo_repush('extrude cycle')
         else:
             self.rfcontext.undo_push('extrude cycle')
         pass
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         sctr = Point2D.average(stroke)
         stroke_centered = [(s - sctr) for s in stroke]
 
@@ -553,13 +558,17 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def extrude_c(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude C')
         else:
             self.rfcontext.undo_push('extrude C')
 
         self.rfcontext.get_vis_accel(force=True)
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
 
@@ -567,7 +576,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
         sel_verts = {v for e in edges for v in e.verts}
 
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
@@ -647,13 +655,17 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def extrude_l(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude L')
         else:
             self.rfcontext.undo_push('extrude L')
 
         self.rfcontext.get_vis_accel(force=True)
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
 
@@ -661,7 +673,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
         sel_verts = {v for e in edges for v in e.verts}
 
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
@@ -716,18 +727,20 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def extrude_strip(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude strip')
         else:
             self.rfcontext.undo_push('extrude strip')
 
-        self.rfcontext.get_vis_accel(force=True)
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
-
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
         sel_verts = {v for e in edges for v in e.verts}
+
+        self.rfcontext.get_vis_accel(force=True)
 
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
@@ -760,6 +773,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         for edge_strip in find_edge_strips(edges):
             verts = get_strip_verts(edge_strip)
             p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+            if not p0 or not p1: continue
             pd = p1 - p0
             dot = pd.x * sd.x + pd.y * sd.y
             if dot < 0:
