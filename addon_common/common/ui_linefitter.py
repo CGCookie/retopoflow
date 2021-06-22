@@ -129,4 +129,5 @@ class TableFitter:
     def new_row(self):
         self._index.update(i=0, j_off=1)
     def new_col(self):
+        pass
 
