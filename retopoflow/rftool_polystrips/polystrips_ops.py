@@ -83,17 +83,7 @@ class PolyStrips_Ops:
 
         def create_edge(center, tangent, mult, perpendicular):
             nonlocal new_geom
-
-            # find direction of projecting tangent
-            # p0,n0,_,d0 = raycast(center)
-            # p1 = raycast(center+tangent*0.01)[0] # snap_point(center+tangent*0.0001, d0)
-            # d01 = (p1 - p0).normalize()
-            # t = n0.cross(d01).normalize()
-            # r = Point2D_to_Ray(center)
-            # print(tangent,p0,p1,d01,n0,t,r.d,t.dot(r.d), mult)
-            # rad = radius * abs(t.dot(r.d))
             rad = radius
-
             hd,mmult = None,mult
             while not hd:
                 p = center + tangent * mmult
@@ -103,6 +93,7 @@ class PolyStrips_Ops:
             p1 = snap_point(center + tangent * mult - perpendicular * rad, hd)
             bmv0 = self.rfcontext.new_vert_point(p0)
             bmv1 = self.rfcontext.new_vert_point(p1)
+            if not bmv0 or not bmv1: return None
             bme = self.rfcontext.new_edge([bmv0,bmv1])
             add_edge(bme)
             new_geom += [bme]
@@ -132,6 +123,7 @@ class PolyStrips_Ops:
             #  |  |  ->  |  |
             #  1  2      1--2
             nonlocal new_geom
+            if not bme01 or not bme23: return None
             if bme01.share_vert(bme23): return create_face_in_l(bme01, bme23)
             bmv0,bmv1 = bme01.verts
             bmv2,bmv3 = bme23.verts
@@ -246,8 +238,7 @@ class PolyStrips_Ops:
 
         self.rfcontext.select(new_geom, supparts=False)
 
-
-    def setup_change_count(self):
+    def clear_count_data(self):
         self.count_data = {
             'delta': 0,
             'delta adjust': 0,
@@ -256,6 +247,9 @@ class PolyStrips_Ops:
             'splines': [],
             'points': [],
         }
+
+    def setup_change_count(self):
+        self.clear_count_data()
 
         def process(bmfs, bmes):
             # find edge strips
@@ -346,7 +340,8 @@ class PolyStrips_Ops:
         #      |O|     |O|    <- with either of these selected, split into two
         #  [ | | | ]
 
-        bmquads = [bmf for bmf in self.rfcontext.get_selected_faces() if len(bmf.verts) == 4]
+        rffaces = self.rfcontext.get_selected_faces()
+        bmquads = [bmf for bmf in rffaces if len(bmf.verts) == 4]
         bmquads = [bmq for bmq in bmquads if not any(bmq in strip for strip in self.strips)]
         for bmf in bmquads:
             bmes = list(bmf.edges)
@@ -395,7 +390,7 @@ class PolyStrips_Ops:
 
         note: this op will only change counts along boundaries.  otherwise, use loop cut
         '''
-
+        self.rfcontext.undo_push('change segment count', repeatable=True)
         self.count_data['nfaces'].clear()
         self.count_data['delta adjust'] = 0
         if delta is not None:

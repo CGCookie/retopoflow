@@ -36,7 +36,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }} | : | delete/dissolve selected |
+| {{ site.data.keymaps.delete }} | : | delete/dissolve/collapse selected |
 
 
 ## Insertion Modes
@@ -88,3 +88,4 @@ The Edge-Only mode inserts only edges.
 ## Additional Tips
 
 The PolyPen tool can be used like a knife, cutting vertices into existing edges for creating new topology routes.
+

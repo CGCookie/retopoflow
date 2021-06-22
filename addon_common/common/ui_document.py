@@ -40,6 +40,7 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from .ui_linefitter import LineFitter
 from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
@@ -47,7 +48,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -88,8 +89,6 @@ class UI_Document(UI_Document_FSM):
     doubleclick_time = bpy.context.preferences.inputs.mouse_double_click_time / 1000 # 0.25
     wheel_scroll_lines = 3 # bpy.context.preferences.inputs.wheel_scroll_lines, see https://developer.blender.org/rBbec583951d736776d2096368ef8d2b764287ac11
     allow_disabled_to_blur = False
-    key_repeat_delay = 0.25
-    key_repeat_pause = 0.10
     show_tooltips = True
     tooltip_delay = 0.50
     max_click_dist = 10         # allows mouse to travel off element and still register a click event
@@ -148,6 +147,7 @@ class UI_Document(UI_Document_FSM):
         self._under_mousedown = None
         self._under_down = None
         self._focus = None
+        self._focus_full = False
 
         self._last_mx = -1
         self._last_my = -1
@@ -265,6 +265,7 @@ class UI_Document(UI_Document_FSM):
         uictrld = False
         uictrld |= self._under_mouse is not None and self._under_mouse != self._body
         uictrld |= self.fsm.state != 'main'
+        uictrld |= self._focus_full
         # uictrld |= self._focus is not None
 
         return {'hover'} if uictrld else None
@@ -344,39 +345,12 @@ class UI_Document(UI_Document_FSM):
         ui_element = ui_element or self._focus
 
         if self.actions.pressed('clipboard paste') and ui_element:
-            # print(f'CLIPBOARD PASTE!  {bpy.context.window_manager.clipboard}')
             ui_element.dispatch_event('on_paste', clipboardData=bpy.context.window_manager.clipboard)
 
-        pressed = None
-        if self.actions.using('keypress', ignoreshift=True):
-            pressed = self.actions.as_char(self.actions.last_pressed)
+        pressed = self.actions.as_char(self.actions.just_pressed)
 
-        # WHAT IS HAPPENING HERE?
-        for k,v in kmi_to_keycode.items():
-            if self.actions.using(k, ignoreshift=True): pressed = v
-
-        if pressed:
-            cur = time.time()
-            # print('focus_main', pressed, self.actions.last_pressed, self.actions.get_last_press_time(self.actions.last_pressed))
-            if self._last_pressed != pressed:
-                self._last_press_start = cur
-                self._last_press_time = 0
-                # self._last_press_time2 = self.actions.get_last_press_time(pressed)[1]
-                if ui_element:
-                    ui_element.dispatch_event('on_keypress', key=pressed)
-            # elif self.actions.get_last_press_time(self.actions.last_pressed)[1] != self._last_press_time2:
-            #     self._last_press_time2 = self.actions.get_last_press_time(self.actions.last_pressed)[1]
-            #     if ui_element:
-            #         ui_element.dispatch_event('on_keypress', key=pressed)
-            elif cur >= self._last_press_start + UI_Document.key_repeat_delay and cur >= self._last_press_time + UI_Document.key_repeat_pause:
-                self._last_press_time = cur
-                if ui_element:
-                    ui_element.dispatch_event('on_keypress', key=pressed)
-
-        else:
-            self._last_press_time2 = 0
-
-        self._last_pressed = pressed
+        if pressed and ui_element:
+            ui_element.dispatch_event('on_keypress', key=pressed)
 
 
     @UI_Document_FSM.FSM_State('main', 'enter')
@@ -386,6 +360,18 @@ class UI_Document(UI_Document_FSM):
     @UI_Document_FSM.FSM_State('main')
     def modal_main(self):
         # print('UI_Document.main', self.actions.event_type, time.time())
+
+
+        if self.actions.just_pressed:
+            pressed = self.actions.just_pressed
+            if pressed not in {'WINDOW_DEACTIVATE'}:
+                if self._focus and self._focus_full:
+                    self._focus.dispatch_event('on_keypress', key=pressed)
+                elif self._under_mouse:
+                    self._under_mouse.dispatch_event('on_keypress', key=pressed)
+
+        self.handle_hover()
+        self.handle_mousemove()
 
         if self.actions.pressed('MIDDEMOUSE'):
             return 'scroll'
@@ -440,15 +426,6 @@ class UI_Document(UI_Document_FSM):
         #         print(e._dirty_causes)
         #         for s in e._debug_list:
         #             print(f'    {s}')
-
-        if self._under_mouse and self.actions.just_pressed:
-            pressed = self.actions.just_pressed
-            # self.actions.unpress()
-            self._under_mouse.dispatch_event('on_keypress', key=pressed)
-
-        self.handle_hover()
-        self.handle_mousemove()
-
         if False:
             print('---------------------------')
             if self._focus:      print('FOCUS', self._focus, self._focus.pseudoclasses)
@@ -516,8 +493,12 @@ class UI_Document(UI_Document_FSM):
         change_focus = self._focus != self._under_mouse
         if change_focus:
             if self._under_mouse.can_focus:
-                # element under mouse takes focus
-                self.focus(self._under_mouse)
+                # element under mouse takes focus (or whichever it's for points to)
+                if self._under_mouse.forId:
+                    f = self._under_mouse.get_for_element()
+                    if f and f.can_focus: self.focus(f)
+                    else: self.focus(self._under_mouse)
+                else: self.focus(self._under_mouse)
             elif self._focus and self._is_ancestor(self._focus, self._under_mouse):
                 # current focus is an ancestor of new element, so don't blur!
                 pass
@@ -590,6 +571,7 @@ class UI_Document(UI_Document_FSM):
         return ancestor in descendant.get_pathToRoot()
 
     def blur(self, stop_at=None):
+        self._focus_full = False
         if self._focus is None: return
         self._focus.del_pseudoclass('focus')
         self._focus.dispatch_event('on_blur')
@@ -597,7 +579,7 @@ class UI_Document(UI_Document_FSM):
         self._addrem_pseudoclass('active', remove_from=self._focus)
         self._focus = None
 
-    def focus(self, ui_element):
+    def focus(self, ui_element, full=False):
         if ui_element is None: return
         if self._focus == ui_element: return
 
@@ -614,21 +596,21 @@ class UI_Document(UI_Document_FSM):
             self.blur(stop_at=stop_blur_at)
             #print('focusout to', p_blur, stop_blur_at)
             #print('focusin from', p_focus, stop_focus_at)
+        self._focus_full = full
         self._focus = ui_element
         self._focus.add_pseudoclass('focus')
         self._focus.dispatch_event('on_focus')
         self._focus.dispatch_event('on_focusin', stop_at=stop_focus_at)
 
-    @UI_Document_FSM.FSM_State('focus', 'enter')
-    def focus_enter(self):
-        self._last_pressed = None
-        self._last_press_time = 0
-        self._last_press_start = 0
 
     @UI_Document_FSM.FSM_State('focus')
     def focus_main(self):
         if not self._focus:
             return 'main'
+
+        if self._focus_full:
+            pass
+
         if self.actions.pressed('LEFTMOUSE', unpress=False):
             return 'mousedown'
         # if self.actions.pressed('RIGHTMOUSE'):
@@ -670,7 +652,7 @@ class UI_Document(UI_Document_FSM):
         self._body.clean()
         for o in self._callbacks['postclean']: o._call_postclean()
         self._body._layout(
-            first_on_line=True,
+            # linefitter=LineFitter(left=0, top=h-1, width=w, height=h),
             fitting_size=sz,
             fitting_pos=Point2D((0,h-1)),
             parent_size=sz,
@@ -684,7 +666,7 @@ class UI_Document(UI_Document_FSM):
 
         # UI_Element_PreventMultiCalls.reset_multicalls()
         self._body._layout(
-            first_on_line=True,
+            # linefitter=LineFitter(left=0, top=h-1, width=w, height=h),
             fitting_size=sz,
             fitting_pos=Point2D((0,h-1)),
             parent_size=sz,

@@ -238,8 +238,8 @@ void main() {
         // MAGIC!
         gl_FragDepth =
             gl_FragCoord.z
-            - offset    * l_clip * 1.0
-            + dotoffset * l_clip * 0.000001 * (1.0 - d)
+            - offset    * l_clip * 75.0
+            - dotoffset * l_clip * 0.01 * (1.0 - d)
             ;
     }
 

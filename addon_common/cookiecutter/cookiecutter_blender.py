@@ -44,8 +44,12 @@ class CookieCutter_Blender:
         self.panels_store()
         self.overlays_store()
         self.statusbar_stats_store()
+        self.quadview_store()
+        self.shading_store()
 
     def _cc_blenderui_end(self, ignore_panels=False):
+        self.shading_restore()
+        self.quadview_restore()
         self.overlays_restore()
         if not ignore_panels: self.panels_restore()
         self.statusbar_stats_restore()
@@ -142,6 +146,70 @@ class CookieCutter_Blender:
 
 
     #########################################
+    # Viewport Shading
+
+    def shading_type_get(self): return self._space.shading.type
+    def shading_type_set(self, v): self._space.shading.type = v
+
+    def shading_light_get(self): return self._space.shading.light
+    def shading_light_set(self, v): self._space.shading.light = v
+
+    def shading_matcap_get(self): return self._space.shading.studio_light
+    def shading_matcap_set(self, v): self._space.shading.studio_light = v
+
+    def shading_colortype_get(self): return self._space.shading.color_type
+    def shading_colortype_set(self, v): self._space.shading.color_type = v
+
+    def shading_color_get(self): return self._space.shading.single_color
+    def shading_color_set(self, v): self._space.shading.single_color = v
+
+    def shading_backface_get(self): return self._space.shading.show_backface_culling
+    def shading_backface_set(self, v): self._space.shading.show_backface_culling = v
+
+    def shading_shadows_get(self): return self._space.shading.show_shadows
+    def shading_shadows_set(self, v): self._space.shading.show_shadows = v
+
+    def shading_xray_get(self): return self._space.shading.show_xray
+    def shading_xray_set(self, v): self._space.shading.show_xray = v
+
+    def shading_cavity_get(self): return self._space.shading.show_cavity
+    def shading_cavity_set(self, v): self._space.shading.show_cavity = v
+
+    def shading_outline_get(self): return self._space.shading.show_object_outline
+    def shading_outline_set(self, v): self._space.shading.show_object_outline = v
+
+    def shading_store(self):
+        self._shading = {
+            'type': self.shading_type_get(),
+            'light': self.shading_light_get(),
+            'matcap': self.shading_matcap_get(),
+            'colortype': self.shading_colortype_get(),
+            'color': self.shading_color_get(),
+            'backface': self.shading_backface_get(),
+            'shadows': self.shading_shadows_get(),
+            'xray': self.shading_xray_get(),
+            'cavity': self.shading_cavity_get(),
+            'outline': self.shading_outline_get(),
+        }
+    def shading_restore(self):
+        if self._shading['type'] == 'WIREFRAME':
+            self.shading_type_set(self._shading['type'])
+            self.shading_xray_set(self._shading['xray'])
+            self.shading_outline_set(self._shading['outline'])
+        else:
+            self.shading_type_set(self._shading['type'])
+            self.shading_light_set(self._shading['light'])
+            self.shading_matcap_set(self._shading['matcap'])
+            self.shading_colortype_set(self._shading['colortype'])
+            self.shading_color_set(self._shading['color'])
+            self.shading_backface_set(self._shading['backface'])
+            self.shading_shadows_set(self._shading['shadows'])
+            self.shading_xray_set(self._shading['xray'])
+            self.shading_cavity_set(self._shading['cavity'])
+            self.shading_outline_set(self._shading['outline'])
+
+
+    #########################################
     # Overlays and Manipulators/Gizmos
 
     @blender_version_wrapper("<=", "2.79")
@@ -158,6 +226,9 @@ class CookieCutter_Blender:
     def manipulator_get(self): return self._space.show_manipulator
     @blender_version_wrapper("<=", "2.79")
     def manipulator_set(self, v): self._space.show_manipulator = v
+
+    def shading_type_get(self): return self._space.shading.type
+    def shading_type_set(self, v): self._space.shading.type = v
 
     def scene_scale_get(self): return self._scene.unit_settings.scale_length
     def scene_scale_set(self, v): self._scene.unit_settings.scale_length = v
@@ -195,6 +266,15 @@ class CookieCutter_Blender:
     def overlays_restore(self): self.overlays_set(self._overlays)
     def overlays_hide(self):    self.overlays_set(False)
     def overlays_show(self):    self.overlays_set(True)
+
+    def quadview_get(self):     return bool(self._space.region_quadviews)
+    def quadview_toggle(self):  bpy.ops.screen.region_quadview({'area': self._area, 'region': self._area.regions[5]})
+    def quadview_set(self, v):
+        if self.quadview_get() != v: self.quadview_toggle()
+    def quadview_store(self):   self._quadview = bool(self._space.region_quadviews)
+    def quadview_restore(self): self.quadview_set(self._quadview)
+    def quadview_hide(self):    self.quadview_set(False)
+    def quadview_show(self):    self.quadview_set(True)
 
     def scene_scale_store(self):   self._scene_scale = self.scene_scale_get()
     def scene_scale_restore(self): self.scene_scale_set(self._scene_scale)

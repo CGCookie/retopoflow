@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 import random
 import re
 from typing import List
@@ -938,24 +938,24 @@ class XForm:
         self.mx_t = mats['mx_t']
 
         self.fn_l2w_typed = {
-            Ray: lambda x: self.l2w_ray(x),
-            Vec: lambda x: self.l2w_vector(x),
-            Plane: lambda x: self.l2w_plane(x),
-            Point: lambda x: self.l2w_point(x),
-            BMVert: lambda x: self.l2w_bmvert(x),
-            Normal: lambda x: self.l2w_normal(x),
-            Vector: lambda x: self.l2w_vector(x),
-            Direction: lambda x: self.l2w_direction(x),
+            Ray: self.l2w_ray,
+            Vec: self.l2w_vector,
+            Plane: self.l2w_plane,
+            Point: self.l2w_point,
+            BMVert: self.l2w_bmvert,
+            Normal: self.l2w_normal,
+            Vector: self.l2w_vector,
+            Direction: self.l2w_direction,
         }
         self.fn_w2l_typed = {
-            Ray: lambda x: self.w2l_ray(x),
-            Vec: lambda x: self.w2l_vector(x),
-            Plane: lambda x: self.w2l_plane(x),
-            Point: lambda x: self.w2l_point(x),
-            BMVert: lambda x: self.w2l_bmvert(x),
-            Normal: lambda x: self.w2l_normal(x),
-            Vector: lambda x: self.w2l_vector(x),
-            Direction: lambda x: self.w2l_direction(x),
+            Ray: self.w2l_ray,
+            Vec: self.w2l_vector,
+            Plane: self.w2l_plane,
+            Point: self.w2l_point,
+            BMVert: self.w2l_bmvert,
+            Normal: self.w2l_normal,
+            Vector: self.w2l_vector,
+            Direction: self.w2l_direction,
         }
         return self
 
@@ -1022,42 +1022,48 @@ class XForm:
     @blender_version_wrapper('<', '2.80')
     def l2w_point(self, p: Point) -> Point: return Point(self.mx_p * p)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_point(self, p: Point) -> Point: return Point(self.mx_p @ p)
+    def l2w_point(self, p: Point) -> Point:
+        #return Point(self.mx_p @ p)
+        v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
+        return Point(v.xyz / v.w)
 
     @blender_version_wrapper('<', '2.80')
     def w2l_point(self, p: Point) -> Point: return Point(self.imx_p * p)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_point(self, p: Point) -> Point: return Point(self.imx_p @ p)
+    def w2l_point(self, p: Point) -> Point:
+        # return Point(self.imx_p @ p)
+        v = self.imx_p @ Vector((p.x, p.y, p.z, 1.0))
+        return Point(v.xyz / v.w)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d * d)
+    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() * d)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d @ d)
+    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() @ d)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d * d)
+    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() * d)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d @ d)
+    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() @ d)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n * n)
+    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() * n)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n @ n)
+    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() @ n)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n * n)
+    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() * n)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n @ n)
+    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() @ n)
 
     @blender_version_wrapper('<', '2.80')
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d * v)
+    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() * v)
     @blender_version_wrapper('>=', '2.80')
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d @ v)
+    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() @ v)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d * v)
+    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() * v)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d @ v)
+    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() @ v)
 
     def l2w_ray(self, ray: Ray) -> Ray:
         o = self.l2w_point(ray.o)
@@ -1089,9 +1095,9 @@ class XForm:
     def l2w_bmvert(self, bmv: BMVert) -> Point: return Point(self.mx_p @ bmv.co)
 
     @blender_version_wrapper('<', '2.80')
-    def w2l_bmevrt(self, bmv: BMVert) -> Point: return Point(self.imx_p * bmv.co)
+    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p * bmv.co)
     @blender_version_wrapper('>=', '2.80')
-    def w2l_bmevrt(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
+    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
 
     @staticmethod
     def to_bglMatrix(mat):
@@ -1112,8 +1118,8 @@ class XForm:
 
 class BBox:
     @stats_wrapper
-    def __init__(self, from_bmverts=None, from_coords=None):
-        if not (from_bmverts or from_coords):
+    def __init__(self, from_object=None, from_bmverts=None, from_coords=None, xform_point=None):
+        if not any([from_object, from_bmverts, from_coords]):
             nan = float('nan')
             self.min = None
             self.max = None
@@ -1122,28 +1128,42 @@ class BBox:
             self.min_dim = nan
             self.max_dim = nan
             return
-        if from_bmverts:
-            from_coords = [bmv.co for bmv in from_bmverts]
-        else:
-            from_coords = list(from_coords)
-        Mx, My, Mz = mx, my, mz = from_coords[0]
-        for x, y, z in from_coords:
-            mx, my, mz = min(mx, x), min(my, y), min(mz, z)
-            Mx, My, Mz = max(Mx, x), max(My, y), max(Mz, z)
+
+        if   from_object:  from_coords = [Point(c) for c in from_object.bound_box]
+        elif from_bmverts: from_coords = [bmv.co for bmv in from_bmverts]
+        elif from_coords:  from_coords = list(from_coords)
+
+        if xform_point: from_coords = [xform_point(co) for co in from_coords]
+
+        mx, Mx = min(x for (x,y,z) in from_coords), max(x for (x,y,z) in from_coords)
+        my, My = min(y for (x,y,z) in from_coords), max(y for (x,y,z) in from_coords)
+        mz, Mz = min(z for (x,y,z) in from_coords), max(z for (x,y,z) in from_coords)
         self.min = Point((mx, my, mz))
         self.max = Point((Mx, My, Mz))
         self.mx, self.my, self.mz = mx, my, mz
         self.Mx, self.My, self.Mz = Mx, My, Mz
-        self.min_dim = min(
-            self.Mx - self.mx,
-            self.My - self.my,
-            self.Mz - self.mz
-        )
-        self.max_dim = max(
-            self.Mx - self.mx,
-            self.My - self.my,
-            self.Mz - self.mz
-        )
+        self.min_dim = min(self.size_x, self.size_y, self.size_z)
+        self.max_dim = max(self.size_x, self.size_y, self.size_z)
+        self._corners = [
+            Point((self.mx, self.my, self.mz)),
+            Point((self.mx, self.my, self.Mz)),
+            Point((self.mx, self.My, self.mz)),
+            Point((self.mx, self.My, self.Mz)),
+            Point((self.Mx, self.my, self.mz)),
+            Point((self.Mx, self.my, self.Mz)),
+            Point((self.Mx, self.My, self.mz)),
+            Point((self.Mx, self.My, self.Mz)),
+        ]
+
+    @property
+    def corners(self): yield from self._corners
+
+    @property
+    def size_x(self): return self.Mx - self.mx
+    @property
+    def size_y(self): return self.My - self.my
+    @property
+    def size_z(self): return self.Mz - self.mz
 
     @staticmethod
     def merge(boxes):
@@ -1709,8 +1729,11 @@ class Accel2D:
     @profiler.function
     def get(self, v2d, within):
         delta = Vec2D((within, within))
-        i0, j0 = self.compute_ij(v2d - delta)
-        i1, j1 = self.compute_ij(v2d + delta)
+        p0, p1 = v2d - delta, v2d + delta
+        if isinf(p0.x) or isinf(p0.y) or isinf(p1.x) or isinf(p1.y): return set()
+        if isnan(p0.x) or isnan(p0.y) or isnan(p1.x) or isnan(p1.y): return set()
+        i0, j0 = self.compute_ij(p0)
+        i1, j1 = self.compute_ij(p1)
         l = set()
         for i in range(i0, i1 + 1):
             for j in range(j0, j1 + 1):
@@ -2158,6 +2181,16 @@ def closest2d_point_segment(pt:Point2D, p0:Point2D, p1:Point2D):
     dd = dv / ld
     v = Vec2D(pt - p0)
     p = Point2D(p0 + dd * clamp(dd.dot(v), 0, ld))
+    p.freeze()
+    return p
+
+def closest_point_segment(pt:Point, p0:Point, p1:Point):
+    dv = Vec(p1 - p0)
+    ld = dv.length
+    if abs(ld) <= 0.00001: return p0
+    dd = dv / ld
+    v = Vec(pt - p0)
+    p = Point(p0 + dd * clamp(dd.dot(v), 0, ld))
     p.freeze()
     return p
 

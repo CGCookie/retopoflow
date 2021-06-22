@@ -163,7 +163,7 @@ class RetopoFlow_Sources:
     # visibility testing
 
     @profiler.function
-    def is_visible(self, point:Point, normal:Normal=None, bbox_factor_override=None, dist_offset_override=None):
+    def is_visible(self, point:Point, normal:Normal=None, bbox_factor_override=None, dist_offset_override=None, occlusion_test_override=None, backface_test_override=None):
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
         if p2D.x < 0 or p2D.x > self.actions.size.x: return False
@@ -173,15 +173,18 @@ class RetopoFlow_Sources:
         max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
-        if normal and normal.dot(ray.d) >= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource))
+        if backface_test_override or (backface_test_override is None and options['selection backface test']):
+            if normal and normal.dot(ray.d) >= 0: return False
+        if occlusion_test_override or (occlusion_test_override is None and options['selection occlusion test']):
+            if any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)): return False
+        return True
 
     def is_nonvisible(self, *args, **kwargs):
         return not self.is_visible(*args, **kwargs)
 
     def visibility_preset_normal(self):
         options['visible bbox factor'] = 0.001
-        options['visible dist offset'] = 0.0008
+        options['visible dist offset'] = 0.1
         self.get_vis_accel()
 
     def visibility_preset_tiny(self):

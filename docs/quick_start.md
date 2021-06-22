@@ -25,7 +25,9 @@ To continue working on a previous retopology session:
 
 1. Select the low-poly retopo target mesh
 2. Switch to Edit Mode
-3. Either click on the diamond (◆) next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
+3. Either click on the triangle over square button next to the "RetopoFlow" menu or choose one of the tools from the dropdown menu
+
+![](start_rf_quickstart.png)
 
 ![](start_rf_tool.png)
 
@@ -73,3 +75,4 @@ Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x
 When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
 These windows allow you to switch between RF tools, set tool options, and get more information.
 Also, a one-time Welcome message will greet you.
+

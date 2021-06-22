@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 import math
+import time
 import bgl
 import bpy
 from mathutils import Vector, Matrix
@@ -136,8 +137,10 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.just_created = False
         self.defer_recomputing = False
         self.hovering_edge = None
+        self.hovering_edge_time = 0
         self.hovering_sel_edge = None
         self.connection_pre = None
+        self.connection_pre_time = 0
         self.connection_post = None
         self.update_ui()
 
@@ -190,16 +193,24 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
             # the artist might move mouse off selected edge before drag kicks in!
-            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+            if time.time() - self.hovering_edge_time > 0.125:
+                self.hovering_edge_time = time.time()
+                self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+                self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+            pass
 
-        self.connection_pre = None
         self.connection_post = None
         if self.actions.using_onlymods('insert'):
-            hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-            if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
-                point_to_point2d = self.rfcontext.Point_to_Point2D
-                self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+            if time.time() - self.connection_pre_time > 0.01:
+                self.connection_pre_time = time.time()
+                hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
+                if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
+                    point_to_point2d = self.rfcontext.Point_to_Point2D
+                    self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+                else:
+                    self.connection_pre = None
+        else:
+            self.connection_pre = None
 
         if self.actions.using_onlymods('insert'):
             self.rfwidget = self.rfwidgets['brush']
@@ -372,14 +383,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def create_cycle(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        stroke += stroke[:1]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('create cycle')
         else:
             self.rfcontext.undo_push('create cycle')
-
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
-        stroke += stroke[:1]
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -393,20 +405,23 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
         edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
     @RFTool_Strokes.dirty_when_done
     def create_strip(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('create strip')
         else:
             self.rfcontext.undo_push('create strip')
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        self.rfcontext.get_vis_accel(force=True)
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
@@ -438,21 +453,23 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             verts[-1].co = co
             self.rfcontext.clean_duplicate_bmedges(verts[-1])
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
     @RFTool_Strokes.dirty_when_done
     def extrude_cycle(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_loops is not None:
             self.rfcontext.undo_repush('extrude cycle')
         else:
             self.rfcontext.undo_push('extrude cycle')
         pass
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         sctr = Point2D.average(stroke)
         stroke_centered = [(s - sctr) for s in stroke]
 
@@ -534,19 +551,24 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         end_verts = [l[-1] for l in patch]
         edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
 
-        self.just_created = True
         self.rfcontext.select(edges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
     @RFTool_Strokes.dirty_when_done
     def extrude_c(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude C')
         else:
             self.rfcontext.undo_push('extrude C')
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        self.rfcontext.get_vis_accel(force=True)
+
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
 
@@ -554,7 +576,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
         sel_verts = {v for e in edges for v in e.verts}
 
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
@@ -634,12 +655,17 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
     @RFTool_Strokes.dirty_when_done
     def extrude_l(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude L')
         else:
             self.rfcontext.undo_push('extrude L')
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        self.rfcontext.get_vis_accel(force=True)
+
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
 
@@ -647,7 +673,6 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
         sel_verts = {v for e in edges for v in e.verts}
 
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         s0, s1 = stroke[0], stroke[-1]
         bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
@@ -695,24 +720,27 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             nedges.append(bmv0.shared_edge(bmv1))
             bmv0 = bmv1
 
-        self.just_created = True
         self.rfcontext.select(nedges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
 
     @RFTool_Strokes.dirty_when_done
     def extrude_strip(self):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
+        if not all(stroke): return  # part of stroke cannot project
+
         if self.strip_crosses is not None:
             self.rfcontext.undo_repush('extrude strip')
         else:
             self.rfcontext.undo_push('extrude strip')
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
-
         # get selected edges that we can extrude
         edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
         sel_verts = {v for e in edges for v in e.verts}
+
+        self.rfcontext.get_vis_accel(force=True)
 
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
@@ -745,6 +773,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         for edge_strip in find_edge_strips(edges):
             verts = get_strip_verts(edge_strip)
             p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+            if not p0 or not p1: continue
             pd = p1 - p0
             dot = pd.x * sd.x + pd.y * sd.y
             if dot < 0:
@@ -840,25 +869,60 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
 
-        self.just_created = True
         self.rfcontext.select(nedges)
+        self.just_created = True
         self.defer_recomputing = False
         self.update()
+
+    def mergeSnapped(self):
+        """ Merging colocated visible verts """
+
+        if not options['strokes automerge']: return
+
+        # TODO: remove colocated faces
+        if self.mousedown is None: return
+        delta = Vec2D(self.actions.mouse - self.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        update_verts = []
+        merge_dist = self.rfcontext.drawing.scale(options['strokes merge dist'])
+        for bmv,xy in self.bmverts:
+            if not xy: continue
+            xy_updated = xy + delta
+            for bmv1,xy1 in self.vis_bmverts:
+                if not xy1: continue
+                if bmv1 == bmv: continue
+                if not bmv1.is_valid: continue
+                d = (xy_updated - xy1).length
+                if (xy_updated - xy1).length > merge_dist:
+                    continue
+                bmv1.merge_robust(bmv)
+                self.rfcontext.select(bmv1)
+                update_verts += [bmv1]
+                break
+        if update_verts:
+            self.rfcontext.update_verts_faces(update_verts)
+            #self.set_next_state()
 
     @RFTool_Strokes.FSM_State('move', 'enter')
     def move_enter(self, bmverts=None, defer_recomputing=True):
         self.rfcontext.undo_push('move grabbed')
 
-        self.sel_verts = self.rfcontext.get_selected_verts()
-        self.vis_accel = self.rfcontext.get_vis_accel()
-        self.vis_verts = self.rfcontext.accel_vis_verts
+        self.move_opts = {
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+        }
+
+        sel_verts = self.rfcontext.get_selected_verts()
+        vis_accel = self.rfcontext.get_vis_accel()
+        vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
-        if not bmverts: bmverts = self.sel_verts
+        if not bmverts: bmverts = sel_verts
         self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in self.vis_verts if bmv not in self.sel_verts]
+        self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in vis_verts if bmv.is_valid and bmv not in sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
         self.defer_recomputing = defer_recomputing
+        self.rfcontext.split_target_visualization_selected()
+        self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)
 
     @RFTool_Strokes.FSM_State('move')
@@ -868,11 +932,11 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         released = self.rfcontext.actions.released
         if self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
-            #self.mergeSnapped()
+            self.mergeSnapped()
             return 'main'
         if self.actions.released(self.move_done_released):
             self.defer_recomputing = False
-            #self.mergeSnapped()
+            self.mergeSnapped()
             return 'main'
         if self.actions.pressed('cancel'):
             self.defer_recomputing = False
@@ -880,8 +944,9 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             return 'main'
 
         # only update verts on timer events and when mouse has moved
-        if not self.rfcontext.actions.timer: return
-        if self.actions.mouse_prev == self.actions.mouse: return
+        #if not self.rfcontext.actions.timer: return
+        #if self.actions.mouse_prev == self.actions.mouse: return
+        if not self.actions.mousemove_stop: return
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
@@ -890,12 +955,15 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
-                for bmv1,xy1 in self.vis_bmverts:
-                    if (xy_updated - xy1).length < self.rfcontext.drawing.scale(10):
-                        set2D_vert(bmv, xy1)
-                        break
-                else:
+                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_opts['vis_accel'], max_dist=options['strokes merge dist'])
+                if bmv1 is None:
                     set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
             else:
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
@@ -903,9 +971,12 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     @RFTool_Strokes.FSM_State('move', 'exit')
     def move_exit(self):
         self._timer.done()
+        self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
     @RFTool_Strokes.Draw('post2d')
     def draw_postpixel(self):
+        if self._fsm.state == 'move': return
         bgl.glEnable(bgl.GL_BLEND)
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()

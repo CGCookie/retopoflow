@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import time
+import random
 from itertools import chain
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
@@ -65,6 +66,8 @@ class RetopoFlow_Target:
         self.accel_vis_accel = None
         self._last_visible_bbox_factor = None
         self._last_visible_dist_offset = None
+        self._last_selection_occlusion_test = None
+        self._last_selection_backface_test = None
         self._last_draw_count = -1
         self._draw_count = 0
 
@@ -83,6 +86,33 @@ class RetopoFlow_Target:
         self.tar_object.to_mesh_clear()
         del self.tar_object
 
+
+    #########################################
+    # split target visualization
+
+    def clear_split_target_visualization(self):
+        # print(f'clear_split_target_visualization')
+        self.rftarget_draw.split_visualization()
+
+    def split_target_visualization(self, verts=None, edges=None, faces=None):
+        # print(f'split_target_visualization')
+        self.rftarget_draw.split_visualization(verts=verts, edges=edges, faces=faces)
+
+    def split_target_visualization_selected(self):
+        # print(f'split_target_visualization_selected')
+        self.rftarget_draw.split_visualization(
+            verts=self.get_selected_verts(),
+            edges=self.get_selected_edges(),
+            faces=self.get_selected_faces(),
+        )
+
+    def split_target_visualization_visible(self):
+        # print(f'split_target_visualization_visible')
+        self.rftarget_draw.split_visualization(
+            verts=self.visible_verts(),
+        )
+
+
     #########################################
     # acceleration structures
 
@@ -94,14 +124,16 @@ class RetopoFlow_Target:
         view_version = self.get_view_version()
 
         recompute = self.accel_recompute
-        recompute |= self.accel_target_version != target_version
-        recompute |= self.accel_view_version != view_version
+        recompute |= target_version != self.accel_target_version
+        recompute |= view_version != self.accel_view_version
         recompute |= self.accel_vis_verts is None
         recompute |= self.accel_vis_edges is None
         recompute |= self.accel_vis_faces is None
         recompute |= self.accel_vis_accel is None
         recompute |= options['visible bbox factor'] != self._last_visible_bbox_factor
         recompute |= options['visible dist offset'] != self._last_visible_dist_offset
+        recompute |= options['selection occlusion test'] != self._last_selection_occlusion_test
+        recompute |= options['selection backface test'] != self._last_selection_backface_test
         recompute &= not self.accel_defer_recomputing
         recompute &= not self._nav and (time.time() - self._nav_time) > 0.25
         recompute &= self._draw_count != self._last_draw_count
@@ -109,7 +141,15 @@ class RetopoFlow_Target:
         self.accel_recompute = False
 
         if force or recompute:
-            # print('RECOMPUTE VIS ACCEL')
+            # print(f'RECOMPUTE VIS ACCEL {random.random()}')
+            # print(f'  accel recompute: {self.accel_recompute}')
+            # print(f'  target change: {target_version != self.accel_target_version}')
+            # print(f'  view change: {view_version != self.accel_view_version}  ({self.accel_view_version.get_hash() if self.accel_view_version else None}, {view_version.get_hash()})')
+            # print(f'  geom change: {self.accel_vis_verts is None} {self.accel_vis_edges is None} {self.accel_vis_faces is None} {self.accel_vis_accel is None}')
+            # print(f'  bbox change: {options["visible bbox factor"] != self._last_visible_bbox_factor}')
+            # print(f'  dist offset change: {options["visible dist offset"] != self._last_visible_dist_offset}')
+            # print(f'  navigating: {not self._nav}  {time.time() - self._nav_time > 0.25}')
+            # print(f'  draw change: {self._draw_count != self._last_draw_count}')
             self.accel_target_version = target_version
             self.accel_view_version = view_version
             self.accel_vis_verts = self.visible_verts()
@@ -118,6 +158,8 @@ class RetopoFlow_Target:
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
             self._last_visible_bbox_factor = options['visible bbox factor']
             self._last_visible_dist_offset = options['visible dist offset']
+            self._last_selection_occlusion_test = options['selection occlusion test']
+            self._last_selection_backface_test = options['selection backface test']
             self._last_draw_count = self._draw_count
         else:
             self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid } if self.accel_vis_verts is not None else None
@@ -422,10 +464,11 @@ class RetopoFlow_Target:
         return self.rftarget.symmetry_real(point)
 
     def push_then_snap_all_verts(self):
-        self.undo_push('push then snap all verts')
+        self.undo_push('push then snap all non-hidden verts')
         d = options['push and snap distance']
-        for bmv in self.rftarget.get_verts(): bmv.co += bmv.normal * d
-        self.rftarget.snap_all_verts(self.nearest_sources_Point)
+        for bmv in self.rftarget.get_verts():
+            if not bmv.hide: bmv.co += bmv.normal * d
+        self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
 
     def push_then_snap_selected_verts(self):
         self.undo_push('push then snap selected verts')
@@ -434,13 +477,35 @@ class RetopoFlow_Target:
             if bmv.select: bmv.co += bmv.normal * d
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
 
-    def snap_all_verts(self):
-        self.undo_push('snap all verts')
-        self.rftarget.snap_all_verts(self.nearest_sources_Point)
-
-    def snap_selected_verts(self):
-        self.undo_push('snap selected verts')
-        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+#    def snap_verts_filter(self, fn_filter):
+#        self.undo_push('snap filtered verts')
+#        self.rftarget.snap_verts_filter(self.nearest_source_Point, fn_filter)
+#
+#    def snap_all_verts(self):
+#        self.undo_push('snap all verts')
+#        self.rftarget.snap_all_verts(self.nearest_sources_Point)
+#
+#    def snap_all_nonhidden_verts(self):
+#        self.undo_push('snap all visible verts')
+#        self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
+#
+#    def snap_selected_verts(self):
+#        self.undo_push('snap visible and selected verts')
+#        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+#
+#    def snap_unselected_verts(self):
+#        self.undo_push('snap visible and unselected verts')
+#        self.rftarget.snap_unselected_verts(self.nearest_sources_Point)
+#
+#    def snap_visible_verts(self):
+#        self.undo_push('snap visible verts')
+#        nonvisible_verts = self.nonvisible_verts()
+#        self.rftarget.snap_verts_filter(self.nearest_sources_Point, lambda v: not v.hide and v not in nonvisible_verts)
+#
+#    def snap_nonvisible_verts(self):
+#        self.undo_push('snap non-visible verts')
+#        nonvisible_verts = self.nonvisible_verts()
+#        self.rftarget.snap_verts_filter(self.nearest_sources_Point, lambda v: not v.hide and v in nonvisible_verts)
 
     def remove_all_doubles(self):
         self.undo_push('remove all doubles')
@@ -453,6 +518,10 @@ class RetopoFlow_Target:
     def flip_face_normals(self):
         self.undo_push('flipping face normals')
         self.rftarget.flip_face_normals()
+
+    def recalculate_face_normals(self):
+        self.undo_push('recalculating face normals')
+        self.rftarget.recalculate_face_normals()
 
     #######################################
     # target manipulation functions
@@ -503,8 +572,11 @@ class RetopoFlow_Target:
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
-        if rfvert.normal.dot(self.Point_to_Direction(xyz)) > 0 and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
-            self._detected_bad_normals = True
+        d = self.Point_to_Direction(xyz)
+        _,n,_,_ = self.raycast_sources_Point(xyz)
+        if d and n and n.dot(d) > 0.5: self._detected_bad_normals = True
+        # if (d is None or norm.dot(d) > 0.5) and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
+        #     self._detected_bad_normals = True
         return rfvert
 
     def new2D_vert_point(self, xy:Point2D):
@@ -805,12 +877,16 @@ class RetopoFlow_Target:
     #######################################################
     # delete / dissolve
 
-    def delete_dissolve_option(self, opt):
-        self.last_delete_dissolve_option = opt
-        if opt in [('Dissolve','Vertices'), ('Dissolve','Edges'), ('Dissolve','Faces'), ('Dissolve','Loops')]:
+    def delete_dissolve_collapse_option(self, opt):
+        if opt is None: return
+        if opt[0] == 'Dissolve':
             self.dissolve_option(opt[1])
-        elif opt in [('Delete','Vertices'), ('Delete','Edges'), ('Delete','Faces'), ('Delete','Only Edges & Faces'), ('Delete','Only Faces')]:
+        elif opt[0] == 'Delete':
             self.delete_option(opt[1])
+        elif opt[0] == 'Collapse':
+            self.collapse_option(opt[1])
+        else:
+            return
 
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
@@ -863,6 +939,29 @@ class RetopoFlow_Target:
         except RuntimeError as e:
             self.undo_cancel()
             self.alert_user('Error while deleting:\n' + '\n'.join(e.args))
+
+    def collapse_option(self, opt):
+        del_empty_edges=True
+        del_empty_verts=True
+        del_verts=True
+        del_edges=True
+        del_faces=True
+
+        if opt == 'Edges & Faces':
+            pass
+        else:
+            return
+
+        try:
+            self.undo_push('collapse %s' % opt)
+            self.collapse_edges_faces()
+            self.dirty()
+        except RuntimeError as e:
+            self.undo_cancel()
+            self.alert_user('Error while collapsing:\n' + '\n'.join(e.args))
+
+    def collapse_edges_faces(self):
+        self.rftarget.collapse_edges_faces(self.nearest_sources_Point)
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         self.rftarget.delete_selection(del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts, del_verts=del_verts, del_edges=del_edges, del_faces=del_faces)

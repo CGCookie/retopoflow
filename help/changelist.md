@@ -2,13 +2,30 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.1.0&rarr;3.2.0
+
+- Added builtin Keymap Editor (prototype)
+- Significantly improved performance of tools with large target meshes!
+- Target mesh visualization will now split (under the hood) when working on a small portion, improving feedback performance for some actions
+- Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
+- Added ability to hide/reveal target mesh geometry
+- Added button to recalculate normals in the Target Cleaning panel
+- Added ability to Collapse Edges & Faces from delete/dissolve/collapse menu
+- Tweak and Relax can now slide vertices along a boundary
+- New Plane Symmetry Visualization setting, which is now default for better performance
+- Added selection options to help with selecting hard-to-get vertices
+- Improved Updater System
+- General code cleanup and refactoring
+- Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.21)
+- Many bug fixes and UX improvements
+
 ### RetopoFlow 3.00.2&rarr;3.1.0
 
 - Knife is a new tool for cutting into existing geometry!
 - Selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
 - Tools are much more responsive when working on targets with high geometry counts
 - Loops, Tweak, and Relax now have quick shortcuts
-- The tools pie menu is now 'Q' as well as '~' to help reduce finger gymnastics
+- The tools pie menu is now `Q` as well as `~` to help reduce finger gymnastics
 - Major UI performance improvements from redesign and reimplementation of underlying UI system
 - Improved smart selection and added actions for selecting geometry along shortest path
 - Added button to push target vertices along normal before snapping to fix vertices snapping to inner source surfaces

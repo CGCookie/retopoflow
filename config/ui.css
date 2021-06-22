@@ -669,7 +669,8 @@ label.symmetry-enable {
 /***************************************************/
 
 dialog#tinydialog {
-    width: 396px;
+    width: 57px;
+    min-width: 56px;
     padding: 0px;
     overflow: hidden;
 }
@@ -680,23 +681,22 @@ dialog#tinydialog > div.contents {
     overflow: hidden;
 }
 dialog#tinydialog span.dialog-title {
+    display: none;
+    font-size: 0px;
     padding: 0px 2px;
     margin-left: -2px;
-    font-size: 9pt;
     height: 12px;
 }
 div#ttools > * {
     display: inline;
 }
-
-
 dialog#tinydialog div#ttools {
     margin: 2px;
 }
 label.ttool {
+    display: none;
     background: var(--option-background);
-    display: inline;
-    margin: 0px 2px 0px 2px;
+    margin: 2px;
     padding: 4px;
     width: 42px;
 }
@@ -717,7 +717,6 @@ label.ttool > img {
     width:32px;
     height:32px;
 }
-
 dialog#tinydialog div#ttools button.dialog-expand {
     display: inline;
     padding: 12px 4px 16px 4px;
@@ -726,8 +725,6 @@ dialog#tinydialog div#ttools button.dialog-expand {
     height: 40px;
     background: transparent url('collapse_close.png');
 }
-
-
 
 
 /***************************************************/
@@ -739,6 +736,15 @@ dialog#optionsdialog {
     width: 225px;
     min-width: 150px;
     max-width: 500px;
+}
+dialog#optionsdialog-minimized {
+    left: 100%;
+    width: 225px;
+    min-width: 150px;
+    max-width: 500px;
+}
+dialog#optionsdialog-minimized button.dialog-minimize {
+    background-image: url('collapse_close.png');
 }
 
 
@@ -830,11 +836,179 @@ div#version-options input#custom {
     width: 50%;
 }
 
-dialog#updatersystem div#update-failed div.actions button {
+
+
+/***************************************************/
+/* keymap window                                   */
+/***************************************************/
+
+dialog#keymapsystem {
+    width: 60%;
+    left: 20%;
+    top: -2%;
+    background: hsla(200, 0%, 10%, 0.98);
+}
+dialog#keymapsystem > div.contents {
+    max-height: 90%;
+}
+dialog#keymapsystem p {
+    margin: 4px 16px;
+}
+dialog#keymapsystem div.collection {
+    /*display: none;*/
+    border: 1px black;
+    background: var(--panel-two-background);
+    padding: 4px 4px 4px 4px;
+    margin: 0px 4px 0px 4px;
+}
+div#keymapsystem-buttons {
+    /*position: absolute;*/
+    margin: 0px;
+    left: 0px;
+    bottom: -30px;
+    width: 100%;
+    height: 32px;
+    overflow: hidden;
+}
+div#keymapsystem-buttons > button {
     display: inline;
-    width: 50%;
+    width: 33.33%;
+    text-align: center;
 }
 
+dialog#keymapsystem div.action {
+    text-align: left;
+}
+dialog#keymapsystem button.key {
+    display: inline;
+    width: 90%;
+    /*border: 1px black;*/
+    /*text-align: center;*/
+}
+dialog#keymapsystem button.delkey {
+    display: inline;
+    left: 90%;
+    width: 10%;
+    height: 26px;
+    padding-left: 0px;
+    padding-right: 0px;
+}
+dialog#keymapsystem div.actiontype {
+    width: 100%;
+}
+dialog#keymapsystem div.actiontype > label {
+    display: inline;
+    width: 20%;
+    text-align: center;
+}
+
+dialog#keymapsystem td.action {
+    width: 40%;
+}
+dialog#keymapsystem td.keymap {
+    width: 60%;
+}
+
+
+div#keymapsystem-cover {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100%;
+    height: 100%;
+    background: rgba(64, 64, 64, 0.75);
+    margin: 0px;
+    padding: 0px;
+    border: 0px;
+}
+
+
+dialog#keymapconfig {
+    width: 40%;
+    left: 30%;
+    top: -30%;
+    background: hsla(200, 0%, 10%, 0.98);
+}
+
+/*dialog#keymapconfig table {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+dialog#keymapconfig tr {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+dialog#keymapconfig td {
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+*/
+dialog#keymapconfig span#edit-action {
+    margin: 0px;
+    padding: 0px;
+}
+
+dialog#keymapconfig div#edit-key-mouse label {
+    display: inline;
+    text-align: center;
+}
+dialog#keymapconfig div#edit-key-mouse label input {
+    display: inline;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+    width: 0px;
+}
+
+dialog#keymapconfig label#edit-key-label {
+    width: 95%;
+}
+dialog#keymapconfig label#edit-key-label span {
+    display: inline;
+    margin: 0px;
+    border: 0px;
+    padding: 0px;
+}
+dialog#keymapconfig label#edit-lmb-label {
+    width: 33.3333%;
+}
+dialog#keymapconfig label#edit-mmb-label {
+    width: 33.3333%;
+}
+dialog#keymapconfig label#edit-rmb-label {
+    width: 33.3333%;
+}
+
+dialog#keymapconfig label#edit-wu-label {
+    width: 50.0%;
+}
+dialog#keymapconfig label#edit-wd-label {
+    width: 50.0%;
+}
+
+
+dialog#keymapconfig input#edit-key:focus {
+    background: var(--button-selected-background);
+}
+
+dialog#keymapconfig div#edit-modifiers label {
+    display: inline;
+    width: 25%;
+}
+dialog#keymapconfig div#edit-type label {
+    display: inline;
+    width: 20%;
+    text-align: center;
+}
+dialog#keymapconfig div#config-buttons > button {
+    display: inline;
+    width: 33.33%;
+    text-align: center;
+    white-space: nowrap;
+}
 
 /***************************************************/
 /* alert window                                    */
@@ -925,6 +1099,16 @@ dialog#geometrydialog {
     width: 120px;
     max-width: 120px;  /* this is needed to force 120px wide dialog!? */
     height: 98px;
+}
+
+dialog#geometrydialog-minimized {
+    width: 120px;
+    max-width: 120px;
+    left: 0px;
+    top: -100%;
+}
+dialog#geometrydialog-minimized button.dialog-minimize {
+    background-image: url('collapse_close.png');
 }
 
 dialog#geometrydialog table {

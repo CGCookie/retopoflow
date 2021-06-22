@@ -45,12 +45,13 @@ import blf
 import gpu
 
 from .blender import tag_redraw_all
+from .ui_linefitter import LineFitter
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -63,44 +64,6 @@ from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join, abspath
-
-
-class LineFitter:
-    def __init__(self, box):
-        self.box = box
-        self.accum_width  = 0
-        self.accum_height = 0
-        self.lines   = []
-        self.current_line = None
-        self.new_line()
-
-    def new_line(self):
-        # width:  sum of all widths added to current line
-        # height: max of all heights added to current line
-        if not self.is_current_line_empty():
-            self.accum_width = max(self.accum_width, self.current_width)
-            self.accum_height = self.accum_height + self.current_height
-            self.lines.append(self.current.elements)
-        self.current_line = []
-        self.current_width = 0
-        self.current_height = 0
-
-    def is_current_line_empty(self):
-        return not self.current_line
-
-    def get_next_box(self):
-        return Box2D(
-            left  =self.box.left + self.current_width,
-            top   =-(self.box.top + self.accum_height),
-            width =self.box.width - self.current_width,
-            height=self.box.height - self.accum_height,
-        )
-
-    def add_element(self, element, size):
-        # assuming element is placed in correct spot in line
-        self.current_line.append(element)
-        self.current_width += size.biggest_width()
-        self.current_height = max(self.current_height, size.biggest_height())
 
 
 class UI_Layout:
@@ -132,38 +95,45 @@ class UI_Layout:
     '''
 
     def _layout2(self, **kwargs):
-        if not self.is_visible: return
-        if self._defer_clean: return
+        if self._defer_clean or not self.is_visible: return
 
         styles  = self._computed_styles
         display = styles.get('display', 'block')
 
-        layout = {
+        layout_fns = {
             'inline':     self._layout_inline,
             'block':      self._layout_block,
             'table':      self._layout_table,
             'table-row':  self._layout_table_row,
             'table-cell': self._layout_table_cell,
-        }.get(display, self._layout_block)
-
+        }
+        layout = layout_fns.get(display, self._layout_block)
         layout(*kwargs)
 
 
-    def _layout_inline(self):
+    def _layout_inline(self, **kwargs):
         pass
 
-    def _layout_block(self):
+    def _layout_block(self, **kwargs):
         pass
 
-    def _layout_table(self):
+    def _layout_table(self, **kwargs):
         pass
+
+    def _layout_table_row(self, **kwargs):
+        pass
+
+    def _layout_table_cell(self, **kwargs):
+        pass
+
 
     @profiler.function
     def _layout(self, **kwargs):
         if not self.is_visible: return
         if self._defer_clean: return
 
-        first_on_line  = kwargs.get('first_on_line',  True)     # is self the first UI_Element on the current line?
+        # linefitter     = kwargs['linefitter']
+
         fitting_size   = kwargs.get('fitting_size',   None)     # size from parent that we should try to fit in (only max)
         fitting_pos    = kwargs.get('fitting_pos',    None)     # top-left position wrt parent where we go if not absolute or fixed
         parent_size    = kwargs.get('parent_size',    None)     # size of inside of parent
@@ -266,8 +236,8 @@ class UI_Layout:
         dw, dh = 0, 0
 
         if self._static_content_size:
-            # self has static content size
-            # self has no children
+            # self has static content size: images and text blocks
+
             dw, dh = self._static_content_size.size
 
             if self._src in {'image' ,'image loading'}:
@@ -287,6 +257,9 @@ class UI_Layout:
             # self has no static content, so flow and size is determined from children
             # note: will keep track of accumulated size and possibly update inside size as needed
             # note: style size overrides passed fitting size
+
+            # print(f'{self} {self._blocks}')
+
             if self._innerText is not None and self._whitespace in {'nowrap', 'pre'}:
                 inside_size.min_width = inside_size.width = inside_size.max_width = float('inf')
 
@@ -311,7 +284,7 @@ class UI_Layout:
                 # print(f'flatten {self} {display}')
                 return [block]
 
-            fitter = LineFitter(Box2D(left=mbp_left, top=mbp_top, width=working_width, height=working_height))
+            # fitter = LineFitter(left=mbp_left, top=mbp_top, width=working_width, height=working_height)
 
             accum_lines, accum_width, accum_height = [], 0, 0
             # accum_width: max width for all lines;  accum_height: sum heights for all lines
@@ -330,7 +303,7 @@ class UI_Layout:
                         remaining = Size2D(max_width=rw, max_height=rh)
                         pos = Point2D((mbp_left + cur_width, -(mbp_top + accum_height)))
                         element._layout(
-                            first_on_line=(not cur_line),
+                            # linefitter=fitter,
                             fitting_size=remaining,
                             fitting_pos=pos,
                             parent_size=inside_size,
@@ -449,7 +422,7 @@ class UI_Layout:
                 fitting_size = Size2D(max_width=self._document.body._dynamic_content_size.width, max_height=self._document.body._dynamic_content_size.height)
                 parent_size = self._document.body._dynamic_full_size
             element._layout(
-                first_on_line=True,
+                # linefitter=LineFitter(),
                 fitting_size=fitting_size,
                 fitting_pos=Point2D((0, 0)),
                 parent_size=parent_size,
@@ -462,6 +435,7 @@ class UI_Layout:
 
         self._dirtying_flow = False
         self._dirtying_children_flow = False
+
 
     @profiler.function
     def update_position(self):

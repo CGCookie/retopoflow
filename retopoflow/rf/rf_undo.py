@@ -85,6 +85,7 @@ class RetopoFlow_Undo:
         self._restore_state(self.undo.pop())
         self.instrument_write('undo')
         self.change_count += 1
+        self.rftool._reset()
 
     def undo_cancel(self):
         if not self.undo: return
@@ -98,6 +99,7 @@ class RetopoFlow_Undo:
         self._restore_state(self.redo.pop())
         self.instrument_write('redo')
         self.change_count += 1
+        self.rftool._reset()
 
     def undo_stack_actions(self):
         return [u['action'] for u in reversed(self.undo)]

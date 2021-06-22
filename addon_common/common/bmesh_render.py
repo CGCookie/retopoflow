@@ -363,7 +363,7 @@ class BufferedRender_Batch:
         self.set_options(self.options_prefix, opts)
         self._draw(1, 1, 1)
 
-        if mx or my or mz:
+        if opts['draw mirrored'] and (mx or my or mz):
             self.set_options('%s mirror' % self.options_prefix, opts)
             if mx:               self._draw(-1,  1,  1)
             if        my:        self._draw( 1, -1,  1)

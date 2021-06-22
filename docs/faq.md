@@ -34,3 +34,4 @@ If you have already started working on a target mesh, edit the origin as you wou
 ## Q: How do I continue working on a previous target?
 
 To continue working on a target mesh, select the target, switch to Edit Mode, then choose one of the RetopoFlow tools from the RetopoFlow menu.
+

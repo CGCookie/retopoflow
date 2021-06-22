@@ -1,25 +1,23 @@
-# RetopoFlow&nbsp;{{ site.data.options.rf_version }} Change List
+# RetopoFlow Change List
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.1.0&rarr;3.2.0
 
-## Version 2.x&rarr;3.x Notes
-
-In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
-Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
-
-Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x uses a similar workflow to RetopoFlow&nbsp;2.x.
-
-When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
-These windows allow you to switch between RF tools, set tool options, and get more information.
-Also, this one-time Welcome message will greet you.
-
-Below are more details about the current version of RetopoFlow.
-
-
-## Change List
-
-Below is a list of major changes.
+- Added builtin Keymap Editor (prototype)
+- Significantly improved performance of tools with large target meshes!
+- Target mesh visualization will now split (under the hood) when working on a small portion, improving feedback performance for some actions
+- Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
+- Added ability to hide/reveal target mesh geometry
+- Added button to recalculate normals in the Target Cleaning panel
+- Added ability to Collapse Edges & Faces from delete/dissolve/collapse menu
+- Tweak and Relax can now slide vertices along a boundary
+- New Plane Symmetry Visualization setting, which is now default for better performance
+- Added selection options to help with selecting hard-to-get vertices
+- Improved Updater System
+- General code cleanup and refactoring
+- Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.21)
+- Many bug fixes and UX improvements
 
 ### RetopoFlow 3.00.2&rarr;3.1.0
 
@@ -27,7 +25,7 @@ Below is a list of major changes.
 - Selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position
 - Tools are much more responsive when working on targets with high geometry counts
 - Loops, Tweak, and Relax now have quick shortcuts
-- The tools pie menu is now 'Q' as well as '~' to help reduce finger gymnastics
+- The tools pie menu is now `Q` as well as `~` to help reduce finger gymnastics
 - Major UI performance improvements from redesign and reimplementation of underlying UI system
 - Improved smart selection and added actions for selecting geometry along shortest path
 - Added button to push target vertices along normal before snapping to fix vertices snapping to inner source surfaces
@@ -76,14 +74,22 @@ Below is a list of major changes.
 - Works in Blender 2.8x and 2.9x
 - Fixed many issues
 
-
-
 ## Blender versions
 
 As of the time of this release, RetopoFlow has been tested to work well with Blender&nbsp;2.83&nbsp;(LTS)--2.92α.
 
 Note: This version of RetopoFlow will *not* work in Blender&nbsp;2.79b or earlier.
 
+## Version 2.x&rarr;3.x Notes
+
+In RetopoFlow&nbsp;2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
+Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.
+
+Although the underlying framework has changed significantly, RetopoFlow&nbsp;3.x uses a similar workflow to RetopoFlow&nbsp;2.x.
+
+When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
+These windows allow you to switch between RF tools, set tool options, and get more information.
+Also, this one-time Welcome message will greet you.
 
 ## New Framework
 
@@ -98,3 +104,4 @@ But with any unveiling on new things, there are new bugs and performance issues.
 Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
 We will need your help, though.
 If you notice a bug, please report it on the [Blender Market](https://blendermarket.com/products/retopoflow) or on [GitHub](https://github.com/CGCookie/retopoflow/issues).
+

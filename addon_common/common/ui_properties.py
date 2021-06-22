@@ -52,7 +52,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -575,9 +575,9 @@ class UI_Element_Properties:
                 print(f'>>>>>>>>> {self.width_pixels} {self.height_pixels}')
                 print(e)
                 w,h = 0,0
-            mymbph = self._mbp_height
+            mymbph = self._mbp_height or 0
             rw,rh = self._relative_element.width_pixels,self._relative_element.height_pixels
-            mbpw,mbph = self._relative_element._mbp_width,self._relative_element._mbp_height
+            mbpw,mbph = self._relative_element._mbp_width or 0,self._relative_element._mbp_height or 0
             # print(f'reposition: top={top} h={h} mymbp={mymbph} r={self._relative_element} rh={rh} rmbp={mbph} min={-(rh-mbph)+h+mymbph} max=0')
             if left is not None: left = clamp(left, 0, (rw - mbpw) - w)
             if top  is not None: top  = clamp(top, -(rh - mbph) + h + mymbph, 0)
@@ -1078,7 +1078,14 @@ class UI_Element_Properties:
         self.update_document()
 
     @property
-    def can_focus(self): return self._can_focus and self._tagName == 'input' and self._type in {'text', 'number'}
+    def can_focus(self):
+        if self._can_focus is not None: return bool(self._can_focus)
+        if self._tagName == 'input' and self._type in {'text', 'number'}: return True
+        if self._forId:
+            f = self.get_for_element()
+            if f: return f.can_focus
+        return False
+        # return (self._can_focus is None and self._tagName == 'input' and self._type in {'text', 'number'}) or bool(self._can_focus)
     @can_focus.setter
     def can_focus(self, v): self._can_focus = v
 
@@ -1101,6 +1108,9 @@ class UI_Element_Properties:
         offset = m['offset']
         pre = m['pre']
         tw = Globals.drawing.get_text_width(pre, fontsize=self._fontsize, fontid=self._fontid)
+        if e._relative_pos is None: return None
+        if e._relative_offset is None: return None
+        if e._scroll_offset is None: return None
         e_pos = e._relative_pos + e._relative_offset + e._scroll_offset + RelPoint2D((tw, 0))
         return e_pos
 

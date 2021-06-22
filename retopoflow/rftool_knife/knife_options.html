@@ -4,13 +4,13 @@
         <div class="collection">
             <h1>Automerge</h1>
             <div class="contents">
-                <label title="If enabled, grabbed vertices automatically merged with nearby vertices">
-                    <input type="checkbox" checked="BoundBool('''options['knife automerge']''')">
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['knife automerge']''')" title="If enabled, grabbed vertices automatically merged with nearby vertices">
                     Enable Automerge
                 </label>
                 <div class="labeled-input-text">
-                    <label title="Pixel distance for merging and snapping">Merge distance</label>
-                    <input type="number" value="BoundInt( '''options['knife merge dist'] ''')">
+                    <label for="knife-merge-distance">Merge distance</label>
+                    <input id="knife-merge-distance" type="number" value="BoundInt( '''options['knife merge dist'] ''')" title="Pixel distance for merging and snapping">
                 </div>
             </div>
         </div>
@@ -18,8 +18,8 @@
             <h1>Knife Options</h1>
             <div class="contents">
                 <div class="labeled-input-text">
-                    <label title="Pixel distance for snapping">Snap distance</label>
-                    <input type="number" value="BoundInt( '''options['knife snap dist'] ''')">
+                    <label for="knife-snap-distance">Snap distance</label>
+                    <input id="knife-snap-distance" type="number" value="BoundInt( '''options['knife snap dist'] ''')" title="Pixel distance for snapping">
                 </div>
             </div>
         </div>

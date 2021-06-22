@@ -21,3 +21,6 @@ Choose one of the releases then click the "Load" button to download and install 
 ![](addon_updater_system.png)
 
 If you wish to try a specific branch or commit, specify the branch or commit hash in the "Advanced: Commit / Branch" text box, then click the "Load" button.
+
+![](addon_updater_advanced.png)
+

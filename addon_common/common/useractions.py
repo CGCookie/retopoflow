@@ -26,40 +26,12 @@ from copy import deepcopy
 
 import bpy
 
-from .human_readable import convert_actions_to_human_readable
+from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
 from .maths import Point2D, Vec2D
 from .debug import dprint
 from .decorators import blender_version_wrapper
 from . import blender_preferences as bprefs
 
-
-# https://www.w3schools.com/jsref/tryit.asp?filename=tryjsref_event_key_keycode2
-
-kmi_to_keycode = {
-    'BACK_SPACE':    8,
-    'RET':          13,
-    'NUMPAD_ENTER': 13,
-    'ESC':          27,
-    'END':          35,
-    'HOME':         36,
-    'LEFT_ARROW':   37,
-    'RIGHT_ARROW':  39,
-    'DEL':          46,
-}
-
-keycode_to_kmi = {
-     8: {'BACK_SPACE'},
-    13: {'RET', 'NUMPAD_ENTER'},
-    27: {'ESC'},
-    35: {'END'},
-    36: {'HOME'},
-    37: {'LEFT_ARROW'},
-    39: {'RIGHT_ARROW'},
-    46: {'DEL'},
-}
-
-def is_keycode(keycode, kmi):
-    return keycode == kmi_to_keycode[kmi]
 
 kmi_to_char = {
     'ZERO':   '0', 'NUMPAD_0':       '0',
@@ -116,6 +88,16 @@ kmi_to_char = {
     'SHIFT+Q':'Q', 'SHIFT+R':'R', 'SHIFT+S':'S', 'SHIFT+T':'T',
     'SHIFT+U':'U', 'SHIFT+V':'V', 'SHIFT+W':'W', 'SHIFT+X':'X',
     'SHIFT+Y':'Y', 'SHIFT+Z':'Z',
+
+    'ESC': 'Escape',
+    'BACK_SPACE': 'Backspace',
+    'RET': 'Enter', 'NUMPAD_ENTER': 'Enter',
+    'HOME': 'Home', 'END': 'End',
+    'LEFT_ARROW': 'ArrowLeft', 'RIGHT_ARROW': 'ArrowRight',
+    'UP_ARROW': 'ArrowUp', 'DOWN_ARROW': 'ArrowDown',
+    'PAGE_UP': 'PageUp', 'PAGE_DOWN': 'PageDown',
+    'DEL': 'Delete',
+    'TAB': 'Tab',
 }
 
 
@@ -422,7 +404,7 @@ class Actions:
         if event_type in self.ignore_actions: return
 
         if print_actions and event_type not in self.nonprintable_actions:
-            print('Actions.update: (event_type, event.value) =', (event_type, event.value))
+            print(f'Actions.update: event_type:{event_type}, event.value:{event.value}')
 
         if self.timer:
             time_cur = time.time()
@@ -505,7 +487,7 @@ class Actions:
             self.mousedown_drag = False
 
         if print_actions and event_type not in self.nonprintable_actions:
-            print('Actions.update: (ftype, pressed) =', (ftype, pressed), self.just_pressed, self.now_pressed, self.last_pressed)
+            print(f'Actions.update: ftype:{ftype}, pressed:{pressed}, just_pressed:{self.just_pressed}, now_pressed:{self.now_pressed}, last_pressed: {self.last_pressed}')
 
     def convert(self, actions):
         t = type(actions)
@@ -518,10 +500,14 @@ class Actions:
             ret |= (self.keymap.get(action, set()) | self.keymap2.get(action, set())) or { action }
         return ret
 
-    def to_human_readable(self, actions, join=',', onlyfirst=None):
-        if type(actions) is str: actions = {actions}
-        actions = { act for action in actions for act in self.convert(action) }
-        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst)
+    def to_human_readable(self, actions, join=',', onlyfirst=None, visible=False):
+        if type(actions) is str: actions = [actions]
+        actions = [ act for action in actions for act in self.convert(action) ]
+        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst, visible=visible)
+
+    def from_human_readable(self, actions):
+        if type(actions) is str: actions = [actions]
+        return convert_human_readable_to_actions(actions)
 
 
     def unuse(self, actions):
@@ -559,14 +545,25 @@ class Actions:
             for p in self.now_pressed.values()
         )
 
-    def using_onlymods(self, actions):
+    def using_onlymods(self, actions, exact=True):
         if actions is None: return False
         def action_good(action):
-            for p in action.split('+'):
-                if p == 'CTRL' and not self.ctrl: return False
-                if p == 'SHIFT' and not self.shift: return False
-                if p == 'ALT' and not self.alt: return False
-            return True
+            nonlocal exact
+            act_c = 'CTRL+' in action
+            act_s = 'SHIFT+' in action
+            act_a = 'ALT+' in action
+            # act_o = 'OSKEY+' in action
+            ret = True
+            if exact:
+                ret &= act_c == self.ctrl
+                ret &= act_s == self.shift
+                ret &= act_a == self.alt
+            else:
+                ret &= not act_c or self.ctrl
+                ret &= not act_s or self.shift
+                ret &= not act_a or self.alt
+            #print(f'{exact}: {act_c} {act_s} {act_a}  {self.ctrl} {self.shift} {self.alt} = {ret}')
+            return ret
         return any(action_good(action) for action in self.convert(actions))
 
     def navigating(self):
@@ -581,11 +578,11 @@ class Actions:
         if not self.just_pressed: return False
         if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
         if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
-        if debug: print('Actions.pressed 0: actions =', actions)
+        if debug: print(f'Actions.pressed 0: actions={actions}')
         actions = self.convert(actions)
-        if debug: print('Actions.pressed 1: actions =', actions)
+        if debug: print(f'Actions.pressed 1: actions={actions}')
         just_pressed = strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
-        if debug: print('Actions.pressed 2: just_pressed =', just_pressed, self.just_pressed, ', actions =', actions)
+        if debug: print(f'Actions.pressed 2: just_pressed={just_pressed}, self.just_pressed={self.just_pressed}, actions={actions}')
         if not just_pressed: return False
         ret = just_pressed in actions
         if ret and unpress: self.unpress()
@@ -607,9 +604,8 @@ class Actions:
         return 0 <= mx < sx and 0 <= my < sy
 
     def as_char(self, ftype):
-        if ftype is None: return ''
         #assert ftype in kmi_to_char, 'Trying to convert unhandled key "%s"' % str(self.just_pressed)
-        return kmi_to_char.get(ftype, None)
+        return kmi_to_char.get(ftype, '')
 
     def start_timer(self, hz, enabled=True):
         return TimerHandler(self.context.window_manager, self.context.window, hz, enabled=enabled)

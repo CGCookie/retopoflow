@@ -80,20 +80,54 @@ class RetopoFlow_Drawing:
         # bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
-            # get frame of target, used for symmetry decorations on sources
-            ft = self.rftarget.get_frame()
-            # render sources
-            for rs,rfs in zip(self.rfsources, self.rfsources_draw):
-                rfs.draw(
-                    view_forward, self.unit_scaling_factor,
-                    buf_matrix_target, buf_matrix_target_inv,
-                    buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                    1.00, 0.05, False, 0.5,
-                    symmetry=self.rftarget.mirror_mod.xyz,
-                    symmetry_view=options['symmetry view'],
-                    symmetry_effect=options['symmetry effect'],
-                    symmetry_frame=ft,
-                )
+            if options['symmetry view'] in {'Edge', 'Face'}:
+                # get frame of target, used for symmetry decorations on sources
+                ft = self.rftarget.get_frame()
+                # render sources
+                for rs,rfs in zip(self.rfsources, self.rfsources_draw):
+                    rfs.draw(
+                        view_forward, self.unit_scaling_factor,
+                        buf_matrix_target, buf_matrix_target_inv,
+                        buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
+                        1.00, 0.05, False, 0.5,
+                        False,
+                        symmetry=self.rftarget.mirror_mod.xyz,
+                        symmetry_view=options['symmetry view'],
+                        symmetry_effect=options['symmetry effect'],
+                        symmetry_frame=ft,
+                    )
+            elif options['symmetry view'] == 'Plane':
+                # draw symmetry planes
+                bgl.glEnable(bgl.GL_DEPTH_TEST)
+                bgl.glDepthFunc(bgl.GL_LEQUAL)
+                bgl.glDisable(bgl.GL_CULL_FACE)
+                drawing = Globals.drawing
+                a = pow(options['symmetry effect'], 2.0) # fudge this value, because effect is different with plane than edge/face
+                r = (1.0, 0.2, 0.2, a)
+                g = (0.2, 1.0, 0.2, a)
+                b = (0.2, 0.2, 1.0, a)
+                w2l = self.rftarget_draw.rfmesh.xform.w2l_point
+                l2w = self.rftarget_draw.rfmesh.xform.l2w_point
+                # for rfs in self.rfsources:
+                #     corners = [self.Point_to_Point2D(l2w(p)) for p in rfs.get_local_bbox(w2l).corners]
+                #     drawing.draw2D_lines(corners, (1,1,1,1))
+                corners = [ c for s in self.rfsources for c in s.get_local_bbox(w2l).corners ]
+                mx, Mx = min(c.x for c in corners), max(c.x for c in corners)
+                my, My = min(c.y for c in corners), max(c.y for c in corners)
+                mz, Mz = min(c.z for c in corners), max(c.z for c in corners)
+                cx, cy, cz = mx + (Mx - mx) / 2, my + (My - my) / 2, mz + (Mz - mz) / 2
+                mx, Mx = cx + (mx - cx) * 1.2, cx + (Mx - cx) * 1.2
+                my, My = cy + (my - cy) * 1.2, cy + (My - cy) * 1.2
+                mz, Mz = cz + (mz - cz) * 1.2, cz + (Mz - cz) * 1.2
+                if self.rftarget.mirror_mod.x:
+                    quad = [ l2w(Point((0, my, mz))), l2w(Point((0, my, Mz))), l2w(Point((0, My, Mz))), l2w(Point((0, My, mz))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [r, r, r, r, r, r])
+                if self.rftarget.mirror_mod.y:
+                    quad = [ l2w(Point((mx, 0, mz))), l2w(Point((mx, 0, Mz))), l2w(Point((Mx, 0, Mz))), l2w(Point((Mx, 0, mz))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [g, g, g, g, g, g])
+                if self.rftarget.mirror_mod.z:
+                    quad = [ l2w(Point((mx, my, 0))), l2w(Point((mx, My, 0))), l2w(Point((Mx, My, 0))), l2w(Point((Mx, my, 0))) ]
+                    drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [b, b, b, b, b, b])
 
         # render target
         # bgl.glEnable(bgl.GL_MULTISAMPLE)
@@ -108,7 +142,8 @@ class RetopoFlow_Drawing:
                 view_forward, self.unit_scaling_factor,
                 buf_matrix_target, buf_matrix_target_inv,
                 buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                alpha_above, alpha_below, cull_backfaces, alpha_backface
+                alpha_above, alpha_below, cull_backfaces, alpha_backface,
+                True
             )
 
     @CookieCutter.Draw('post3d')

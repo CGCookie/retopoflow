@@ -38,6 +38,7 @@ Each option is below, along with setting and description.
 |  |  |  |
 | --- | --- | --- |
 | Exclude  | : | Tweak vertices not along boundary |
+| Slide    | : | Tweak vertices along boundary, but move them by sliding along boundary |
 | Include  | : | Tweak all vertices within brush, regardless of being along boundary |
 
 ### Symmetry
@@ -45,7 +46,7 @@ Each option is below, along with setting and description.
 |  |  |  |
 | --- | --- | --- |
 | Exclude  | : | Tweak vertices not along symmetry plane |
-| Maintain | : | Tweak vertices along symmetry plane, but keep them on symmetry plane |
+| Slide    | : | Tweak vertices along symmetry plane, but move them by sliding along symmetry plane |
 | Include  | : | Tweak all vertices within brush, regardless of being along symmetry plane |
 
 ### Hidden

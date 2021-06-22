@@ -40,7 +40,7 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }}         | : | delete/dissolve selected |
+| {{ site.data.keymaps.delete }}         | : | delete/dissolve/collapse selected |
 
 
 ## Span Insertion Modes
@@ -67,3 +67,4 @@ Creating geometry is dependent on your selection:
 Note: only edges on boundary of target are considered in selection.
 
 If stroke starts or ends on existing vertex, the Strokes tool will try to bridge the extruded geometry.
+

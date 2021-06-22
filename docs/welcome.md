@@ -30,7 +30,7 @@ We have added buttons to error messages that open the issue tracker in your defa
 Our small team works hard at making RetopoFlow the best retopology tool you can find. We want to know how RetopoFlow has benefited you in your work! Please consider doing the following:
 
 - Purchase a copy of RetopoFlow on the [Blender Market](https://blendermarket.com/products/retopoflow) to help fund future developments.
-- Give us a [rating](https://blendermarket.com/products/retopoflow/ratings) with comments on the Blender Market. (requires purchasing a copy through Blender Market)
+- Give us a [rating](https://blendermarket.com/products/retopoflow/ratings#new_product_rating) with comments on the Blender Market. (requires purchasing a copy through Blender Market)
 - Follow our development on [Twitter](https://twitter.com/RetopoFlow).
 - Consider [donating](https://paypal.me/gfxcoder/) to our drink funds :)
 
@@ -60,5 +60,7 @@ Cheers!
 
 <br>
 ---The CG Cookie Tool Development Team
+
+
 
 

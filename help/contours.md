@@ -48,7 +48,7 @@ You may draw strokes in any order, from any direction.
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}}         | : | delete/dissolve selected |
+| {{delete}}         | : | delete/dissolve/collapse selected |
 
 ## Tips
 

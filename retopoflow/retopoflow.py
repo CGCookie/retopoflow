@@ -40,6 +40,7 @@ from .rf.rf_states        import RetopoFlow_States
 from .rf.rf_target        import RetopoFlow_Target
 from .rf.rf_tools         import RetopoFlow_Tools
 from .rf.rf_ui            import RetopoFlow_UI
+from .rf.rf_ui_alert      import RetopoFlow_UI_Alert
 from .rf.rf_undo          import RetopoFlow_Undo
 from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
 
@@ -134,6 +135,7 @@ class RetopoFlow(
     RetopoFlow_Target,
     RetopoFlow_Tools,
     RetopoFlow_UI,
+    RetopoFlow_UI_Alert,
     RetopoFlow_Undo,
     RetopoFlow_UpdaterSystem,
 ):
@@ -250,7 +252,7 @@ class RetopoFlow(
         print('RetopoFlow: setting up scaling factor')
         self.unit_scaling_factor = self.get_unit_scaling_factor()
         print('Unit scaling factor:', self.unit_scaling_factor)
-        self.scale_to_unit_box()
+        self.scale_to_unit_box(clip_override=options['clip override'], clip_start=options['clip start override'], clip_end=options['clip end override'])
 
         self.setup_ui_blender()
         self.reload_stylings()

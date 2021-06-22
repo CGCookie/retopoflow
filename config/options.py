@@ -47,8 +47,8 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.1.0'
-retopoflow_version_tuple = (3, 1, 0)
+retopoflow_version = '3.2.0'  #β
+retopoflow_version_tuple = (3, 2, 0)
 
 retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
 retopoflow_issues_url        = "https://github.com/CGCookie/retopoflow/issues"
@@ -122,6 +122,7 @@ class Options:
         'backup_filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
         'quickstart_filename':  'RetopoFlow_quickstart',
         'profiler_filename':    'RetopoFlow_profiler.txt',
+        'keymaps filename':     'RetopoFlow_keymaps.json',
         'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
         'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 
@@ -147,7 +148,7 @@ class Options:
         'show main window':     True,   # True: show main window; False: show tiny
         'show options window':  True,   # show options window
         'show geometry window': True,   # show geometry counts window
-        'tools autohide': True,         # should tool's options auto-hide/-show when switching tools?
+        'tools autohide':       True,   # should tool's options auto-hide/-show when switching tools?
 
         # DEBUGGING SETTINGS
         'profiler':             False,  # enable profiler?
@@ -159,10 +160,6 @@ class Options:
         'tooltip delay':        0.75,
         'escape to quit':       False,  # True:ESC is action for quitting
         'confirm tab quit':     True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
-
-        # TODO: USE THE REPEAT KEY EVENTS INSTEAD (BASED ON SYSTEM SETTINGS)
-        'keyboard repeat delay': 0.25,  # delay before repeating
-        'keyboard repeat pause': 0.10,  # pause between repeats
 
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
@@ -176,24 +173,43 @@ class Options:
         'push and snap distance': 0.1,          # distance to push vertices out along normal before snapping back to source surface
 
         # VISIBILITY TEST TUNING PARAMETERS
-        'visible bbox factor':  0.001,          # rf_sources.visibility_preset_*
-        'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
+        'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
+        'visible dist offset':  0.1,         # rf_sources.visibility_preset_*
+        'selection occlusion test': True,       # True: do not select occluded geometry
+        'selection backface test':  True,       # True: do not select geometry that is facing away
+
+        'clip override':        True,   # True: override with below values; False: scale by unit scale factor
+        'clip start override':  0.05,
+        'clip end override':    200.0,
 
         # VISUALIZATION SETTINGS
-        'warn non-manifold':        True,       # visualize non-manifold warnings
-        'hide overlays':            True,       # hide overlays (wireframe, grid, axes, etc.)
-        'color theme':              'Green',
-        'symmetry view':            'Edge',
-        'symmetry effect':          0.5,
-        'normal offset multiplier': 1.0,
-        'constrain offset':         True,
-        'ui scale':                 1.0,
-        'target vert size':         4.0,
-        'target edge size':         1.0,
-        'target alpha':             1.00,
-        'target hidden alpha':      0.02,
-        'target alpha backface':    0.2,
-        'target cull backfaces':    False,
+        'warn non-manifold':               True,       # visualize non-manifold warnings
+        'hide overlays':                   True,       # hide overlays (wireframe, grid, axes, etc.)
+        'override shading':                'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
+        'shading view':                    'SOLID',
+        'shading light':                   'MATCAP',
+        'shading matcap light':            'basic_1.exr',
+        'shading matcap dark':             'basic_dark.exr',
+        'shading colortype':               'SINGLE',
+        'shading color light':             [0.5, 0.5, 0.5],
+        'shading color dark':              [0.9, 0.9, 0.9],
+        'shading backface culling':        True,
+        'shading xray':                    False,
+        'shading shadows':                 False,
+        'shading cavity':                  False,
+        'shading outline':                 False,
+        'color theme':                     'Green',
+        'symmetry view':                   'Edge',
+        'symmetry effect':                 0.5,
+        'normal offset multiplier':        1.0,
+        'constrain offset':                True,
+        'ui scale':                        1.0,
+        'target vert size':                4.0,
+        'target edge size':                1.0,
+        'target alpha':                    1.00,
+        'target hidden alpha':             0.02,
+        'target alpha backface':           0.2,
+        'target cull backfaces':           False,
         'target alpha poly':                  0.65,
         'target alpha poly selected':         0.75,
         'target alpha poly warning':          0.25,
@@ -235,6 +251,7 @@ class Options:
         'contours non-manifold check':  True,
 
         'polystrips radius':            40,
+        'polystrips below alpha':       0.6,
         'polystrips scale falloff':     0.93,
         'polystrips draw curve':        False,
         'polystrips max strips':        10,     # PS will not show handles if knot count is above max
@@ -244,9 +261,12 @@ class Options:
         'polystrips handle border':     3,
 
         'strokes radius':               40,
+        'strokes below alpha':          0.6,
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
         'strokes snap stroke':          True,       # should stroke snap to unselected geometry?
+        'strokes merge dist':           10,         # pixels away to merge
+        'strokes automerge':            True,
 
         'knife automerge':              True,
         'knife merge dist':             10,         # pixels away to merge
@@ -259,10 +279,11 @@ class Options:
         'relax radius':                 50,
         'relax falloff':                1.5,
         'relax strength':               0.5,
+        'relax below alpha':            0.6,
         'relax algorithm':              '3D',
         'relax mask boundary':          'include',
         'relax mask symmetry':          'maintain',
-        'relax mask hidden':            'exclude',
+        'relax mask occluded':          'exclude',
         'relax mask selected':          'all',
         'relax steps':                  2,
         'relax force multiplier':       1.5,
@@ -292,9 +313,10 @@ class Options:
         'tweak radius':                 50,
         'tweak falloff':                1.5,
         'tweak strength':               0.5,
+        'tweak below alpha':            0.6,
         'tweak mask boundary':          'include',
         'tweak mask symmetry':          'maintain',
-        'tweak mask hidden':            'exclude',
+        'tweak mask occluded':          'exclude',
         'tweak mask selected':          'all',
         'tweak preset 1 name':         'Preset 1',
         'tweak preset 1 radius':        50,
@@ -377,8 +399,6 @@ class Options:
         # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
         Profiler.set_profiler_filename(self.get_path('profiler_filename'))
         Drawing.set_custom_dpi_mult(self['ui scale'])
-        UI_Document.key_repeat_delay = self['keyboard repeat delay']
-        UI_Document.key_repeat_pause = self['keyboard repeat pause']
         UI_Document.show_tooltips = self['show tooltips']
         UI_Document.tooltip_delay = self['tooltip delay']
         self.call_callbacks()

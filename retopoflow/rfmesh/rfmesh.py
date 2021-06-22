@@ -30,7 +30,7 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
     dissolve_verts, dissolve_edges, dissolve_faces,
-    remove_doubles, mirror
+    remove_doubles, mirror, recalc_face_normals
 )
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -81,7 +81,7 @@ class RFMesh():
         bme = bmesh.new()
         if deform:
             depsgraph = bpy.context.evaluated_depsgraph_get()
-            bme.from_object(obj, depsgraph, deform=deform)
+            bme.from_object(obj, depsgraph)
         else:
             bme.from_mesh(obj.data)
         return bme
@@ -94,18 +94,19 @@ class RFMesh():
         selection=True, keepeme=False
     ):
         # checking for NaNs
+        # print('RFMesh.__setup__: checking for NaNs')
         hasnan = any(
             math.isnan(v)
             for emv in obj.data.vertices
             for v in emv.co
         )
         if hasnan:
-            print('Mesh data contains NaN in vertex coordinate!')
-            print('Cleaning mesh')
+            # print('RFMesh.__setup__: Mesh data contains NaN in vertex coordinate! Cleaning and validating mesh...')
             obj.data.validate(verbose=True, clean_customdata=False)
         else:
             # cleaning mesh quietly
             # print('skipping mesh validation')
+            # print('RFMesh.__setup__: validating')
             obj.data.validate(verbose=False, clean_customdata=False)
 
         # setup init
@@ -119,11 +120,11 @@ class RFMesh():
         if bme is not None:
             self.bme = bme
         else:
-            # print('creating bmesh from object')
+            # print('RFMesh.__setup__: creating bmesh from object')
             self.bme = self.get_bmesh_from_object(self.obj, deform=deform)
 
             if selection:
-                # print('copying selection')
+                # print('RFMesh.__setup__: copying selection')
                 with profiler.code('copying selection'):
                     self.bme.select_mode = {'FACE', 'EDGE', 'VERT'}
                     # copy selection from editmesh
@@ -137,15 +138,15 @@ class RFMesh():
                 self.deselect_all()
 
         if triangulate:
-            # print('triangulating')
+            # print('RFMesh.__setup__: triangulating')
             self.triangulate()
 
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()
-        # print('dirtying')
+        # print('RFMesh.__setup__: dirtying')
         self.dirty()
-        # print('done')
+        # print('RFMesh.__setup__: done')
 
     def __del__(self):
         RFMesh.delete_count += 1
@@ -192,9 +193,20 @@ class RFMesh():
     def get_bbox(self):
         ver = self.get_version(selection=False)
         if not hasattr(self, 'bbox') or self.bbox_version != ver:
-            self.bbox = BBox(from_bmverts=self.bme.verts)
+            self.bbox = BBox(from_object=self.obj, xform_point=self.l2w_point)
             self.bbox_version = ver
         return self.bbox
+
+    @profiler.function
+    def get_local_bbox(self, w2l_point):
+        ver = self.get_version(selection=False)
+        if not hasattr(self, 'local_bbox') or self.local_bbox_version != ver or self.local_w2l_point != w2l_point:
+            fn = lambda p: w2l_point(self.l2w_point(p))
+            # self.local_bbox = BBox(from_bmverts=self.bme.verts, xform_point=fn)
+            self.local_bbox = BBox(from_object=self.obj, xform_point=fn)
+            self.local_bbox_version = ver
+            self.local_w2l_point = w2l_point
+        return self.local_bbox
 
     @profiler.function
     def get_kdtree(self):
@@ -284,7 +296,7 @@ class RFMesh():
     @profiler.function
     def triangulate(self):
         faces = [face for face in self.bme.faces if len(face.verts) != 3]
-        dprint('%d non-triangles' % len(faces))
+        # print('RFMesh.triangulate: found %d non-triangles' % len(faces))
         bmesh.ops.triangulate(self.bme, faces=faces)
 
     @profiler.function
@@ -330,14 +342,13 @@ class RFMesh():
             for bmf in bme.link_faces
         }
         # intersections
-        intersection = [
+        yield from (
             (l2w_point(p0), l2w_point(p1))
             for bmf in faces
             for (p0, p1) in triangle_intersection([
                 bmv.co for bmv in bmf.verts
             ])
-        ]
-        return intersection
+        )
 
     def get_xy_plane(self):
         o = self.xform.l2w_point(Point((0, 0, 0)))
@@ -654,8 +665,8 @@ class RFMesh():
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
         if p is None: return (None,None,None,None)
-        if not self.get_bbox().Point_within(p, margin=1):
-            return (None,None,None,None)
+        #if not self.get_bbox().Point_within(p, margin=1):
+        #    return (None,None,None,None)
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
         return (p_w,n_w,i,d_w)
@@ -693,9 +704,9 @@ class RFMesh():
 
     def nearest_bmvert_Point(self, point:Point, verts=None):
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         point_local = self.xform.w2l_point(point)
         bv,bd = None,None
         for bmv in verts:
@@ -708,8 +719,9 @@ class RFMesh():
         nearest = []
         unwrap = bmverts is not None
         for bmv in (bmverts or self.bme.verts):
-            if unwrap: bmv = self._unwrap(bmv)
+            if bmv.hide: continue
             if not bmv.is_valid: continue
+            if unwrap: bmv = self._unwrap(bmv)
             bmv_world = self.xform.l2w_point(bmv.co)
             d3d = (bmv_world - point).length
             if d3d > dist3d: continue
@@ -718,9 +730,9 @@ class RFMesh():
 
     def nearest_bmedge_Point(self, point:Point, edges=None):
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in self.bme.edges:
@@ -739,6 +751,7 @@ class RFMesh():
         nearest = []
         for bme in self.bme.edges:
             if not bme.is_valid: continue
+            if bme.hide: continue
             bmv0,bmv1 = l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)
             diff = bmv1 - bmv0
             l = diff.length
@@ -753,9 +766,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         nearest = []
         for bmv in verts:
             p2d = Point_to_Point2D(self.xform.l2w_point(bmv.co))
@@ -770,9 +783,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if verts is None:
-            verts = [bmv for bmv in self.bme.verts if bmv.is_valid]
+            verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
-            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid]
+            verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
         l2w_point = self.xform.l2w_point
         bv,bd = None,None
         for bmv in verts:
@@ -788,9 +801,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         nearest = []
         dist2D2 = dist2D**2
@@ -812,9 +825,9 @@ class RFMesh():
     def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2D, edges=None, shorten=0.01, max_dist=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid]
+            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid]
+            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
         l2w_point = self.xform.l2w_point
         be,bd,bpp = None,None,None
         for bme in edges:
@@ -840,9 +853,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
-            faces = [bmf for bmf in self.bme.faces if bmf.is_valid]
+            faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
-            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
         nearest = []
         for bmf in faces:
             pts = [Point_to_Point2D(self.xform.l2w_point(bmv.co)) for bmv in bmf.verts]
@@ -864,9 +877,9 @@ class RFMesh():
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
-            faces = [bmf for bmf in self.bme.faces if bmf.is_valid]
+            faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
-            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid]
+            faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
         bv,bd = None,None
         best_d = float('inf')
         best_f = None
@@ -891,8 +904,8 @@ class RFMesh():
         #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         if bmvs is None: bmvs = self.bme.verts
         is_vis = lambda bmv: (
-            is_visible(l2w_point(bmv.co), None) or
-            is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), None)
+            is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal)) or
+            is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), l2w_normal(bmv.normal))
         )
         return { bmv for bmv in bmvs if bmv.is_valid and not bmv.hide and is_vis(bmv) }
 
@@ -1577,7 +1590,12 @@ class RFTarget(RFMesh):
 
     def new_face(self, verts):
         # see if a face happens to exist already...
-        face_in_common = accumulate_last((set(v.link_faces) for v in verts), lambda s0,s1: s0 & s1)
+        face_in_common = accumulate_last(
+            (
+                set(f for f in v.link_faces if f.is_valid)
+                for v in verts if v.is_valid
+            ), lambda s0,s1: s0 & s1
+        )
         if face_in_common: return next(iter(face_in_common))
         verts = [self._unwrap(v) for v in verts]
         # make sure there are now duplicate verts (issue #957)
@@ -1594,6 +1612,40 @@ class RFTarget(RFMesh):
         edges = list(map(self._unwrap, edges))
         ret = holes_fill(self.bme, edges=edges, sides=sides)
         print('RetopoFlow holes_fill', ret)
+
+
+    def collapse_edges_faces(self, nearest):
+        # find all connected components
+        # for each component:
+        #     compute average vert position
+        #     merge all selected verts to point located at average
+        verts = set(self.get_selected_verts())
+        edges = set(self.get_selected_edges())
+        faces = set(self.get_selected_faces())
+        remaining = set(verts)
+        while remaining:
+            working = set()
+            working_next = set([ next(iter(remaining)) ])
+            while working_next:
+                v = working_next.pop()
+                if v not in remaining: continue
+                remaining.remove(v)
+                working.add(v)
+                for e in v.link_edges:
+                    if e not in edges: continue
+                    working_next |= {v_ for v_ in e.verts if v_ in remaining}
+                for f in v.link_faces:
+                    if f not in faces: continue
+                    working_next |= {v_ for v_ in f.verts if v_ in remaining}
+            average = Point.average([v.co for v in working])
+            p, n, _, _ = nearest(average)
+            bmv = self.new_vert(p, n)
+            for v in working:
+                bmv = bmv.merge_robust(v)
+            bmv.co = p
+            bmv.normal = n
+            bmv.select = True
+
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         if del_faces:
@@ -1718,23 +1770,32 @@ class RFTarget(RFMesh):
                 if check: break
         return mapping
 
-    def snap_all_verts(self, nearest):
+    def snap_verts_filter(self, nearest, fn_filter):
+        '''
+        snap verts when fn_filter returns True
+        '''
         for v in self.get_verts():
+            if not fn_filter(v): continue
             xyz,norm,_,_ = nearest(v.co)
             v.co = xyz
             v.normal = norm
         self.dirty()
+
+#    def snap_all_verts(self, nearest):
+#        self.snap_verts_filter(nearest, lambda _: True)
+
+    def snap_all_nonhidden_verts(self, nearest):
+        self.snap_verts_filter(nearest, lambda v: not v.hide)
 
     def snap_selected_verts(self, nearest):
-        for v in self.get_verts():
-            if not v.select: continue
-            xyz,norm,_,_ = nearest(v.co)
-            v.co = xyz
-            v.normal = norm
-        self.dirty()
+        self.snap_verts_filter(nearest, lambda v: v.select)
+
+#     def snap_unselected_verts(self, nearest):
+#         self.snap_verts_filter(nearest, lambda v: v.unselect)
 
     def remove_all_doubles(self, dist):
-        remove_doubles(self.bme, verts=self.bme.verts, dist=dist)
+        bmv = [v for v in self.bme.verts if not v.hide]
+        remove_doubles(self.bme, verts=bmv, dist=dist)
         self.dirty()
 
     def remove_selected_doubles(self, dist):
@@ -1750,3 +1811,9 @@ class RFTarget(RFMesh):
             bmv.normal_update()
         self.dirty()
 
+    def recalculate_face_normals(self):
+        verts = [bmv for bmv in self.bme.verts if bmv.select]
+        recalc_face_normals(self.bme, faces=[bmf for bmf in self.bme.faces if bmf.select])
+        for bmv in verts:
+            bmv.normal_update()
+        self.dirty()

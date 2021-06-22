@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import time
+from struct import pack
 from hashlib import md5
 
 import bpy
@@ -29,15 +30,20 @@ from mathutils import Vector, Matrix
 from .maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
-    Ray, XForm, BBox, Plane
+    Ray, XForm, BBox, Plane,
+    Color
 )
 
+
+known_hash_types = {
+    str, type(None), dict
+}
 
 class Hasher:
     def __init__(self, *args):
         self._hasher = md5()
         self._digest = None
-        self.add(args)
+        self.add(*args)
 
     def __iadd__(self, other):
         self.add(other)
@@ -53,19 +59,42 @@ class Hasher:
         list:   'list',
         tuple:  'tuple',
         set:    'set',
-        Vector: 'vector',
-        Matrix: 'matrix',
     }
     def add(self, *args):
         self._digest = None
         llt = Hasher.list_like_types
         for arg in args:
             t = type(arg)
-            if t in llt:
-                self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
+            if t is Vector:
+                self._hasher.update(bytes(f'Vector {len(arg)}', 'utf8'))
                 self.add(*arg)
-            else:
+            elif t is Matrix:
+                l0 = len(arg)
+                l1 = len(arg[0])
+                self._hasher.update(bytes(f'Matrix {l0} {l1}', 'utf8'))
+                self.add_list([v for r in arg for v in r])
+            elif t is Color:
+                self._hasher.update(bytes(f'Color', 'utf8'))
+                self.add_list([arg.r, arg.g, arg.b, arg.a])
+            elif t in llt:
+                self._hasher.update(bytes(f'{llt[t]} {len(arg)}', 'utf8'))
+                self.add_list(arg)
+            elif t is int:
+                self._hasher.update(pack('i', arg))
+            elif t is float:
+                self._hasher.update(pack('f', arg))
+            elif t is bool:
+                self._hasher.update(pack('b', arg))
+            elif t in known_hash_types:
                 self._hasher.update(bytes(str(arg), 'utf8'))
+            else:
+                # unknown type.  still works, but might want to know about it
+                # to handle special cases
+                # print(f'Hasher.add: {arg} {t}')
+                self._hasher.update(bytes(str(arg), 'utf8'))
+
+    def add_list(self, args):
+        for arg in args: self.add(arg)
 
     def get_hash(self):
         if self._digest is None:
@@ -75,6 +104,8 @@ class Hasher:
     def __eq__(self, other):
         if type(other) is not Hasher: return False
         return self.get_hash() == other.get_hash()
+    def __ne__(self, other):
+        return not (self == other)
 
 def hash_cycle(cycle):
     l = len(cycle)
@@ -92,13 +123,16 @@ def hash_object(obj:bpy.types.Object):
     if obj is None: return None
     assert type(obj) is bpy.types.Object, "Only call hash_object on mesh objects!"
     assert type(obj.data) is bpy.types.Mesh, "Only call hash_object on mesh objects!"
+    #print(f'hashing object {obj.name}')
+    t = time.time()
     # get object data to act as a hash
     me = obj.data
     counts = (len(me.vertices), len(me.edges), len(me.polygons), len(obj.modifiers))
-    if me.vertices:
-        bbox = (tuple(min(v.co for v in me.vertices)), tuple(max(v.co for v in me.vertices)))
-    else:
-        bbox = (None, None)
+    bbox = obj.bound_box
+    bbox = (
+        (min(c[0] for c in bbox), min(c[1] for c in bbox), min(c[2] for c in bbox)),
+        (max(c[0] for c in bbox), max(c[1] for c in bbox), max(c[2] for c in bbox)),
+    )
     vsum   = tuple(sum((v.co for v in me.vertices), Vector((0,0,0))))
     xform  = tuple(e for l in obj.matrix_world for e in l)
     mods = []
@@ -110,6 +144,8 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
+    #print(f'hash_object({obj.name}): {hashed}')
+    #print(f'  {time.time() - t}')
     return hashed
 
 def hash_bmesh(bme:BMesh):

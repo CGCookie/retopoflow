@@ -79,11 +79,19 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.cuts = []
         self.crawl_viz = [] # for debugging
         self.hovering_sel_edge = None
+        self.ui_initial_count = None
 
     @RFTool_Contours.on_target_change
+    #@RFTool_Contours.FSM_OnlyInState('main')
     def update_target(self):
         self.sel_edges = set(self.rfcontext.get_selected_edges())
         #sel_faces = self.rfcontext.get_selected_faces()
+
+        # disable initial count input box if anything is selected
+        if not self.ui_initial_count:
+            self.ui_initial_count = self.document.body.getElementById('contours-initial-count')
+        if self.ui_initial_count:
+            self.ui_initial_count.disabled = bool(self.sel_edges)
 
         # find verts along selected loops and strings
         sel_loops = find_loops(self.sel_edges)
@@ -433,6 +441,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             'mousedown': self.actions.mouse,
             'timer': self.actions.start_timer(120.0),
         }
+        self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Contours.FSM_State('grab')
@@ -453,6 +462,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         # if not self.rfcontext.actions.timer: return
 
         delta = Vec2D(self.actions.mouse - opts['mousedown'])
+        # print(f'contours.grab: {delta}')
         # self.crawl_viz = []
 
         raycast,project = self.rfcontext.raycast_sources_Point2D,self.rfcontext.Point_to_Point2D
@@ -506,6 +516,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     def grab_exit(self):
         self.grab_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
 
     @RFTool_Contours.FSM_State('rotate screen', 'can enter')
@@ -679,7 +690,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.Draw('post2d')
     def draw_post2d(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
-        is_visible = self.rfcontext.is_visible
+        is_visible = lambda p: self.rfcontext.is_visible(p, occlusion_test_override=True)
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D

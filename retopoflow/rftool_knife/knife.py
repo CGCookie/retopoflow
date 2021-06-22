@@ -141,7 +141,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
         if self.rfcontext.actions.pressed('knife reset'):
             self.knife_start = None
-            tag_redraw_all('reset knife')
+            self.rfcontext.deselect_all()
             return
 
         if self.rfcontext.actions.pressed({'select all', 'deselect all'}):
@@ -221,6 +221,11 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             if not sel: return
             if sel.select: self.rfcontext.deselect(sel, subparts=False)
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
+            return
+
+        if self.rfcontext.actions.pressed('knife reset'):
+            self.knife_start = None
+            self.rfcontext.deselect_all()
             return
 
         if self.actions.pressed('grab'):
@@ -410,7 +415,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             self.rfcontext.select(prev)
 
             for bmf in bmfs_to_shatter:
-                bmf.shatter()
+                if bmf: bmf.shatter()
 
             if (pre_p - self.actions.mouse).length <= self.rfcontext.drawing.scale(options['knife snap dist']):
                 self.knife_start = None
@@ -482,6 +487,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
             'timer': self.actions.start_timer(120),
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
         }
+        self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_Knife.FSM_State('move')
@@ -533,6 +539,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
     def move_exit(self):
         self.move_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
     def _get_crosses(self, p0, p1):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -612,7 +619,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if self._fsm.state != 'quick':
-            if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
+            if not self.actions.using_onlymods('insert'): return   #'insert alt1'??
         hit_pos = self.actions.hit_pos
 
         if self.knife_start is None and len(self.sel_verts) == 0:

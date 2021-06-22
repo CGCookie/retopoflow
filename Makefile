@@ -16,9 +16,12 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 NAME            = RetopoFlow
-VERSION         = v3.1.0
-GIT_TAG         = "v3.1.0"
-GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.1.0."
+# VERSION         = v3.2.0-beta
+VERSION         = v3.2.0
+GIT_TAG         = "v3.2.0"
+# GIT_TAG_MESSAGE = "This is the alpha release for RetopoFlow 3.1.1."
+# GIT_TAG_MESSAGE = "This is the beta release for RetopoFlow 3.2.0."
+GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.2.0."
 
 BUILD_DIR         = ../retopoflow_release
 INSTALL_DIR       = ~/.config/blender/addons
@@ -55,10 +58,20 @@ docs:
 	# rebuild online docs
 	python3 $(DOCS_REBUILD)
 
+docs-serve:
+	cd docs && bundle exec jekyll serve
+
+docs-clean:
+	cd docs && bundle exec jekyll clean
+
 check:
 	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
 	# most Windows setups have issues with these
 	./scripts/detect_filename_case_conflicts.py
+
+thumbnails:
+	# create thumbnails
+	cd help && python3 $(CREATE_THUMBNAILS)
 
 build: check
 	mkdir -p $(BUILD_DIR)

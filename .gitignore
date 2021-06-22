@@ -70,6 +70,9 @@ updater_tmp/*
 RetopoFlow_options
 RetopoFlow_options.json
 
+# RF Custom keymaps
+RetopoFlow_keymaps.json
+
 # RF backup file
 RetopoFlow_backup.blend
 
@@ -94,6 +97,8 @@ b290
 b291
 b292
 b293
+b293-lts
+b300
 
 # test models folder
 test-models

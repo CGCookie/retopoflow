@@ -6,11 +6,15 @@
             <div class='collection'>
                 <h1>Boundary</h1>
                 <div class='contents'>
-                    <label class='half-size'>
+                    <label class='third-size'>
                         <input type="radio" title='Relax vertices not along boundary' value='exclude' checked="BoundString('''options['relax mask boundary']''')" name='relax-boundary'>
                         Exclude
                     </label>
-                    <label class="half-size">
+                    <label class='third-size'>
+                        <input type="radio" title='Relax vertices along boundary, but move them by sliding along boundary' value='slide' checked="BoundString('''options['relax mask boundary']''')" name='relax-boundary'>
+                        Slide
+                    </label>
+                    <label class="third-size">
                         <input type="radio" title="Relax all vertices within brush, regardless of being along boundary" value='include' checked="BoundString('''options['relax mask boundary']''')" name='relax-boundary'>
                         Include
                     </label>
@@ -24,8 +28,8 @@
                         Exclude
                     </label>
                     <label class='third-size'>
-                        <input type="radio" title='Relax vertices along symmetry plane, but keep them on symmetry plane' value='maintain' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
-                        Maintain
+                        <input type="radio" title='Relax vertices along symmetry plane, but move them by sliding along symmetry plane' value='maintain' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
+                        Slide
                     </label>
                     <label class='third-size'>
                         <input type="radio" title='Relax all vertices within brush, regardless of being along symmetry plane' value='include' checked="BoundString('''options['relax mask symmetry']''')" name='relax-symmetry'>
@@ -34,14 +38,14 @@
                 </div>
             </div>
             <div class='collection'>
-                <h1>Hidden</h1>
+                <h1>Occluded</h1>
                 <div class='contents'>
                     <label class='half-size'>
-                        <input type="radio" title="Relax only visible vertices" value='exclude' checked="BoundString('''options['relax mask hidden']''')" name='relax-hidden'>
+                        <input type="radio" title="Relax only vertices not occluded by other geometry" value='exclude' checked="BoundString('''options['relax mask occluded']''')" name='relax-occluded'>
                         Exclude
                     </label>
                     <label class='half-size'>
-                        <input type="radio" title="Relax all vertices within brush, regardless of visibility" value='include' checked="BoundString('''options['relax mask hidden']''')" name='relax-hidden'>
+                        <input type="radio" title="Relax all vertices within brush, regardless of visibility" value='include' checked="BoundString('''options['relax mask occluded']''')" name='relax-occluded'>
                         Include
                     </label>
                 </div>

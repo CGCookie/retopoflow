@@ -85,7 +85,7 @@ class RetopoFlow_States(CookieCutter):
 
     def which_pie_menu_section(self):
         delta = self.actions.mouse - self.pie_menu_center
-        if delta.length < self.drawing.scale(50): return None
+        if delta.length < self.pie_menu_center_size / 2: return None
         count = len(self.pie_menu_options)
         clock_deg = (math.atan2(-delta.y, delta.x) * 180 / math.pi - self.pie_menu_rotation) % 360
         section = math.floor((clock_deg + 360 / count / 2) % 360 / (360 / count))
@@ -93,10 +93,10 @@ class RetopoFlow_States(CookieCutter):
 
     @CookieCutter.FSM_State('pie menu', 'enter')
     def pie_menu_enter(self):
-        size = 512
-        size_opt = 72
+        size,  size_opt,  size_center  = 512, 72, 100
+        size_, size_opt_, size_center_ = self.drawing.scale(size), self.drawing.scale(size_opt), self.drawing.scale(size_center)
         doc_h = self.document.body.height_pixels
-        centered = self.actions.mouse - Vec2D((size / 2, doc_h - size / 2)) - Vec2D((36, -36))
+        centered = self.actions.mouse - Vec2D((size_ / 2, doc_h - size_ / 2)) # - Vec2D((36, -36))
         ui_pie_menu_contents = self.ui_pie_menu.getElementById('pie-menu-contents')
         ui_pie_menu_contents.clear_children()
         ui_pie_menu_contents.style = f'left:{centered.x}px; top:{centered.y}px; width:{size}px; height:{size}px; border-radius:{int(size/2)}px; padding:{int(size/2)}px'
@@ -112,7 +112,7 @@ class RetopoFlow_States(CookieCutter):
             option.setdefault('image', '')
             self.pie_menu_options[i_option] = option['value']
             r = ((i_option / count) * 360 + self.pie_menu_rotation) * (math.pi / 180)
-            left, top = (size*0.40) * math.cos(r) - (size_opt/2), -((size*0.40) * math.sin(r) - (size_opt/2))
+            left, top = (size_*0.40) * math.cos(r) - (size_opt_/2), -((size_*0.40) * math.sin(r) - (size_opt_/2))
             ui = UI_Element.DIV(
                 style=f'left:{int(left)}px; top:{int(top)}px; width:{size_opt}px; height:{size_opt}px',
                 classes=f"pie-menu-option {'highlighted' if option['value'] == self.pie_menu_highlighted else ''}",
@@ -124,15 +124,15 @@ class RetopoFlow_States(CookieCutter):
             )
             self.ui_pie_sections.append(ui)
 
-        size_opt = 100
         UI_Element.DIV(
-            style=f'left:{-size_opt/2}px; top:{size_opt/2}px; width:{size_opt}px; height:{size_opt}px; border-radius:{size_opt/2}px',
+            style=f'left:{-size_center_/2}px; top:{size_center_/2}px; width:{size_center}px; height:{size_center}px; border-radius:{size_center/2}px',
             classes=f'pie-menu-center',
             parent=ui_pie_menu_contents,
         )
 
         self.ui_pie_menu.is_visible = True
         self.pie_menu_center = self.actions.mouse
+        self.pie_menu_center_size = size_center_
         self.pie_menu_mouse = self.actions.mouse
         self.document.focus(self.ui_pie_menu)
         self.document.force_clean(self.actions.context)
@@ -208,14 +208,14 @@ class RetopoFlow_States(CookieCutter):
                     self.ui_main.is_visible = False
                     self.ui_tiny.is_visible = False
                     self.ui_options.is_visible = False
-                    self.ui_geometry.is_visible = False
+                    if self.ui_geometry: self.ui_geometry.is_visible = False
                 else:
                     if self._reshow_main:
                         self.ui_main.is_visible = True
                     else:
                         self.ui_tiny.is_visible = True
                     self.ui_options.is_visible = self.ui_main.getElementById('show-options').disabled
-                    self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
+                    if self.ui_geometry: self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
                 return
 
             if self.actions.pressed('pie menu'):
@@ -302,7 +302,7 @@ class RetopoFlow_States(CookieCutter):
             if self.actions.pressed('delete pie menu'):
                 def callback(option):
                     if not option: return
-                    self.delete_dissolve_option(option)
+                    self.delete_dissolve_collapse_option(option)
                 self.show_pie_menu([
                     ('Delete Verts',   ('Delete',   'Vertices')),
                     ('Delete Edges',   ('Delete',   'Edges')),
@@ -310,6 +310,7 @@ class RetopoFlow_States(CookieCutter):
                     ('Dissolve Faces', ('Dissolve', 'Faces')),
                     ('Dissolve Edges', ('Dissolve', 'Edges')),
                     ('Dissolve Verts', ('Dissolve', 'Vertices')),
+                    # ('Collapse Edges & Faces', ('Collapse', 'Edges & Faces')),
                     #'Dissolve Loops',
                 ], callback, release='delete pie menu', always_callback=True, rotate=-60)
                 return
@@ -429,6 +430,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
+        self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('rotate selected')
@@ -467,6 +469,7 @@ class RetopoFlow_States(CookieCutter):
     def rotate_selected_exit(self):
         opts = self.rotate_selected_opts
         opts['timer'].done()
+        self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
 
@@ -491,6 +494,7 @@ class RetopoFlow_States(CookieCutter):
         opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
+        self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
     @CookieCutter.FSM_State('scale selected')
@@ -525,6 +529,7 @@ class RetopoFlow_States(CookieCutter):
     def scale_selected_exit(self):
         opts = self.scale_selected_opts
         opts['timer'].done()
+        self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
 

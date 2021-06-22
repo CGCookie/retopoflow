@@ -1,4 +1,8 @@
-<dialog class="framed moveable minimizeable" id="geometrydialog" on_visibilitychange="self.update_geometry_window_visibility()">
+<dialog class="framed moveable minimizeable" id="geometrydialog-minimized" on_toggle="self.restore_geometry_window(event.target)">
+    <h1>Poly Count</h1>
+</dialog>
+
+<dialog class="framed moveable minimizeable" id="geometrydialog" on_toggle="self.minimize_geometry_window(event.target)">
     <h1>Poly Count</h1>
     <div class="contents">
         <table>

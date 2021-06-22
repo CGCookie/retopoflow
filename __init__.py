@@ -32,15 +32,17 @@ from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
+# a hack to check if we're under git version control
+is_git = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version":     (3, 1, 0),
+    "version":     (3, 2, 0),
     "blender":     (2, 83, 0),
     "location":    "View 3D > Header",
-    # "warning":     "Release Candidate 2",  # used for warning icon and text in addons panel
-    "doc_url":     "https://github.com/CGCookie/retopoflow/",  # "http://docs.retopoflow.com",
+    # "warning":     "Beta", #"Release Candidate 2",  # used for warning icon and text in addons panel
+    "doc_url":     "https://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
 }
@@ -57,6 +59,7 @@ else:
             importlib.reload(retopoflow)
             importlib.reload(helpsystem)
             importlib.reload(updatersystem)
+            importlib.reload(keymapsystem)
             importlib.reload(configoptions)
             importlib.reload(updater)
             importlib.reload(rftool)
@@ -65,6 +68,7 @@ else:
             from .retopoflow import retopoflow
             from .retopoflow import helpsystem
             from .retopoflow import updatersystem
+            from .retopoflow import keymapsystem
             from .config import options as configoptions
             from .retopoflow import updater
             from .addon_common.common.maths import convert_numstr_num
@@ -160,6 +164,16 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
+    class VIEW3D_OT_RetopoFlow_KeymapSystem(keymapsystem.RetopoFlow_OpenKeymapSystem):
+        """Open RetopoFlow Keymap Editor"""
+        bl_idname = "cgcookie.retopoflow_keymap"
+        bl_label = "Keymap Editor"
+        bl_description = "Open RetopoFlow Keymap Editor"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+    RF_classes += [VIEW3D_OT_RetopoFlow_KeymapSystem]
+
     class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Updater Help"""
         bl_idname = "cgcookie.retopoflow_help_updater"
@@ -170,6 +184,17 @@ if import_succeeded:
         bl_options = set()
         rf_startdoc = 'addon_updater.md'
     RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
+
+    class VIEW3D_OT_RetopoFlow_Help_Keymap(helpsystem.RetopoFlow_OpenHelpSystem):
+        """Open RetopoFlow Keymap Editor Help"""
+        bl_idname = "cgcookie.retopoflow_help_keymap"
+        bl_label = "Keymap Editor Help"
+        bl_description = "Open RetopoFlow Keymap Editor Help"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        rf_startdoc = 'keymap_editor.md'
+    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Keymap]
 
     if options['preload help images']: retopoflow.preload_help_images()
 
@@ -348,6 +373,10 @@ if import_succeeded:
         bl_region_type = 'HEADER'
 
         @staticmethod
+        def has_sources(context):
+            return retopoflow.RetopoFlow.has_valid_source()
+
+        @staticmethod
         def is_editing_target(context):
             obj = context.active_object
             mode_string = context.mode
@@ -427,7 +456,7 @@ if import_succeeded:
                 box.label(text='Multiple 3D Views', icon='DOT')
             if VIEW3D_PT_RetopoFlow.in_quadview(context):
                 box = add_warning_subbox('Layout Issue')
-                box.label(text='Using Quad View', icon='DOT')
+                box.label(text='Quad View will be disabled', icon='DOT')
             lock_cursor = any(
                 space.lock_cursor
                 for space in context.area.spaces
@@ -486,6 +515,10 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
             box = layout.box()
+            box.label(text='Config')
+            box.operator('cgcookie.retopoflow_keymap', icon='PREFERENCES')
+
+            box = layout.box()
             box.label(text='Auto Save') # , icon='FILE_TICK')
             box.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
             # if retopoflow.RetopoFlow.has_backup():
@@ -522,13 +555,12 @@ if import_succeeded:
 
                 VIEW3D_PT_RetopoFlow._menu_original(context, layout)
 
-                if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
+                if context.mode in {'EDIT_MESH', 'OBJECT'}:
                     row = layout.row(align=True)
-                    if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                        row.operator('cgcookie.retopoflow', text="", icon='DECORATE_KEYFRAME')
                     # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
+                    if VIEW3D_PT_RetopoFlow.is_editing_target(context):
+                        row.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
                     row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
-                    row.operator('cgcookie.retopoflow_help_quickstart', text="", icon='QUESTION')
 
             bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
 

@@ -83,6 +83,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.hovering_sel_face = None
         self.sel_cbpts = []
         self.stroke_cbs = CubicBezierSpline()
+        self.clear_count_data()
 
     @RFTool_PolyStrips.on_target_change
     @profiler.function
@@ -144,6 +145,9 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if len(self.strips) == 1:
             self._var_cut_count.set(len(self.strips[0]))
             self._var_cut_count.disabled = False
+
+        if self.rfcontext.undo_last_action() != 'change segment count':
+            self.setup_change_count()
 
     @profiler.function
     def update_strip_viz(self):
@@ -209,14 +213,12 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         if self.actions.pressed('grab', unpress=False):
             return 'move all'
 
-        if self.actions.pressed({'increase count', 'decrease count'}, unpress=False):
-            delta = 1 if self.actions.pressed('increase count') else -1
-            self.actions.unpress()
-            if self.rfcontext.undo_last_action() != 'change segment count':
-                print(f'starting over')
-                self.setup_change_count()
-            self.rfcontext.undo_push('change segment count', repeatable=True)
-            self.change_count(delta=delta)
+        if self.actions.pressed('increase count'):
+            self.change_count(delta=1)
+            return
+
+        if self.actions.pressed('decrease count'):
+            self.change_count(delta=-1)
             return
 
         if self.actions.pressed({'select path add'}):
@@ -522,6 +524,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             'move_cancelled': 'cancel',
             'timer': self.actions.start_timer(120.0),
         }
+        self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
 
     @RFTool_PolyStrips.FSM_State('move all')
@@ -552,6 +555,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def moveall_exit(self):
         self.moveall_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
         self.update_target(force=True)
 
 
@@ -618,19 +622,19 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
             bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
             bgl.glEnable(bgl.GL_DEPTH_TEST)
 
-            # draw in front of geometry
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            draw(
-                options['target alpha'],
-                options['target alpha'], # hover
-                False, #options['polystrips handle hover']
-            )
-
             # draw behind geometry
             bgl.glDepthFunc(bgl.GL_GREATER)
             draw(
                 options['target hidden alpha'],
                 options['target hidden alpha'], # hover
+                False, #options['polystrips handle hover']
+            )
+
+            # draw in front of geometry
+            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            draw(
+                options['target alpha'],
+                options['target alpha'], # hover
                 False, #options['polystrips handle hover']
             )
 

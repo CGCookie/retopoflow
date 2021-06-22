@@ -709,12 +709,12 @@ class Singleton_updater(object):
                 shutil.rmtree(local)
                 os.makedirs(local)
             except:
-                error = "failed to remove existing staging directory"
+                error = "failed to remove existing staging directory. check permissions for staging directory"
         else:
             try:
                 os.makedirs(local)
             except:
-                error = "failed to create staging directory"
+                error = "failed to create staging directory. check permissions for staging directory"
 
         if error != None:
             if self._verbose: print("Error: Aborting update, "+error)
@@ -820,18 +820,26 @@ class Singleton_updater(object):
 
         # clear the existing source folder in case previous files remain
         outdir = os.path.join(self._updater_path, "source")
-        try:
-            shutil.rmtree(outdir)
-            os.makedirs(outdir)
+        if os.path.exists(outdir):
             if self._verbose:
-                print("Source folder cleared and recreated")
-        except:
-            pass
+                print("Old source folder exists; clearing")
+            try:
+                shutil.rmtree(outdir)
+                if self._verbose:
+                    print("Old source folder cleared")
+            except:
+                print("Error occurred while clearing old extract dir:")
+                print(str(err))
+                self._error = "Install failed"
+                self._error_msg = "Failed to clear old extract directory"
+                return -1
 
         # Create parent directories if needed, would not be relevant unless
         # installing addon into another location or via an addon manager
         try:
-            os.mkdir(outdir)
+            os.makedirs(outdir)
+            if self._verbose:
+                print("Source folder cleared and recreated")
         except Exception as err:
             print("Error occurred while making extract dir:")
             print(str(err))

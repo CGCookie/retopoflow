@@ -37,6 +37,8 @@ If you have any issues with installing, please try the following steps:
 * Click Install Addon
 * Enable RetopoFlow
 
+
+
 ## Updating
 RetopoFlow 3 comes with a built-in updater. Once you've installed it the first time, simply check for updates using the RetopoFlow menu. If you need to update the addon manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.   
 

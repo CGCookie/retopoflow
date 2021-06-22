@@ -53,3 +53,4 @@ If no pre-visualized regions show after selection, no geometry will be created a
 
 Adjust the Angle parameter to help Patches determine which connected edges should be in the same strip.
 Alternatively, you can manually toggle vertex corners using {{ site.data.keymaps.action_alt0 }}.
+

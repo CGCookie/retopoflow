@@ -2,16 +2,16 @@
     <summary>PolyStrips</summary>
     <div class="contents">
         <div class="labeled-input-text">
-            <label title="Number of cuts along selected strip">
+            <label for="polystrips-cut-count">
                 Cut Count
             </label>
-            <input type="text" value="self._var_cut_count" id="polystrips-cut-count">
+            <input type="text" value="self._var_cut_count" id="polystrips-cut-count" title="Number of cuts along selected strip">
         </div>
         <div class="labeled-input-text">
-            <label title="Controls how quickly control point scaling falls off">
+            <label for="polystrips-scale-falloff">
                 Scale Falloff
             </label>
-            <input type="text" value="BoundFloat('''options['polystrips scale falloff']''', min_value=0.25, max_value=4.0)">
+            <input id="polystrips-scale-falloff" type="text" value="BoundFloat('''options['polystrips scale falloff']''', min_value=0.25, max_value=4.0)" title="Controls how quickly control point scaling falls off">
         </div>
     </div>
 </details>

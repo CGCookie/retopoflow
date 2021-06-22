@@ -124,6 +124,10 @@ class BMElemWrapper:
         self.bmelem.select = v
 
     @property
+    def unselect(self):
+        return not self.bmelem.select and not self.bmelem.hide
+
+    @property
     def tag(self):
         return self.bmelem.tag
 
@@ -155,6 +159,7 @@ class RFVert(BMElemWrapper):
 
     @co.setter
     def co(self, co):
+        if any(math.isnan(v) for v in co): return
         assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
         co = self.symmetry_real(co, to_world=False)
         # # the following does not work well, because new verts have co=(0,0,0)
@@ -204,32 +209,41 @@ class RFVert(BMElemWrapper):
     #############################################
 
     def share_edge(self, other):
+        if not self.is_valid or not other.is_valid: return False
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        return any(bmv1 in bme.verts for bme in bmv0.link_edges)
+        return any(bmv1 in bme.verts for bme in bmv0.link_edges if bme.is_valid)
 
     def shared_edge(self, other):
+        if not self.is_valid or not other.is_valid: return False
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        bme = next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
+        bme = next((bme for bme in bmv0.link_edges if bme.is_valid and bmv1 in bme.verts), None)
         return RFEdge(bme) if bme else None
 
     def share_face(self, other):
+        if not self.is_valid or not other.is_valid: return False
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        return any(bmv1 in bmf.verts for bmf in bmv0.link_faces)
+        return any(bmv1 in bmf.verts for bmf in bmv0.link_faces if bmf.is_valid)
 
     def shared_faces(self, other):
+        if not self.is_valid or not other.is_valid: return False
         bmv0 = BMElemWrapper._unwrap(self)
         bmv1 = BMElemWrapper._unwrap(other)
-        return [RFFace(bmf) for bmf in bmv0.link_faces if bmv1 in bmf.verts]
+        return [RFFace(bmf) for bmf in bmv0.link_faces if bmf.is_valid and bmv1 in bmf.verts]
 
     def merge(self, other):
-        bmv0 = BMElemWrapper._unwrap(self)
-        bmv1 = BMElemWrapper._unwrap(other)
+        if not (self.is_valid and other.is_valid):
+            if self.is_valid: return self
+            if other.is_valid: return other
+            return None
+
         try:
+            bmv0 = BMElemWrapper._unwrap(self)
+            bmv1 = BMElemWrapper._unwrap(other)
             vert_splice(bmv1, bmv0)
-            return bmv0
+            return RFVert(bmv0)
         except Exception as e:
             print(f'Caught Exception while trying to merge')
             print(e)
@@ -237,6 +251,11 @@ class RFVert(BMElemWrapper):
             return self.merge_robust(other)
 
     def merge_robust(self, other):
+        if not (self.is_valid and other.is_valid):
+            if self.is_valid: return self
+            if other.is_valid: return other
+            return None
+
         rftarget = self.rftarget
 
         if self.share_edge(other):
@@ -488,7 +507,7 @@ class RFEdge(BMElemWrapper):
         for bmf in del_faces:
             self.rftarget.bme.faces.remove(bmf)
         bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
-        return bmv0 if bmv0.is_valid else bmv1
+        return RFVert(bmv0 if bmv0.is_valid else bmv1)
 
 
 class RFFace(BMElemWrapper):

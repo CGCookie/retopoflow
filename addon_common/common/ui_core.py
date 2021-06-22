@@ -59,7 +59,7 @@ from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
-from .useractions import ActionHandler, kmi_to_keycode
+from .useractions import ActionHandler
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -678,7 +678,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._style_str     = ''        # custom style string
         self._innerText     = None      # text to display (converted to UI_Elements)
         self._src_str       = None      # path to resource, such as image
-        self._can_focus     = True      # True:self can take focus if focusable element (ex: <input type="text">)
+        self._can_focus     = None      # None/True:self can take focus if focusable element (ex: <input type="text">)
         self._can_hover     = True      # True:self can take hover
         self._title         = None      # tooltip
         self._forId         = None      # used for labels
@@ -1078,14 +1078,14 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         return True
 
 
-    @UI_Element_Utils.add_cleaning_callback('selector', {'style'})
+    @UI_Element_Utils.add_cleaning_callback('selector', {'style', 'style parent'})
     @profiler.function
     def _compute_selector(self):
         if self.defer_clean: return
         if 'selector' not in self._dirty_properties:
             self.defer_clean = True
             with profiler.code('selector.calling back callbacks'):
-                for e in self._dirty_callbacks.get('selector', []):
+                for e in list(self._dirty_callbacks.get('selector', [])):
                     # print(self,'->', e)
                     e._compute_selector()
                 self._dirty_callbacks['selector'].clear()
@@ -1304,7 +1304,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
 
         # self.defer_dirty_propagation = False
 
-    @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf'})
+    @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf', 'style'})
     @profiler.function
     def _compute_content(self):
         if self.defer_clean:
@@ -1452,7 +1452,9 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     def callback(image):
                         self._src = 'image loaded'
                         self._image_data = image
-                        self.dirty()
+                        self.dirty(children=True)
+                        self.dirty_styling()
+                        self.dirty_flow()
                     def load():
                         async_load_image(self.src, callback)
                     ThreadPoolExecutor().submit(load)
@@ -1601,8 +1603,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._dirty_properties.discard('size')
             return
         if 'size' not in self._dirty_properties:
-            for e in self._dirty_callbacks.get('size', []): e._compute_static_content_size()
-            self._dirty_callbacks['size'].clear()
+            for e in set(self._dirty_callbacks.get('size', [])):
+                e._compute_static_content_size()
+                self._dirty_callbacks['size'].remove(e)
+            #self._dirty_callbacks['size'].clear()
             return
 
         # if self.record_multicall('_compute_static_content_size'): return

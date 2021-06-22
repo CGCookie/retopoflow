@@ -296,7 +296,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.actions.pressed('grab'):
             self.rfcontext.undo_push('move grabbed')
             self.prep_move()
-            self.move_done_pressed = 'confirm'
+            self.move_done_pressed = ['confirm', 'confirm drag']
             self.move_done_released = None
             self.move_cancelled = 'cancel'
             return 'move'
@@ -639,7 +639,6 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
     @RFTool_PolyPen.FSM_State('move after select')
     @profiler.function
-    @RFTool_PolyPen.dirty_when_done
     def modal_move_after_select(self):
         if self.actions.released('action'):
             return 'main'
@@ -656,6 +655,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.move_opts = {
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
         }
+        self.rfcontext.split_target_visualization_selected()
         self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
 
@@ -708,6 +708,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     def move_exit(self):
         self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
 
     def draw_lines(self, coords, poly_alpha=0.2):
@@ -747,7 +748,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
         #if self.rfcontext.nav or self.mode != 'main': return
-        if not self.actions.using_onlymods({'insert', 'insert alt1'}): return
+        if not self.actions.using_onlymods('insert'): return  # 'insert alt1'??
         hit_pos = self.actions.hit_pos
         if not hit_pos: return
 
