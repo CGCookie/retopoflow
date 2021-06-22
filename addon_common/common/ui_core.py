@@ -1603,8 +1603,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._dirty_properties.discard('size')
             return
         if 'size' not in self._dirty_properties:
-            for e in self._dirty_callbacks.get('size', []): e._compute_static_content_size()
-            self._dirty_callbacks['size'].clear()
+            for e in set(self._dirty_callbacks.get('size', [])):
+                e._compute_static_content_size()
+                self._dirty_callbacks['size'].remove(e)
+            #self._dirty_callbacks['size'].clear()
             return
 
         # if self.record_multicall('_compute_static_content_size'): return
