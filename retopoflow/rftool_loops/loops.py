@@ -482,7 +482,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
             # check if we need to flip the strip
             def fn(bmv, side):
-                if not self.rfcontext.is_visible(bmv.co): return
+                if not self.rfcontext.is_visible(bmv.co, occlusion_test_override=True): return
                 p0 = Point_to_Point2D(bmv.co)
                 if not p0: return
                 m = 1 if side == 'left' else -1

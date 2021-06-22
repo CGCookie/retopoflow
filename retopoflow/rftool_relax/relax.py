@@ -282,8 +282,6 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         opt_straight_edges  = options['relax straight edges']
         opt_mult            = options['relax force multiplier']
 
-        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
-
         cur_time = time.time()
         time_delta = cur_time - self._time
         self._time = cur_time

@@ -690,7 +690,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     @RFTool_Contours.Draw('post2d')
     def draw_post2d(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
-        is_visible = self.rfcontext.is_visible
+        is_visible = lambda p: self.rfcontext.is_visible(p, occlusion_test_override=True)
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D
         text_draw2D = self.rfcontext.drawing.text_draw2D
