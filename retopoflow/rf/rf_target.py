@@ -66,6 +66,8 @@ class RetopoFlow_Target:
         self.accel_vis_accel = None
         self._last_visible_bbox_factor = None
         self._last_visible_dist_offset = None
+        self._last_selection_occlusion_test = None
+        self._last_selection_backface_test = None
         self._last_draw_count = -1
         self._draw_count = 0
 
@@ -130,6 +132,8 @@ class RetopoFlow_Target:
         recompute |= self.accel_vis_accel is None
         recompute |= options['visible bbox factor'] != self._last_visible_bbox_factor
         recompute |= options['visible dist offset'] != self._last_visible_dist_offset
+        recompute |= options['selection occlusion test'] != self._last_selection_occlusion_test
+        recompute |= options['selection backface test'] != self._last_selection_backface_test
         recompute &= not self.accel_defer_recomputing
         recompute &= not self._nav and (time.time() - self._nav_time) > 0.25
         recompute &= self._draw_count != self._last_draw_count
@@ -154,6 +158,8 @@ class RetopoFlow_Target:
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
             self._last_visible_bbox_factor = options['visible bbox factor']
             self._last_visible_dist_offset = options['visible dist offset']
+            self._last_selection_occlusion_test = options['selection occlusion test']
+            self._last_selection_backface_test = options['selection backface test']
             self._last_draw_count = self._draw_count
         else:
             self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid } if self.accel_vis_verts is not None else None

@@ -123,41 +123,16 @@ def symmetry_changed(self):
                     </div>
                 </div>
                 <details>
-                    <summary>Advanced</summary>
+                    <summary>Debugging</summary>
                     <div class="contents">
-                         <div class="collection">
-                            <h1 title="These options are used to tune the parameters for visibility testing">Visibility Testing</h1>
-                            <div class="contents">
-                                <div class="labeled-input-text">
-                                    <label for="advanced-bbox-factor">BBox factor</label>
-                                    <input id="advanced-bbox-factor" type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Factor on minimum bounding box dimension">
-                                </div>
-                                <div class="labeled-input-text">
-                                    <label for="advanced-distance-offset">Distance offset</label>
-                                    <input id="advanced-distance-offset" type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Offset added to max distance">
-                                </div>
-                                <div class="collection">
-                                    <h1>Presets</h1>
-                                    <div class="contents">
-                                        <button title="Preset options for working on tiny objects" class="half-size" on_mouseclick="self.visibility_preset_tiny()">Tiny</button>
-                                        <button title="Preset options for working on normal-sized objects" class='half-size' on_mouseclick="self.visibility_preset_normal()">Normal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="collection">
-                            <h1>Debugging</h1>
-                            <div class="contents">
-                                <div id='fpsdiv'>FPS: 0</div>
-                                <label>
-                                    <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')" title="Check to print (most) input actions to system console">
-                                    Print actions
-                                </label>
-                            </div>
-                        </div>
-                        <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options(self)">Reset All Settings</button>
+                        <div id='fpsdiv'>FPS: 0</div>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')" title="Check to print (most) input actions to system console">
+                            Print actions
+                        </label>
                     </div>
                 </details>
+                <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options(self)">Reset All Settings</button>
             </div>
         </details>
         <details id="view-options">
@@ -382,6 +357,39 @@ def symmetry_changed(self):
                         <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
                     </div>
                 </div>
+            </div>
+        </details>
+        <details id="selection-options">
+            <summary title="Options for selection">Selection Options</summary>
+            <div class="contents">
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, occluded geometry is not selectable" on_change="self.get_vis_accel()">
+                    Occlusion Test
+                </label>
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable" on_change="self.get_vis_accel()">
+                    Backface Test
+                </label>
+                <details>
+                    <summary title="These options are used to tune the parameters for visibility testing">Advanced</summary>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label for="advanced-bbox-factor">BBox factor</label>
+                            <input id="advanced-bbox-factor" type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Factor on minimum bounding box dimension that is added to max distance offset">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label for="advanced-distance-offset">Distance offset</label>
+                            <input id="advanced-distance-offset" type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Offset added to max distance offset">
+                        </div>
+                        <div class="collection">
+                            <h1>Presets</h1>
+                            <div class="contents">
+                                <button title="Preset options for working on tiny objects" class="half-size" on_mouseclick="self.visibility_preset_tiny()">Tiny</button>
+                                <button title="Preset options for working on normal-sized objects" class='half-size' on_mouseclick="self.visibility_preset_normal()">Normal</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
             </div>
         </details>
         <details id='cleaning-options'>

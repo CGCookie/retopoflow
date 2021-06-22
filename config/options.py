@@ -175,6 +175,8 @@ class Options:
         # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
         'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
+        'selection occlusion test': True,       # True: do not select occluded geometry
+        'selection backface test':  True,       # True: do not select geometry that is facing away
 
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
         'clip start override':  0.050,

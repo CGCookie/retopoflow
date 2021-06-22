@@ -173,8 +173,9 @@ class RetopoFlow_Sources:
         max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
         ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
         if not ray: return False
-        if normal and normal.dot(ray.d) >= 0: return False
-        return not any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource))
+        if options['selection backface test'] and normal and normal.dot(ray.d) >= 0: return False
+        if options['selection occlusion test'] and any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)): return False
+        return True
 
     def is_nonvisible(self, *args, **kwargs):
         return not self.is_visible(*args, **kwargs)
