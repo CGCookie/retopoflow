@@ -14,6 +14,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Shortest path selection keymap default changed from `Shift+Alt+LMB/RMB+Double` to `Ctrl+Shift+LMB/RMB+Click` to better match Blender
 - Tweak and Relax can now slide vertices along a boundary
 - New Symmetry Visualization setting: Plane
+- Added selection options to help with selecting hard-to-get vertices
 - General code cleanup and refactoring
 - Works in Blender 2.83.0--3.0.0alpha (as of 2021.06.21)
 - Many bug fixes and UX improvements

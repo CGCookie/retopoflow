@@ -87,6 +87,17 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{ site.data.keymaps.blender_undo }}                      | : | undo |
 | {{ site.data.keymaps.blender_redo }}                      | : | redo |
 
+
+General selection has a few options to help with selecting troublesome vertices (ex: just below surface of source).
+When `Occlusion Test` is enabled, geometry that is occluded by the source(s) are not selectable.
+When `Backface Test` is enabled, geometry that is facing away are not selectable.
+Disable these options to make geometry easier to select.
+
+![Selection options](selection_options.png)
+
+
+
+
 Pressing {{ site.data.keymaps.delete }} will bring up the Delete/Dissolve/Collapse dialog, allowing you to delete/dissolve/collapse the selected geometry.
 Pressing and holding {{ site.data.keymaps.delete_pie_menu }} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
