@@ -180,14 +180,14 @@ class UI_Markdown:
                         elif t == 'code':
                             container.append_new_child(tagName='code', innerText=m.group('text'))
                         elif t == 'link':
-                            text,link = m.group('text'),m.group('link')
+                            link = m.group('link')
                             title = 'Click to open URL in default web browser' if Markdown.is_url(link) else 'Click to open help'
                             def mouseclick():
                                 if Markdown.is_url(link):
                                     bpy.ops.wm.url_open(url=link)
                                 else:
                                     self.set_markdown(mdown_path=link, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
-                            process_words(text, lambda word: container.append_new_child(tagName='a', innerText=word, href=link, title=title, on_mouseclick=mouseclick))
+                            process_words(m.group('text'), lambda word: container.append_new_child(tagName='a', innerText=word, href=link, title=title, on_mouseclick=mouseclick))
                         elif t == 'bold':
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='b', innerText=word))
                         elif t == 'italic':

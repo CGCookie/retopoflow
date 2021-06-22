@@ -40,6 +40,7 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from .ui_linefitter import LineFitter
 from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
@@ -651,7 +652,7 @@ class UI_Document(UI_Document_FSM):
         self._body.clean()
         for o in self._callbacks['postclean']: o._call_postclean()
         self._body._layout(
-            first_on_line=True,
+            # linefitter=LineFitter(left=0, top=h-1, width=w, height=h),
             fitting_size=sz,
             fitting_pos=Point2D((0,h-1)),
             parent_size=sz,
@@ -665,7 +666,7 @@ class UI_Document(UI_Document_FSM):
 
         # UI_Element_PreventMultiCalls.reset_multicalls()
         self._body._layout(
-            first_on_line=True,
+            # linefitter=LineFitter(left=0, top=h-1, width=w, height=h),
             fitting_size=sz,
             fitting_pos=Point2D((0,h-1)),
             parent_size=sz,
