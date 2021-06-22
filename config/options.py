@@ -47,7 +47,7 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.2.0β'
+retopoflow_version = '3.2.0'  #β
 retopoflow_version_tuple = (3, 2, 0)
 
 retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
@@ -193,11 +193,11 @@ class Options:
         'shading colortype':               'SINGLE',
         'shading color light':             [0.5, 0.5, 0.5],
         'shading color dark':              [0.9, 0.9, 0.9],
-        'shading backface culling':        True, 
-        'shading xray':                    False, 
-        'shading shadows':                 False, 
-        'shading cavity':                  False, 
-        'shading outline':                 False, 
+        'shading backface culling':        True,
+        'shading xray':                    False,
+        'shading shadows':                 False,
+        'shading cavity':                  False,
+        'shading outline':                 False,
         'color theme':                     'Green',
         'symmetry view':                   'Edge',
         'symmetry effect':                 0.5,
