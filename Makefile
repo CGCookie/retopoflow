@@ -68,6 +68,10 @@ check:
 	# most Windows setups have issues with these
 	./scripts/detect_filename_case_conflicts.py
 
+thumbnails:
+	# create thumbnails
+	cd help && python3 $(CREATE_THUMBNAILS)
+
 build: check
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
