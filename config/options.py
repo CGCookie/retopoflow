@@ -174,13 +174,13 @@ class Options:
 
         # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
-        'visible dist offset':  0.0016,         # rf_sources.visibility_preset_*
+        'visible dist offset':  0.1,         # rf_sources.visibility_preset_*
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
-        'clip start override':  0.050,
-        'clip end override':    5000.0,
+        'clip start override':  0.05,
+        'clip end override':    200.0,
 
         # VISUALIZATION SETTINGS
         'warn non-manifold':               True,       # visualize non-manifold warnings

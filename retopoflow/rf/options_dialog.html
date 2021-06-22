@@ -338,6 +338,39 @@ def symmetry_changed(self):
                 </div>
             </div>
         </details>
+        <details id="selection-options">
+            <summary title="Options for selection">Selection</summary>
+            <div class="contents">
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
+                    Block Occluded
+                </label>
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
+                    Block Backface
+                </label>
+                <details>
+                    <summary title="These options are used to tune the parameters for visibility testing">Advanced</summary>
+                    <div class="contents">
+                        <div class="labeled-input-text">
+                            <label for="advanced-bbox-factor">BBox factor</label>
+                            <input id="advanced-bbox-factor" type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Factor on minimum bounding box dimension that is added to max distance offset">
+                        </div>
+                        <div class="labeled-input-text">
+                            <label for="advanced-distance-offset">Distance offset</label>
+                            <input id="advanced-distance-offset" type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Offsets target towards the camera when testing occlusion during selection. Increase this if a face appears unselectable">
+                        </div>
+                        <div class="collection">
+                            <h1>Presets</h1>
+                            <div class="contents">
+                                <button title="Preset options for working on tiny objects" class="half-size" on_mouseclick="self.visibility_preset_tiny()">Tiny</button>
+                                <button title="Preset options for working on normal-sized objects" class='half-size' on_mouseclick="self.visibility_preset_normal()">Normal</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </details>
         <details id='visibility-options'>
             <summary title="Hide/reveal target geometry">Target Visibility</summary>
             <div class="contents">
@@ -357,39 +390,6 @@ def symmetry_changed(self):
                         <button title="Reveal all geometry currently hidden ({humanread('reveal hidden')})" on_mouseclick="self.reveal_hidden()">Reveal Hidden</button>
                     </div>
                 </div>
-            </div>
-        </details>
-        <details id="selection-options">
-            <summary title="Options for selection">Selection Options</summary>
-            <div class="contents">
-                <label>
-                    <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
-                    Occlusion Test
-                </label>
-                <label>
-                    <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
-                    Backface Test
-                </label>
-                <details>
-                    <summary title="These options are used to tune the parameters for visibility testing">Advanced</summary>
-                    <div class="contents">
-                        <div class="labeled-input-text">
-                            <label for="advanced-bbox-factor">BBox factor</label>
-                            <input id="advanced-bbox-factor" type="number" value="BoundFloat('''options['visible bbox factor']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Factor on minimum bounding box dimension that is added to max distance offset">
-                        </div>
-                        <div class="labeled-input-text">
-                            <label for="advanced-distance-offset">Distance offset</label>
-                            <input id="advanced-distance-offset" type="number" value="BoundFloat('''options['visible dist offset']''', min_value=0.0, max_value=1.0)" on_change="self.get_vis_accel()" title="Offset added to max distance offset">
-                        </div>
-                        <div class="collection">
-                            <h1>Presets</h1>
-                            <div class="contents">
-                                <button title="Preset options for working on tiny objects" class="half-size" on_mouseclick="self.visibility_preset_tiny()">Tiny</button>
-                                <button title="Preset options for working on normal-sized objects" class='half-size' on_mouseclick="self.visibility_preset_normal()">Normal</button>
-                            </div>
-                        </div>
-                    </div>
-                </details>
             </div>
         </details>
         <details id='cleaning-options'>
