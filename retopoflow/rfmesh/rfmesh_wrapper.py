@@ -159,6 +159,7 @@ class RFVert(BMElemWrapper):
 
     @co.setter
     def co(self, co):
+        if any(math.isnan(v) for v in co): return
         assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
         co = self.symmetry_real(co, to_world=False)
         # # the following does not work well, because new verts have co=(0,0,0)

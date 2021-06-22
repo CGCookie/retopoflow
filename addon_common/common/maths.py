@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 import random
 import re
 from typing import List
@@ -1731,6 +1731,7 @@ class Accel2D:
         delta = Vec2D((within, within))
         p0, p1 = v2d - delta, v2d + delta
         if isinf(p0.x) or isinf(p0.y) or isinf(p1.x) or isinf(p1.y): return set()
+        if isnan(p0.x) or isnan(p0.y) or isnan(p1.x) or isnan(p1.y): return set()
         i0, j0 = self.compute_ij(p0)
         i1, j1 = self.compute_ij(p1)
         l = set()
