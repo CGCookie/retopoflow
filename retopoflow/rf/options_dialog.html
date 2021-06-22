@@ -363,11 +363,11 @@ def symmetry_changed(self):
             <summary title="Options for selection">Selection Options</summary>
             <div class="contents">
                 <label>
-                    <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, occluded geometry is not selectable" on_change="self.get_vis_accel()">
+                    <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
                     Occlusion Test
                 </label>
                 <label>
-                    <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable" on_change="self.get_vis_accel()">
+                    <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
                     Backface Test
                 </label>
                 <details>

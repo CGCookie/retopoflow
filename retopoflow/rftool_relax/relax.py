@@ -213,7 +213,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         opt_correct_flipped = options['relax correct flipped faces']
         opt_straight_edges  = options['relax straight edges']
         opt_mult            = options['relax force multiplier']
-        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal)
+        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal, occlusion_test_override=True)
 
         self._bmverts = []
         self._boundary = []

@@ -197,7 +197,8 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         get_strength_dist = self.rfwidget.get_strength_dist
         def is_visible(bmv):
-            return self.rfcontext.is_visible(bmv.co, bmv.normal)
+            # always perform occlusion test
+            return self.rfcontext.is_visible(bmv.co, bmv.normal, occlusion_test_override=True)
         def on_planes(bmv):
             return self.rfcontext.symmetry_planes_for_point(bmv.co) if opt_mask_symmetry == 'maintain' else None
 
