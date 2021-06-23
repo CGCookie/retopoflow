@@ -815,9 +815,8 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         per_lens = [l / strip_len for l in edge_lens]
         percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
         nstroke = restroke(stroke, percentages)
-        assert len(nstroke) == len(verts), (
-            'Tessellated stroke (%d) does not match vert count (%d)' % (len(nstroke), len(verts))
-        )
+        assert len(nstroke) == len(verts), f'Tessellated stroke ({len(nstroke)}) does not match vert count ({len(verts)})'
+
         # average distance between stroke and strip
         p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
         avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
