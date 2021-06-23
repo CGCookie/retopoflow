@@ -38,10 +38,13 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version":     (3, 2, 0),
+    "version":     (3, 2, 1),
     "blender":     (2, 83, 0),
     "location":    "View 3D > Header",
-    # "warning":     "Beta", #"Release Candidate 2",  # used for warning icon and text in addons panel
+    "warning":     "Alpha",                   # used for warning icon and text in addons panel
+    # "warning":     "Beta",
+    # "warning":     "Release Candidate 1",
+    # "warning":     "Release Candidate 2",
     "doc_url":     "https://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
