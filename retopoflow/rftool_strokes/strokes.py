@@ -23,6 +23,7 @@ import math
 import time
 import bgl
 import bpy
+from math import isnan
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
@@ -820,6 +821,11 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         # average distance between stroke and strip
         p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
         avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
+        if isnan(avg_dist):
+            self.rfcontext.alert_user(
+                'Could not determine distance between stroke and selected strip.  Please try again.'
+            )
+            return
 
         # determine cross count
         if self.strip_crosses is None:
@@ -918,6 +924,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
 
         if not bmverts: bmverts = sel_verts
         self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
+        self.bmverts = [(bmv, co) for (bmv, co) in self.bmverts if co]
         self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in vis_verts if bmv.is_valid and bmv not in sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
         self.defer_recomputing = defer_recomputing
