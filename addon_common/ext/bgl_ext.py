@@ -27,7 +27,6 @@
 
 import bgl
 import ctypes
-import numpy as np
 
 # figure out size of _Py_ssize_t
 _Py_ssize_t = ctypes.c_int64 if hasattr(ctypes.pythonapi, 'Py_InitModule4_64') else ctypes.c_int
