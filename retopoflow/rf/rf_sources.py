@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 import time
+from math import isinf
 
 from ...config.options import visualization, options
 from ...addon_common.common.maths import BBox
@@ -105,8 +106,10 @@ class RetopoFlow_Sources:
         for rfsource in self.rfsources:
             if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.raycast(ray)
-            if bp is None or (hp is not None and hd < bd):
-                bp,bn,bi,bd = hp,hn,hi,hd
+            if hp is None: continue
+            if isinf(hd): continue
+            if bp and bd < hd: continue
+            bp,bn,bi,bd = hp,hn,hi,hd
         return (bp,bn,bi,bd)
 
     def raycast_sources_Ray_all(self, ray:Ray):
