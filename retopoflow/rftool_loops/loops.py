@@ -46,7 +46,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...config.options import options
 
 
-class RFTool_Loops(RFTool):
+class Loops(RFTool):
     name        = 'Loops'
     description = 'Edge loops creation, shifting, and deletion'
     icon        = 'loops-icon.png'
@@ -55,24 +55,18 @@ class RFTool_Loops(RFTool):
     quick_shortcut = 'loops quick'
     statusbar   = '{{insert}} Insert edge loop\t{{smooth edge flow}} Smooth edge flow'
 
-class Loops_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')
     RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
 
-    def init_rfwidgets(self):
+    @RFTool.on_init
+    def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
             'cut':     self.RFWidget_Crosshair(self),
             'hover':   self.RFWidget_Move(self),
         }
         self.rfwidget = None
-
-
-class Loops(RFTool_Loops, Loops_RFWidgets):
-    @RFTool.on_init
-    def init(self):
-        self.init_rfwidgets()
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     @RFTool.on_mouse_move

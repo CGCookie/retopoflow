@@ -49,7 +49,7 @@ from ...addon_common.common.drawing import DrawCallbacks
 from ...config.options import options, themes
 
 
-class RFTool_Knife(RFTool):
+class Knife(RFTool):
     name        = 'Knife'
     description = 'Cut complex topology into existing geometry on vertex-by-vertex basis'
     icon        = 'knife-icon.png'
@@ -59,23 +59,18 @@ class RFTool_Knife(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'knife_options.html'
 
-class Knife_RFWidgets:
     RFWidget_Default   = RFWidget_Default_Factory.create()
     RFWidget_Knife     = RFWidget_Default_Factory.create('KNIFE')
     RFWidget_Move      = RFWidget_Default_Factory.create('HAND')
 
-    def init_rfwidgets(self):
+    @RFTool.on_init
+    def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
             'knife':   self.RFWidget_Knife(self),
             'hover':   self.RFWidget_Move(self),
         }
         self.rfwidget = None
-
-class Knife(RFTool_Knife, Knife_RFWidgets):
-    @RFTool.on_init
-    def init(self):
-        self.init_rfwidgets()
         self.first_time = True
         self.knife_start = None
         self.quick_knife = False
@@ -307,7 +302,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
         return (xy0, xy1, xy2, xy3)
 
-    @RFTool_Knife.dirty_when_done
+    @RFTool.dirty_when_done
     def _insert(self):
         self.last_delta = None
         self.move_done_pressed = None
@@ -471,7 +466,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
 
     @FSM.on_state('move after select')
     @profiler.function
-    @RFTool_Knife.dirty_when_done
+    @RFTool.dirty_when_done
     def modal_move_after_select(self):
         if self.actions.released('action'):
             return 'main' if not self.quick_knife else 'quick'
