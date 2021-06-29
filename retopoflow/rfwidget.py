@@ -64,9 +64,19 @@ class RFWidget:
     @staticmethod
     def on_view_change(fn): return rfwidget_callback_decorator('view change', fn)
     @staticmethod
-    def on_action(fn): return rfwidget_callback_decorator('action', fn)
+    def on_action(action_name):
+        def wrapper(fn):
+            nonlocal action_name
+            fn._rfwidget_action_name = action_name
+            return rfwidget_callback_decorator('action', fn)
+        return wrapper
     @staticmethod
-    def on_actioning(fn): return rfwidget_callback_decorator('actioning', fn)
+    def on_actioning(action_name):
+        def wrapper(fn):
+            nonlocal action_name
+            fn._rfwidget_action_name = action_name
+            return rfwidget_callback_decorator('actioning', fn)
+        return wrapper
 
     def __init__(self, rftool, *, start='main', reset_state=None, **kwargs):
         self.rftool = rftool
@@ -88,12 +98,13 @@ class RFWidget:
         for fn in self._widget_callbacks[event]:
             fn(self, *args, **kwargs)
 
-    def _callback_tool(self, event, *args, **kwargs):
+    def _callback_tool(self, event, action_name, *args, **kwargs):
         if event != 'timer':
             #print('callback', self, event, self._tool_callbacks.get(event, []))
             pass
         if event not in self._tool_callbacks: return
         for fn in self._tool_callbacks[event]:
+            if fn._rfwidget_action_name != action_name: continue
             fn(self.rftool, *args, **kwargs)
 
     def _gather_callbacks(self):
@@ -117,11 +128,11 @@ class RFWidget:
             ]
         }
 
-    def callback_actions(self, *args, **kwargs):
-        self._callback_tool('action', *args, **kwargs)
+    def callback_actions(self, action_name, *args, **kwargs):
+        self._callback_tool('action', action_name, *args, **kwargs)
 
-    def callback_actioning(self, *args, **kwargs):
-        self._callback_tool('actioning', *args, **kwargs)
+    def callback_actioning(self, action_name, *args, **kwargs):
+        self._callback_tool('actioning', action_name, *args, **kwargs)
 
     def _reset(self):
         self._fsm.force_reset()

@@ -46,16 +46,14 @@ class RFWidget_LineCut_Factory:
     '''
 
     @staticmethod
-    def create(line_color=None, circle_color=Color((1,1,1,0.5)), circle_border_color=Color((0,0,0,0.5))):
-
-        class RFW_LineCut(RFWidget):
+    def create(action_name, line_color=None, circle_color=Color((1,1,1,0.5)), circle_border_color=Color((0,0,0,0.5))):
+        class RFWidget_LineCut(RFWidget):
             rfw_name = 'Line'
             rfw_cursor = 'CROSSHAIR'
 
-
-        class RFWidget_LineCut(RFW_LineCut):
-            @RFW_LineCut.on_init
+            @RFWidget.on_init
             def init(self):
+                self.action_name = action_name
                 self.line2D = [None, None]
                 self.line_color = line_color
                 self.circle_color = circle_color
@@ -74,7 +72,7 @@ class RFWidget_LineCut_Factory:
             @FSM.on_state('line')
             def modal_line(self):
                 if self.actions.released('insert'):
-                    self.callback_actions()
+                    self.callback_actions(self.action_name)
                     return 'main'
 
                 if self.actions.pressed('cancel'):
@@ -84,6 +82,7 @@ class RFWidget_LineCut_Factory:
                 if self.line2D[1] != self.actions.mouse:
                     self.line2D[1] = self.actions.mouse
                     tag_redraw_all('Line line')
+                    self.callback_actioning(self.action_name)
 
             @FSM.on_state('line', 'exit')
             def modal_line_exit(self):

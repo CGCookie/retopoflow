@@ -59,9 +59,9 @@ class Knife(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'knife_options.html'
 
-    RFWidget_Default   = RFWidget_Default_Factory.create()
-    RFWidget_Knife     = RFWidget_Default_Factory.create('KNIFE')
-    RFWidget_Move      = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Default   = RFWidget_Default_Factory.create('Knife default')
+    RFWidget_Knife     = RFWidget_Default_Factory.create('Knife knife', 'KNIFE')
+    RFWidget_Move      = RFWidget_Default_Factory.create('Knife move', 'HAND')
 
     @RFTool.on_init
     def init(self):

@@ -28,14 +28,12 @@ import bpy
 import bgl
 from mathutils import Matrix
 
-from ..rftool import rftools, RFTool
+from ..rftool import RFTool
 
 from ...addon_common.common.boundvar import BoundInt, BoundFloat
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options
 
-
-RFTool_PolyStrips = rftools['RFTool_PolyStrips']
 
 class PolyStrips_Props:
     @RFTool.on_init

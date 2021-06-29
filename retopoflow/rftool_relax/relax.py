@@ -39,7 +39,7 @@ from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...config.options import options, themes
 
 
-class RFTool_Relax(RFTool):
+class Relax(RFTool):
     name        = 'Relax'
     description = 'Relax the vertex positions to smooth out topology'
     icon        = 'relax-icon.png'
@@ -49,21 +49,17 @@ class RFTool_Relax(RFTool):
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'relax_options.html'
 
-class Relax_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
+        'Relax brush',
         BoundInt('''options['relax radius']''', min_value=1),
         BoundFloat('''options['relax falloff']''', min_value=0.00, max_value=100.0),
         BoundFloat('''options['relax strength']''', min_value=0.01, max_value=1.0),
         fill_color=themes['relax'],
     )
 
-    def init_rfwidgets(self):
-        self.rfwidget = self.RFWidget_BrushFalloff(self)
-
-class Relax(RFTool_Relax, Relax_RFWidgets):
     @RFTool.on_init
     def init(self):
-        self.init_rfwidgets()
+        self.rfwidget = self.RFWidget_BrushFalloff(self)
 
     def reset_algorithm_options(self):
         options.reset(keys=[

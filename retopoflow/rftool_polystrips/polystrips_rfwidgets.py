@@ -28,12 +28,13 @@ from ...config.options import options, themes
 
 
 class PolyStrips_RFWidgets:
-    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Default = RFWidget_Default_Factory.create('PolyStrips default')
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
+        'PolyStrips stroke',
         BoundInt('''options['polystrips radius']''', min_value=1),
         outer_border_color=themes['polystrips']
     )
-    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Move = RFWidget_Default_Factory.create('PolyStrips move', 'HAND')
 
     def init_rfwidgets(self):
         self.rfwidgets = {

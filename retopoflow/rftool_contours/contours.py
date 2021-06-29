@@ -28,6 +28,7 @@ import bgl
 from mathutils import Matrix
 
 from ..rftool import RFTool
+from ..rfwidget import RFWidget
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.debug import dprint
@@ -619,7 +620,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils, Contours_RF
         self.rfcontext.set_accel_defer(False)
 
 
-    @Contours_RFWidgets.RFWidget_LineCut.on_action
+    @RFWidget.on_action('Contours line cut')
     def new_line(self):
         xy0,xy1 = self.rfwidgets['cut'].line2D
         if not xy0 or not xy1: return

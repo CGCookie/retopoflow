@@ -31,16 +31,6 @@ from ..rftool import RFTool
 from ...addon_common.common.decorators import timed_call
 
 
-class RFTool_PolyStrips(RFTool):
-    name        = 'PolyStrips'
-    description = 'Create and edit strips of quads'
-    icon        = 'polystrips-icon.png'
-    help        = 'polystrips.md'
-    shortcut    = 'polystrips tool'
-    statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
-    ui_config   = 'polystrips_options.html'
-
-
 ################################################################################################
 # following imports must happen *after* the above class, because each subclass depends on
 # above class to be defined
@@ -70,7 +60,15 @@ from ...addon_common.common.utils import iter_pairs
 from ...config.options import options
 
 
-class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets):
+class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets):
+    name        = 'PolyStrips'
+    description = 'Create and edit strips of quads'
+    icon        = 'polystrips-icon.png'
+    help        = 'polystrips.md'
+    shortcut    = 'polystrips tool'
+    statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
+    ui_config   = 'polystrips_options.html'
+
     @RFTool.on_init
     def init(self):
         self.init_rfwidgets()

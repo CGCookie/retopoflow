@@ -58,8 +58,8 @@ class Patches(RFTool):
     statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
     ui_config   = 'patches_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create()
-    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
+    RFWidget_Default = RFWidget_Default_Factory.create('Patches default')
+    RFWidget_Move = RFWidget_Default_Factory.create('Patches move', 'HAND')
 
     @RFTool.on_init
     def init(self):

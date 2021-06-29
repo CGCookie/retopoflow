@@ -42,15 +42,14 @@ class RFWidget_BrushStroke_Factory:
     '''
 
     @staticmethod
-    def create(radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
-
-        class RFW_BrushStroke(RFWidget):
+    def create(action_name, radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
+        class RFWidget_BrushStroke(RFWidget):
             rfw_name = 'Brush Stroke'
             rfw_cursor = 'CROSSHAIR'
 
-        class RFWidget_BrushStroke(RFW_BrushStroke):
-            @RFW_BrushStroke.on_init
+            @RFWidget.on_init
             def init(self):
+                self.action_name = action_name
                 self.stroke2D = []
                 self.tightness = 0.95
                 self.redraw_on_mouse = True
@@ -87,7 +86,7 @@ class RFWidget_BrushStroke_Factory:
                 if self.actions.released('insert'):
                     # TODO: tessellate the last steps?
                     self.stroke2D.append(self.actions.mouse)
-                    self.callback_actions()
+                    self.callback_actions(self.action_name)
                     return 'main'
 
                 if self.actions.pressed('cancel'):
@@ -98,7 +97,7 @@ class RFWidget_BrushStroke_Factory:
                 npos = lpos + (cpos - lpos) * (1 - self.tightness)
                 self.stroke2D.append(npos)
                 tag_redraw_all('BrushStroke_PolyStrips line')
-                self.callback_actioning()
+                self.callback_actioning(self.action_name)
 
             @FSM.on_state('stroking', 'exit')
             def modal_line_exit(self):

@@ -23,9 +23,9 @@ from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_linecut import RFWidget_LineCut_Factory
 
 class Contours_RFWidgets:
-    RFWidget_Default = RFWidget_Default_Factory.create()
-    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
-    RFWidget_LineCut = RFWidget_LineCut_Factory.create()
+    RFWidget_Default = RFWidget_Default_Factory.create('Contours default')
+    RFWidget_Move = RFWidget_Default_Factory.create('Contours move', 'HAND')
+    RFWidget_LineCut = RFWidget_LineCut_Factory.create('Contours line cut')
 
     def init_rfwidgets(self):
         self.rfwidgets = {

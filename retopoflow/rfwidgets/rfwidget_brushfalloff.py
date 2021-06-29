@@ -42,14 +42,14 @@ class RFWidget_BrushFalloff_Factory:
     '''
 
     @staticmethod
-    def create(radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
-        class RFW_BrushFalloff(RFWidget):
+    def create(action_name, radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
+        class RFWidget_BrushFalloff(RFWidget):
             rfw_name = 'Brush Falloff'
             rfw_cursor = 'CROSSHAIR'
 
-        class RFWidget_BrushFalloff(RFW_BrushFalloff):
-            @RFW_BrushFalloff.on_init
+            @RFWidget.on_init
             def init(self):
+                self.action_name = action_name
                 self.outer_color = outer_color
                 self.inner_color = inner_color
                 self.fill_color = fill_color
@@ -264,9 +264,6 @@ class RFWidget_BrushFalloff_Factory:
             ##################
             # mouse
 
-            ox = Direction((1,0,0))
-            oy = Direction((0,1,0))
-            oz = Direction((0,0,1))
             def update_mouse(self):
                 if self.actions.mouse == self.last_mouse: return
                 self.last_mouse = self.actions.mouse
@@ -287,13 +284,13 @@ class RFWidget_BrushFalloff_Factory:
                 #     self.clear()
                 #     return
                 # xy = self.rfcontext.actions.mouse
-                rmat = Matrix.Rotation(self.oz.angle(n), 4, self.oz.cross(n))
+                rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
                 self.hit = True
                 self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
                 self.hit_p = p
-                self.hit_x = Vec(matrix_vector_mult(rmat, self.ox))
-                self.hit_y = Vec(matrix_vector_mult(rmat, self.oy))
-                self.hit_z = Vec(matrix_vector_mult(rmat, self.oz))
+                self.hit_x = Vec(matrix_vector_mult(rmat, Direction.X))
+                self.hit_y = Vec(matrix_vector_mult(rmat, Direction.Y))
+                self.hit_z = Vec(matrix_vector_mult(rmat, Direction.Z))
                 self.hit_rmat = rmat
 
         return RFWidget_BrushFalloff

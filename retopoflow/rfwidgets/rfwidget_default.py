@@ -45,13 +45,15 @@ class RFWidget_Default_Factory:
     '''
 
     @staticmethod
-    def create(cursor='DEFAULT'):
-
-        class RFW_Default(RFWidget):
+    def create(action_name, cursor='DEFAULT'):
+        class RFWidget_Default(RFWidget):
             rfw_name = 'Default'
             rfw_cursor = cursor
 
-        class RFWidget_Default(RFW_Default):
+            @RFWidget.on_init
+            def init(self):
+                self.action_name = action_name
+
             @FSM.on_state('main')
             def modal_main(self):
                 pass

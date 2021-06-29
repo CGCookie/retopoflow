@@ -462,6 +462,9 @@ class Direction(VecUtils, Entity3D):
         y = sin(phi) * sin(theta)
         z = cos(phi)
         return cls((x,y,z))
+Direction.X = Direction((1,0,0))
+Direction.Y = Direction((0,1,0))
+Direction.Z = Direction((0,0,1))
 
 
 class Normal(VecUtils, Entity3D):

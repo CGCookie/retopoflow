@@ -23,7 +23,7 @@ import math
 from mathutils import Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
-from ..rftool import RFTool, rftools
+from ..rftool import RFTool
 
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.debug import dprint
@@ -31,7 +31,7 @@ from ...addon_common.common.drawing import Drawing, Cursors
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
-from .polystrips_rfwidgets import PolyStrips_RFWidgets
+from ..rfwidget import RFWidget
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
     hash_face_pair,
@@ -43,11 +43,9 @@ from .polystrips_utils import (
     )
 
 
-RFTool_PolyStrips = rftools['RFTool_PolyStrips']
-
 class PolyStrips_Ops:
-    @PolyStrips_RFWidgets.RFWidget_BrushStroke.on_action
-    @RFTool_PolyStrips.dirty_when_done
+    @RFWidget.on_action('PolyStrips stroke')
+    @RFTool.dirty_when_done
     def new_brushstroke(self):
         # called when artist finishes a stroke
         radius = self.rfwidgets['brushstroke'].radius
@@ -382,7 +380,7 @@ class PolyStrips_Ops:
             if not bmfs: continue
             process(bmfs, bmes)
 
-    @RFTool_PolyStrips.dirty_when_done
+    @RFTool.dirty_when_done
     def change_count(self, *, count=None, delta=None):
         '''
         find parallel strips of boundary edges, fit curve to verts of strips, then

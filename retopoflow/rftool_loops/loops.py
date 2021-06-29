@@ -55,9 +55,9 @@ class Loops(RFTool):
     quick_shortcut = 'loops quick'
     statusbar   = '{{insert}} Insert edge loop\t{{smooth edge flow}} Smooth edge flow'
 
-    RFWidget_Default = RFWidget_Default_Factory.create()
-    RFWidget_Move = RFWidget_Default_Factory.create('HAND')
-    RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
+    RFWidget_Default = RFWidget_Default_Factory.create('Loops default')
+    RFWidget_Move = RFWidget_Default_Factory.create('Loops move', 'HAND')
+    RFWidget_Crosshair = RFWidget_Default_Factory.create('Loops crosshair', 'CROSSHAIR')
 
     @RFTool.on_init
     def init(self):

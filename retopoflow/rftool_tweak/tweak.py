@@ -42,7 +42,7 @@ from ...addon_common.common.blender import tag_redraw_all
 from ...config.options import options, themes
 
 
-class RFTool_Tweak(RFTool):
+class Tweak(RFTool):
     name        = 'Tweak'
     description = 'Adjust vertex positions with a smooth brush'
     icon        = 'tweak-icon.png'
@@ -52,22 +52,17 @@ class RFTool_Tweak(RFTool):
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'tweak_options.html'
 
-class Tweak_RFWidgets:
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
+        'Tweak brush',
         BoundInt('''options['tweak radius']''', min_value=1),
         BoundFloat('''options['tweak falloff']''', min_value=0.00, max_value=100.0),
         BoundFloat('''options['tweak strength']''', min_value=0.01, max_value=1.0),
         fill_color=themes['tweak'],
     )
 
-    def init_rfwidgets(self):
-        self.rfwidget = self.RFWidget_BrushFalloff(self)
-
-
-class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     @RFTool.on_init
     def init(self):
-        self.init_rfwidgets()
+        self.rfwidget = self.RFWidget_BrushFalloff(self)
 
     def reset_current_brush(self):
         options.reset(keys={'tweak radius', 'tweak falloff', 'tweak strength'})
@@ -229,7 +224,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         self.rfcontext.undo_push('tweak move')
 
     @FSM.on_state('move')
-    @RFTool_Tweak.dirty_when_done
+    @RFTool.dirty_when_done
     def move(self):
         if self.rfcontext.actions.released(['brush','brush alt']):
             return 'main'

@@ -56,10 +56,10 @@ class PolyPen(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'polypen_options.html'
 
-    RFWidget_Default   = RFWidget_Default_Factory.create()
-    RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
-    RFWidget_Move      = RFWidget_Default_Factory.create('HAND')
-    RFWidget_Knife     = RFWidget_Default_Factory.create('KNIFE')
+    RFWidget_Default   = RFWidget_Default_Factory.create('PolyPen default')
+    RFWidget_Crosshair = RFWidget_Default_Factory.create('PolyPen crosshair', 'CROSSHAIR')
+    RFWidget_Move      = RFWidget_Default_Factory.create('PolyPen move', 'HAND')
+    RFWidget_Knife     = RFWidget_Default_Factory.create('PolyPen knife', 'KNIFE')
 
     @RFTool.on_init
     def init(self):
