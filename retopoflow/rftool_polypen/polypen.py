@@ -47,7 +47,7 @@ from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Bou
 from ...config.options import options, themes
 
 
-class RFTool_PolyPen(RFTool):
+class PolyPen(RFTool):
     name        = 'PolyPen'
     description = 'Create complex topology on vertex-by-vertex basis'
     icon        = 'polypen-icon.png'
@@ -56,13 +56,13 @@ class RFTool_PolyPen(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'polypen_options.html'
 
-class PolyPen_RFWidgets:
     RFWidget_Default   = RFWidget_Default_Factory.create()
     RFWidget_Crosshair = RFWidget_Default_Factory.create('CROSSHAIR')
     RFWidget_Move      = RFWidget_Default_Factory.create('HAND')
     RFWidget_Knife     = RFWidget_Default_Factory.create('KNIFE')
 
-    def init_rfwidgets(self):
+    @RFTool.on_init
+    def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
             'insert':  self.RFWidget_Crosshair(self),
@@ -70,11 +70,6 @@ class PolyPen_RFWidgets:
             'knife':   self.RFWidget_Knife(self),
         }
         self.rfwidget = None
-
-class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
-    @RFTool.on_init
-    def init(self):
-        self.init_rfwidgets()
         self.update_state_info()
         self.first_time = True
         self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
@@ -372,7 +367,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
 
         return (xy0, xy1, xy2, xy3)
 
-    @RFTool_PolyPen.dirty_when_done
+    @RFTool.dirty_when_done
     def _insert(self):
         self.last_delta = None
         self.move_done_pressed = None

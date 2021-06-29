@@ -49,8 +49,7 @@ from ...addon_common.common.drawing import DrawCallbacks
 
 from ...config.options import options, themes, visualization
 
-
-class RFTool_Patches(RFTool):
+class Patches(RFTool):
     name        = 'Patches'
     description = 'Fill holes in your topology'
     icon        = 'patches-icon.png'
@@ -59,21 +58,16 @@ class RFTool_Patches(RFTool):
     statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
     ui_config   = 'patches_options.html'
 
-class Patches_RFWidgets:
     RFWidget_Default = RFWidget_Default_Factory.create()
     RFWidget_Move = RFWidget_Default_Factory.create('HAND')
 
-    def init_rfwidgets(self):
+    @RFTool.on_init
+    def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
             'hover': self.RFWidget_Move(self),
         }
         self.rfwidget = None
-
-class Patches(RFTool_Patches, Patches_RFWidgets):
-    @RFTool.on_init
-    def init(self):
-        self.init_rfwidgets()
         self.corners = {}
         self.crosses = None
         self._var_angle = BoundInt('''options['patches angle']''', min_value=0, max_value=180)
