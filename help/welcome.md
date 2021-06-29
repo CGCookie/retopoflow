@@ -1,4 +1,4 @@
-# Welcome to RetopoFlow&nbsp;{[rf version]}!
+# Welcome to RetopoFlow!
 
 RetopoFlow is a suite of Blender tools that automatically generate geometry which snaps to your source objects as you draw on the surface. 
 
