@@ -65,7 +65,7 @@ class Tweak_RFWidgets:
 
 
 class Tweak(RFTool_Tweak, Tweak_RFWidgets):
-    @RFTool_Tweak.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
 
@@ -95,14 +95,14 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         self.document.body.getElementById(f'tweak-current-strength').dirty(cause='copied preset to current brush')
         self.document.body.getElementById(f'tweak-current-falloff').dirty(cause='copied preset to current brush')
 
-    @RFTool_Tweak.on_ui_setup
+    @RFTool.on_ui_setup
     def ui(self):
         self.update_preset_name(1)
         self.update_preset_name(2)
         self.update_preset_name(3)
         self.update_preset_name(4)
 
-    @RFTool_Tweak.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.sel_only = False
 

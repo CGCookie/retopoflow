@@ -71,11 +71,11 @@ from ...config.options import options
 
 
 class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets):
-    @RFTool_PolyStrips.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
 
-    @RFTool_PolyStrips.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.strips = []
         self.strip_pts = []
@@ -86,7 +86,7 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
         self.stroke_cbs = CubicBezierSpline()
         self.clear_count_data()
 
-    @RFTool_PolyStrips.on_target_change
+    @RFTool.on_target_change
     @profiler.function
     def update_target(self, force=False):
         if not force and self._fsm.state in {'move handle', 'rotate', 'scale'}: return
@@ -154,8 +154,8 @@ class PolyStrips(RFTool_PolyStrips, PolyStrips_Props, PolyStrips_Ops, PolyStrips
     def update_strip_viz(self):
         self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
 
-    @RFTool_PolyStrips.on_target_change
-    @RFTool_PolyStrips.on_view_change
+    @RFTool.on_target_change
+    @RFTool.on_view_change
     @FSM.onlyinstate('main')
     def update_next_state(self):
         self.vis_accel = self.rfcontext.get_vis_accel()

@@ -72,7 +72,7 @@ class PolyPen_RFWidgets:
         self.rfwidget = None
 
 class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
-    @RFTool_PolyPen.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
         self.update_state_info()
@@ -87,20 +87,20 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.ui_options_label.innerText = f'PolyPen: {mode}'
         self.ui_insert_modes.dirty(cause='insert mode change', children=True)
 
-    @RFTool_PolyPen.on_ui_setup
+    @RFTool.on_ui_setup
     def ui(self):
         ui_options = self.document.body.getElementById('polypen-options')
         self.ui_options_label = ui_options.getElementById('polypen-summary-label')
         self.ui_insert_modes  = ui_options.getElementById('polypen-insert-modes')
         self.update_insert_mode()
 
-    @RFTool_PolyPen.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.previs_timer.stop()
 
-    @RFTool_PolyPen.on_reset
-    @RFTool_PolyPen.on_target_change
-    @RFTool_PolyPen.on_view_change
+    @RFTool.on_reset
+    @RFTool.on_target_change
+    @RFTool.on_view_change
     @FSM.onlyinstate('main')
     @profiler.function
     def update_state_info(self):
@@ -118,7 +118,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         if self.rfcontext.loading_done:
             self.set_next_state(force=True)
 
-    @RFTool_PolyPen.on_mouse_stop
+    @RFTool.on_mouse_stop
     @FSM.onlyinstate({'main'})
     def update_next_state_mouse(self):
         self.set_next_state(force=True)

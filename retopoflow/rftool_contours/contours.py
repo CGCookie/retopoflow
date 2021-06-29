@@ -66,11 +66,11 @@ from .contours_utils import (
 )
 
 class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
-    @RFTool_Contours.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
 
-    @RFTool_Contours.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.show_cut = False
         self.show_arrows = False
@@ -82,7 +82,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.hovering_sel_edge = None
         self.ui_initial_count = None
 
-    @RFTool_Contours.on_target_change
+    @RFTool.on_target_change
     #@FSM.onlyinstate('main')
     def update_target(self):
         self.sel_edges = set(self.rfcontext.get_selected_edges())

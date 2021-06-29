@@ -34,9 +34,8 @@ from .cookiecutter_fsm import CookieCutter_FSM
 from .cookiecutter_ui import CookieCutter_UI
 from .cookiecutter_blender import CookieCutter_Blender
 from .cookiecutter_exceptions import CookieCutter_Exceptions
-from .cookiecutter_callbacks import CookieCutter_Callbacks
 
-class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Blender, CookieCutter_Exceptions, CookieCutter_Callbacks):
+class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Blender, CookieCutter_Exceptions):
     '''
     CookieCutter is used to create advanced operators very quickly!
 

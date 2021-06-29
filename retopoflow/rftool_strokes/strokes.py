@@ -106,7 +106,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.strip_loops = v
         if self.strip_loops is not None: self.replay()
 
-    @RFTool_Strokes.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
         self.strip_crosses = None
@@ -120,7 +120,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.ui_summary.innerText = f'Strokes: {mode}'
         self.ui_insert.dirty(cause='insert mode change', children=True)
 
-    @RFTool_Strokes.on_ui_setup
+    @RFTool.on_ui_setup
     def ui(self):
         ui_options = self.document.body.getElementById('strokes-options')
         self.ui_summary = ui_options.getElementById('strokes-summary')
@@ -131,7 +131,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.rfwidgets['brush'].get_radius_boundvar().on_change(dirty_radius)
         self.update_span_mode()
 
-    @RFTool_Strokes.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.replay = None
         self.strip_crosses = None
@@ -155,14 +155,14 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             self._var_cross_count.disabled = self.strip_crosses is None or self.strip_edges
             self._var_loop_count.disabled = self.strip_loops is None
 
-    @RFTool_Strokes.on_target_change
+    @RFTool.on_target_change
     def update_target(self):
         if self.defer_recomputing: return
         if not self.just_created: self.reset()
         else: self.just_created = False
 
-    @RFTool_Strokes.on_target_change
-    @RFTool_Strokes.on_view_change
+    @RFTool.on_target_change
+    @RFTool.on_view_change
     @profiler.function
     def update(self):
         if self.defer_recomputing: return

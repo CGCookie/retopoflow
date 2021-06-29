@@ -24,6 +24,13 @@ from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
 from ..addon_common.common.functools import find_fns
 
+def rfwidget_callback_decorator(event, fn):
+    if not hasattr(fn, '_rfwidget_callback'):
+        fn._rfwidget_callback = []
+    fn._rfwidget_callback += [event]
+    return fn
+
+
 class RFWidget:
     '''
     Assumes that direct subclass will have singleton instance (shared FSM among all instances of that subclass and any subclasses)
@@ -43,45 +50,33 @@ class RFWidget:
         super().__init_subclass__(*args, **kwargs)
 
 
-    @staticmethod
-    def on_init(fn):
-        fn._widget_on_init = True
-        return fn
-    @staticmethod
-    def on_reset(fn):
-        fn._widget_on_reset = True
-        return fn
-    @staticmethod
-    def on_timer(fn):
-        fn._widget_on_timer = True
-        return fn
-    @staticmethod
-    def on_target_change(fn):
-        fn._widget_on_target_change = True
-        return fn
-    @staticmethod
-    def on_view_change(fn):
-        fn._widget_on_view_change = True
-        return fn
-    @staticmethod
-    def on_action(fn):
-        fn._widget_on_action = True
-        return fn
-    @staticmethod
-    def on_actioning(fn):
-        fn._widget_on_actioning = True
-        return fn
+    #####################################################
+    # function decorators for different events
 
+    @staticmethod
+    def on_init(fn): return rfwidget_callback_decorator('init', fn)
+    @staticmethod
+    def on_reset(fn): return rfwidget_callback_decorator('reset', fn)
+    @staticmethod
+    def on_timer(fn): return rfwidget_callback_decorator('timer', fn)
+    @staticmethod
+    def on_target_change(fn): return rfwidget_callback_decorator('target change', fn)
+    @staticmethod
+    def on_view_change(fn): return rfwidget_callback_decorator('view change', fn)
+    @staticmethod
+    def on_action(fn): return rfwidget_callback_decorator('action', fn)
+    @staticmethod
+    def on_actioning(fn): return rfwidget_callback_decorator('actioning', fn)
 
     def __init__(self, rftool, *, start='main', reset_state=None, **kwargs):
         self.rftool = rftool
         self.rfcontext = rftool.rfcontext
         self.actions = rftool.rfcontext.actions
         self.redraw_on_mouse = False
-        self._init_callbacks()
-        self._callback_widget('init', **kwargs)
+        self._gather_callbacks()
         self._fsm = FSM(self, start=start, reset_state=reset_state)
         self._draw = DrawCallbacks(self)
+        self._callback_widget('init', **kwargs)
         # self._init_action_callback()
         self._reset()
 
@@ -101,21 +96,25 @@ class RFWidget:
         for fn in self._tool_callbacks[event]:
             fn(self.rftool, *args, **kwargs)
 
-    def _init_callbacks(self):
-        def fw(key):
-            return [fn for (_,fn) in find_fns(self, '_widget_on_%s' % key)]
-        def ft(key):
-            return [fn for (_,fn) in find_fns(self.rftool, '_widget_on_%s' % key)]
+    def _gather_callbacks(self):
+        widget_fns = find_fns(self, '_rfwidget_callback')
         self._widget_callbacks = {
-            'init':          fw('init'),             # called when RF starts up
-            'reset':         fw('reset'),            # called when RF switches into tool or undo/redo
-            'timer':         fw('timer'),            # called every timer interval
-            'target change': fw('target_change'),    # called whenever rftarget has changed (selection or edited)
-            'view change':   fw('view_change'),      # called whenever view has changed
+            mode: [fn for (modes, fn) in widget_fns if mode in modes]
+            for mode in [
+                'init',          # called when RF starts up
+                'reset',         # called when RF switches into tool or undo/redo
+                'timer',         # called every timer interval
+                'target change', # called whenever rftarget has changed (selection or edited)
+                'view change',   # called whenever view has changed
+            ]
         }
+        rftool_fns = find_fns(self.rftool, '_rfwidget_callback')
         self._tool_callbacks = {
-            'action':        ft('action'),           # called when user performs widget action, per instance!
-            'actioning':     ft('actioning'),        # called when user is performing widget action, per instance!
+            mode: [fn for (modes, fn) in rftool_fns if mode in modes]
+            for mode in [
+                'action',        # called when user performs widget action, per instance!
+                'actioning',     # called when user is performing widget action, per instance!
+            ]
         }
 
     def callback_actions(self, *args, **kwargs):

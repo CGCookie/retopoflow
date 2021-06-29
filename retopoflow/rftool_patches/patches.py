@@ -71,7 +71,7 @@ class Patches_RFWidgets:
         self.rfwidget = None
 
 class Patches(RFTool_Patches, Patches_RFWidgets):
-    @RFTool_Patches.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
         self.corners = {}
@@ -79,7 +79,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         self._var_angle = BoundInt('''options['patches angle']''', min_value=0, max_value=180)
         self._var_crosses = BoundInt('''self.var_crosses''', min_value=1, max_value=500)
 
-    @RFTool_Patches.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.defer_recomputing = False
 
@@ -124,8 +124,8 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
-    @RFTool_Patches.on_reset
-    @RFTool_Patches.on_target_change
+    @RFTool.on_reset
+    @RFTool.on_target_change
     def update(self):
         if self.defer_recomputing: return
         self.rfcontext.get_vis_accel()

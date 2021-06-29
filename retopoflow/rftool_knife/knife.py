@@ -73,7 +73,7 @@ class Knife_RFWidgets:
         self.rfwidget = None
 
 class Knife(RFTool_Knife, Knife_RFWidgets):
-    @RFTool_Knife.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
         self.first_time = True
@@ -82,7 +82,7 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         self.update_state_info()
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
-    @RFTool_Knife.on_reset
+    @RFTool.on_reset
     def reset(self):
         if self.actions.using('knife quick'):
             self._fsm.force_set_state('quick')
@@ -90,9 +90,9 @@ class Knife(RFTool_Knife, Knife_RFWidgets):
         else:
             self.previs_timer.stop()
 
-    @RFTool_Knife.on_reset
-    @RFTool_Knife.on_target_change
-    @RFTool_Knife.on_view_change
+    @RFTool.on_reset
+    @RFTool.on_target_change
+    @RFTool.on_view_change
     @profiler.function
     @FSM.onlyinstate({'main', 'quick', 'insert'})
     def update_state_info(self):

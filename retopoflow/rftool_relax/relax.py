@@ -61,7 +61,7 @@ class Relax_RFWidgets:
         self.rfwidget = self.RFWidget_BrushFalloff(self)
 
 class Relax(RFTool_Relax, Relax_RFWidgets):
-    @RFTool_Relax.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
 
@@ -114,14 +114,14 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         self.document.body.getElementById(f'relax-current-strength').dirty(cause='copied preset to current brush')
         self.document.body.getElementById(f'relax-current-falloff').dirty(cause='copied preset to current brush')
 
-    @RFTool_Relax.on_ui_setup
+    @RFTool.on_ui_setup
     def ui(self):
         self.update_preset_name(1)
         self.update_preset_name(2)
         self.update_preset_name(3)
         self.update_preset_name(4)
 
-    @RFTool_Relax.on_reset
+    @RFTool.on_reset
     def reset(self):
         self.sel_only = False
 

@@ -70,16 +70,16 @@ class Loops_RFWidgets:
 
 
 class Loops(RFTool_Loops, Loops_RFWidgets):
-    @RFTool_Loops.on_init
+    @RFTool.on_init
     def init(self):
         self.init_rfwidgets()
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
-    @RFTool_Loops.on_mouse_move
+    @RFTool.on_mouse_move
     def mouse_move(self):
         tag_redraw_all('Loops mouse_move')
 
-    @RFTool_Loops.on_reset
+    @RFTool.on_reset
     def reset(self):
         if self.actions.using('loops quick'):
             self._fsm.force_set_state('quick')
@@ -307,13 +307,13 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if not bme or bme.select: return
         self.rfcontext.select(bme, supparts=False, only=False)
 
-    @RFTool_Loops.on_target_change
-    @RFTool_Loops.on_view_change
+    @RFTool.on_target_change
+    @RFTool.on_view_change
     @FSM.onlyinstate({'main', 'quick'})
     def update_next_state(self):
         self.set_next_state()
 
-    @RFTool_Loops.on_mouse_stop
+    @RFTool.on_mouse_stop
     @FSM.onlyinstate({'main', 'quick'})
     def update_next_state_mouse(self):
         self.set_next_state()
