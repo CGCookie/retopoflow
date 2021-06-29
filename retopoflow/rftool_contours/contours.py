@@ -43,7 +43,6 @@ from ...config.options import options
 
 from .contours_ops import Contours_Ops
 from .contours_props import Contours_Props
-from .contours_rfwidgets import Contours_RFWidgets
 from .contours_utils import (
     find_loops,
     find_strings,
@@ -52,7 +51,11 @@ from .contours_utils import (
     Contours_Utils,
 )
 
-class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_linecut import RFWidget_LineCut_Factory
+
+
+class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     name        = 'Contours'
     description = 'Retopologize cylindrical forms, like arms and legs'
     icon        = 'contours-icon.png'
@@ -61,9 +64,18 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils, Contours_RF
     statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
     ui_config   = 'contours_options.html'
 
+    RFWidget_Default = RFWidget_Default_Factory.create('Contours default')
+    RFWidget_Move = RFWidget_Default_Factory.create('Contours move', 'HAND')
+    RFWidget_LineCut = RFWidget_LineCut_Factory.create('Contours line cut')
+
     @RFTool.on_init
     def init(self):
-        self.init_rfwidgets()
+        self.rfwidgets = {
+            'default': self.RFWidget_Default(self),
+            'cut':     self.RFWidget_LineCut(self),
+            'hover':   self.RFWidget_Move(self),
+        }
+        self.rfwidget = None
 
     @RFTool.on_reset
     def reset(self):
