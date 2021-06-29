@@ -37,7 +37,6 @@ from ...addon_common.common.decorators import timed_call
 
 from .polystrips_ops   import PolyStrips_Ops
 from .polystrips_props import PolyStrips_Props
-from .polystrips_rfwidgets import PolyStrips_RFWidgets
 from .polystrips_utils import (
     RFTool_PolyStrips_Strip,
     hash_face_pair,
@@ -57,10 +56,15 @@ from ...addon_common.common.maths import Vec2D, Point, rotate2D, Direction2D, Po
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
-from ...config.options import options
+from ...config.options import options, themes
+
+from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+
+from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 
-class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets):
+class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     name        = 'PolyStrips'
     description = 'Create and edit strips of quads'
     icon        = 'polystrips-icon.png'
@@ -69,9 +73,22 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops, PolyStrips_RFWidgets)
     statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
     ui_config   = 'polystrips_options.html'
 
+    RFWidget_Default = RFWidget_Default_Factory.create('PolyStrips default')
+    RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
+        'PolyStrips stroke',
+        BoundInt('''options['polystrips radius']''', min_value=1),
+        outer_border_color=themes['polystrips']
+    )
+    RFWidget_Move = RFWidget_Default_Factory.create('PolyStrips move', 'HAND')
+
     @RFTool.on_init
     def init(self):
-        self.init_rfwidgets()
+        self.rfwidgets = {
+            'default':     self.RFWidget_Default(self),
+            'brushstroke': self.RFWidget_BrushStroke(self),
+            'move':        self.RFWidget_Move(self),
+        }
+        self.rfwidget = None
 
     @RFTool.on_reset
     def reset(self):
