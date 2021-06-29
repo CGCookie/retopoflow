@@ -17,14 +17,13 @@ import contextlib
 
 from ..common.fsm import FSM
 from ..common.debug import debugger, ExceptionHandler
-from ..common.utils import find_fns
-
-from .cookiecutter_fsm import CookieCutter_FSM
+from ..common.functools import find_fns
 
 class CookieCutter_Exceptions:
     @staticmethod
     def _handle_exception(e, action, fatal=False):
-        print('CookieCutter handling exception caught while trying to "%s"' % action)
+        print(f'CookieCutter_Exceptions: handling caught exception')
+        print(f'    action: {action}')
         debugger.print_exception()
         if fatal: assert False
         CookieCutter_Exceptions._instance._callback_exception_callbacks(e)
@@ -35,21 +34,25 @@ class CookieCutter_Exceptions:
         return fn
     Exception_Callback = _exception_callback_wrapper
 
+    @ExceptionHandler.on_exception
     def _callback_exception_callbacks(self, e):
-        print('CookieCutter_Exceptions._callback_exception_callbacks:', e)
+        print(f'CookieCutter_Exceptions._callback_exception_callbacks: {e}')
         # debugger.dcallstack(0)
         for fn_name in self._exception_callbacks:
             try:
                 fn = getattr(self, fn_name)
                 fn(e)
             except Exception as e2:
-                print('CookieCutter caught exception while calling back exception callbacks: %s' % fn.__name__)
+                print(f'CookieCutter caught exception while calling back exception callbacks: {fn.__name__}')
                 debugger.print_exception()
 
     def _cc_exception_init(self):
         self._exception_callbacks = [fn.__name__ for (_,fn) in find_fns(self, '_cc_exception_callback')]
-        ExceptionHandler.add_universal_callback(self._callback_exception_callbacks)
+        self._exceptionhandler = ExceptionHandler(self)
+        #self._exceptionhandler.add_callback(self._callback_exception_callbacks, universal=True)
         CookieCutter_Exceptions._instance = self
 
     def _cc_exception_done(self):
-        ExceptionHandler.remove_universal_callback(self._callback_exception_callbacks)
+        del self._exceptionhandler
+        self._exceptionhandler = None
+        ExceptionHandler.clear_universal_callbacks()

@@ -26,6 +26,7 @@ from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
@@ -58,12 +59,12 @@ class RFWidget_BrushStroke_Factory:
                 self.inner_color = inner_color
                 self.color_mult_below = below_alpha
 
-            @RFW_BrushStroke.FSM_State('main', 'enter')
+            @FSM.FSM_State('main', 'enter')
             def modal_main_enter(self):
                 self.rfw_cursor = 'CROSSHAIR'
                 tag_redraw_all('BrushStroke_PolyStrips main_enter')
 
-            @RFW_BrushStroke.FSM_State('main')
+            @FSM.FSM_State('main')
             def modal_main(self):
                 if self.actions.pressed('insert'):
                     return 'stroking'
@@ -75,12 +76,12 @@ class RFWidget_BrushStroke_Factory:
                     self._fsm.force_set_state('brush sizing')
                     return True
 
-            @RFW_BrushStroke.FSM_State('stroking', 'enter')
+            @FSM.FSM_State('stroking', 'enter')
             def modal_line_enter(self):
                 self.stroke2D = [self.actions.mouse]
                 tag_redraw_all('BrushStroke_PolyStrips line_enter')
 
-            @RFW_BrushStroke.FSM_State('stroking')
+            @FSM.FSM_State('stroking')
             def modal_line(self):
                 if self.actions.released('insert'):
                     # TODO: tessellate the last steps?
@@ -98,11 +99,11 @@ class RFWidget_BrushStroke_Factory:
                 tag_redraw_all('BrushStroke_PolyStrips line')
                 self.callback_actioning()
 
-            @RFW_BrushStroke.FSM_State('stroking', 'exit')
+            @FSM.FSM_State('stroking', 'exit')
             def modal_line_exit(self):
                 tag_redraw_all('BrushStroke_PolyStrips line_exit')
 
-            @RFW_BrushStroke.FSM_State('brush sizing', 'enter')
+            @FSM.FSM_State('brush sizing', 'enter')
             def modal_brush_sizing_enter(self):
                 if self.actions.mouse.x > self.actions.size.x / 2:
                     self.sizing_pos = self.actions.mouse - Vec2D((self.radius, 0))
@@ -111,7 +112,7 @@ class RFWidget_BrushStroke_Factory:
                 self.rfw_cursor = 'MOVE_X'
                 tag_redraw_all('BrushStroke_PolyStrips brush_sizing_enter')
 
-            @RFW_BrushStroke.FSM_State('brush sizing')
+            @FSM.FSM_State('brush sizing')
             def modal_brush_sizing(self):
                 if self.actions.pressed('confirm'):
                     self.radius = (self.sizing_pos - self.actions.mouse).length
@@ -138,7 +139,7 @@ class RFWidget_BrushStroke_Factory:
             # draw functions
 
             @RFW_BrushStroke.Draw('post3d')
-            @RFW_BrushStroke.FSM_OnlyInState({'main','stroking'})
+            @FSM.FSM_OnlyInState({'main','stroking'})
             def draw_brush(self):
                 xy = self.rfcontext.actions.mouse
                 p,n,_,_ = self.rfcontext.raycast_sources_mouse()
@@ -167,7 +168,7 @@ class RFWidget_BrushStroke_Factory:
                 bgl.glDepthRange(0.0, 1.0)
 
             @RFW_BrushStroke.Draw('post2d')
-            @RFW_BrushStroke.FSM_OnlyInState('stroking')
+            @FSM.FSM_OnlyInState('stroking')
             def draw_line(self):
                 # draw brush strokes (screen space)
                 #cr,cg,cb,ca = self.line_color
@@ -176,7 +177,7 @@ class RFWidget_BrushStroke_Factory:
                 Globals.drawing.draw2D_linestrip(self.stroke2D, themes['stroke'], width=2, stipple=[5, 5])
 
             @RFW_BrushStroke.Draw('post2d')
-            @RFW_BrushStroke.FSM_OnlyInState('brush sizing')
+            @FSM.FSM_OnlyInState('brush sizing')
             def draw_brush_sizing(self):
                 bgl.glEnable(bgl.GL_BLEND)
                 # bgl.glEnable(bgl.GL_MULTISAMPLE)

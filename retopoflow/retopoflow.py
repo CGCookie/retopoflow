@@ -47,6 +47,7 @@ from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
 from ..addon_common.common.blender import tag_redraw_all
 from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
+from ..addon_common.common.fsm import FSM
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec, abspath
@@ -158,7 +159,7 @@ class RetopoFlow(
         # all seems good!
         return True
 
-    @CookieCutter.FSM_State('loading', 'enter')
+    @FSM.FSM_State('loading', 'enter')
     def setup_next_stage_enter(self):
         win = UI_Element.fromHTMLFile(abspath('rf/loading_dialog.html'))[0]
         self.document.body.append_child(win)
@@ -190,7 +191,7 @@ class RetopoFlow(
         ]
         self._setup_data = d
 
-    @CookieCutter.FSM_State('loading')
+    @FSM.FSM_State('loading')
     def setup_next_stage(self):
         d = self._setup_data
         if d['working']: return
@@ -258,6 +259,7 @@ class RetopoFlow(
         self.reload_stylings()
 
         # the rest of setup is handled in `loading` state and self.setup_next_stage above
+        # self.fsm.init(self, start='main')
         self.fsm.force_set_state('loading')
 
 

@@ -46,11 +46,12 @@ class RFTool:
         rftools[cls.__name__] = cls
         if not hasattr(cls, '_rftool_index'):
             # add cls to registry (might get updated later) and add FSM
+            if False: print(f'RFTool: adding to registry at index {len(RFTool.registry)}: {cls} {cls.__name__} ')
             cls._rftool_index = len(RFTool.registry)
             RFTool.registry.append(cls)
-            cls._fsm = FSM()
-            cls.FSM_State = cls._fsm.wrapper
-            cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
+            # cls._fsm = FSM()
+            # cls.FSM_State = cls._fsm.wrapper
+            # cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
             cls._draw = DrawCallbacks()
             cls.Draw = cls._draw.wrapper
             cls._callbacks = {
@@ -69,7 +70,9 @@ class RFTool:
                 cls.ui_config = None
         else:
             # update registry, but do not add new FSM
+            if False: print(f'RFTool: updating registry at index {cls._rftool_index}: {cls} {cls.__name__}')
             RFTool.registry[cls._rftool_index] = cls
+            pass
         super().__init_subclass__(*args, **kwargs)
 
     #####################################################
@@ -125,19 +128,19 @@ class RFTool:
         return fn(*args, **kwargs)
 
 
-    def __init__(self, rfcontext):
+    def __init__(self, rfcontext, start='main', reset_state=None):
         RFTool.rfcontext = rfcontext
         RFTool.drawing = rfcontext.drawing
         RFTool.actions = rfcontext.actions
         RFTool.document = rfcontext.document
         self.rfwidget = None
-        self._fsm.init(self, start='main')
+        self._fsm = FSM(self, start=start, reset_state=reset_state)
         self._draw.init(self)
         self._callback('init')
         self._reset()
 
     def _reset(self):
-        self._fsm.force_set_state('main')
+        self._fsm.force_reset()
         self._callback('reset')
         self._update_all()
 

@@ -56,7 +56,7 @@ from ...config.options import (
 class RetopoFlow_UI:
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
-        print('RF_UI.handle_exception', e)
+        print(f'RF_UI.handle_exception: {e}')
         if False:
             for entry in inspect.stack():
                 print(f'  {entry}')

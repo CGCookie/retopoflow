@@ -30,6 +30,7 @@ import traceback
 import functools
 import contextlib
 import urllib.request
+from functools import wraps
 from itertools import chain
 from concurrent.futures import ThreadPoolExecutor
 
@@ -50,7 +51,8 @@ from .fontmanager import FontManager as fm
 from .maths import Point2D, Vec2D, Point, Ray, Direction, mid, Color, Normal, Frame
 from .profiler import profiler
 from .debug import dprint, debugger
-from .utils import find_fns,iter_pairs
+from .utils import iter_pairs
+from .functools import find_fns
 
 
 class Cursors:
@@ -1447,6 +1449,8 @@ class DrawCallbacks:
             def __call__(self, fn):
                 self.fn = fn
                 self.fnname = fn.__name__
+
+                @wraps(fn)
                 def run(*args, **kwargs):
                     try:
                         return fn(*args, **kwargs)

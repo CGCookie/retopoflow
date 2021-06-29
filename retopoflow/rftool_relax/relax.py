@@ -32,6 +32,7 @@ from ...addon_common.common.maths import (
     Color,
     closest_point_segment,
 )
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs, delay_exec
@@ -124,7 +125,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     def reset(self):
         self.sel_only = False
 
-    @RFTool_Relax.FSM_State('main')
+    @FSM.FSM_State('main')
     def main(self) :
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
@@ -176,7 +177,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         #     self.rfcontext.select(faces, only=False)
         #     return
 
-    # @RFTool_Relax.FSM_State('selectadd/deselect')
+    # @FSM.FSM_State('selectadd/deselect')
     # def selectadd_deselect(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
     #         self.rfcontext.undo_push('deselect')
@@ -188,7 +189,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     #         self.rfcontext.undo_push('select add')
     #         return 'select'
 
-    # @RFTool_Relax.FSM_State('select')
+    # @FSM.FSM_State('select')
     # def select(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
     #         return 'main'
@@ -196,7 +197,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     #     if not bmf or bmf.select: return
     #     self.rfcontext.select(bmf, supparts=False, only=False)
 
-    @RFTool_Relax.FSM_State('relax', 'enter')
+    @FSM.FSM_State('relax', 'enter')
     def relax_enter(self):
         self._time = time.time()
         self._timer = self.actions.start_timer(120)
@@ -233,13 +234,13 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         # print(f'Relaxing max of {len(self._bmverts)} bmverts')
         self.rfcontext.split_target_visualization(verts=self._bmverts)
 
-    @RFTool_Relax.FSM_State('relax', 'exit')
+    @FSM.FSM_State('relax', 'exit')
     def relax_exit(self):
         self.rfcontext.update_verts_faces(self._bmverts)
         self.rfcontext.clear_split_target_visualization()
         self._timer.done()
 
-    @RFTool_Relax.FSM_State('relax')
+    @FSM.FSM_State('relax')
     def relax(self):
         st = time.time()
 
@@ -388,6 +389,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
                         i1 = (i0 + 1) % cnt
                         rel0,bmv0 = rels[i0],bmvs[i0]
                         rel1,bmv1 = rels[i1],bmvs[i1]
+                        if rel0.length < 0.00001 or rel1.length < 0.00001: continue
                         vec = bmv1.co - bmv0.co
                         vec_len = vec.length
                         fvec0 = rel0.cross(vec).cross(rel0).normalize()

@@ -33,6 +33,7 @@ from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 
 
 from ...addon_common.common.debug import dprint
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import (
@@ -188,7 +189,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def filter_edge_selection(self, bme):
         return bme.select or len(bme.link_faces) < 2
 
-    @RFTool_Strokes.FSM_State('main')
+    @FSM.FSM_State('main')
     @profiler.function
     def modal_main(self):
         if not self.actions.using('action', ignoredrag=True):
@@ -908,7 +909,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             self.rfcontext.update_verts_faces(update_verts)
             #self.set_next_state()
 
-    @RFTool_Strokes.FSM_State('move', 'enter')
+    @FSM.FSM_State('move', 'enter')
     def move_enter(self, bmverts=None, defer_recomputing=True):
         self.rfcontext.undo_push('move grabbed')
 
@@ -931,7 +932,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)
 
-    @RFTool_Strokes.FSM_State('move')
+    @FSM.FSM_State('move')
     @RFTool_Strokes.dirty_when_done
     @profiler.function
     def move(self):
@@ -974,7 +975,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
-    @RFTool_Strokes.FSM_State('move', 'exit')
+    @FSM.FSM_State('move', 'exit')
     def move_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)

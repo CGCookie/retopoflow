@@ -38,6 +38,7 @@ from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.drawing import CC_2D_LINE_STRIP, CC_2D_LINE_LOOP, CC_DRAW
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
@@ -118,12 +119,12 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
-    @RFTool_Loops.FSM_State('quick', 'enter')
+    @FSM.FSM_State('quick', 'enter')
     def quick_enter(self):
         self.hovering_sel_edge = None
         self.rfwidget = self.rfwidgets['cut']
 
-    @RFTool_Loops.FSM_State('quick')
+    @FSM.FSM_State('quick')
     def quick_main(self):
         if self.actions.pressed('cancel'):
             self.previs_timer.stop()
@@ -136,7 +137,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         if self.hovering_edge and self.rfcontext.actions.pressed('quick insert'):
             return self.insert_edge_loop_strip()
 
-    @RFTool_Loops.FSM_State('main')
+    @FSM.FSM_State('main')
     def main(self):
         if self.actions.mousemove: return  # ignore mouse moves
 
@@ -286,7 +287,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self.rfcontext.undo_push('slide edge loop/strip')
         return 'slide'
 
-    @RFTool_Loops.FSM_State('selectadd/deselect')
+    @FSM.FSM_State('selectadd/deselect')
     def selectadd_deselect(self):
         if not self.rfcontext.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
@@ -298,7 +299,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
             self.rfcontext.undo_push('select add')
             return 'select'
 
-    @RFTool_Loops.FSM_State('select')
+    @FSM.FSM_State('select')
     def select(self):
         if not self.rfcontext.actions.using(['select single','select single add']):
             return 'main'
@@ -308,12 +309,12 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
     @RFTool_Loops.on_target_change
     @RFTool_Loops.on_view_change
-    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
+    @FSM.FSM_OnlyInState({'main', 'quick'})
     def update_next_state(self):
         self.set_next_state()
 
     @RFTool_Loops.on_mouse_stop
-    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
+    @FSM.FSM_OnlyInState({'main', 'quick'})
     def update_next_state_mouse(self):
         self.set_next_state()
         tag_redraw_all('Loops mouse stop')
@@ -505,13 +506,13 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         self.percent_start = 0.0
         self.edit_ok = True
 
-    @RFTool_Loops.FSM_State('slide', 'enter')
+    @FSM.FSM_State('slide', 'enter')
     def slide_enter(self):
         self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
         tag_redraw_all('entering slide')
 
-    @RFTool_Loops.FSM_State('slide')
+    @FSM.FSM_State('slide')
     @profiler.function
     def slide(self):
         released = self.rfcontext.actions.released
@@ -544,14 +545,14 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
 
         self.rfcontext.dirty()
 
-    @RFTool_Loops.FSM_State('slide', 'exit')
+    @FSM.FSM_State('slide', 'exit')
     def slide_exit(self):
         self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
 
 
     @RFTool_Loops.Draw('post2d')
-    @RFTool_Loops.FSM_OnlyInState('slide')
+    @FSM.FSM_OnlyInState('slide')
     def draw_postview_slide(self):
         bgl.glEnable(bgl.GL_BLEND)
         # bgl.glEnable(bgl.GL_MULTISAMPLE)
@@ -563,7 +564,7 @@ class Loops(RFTool_Loops, Loops_RFWidgets):
         )
 
     @RFTool_Loops.Draw('post2d')
-    @RFTool_Loops.FSM_OnlyInState({'main', 'quick'})
+    @FSM.FSM_OnlyInState({'main', 'quick'})
     @profiler.function
     def draw_postview(self):
         if self.rfcontext._nav or not self.nearest_edge: return

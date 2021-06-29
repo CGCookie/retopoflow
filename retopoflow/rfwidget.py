@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.drawing import DrawCallbacks
-from ..addon_common.common.utils import find_fns
+from ..addon_common.common.functools import find_fns
 
 class RFWidget:
     '''
@@ -37,11 +37,11 @@ class RFWidget:
             # add cls to registry (might get updated later) and add FSM,Draw
             cls._rfwidget_index = len(RFWidget.registry)
             RFWidget.registry.append(cls)
-            cls._fsm = FSM()
+            # cls._fsm = FSM()
             cls._draw = DrawCallbacks()
             # convenience functions
-            cls.FSM_State = cls._fsm.wrapper
-            cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
+            # cls.FSM_State = cls._fsm.wrapper
+            # cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
             cls.Draw = cls._draw.wrapper
         else:
             # update registry, but do not add new FSM
@@ -79,14 +79,14 @@ class RFWidget:
         return fn
 
 
-    def __init__(self, rftool, **kwargs):
+    def __init__(self, rftool, *, start='main', reset_state=None, **kwargs):
         self.rftool = rftool
         self.rfcontext = rftool.rfcontext
         self.actions = rftool.rfcontext.actions
         self.redraw_on_mouse = False
         self._init_callbacks()
         self._callback_widget('init', **kwargs)
-        self._fsm.init(self, start='main')
+        self._fsm = FSM(self, start=start, reset_state=reset_state)
         self._draw.init(self)
         # self._init_action_callback()
         self._reset()
@@ -131,7 +131,7 @@ class RFWidget:
         self._callback_tool('actioning', *args, **kwargs)
 
     def _reset(self):
-        self._fsm.force_set_state('main')
+        self._fsm.force_reset()
         self._callback_widget('reset')
         self._update_all()
 

@@ -27,12 +27,12 @@ import time
 from .rf.rf_updatersystem import RetopoFlow_UpdaterSystem
 from .rf.rf_ui_alert      import RetopoFlow_UI_Alert
 
+from ..addon_common.common.fsm import FSM
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
 
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
-CookieCutter.create_FSM()
 
 from ..config.keymaps import get_keymaps
 from ..config.options import options
@@ -69,7 +69,7 @@ class RetopoFlow_OpenUpdaterSystem(CookieCutter, RetopoFlow_UpdaterSystem, Retop
     # def update(self):
     #     preload_help_images.paused = False
 
-    @CookieCutter.FSM_State('main')
+    @FSM.FSM_State('main')
     def main(self):
         # print(f'Updater System main')
         if self.actions.pressed({'done', 'done alt0'}):

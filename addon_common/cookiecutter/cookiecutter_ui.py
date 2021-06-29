@@ -69,10 +69,6 @@ class CookieCutter_UI:
     Assumes that direct subclass will have singleton instance (shared CookieCutter among all instances of that subclass and any subclasses)
     '''
 
-    drawcallbacks = DrawCallbacks()
-    Draw = drawcallbacks.wrapper
-    PreDraw = drawcallbacks.wrapper_pre
-
     def _cc_ui_init(self):
         # preload images
         preload_image(

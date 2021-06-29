@@ -34,6 +34,7 @@ from ...addon_common.common.drawing import (
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Color, closest_point_segment
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...addon_common.common.blender import tag_redraw_all
@@ -105,7 +106,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     def reset(self):
         self.sel_only = False
 
-    @RFTool_Tweak.FSM_State('main')
+    @FSM.FSM_State('main')
     def main(self):
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
@@ -157,7 +158,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         #     self.rfcontext.select(faces, only=False)
         #     return
 
-    # @RFTool_Tweak.FSM_State('selectadd/deselect')
+    # @FSM.FSM_State('selectadd/deselect')
     # @profiler.function
     # def modal_selectadd_deselect(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
@@ -170,7 +171,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     #         self.rfcontext.undo_push('select add')
     #         return 'select'
 
-    # @RFTool_Tweak.FSM_State('select')
+    # @FSM.FSM_State('select')
     # @profiler.function
     # def modal_select(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
@@ -180,13 +181,13 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     #     self.rfcontext.select(bmf, supparts=False, only=False)
 
 
-    @RFTool_Tweak.FSM_State('move', 'can enter')
+    @FSM.FSM_State('move', 'can enter')
     def move_can_enter(self):
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         if not nearest: return False
 
-    @RFTool_Tweak.FSM_State('move', 'enter')
+    @FSM.FSM_State('move', 'enter')
     def move_enter(self):
         # gather options
         opt_mask_boundary = options['tweak mask boundary']
@@ -227,7 +228,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         self.rfcontext.split_target_visualization(verts=[bmv for (bmv,_,_,_) in self.bmverts])
         self.rfcontext.undo_push('tweak move')
 
-    @RFTool_Tweak.FSM_State('move')
+    @FSM.FSM_State('move')
     @RFTool_Tweak.dirty_when_done
     def move(self):
         if self.rfcontext.actions.released(['brush','brush alt']):
@@ -262,7 +263,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 
-    @RFTool_Tweak.FSM_State('move', 'exit')
+    @FSM.FSM_State('move', 'exit')
     def move_exit(self):
         self.rfcontext.clear_split_target_visualization()
         self._timer.done()

@@ -30,10 +30,9 @@ from .rf.rf_helpsystem import RetopoFlow_HelpSystem
 from ..addon_common.common.globals import Globals
 from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
+from ..addon_common.common.fsm import FSM
 
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
-CookieCutter.create_FSM()
-
 
 from ..config.keymaps import get_keymaps
 from ..config.options import options
@@ -70,7 +69,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     # def update(self):
     #     preload_help_images.paused = False
 
-    @CookieCutter.FSM_State('main')
+    @FSM.FSM_State('main')
     def main(self):
         # print(f'Help System main')
         if self.actions.pressed({'done', 'done alt0'}):

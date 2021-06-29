@@ -26,6 +26,7 @@ from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
@@ -59,17 +60,17 @@ class RFWidget_LineCut_Factory:
                 self.circle_color = circle_color
                 self.circle_border_color = circle_border_color
 
-            @RFW_LineCut.FSM_State('main')
+            @FSM.FSM_State('main')
             def modal_main(self):
                 if self.actions.pressed('insert'):
                     return 'line'
 
-            @RFW_LineCut.FSM_State('line', 'enter')
+            @FSM.FSM_State('line', 'enter')
             def modal_line_enter(self):
                 self.line2D = [self.actions.mouse, None]
                 tag_redraw_all('Line line_enter')
 
-            @RFW_LineCut.FSM_State('line')
+            @FSM.FSM_State('line')
             def modal_line(self):
                 if self.actions.released('insert'):
                     self.callback_actions()
@@ -83,12 +84,12 @@ class RFWidget_LineCut_Factory:
                     self.line2D[1] = self.actions.mouse
                     tag_redraw_all('Line line')
 
-            @RFW_LineCut.FSM_State('line', 'exit')
+            @FSM.FSM_State('line', 'exit')
             def modal_line_exit(self):
                 tag_redraw_all('Line line_exit')
 
             @RFW_LineCut.Draw('post2d')
-            @RFW_LineCut.FSM_OnlyInState('line')
+            @FSM.FSM_OnlyInState('line')
             def draw_line(self):
                 #cr,cg,cb,ca = self.line_color
                 p0,p1 = self.line2D

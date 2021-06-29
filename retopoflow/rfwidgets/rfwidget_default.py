@@ -26,6 +26,7 @@ from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color
@@ -51,7 +52,7 @@ class RFWidget_Default_Factory:
             rfw_cursor = cursor
 
         class RFWidget_Default(RFW_Default):
-            @RFW_Default.FSM_State('main')
+            @FSM.FSM_State('main')
             def modal_main(self):
                 pass
 

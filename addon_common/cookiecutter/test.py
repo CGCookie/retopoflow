@@ -24,6 +24,7 @@ from .cookiecutter import CookieCutter
 
 from ..common.maths import Point2D
 from ..common.drawing import Drawing
+from ..common.fsm import FSM
 
 class CookieCutter_Test(CookieCutter):
     bl_idname = "view3d.cookiecutter_test"
@@ -53,7 +54,7 @@ class CookieCutter_Test(CookieCutter):
     def update(self):
         self.ui_action.set_label('Press: %s' % (','.join(self.actions.now_pressed.keys()),))
 
-    @CookieCutter.FSM_State('main')
+    @FSM.FSM_State('main')
     def modal_main(self):
         Drawing.set_cursor('DEFAULT')
 
@@ -61,7 +62,7 @@ class CookieCutter_Test(CookieCutter):
             self.lbl.set_label('grab!')
             return 'grab'
 
-    @CookieCutter.FSM_State('grab')
+    @FSM.FSM_State('grab')
     def modal_grab(self):
         Drawing.set_cursor('HAND')
 

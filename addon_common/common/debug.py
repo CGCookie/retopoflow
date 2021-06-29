@@ -35,10 +35,12 @@ import traceback
 from math import floor
 from hashlib import md5
 from datetime import datetime
+from functools import wraps
 
 from .globals import Globals
 from .blender import show_blender_popup
 from .hasher import Hasher
+from .functools import find_fns
 
 
 class Debugger:
@@ -173,9 +175,27 @@ class Debugger:
 class ExceptionHandler:
     _universal = []
 
-    def __init__(self, universal=False):
+    @staticmethod
+    def on_exception(fn):
+        fn._exceptionhandler_on_exception = True
+        return fn
+
+    def __init__(self, obj=None, *, universal=False):
+        # print(f'ExceptionHandler.__init__({self})')
         self._single = []
+        self._um = []
         self._universal_only = universal
+        self.collect_callbacks(obj)
+
+    def __del__(self):
+        # print(f'ExceptionHandler.__del__({self})')
+        for fn in getattr(self, '_um', []):
+            self.remove_universal_callback(fn)
+
+    def collect_callbacks(self, obj):
+        if not obj: return
+        for (_, fn) in find_fns(obj, '_exceptionhandler_on_exception'):
+            self.add_callback(fn)
 
     @staticmethod
     def add_universal_callback(fn):
@@ -183,17 +203,21 @@ class ExceptionHandler:
 
     @staticmethod
     def remove_universal_callback(fn):
-        ExceptionHandler._universal = [f for f in ExceptionHandler._universal if f != fn]
+        if fn not in ExceptionHandler._universal: return
+        ExceptionHandler._universal.remove(fn)
 
     @staticmethod
     def clear_universal_callbacks():
         ExceptionHandler._universal = []
 
     def add_callback(self, fn, universal=None):
+        # print(f'ExceptionHandler.add_callback({self}, {fn}, {universal})')
+        if getattr(fn, '_exceptionhandler_collected', False): return
+        fn._exceptionhandler_collected = True
+        if universal is None and self._universal_only: universal = True
         if universal:
             self._universal += [fn]
-        if universal is None and self._universal_only:
-            self._universal += [fn]
+            self._um += [fn]
         else:
             self._single += [fn]
 
@@ -210,13 +234,16 @@ class ExceptionHandler:
         return wrapper
 
     def handle_exception(self, e):
+        # print(f'ExceptionHandler: calling back these fns')
+        # for fn in itertools.chain(self._universal, self._single):
+        #     print(f'    {fn}')
         for fn in itertools.chain(self._universal, self._single):
             try:
                 fn(e)
             except Exception as e2:
-                print('Caught exception while calling back exception callbacks: %s' % fn.__name__)
-                print('original: %s' % str(e))
-                print('additional: %s' % str(e2))
+                print(f'ExceptionHandler: Caught exception while calling back exception callbacks: {fn.__name__}')
+                print(f'    original:   {e}')
+                print(f'    additional: {e2}')
                 debugger.print_exception()
 
 
