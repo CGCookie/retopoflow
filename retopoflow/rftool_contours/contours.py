@@ -40,20 +40,6 @@ from ...addon_common.common.utils import iter_pairs
 
 from ...config.options import options
 
-class RFTool_Contours(RFTool):
-    name        = 'Contours'
-    description = 'Retopologize cylindrical forms, like arms and legs'
-    icon        = 'contours-icon.png'
-    help        = 'contours.md'
-    shortcut    = 'contours tool'
-    statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
-    ui_config   = 'contours_options.html'
-
-
-################################################################################################
-# following imports must happen *after* the above class, because each subclass depends on
-# above class to be defined
-
 from .contours_ops import Contours_Ops
 from .contours_props import Contours_Props
 from .contours_rfwidgets import Contours_RFWidgets
@@ -65,7 +51,15 @@ from .contours_utils import (
     Contours_Utils,
 )
 
-class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
+class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils, Contours_RFWidgets):
+    name        = 'Contours'
+    description = 'Retopologize cylindrical forms, like arms and legs'
+    icon        = 'contours-icon.png'
+    help        = 'contours.md'
+    shortcut    = 'contours tool'
+    statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
+    ui_config   = 'contours_options.html'
+
     @RFTool.on_init
     def init(self):
         self.init_rfwidgets()

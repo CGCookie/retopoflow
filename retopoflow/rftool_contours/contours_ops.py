@@ -27,7 +27,7 @@ import bpy
 import bgl
 from mathutils import Matrix
 
-from ..rftool import RFTool, rftools
+from ..rftool import RFTool
 
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import max_index, iter_pairs
@@ -41,10 +41,9 @@ from .contours_utils import (
     edges_between_loops,
 )
 
-RFTool_Contours = rftools['RFTool_Contours']
 
 class Contours_Ops:
-    @RFTool_Contours.dirty_when_done
+    @RFTool.dirty_when_done
     def new_cut(self, ray, plane, count=None, walk_to_plane=True, check_hit=None, perform_nonmanifold_check=None):
         self.pts = []
         self.cut_pts = []
@@ -316,7 +315,7 @@ class Contours_Ops:
                     '''<input type="checkbox" value="options['contours non-manifold check']">Perform this check</input>'''
                 ]), level='warning')
 
-    @RFTool_Contours.dirty_when_done
+    @RFTool.dirty_when_done
     def fill(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -340,7 +339,7 @@ class Contours_Ops:
         #self.dirty()
         #self.rfcontext.select(faces)
 
-    @RFTool_Contours.dirty_when_done
+    @RFTool.dirty_when_done
     def change_count(self, *, count=None, delta=None):
         assert count is not None or delta is not None, 'Contours.change_count: Must specify either count or delta!'
         sel_edges = self.rfcontext.get_selected_edges()

@@ -28,14 +28,12 @@ import bpy
 import bgl
 from mathutils import Matrix
 
-from ..rftool import RFTool, rftools
+from ..rftool import RFTool
 
 from ...addon_common.common.boundvar import BoundBool, BoundInt
 from ...addon_common.common.utils import delay_exec
 from ...config.options import options
 
-
-RFTool_Contours = rftools['RFTool_Contours']
 
 class Contours_Props:
     @RFTool.on_init
