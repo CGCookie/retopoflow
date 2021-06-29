@@ -350,11 +350,11 @@ class UI_Document:
             ui_element.dispatch_event('on_keypress', key=pressed)
 
 
-    @FSM.FSM_State('main', 'enter')
+    @FSM.on_state('main', 'enter')
     def modal_main_enter(self):
         Globals.cursors.set('DEFAULT')
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def modal_main(self):
         # print('UI_Document.main', self.actions.event_type, time.time())
 
@@ -440,17 +440,17 @@ class UI_Document:
             self._scroll_last = RelPoint2D((self._scroll_element.scrollLeft, self._scroll_element.scrollTop))
         return self._scroll_element
 
-    @FSM.FSM_State('scroll', 'can enter')
+    @FSM.on_state('scroll', 'can enter')
     def scroll_canenter(self):
         if not self._get_scrollable(): return False
 
-    @FSM.FSM_State('scroll', 'enter')
+    @FSM.on_state('scroll', 'enter')
     def scroll_enter(self):
         self._scroll_point = self.actions.mouse
         self.ignore_hover_change = True
         Globals.cursors.set('SCROLL_Y')
 
-    @FSM.FSM_State('scroll')
+    @FSM.on_state('scroll')
     def scroll_main(self):
         if self.actions.released('MIDDLEMOUSE', ignoremods=True, ignoremulti=True):
             # done scrolling
@@ -462,18 +462,18 @@ class UI_Document:
         self._scroll_point = self.actions.mouse
         self._scroll_element._setup_ltwh(recurse_children=False)
 
-    @FSM.FSM_State('scroll', 'exit')
+    @FSM.on_state('scroll', 'exit')
     def scroll_exit(self):
         self.ignore_hover_change = False
 
 
-    @FSM.FSM_State('mousedown', 'can enter')
+    @FSM.on_state('mousedown', 'can enter')
     def mousedown_canenter(self):
         return self._focus or (
                 self._under_mouse and self._under_mouse != self._body and not self._under_mouse.is_disabled
             )
 
-    @FSM.FSM_State('mousedown', 'enter')
+    @FSM.on_state('mousedown', 'enter')
     def mousedown_enter(self):
         self._mousedown_time = time.time()
         self._under_mousedown = self._under_mouse
@@ -502,7 +502,7 @@ class UI_Document:
             else:
                 self.blur()
 
-    @FSM.FSM_State('mousedown')
+    @FSM.on_state('mousedown')
     def mousedown_main(self):
         if not self._under_mousedown:
             return 'main'
@@ -517,7 +517,7 @@ class UI_Document:
         self.handle_mousemove(ui_element=self._under_mousedown)
         self.handle_keypress(ui_element=self._under_mousedown)
 
-    @FSM.FSM_State('mousedown', 'exit')
+    @FSM.on_state('mousedown', 'exit')
     def mousedown_exit(self):
         if not self._under_mousedown:
             # likely, self._under_mousedown or an ancestor was deleted while under mousedown
@@ -600,7 +600,7 @@ class UI_Document:
         self._focus.dispatch_event('on_focusin', stop_at=stop_focus_at)
 
 
-    @FSM.FSM_State('focus')
+    @FSM.on_state('focus')
     def focus_main(self):
         if not self._focus:
             return 'main'

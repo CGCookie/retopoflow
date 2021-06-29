@@ -159,7 +159,7 @@ class RetopoFlow(
         # all seems good!
         return True
 
-    @FSM.FSM_State('loading', 'enter')
+    @FSM.on_state('loading', 'enter')
     def setup_next_stage_enter(self):
         win = UI_Element.fromHTMLFile(abspath('rf/loading_dialog.html'))[0]
         self.document.body.append_child(win)
@@ -191,7 +191,7 @@ class RetopoFlow(
         ]
         self._setup_data = d
 
-    @FSM.FSM_State('loading')
+    @FSM.on_state('loading')
     def setup_next_stage(self):
         d = self._setup_data
         if d['working']: return

@@ -125,7 +125,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     def reset(self):
         self.sel_only = False
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self) :
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
@@ -177,7 +177,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         #     self.rfcontext.select(faces, only=False)
         #     return
 
-    # @FSM.FSM_State('selectadd/deselect')
+    # @FSM.on_state('selectadd/deselect')
     # def selectadd_deselect(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
     #         self.rfcontext.undo_push('deselect')
@@ -189,7 +189,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     #         self.rfcontext.undo_push('select add')
     #         return 'select'
 
-    # @FSM.FSM_State('select')
+    # @FSM.on_state('select')
     # def select(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
     #         return 'main'
@@ -197,7 +197,7 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
     #     if not bmf or bmf.select: return
     #     self.rfcontext.select(bmf, supparts=False, only=False)
 
-    @FSM.FSM_State('relax', 'enter')
+    @FSM.on_state('relax', 'enter')
     def relax_enter(self):
         self._time = time.time()
         self._timer = self.actions.start_timer(120)
@@ -234,13 +234,13 @@ class Relax(RFTool_Relax, Relax_RFWidgets):
         # print(f'Relaxing max of {len(self._bmverts)} bmverts')
         self.rfcontext.split_target_visualization(verts=self._bmverts)
 
-    @FSM.FSM_State('relax', 'exit')
+    @FSM.on_state('relax', 'exit')
     def relax_exit(self):
         self.rfcontext.update_verts_faces(self._bmverts)
         self.rfcontext.clear_split_target_visualization()
         self._timer.done()
 
-    @FSM.FSM_State('relax')
+    @FSM.on_state('relax')
     def relax(self):
         st = time.time()
 

@@ -30,6 +30,7 @@ from mathutils import Vector
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
+from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.debug import tprint
@@ -54,13 +55,13 @@ class RetopoFlow_Drawing:
         options.add_callback(callback)
         self._draw_count = 0
 
-    @CookieCutter.PreDraw
+    @DrawCallbacks.on_predraw()
     def predraw(self):
         if not self.loading_done: return
         self.update(timer=False)
         self._draw_count += 1
 
-    @CookieCutter.Draw('post3d')
+    @DrawCallbacks.on_draw('post3d')
     def draw_target_and_sources(self):
         if not self.actions.r3d: return
         if not self.loading_done: return
@@ -146,7 +147,7 @@ class RetopoFlow_Drawing:
                 True
             )
 
-    @CookieCutter.Draw('post3d')
+    @DrawCallbacks.on_draw('post3d')
     def draw_greasemarks(self):
         return
         if not self.actions.r3d: return
@@ -174,19 +175,19 @@ class RetopoFlow_Drawing:
     ##################################
     # RFTool Drawing
 
-    @CookieCutter.Draw('pre3d')
+    @DrawCallbacks.on_draw('pre3d')
     def draw_tool_pre3d(self):
         if not self.loading_done: return
         if self.fsm.state == 'pie menu': return
         self.rftool._draw_pre3d()
 
-    @CookieCutter.Draw('post3d')
+    @DrawCallbacks.on_draw('post3d')
     def draw_tool_post3d(self):
         if not self.loading_done: return
         if self.fsm.state == 'pie menu': return
         self.rftool._draw_post3d()
 
-    @CookieCutter.Draw('post2d')
+    @DrawCallbacks.on_draw('post2d')
     def draw_tool_post2d(self):
         if not self.loading_done: return
         if self.fsm.state == 'pie menu': return
@@ -196,7 +197,7 @@ class RetopoFlow_Drawing:
     #############################
     # RFWidget Drawing
 
-    @CookieCutter.Draw('pre3d')
+    @DrawCallbacks.on_draw('pre3d')
     def draw_widget_pre3d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
@@ -205,7 +206,7 @@ class RetopoFlow_Drawing:
         if self.fsm.state == 'pie menu': return
         self.rftool.rfwidget._draw_pre3d()
 
-    @CookieCutter.Draw('post3d')
+    @DrawCallbacks.on_draw('post3d')
     def draw_widget_post3d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
@@ -214,7 +215,7 @@ class RetopoFlow_Drawing:
         if self.fsm.state == 'pie menu': return
         self.rftool.rfwidget._draw_post3d()
 
-    @CookieCutter.Draw('post2d')
+    @DrawCallbacks.on_draw('post2d')
     def draw_widget_post2d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return

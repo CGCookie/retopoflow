@@ -106,7 +106,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     def reset(self):
         self.sel_only = False
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
@@ -158,7 +158,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         #     self.rfcontext.select(faces, only=False)
         #     return
 
-    # @FSM.FSM_State('selectadd/deselect')
+    # @FSM.on_state('selectadd/deselect')
     # @profiler.function
     # def modal_selectadd_deselect(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
@@ -171,7 +171,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     #         self.rfcontext.undo_push('select add')
     #         return 'select'
 
-    # @FSM.FSM_State('select')
+    # @FSM.on_state('select')
     # @profiler.function
     # def modal_select(self):
     #     if not self.rfcontext.actions.using(['select single','select single add']):
@@ -181,13 +181,13 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
     #     self.rfcontext.select(bmf, supparts=False, only=False)
 
 
-    @FSM.FSM_State('move', 'can enter')
+    @FSM.on_state('move', 'can enter')
     def move_can_enter(self):
         radius = self.rfwidget.get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         if not nearest: return False
 
-    @FSM.FSM_State('move', 'enter')
+    @FSM.on_state('move', 'enter')
     def move_enter(self):
         # gather options
         opt_mask_boundary = options['tweak mask boundary']
@@ -228,7 +228,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         self.rfcontext.split_target_visualization(verts=[bmv for (bmv,_,_,_) in self.bmverts])
         self.rfcontext.undo_push('tweak move')
 
-    @FSM.FSM_State('move')
+    @FSM.on_state('move')
     @RFTool_Tweak.dirty_when_done
     def move(self):
         if self.rfcontext.actions.released(['brush','brush alt']):
@@ -263,7 +263,7 @@ class Tweak(RFTool_Tweak, Tweak_RFWidgets):
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 
-    @FSM.FSM_State('move', 'exit')
+    @FSM.on_state('move', 'exit')
     def move_exit(self):
         self.rfcontext.clear_split_target_visualization()
         self._timer.done()

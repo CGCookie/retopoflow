@@ -82,7 +82,7 @@ class FSM:
     # these function decorators will mark the fn with special data that will be collected upon instantiation of subclass of FSM
 
     @staticmethod
-    def FSM_Exception(universal=False):
+    def on_exception(universal=False):
         def wrapper(fn):
             fr = inspect.getframeinfo(inspect.currentframe().f_back)
             location = f'{fr.filename}:{fr.lineno}'
@@ -107,7 +107,7 @@ class FSM:
         return wrapper
 
     @staticmethod
-    def FSM_OnlyInState(states, *, default=None):
+    def onlyinstate(states, *, default=None):
         def wrapper(fn):
             nonlocal states, default
             if type(states) is str: states = { states }
@@ -145,7 +145,7 @@ class FSM:
         return wrapper
 
     @staticmethod
-    def FSM_State(state, substate='main'):
+    def on_state(state, substate='main'):
         def wrapper(fn):
             fr = inspect.getframeinfo(inspect.currentframe().f_back)
             location = f'{fr.filename}:{fr.lineno}'
@@ -178,94 +178,6 @@ class FSM:
             return wrapped
         return wrapper
 
-
-    # def _create_wrapper(self):
-    #     fsm = self
-    #     seen = {}
-    #     class FSM_State:
-    #         def __init__(self, state, substate='main'):
-    #             self.state = state
-    #             self.substate = substate
-
-    #         def __call__(self, fn):
-    #             self.fn = fn
-    #             self.fnname = fn.__name__
-    #             fr = inspect.getframeinfo(inspect.currentframe().f_back)
-    #             fndata = f'{fr.filename}:{fr.lineno}'
-    #             # if self.state == 'main':
-    #             #     print(f'FSM Notes: "{self.fnname}"')
-    #             #     print(f'  {fndata}')
-    #             if self.fnname in seen:
-    #                 print(f'FSM Warning: detected multiple functions with same name: "{self.fnname}"')
-    #                 print(f'  pre: {seen[self.fnname]}')
-    #                 print(f'  cur: {fndata}')
-    #             seen[self.fnname] = fndata
-    #             def run(*args, **kwargs):
-    #                 try:
-    #                     return fn(*args, **kwargs)
-    #                 except Exception as e:
-    #                     print(f'Caught exception in function "{self.fnname}" (state:"{self.state}", substate:"{self.substate}")')
-    #                     print(f'Exception: {e}')
-    #                     debugger.print_exception()
-    #                     fsm._exceptionhandler.handle_exception(e)
-    #                     if hasattr(fsm, "_reset_state"):
-    #                         fsm.force_set_state(fsm._reset_state, call_exit=False, call_enter=True)
-    #                     else:
-    #                         print(f'FSM Warning: no `_reset_state` attribute for FSM object!')
-    #                         print(f'self: {self}')
-    #                         for k in dir(self):
-    #                             if k.startswith('__'): continue
-    #                             print(f'  {k}: {getattr(self, k)}')
-    #                     return
-    #             run.fnname = self.fnname
-    #             run.fsmstate = self.state
-    #             run.fsmstate_full = get_state(self.state, self.substate)
-    #             # print('%s: registered %s as %s' % (str(fsm), self.fnname, run.fsmstate_full))
-    #             return run
-    #     return FSM_State
-
-    # def _create_onlyinstate_wrapper(self):
-    #     fsm = self
-    #     class FSM_OnlyInState:
-    #         def __init__(self, states, default=None):
-    #             if type(states) is str: states = {states}
-    #             else: states = set(states)
-    #             self.states = states
-    #             self.default = default
-    #         def __call__(self, fn):
-    #             self.fn = fn
-    #             self.fnname = fn.__name__
-    #             def run(*args, **kwargs):
-    #                 if fsm.state not in self.states:
-    #                     return self.default
-    #                 try:
-    #                     return fn(*args, **kwargs)
-    #                 except Exception as e:
-    #                     print('Caught exception in function "%s" ("%s")' % (
-    #                         self.fnname, fsm.state
-    #                     ))
-    #                     debugger.print_exception()
-    #                     print(e)
-    #                     fsm._exceptionhandler.handle_exception(e)
-    #                     fsm.force_set_state(fsm._reset_state, call_exit=False, call_enter=True)
-    #                     return self.default
-    #             run.fnname = self.fnname
-    #             run.fsmstate = ' '.join(self.states)
-    #             return run
-    #     return FSM_OnlyInState
-
-    # def init(self, obj, start='main', reset_state='main'):
-    #     print(f'FSM: init({obj}, {start}, {reset_state}): {self}')
-    #     self._obj = obj
-    #     self._state_next = start
-    #     self._state = None
-    #     self._reset_state = reset_state
-    #     self._fsm_states = {}
-    #     self._fsm_states_handled = { st for (st,fn) in find_fns(self._obj, 'fsmstate') }
-    #     for (m,fn) in find_fns(self._obj, 'fsmstate_full'):
-    #         assert m not in self._fsm_states, f'FSM: Duplicate states ({m}, {fn}) registered!'
-    #         self._fsm_states[m] = fn
-    #         # print('%s: found fn %s as %s' % (str(self), str(fn), m))
 
     def _call(self, state, substate='main', fail_if_not_exist=False):
         s = get_state(state, substate)

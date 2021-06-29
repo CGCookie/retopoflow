@@ -92,7 +92,7 @@ class RetopoFlow_States(CookieCutter):
         section = math.floor((clock_deg + 360 / count / 2) % 360 / (360 / count))
         return section
 
-    @FSM.FSM_State('pie menu', 'enter')
+    @FSM.on_state('pie menu', 'enter')
     def pie_menu_enter(self):
         size,  size_opt,  size_center  = 512, 72, 100
         size_, size_opt_, size_center_ = self.drawing.scale(size), self.drawing.scale(size_opt), self.drawing.scale(size_center)
@@ -138,7 +138,7 @@ class RetopoFlow_States(CookieCutter):
         self.document.focus(self.ui_pie_menu)
         self.document.force_clean(self.actions.context)
 
-    @FSM.FSM_State('pie menu')
+    @FSM.on_state('pie menu')
     def pie_menu_main(self):
         confirm_p = self.actions.pressed('pie menu confirm', ignoremods=True)
         confirm_r = self.actions.released(self.pie_menu_release, ignoremods=True)
@@ -160,17 +160,17 @@ class RetopoFlow_States(CookieCutter):
             else:
                 ui.del_pseudoclass('hover')
 
-    @FSM.FSM_State('pie menu', 'exit')
+    @FSM.on_state('pie menu', 'exit')
     def pie_menu_exit(self):
         self.ui_pie_menu.is_visible = False
 
-    @FSM.FSM_State('pie menu wait')
+    @FSM.on_state('pie menu wait')
     def pie_menu_wait(self):
         if self.actions.released(self.pie_menu_release, ignoremods=True):
             return 'main'
 
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def modal_main(self):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
@@ -227,7 +227,7 @@ class RetopoFlow_States(CookieCutter):
                 return
 
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
-            if self.actions.pressed('SHIFT+F6'): assert False
+            # if self.actions.pressed('SHIFT+F6'): assert False
             # if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
 
             if self.actions.pressed('SHIFT+F10'):
@@ -359,14 +359,14 @@ class RetopoFlow_States(CookieCutter):
                 return 'scale selected'
 
 
-    @FSM.FSM_State('quick switch')
+    @FSM.on_state('quick switch')
     def quick_switch(self):
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
             if self.actions.released(self.rftool.quick_shortcut):
                 return 'main'
         self.modal_main_rest()
 
-    @FSM.FSM_State('quick switch', 'exit')
+    @FSM.on_state('quick switch', 'exit')
     def quick_switch_exit(self):
         self.select_rftool(self.rftool_return)
 
@@ -381,7 +381,7 @@ class RetopoFlow_States(CookieCutter):
         }
         return 'action handler'
 
-    @FSM.FSM_State('action handler', 'enter')
+    @FSM.on_state('action handler', 'enter')
     def action_handler_enter(self):
         assert self.action_data
         self.undo_push('action handler')
@@ -389,7 +389,7 @@ class RetopoFlow_States(CookieCutter):
         self.action_data['mouse'] = self.actions.mouse
         self.action_data['val start'] = self.action_data['val'](self.actions.mouse)
 
-    @FSM.FSM_State('action handler')
+    @FSM.on_state('action handler')
     def action_handler(self):
         d = self.action_data
         if self.actions.pressed(d['done pressed']) or self.actions.released(d['done released']):
@@ -404,18 +404,18 @@ class RetopoFlow_States(CookieCutter):
         self.action_data['fn callback'](val - self.action_data['val start'])
         self.dirty()
 
-    @FSM.FSM_State('action handler', 'exit')
+    @FSM.on_state('action handler', 'exit')
     def action_handler_exit(self):
         self.action_data['timer'].done()
 
 
 
-    @FSM.FSM_State('rotate selected', 'can enter')
+    @FSM.on_state('rotate selected', 'can enter')
     @profiler.function
     def rotate_selected_canenter(self):
         if not self.get_selected_verts(): return False
 
-    @FSM.FSM_State('rotate selected', 'enter')
+    @FSM.on_state('rotate selected', 'enter')
     def rotate_selected_enter(self):
         bmverts = self.get_selected_verts()
         opts = {}
@@ -434,7 +434,7 @@ class RetopoFlow_States(CookieCutter):
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
-    @FSM.FSM_State('rotate selected')
+    @FSM.on_state('rotate selected')
     @profiler.function
     def rotate_selected(self):
         opts = self.rotate_selected_opts
@@ -466,7 +466,7 @@ class RetopoFlow_States(CookieCutter):
         self.update_verts_faces(v for v,_ in opts['bmverts'])
         self.dirty()
 
-    @FSM.FSM_State('rotate selected', 'exit')
+    @FSM.on_state('rotate selected', 'exit')
     def rotate_selected_exit(self):
         opts = self.rotate_selected_opts
         opts['timer'].done()
@@ -475,12 +475,12 @@ class RetopoFlow_States(CookieCutter):
 
 
 
-    @FSM.FSM_State('scale selected', 'can enter')
+    @FSM.on_state('scale selected', 'can enter')
     @profiler.function
     def scale_selected_canenter(self):
         if not self.get_selected_verts(): return False
 
-    @FSM.FSM_State('scale selected', 'enter')
+    @FSM.on_state('scale selected', 'enter')
     def scale_selected_enter(self):
         bmverts = self.get_selected_verts()
         opts = {}
@@ -498,7 +498,7 @@ class RetopoFlow_States(CookieCutter):
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
-    @FSM.FSM_State('scale selected')
+    @FSM.on_state('scale selected')
     @profiler.function
     def scale_selected(self):
         opts = self.scale_selected_opts
@@ -526,7 +526,7 @@ class RetopoFlow_States(CookieCutter):
         self.update_verts_faces(v for v,_ in opts['bmverts'])
         self.dirty()
 
-    @FSM.FSM_State('scale selected', 'exit')
+    @FSM.on_state('scale selected', 'exit')
     def scale_selected_exit(self):
         opts = self.scale_selected_opts
         opts['timer'].done()
@@ -691,12 +691,12 @@ class RetopoFlow_States(CookieCutter):
 
         return 'smart selection painting'
 
-    @FSM.FSM_State('smart selection painting', 'enter')
+    @FSM.on_state('smart selection painting', 'enter')
     def smart_selection_painting_enter(self):
         self._last_mouse = None
         self.set_accel_defer(True)
 
-    @FSM.FSM_State('smart selection painting')
+    @FSM.on_state('smart selection painting')
     def smart_selection_painting(self):
         if self.actions.pressed('cancel'):
             self.undo_cancel()
@@ -724,7 +724,7 @@ class RetopoFlow_States(CookieCutter):
 
         tag_redraw_all('RF selection_painting')
 
-    @FSM.FSM_State('smart selection painting', 'exit')
+    @FSM.on_state('smart selection painting', 'exit')
     def smart_selection_painting_exit(self):
         self.selection_painting_opts = None
         self.set_accel_defer(False)
@@ -790,11 +790,11 @@ class RetopoFlow_States(CookieCutter):
 
     #     return 'selection painting'
 
-    # @FSM.FSM_State('selection painting', 'enter')
+    # @FSM.on_state('selection painting', 'enter')
     # def selection_painting_enter(self):
     #     self._last_mouse = None
 
-    # @FSM.FSM_State('selection painting')
+    # @FSM.on_state('selection painting')
     # def selection_painting(self):
     #     assert self.selection_painting_opts
     #     if self.actions.mousemove:

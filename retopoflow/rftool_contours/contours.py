@@ -33,7 +33,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.blender import matrix_vector_mult
-from ...addon_common.common.drawing import Drawing, Cursors
+from ...addon_common.common.drawing import Drawing, Cursors, DrawCallbacks
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
@@ -83,7 +83,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.ui_initial_count = None
 
     @RFTool_Contours.on_target_change
-    #@FSM.FSM_OnlyInState('main')
+    #@FSM.onlyinstate('main')
     def update_target(self):
         self.sel_edges = set(self.rfcontext.get_selected_edges())
         #sel_faces = self.rfcontext.get_selected_faces()
@@ -155,7 +155,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self._var_cut_count.disabled = False
 
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
@@ -249,7 +249,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             return
 
 
-    @FSM.FSM_State('rotate plane', 'can enter')
+    @FSM.on_state('rotate plane', 'can enter')
     def rotateplane_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -292,7 +292,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             dprint('Found no loops to shift')
             return False
 
-    @FSM.FSM_State('rotate plane', 'enter')
+    @FSM.on_state('rotate plane', 'enter')
     def rotateplane_enter(self):
         self.rot_axis = Vec((0,0,0))
         self.rot_origin = Point.average(cut.get_origin() for cut in self.move_cuts if cut)
@@ -318,7 +318,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
 
-    @FSM.FSM_State('rotate plane')
+    @FSM.on_state('rotate plane')
     @profiler.function
     def rotateplane_main(self):
         if self.rfcontext.actions.pressed('confirm'):
@@ -373,7 +373,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
         self.rfcontext.dirty()
 
-    @FSM.FSM_State('rotate plane', 'exit')
+    @FSM.on_state('rotate plane', 'exit')
     def rotateplane_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
@@ -409,14 +409,14 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
 
 
 
-    @FSM.FSM_State('grab', 'can enter')
+    @FSM.on_state('grab', 'can enter')
     def grab_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         return bool(sel_loops or sel_strings)
 
-    @FSM.FSM_State('grab', 'enter')
+    @FSM.on_state('grab', 'enter')
     def grab_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -445,7 +445,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
 
-    @FSM.FSM_State('grab')
+    @FSM.on_state('grab')
     @profiler.function
     def grab(self):
         opts = self.grab_opts
@@ -513,21 +513,21 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
         self.rfcontext.dirty()
 
-    @FSM.FSM_State('grab', 'exit')
+    @FSM.on_state('grab', 'exit')
     def grab_exit(self):
         self.grab_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
 
 
-    @FSM.FSM_State('rotate screen', 'can enter')
+    @FSM.on_state('rotate screen', 'can enter')
     def rotatescreen_can_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
         sel_strings = find_strings(sel_edges, min_length=2)
         return sel_loops or sel_strings
 
-    @FSM.FSM_State('rotate screen', 'enter')
+    @FSM.on_state('rotate screen', 'enter')
     def rotatescreen_enter(self):
         sel_edges = self.rfcontext.get_selected_edges()
         sel_loops = find_loops(sel_edges)
@@ -553,7 +553,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
 
-    @FSM.FSM_State('rotate screen')
+    @FSM.on_state('rotate screen')
     @profiler.function
     def rotatescreen_main(self):
         if self.rfcontext.actions.pressed('confirm'):
@@ -619,7 +619,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             self.rfcontext.update_verts_faces(verts)
         self.rfcontext.dirty()
 
-    @FSM.FSM_State('rotate screen', 'exit')
+    @FSM.on_state('rotate screen', 'exit')
     def rotatescreen_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
@@ -635,8 +635,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
         ray = self.rfcontext.Point2D_to_Ray(xy01)
         self.new_cut(ray, plane, walk_to_plane=False, check_hit=xy01)
 
-    @RFTool_Contours.Draw('post2d')
-    @FSM.FSM_OnlyInState('rotate screen')
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('rotate screen')
     def draw_post2d_rotate_screenspace(self):
         bgl.glEnable(bgl.GL_BLEND)
         # bgl.glEnable(bgl.GL_MULTISAMPLE)
@@ -647,8 +647,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             width=2, stipple=[2, 2]
         )
 
-    @RFTool_Contours.Draw('post2d')
-    @FSM.FSM_OnlyInState('rotate plane')
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('rotate plane')
     def draw_post2d_rotate_plane(self):
         bgl.glEnable(bgl.GL_BLEND)
         # bgl.glEnable(bgl.GL_MULTISAMPLE)
@@ -659,8 +659,8 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
             width=2, stipple=[2,2],
         )
 
-    @RFTool_Contours.Draw('post2d')
-    @FSM.FSM_OnlyInState('grab')
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('grab')
     def draw_post2d_grab(self):
         project = self.rfcontext.Point_to_Point2D
         intersect = self.rfcontext.raycast_sources_Point2D
@@ -678,7 +678,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
                 width=2, stipple=[2,2],
             )
 
-    # @RFTool_Contours.Draw('post2d')
+    # @DrawCallbacks.on_draw('post2d')
     # def draw_post2d_crawl_viz(self):
     #     # debug visualization
     #     project = self.rfcontext.Point_to_Point2D
@@ -688,7 +688,7 @@ class Contours(RFTool_Contours, Contours_Ops, Contours_Props, Contours_Utils, Co
     #         pts = [project(pt) for pt in pts]
     #         Globals.drawing.draw2D_linestrip(pts, (1,1,1,0.5))
 
-    @RFTool_Contours.Draw('post2d')
+    @DrawCallbacks.on_draw('post2d')
     def draw_post2d(self):
         point_to_point2d = self.rfcontext.Point_to_Point2D
         is_visible = lambda p: self.rfcontext.is_visible(p, occlusion_test_override=True)

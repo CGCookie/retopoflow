@@ -45,6 +45,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundInt
+from ...addon_common.common.drawing import DrawCallbacks
 
 from ...config.options import options, themes, visualization
 
@@ -132,7 +133,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
         self._recompute()
         self.update_ui()
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
         self.hovering_sel_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'], selected_only=True)
@@ -228,7 +229,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
             #self.rfcontext.select_inner_edge_loop(edge, supparts=False, only=sel_only)
             self.rfcontext.select_edge_loop(edge, supparts=False, only=sel_only)
 
-    @FSM.FSM_State('move', 'enter')
+    @FSM.on_state('move', 'enter')
     def move_enter(self):
         self.sel_verts = self.rfcontext.get_selected_verts()
         self.vis_accel = self.rfcontext.get_vis_accel()
@@ -246,7 +247,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         self._timer = self.actions.start_timer(120)
 
-    @FSM.FSM_State('move')
+    @FSM.on_state('move')
     def move_main(self):
         released = self.rfcontext.actions.released
         if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
@@ -287,7 +288,7 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
 
         self.rfcontext.dirty()
 
-    @FSM.FSM_State('move', 'exit')
+    @FSM.on_state('move', 'exit')
     def move_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
@@ -335,8 +336,8 @@ class Patches(RFTool_Patches, Patches_RFWidgets):
                         draw.vertex(coords[i])
                         draw.vertex(coords[i+1])
 
-    @RFTool_Patches.Draw('post2d')
-    @FSM.FSM_OnlyInState('main')
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('main')
     def draw_postpixel(self):
         point_to_point2D = self.rfcontext.Point_to_Point2D
         self.rfcontext.drawing.set_font_size(12)

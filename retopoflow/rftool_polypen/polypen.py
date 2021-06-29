@@ -40,6 +40,7 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
 
@@ -100,7 +101,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
     @RFTool_PolyPen.on_reset
     @RFTool_PolyPen.on_target_change
     @RFTool_PolyPen.on_view_change
-    @FSM.FSM_OnlyInState('main')
+    @FSM.onlyinstate('main')
     @profiler.function
     def update_state_info(self):
         with profiler.code('getting selected geometry'):
@@ -118,7 +119,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.set_next_state(force=True)
 
     @RFTool_PolyPen.on_mouse_stop
-    @FSM.FSM_OnlyInState({'main'})
+    @FSM.onlyinstate({'main'})
     def update_next_state_mouse(self):
         self.set_next_state(force=True)
         tag_redraw_all('PolyPen mouse stop')
@@ -212,11 +213,11 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         else:
             assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
 
-    @FSM.FSM_State('main', 'enter')
+    @FSM.on_state('main', 'enter')
     def main_enter(self):
         self.update_state_info()
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         if self.first_time:
             self.set_next_state(force=True)
@@ -311,7 +312,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         ]
 
 
-    @FSM.FSM_State('insert')
+    @FSM.on_state('insert')
     def insert(self):
         self.rfcontext.undo_push('insert')
         return self._insert()
@@ -638,7 +639,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.last_delta = None
         self.defer_recomputing = defer_recomputing
 
-    @FSM.FSM_State('move after select')
+    @FSM.on_state('move after select')
     @profiler.function
     def modal_move_after_select(self):
         if self.actions.released('action'):
@@ -651,7 +652,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
             self.rfcontext.undo_push('move after select')
             return 'move'
 
-    @FSM.FSM_State('move', 'enter')
+    @FSM.on_state('move', 'enter')
     def move_enter(self):
         self.move_opts = {
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
@@ -660,7 +661,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
 
-    @FSM.FSM_State('move')
+    @FSM.on_state('move')
     @profiler.function
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
@@ -705,7 +706,7 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
         self.rfcontext.dirty()
 
-    @FSM.FSM_State('move', 'exit')
+    @FSM.on_state('move', 'exit')
     def move_exit(self):
         self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
@@ -743,8 +744,8 @@ class PolyPen(RFTool_PolyPen, PolyPen_RFWidgets):
                     draw.vertex(co1)
                     draw.vertex(co2)
 
-    @RFTool_PolyPen.Draw('post2d')
-    @FSM.FSM_OnlyInState('main')
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('main')
     def draw_postpixel(self):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 

@@ -79,8 +79,8 @@ class CookieCutter_UI:
         self.document.add_exception_callback(lambda e: self._handle_exception(e, 'handle exception caught by UI'))
         self.drawing = Globals.drawing
         self.drawing.set_region(bpy.context.area, bpy.context.space_data, bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
+        self.drawcallbacks = DrawCallbacks(self)
         self._cc_blenderui_init()
-        self.drawcallbacks.init(self)
         self._ignore_ui_events = False
         self._hover_ui = False
         tag_redraw_all('CC ui_init', only_tag=False)

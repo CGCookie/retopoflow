@@ -69,7 +69,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     # def update(self):
     #     preload_help_images.paused = False
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         # print(f'Help System main')
         if self.actions.pressed({'done', 'done alt0'}):

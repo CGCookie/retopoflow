@@ -46,6 +46,7 @@ from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.shaders import circleShader, edgeShortenShader, arrowShader
 from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ...addon_common.common.drawing import DrawCallbacks
 from ...config.options import options, themes
 
 from .strokes_utils import (
@@ -189,7 +190,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
     def filter_edge_selection(self, bme):
         return bme.select or len(bme.link_faces) < 2
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     @profiler.function
     def modal_main(self):
         if not self.actions.using('action', ignoredrag=True):
@@ -909,7 +910,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
             self.rfcontext.update_verts_faces(update_verts)
             #self.set_next_state()
 
-    @FSM.FSM_State('move', 'enter')
+    @FSM.on_state('move', 'enter')
     def move_enter(self, bmverts=None, defer_recomputing=True):
         self.rfcontext.undo_push('move grabbed')
 
@@ -932,7 +933,7 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
         self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)
 
-    @FSM.FSM_State('move')
+    @FSM.on_state('move')
     @RFTool_Strokes.dirty_when_done
     @profiler.function
     def move(self):
@@ -975,13 +976,13 @@ class Strokes(RFTool_Strokes, Strokes_RFWidgets):
                 set2D_vert(bmv, xy_updated)
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
 
-    @FSM.FSM_State('move', 'exit')
+    @FSM.on_state('move', 'exit')
     def move_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
 
-    @RFTool_Strokes.Draw('post2d')
+    @DrawCallbacks.on_draw('post2d')
     def draw_postpixel(self):
         if self._fsm.state == 'move': return
         bgl.glEnable(bgl.GL_BLEND)

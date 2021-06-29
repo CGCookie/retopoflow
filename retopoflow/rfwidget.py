@@ -37,12 +37,6 @@ class RFWidget:
             # add cls to registry (might get updated later) and add FSM,Draw
             cls._rfwidget_index = len(RFWidget.registry)
             RFWidget.registry.append(cls)
-            # cls._fsm = FSM()
-            cls._draw = DrawCallbacks()
-            # convenience functions
-            # cls.FSM_State = cls._fsm.wrapper
-            # cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
-            cls.Draw = cls._draw.wrapper
         else:
             # update registry, but do not add new FSM
             RFWidget.registry[cls._rfwidget_index] = cls
@@ -87,7 +81,7 @@ class RFWidget:
         self._init_callbacks()
         self._callback_widget('init', **kwargs)
         self._fsm = FSM(self, start=start, reset_state=reset_state)
-        self._draw.init(self)
+        self._draw = DrawCallbacks(self)
         # self._init_action_callback()
         self._reset()
 

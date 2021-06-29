@@ -23,7 +23,7 @@ import bgl
 from .cookiecutter import CookieCutter
 
 from ..common.maths import Point2D
-from ..common.drawing import Drawing
+from ..common.drawing import Drawing, DrawCallbacks
 from ..common.fsm import FSM
 
 class CookieCutter_Test(CookieCutter):
@@ -54,7 +54,7 @@ class CookieCutter_Test(CookieCutter):
     def update(self):
         self.ui_action.set_label('Press: %s' % (','.join(self.actions.now_pressed.keys()),))
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def modal_main(self):
         Drawing.set_cursor('DEFAULT')
 
@@ -62,7 +62,7 @@ class CookieCutter_Test(CookieCutter):
             self.lbl.set_label('grab!')
             return 'grab'
 
-    @FSM.FSM_State('grab')
+    @FSM.on_state('grab')
     def modal_grab(self):
         Drawing.set_cursor('HAND')
 
@@ -73,7 +73,7 @@ class CookieCutter_Test(CookieCutter):
             self.lbl.set_label('cancel grab')
             return 'main'
 
-    @CookieCutter.Draw('pre3d')
+    @DrawCallbacks.on_draw('pre3d')
     def draw_preview(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
@@ -101,7 +101,7 @@ class CookieCutter_Test(CookieCutter):
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
 
-    @CookieCutter.Draw('post3d')
+    @DrawCallbacks.on_draw('post3d')
     def draw_postview(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
         bgl.glMatrixMode(bgl.GL_MODELVIEW)
@@ -129,7 +129,7 @@ class CookieCutter_Test(CookieCutter):
         bgl.glMatrixMode(bgl.GL_PROJECTION)
         bgl.glPopAttrib()
 
-    @CookieCutter.Draw('post2d')
+    @DrawCallbacks.on_draw('post2d')
     def draw_postpixel(self):
         bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
 

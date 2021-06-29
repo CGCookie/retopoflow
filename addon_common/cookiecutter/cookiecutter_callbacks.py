@@ -24,6 +24,4 @@ class CookieCutter_Callbacks:
     Assumes that direct subclass will have singleton instance (shared CookieCutter among all instances of that subclass and any subclasses)
     '''
 
-    drawcallbacks = DrawCallbacks()
-    Draw = drawcallbacks.wrapper
-    PreDraw = drawcallbacks.wrapper_pre
+    pass

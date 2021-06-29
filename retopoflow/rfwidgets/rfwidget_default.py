@@ -52,7 +52,7 @@ class RFWidget_Default_Factory:
             rfw_cursor = cursor
 
         class RFWidget_Default(RFW_Default):
-            @FSM.FSM_State('main')
+            @FSM.on_state('main')
             def modal_main(self):
                 pass
 

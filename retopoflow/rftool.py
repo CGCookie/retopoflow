@@ -49,11 +49,6 @@ class RFTool:
             if False: print(f'RFTool: adding to registry at index {len(RFTool.registry)}: {cls} {cls.__name__} ')
             cls._rftool_index = len(RFTool.registry)
             RFTool.registry.append(cls)
-            # cls._fsm = FSM()
-            # cls.FSM_State = cls._fsm.wrapper
-            # cls.FSM_OnlyInState = cls._fsm.onlyinstate_wrapper
-            cls._draw = DrawCallbacks()
-            cls.Draw = cls._draw.wrapper
             cls._callbacks = {
                 'init':          [],    # called when RF starts up
                 'ui setup':      [],    # called when RF is setting up UI
@@ -135,7 +130,7 @@ class RFTool:
         RFTool.document = rfcontext.document
         self.rfwidget = None
         self._fsm = FSM(self, start=start, reset_state=reset_state)
-        self._draw.init(self)
+        self._draw = DrawCallbacks(self)
         self._callback('init')
         self._reset()
 

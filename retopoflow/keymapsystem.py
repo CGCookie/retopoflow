@@ -69,7 +69,7 @@ class RetopoFlow_OpenKeymapSystem(CookieCutter, RetopoFlow_KeymapSystem, RetopoF
     # def update(self):
     #     preload_help_images.paused = False
 
-    @FSM.FSM_State('main')
+    @FSM.on_state('main')
     def main(self):
         # print(f'Updater System main')
         if self.actions.pressed({'done', 'done alt0'}):

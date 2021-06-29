@@ -46,10 +46,10 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
     - provide appropriate values for Blender class attributes: bl_idname, bl_label, etc.
     - provide appropriate dictionary that maps user action labels to keyboard and mouse actions
     - override the start function
-    - register finite state machine state callbacks with the FSM.FSM_State(state) function decorator
+    - register finite state machine state callbacks with the FSM.on_state(state) function decorator
         - state can be any string that is a state in your FSM
         - Must provide at least a 'main' state
-        - return values of each FSM_State decorated function tell FSM which state to switch into
+        - return values of each on_state decorated function tell FSM which state to switch into
             - None, '', or no return: stay in same state
     - register drawing callbacks with the CookieCutter.Draw(mode) function decorator
         - mode: 'pre3d', 'post3d', 'post2d'
@@ -63,14 +63,8 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
     #         # add cls to registry (might get updated later) and add FSM,Draw
     #         cls._rfwidget_index = len(CookieCutter.registry)
     #         CookieCutter.registry.append(cls)
-
     #         cls.fsm = FSM()
-    #         cls.FSM_State = cls.fsm.wrapper
-    #         cls.FSM_OnlyInState = cls.fsm.onlyinstate_wrapper
-
     #         cls.drawcallbacks = DrawCallbacks()
-    #         cls.Draw = cls.drawcallbacks.wrapper
-    #         cls.PreDraw = cls.drawcallbacks.wrapper_pre
     #     else:
     #         # update registry, but do not add new FSM
     #         CookieCutter.registry[cls._cookiecutter_index] = cls

@@ -1431,40 +1431,43 @@ class ScissorStack:
 
 
 class DrawCallbacks:
-    def __init__(self):
-        self.wrapper = self._create_wrapper()
-        self.wrapper_pre = self._wrapper_pre
+    @staticmethod
+    def on_draw(mode):
+        def wrapper(fn):
+            nonlocal mode
+            assert mode in {'pre3d', 'post3d', 'post2d'}, f'DrawCallbacks: unexpected draw mode {mode} for {fn}'
+            @wraps(fn)
+            def wrapped(*args, **kwargs):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    print(f'DrawCallbacks: caught exception in on_draw with {fn}')
+                    debugger.print_exception()
+                    print(e)
+                    return
+            wrapped._on_draw = mode
+            return wrapped
+        return wrapper
+
+    @staticmethod
+    def on_predraw():
+        # no args at this moment...
+        def wrapper(fn):
+            @wraps(fn)
+            def wrapped(*args, **kwargs):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    print(f'DrawCallbacks: caught exception in on_predraw with {fn}')
+                    debugger.print_exception()
+                    print(e)
+                    return
+            wrapped._on_predraw = True
+            return wrapped
+        return wrapper
+
+    def __init__(self, obj):
         self._called_pre = False
-
-    def _wrapper_pre(self, fn):
-        fn.drawmode = 'pre'
-        return fn
-
-    def _create_wrapper(self):
-        drawcb = self
-        class DrawWrapper:
-            def __init__(self, mode):
-                assert mode in {'pre3d','post3d','post2d'}
-                self.mode = mode
-            def __call__(self, fn):
-                self.fn = fn
-                self.fnname = fn.__name__
-
-                @wraps(fn)
-                def run(*args, **kwargs):
-                    try:
-                        return fn(*args, **kwargs)
-                    except Exception as e:
-                        print('Caught exception in drawing "%s", calling "%s"' % (self.mode, self.fnname))
-                        debugger.print_exception()
-                        print(e)
-                        return None
-                run.fnname = self.fnname
-                run.drawmode = self.mode
-                return run
-        return DrawWrapper
-
-    def init(self, obj):
         self.obj = obj
         self._fns = {
             'pre3d':  [],
@@ -1472,8 +1475,10 @@ class DrawCallbacks:
             'post2d': [],
             'pre':    [],
         }
-        for (m,fn) in find_fns(self.obj, 'drawmode'):
+        for (m, fn) in find_fns(obj, '_on_draw'):
             self._fns[m] += [fn]
+        for (m, fn) in find_fns(obj, '_on_predraw'):
+            self._fns['pre'] += [fn]
 
     def _call(self, n):
         for fn in self._fns[n]: fn(self.obj)
