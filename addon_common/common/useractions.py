@@ -216,6 +216,11 @@ class Actions:
         'TIMER', 'TIMER_REPORT', 'TIMERREGION',
     }
 
+    reset_actions = {
+        # any time these actions are received, all action states will be flushed
+        'WINDOW_DEACTIVATE',
+    }
+
     timer_actions = {
         'TIMER'
     }
@@ -327,6 +332,17 @@ class Actions:
         self.r3d = context.space_data.region_3d
         self.window = context.window
 
+        self.timer      = False     # is action from timer?
+        self.time_delta = 0         # elapsed time since last "step" (units=seconds)
+        self.time_last = time.time()
+
+        # IMPORTANT: the following properties are updated external to Actions
+        self.hit_pos  = None    # position of raytraced mouse to scene (updated externally!)
+        self.hit_norm = None    # normal of raytraced mouse to scene (updated externally!)
+
+        self.reset_state(all_state=True)
+
+    def reset_state(self, all_state=False):
         self.actions_using = set()
         self.actions_pressed = set()
         self.actions_prevtime = dict()  # previous time when action was pressed
@@ -350,8 +366,9 @@ class Actions:
         self.alt_left    = False
         self.alt_right   = False
 
-        self.mouse_select     = bprefs.mouse_select()
-        self.mouse            = None    # current mouse position
+        if all_state:
+            self.mouse_select     = bprefs.mouse_select()
+            self.mouse            = None    # current mouse position
         self.mouse_prev       = None    # previous mouse position
         self.mouse_lastb      = None    # last button pressed on mouse
         self.mousemove        = False   # is the current action a mouse move?
@@ -363,19 +380,17 @@ class Actions:
         self.mousedown_right  = None    # mouse position when RMB was pressed
         self.mousedown_drag   = False   # is user dragging?
 
-        self.timer      = False     # is action from timer?
-        self.time_delta = 0         # elapsed time since last "step" (units=seconds)
-        self.time_last = time.time()
-
-        # IMPORTANT: the following properties are updated external to Actions
-        self.hit_pos  = None    # position of raytraced mouse to scene (updated externally!)
-        self.hit_norm = None    # normal of raytraced mouse to scene (updated externally!)
 
     actions_prevtime_default = (0, 0, float('inf'))
     def get_last_press_time(self, event_type):
         return self.actions_prevtime.get(event_type, self.actions_prevtime_default)
 
     def update(self, context, event, print_actions=False):
+        if event.type in self.reset_actions:
+            # print(f'Actions.update: resetting state')
+            self.reset_state()
+            return
+
         self.unpress()
 
         self.context = context
