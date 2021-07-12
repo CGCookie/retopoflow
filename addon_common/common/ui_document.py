@@ -688,7 +688,7 @@ class UI_Document:
         ScissorStack.start(context)
         bgl.glClearColor(0, 0, 0, 0)
         bgl.glBlendColor(0, 0, 0, 0)
-        # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
+        bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glEnable(bgl.GL_SCISSOR_TEST)
         bgl.glDisable(bgl.GL_DEPTH_TEST)

@@ -107,12 +107,44 @@ class UI_Draw:
         get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
         def_color = (0,0,0,0)
 
-        def draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override, depth, atex=bgl.GL_TEXTURE0):
+        print(f'Addon Common: ########################################')
+        print(f'              Loading shader using Shader')
+        shader2 = Shader.load_from_file('uiShader', 'ui_element.glsl', force_shim=True)
+
+        def draw(left, top, width, height, dpi_mult, style, texture_id=None, texture_fit=0, background_override=None, depth=None, atex=bgl.GL_TEXTURE0):
             nonlocal shader, batch, def_color, get_MVP_matrix
+            nonlocal shader2
             def get_v(style_key, def_val):
                 v = style.get(style_key, def_val)
                 if type(v) is NumberUnit: v = v.val() * dpi_mult
                 return v
+            # shader2.enable()
+            # shader2.assign_all(
+            #     #uMVPMatrix = get_MVP_matrix(),
+            #     left   = left,
+            #     top    = top,
+            #     right  = left + (width - 1),
+            #     bottom = top - (height - 1),
+            #     width  = width,
+            #     height = height,
+            #     depth  = depth,
+            #     margin_left    = get_v('margin-left', 0),
+            #     margin_right   = get_v('margin-right', 0),
+            #     margin_top     = get_v('margin-top', 0),
+            #     margin_bottom  = get_v('margin-bottom', 0),
+            #     padding_left   = get_v('padding-left', 0),
+            #     padding_right  = get_v('padding-right', 0),
+            #     padding_top    = get_v('padding-top', 0),
+            #     padding_bottom = get_v('padding-bottom', 0),
+            #     border_width   = get_v('border-width', 0),
+            #     border_radius  = get_v('border-radius', 0),
+            #     border_left_color   = get_v('border-left-color', def_color),
+            #     border_right_color  = get_v('border-right-color', def_color),
+            #     border_top_color    = get_v('border-top-color', def_color),
+            #     border_bottom_color = get_v('border-bottom-color', def_color),
+            # )
+            # shader2.disable()
+            # Drawing.glCheckError(f'checking gl errors before binding shader')
             shader.bind()
             # uMVPMatrix needs to be set every draw call, because it could be different
             # when rendering to FrameBuffers with their own l,b,w,h
@@ -124,32 +156,27 @@ class UI_Draw:
             shader.uniform_float('width',               width)
             shader.uniform_float('height',              height)
             shader.uniform_float('depth',               depth)
-            shader.uniform_float('margin_left',         get_v('margin-left', 0))
-            shader.uniform_float('margin_right',        get_v('margin-right', 0))
-            shader.uniform_float('margin_top',          get_v('margin-top', 0))
-            shader.uniform_float('margin_bottom',       get_v('margin-bottom', 0))
-            shader.uniform_float('padding_left',        get_v('padding-left', 0))
-            shader.uniform_float('padding_right',       get_v('padding-right', 0))
-            shader.uniform_float('padding_top',         get_v('padding-top', 0))
+            shader.uniform_float('margin_left',         get_v('margin-left',    0))
+            shader.uniform_float('margin_right',        get_v('margin-right',   0))
+            shader.uniform_float('margin_top',          get_v('margin-top',     0))
+            shader.uniform_float('margin_bottom',       get_v('margin-bottom',  0))
+            shader.uniform_float('padding_left',        get_v('padding-left',   0))
+            shader.uniform_float('padding_right',       get_v('padding-right',  0))
+            shader.uniform_float('padding_top',         get_v('padding-top',    0))
             shader.uniform_float('padding_bottom',      get_v('padding-bottom', 0))
-            shader.uniform_float('border_width',        get_v('border-width', 0))
-            shader.uniform_float('border_radius',       get_v('border-radius', 0))
-            shader.uniform_float('border_left_color',   get_v('border-left-color', def_color))
-            shader.uniform_float('border_right_color',  get_v('border-right-color', def_color))
-            shader.uniform_float('border_top_color',    get_v('border-top-color', def_color))
+            shader.uniform_float('border_width',        get_v('border-width',   0))
+            shader.uniform_float('border_radius',       get_v('border-radius',  0))
+            shader.uniform_float('border_left_color',   get_v('border-left-color',   def_color))
+            shader.uniform_float('border_right_color',  get_v('border-right-color',  def_color))
+            shader.uniform_float('border_top_color',    get_v('border-top-color',    def_color))
             shader.uniform_float('border_bottom_color', get_v('border-bottom-color', def_color))
-            if background_override:
-                shader.uniform_float('background_color',    background_override)
-            else:
-                shader.uniform_float('background_color',    get_v('background-color', def_color))
-            shader.uniform_int('image_fit', texture_fit)
-            if texture_id == -1:
-                shader.uniform_int('using_image', 0)
-            else:
+            shader.uniform_float('background_color',    background_override if background_override else get_v('background-color', def_color))
+            shader.uniform_int(  'image_fit',           texture_fit)
+            shader.uniform_int(  'using_image',         1 if texture_id is not None else 0)
+            shader.uniform_int(  'image',               atex - bgl.GL_TEXTURE0)
+            if texture_id is not None:
                 bgl.glActiveTexture(atex)
                 bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
-                shader.uniform_int('using_image', 1)
-                shader.uniform_int('image', atex - bgl.GL_TEXTURE0)
             batch.draw(shader)
 
         UI_Draw._draw = draw
@@ -177,7 +204,7 @@ class UI_Draw:
         'scale-down': 3, # same as none or contain, whichever is smaller
         'none':       4, # not resized
     }
-    def draw(self, left, top, width, height, dpi_mult, style, texture_id=-1, texture_fit='fill', background_override=None, depth=None):
+    def draw(self, left, top, width, height, dpi_mult, style, texture_id=None, texture_fit='fill', background_override=None, depth=None):
         texture_fit = self.texture_fit_map.get(texture_fit, 0)
         #if texture_id != -1: print('texture_fit', texture_fit)
         UI_Draw._draw(left, top, width, height, dpi_mult, style, texture_id, texture_fit, background_override, depth)

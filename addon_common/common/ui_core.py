@@ -1785,7 +1785,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         ol, ot = int(self._l + ox), int(self._t + oy)
 
         with profiler.code('drawing mbp'):
-            texture_id = self._image_data['texid'] if self._src in {'image', 'image loading'} else -1
+            texture_id = self._image_data['texid'] if self._src in {'image', 'image loading'} else None
             texture_fit = self._computed_styles.get('object-fit', 'fill')
             ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, texture_fit, background_override=background_override, depth=len(self._selector))
 

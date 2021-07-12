@@ -36,9 +36,11 @@ attribute vec2 pos;
 
 varying vec2 screen_pos;
 
-const bool DEBUG = false;
-const bool DEBUG_CHECKER = true;
-const bool DEBUG_IGNORE_ALPHA = false;
+const bool DEBUG_REGION_OUTSIDE = false;    // adds some color to outside regions (top, left, bottom, right)
+const bool DEBUG_REGION_COLORS  = false;    // colors pixel pased on region
+const bool DEBUG_IMAGE_CHECKER  = false;    // replaces images with checker pattern to test scaling
+const bool DEBUG_IMAGE_OUTSIDE  = false;    // inverts colors if texcoord is outside [0,1]
+const bool DEBUG_IGNORE_ALPHA   = false;    // snaps alpha to 0 or 1 based on 0.25 threshold
 
 const int REGION_OUTSIDE_LEFT   = -4;
 const int REGION_OUTSIDE_BOTTOM = -3;
@@ -51,6 +53,12 @@ const int REGION_BORDER_BOTTOM  = 3;
 const int REGION_BORDER_LEFT    = 4;
 const int REGION_BACKGROUND     = 5;
 const int REGION_ERROR          = -100;
+
+const int IMAGE_SCALE_FILL      = 0;
+const int IMAGE_SCALE_CONTAIN   = 1;
+const int IMAGE_SCALE_COVER     = 2;
+const int IMAGE_SCALE_DOWN      = 3;
+const int IMAGE_SCALE_NONE      = 4;
 
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
@@ -179,13 +187,13 @@ vec4 mix_image(vec4 bg) {
     float tx, ty;
     vec4 debug_color = vec4(0,0,0,0);
     switch(image_fit) {
-        case 0:
+        case IMAGE_SCALE_FILL:
             // object-fit: fill = stretch / squash to fill entire drawing space (non-uniform scale)
             // do nothing here
             tx = tw * dx / dw;
             ty = th * dy / dh;
             break;
-        case 1: {
+        case IMAGE_SCALE_CONTAIN: {
             // object-fit: contain = uniformly scale texture to fit entirely in drawing space (will be letterboxed)
             // find smaller scaled dimension, and use that
             float _tw, _th;
@@ -200,7 +208,7 @@ vec4 mix_image(vec4 bg) {
             tx = dsx * _tw - (_tw - tw) / 2.0;
             ty = dsy * _th - (_th - th) / 2.0;
             break; }
-        case 2: {
+        case IMAGE_SCALE_COVER: {
             // object-fit: cover = uniformly scale texture to fill entire drawing space (will be cropped)
             // find larger scaled dimension, and use that
             float _tw, _th;
@@ -215,7 +223,7 @@ vec4 mix_image(vec4 bg) {
             tx = dsx * _tw - (_tw - tw) / 2.0;
             ty = dsy * _th - (_th - th) / 2.0;
             break; }
-        case 3:
+        case IMAGE_SCALE_DOWN:
             // object-fit: scale-down = either none or contain, whichever is smaller
             if(dw >= tw && dh >= th) {
                 // none
@@ -235,7 +243,7 @@ vec4 mix_image(vec4 bg) {
                 ty = dsy * _th - (_th - th) / 2.0;
             }
             break;
-        case 4:
+        case IMAGE_SCALE_NONE:
             // object-fit: none (no resizing)
             tx = dx + (tw - dw) / 2.0;
             ty = dy + (th - dh) / 2.0;
@@ -246,31 +254,33 @@ vec4 mix_image(vec4 bg) {
             break;
     }
     vec2 texcoord = vec2(tx / tw, 1 - ty / th);
-    if(0 <= texcoord.x && texcoord.x < 1 && 0 <= texcoord.y && texcoord.y < 1) {
+    if(0 <= texcoord.x && texcoord.x <= 1 && 0 <= texcoord.y && texcoord.y <= 1) {
         vec4 t = texture(image, texcoord) + debug_color;
         float a = t.a + c.a * (1.0 - t.a);
         c = vec4((t.rgb * t.a + c.rgb * c.a * (1.0 - t.a)) / a, a);
 
-        if(DEBUG && DEBUG_CHECKER) {
-            int i = (int(32 * texcoord.x) + 4 * int(32 * texcoord.y)) % 16;
-                 if(i ==  0) c = vec4(0.0, 0.0, 0.0, 1);
-            else if(i ==  1) c = vec4(0.0, 0.0, 0.5, 1);
-            else if(i ==  2) c = vec4(0.0, 0.5, 0.0, 1);
-            else if(i ==  3) c = vec4(0.0, 0.5, 0.5, 1);
-            else if(i ==  4) c = vec4(0.5, 0.0, 0.0, 1);
-            else if(i ==  5) c = vec4(0.5, 0.0, 0.5, 1);
-            else if(i ==  6) c = vec4(0.5, 0.5, 0.0, 1);
-            else if(i ==  7) c = vec4(0.5, 0.5, 0.5, 1);
-            else if(i ==  8) c = vec4(0.3, 0.3, 0.3, 1);
-            else if(i ==  9) c = vec4(0.0, 0.0, 1.0, 1);
-            else if(i == 10) c = vec4(0.0, 1.0, 0.0, 1);
-            else if(i == 11) c = vec4(0.0, 1.0, 1.0, 1);
-            else if(i == 12) c = vec4(1.0, 0.0, 0.0, 1);
-            else if(i == 13) c = vec4(1.0, 0.0, 1.0, 1);
-            else if(i == 14) c = vec4(1.0, 1.0, 0.0, 1);
-            else if(i == 15) c = vec4(1.0, 1.0, 1.0, 1);
+        if(DEBUG_IMAGE_CHECKER) {
+            // generate checker pattern to test scaling
+            switch((int(32 * texcoord.x) + 4 * int(32 * texcoord.y)) % 16) {
+                case  0: c = vec4(0.0, 0.0, 0.0, 1); break;
+                case  1: c = vec4(0.0, 0.0, 0.5, 1); break;
+                case  2: c = vec4(0.0, 0.5, 0.0, 1); break;
+                case  3: c = vec4(0.0, 0.5, 0.5, 1); break;
+                case  4: c = vec4(0.5, 0.0, 0.0, 1); break;
+                case  5: c = vec4(0.5, 0.0, 0.5, 1); break;
+                case  6: c = vec4(0.5, 0.5, 0.0, 1); break;
+                case  7: c = vec4(0.5, 0.5, 0.5, 1); break;
+                case  8: c = vec4(0.3, 0.3, 0.3, 1); break;
+                case  9: c = vec4(0.0, 0.0, 1.0, 1); break;
+                case 10: c = vec4(0.0, 1.0, 0.0, 1); break;
+                case 11: c = vec4(0.0, 1.0, 1.0, 1); break;
+                case 12: c = vec4(1.0, 0.0, 0.0, 1); break;
+                case 13: c = vec4(1.0, 0.0, 1.0, 1); break;
+                case 14: c = vec4(1.0, 1.0, 0.0, 1); break;
+                case 15: c = vec4(1.0, 1.0, 1.0, 1); break;
+            }
         }
-    } else if(DEBUG) {
+    } else if(DEBUG_IMAGE_OUTSIDE) {
         // vec4 t = vec4(0,1,1,0.50);
         // float a = t.a + c.a * (1.0 - t.a);
         // c = vec4((t.rgb * t.a + c.rgb * c.a * (1.0 - t.a)) / a, a);
@@ -284,21 +294,63 @@ vec4 mix_image(vec4 bg) {
     return c;
 }
 
+vec4 mixOver(vec4 above, vec4 below) {
+    vec3 a_ = above.rgb * above.a;
+    vec3 b_ = below.rgb * below.a;
+    float alpha = above.a + (1.0 - above.a) * below.a;
+    return vec4((a_ + b_ * (1.0 - above.a)) / alpha, alpha);
+}
+
 void main() {
     vec4 c = vec4(0,0,0,0);
     int region = get_region();
-         if(region == REGION_OUTSIDE_TOP)    { c = vec4(1,0,0,0.25); if(!DEBUG) discard; }
-    else if(region == REGION_OUTSIDE_RIGHT)  { c = vec4(0,1,0,0.25); if(!DEBUG) discard; }
-    else if(region == REGION_OUTSIDE_BOTTOM) { c = vec4(0,0,1,0.25); if(!DEBUG) discard; }
-    else if(region == REGION_OUTSIDE_LEFT)   { c = vec4(0,1,1,0.25); if(!DEBUG) discard; }
-    else if(region == REGION_OUTSIDE)        { c = vec4(1,1,0,0.25); if(!DEBUG) discard; }
-    else if(region == REGION_BORDER_TOP)       c = border_top_color;
-    else if(region == REGION_BORDER_RIGHT)     c = border_right_color;
-    else if(region == REGION_BORDER_BOTTOM)    c = border_bottom_color;
-    else if(region == REGION_BORDER_LEFT)      c = border_left_color;
-    else if(region == REGION_BACKGROUND)       c = background_color;
-    else if(region == REGION_ERROR)            c = vec4(1,0,0,1);  // should never hit here
-    else                                       c = vec4(1,0,1,1);  // should really never hit here
+    switch(region) {
+        case REGION_OUTSIDE_TOP:
+            c = vec4(1,0,0,0.25);
+            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+            break;
+        case REGION_OUTSIDE_RIGHT:
+            c = vec4(0,1,0,0.25);
+            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+            break;
+        case REGION_OUTSIDE_BOTTOM:
+            c = vec4(0,0,1,0.25);
+            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+            break;
+        case REGION_OUTSIDE_LEFT:
+            c = vec4(0,1,1,0.25);
+            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+            break;
+        case REGION_OUTSIDE:
+            c = vec4(1,1,0,0.25);
+            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+            break;
+        case REGION_BORDER_TOP:     
+            c = border_top_color;
+            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.5,0.0,0.0,0.25), c);
+            break;
+        case REGION_BORDER_RIGHT:   
+            c = border_right_color;
+            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            break;
+        case REGION_BORDER_BOTTOM:  
+            c = border_bottom_color;
+            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            break;
+        case REGION_BORDER_LEFT:    
+            c = border_left_color;
+            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            break;
+        case REGION_BACKGROUND:     
+            c = background_color;
+            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.5,0.5,0.0,0.25), c);
+            break;
+        case REGION_ERROR:      // should never hit here
+            c = vec4(1,0,0,1);
+            break;
+        default:                // should **really** never hit here
+            c = vec4(1,0,1,1);
+    }
     if(using_image > 0) c = mix_image(c);
     // outColor = c;
     // outColor = vec4(c.rgb / max(0.001,c.a), c.a);
@@ -306,12 +358,11 @@ void main() {
 
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
+
     if(DEBUG_IGNORE_ALPHA) {
-        if(outColor.a < 0.25) {
-            discard;
-        } else {
-            outColor.a = 1.0;
-        }
+        if(outColor.a < 0.25) discard;
+        else outColor.a = 1.0;
     }
+
     gl_FragDepth = gl_FragDepth * 0.999999;
 }

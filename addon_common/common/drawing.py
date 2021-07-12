@@ -130,16 +130,7 @@ if bversion() >= "2.80":
         path_shaders = os.path.join(path_here, 'shaders')
         path_glsl = os.path.join(path_shaders, fn_glsl)
         txt = open(path_glsl, 'rt').read()
-        vert_source,frag_source = Shader.parse_string(txt)
-        # lines = txt.splitlines()
-        # mode = 'common'
-        # source = {'common':[], 'vertex':[], 'fragment':[]}
-        # for line in lines:
-        #     if   line == '// vertex shader':   mode = 'vertex'
-        #     elif line == '// fragment shader': mode = 'fragment'
-        #     else: source[mode].append(line)
-        # vert_source = '\n'.join(source['common'] + source['vertex'])
-        # frag_source = '\n'.join(source['common'] + source['fragment'])
+        vert_source, frag_source = Shader.parse_string(txt)
         try:
             return GPUShader(vert_source, frag_source)
         except Exception as e:
