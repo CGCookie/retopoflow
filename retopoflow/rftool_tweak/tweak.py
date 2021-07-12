@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import bgl
 
 from ..rftool import RFTool
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Factory
 
 from ...addon_common.common.drawing import (
@@ -52,6 +53,7 @@ class Tweak(RFTool):
     statusbar   = '{{brush}} Tweak\t{{brush alt}} Tweak selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'tweak_options.html'
 
+    RFWidget_Default = RFWidget_Default_Factory.create('Tweak default')
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
         'Tweak brush',
         BoundInt('''options['tweak radius']''', min_value=1),
@@ -62,7 +64,11 @@ class Tweak(RFTool):
 
     @RFTool.on_init
     def init(self):
-        self.rfwidget = self.RFWidget_BrushFalloff(self)
+        self.rfwidgets = {
+            'default':     self.RFWidget_Default(self),
+            'brushstroke': self.RFWidget_BrushFalloff(self),
+        }
+        self.rfwidget = None
 
     def reset_current_brush(self):
         options.reset(keys={'tweak radius', 'tweak falloff', 'tweak strength'})
@@ -103,6 +109,11 @@ class Tweak(RFTool):
 
     @FSM.on_state('main')
     def main(self):
+        if self.actions.using_onlymods(['brush', 'brush alt']):
+            self.rfwidget = self.rfwidgets['brushstroke']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
             self.rfcontext.actions.unpress()
@@ -178,7 +189,7 @@ class Tweak(RFTool):
 
     @FSM.on_state('move', 'can enter')
     def move_can_enter(self):
-        radius = self.rfwidget.get_scaled_radius()
+        radius = self.rfwidgets['brushstroke'].get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         if not nearest: return False
 
@@ -191,7 +202,7 @@ class Tweak(RFTool):
         opt_mask_selected = options['tweak mask selected']
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        get_strength_dist = self.rfwidget.get_strength_dist
+        get_strength_dist = self.rfwidgets['brushstroke'].get_strength_dist
         def is_visible(bmv):
             # always perform occlusion test
             return self.rfcontext.is_visible(bmv.co, bmv.normal, occlusion_test_override=True)
@@ -199,7 +210,7 @@ class Tweak(RFTool):
             return self.rfcontext.symmetry_planes_for_point(bmv.co) if opt_mask_symmetry == 'maintain' else None
 
         # get all verts under brush
-        radius = self.rfwidget.get_scaled_radius()
+        radius = self.rfwidgets['brushstroke'].get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
         self.bmverts = [(bmv, on_planes(bmv), Point_to_Point2D(bmv.co), get_strength_dist(d3d)) for (bmv, d3d) in nearest]
 

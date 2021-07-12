@@ -76,15 +76,15 @@
                     <div class="contents">
                         <div class='labeled-input-text'>
                             <label for='tweak-current-radius'>Size</label>
-                            <input type="number" title="Adjust brush size" id='tweak-current-radius' value="self.rfwidget.get_radius_boundvar()">
+                            <input type="number" title="Adjust brush size" id='tweak-current-radius' value="self.rfwidgets['brushstroke'].get_radius_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
                             <label for='tweak-current-strength'>Strength</label>
-                            <input type="number" title="Adjust brush strength" id='tweak-current-strength' value="self.rfwidget.get_strength_boundvar()">
+                            <input type="number" title="Adjust brush strength" id='tweak-current-strength' value="self.rfwidgets['brushstroke'].get_strength_boundvar()">
                         </div>
                         <div class='labeled-input-text'>
                             <label for='tweak-current-falloff'>Falloff</label>
-                            <input type="number" title="Adjust brush falloff" id='tweak-current-falloff' value="self.rfwidget.get_falloff_boundvar()">
+                            <input type="number" title="Adjust brush falloff" id='tweak-current-falloff' value="self.rfwidgets['brushstroke'].get_falloff_boundvar()">
                         </div>
                         <button title="Reset brush options to defaults" on_mouseclick="self.reset_current_brush()">Reset</button>
                     </div>

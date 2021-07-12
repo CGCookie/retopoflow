@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import math
 import time
 from ..rftool import RFTool
+from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Factory
 
 from ...addon_common.common.maths import (
@@ -49,6 +50,7 @@ class Relax(RFTool):
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'relax_options.html'
 
+    RFWidget_Default = RFWidget_Default_Factory.create('Relax default')
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
         'Relax brush',
         BoundInt('''options['relax radius']''', min_value=1),
@@ -59,7 +61,11 @@ class Relax(RFTool):
 
     @RFTool.on_init
     def init(self):
-        self.rfwidget = self.RFWidget_BrushFalloff(self)
+        self.rfwidgets = {
+            'default':     self.RFWidget_Default(self),
+            'brushstroke': self.RFWidget_BrushFalloff(self),
+        }
+        self.rfwidget = None
 
     def reset_algorithm_options(self):
         options.reset(keys=[
@@ -122,7 +128,12 @@ class Relax(RFTool):
         self.sel_only = False
 
     @FSM.on_state('main')
-    def main(self) :
+    def main(self):
+        if self.actions.using_onlymods(['brush', 'brush alt']):
+            self.rfwidget = self.rfwidgets['brushstroke']
+        else:
+            self.rfwidget = self.rfwidgets['default']
+
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')
             self.rfcontext.actions.unpress()
@@ -252,14 +263,14 @@ class Relax(RFTool):
         if not hit_pos: return
 
         # collect data for smoothing
-        radius = self.rfwidget.get_scaled_radius()
+        radius = self.rfwidgets['brushstroke'].get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv,d in nearest:
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_strength[bmv] = self.rfwidget.get_strength_dist(d) / radius
+            vert_strength[bmv] = self.rfwidgets['brushstroke'].get_strength_dist(d) / radius
         # self.rfcontext.select(verts)
 
         if not verts or not edges: return
@@ -282,8 +293,8 @@ class Relax(RFTool):
         cur_time = time.time()
         time_delta = cur_time - self._time
         self._time = cur_time
-        strength = (5.0 / opt_steps) * self.rfwidget.strength * time_delta
-        radius = self.rfwidget.get_scaled_radius()
+        strength = (5.0 / opt_steps) * self.rfwidgets['brushstroke'].strength * time_delta
+        radius = self.rfwidgets['brushstroke'].get_scaled_radius()
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
