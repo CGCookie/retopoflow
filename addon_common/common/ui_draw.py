@@ -197,6 +197,7 @@ class UI_Draw:
         ''' only need to call once every redraw '''
         pass
 
+    # note: these must correspond correctly with labeled magic numbers in `ui_element.glsl`
     texture_fit_map = {
         'fill':       0, # default.  stretch/squash to fill entire container
         'contain':    1, # scaled to maintain aspect ratio, fit within container

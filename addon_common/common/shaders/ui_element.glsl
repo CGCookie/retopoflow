@@ -1,3 +1,7 @@
+// the following two lines are an attempt to solve issues #1025, #879, #753
+precision highp float;
+precision lowp  int;   // only used to represent enum or bool
+
 uniform mat4 uMVPMatrix;
 
 uniform float left;
@@ -32,33 +36,54 @@ uniform int       using_image;
 uniform int       image_fit;
 uniform sampler2D image;
 
+
 attribute vec2 pos;
+
 
 varying vec2 screen_pos;
 
-const bool DEBUG_REGION_OUTSIDE = false;    // adds some color to outside regions (top, left, bottom, right)
-const bool DEBUG_REGION_COLORS  = false;    // colors pixel pased on region
-const bool DEBUG_IMAGE_CHECKER  = false;    // replaces images with checker pattern to test scaling
-const bool DEBUG_IMAGE_OUTSIDE  = false;    // inverts colors if texcoord is outside [0,1]
-const bool DEBUG_IGNORE_ALPHA   = false;    // snaps alpha to 0 or 1 based on 0.25 threshold
 
-const int REGION_OUTSIDE_LEFT   = -4;
-const int REGION_OUTSIDE_BOTTOM = -3;
-const int REGION_OUTSIDE_RIGHT  = -2;
-const int REGION_OUTSIDE_TOP    = -1;
-const int REGION_OUTSIDE        = 0;
-const int REGION_BORDER_TOP     = 1;
-const int REGION_BORDER_RIGHT   = 2;
-const int REGION_BORDER_BOTTOM  = 3;
-const int REGION_BORDER_LEFT    = 4;
-const int REGION_BACKGROUND     = 5;
-const int REGION_ERROR          = -100;
+// debugging options
+const bool DEBUG_COLOR_MARGINS = false;     // colors pixels in margin (top, left, bottom, right)
+const bool DEBUG_COLOR_REGIONS = false;     // colors pixels based on region
+const bool DEBUG_IMAGE_CHECKER = false;     // replaces images with checker pattern to test scaling
+const bool DEBUG_IMAGE_OUTSIDE = false;     // shifts colors if texcoord is outside [0,1] (in padding region)
+const bool DEBUG_IGNORE_ALPHA  = false;     // snaps alpha to 0 or 1 based on 0.25 threshold
 
-const int IMAGE_SCALE_FILL      = 0;
-const int IMAGE_SCALE_CONTAIN   = 1;
-const int IMAGE_SCALE_COVER     = 2;
-const int IMAGE_SCALE_DOWN      = 3;
-const int IMAGE_SCALE_NONE      = 4;
+// labeled magic numbers (enum), only used to identify which region a fragment is in relative to UI element properties
+const int REGION_MARGIN_LEFT   = 0;
+const int REGION_MARGIN_BOTTOM = 1;
+const int REGION_MARGIN_RIGHT  = 2;
+const int REGION_MARGIN_TOP    = 3;
+const int REGION_BORDER_TOP    = 4;
+const int REGION_BORDER_RIGHT  = 5;
+const int REGION_BORDER_BOTTOM = 6;
+const int REGION_BORDER_LEFT   = 7;
+const int REGION_BACKGROUND    = 8;
+const int REGION_ERROR         = 10;
+
+// colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
+const vec4 COLOR_MARGIN_LEFT   = vec4(1.0, 0.0, 0.0, 0.25);
+const vec4 COLOR_MARGIN_BOTTOM = vec4(0.0, 1.0, 0.0, 0.25);
+const vec4 COLOR_MARGIN_RIGHT  = vec4(0.0, 0.0, 1.0, 0.25);
+const vec4 COLOR_MARGIN_TOP    = vec4(0.0, 1.0, 1.0, 0.25);
+const vec4 COLOR_BORDER_TOP    = vec4(0.5, 0.0, 0.0, 0.25);
+const vec4 COLOR_BORDER_RIGHT  = vec4(0.0, 0.5, 0.5, 0.25);
+const vec4 COLOR_BORDER_BOTTOM = vec4(0.0, 0.5, 0.5, 0.25);
+const vec4 COLOR_BORDER_LEFT   = vec4(0.0, 0.5, 0.5, 0.25);
+const vec4 COLOR_BACKGROUND    = vec4(0.5, 0.5, 0.0, 0.25);
+const vec4 COLOR_ERROR         = vec4(1.0, 0.0, 0.0, 1.00);
+const vec4 COLOR_ERROR_NEVER   = vec4(1.0, 0.0, 1.0, 1.00);
+
+const vec4 DEBUG_IMAGE_COLOR   = vec4(0.0, 0.0, 0.0, 0.00);
+
+// labeled magic numbers (enum), needs to correspond with `UI_Draw.texture_fit_map`
+const int IMAGE_SCALE_FILL     = 0;
+const int IMAGE_SCALE_CONTAIN  = 1;
+const int IMAGE_SCALE_COVER    = 2;
+const int IMAGE_SCALE_DOWN     = 3;
+const int IMAGE_SCALE_NONE     = 4;
+
 
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
@@ -90,15 +115,42 @@ out vec4 outColor;
 
 float sqr(float s) { return s * s; }
 
+int get_margin_region(float dist_min, float dist_left, float dist_right, float dist_top, float dist_bottom) {
+    if(dist_min == dist_left)   return REGION_MARGIN_LEFT;
+    if(dist_min == dist_right)  return REGION_MARGIN_RIGHT;
+    if(dist_min == dist_top)    return REGION_MARGIN_TOP;
+    if(dist_min == dist_bottom) return REGION_MARGIN_BOTTOM;
+    return REGION_ERROR;
+}
+
 int get_region() {
-    /* return values:
-          0 - outside border region
-          1 - top border
-          2 - right border
-          3 - bottom border
-          4 - left border
-          5 - inside border region
-         -1 - ERROR (should never happen)
+    /* this function determines which region the fragment is in wrt properties of UI element,
+       specifically: position, size, border width, border radius, margins
+
+        v top-left
+        +-----------------+
+        | \             / | <- margin regions
+        |   +---------+   |
+        |   |\       /|   | <- border regions
+        |   | +-----+ |   |
+        |   | |     | |   | <- inside border region (content area + padding)
+        |   | +-----+ |   |
+        |   |/       \|   |
+        |   +---------+   |
+        | /             \ |
+        +-----------------+
+                          ^ bottom-right
+
+        - margin regions
+            - broken into top, right, bottom, left
+            - each TRBL margin size can be different size
+        - border regions
+            - broken into top, right, bottom, left
+            - each can have different colors, but all same size (TODO!)
+        - inside border region
+            - where content is drawn (image)
+            - NOTE: padding takes up this space
+        - ERROR region _should_ never happen, but can be returned from this fn if something goes wrong
     */
 
     float dist_left   = screen_pos.x - (left + margin_left);
@@ -111,15 +163,10 @@ int get_region() {
     float rad2    = sqr(rad);
     float r2;
 
-    // outside
+    // margin
     float dist_min = min(min(min(dist_left, dist_right), dist_top), dist_bottom);
-    if(dist_min < 0) {
-        if(dist_min == dist_left)   return REGION_OUTSIDE_LEFT;
-        if(dist_min == dist_right)  return REGION_OUTSIDE_RIGHT;
-        if(dist_min == dist_top)    return REGION_OUTSIDE_TOP;
-        if(dist_min == dist_bottom) return REGION_OUTSIDE_BOTTOM;
-        return REGION_ERROR;
-    }
+    int margin_region = get_margin_region(dist_min, dist_left, dist_right, dist_top, dist_bottom);
+    if(dist_min < 0) return margin_region;
 
     // within top and bottom, might be left or right side
     if(dist_bottom > radwid && dist_top > radwid) {
@@ -138,7 +185,7 @@ int get_region() {
     // top-left
     if(dist_top <= radwid && dist_left <= radwid) {
         r2 = sqr(dist_left - radwid) + sqr(dist_top - radwid);
-        if(r2 > radwid2)             return REGION_OUTSIDE;
+        if(r2 > radwid2)             return margin_region;
         if(r2 < rad2)                return REGION_BACKGROUND;
         if(dist_left < dist_top)     return REGION_BORDER_LEFT;
         return REGION_BORDER_TOP;
@@ -146,7 +193,7 @@ int get_region() {
     // top-right
     if(dist_top <= radwid && dist_right <= radwid) {
         r2 = sqr(dist_right - radwid) + sqr(dist_top - radwid);
-        if(r2 > radwid2)             return REGION_OUTSIDE;
+        if(r2 > radwid2)             return margin_region;
         if(r2 < rad2)                return REGION_BACKGROUND;
         if(dist_right < dist_top)    return REGION_BORDER_RIGHT;
         return REGION_BORDER_TOP;
@@ -154,7 +201,7 @@ int get_region() {
     // bottom-left
     if(dist_bottom <= radwid && dist_left <= radwid) {
         r2 = sqr(dist_left - radwid) + sqr(dist_bottom - radwid);
-        if(r2 > radwid2)             return REGION_OUTSIDE;
+        if(r2 > radwid2)             return margin_region;
         if(r2 < rad2)                return REGION_BACKGROUND;
         if(dist_left < dist_bottom)  return REGION_BORDER_LEFT;
         return REGION_BORDER_BOTTOM;
@@ -162,7 +209,7 @@ int get_region() {
     // bottom-right
     if(dist_bottom <= radwid && dist_right <= radwid) {
         r2 = sqr(dist_right - radwid) + sqr(dist_bottom - radwid);
-        if(r2 > radwid2)             return REGION_OUTSIDE;
+        if(r2 > radwid2)             return margin_region;
         if(r2 < rad2)                return REGION_BACKGROUND;
         if(dist_right < dist_bottom) return REGION_BORDER_RIGHT;
         return REGION_BORDER_BOTTOM;
@@ -170,6 +217,13 @@ int get_region() {
 
     // something bad happened
     return REGION_ERROR;
+}
+
+vec4 mix_over(vec4 above, vec4 below) {
+    vec3 a_ = above.rgb * above.a;
+    vec3 b_ = below.rgb * below.a;
+    float alpha = above.a + (1.0 - above.a) * below.a;
+    return vec4((a_ + b_ * (1.0 - above.a)) / alpha, alpha);
 }
 
 vec4 mix_image(vec4 bg) {
@@ -185,7 +239,7 @@ vec4 mix_image(vec4 bg) {
     vec2 tsz = textureSize(image, 0);
     float tw = tsz.x, th = tsz.y;
     float tx, ty;
-    vec4 debug_color = vec4(0,0,0,0);
+
     switch(image_fit) {
         case IMAGE_SCALE_FILL:
             // object-fit: fill = stretch / squash to fill entire drawing space (non-uniform scale)
@@ -253,11 +307,11 @@ vec4 mix_image(vec4 bg) {
             ty = th / 2.0;
             break;
     }
+
     vec2 texcoord = vec2(tx / tw, 1 - ty / th);
     if(0 <= texcoord.x && texcoord.x <= 1 && 0 <= texcoord.y && texcoord.y <= 1) {
-        vec4 t = texture(image, texcoord) + debug_color;
-        float a = t.a + c.a * (1.0 - t.a);
-        c = vec4((t.rgb * t.a + c.rgb * c.a * (1.0 - t.a)) / a, a);
+        vec4 t = texture(image, texcoord) + DEBUG_IMAGE_COLOR;
+        c = mix_over(t, c);
 
         if(DEBUG_IMAGE_CHECKER) {
             // generate checker pattern to test scaling
@@ -294,66 +348,56 @@ vec4 mix_image(vec4 bg) {
     return c;
 }
 
-vec4 mixOver(vec4 above, vec4 below) {
-    vec3 a_ = above.rgb * above.a;
-    vec3 b_ = below.rgb * below.a;
-    float alpha = above.a + (1.0 - above.a) * below.a;
-    return vec4((a_ + b_ * (1.0 - above.a)) / alpha, alpha);
-}
-
 void main() {
     vec4 c = vec4(0,0,0,0);
     int region = get_region();
     switch(region) {
-        case REGION_OUTSIDE_TOP:
-            c = vec4(1,0,0,0.25);
-            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+        case REGION_MARGIN_TOP:
+            if(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS) c = COLOR_MARGIN_TOP;
+            else discard;
             break;
-        case REGION_OUTSIDE_RIGHT:
-            c = vec4(0,1,0,0.25);
-            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+        case REGION_MARGIN_RIGHT:
+            if(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS) c = COLOR_MARGIN_RIGHT;
+            else discard;
             break;
-        case REGION_OUTSIDE_BOTTOM:
-            c = vec4(0,0,1,0.25);
-            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+        case REGION_MARGIN_BOTTOM:
+            if(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS) c = COLOR_MARGIN_BOTTOM;
+            else discard;
             break;
-        case REGION_OUTSIDE_LEFT:
-            c = vec4(0,1,1,0.25);
-            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
+        case REGION_MARGIN_LEFT:
+            if(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS) c = COLOR_MARGIN_LEFT;
+            else discard;
             break;
-        case REGION_OUTSIDE:
-            c = vec4(1,1,0,0.25);
-            if(!DEBUG_REGION_OUTSIDE && !DEBUG_REGION_COLORS) discard;
-            break;
-        case REGION_BORDER_TOP:     
+        case REGION_BORDER_TOP:
             c = border_top_color;
-            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.5,0.0,0.0,0.25), c);
+            if(DEBUG_COLOR_REGIONS) c = mix_over(COLOR_BORDER_TOP, c);
             break;
-        case REGION_BORDER_RIGHT:   
+        case REGION_BORDER_RIGHT:
             c = border_right_color;
-            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            if(DEBUG_COLOR_REGIONS) c = mix_over(COLOR_BORDER_RIGHT, c);
             break;
-        case REGION_BORDER_BOTTOM:  
+        case REGION_BORDER_BOTTOM:
             c = border_bottom_color;
-            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            if(DEBUG_COLOR_REGIONS) c = mix_over(COLOR_BORDER_BOTTOM, c);
             break;
-        case REGION_BORDER_LEFT:    
+        case REGION_BORDER_LEFT:
             c = border_left_color;
-            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.0,0.5,0.5,0.25), c);
+            if(DEBUG_COLOR_REGIONS) c = mix_over(COLOR_BORDER_LEFT, c);
             break;
-        case REGION_BACKGROUND:     
+        case REGION_BACKGROUND:
             c = background_color;
-            if(DEBUG_REGION_COLORS) c = mixOver(vec4(0.5,0.5,0.0,0.25), c);
+            if(DEBUG_COLOR_REGIONS) c = mix_over(COLOR_BACKGROUND, c);
             break;
         case REGION_ERROR:      // should never hit here
-            c = vec4(1,0,0,1);
+            c = COLOR_ERROR;
             break;
         default:                // should **really** never hit here
-            c = vec4(1,0,1,1);
+            c = COLOR_ERROR_NEVER;
     }
+
+    // apply image if used
     if(using_image > 0) c = mix_image(c);
-    // outColor = c;
-    // outColor = vec4(c.rgb / max(0.001,c.a), c.a);
+
     outColor = vec4(c.rgb * c.a, c.a);
 
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API

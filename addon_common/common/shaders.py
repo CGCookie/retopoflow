@@ -117,7 +117,7 @@ class Shader():
             elif line.startswith('varying '):
                 varyings.append(line)
             elif line.startswith('const '):
-                m = re.match(r'const +(?P<type>bool|int|float) +(?P<var>[a-zA-Z0-9_]+) *= *(?P<val>[^;]+);', line)
+                m = re.match(r'const +(?P<type>bool|int|float|vec\d) +(?P<var>[a-zA-Z0-9_]+) *= *(?P<val>[^;]+);', line)
                 if m is None:
                     print('Shader could not match const line:', line)
                 elif m.group('var') in constant_overrides:
