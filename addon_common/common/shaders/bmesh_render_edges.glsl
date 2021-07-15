@@ -76,6 +76,8 @@ varying vec4 vColor;            // color of geometry (considers selection)
 varying vec2 vPCPosition;
 
 
+const bool debug_invert_backfacing = false;
+
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
 
@@ -148,6 +150,10 @@ void main() {
         vColor = color;
     }
     vColor.a *= 1.0 - hidden;
+
+    if(debug_invert_backfacing && vCNormal.z < 0.0) {
+        vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);
+    }
 }
 
 

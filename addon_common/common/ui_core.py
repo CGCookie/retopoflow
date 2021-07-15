@@ -1518,7 +1518,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             self._dirty_properties.discard('blocks')
             return
         if 'blocks' not in self._dirty_properties:
-            for e in self._dirty_callbacks.get('blocks', []): e._compute_blocks()
+            for e in list(self._dirty_callbacks.get('blocks', [])): e._compute_blocks()
             self._dirty_callbacks['blocks'].clear()
             return
 

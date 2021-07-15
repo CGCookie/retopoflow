@@ -698,9 +698,9 @@ class RFMesh():
         point_local = self.xform.w2l_point(point)
         p,n,i,_ = self.get_bvh().find_nearest(point_local, max_dist)
         if p is None: return (None,None,None,None)
-        p,n = self.xform.l2w_point(p), self.xform.l2w_normal(n)
-        d = (point - p).length
-        return (p,n,i,d)
+        wp,wn = self.xform.l2w_point(p), self.xform.l2w_normal(n)
+        d = (point - wp).length
+        return (wp,wn,i,d)
 
     def nearest_bmvert_Point(self, point:Point, verts=None):
         if verts is None:
@@ -1554,25 +1554,26 @@ class RFTarget(RFMesh):
 
     def apply_symmetry(self, nearest):
         out = []
-        if self.mirror_mod.x:
-            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
-            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='X')['geom']
-            self.mirror_mod.x = False
-        if self.mirror_mod.y:
-            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
-            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Y')['geom']
-            self.mirror_mod.y = False
-        if self.mirror_mod.z:
-            geom = list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces)
-            out += mirror(self.bme, geom=geom, merge_dist=self.mirror_mod.symmetry_threshold, axis='Z')['geom']
-            self.mirror_mod.z = False
-        for v in out:
-            if type(v) is not BMVert: continue
-            v = self._wrap_bmvert(v)
-            xyz,norm,_,_ = nearest(v.co)
-            v.co = xyz
-            v.normal = norm
-        self.dirty()
+        def apply_mirror_and_return_geom(axis):
+            return mirror(
+                self.bme,
+                geom=list(self.bme.verts) + list(self.bme.edges) + list(self.bme.faces),
+                merge_dist=self.mirror_mod.symmetry_threshold,
+                axis=axis,
+            )['geom']
+        if self.mirror_mod.x: out += apply_mirror_and_return_geom('X')
+        if self.mirror_mod.y: out += apply_mirror_and_return_geom('Y')
+        if self.mirror_mod.z: out += apply_mirror_and_return_geom('Z')
+        self.mirror_mod.x = False
+        self.mirror_mod.y = False
+        self.mirror_mod.z = False
+        for bmv in (e for e in out if type(e) is BMVert):
+            rfvert = self._wrap_bmvert(bmv)
+            xyz, norm, _, _ = nearest(rfvert.co)
+            if xyz is None: continue
+            rfvert.co = xyz
+            rfvert.normal = norm
+        self.recalculate_face_normals(verts=[e for e in out if type(e) is BMVert], faces=[e for e in out if type(e) is BMFace])
 
     def new_vert(self, co, norm):
         # assuming co and norm are in world space!
@@ -1811,9 +1812,10 @@ class RFTarget(RFMesh):
             bmv.normal_update()
         self.dirty()
 
-    def recalculate_face_normals(self):
-        verts = [bmv for bmv in self.bme.verts if bmv.select]
-        recalc_face_normals(self.bme, faces=[bmf for bmf in self.bme.faces if bmf.select])
-        for bmv in verts:
-            bmv.normal_update()
+    def recalculate_face_normals(self, *, verts=None, faces=None):
+        if faces is None: faces = { bmf for bmf in self.bme.faces if bmf.select }
+        else:             faces = { self._unwrap(bmf) for bmf in faces }
+        if verts:         faces |= { self._unwrap(bmf) for bmv in verts for bmf in bmv.link_faces}
+        recalc_face_normals(self.bme, faces=list(faces))
+        for bmv in (bmv for bmf in faces for bmv in bmf.verts): bmv.normal_update()
         self.dirty()

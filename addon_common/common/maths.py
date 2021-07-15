@@ -492,6 +492,15 @@ class Normal(VecUtils, Entity3D):
         super().from_vector(v)
         self.normalize()
 
+    @staticmethod
+    def average(normals):
+        v, c = Vector(), 0
+        for n in normals:
+            v += n
+            c += 1
+        if c: return Normal(v)
+        return v
+
 
 class Color(Vector):
     @staticmethod

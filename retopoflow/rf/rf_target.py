@@ -466,16 +466,20 @@ class RetopoFlow_Target:
     def push_then_snap_all_verts(self):
         self.undo_push('push then snap all non-hidden verts')
         d = options['push and snap distance']
-        for bmv in self.rftarget.get_verts():
+        bmvs = self.rftarget.get_verts()
+        for bmv in bmvs:
             if not bmv.hide: bmv.co += bmv.normal * d
         self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
+        self.recalculate_face_normals(verts=bmvs)
 
     def push_then_snap_selected_verts(self):
         self.undo_push('push then snap selected verts')
         d = options['push and snap distance']
-        for bmv in self.rftarget.get_verts():
+        bmvs = self.rftarget.get_selected_verts()
+        for bmv in bmvs:
             if bmv.select: bmv.co += bmv.normal * d
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
+        self.recalculate_face_normals(verts=bmvs)
 
 #    def snap_verts_filter(self, fn_filter):
 #        self.undo_push('snap filtered verts')
@@ -519,9 +523,9 @@ class RetopoFlow_Target:
         self.undo_push('flipping face normals')
         self.rftarget.flip_face_normals()
 
-    def recalculate_face_normals(self):
+    def recalculate_face_normals(self, *, verts=None, faces=None):
         self.undo_push('recalculating face normals')
-        self.rftarget.recalculate_face_normals()
+        self.rftarget.recalculate_face_normals(verts=verts, faces=faces)
 
     #######################################
     # target manipulation functions

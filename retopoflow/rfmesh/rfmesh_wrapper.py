@@ -387,12 +387,8 @@ class RFEdge(BMElemWrapper):
 
     #############################################
 
-    def normal(self):
-        n, c = Vector(), 0
-        for bmf in self.bmelem.link_faces:
-            n += bmf.normal
-            c += 1
-        return n / max(1, c)
+    def compute_normal(self):
+        return Normal.average(bmf.normal for bmf in self.link_faces)
 
     def calc_length(self):
         v0, v1 = self.bmelem.verts
@@ -606,10 +602,10 @@ class RFFace(BMElemWrapper):
         vs = list(self.bmelem.verts)
         bmv1,bmv2 = vs[-2],vs[-1]
         v1 = bmv2.co - bmv1.co
-        for i in range(len(vs)):
-            bmv0,bmv1,bmv2 = bmv1,bmv2,vs[i]
+        for bmv in vs:
+            bmv0,bmv1,bmv2 = bmv1,bmv2,bmv
             v0,v1 = -v1,bmv2.co-bmv1.co
-            an = an + Normal(v1.cross(v0))
+            an = an + Normal(v0.cross(v1))
         return self.l2w_normal(Normal(an))
 
     def is_flipped(self):
