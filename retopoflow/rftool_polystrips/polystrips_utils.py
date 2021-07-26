@@ -318,11 +318,11 @@ class RFTool_PolyStrips_Strip:
             p0 = center - rotcross * rad
             p1 = center + rotcross * rad
             bmv0,bmv1 = bme.verts
-            v0,_,_,_ = raycast_sources_Point(p0)
-            v1,_,_,_ = raycast_sources_Point(p1)
-            if not v0: v0,_,_,_ = nearest_sources_Point(p0)
-            if not v1: v1,_,_,_ = nearest_sources_Point(p1)
-            bmv0.co = v0
-            bmv1.co = v1
+            v0,n0,_,_ = raycast_sources_Point(p0)
+            v1,n1,_,_ = raycast_sources_Point(p1)
+            if not v0: v0,n0,_,_ = nearest_sources_Point(p0)
+            if not v1: v1,n1,_,_ = nearest_sources_Point(p1)
+            if v0: bmv0.co_normal = (v0, n0)
+            if v1: bmv1.co_normal = (v1, n1)
         for bmf in self.bmf_strip:
             update_face_normal(bmf)

@@ -182,6 +182,14 @@ class RFVert(BMElemWrapper):
         self.bmelem.normal = self.w2l_normal(norm)
 
     @property
+    def co_normal(self):
+        return (self.co, self.normal)
+
+    @co_normal.setter
+    def co_normal(self, co_normal):
+        self.co, self.normal = co_normal
+
+    @property
     def link_edges(self):
         return [RFEdge(bme) for bme in self.bmelem.link_edges]
 
