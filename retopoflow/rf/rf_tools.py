@@ -43,8 +43,7 @@ class RetopoFlow_Tools:
         assert rftool in self.rftools
         if rftool == self.rftool: return
 
-        if quick: self.rftool_return = self.rftool
-        else:     self.rftool_return = None
+        self.rftool_return = self.rftool if quick else None
 
         self.rftool = rftool
         self.rftool._reset()
@@ -59,6 +58,5 @@ class RetopoFlow_Tools:
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
         self.update_ui()
 
-        if not quick:
-            options['quickstart tool'] = rftool.name
+        if not quick: options['quickstart tool'] = rftool.name
 
