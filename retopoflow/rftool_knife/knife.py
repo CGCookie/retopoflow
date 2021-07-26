@@ -88,7 +88,6 @@ class Knife(RFTool):
     @RFTool.on_reset
     @RFTool.on_target_change
     @RFTool.on_view_change
-    @profiler.function
     @FSM.onlyinstate({'main', 'quick', 'insert'})
     def update_state_info(self):
         with profiler.code('getting selected geometry'):
@@ -105,7 +104,6 @@ class Knife(RFTool):
         if self.rfcontext.loading_done:
             self.set_next_state(force=True)
 
-    @profiler.function
     def set_next_state(self, force=False):
         '''
         determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
@@ -395,7 +393,7 @@ class Knife(RFTool):
                     bmfs_to_shatter |= cur_under | pre_under
                     if cur_under & pre_under and not prev.share_edge(cur):
                         nedge = self.rfcontext.new_edge([prev, cur])
-                    if cur_faces & pre_faces:
+                    if cur_faces & pre_faces and not cur.share_edge(prev):
                         face = next(iter(cur_faces & pre_faces))
                         try:
                             face.split(prev, cur)
