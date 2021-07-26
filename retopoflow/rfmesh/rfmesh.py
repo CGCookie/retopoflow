@@ -1129,7 +1129,7 @@ class RFMesh():
     def _crawl_quadstrip_next(self, bme0, bmf0):
         bmes = set(bmf0.edges) - { bme for bmv in bme0.verts for bme in bmv.link_edges }
         if len(bmes) != 1: return (None,None)
-        bme1 = next(iter(bmes))
+        bme1 = bmes.pop()
         bmf1 = next(iter(set(bme1.link_faces) - { bmf0 }), None)
         return (bme1, bmf1)
 
@@ -1182,8 +1182,8 @@ class RFMesh():
                 # looped back around
                 return (bme_start, False, bmf_start, True)
             bme0,bmf0 = bme1,bmf1
-        # somehow we wrapped back around!?
-        assert False, "Unexpected topology"
+        # we wrapped back around
+        return (bme0, flipped, bmf0, True)
 
     def is_quadstrip_looped(self, edge):
         edge = self._unwrap(edge)
