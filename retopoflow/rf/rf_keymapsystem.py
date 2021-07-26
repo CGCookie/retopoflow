@@ -353,6 +353,8 @@ keymap_details = [
         ('brush', 'Brush'),
         ('brush alt', 'Brush (alt)'),
         ('brush radius', 'Change brush radius'),
+        ('brush radius increase', 'Increase brush radius'),
+        ('brush radius decrease', 'Decrease brush radius'),
         ('brush falloff', 'Change brush falloff'),
         ('brush strength', 'Change brush strength'),
     ]),

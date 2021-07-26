@@ -118,6 +118,8 @@ default_rf_keymaps = {
     'brush': ['LEFTMOUSE', 'LEFTMOUSE+DOUBLE', 'LEFTMOUSE+DRAG'],
     'brush alt': ['SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE', 'SHIFT+LEFTMOUSE+DRAG'],
     'brush radius': ['F'],
+    'brush radius increase': ['RIGHT_BRACKET', 'CTRL+RIGHT_BRACKET'],
+    'brush radius decrease': ['LEFT_BRACKET', 'CTRL+LEFT_BRACKET'],
     'brush falloff': ['CTRL+F'],
     'brush strength': ['SHIFT+F'],
 

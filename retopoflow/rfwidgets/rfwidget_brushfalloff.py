@@ -62,6 +62,15 @@ class RFWidget_BrushFalloff_Factory:
             def main(self):
                 self.update_mouse()
 
+                if self.rfcontext.actions.pressed('brush radius increase'):
+                    self.radius += 10
+                    tag_redraw_all('BrushFalloff increase radius')
+                    return
+                if self.rfcontext.actions.pressed('brush radius decrease'):
+                    self.radius -= 10
+                    tag_redraw_all('BrushFalloff decrease radius')
+                    return
+
                 if self.rfcontext.actions.pressed('brush radius'):
                     self._dist_to_var_fn = self.dist_to_radius
                     self._var_to_dist_fn = self.radius_to_dist
@@ -82,7 +91,7 @@ class RFWidget_BrushFalloff_Factory:
                 self._change_pre = dist
                 self._change_center = actions.mouse - Vec2D((dist, 0))
                 self._timer = self.actions.start_timer(120)
-                tag_redraw_all('BrushFalloff_Relax change_enter')
+                tag_redraw_all('BrushFalloff change_enter')
 
             @FSM.on_state('change')
             def change(self):
@@ -103,7 +112,7 @@ class RFWidget_BrushFalloff_Factory:
                 self._dist_to_var_fn = None
                 self._var_to_dist_fn = None
                 self._timer.done()
-                tag_redraw_all('BrushFalloff_Relax change_exit')
+                tag_redraw_all('BrushFalloff change_exit')
 
             @DrawCallbacks.on_draw('post3d')
             @FSM.onlyinstate('main')

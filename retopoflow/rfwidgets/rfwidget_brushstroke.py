@@ -62,12 +62,22 @@ class RFWidget_BrushStroke_Factory:
             @FSM.on_state('main', 'enter')
             def modal_main_enter(self):
                 self.rfw_cursor = 'CROSSHAIR'
-                tag_redraw_all('BrushStroke_PolyStrips main_enter')
+                tag_redraw_all('BrushStroke main_enter')
 
             @FSM.on_state('main')
             def modal_main(self):
                 if self.actions.pressed('insert'):
                     return 'stroking'
+
+                if self.rfcontext.actions.pressed('brush radius increase'):
+                    self.radius += 10
+                    tag_redraw_all('BrushStroke increase radius')
+                    return
+                if self.rfcontext.actions.pressed('brush radius decrease'):
+                    self.radius -= 10
+                    tag_redraw_all('BrushStroke decrease radius')
+                    return
+
                 if self.actions.pressed('brush radius'):
                     return 'brush sizing'
 
@@ -79,7 +89,7 @@ class RFWidget_BrushStroke_Factory:
             @FSM.on_state('stroking', 'enter')
             def modal_line_enter(self):
                 self.stroke2D = [self.actions.mouse]
-                tag_redraw_all('BrushStroke_PolyStrips line_enter')
+                tag_redraw_all('BrushStroke line_enter')
 
             @FSM.on_state('stroking')
             def modal_line(self):
@@ -96,12 +106,12 @@ class RFWidget_BrushStroke_Factory:
                 lpos, cpos = self.stroke2D[-1], self.actions.mouse
                 npos = lpos + (cpos - lpos) * (1 - self.tightness)
                 self.stroke2D.append(npos)
-                tag_redraw_all('BrushStroke_PolyStrips line')
+                tag_redraw_all('BrushStroke line')
                 self.callback_actioning(self.action_name)
 
             @FSM.on_state('stroking', 'exit')
             def modal_line_exit(self):
-                tag_redraw_all('BrushStroke_PolyStrips line_exit')
+                tag_redraw_all('BrushStroke line_exit')
 
             @FSM.on_state('brush sizing', 'enter')
             def modal_brush_sizing_enter(self):
@@ -110,7 +120,7 @@ class RFWidget_BrushStroke_Factory:
                 else:
                     self.sizing_pos = self.actions.mouse + Vec2D((self.radius, 0))
                 self.rfw_cursor = 'MOVE_X'
-                tag_redraw_all('BrushStroke_PolyStrips brush_sizing_enter')
+                tag_redraw_all('BrushStroke brush_sizing_enter')
 
             @FSM.on_state('brush sizing')
             def modal_brush_sizing(self):
