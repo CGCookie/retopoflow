@@ -1199,7 +1199,10 @@ class RFMesh():
         if not bme: return
         bme_start = bme
         bmf_start = bmf
-        while True:
+        touched = set()
+        while bmf not in touched and bme not in touched:
+            touched.add(bmf)
+            touched.add(bme)
             # find next bme and bmf, in case bmesh is edited!
             if bmf: bme_next,bmf_next = self._crawl_quadstrip_next(bme, bmf)
             yield (self._wrap_bmedge(bme), flipped)
