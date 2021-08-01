@@ -6,6 +6,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - Fixed issue where normals are not computed correctly after applying symmetry
 - Added shortcuts to increase and decrease brush radius for Tweak and Relax
+- Fixed scrolling UI with trackpad
 - Minor fixes across several tools (Contours, PolyStrips, Loops, Strokes, Relax, Tweak)
 - Broad and general maintenance (code refactoring, cleaning, and commenting)
 - Minor UI/UX improvements

@@ -1646,8 +1646,12 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 # TODO: set to image size?
                 dpi_mult = Globals.drawing.get_dpi_mult()
                 static_content_size = Size2D()
-                static_content_size.set_all_widths(self._image_data['width'] * dpi_mult)
-                static_content_size.set_all_heights(self._image_data['height'] * dpi_mult)
+                try:
+                    w, h = float(self._image_data['width']), float(self._image_data['height'])
+                    static_content_size.set_all_widths(w * dpi_mult)
+                    static_content_size.set_all_heights(h * dpi_mult)
+                except:
+                    pass
 
         else:
             static_content_size = None

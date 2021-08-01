@@ -355,6 +355,7 @@ class Actions:
 
         self.trackpad = False   # is current action from trackpad?
         self.ndof     = False   # is current action from NDOF?
+        self.scroll   = (0, 0)
 
         # are any of the following modifier keys currently pressed?
         # note: ctrl will be true if either ctrl_left or ctrl_right are true
@@ -447,6 +448,15 @@ class Actions:
             else:
                 self.mousedown_drag = False
                 return
+
+        if self.trackpad:
+            pressed = True
+            self.scroll = (event.mouse_x - event.mouse_prev_x, event.mouse_y - event.mouse_prev_y)
+            # print(f'Actions.update: trackpad event {self.scroll}')
+            # for k in dir(event):
+            #     print(f'  {k}: {getattr(event, k)}')
+        else:
+            self.scroll = (0, 0)
 
         if event_type in self.modifier_actions:
             if event_type == 'OSKEY':

@@ -407,7 +407,8 @@ class UI_Document:
 
         if self.actions.pressed({'scroll', 'scroll up', 'scroll down'}, unpress=False):
             if self.actions.event_type == 'TRACKPADPAN':
-                move = self.actions.mouse.y - self.actions.mouse_prev.y
+                move = self.actions.scroll[1] # self.actions.mouse.y - self.actions.mouse_prev.y
+                # print(f'UI_Document.update: trackpad pan {move}')
             else:
                 d = self.wheel_scroll_lines * 8 * Globals.drawing.get_dpi_mult()
                 move = Globals.drawing.scale(d) * (-1 if self.actions.pressed({'scroll up'}) else 1)
