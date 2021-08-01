@@ -2,6 +2,14 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.0&rarr;3.2.1
+
+- Fixed issue where normals are not computed correctly after applying symmetry
+- Added shortcuts to increase and decrease brush radius for Tweak and Relax
+- Minor fixes across several tools (Contours, PolyStrips, Loops, Strokes, Relax, Tweak)
+- Broad and general maintenance (code refactoring, cleaning, and commenting)
+- Minor UI/UX improvements
+
 ### RetopoFlow 3.1.0&rarr;3.2.0
 
 - Added builtin Keymap Editor (prototype)
