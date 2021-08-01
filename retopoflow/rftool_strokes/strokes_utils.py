@@ -128,7 +128,9 @@ def find_edge_strips(edges):
 def get_strip_verts(edge_strip):
     l = len(edge_strip)
     if l == 0: return []
-    if l == 1: return list(edge_strip[0].verts)
+    if l == 1:
+        e = edge_strip[0]
+        return list(e.verts) if e.is_valid else []
     vs = []
     for e0, e1 in iter_pairs(edge_strip, wrap=False):
         vs.append(e0.shared_vert(e1))
