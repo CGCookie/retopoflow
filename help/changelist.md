@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.1&rarr;3.2.2
+
+- ...
+
 ### RetopoFlow 3.2.0&rarr;3.2.1
 
 - Fixed issue where normals are not computed correctly after applying symmetry

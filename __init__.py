@@ -38,10 +38,10 @@ bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version":     (3, 2, 1),
+    "version":     (3, 2, 2),
     "blender":     (2, 83, 0),
     "location":    "View 3D > Header",
-    # "warning":     "Alpha",                   # used for warning icon and text in addons panel
+    "warning":     "Alpha",                   # used for warning icon and text in addons panel
     # "warning":     "Beta",
     # "warning":     "Release Candidate 1",
     # "warning":     "Release Candidate 2",
