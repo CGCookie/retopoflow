@@ -129,7 +129,7 @@ class Relax(RFTool):
 
     @FSM.on_state('main')
     def main(self):
-        if self.actions.using_onlymods(['brush', 'brush alt']):
+        if self.actions.using_onlymods(['brush', 'brush alt', 'brush radius', 'brush falloff', 'brush strength']):
             self.rfwidget = self.rfwidgets['brushstroke']
         else:
             self.rfwidget = self.rfwidgets['default']
