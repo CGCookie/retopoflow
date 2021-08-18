@@ -37,7 +37,7 @@ except Exception as e:
         def clear_state(self):
             self.addon = None
             self.verbose = False
-            self.invalidupdater = True # used to distinguish bad install
+            self.invalid_updater = True # used to distinguish bad install
             self.error = None
             self.error_msg = None
             self.async_checking = None
@@ -139,7 +139,7 @@ class addon_updater_install_popup(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             layout.label(text="Updater module error")
             return
         elif updater.update_ready:
@@ -169,7 +169,7 @@ class addon_updater_install_popup(bpy.types.Operator):
     def execute(self,context):
 
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
 
         if updater.manual_only:
@@ -219,7 +219,7 @@ class addon_updater_check_now(bpy.types.Operator):
         return True
 
     def execute(self,context):
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
 
         if updater.async_checking and not updater.error:
@@ -228,7 +228,7 @@ class addon_updater_check_now(bpy.types.Operator):
             # Ignoring if error, to prevent being stuck on the error screen
             return {'CANCELLED'}
 
-        updater.set_check_interval(enable=options['updater auto check update'],
+        updater.set_check_interval(enabled=options['updater auto check update'],
                     months=options['updater interval months'],
                     days=options['updater interval days'],
                     hours=options['updater interval hours'],
@@ -263,14 +263,14 @@ class addon_updater_update_now(bpy.types.Operator):
     def poll(cls, context):
         # return False
         if retopoflow_version_git:   return False   # do not allow update if under git version control
-        if updater.invalidupdater:   return False   # something bad happened; bail!
+        if updater.invalid_updater:   return False   # something bad happened; bail!
         if not updater.update_ready: return False   # update not ready, yet
         return True
 
 
     def execute(self,context):
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
 
         if updater.manual_only:
@@ -315,7 +315,7 @@ class addon_updater_update_target(bpy.types.Operator):
 
     def target_version(self, context):
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             ret = []
 
         ret = []
@@ -343,7 +343,7 @@ class addon_updater_update_target(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if updater.invalidupdater: return False
+        if updater.invalid_updater: return False
         return updater.update_ready != None and len(updater.tags)>0
 
     def invoke(self, context, event):
@@ -351,7 +351,7 @@ class addon_updater_update_target(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             layout.label(text="Updater error")
             return
         split = layout_split(layout, factor=0.66)
@@ -364,7 +364,7 @@ class addon_updater_update_target(bpy.types.Operator):
     def execute(self,context):
 
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
 
         res = updater.run_update(
@@ -404,7 +404,7 @@ class addon_updater_install_manually(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
 
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             layout.label(text="Updater error")
             return
 
@@ -467,7 +467,7 @@ class addon_updater_updated_successful(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
 
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             layout.label(text="Updater error")
             return
 
@@ -539,7 +539,7 @@ class addon_updater_restore_backup(bpy.types.Operator):
 
     def execute(self, context):
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
         updater.restore_backup()
         return {'FINISHED'}
@@ -554,7 +554,7 @@ class addon_updater_ignore(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return False
         elif updater.update_ready:
             return True
@@ -563,7 +563,7 @@ class addon_updater_ignore(bpy.types.Operator):
 
     def execute(self, context):
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
         updater.ignore_update()
         self.report({"INFO"},"Open addon preferences for updater options")
@@ -586,7 +586,7 @@ class addon_updater_end_background(bpy.types.Operator):
 
     def execute(self, context):
         # in case of error importing updater
-        if updater.invalidupdater:
+        if updater.invalid_updater:
             return {'CANCELLED'}
         updater.stop_async_check_update()
         return {'FINISHED'}
@@ -610,7 +610,7 @@ def updater_run_success_popup_handler(scene):
     ran_update_sucess_popup = True
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
 
     try:
@@ -629,7 +629,7 @@ def updater_run_install_popup_handler(scene):
     ran_autocheck_install_popup = True
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
 
     try:
@@ -664,7 +664,7 @@ def background_update_callback(update_ready):
     global ran_autocheck_install_popup
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
     if updater.showpopups == False:
         return
@@ -688,7 +688,7 @@ def post_update_callback(module_name, res=None):
     """
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
 
     if res==None:
@@ -720,7 +720,7 @@ def check_for_update_background():
     """Function for asynchronous background check.
     *Could* be called on register, but would be bad practice.
     """
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
     global ran_background_check
     if ran_background_check:
@@ -732,7 +732,7 @@ def check_for_update_background():
         return
 
     # apply the UI settings
-    updater.set_check_interval(enable=options['updater auto check update'],
+    updater.set_check_interval(enabled=options['updater auto check update'],
                 months=options['updater interval months'],
                 days=options['updater interval days'],
                 hours=options['updater interval hours'],
@@ -750,12 +750,12 @@ def check_for_update_background():
 
 def check_for_update_nonthreaded(self, context):
     """Can be placed in front of other operators to launch when pressed"""
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
 
     # only check if it's ready, ie after the time interval specified
     # should be the async wrapper call here
-    updater.set_check_interval(enable=options['updater auto check update'],
+    updater.set_check_interval(enabled=options['updater auto check update'],
                 months=options['updater interval months'],
                 days=options['updater interval days'],
                 hours=options['updater interval hours'],
@@ -775,7 +775,7 @@ def showReloadPopup():
     """For use in register only, to show popup after re-enabling the addon
     Must be enabled by developer
     """
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
     saved_state = updater.json
     global ran_update_sucess_popup
@@ -810,7 +810,7 @@ def update_notice_box_ui(self, context):
     or ignore popup. Ideal to be placed at the end / beginning of a panel
     """
 
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         return
 
     saved_state = updater.json
@@ -867,7 +867,7 @@ def update_settings_ui(self, context, element=None):
     box = element.box()
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         box.label(text="Error initializing updater code:")
         box.label(text=updater.error_msg)
         return
@@ -1030,7 +1030,7 @@ def update_settings_ui_condensed(self, context, element=None):
     row = element.row()
 
     # in case of error importing updater
-    if updater.invalidupdater:
+    if updater.invalid_updater:
         row.label(text="Error initializing updater code:")
         row.label(text=updater.error_msg)
         return
@@ -1151,7 +1151,7 @@ def skip_tag_function(self, tag):
     """
 
     # in case of error importing updater
-    if self.invalidupdater:
+    if self.invalid_updater:
         return False
 
     # ---- write any custom code here, return true to disallow version ---- #
@@ -1271,7 +1271,7 @@ def register(bl_info):
     # Optional, to hard-set update frequency, use this here - however,
     # this demo has this set via UI properties.
     # updater.set_check_interval(
-    #       enable=False,months=0,days=0,hours=0,minutes=2)
+    #       enabled=False,months=0,days=0,hours=0,minutes=2)
 
     # Optional, consider turning off for production or allow as an option
     # This will print out additional debugging info to the console
@@ -1301,8 +1301,8 @@ def register(bl_info):
     # if you want to automatically update resources/non py files, add them
     # as a part of the pattern list below so they will always be overwritten by an
     # update. If a pattern file is not found in new update, no action is taken
-    # This does NOT detele anything, only defines what is allowed to be overwritten
-    updater.overwrite_patterns = ["*.png","*.md","LICENSE","*.glsl","*.ttf","*.css"]
+    # This does NOT delete anything, only defines what is allowed to be overwritten
+    updater.overwrite_patterns = ["*.png","*.md","*.LICENSE","*.glsl","*.ttf","*.css","*.html","*.jpg","hive.json"]
     # updater.overwrite_patterns = []
     # other examples:
     # ["*"] means ALL files/folders will be overwritten by update, was the behavior pre updater v1.0.4
@@ -1319,7 +1319,7 @@ def register(bl_info):
     # file name removed exists in the update, then it acts as if pattern
     # is placed in the overwrite_patterns property. Note this is effectively
     # ignored if clean=True in the run_update method
-    updater.remove_pre_update_patterns = ["*.py","*.pyc","*.md","*.png","*.glsl","*.ttf","*.css"]
+    updater.remove_pre_update_patterns = ["*.py","*.pyc","*.md","*.png","*.jpg","*.glsl","*.ttf","*.css","*.html"]
     # Note setting ["*"] here is equivalent to always running updates with
     # clean = True in the run_update method, ie the equivalent of a fresh,
     # new install. This would also delete any resources or user-made/modified
