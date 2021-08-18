@@ -5,6 +5,7 @@ This document contains details about what has changed in RetopoFlow since versio
 ### RetopoFlow 3.2.1&rarr;3.2.2
 
 - Fixed major updater bug
+- Fixed bug where Brush Falloff with `Ctrl+F` was not working
 
 ### RetopoFlow 3.2.0&rarr;3.2.1
 
