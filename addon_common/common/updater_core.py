@@ -107,10 +107,13 @@ class SingletonUpdater:
         self.skip_tag = None
 
         # Get data from the running blender module (addon).
-        self._addon = __package__.split('.')[0].lower()
-        self._addon_package = __package__.split('.')[0]  # must not change!
-        self._updater_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'updater_tmp'))
-        self._addon_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        # Note: this file _could_ be nested
+        addon_module_path = __package__.split('.')
+        root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), *(['..'] * (len(addon_module_path)-1))))
+        self._addon = addon_module_path[0].lower()
+        self._addon_package = addon_module_path[0]  # must not change!
+        self._updater_path = os.path.join(root_path, 'updater_tmp')
+        self._addon_root = root_path
         self._json = dict()
         self._error = None
         self._error_msg = None
