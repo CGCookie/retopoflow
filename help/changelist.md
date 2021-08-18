@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.2&rarr;3.2.3
+
+- ...
+
 ### RetopoFlow 3.2.1&rarr;3.2.2
 
 - Fixed major updater bug
