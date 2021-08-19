@@ -74,7 +74,7 @@ else:
             from .retopoflow import keymapsystem
             from .config import options as configoptions
             from .retopoflow import updater
-            from .addon_common.common.maths import convert_numstr_num
+            from .addon_common.common.maths import convert_numstr_num, has_inverse
             from .addon_common.common.blender import get_active_object
             from .retopoflow import rftool
         options = configoptions.options
@@ -441,9 +441,22 @@ if import_succeeded:
             if not retopoflow.RetopoFlow.get_sources():
                 box = add_warning_subbox('Setup Issue')
                 box.label(text=f'No sources detected', icon='DOT')
+            else:
+                bad_matrix = not all(
+                    has_inverse(source.matrix_local)
+                    for source in retopoflow.RetopoFlow.get_sources()
+                )
+                if bad_matrix:
+                    box = add_warning_subbox('Setup Issue')
+                    box.label(text=f'A source has non-invertible matrix', icon='DOT')
             if VIEW3D_PT_RetopoFlow.is_editing_target(context) and not retopoflow.RetopoFlow.get_target():
                 box = add_warning_subbox('Setup Issue')
                 box.label(text=f'No target detected', icon='DOT')
+            elif retopoflow.RetopoFlow.get_target():
+                bad_matrix = not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local)
+                if bad_matrix:
+                    box = add_warning_subbox('Setup Issue')
+                    box.label(text=f'Target has non-invertible matrix', icon='DOT')
 
             # PERFORMANCE CHECKS
             if VIEW3D_PT_RetopoFlow.is_target_too_big(context):

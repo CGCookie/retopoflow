@@ -390,8 +390,8 @@ def shorten_floats(s):
 def get_matrices(ob):
     ''' obtain blender object matrices '''
     mx = ob.matrix_world
-    imx = mx.inverted()
-    return [mx, imx]
+    imx = mx.inverted_safe()
+    return (mx, imx)
 
 
 class AddonLocator(object):

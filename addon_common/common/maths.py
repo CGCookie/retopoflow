@@ -925,9 +925,9 @@ class XForm:
             }
             m['mx_p'] = Matrix(mx)
             m['mx_t'] = mx.transposed()
-            m['imx_p'] = mx.inverted()
+            m['imx_p'] = mx.inverted_safe()
             m['mx_d'] = mx.to_3x3()
-            m['imx_d'] = m['mx_d'].inverted()
+            m['imx_d'] = m['mx_d'].inverted_safe()
             m['mx_n'] = m['imx_d'].transposed()
             m['imx_n'] = m['mx_d'].transposed()
             d[smat] = m
@@ -1895,15 +1895,26 @@ def convert_numstr_num(numstr):
     return num
 
 
-def invert_matrix(mat):
-    smat,d = str(mat),invert_matrix.__dict__
+def has_inverse(mat):
+    smat, d = str(mat), has_inverse.__dict__
     if smat not in d:
         if len(d) > 1000: d.clear()
-        d[smat] = mat.inverted()
+        try:
+            _ = mat.inverted()
+            d[smat] = True
+        except:
+            d[smat] = False
+    return d[smat]
+
+def invert_matrix(mat):
+    smat, d = str(mat), invert_matrix.__dict__
+    if smat not in d:
+        if len(d) > 1000: d.clear()
+        d[smat] = mat.inverted_safe()
     return d[smat]
 
 def matrix_normal(mat):
-    smat,d = str(mat),matrix_normal.__dict__
+    smat, d = str(mat), matrix_normal.__dict__
     if smat not in d:
         if len(d) > 1000: d.clear()
         d[smat] = invert_matrix(mat).transposed().to_3x3()

@@ -4,7 +4,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.2.2&rarr;3.2.3
 
-- ...
+- Warn if a source or the target has non-invertible transformation matrix
 
 ### RetopoFlow 3.2.1&rarr;3.2.2
 

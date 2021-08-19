@@ -136,26 +136,26 @@ class RetopoFlow_Spaces:
     @blender_version_wrapper('<', '2.80')
     def Vec_up(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,1,0))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((0,1,0))
     @blender_version_wrapper('>=', '2.80')
     def Vec_up(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((0,1,0))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,1,0))
 
     @blender_version_wrapper('<', '2.80')
     def Vec_right(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((1,0,0))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((1,0,0))
     @blender_version_wrapper('>=', '2.80')
     def Vec_right(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((1,0,0))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((1,0,0))
 
     @blender_version_wrapper('<', '2.80')
     def Vec_forward(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() * Vector((0,0,-1))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((0,0,-1))
     @blender_version_wrapper('>=', '2.80')
     def Vec_forward(self):
         # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted() @ Vector((0,0,-1))
+        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
