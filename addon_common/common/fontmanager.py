@@ -26,6 +26,7 @@ import bgl
 from .debug import dprint
 from .blender import get_preferences
 from .profiler import profiler
+from .decorators import blender_version_wrapper
 
 # https://docs.blender.org/api/current/blf.html
 
@@ -117,9 +118,16 @@ class FontManager:
         return blf.disable(FontManager.load(fontid), blf.SHADOW)
 
     @staticmethod
+    @blender_version_wrapper("<", "3.00")
     def disable_kerning_default(fontid=None):
         # note: not a listed option in docs for `blf.disable`, but see `blf.word_wrap`
         return blf.disable(FontManager.load(fontid), blf.KERNING_DEFAULT)
+
+    @staticmethod
+    @blender_version_wrapper(">=", "3.00")
+    def disable_kerning_default(fontid=None):
+        # blf.KERNING_DEFAULT was removed in 3.0
+        return
 
     @staticmethod
     def disable_word_wrap(fontid=None):
@@ -176,8 +184,15 @@ class FontManager:
         return blf.enable(FontManager.load(fontid), blf.SHADOW)
 
     @staticmethod
+    @blender_version_wrapper("<", "3.00")
     def enable_kerning_default(fontid=None):
         return blf.enable(FontManager.load(fontid), blf.KERNING_DEFAULT)
+
+    @staticmethod
+    @blender_version_wrapper(">=", "3.00")
+    def enable_kerning_default(fontid=None):
+        # blf.KERNING_DEFAULT was removed in 3.0
+        return
 
     @staticmethod
     def enable_word_wrap(fontid=None):
