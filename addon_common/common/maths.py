@@ -504,6 +504,12 @@ class Normal(VecUtils, Entity3D):
 
 class Color(Vector):
     @staticmethod
+    def as_vec4(c):
+        if type(c) in {float, int}: return Vector((c, c, c, 1.0))
+        if len(c) == 3: return Vector((*c, 1.0))
+        return Vector(c)
+
+    @staticmethod
     def HSL(hsl):
         # https://en.wikipedia.org/wiki/HSL_and_HSV
         # 0 <= H < 1 (circular), 0 <= S <= 1, 0 <= L <= 1
