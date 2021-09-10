@@ -23,6 +23,7 @@ import re
 import bpy
 import bgl
 import ctypes
+from itertools import chain
 
 from .debug import dprint
 from .globals import Globals
@@ -107,70 +108,75 @@ class Shader():
         vertVersion, geoVersion, fragVersion = '','',''
         mode = None
         lines = string.splitlines()
-        assert '// vertex shader' in lines, 'could not detect vertex shader'
-        assert '// fragment shader' in lines, 'could not detect fragment shader'
-        for line in lines:
-            if line.startswith('uniform '):
+        for i_line,line in enumerate(lines):
+            sline = line.lstrip()
+            if re.match(r'uniform ', sline):
                 uniforms.append(line)
-            elif line.startswith('attribute '):
+            elif re.match(r'attribute ', sline):
                 attributes.append(line)
-            elif line.startswith('varying '):
+            elif re.match(r'varying ', sline):
                 varyings.append(line)
-            elif line.startswith('const '):
-                m = re.match(r'const +(?P<type>bool|int|float|vec\d) +(?P<var>[a-zA-Z0-9_]+) *= *(?P<val>[^;]+);', line)
+            elif re.match(r'const ', sline):
+                m = re.match(r'const +(?P<type>bool|int|float|vec\d) +(?P<var>[a-zA-Z0-9_]+) *= *(?P<val>[^;]+);', sline)
                 if m is None:
-                    print('Shader could not match const line:', line)
+                    print(f'Shader could not match const line ({i_line}): {line}')
                 elif m.group('var') in constant_overrides:
                     line = 'const %s %s = %s' % (m.group('type'), m.group('var'), constant_overrides[m.group('var')])
                 consts.append(line)
-            elif line.startswith('#define '):
-                m0 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+)$', line)
-                m1 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+) +(?P<val>.+)$', line)
+            elif re.match(r'#define ', sline):
+                m0 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+)$', sline)
+                m1 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+) +(?P<val>.+)$', sline)
                 if m0 and m0.group('var') in define_overrides:
                     if not define_overrides[m0.group('var')]:
                         line = ''
                 if m1 and m1.group('var') in define_overrides:
                     line = '#define %s %s' % (m1.group('var'), define_overrides[m1.group('var')])
                 if not m0 and not m1:
-                    print('Shader could not match #define line:', line)
+                    print(f'Shader could not match #define line ({i_line}): {line}')
                 consts.append(line)
-            elif line.startswith('#version '):
-                if mode == 'vert':
-                    vertVersion = line
-                elif mode == 'geo':
-                    geoVersion = line
-                elif mode == 'frag':
-                    fragVersion = line
-            elif line == '// vertex shader':
+            elif re.match(r'#version ', sline):
+                if   mode == 'vert': vertVersion = line
+                elif mode == 'geo':  geoVersion  = line
+                elif mode == 'frag': fragVersion = line
+                else: vertVersion = geoVersion = fragVersion = line
+            elif mode not in {'vert', 'geo', 'frag'} and re.match(r'precision ', sline):
+                commonSource.append(line)
+            elif re.match(r'//+ +vert(ex)? shader', sline.lower()):
                 mode = 'vert'
-            elif line == '// geometry shader':
+            elif re.match(r'//+ +geo(m(etry)?)? shader', sline.lower()):
                 mode = 'geo'
-            elif line == '// fragment shader':
+            elif re.match(r'//+ +frag(ment)? shader', sline.lower()):
                 mode = 'frag'
             else:
                 if not line.strip(): continue
-                if mode == 'vert':
-                    vertSource.append(line)
-                elif mode == 'geo':
-                    geoSource.append(line)
-                elif mode == 'frag':
-                    fragSource.append(line)
-                else:
-                    commonSource.append(line)
+                if   mode == 'vert': vertSource.append(line)
+                elif mode == 'geo':  geoSource.append(line)
+                elif mode == 'frag': fragSource.append(line)
+                else:                commonSource.append(line)
+        assert vertSource, f'could not detect vertex shader'
+        assert fragSource, f'could not detect fragment shader'
         v_attributes = [a.replace('attribute ', 'in ') for a in attributes]
         v_varyings = [v.replace('varying ', 'out ') for v in varyings]
         f_varyings = [v.replace('varying ', 'in ') for v in varyings]
-        srcVertex = '\n'.join(
-            ([vertVersion] if includeVersion else []) +
-            uniforms + v_attributes + v_varyings + consts + commonSource + vertSource
-        )
-        srcFragment = '\n'.join(
-            ([fragVersion] if includeVersion else []) +
-            uniforms + f_varyings + consts +
-            [Shader.get_srgb_shim(force=force_shim)] +
-            ['/////////////////////'] +
-            commonSource + fragSource
-        )
+        srcVertex = '\n'.join(chain(
+            ([vertVersion] if includeVersion else []),
+            uniforms,
+            v_attributes,
+            v_varyings,
+            consts,
+            commonSource,
+            vertSource,
+        ))
+        srcFragment = '\n'.join(chain(
+            ([fragVersion] if includeVersion else []),
+            uniforms,
+            f_varyings,
+            consts,
+            [Shader.get_srgb_shim(force=force_shim)],
+            ['/////////////////////'],
+            commonSource,
+            fragSource,
+        ))
         return (srcVertex, srcFragment)
 
     @staticmethod
