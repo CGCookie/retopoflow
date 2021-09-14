@@ -18,11 +18,11 @@
 NAME            = RetopoFlow
 
 
-# RELEASE         = "alpha"
+RELEASE         = "alpha"
 # RELEASE         = "beta"
-RELEASE         = "official"
+# RELEASE         = "official"
 
-VERSION         = "v3.2.3"
+VERSION         = "v3.2.4"
 
 
 ifeq ($(RELEASE), "official")
