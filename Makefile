@@ -25,7 +25,7 @@ RELEASE         = "official"
 VERSION         = "v3.2.3"
 
 
-ifeq($(RELEASE), "official")
+ifeq ($(RELEASE), "official")
 	ZIP_VERSION = "$(VERSION)"
 else
 	ZIP_VERSION = "$(VERSION)-$(RELEASE)"
