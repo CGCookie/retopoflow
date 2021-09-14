@@ -64,6 +64,13 @@ varying vec4 vColor;            // color of geometry (considers selection)
 
 const bool debug_invert_backfacing = false;
 
+// const vec3 [] face_colors = {
+//     vec3(1.0, 1.0, 1.0),
+//     vec3(1.0, 0.1, 0.1),
+//     vec3(0.1, 1.0, 0.1),
+//     vec3(0.1, 0.1, 1.0)
+// };
+
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
 

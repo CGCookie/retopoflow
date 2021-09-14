@@ -16,13 +16,21 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 NAME            = RetopoFlow
-VERSION         = v3.2.3-alpha
-# VERSION         = v3.2.3-beta
-# VERSION         = v3.2.3
-GIT_TAG         = "v3.2.3"
-GIT_TAG_MESSAGE = "This is the alpha release for RetopoFlow 3.2.3."
-# GIT_TAG_MESSAGE = "This is the beta release for RetopoFlow 3.2.3."
-# GIT_TAG_MESSAGE = "This is the official release for RetopoFlow 3.2.3."
+
+
+# RELEASE         = "alpha"
+# RELEASE         = "beta"
+RELEASE         = "official"
+
+VERSION         = "v3.2.3"
+
+
+ifeq($(RELEASE), "official")
+	ZIP_VERSION = "$(VERSION)"
+else
+	ZIP_VERSION = "$(VERSION)-$(RELEASE)"
+endif
+GIT_TAG_MESSAGE = "This is the $(RELEASE) release for RetopoFlow $(VERSION)"
 
 BUILD_DIR         = ../retopoflow_release
 INSTALL_DIR       = ~/.config/blender/addons
@@ -30,8 +38,7 @@ DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
 CGCOOKIE_BUILT    = $(NAME)/.cgcookie
-ZIP_FILE          = $(NAME)_$(VERSION).zip
-TGZ_FILE          = $(NAME)_$(VERSION).tar.gz
+ZIP_FILE          = $(NAME)_$(ZIP_VERSION).zip
 
 
 .DEFAULT_GOAL 	:= build
@@ -51,8 +58,8 @@ clean:
 
 gittag:
 	# create a new annotated (-a) tag and push to GitHub
-	git tag -a $(GIT_TAG) -m $(GIT_TAG_MESSAGE)
-	git push origin $(GIT_TAG)
+	git tag -a $(VERSION) -m $(GIT_TAG_MESSAGE)
+	git push origin $(VERSION)
 
 
 docs:
