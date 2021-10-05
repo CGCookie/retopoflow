@@ -45,6 +45,7 @@ const bool DEBUG_COLOR_REGIONS = false;     // colors pixels based on region
 const bool DEBUG_IMAGE_CHECKER = false;     // replaces images with checker pattern to test scaling
 const bool DEBUG_IMAGE_OUTSIDE = false;     // shifts colors if texcoord is outside [0,1] (in padding region)
 const bool DEBUG_IGNORE_ALPHA  = false;     // snaps alpha to 0 or 1 based on 0.25 threshold
+const bool DEBUG_DONT_DISCARD  = false;
 
 // labeled magic numbers (enum), only used to identify which region a fragment is in relative to UI element properties
 const int REGION_MARGIN_LEFT   = 0;
@@ -374,11 +375,13 @@ void main() {
     int region = get_region();
 
     // workaround switched-discard (issue #1042)
-    if(region == REGION_MARGIN_TOP    && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-    if(region == REGION_MARGIN_RIGHT  && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-    if(region == REGION_MARGIN_BOTTOM && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-    if(region == REGION_MARGIN_LEFT   && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-    if(region == REGION_OUTSIDE       && !(DEBUG_COLOR_REGIONS)) discard;
+    if(!DEBUG_DONT_DISCARD) {
+        if(region == REGION_MARGIN_TOP    && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
+        if(region == REGION_MARGIN_RIGHT  && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
+        if(region == REGION_MARGIN_BOTTOM && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
+        if(region == REGION_MARGIN_LEFT   && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
+        if(region == REGION_OUTSIDE       && !(DEBUG_COLOR_REGIONS)) discard;
+    }
 
     switch(region) {
         case REGION_BORDER_TOP:    c = border_top_color;    break;
@@ -416,10 +419,14 @@ void main() {
     c = blender_srgb_to_framebuffer_space(c);
 
     if(DEBUG_IGNORE_ALPHA) {
-        if(c.a < 0.25) { c.a = 0.0; discard; }
+        if(c.a < 0.25) {
+            c.a = 0.0;
+            if(!DEBUG_DONT_DISCARD) discard;
+        }
         else c.a = 1.0;
     }
 
     fragColor = c;
-    gl_FragDepth = gl_FragDepth * 0.999999;
+    //gl_FragDepth = gl_FragDepth * 0.999999;
+    gl_FragDepth = gl_FragCoord.z * 0.999999; // fix for issue #915?
 }
