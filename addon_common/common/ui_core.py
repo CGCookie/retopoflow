@@ -1779,6 +1779,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             background_override = None
 
         bgl.glEnable(bgl.GL_BLEND)
+        bgl.glDisable(bgl.GL_CULL_FACE)
         # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
 
         sc = self._style_cache
