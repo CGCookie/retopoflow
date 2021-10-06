@@ -1850,24 +1850,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 bgl.glEnable(bgl.GL_BLEND)
                 bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
                 texture_id = self._cacheRenderBuf.color_texture
-                if True:
-                    draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
-                else:
-                    dpi_mult = Globals.drawing.get_dpi_mult()
-                    texture_fit = 0
-                    background_override = None
-                    ui_draw.draw(self._l+ox, self._t+oy, self._w, self._h, dpi_mult, {
-                        'background-color': (0,0,0,0),
-                        'margin-top': 0,
-                        'margin-right': 0,
-                        'margin-bottom': 0,
-                        'margin-left': 0,
-                        'padding-top': 0,
-                        'padding-right': 0,
-                        'padding-bottom': 0,
-                        'padding-left': 0,
-                        'border-width': 0,
-                        }, texture_id, texture_fit, background_override=background_override)
+                draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
             else:
                 bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
                 self._draw_real(offset)
