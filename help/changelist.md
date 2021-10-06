@@ -4,7 +4,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.2.3&rarr;3.2.4
 
-- ...
+- Fixed visual bug that affected machines with Apple's M1 processor (issue #915)
 
 ### RetopoFlow 3.2.2&rarr;3.2.3
 
