@@ -18,7 +18,7 @@
 NAME            = RetopoFlow
 
 
-RELEASE         = "alpha"
+# RELEASE         = "alpha"
 # RELEASE         = "beta"
 # RELEASE         = "official"
 
