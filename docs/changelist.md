@@ -2,6 +2,12 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.2&rarr;3.2.3
+
+- Worked around a bug with Apple M1 MacBook Pro / Inter graphics card where Blender would crash on load
+- Warn if a source or the target has non-invertible transformation matrix
+- Minor change due to Blender 3.0 deprecating `blf.KERNING_DEFAULT`
+
 ### RetopoFlow 3.2.1&rarr;3.2.2
 
 - Fixed major updater bug

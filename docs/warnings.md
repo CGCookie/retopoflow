@@ -16,6 +16,14 @@ If the edited mesh is not visible, RetopoFlow cannot start.
 See [Quick Start Guide](quick_start.md) for more details.
 
 
+## Setup: Non-Invertible Matrix
+
+RetopoFlow is designed to work with sources and targets that have invertible transformation matrices.
+RetopoFlow will warn if a source object or the target object has a transformation matrix that is not invertible (ex: one of the scale transform values is near 0).
+
+While RetopoFlow will still start and operate when an object has a non-invertible matrix, the results and behaviors are undefined.
+
+
 ## Layout: Quad View / Multiple 3D Views
 
 RetopoFlow is designed to work in a single 3D view.
