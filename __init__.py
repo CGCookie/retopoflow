@@ -41,7 +41,7 @@ bl_info = {
     "version":     (3, 2, 4),
     "blender":     (2, 83, 0),
     "location":    "View 3D > Header",
-    "warning":     "Alpha",                   # used for warning icon and text in addons panel
+    # "warning":     "Alpha",                   # used for warning icon and text in addons panel
     # "warning":     "Beta",
     # "warning":     "Release Candidate 1",
     # "warning":     "Release Candidate 2",
