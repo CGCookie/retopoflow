@@ -484,7 +484,7 @@ class PolyPen(RFTool):
                     return 'main'
                 bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2])
 
-            self.rfcontext.select(bmf)
+            if bmf: self.rfcontext.select(bmf)
             self.mousedown = self.actions.mousedown
             xy = self.rfcontext.Point_to_Point2D(bmv2.co)
             if not xy:
@@ -512,7 +512,7 @@ class PolyPen(RFTool):
                 return 'main'
             e1 = bmv2.shared_edge(bmv3)
             if not e1: e1 = self.rfcontext.new_edge([bmv2, bmv3])
-            bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
+            self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
             self.mousedown = self.actions.mousedown
@@ -533,7 +533,7 @@ class PolyPen(RFTool):
             if intersect2d_segment_segment(p1, p2, p3, p0): bmv2,bmv3 = bmv3,bmv2
             # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
             #     bmv2,bmv3 = bmv3,bmv2
-            bmf = self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
+            self.rfcontext.new_face([bmv0, bmv1, bmv2, bmv3])
             # select all non-manifold edges that share vertex with e1
             bmes = [e for e in bmv2.link_edges + bmv3.link_edges if not e.is_manifold and not e.share_face(e1)]
             if not bmes:

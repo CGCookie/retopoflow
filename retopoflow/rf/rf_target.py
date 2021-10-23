@@ -606,7 +606,8 @@ class RetopoFlow_Target:
         for pair0,pair1 in zip(iter_pairs(vloop0, connected), iter_pairs(vloop1, connected)):
             v00,v01 = pair0
             v10,v11 = pair1
-            faces += [self.new_face((v00,v01,v11,v10))]
+            nf = self.new_face((v00,v01,v11,v10))
+            if nf: faces.append(nf)
         return faces
 
     def holes_fill(self, edges, sides):

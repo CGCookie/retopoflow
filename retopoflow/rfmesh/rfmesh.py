@@ -42,7 +42,7 @@ from ...addon_common.common.maths import Point, Normal, Direction
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.maths import Ray, XForm, BBox, Plane
 from ...addon_common.common.hasher import hash_object, Hasher
-from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs, accumulate_last
+from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs, accumulate_last, deduplicate_list, has_duplicates
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler, time_it
@@ -1602,12 +1602,10 @@ class RFTarget(RFMesh):
         )
         if face_in_common: return next(iter(face_in_common))
         verts = [self._unwrap(v) for v in verts]
-        # make sure there are now duplicate verts (issue #957)
-        seen, nverts = set(), list()
-        for v in verts:
-            if v in seen: continue
-            seen.add(v)
-            nverts.append(v)
+        # make sure there are no duplicate verts (issue #957)
+        # however, this _could_ reduce vert count < 3
+        nverts = deduplicate_list(verts)
+        if len(nverts) < 3: return None
         bmf = self.bme.faces.new(nverts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
@@ -1746,9 +1744,12 @@ class RFTarget(RFMesh):
                 bmf = self._wrap_bmface(bme1.link_faces[0])
                 s = bmf.select
                 self.bme.edges.remove(bme1)
-                mapping[bmf] = self.new_face(lbmv)
-                mapping[bmf].select = s
-                #self.create_face(lbmv)
+                nf = self.new_face(lbmv)
+                if not nf:
+                    print(f'clean_duplicate_bmedges: could not create new bmface: {lbmv}')
+                else:
+                    mapping[bmf] = nf
+                    mapping[bmf].select = s
                 handled = True
             if not handled:
                 # assert handled, 'unhandled count of linked faces %d, %d' % (l0,l1)

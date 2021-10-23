@@ -443,3 +443,29 @@ class Dict():
             self[k] = v
     def __str__(self): return str(self.__dict__['__d'])
     def __repr__(self): return repr(self.__dict__['__d'])
+
+def has_duplicates(lst):
+    l = len(lst)
+    if l == 0: return False
+    if l < 20 or not hasattr(lst[0], '__hash__'):
+        # runs in O(n^2) time  (perfectly fine if n is small, assuming [:index] uses iter)
+        # does not require items in list to hash
+        # requires O(1) memory
+        return any(item in lst[:index] for (index,item) in enumerate(lst))
+    else:
+        # runs in either O(n) time (assuming hash-set)
+        # requires items to hash
+        # requires O(N) memory
+        seen = set()
+        for i in lst:
+            if i in seen: return True
+            seen.add(i)
+        return False
+
+def deduplicate_list(l):
+    nl = []
+    for i in l:
+        if i in nl: continue
+        nl.append(i)
+    return nl
+

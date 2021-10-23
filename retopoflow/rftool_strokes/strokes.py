@@ -44,7 +44,7 @@ from ...addon_common.common.maths import (
     clamp, mid,
 )
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
-from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index
+from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index, has_duplicates
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.drawing import DrawCallbacks
 from ...config.options import options, themes
@@ -633,9 +633,9 @@ class Strokes(RFTool):
                 nverts = [new2D_vert_point(s + offset) for offset in offsets]
             if pverts:
                 for i in range(len(nverts)-1):
-                    a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
-                    if a and b and c and d:
-                        new_face([a,b,c,d])
+                    lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
+                    if all(lst) and not has_duplicates(lst):
+                        new_face(lst)
                 bmv1 = nverts[0]
                 nedges.append(bmv0.shared_edge(bmv1))
                 bmv0 = bmv1
@@ -711,9 +711,9 @@ class Strokes(RFTool):
             pverts = nverts
             nverts = [new2D_vert_point(s+d) for d in ndiffs]
             for i in range(len(nverts)-1):
-                a,b,c,d = pverts[i],pverts[i+1],nverts[i+1],nverts[i]
-                if a and b and c and d:
-                    new_face([a,b,c,d])
+                lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
+                if all(lst) and not has_duplicates(lst):
+                    new_face(lst)
             bmv1 = nverts[0]
             nedges.append(bmv0.shared_edge(bmv1))
             bmv0 = bmv1

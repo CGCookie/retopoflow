@@ -109,6 +109,7 @@ class PolyStrips_Ops:
             c3 = nearest_sources_Point(c1 + (c0-c1) + (c2-c1))[0]
             bmv3 = self.rfcontext.new_vert_point(c3)
             bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
+            # TODO: what if bmf is None??
             bme2,bme3 = bmv2.shared_edge(bmv3),bmv3.shared_edge(bmv0)
             add_face(bmf)
             add_edge(bme2)
@@ -127,6 +128,7 @@ class PolyStrips_Ops:
             bmv2,bmv3 = bme23.verts
             if bme01.vector().dot(bme23.vector()) > 0: bmv2,bmv3 = bmv3,bmv2
             bmf = self.rfcontext.new_face([bmv0,bmv1,bmv2,bmv3])
+            # TODO: what if bmf is None?
             bme12 = bmv1.shared_edge(bmv2)
             bme30 = bmv3.shared_edge(bmv0)
             add_edge(bme12)
@@ -322,6 +324,7 @@ class PolyStrips_Ops:
 
                 for (v00,v01),(v10,v11) in zip(iter_pairs(verts0,False), iter_pairs(verts1,False)):
                     nf = self.rfcontext.new_face([v00,v01,v11,v10])
+                    assert nf
                     self.count_data['nfaces'].append(nf)
                     nfaces.append(nf)
                 for (v00, v01) in iter_pairs(verts0, False):
