@@ -203,20 +203,24 @@ class RetopoFlow_States(CookieCutter):
 
             # toggle ui
             if self.actions.pressed('toggle ui'):
-                self.ui_hide = self.ui_main.is_visible or self.ui_tiny.is_visible
-                if self.ui_hide:
-                    self._reshow_main = self.ui_main.is_visible
-                    self.ui_main.is_visible = False
-                    self.ui_tiny.is_visible = False
-                    self.ui_options.is_visible = False
-                    if self.ui_geometry: self.ui_geometry.is_visible = False
+                # hide ui if main (or minimized main, tiny) is visible
+                ui_hide = self.ui_main.is_visible or self.ui_tiny.is_visible
+                if ui_hide:
+                    self.ui_hide = True
+                    self.ui_main.is_visible         = False
+                    self.ui_tiny.is_visible         = False
+                    self.ui_options.is_visible      = False
+                    self.ui_options_min.is_visible  = False
+                    self.ui_geometry.is_visible     = False
+                    self.ui_geometry_min.is_visible = False
                 else:
-                    if self._reshow_main:
-                        self.ui_main.is_visible = True
-                    else:
-                        self.ui_tiny.is_visible = True
-                    self.ui_options.is_visible = self.ui_main.getElementById('show-options').disabled
-                    if self.ui_geometry: self.ui_geometry.is_visible = self.ui_main.getElementById('show-geometry').disabled
+                    self.ui_main.is_visible         =     options['show main window']
+                    self.ui_tiny.is_visible         = not options['show main window']
+                    self.ui_options.is_visible      =     options['show options window']
+                    self.ui_options_min.is_visible  = not options['show options window']
+                    self.ui_geometry.is_visible     =     options['show geometry window']
+                    self.ui_geometry_min.is_visible = not options['show geometry window']
+                    self.ui_hide = False
                 return
 
             if self.actions.pressed('pie menu'):
