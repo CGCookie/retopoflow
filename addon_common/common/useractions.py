@@ -388,7 +388,7 @@ class Actions:
     def get_last_press_time(self, event_type):
         return self.actions_prevtime.get(event_type, self.actions_prevtime_default)
 
-    def update(self, context, event, print_actions=False):
+    def update(self, context, event, fn_debug=None):
         if event.type in self.reset_actions:
             # print(f'Actions.update: resetting state')
             self.reset_state()
@@ -421,8 +421,8 @@ class Actions:
 
         if event_type in self.ignore_actions: return
 
-        if print_actions and event_type not in self.nonprintable_actions:
-            print(f'Actions.update: event_type:{event_type}, event.value:{event.value}')
+        if fn_debug and event_type not in self.nonprintable_actions:
+            fn_debug('update start', event_type=event_type, event_value=event.value)
 
         if self.timer:
             time_cur = time.time()
@@ -513,8 +513,15 @@ class Actions:
             self.mousedown_right = None
             self.mousedown_drag = False
 
-        if print_actions and event_type not in self.nonprintable_actions:
-            print(f'Actions.update: ftype:{ftype}, pressed:{pressed}, just_pressed:{self.just_pressed}, now_pressed:{self.now_pressed}, last_pressed: {self.last_pressed}')
+        if fn_debug and event_type not in self.nonprintable_actions:
+            fn_debug(
+                'update end',
+                ftype=ftype,
+                pressed=pressed,
+                just_pressed=self.just_pressed,
+                now_pressed=self.now_pressed,
+                last_pressed=self.last_pressed,
+            )
 
     def convert(self, actions):
         t = type(actions)

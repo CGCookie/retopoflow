@@ -34,8 +34,9 @@ from .cookiecutter_fsm import CookieCutter_FSM
 from .cookiecutter_ui import CookieCutter_UI
 from .cookiecutter_blender import CookieCutter_Blender
 from .cookiecutter_exceptions import CookieCutter_Exceptions
+from .cookiecutter_debug import CookieCutter_Debug
 
-class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Blender, CookieCutter_Exceptions):
+class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Blender, CookieCutter_Exceptions, CookieCutter_Debug):
     '''
     CookieCutter is used to create advanced operators very quickly!
 
@@ -93,6 +94,8 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         return False
 
     def invoke(self, context, event):
+        global CC_DEBUG
+
         self._nav = False
         self._nav_time = 0
         self._done = False
@@ -100,7 +103,6 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         self.event = None
         self._start_time = time.time()
         self._tmp_time = self._start_time
-        self._debug_print_actions = False
 
         try:
             self._cc_exception_init()
@@ -186,7 +188,7 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         self._timer = self._cc_actions.start_timer(10)
 
     def _cc_actions_update(self):
-        self._cc_actions.update(self.context, self.event, print_actions=self._debug_print_actions)
+        self._cc_actions.update(self.context, self.event, fn_debug=self.debug_print_actions)
 
     def _cc_actions_end(self):
         self._timer.done()

@@ -127,8 +127,12 @@ def symmetry_changed(self):
                     <div class="contents">
                         <div id='fpsdiv'>FPS: 0</div>
                         <label>
-                            <input type="checkbox" checked="BoundBool('''self._debug_print_actions''')" title="Check to print (most) input actions to system console">
-                            Print actions
+                            <input type="checkbox" checked="BoundBool('''self.debug_all_enabled''')" title="Check to print all debugging info to text block">
+                            Print All
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''self.debug_actions_enabled''')" title="Check to print (most) input actions to text block">
+                            Print Actions
                         </label>
                     </div>
                 </details>

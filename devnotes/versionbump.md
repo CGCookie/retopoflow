@@ -2,12 +2,15 @@
 
 When doing a version bump, update the versions in the following files:
 
-- `__init__.py`
-    - in `bl_info`, for example: `"version": (3, 2, 2)`
+- `__init__.py`: `bl_info`
+    - update `"version": (3, 2, 5)`
     - comment / uncomment the `warning` keys as needed
 - `Makefile`
-    - update `RELEASE` and `VERSION`
+    - update `VERSION = "v3.2.5"`
+    - comment / uncomment the `RELEASE` var as needed
 - `config/options.py`
-    - for `retopoflow_version` and `retopoflow_version_tuple`
+    - update `retopoflow_version = '3.2.5'`
+    - update `retopoflow_version_tuple = (3, 2, 5)`
 - add line to `help/changelist.md`
-- update `hive.json`
+- `hive.json`
+    - update `"version": "3.2.5"`

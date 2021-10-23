@@ -300,6 +300,21 @@ def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
 def show_error_message(message, title="Error", wrap=80):
     show_blender_popup(message, title, "ERROR", wrap)
 
+def get_text_block(name, create=True, error_on_fail=True):
+    if name in bpy.data.texts: return bpy.data.texts[name]
+    if not create: return None
+    old = { t.name for t in bpy.data.texts }
+    bpy.ops.text.new()
+    new = { t.name for t in bpy.data.texts if t.name not in old }
+    if error_on_fail:
+        assert len(new) != 0, f'Could not create new text block ({name=})'
+        assert len(new) == 1, f'Creating new text block added two text blocks? ({name=})'
+    elif len(new) != 1:
+        return None
+    textblock = bpy.data.texts[new.pop()]
+    textblock.name = name
+    return textblock
+
 def show_blender_text(textblock_name, hide_header=True, goto_top=True):
     if textblock_name not in bpy.data.texts:
         # no textblock to show

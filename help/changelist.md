@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.4&rarr;3.2.5
+
+- Redirected CookieCutter debug output to a text block for easier debugging
+- ...
+
 ### RetopoFlow 3.2.3&rarr;3.2.4
 
 - Fixed visual bug that affected machines with Apple's M1 processor (issue #915)
