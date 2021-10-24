@@ -748,10 +748,10 @@ class Strokes(RFTool):
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
         if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
         if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
-        edges0 = walk_to_corner(bmv0, edges) if bmv0 else None
-        edges1 = walk_to_corner(bmv1, edges) if bmv1 else None
-        edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
-        edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
+        edges0 = walk_to_corner(bmv0, edges) if bmv0 else []
+        edges1 = walk_to_corner(bmv1, edges) if bmv1 else []
+        edges0 = [e for e in edges0 if e.is_valid]
+        edges1 = [e for e in edges1 if e.is_valid]
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
                 'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
@@ -851,6 +851,9 @@ class Strokes(RFTool):
                             if v0 and v1 and not v0.share_edge(v1):
                                 self.rfcontext.new_edge([v0, v1])
             prev = cur
+
+        edges0 = [e for e in edges0 if e.is_valid]
+        edges1 = [e for e in edges1 if e.is_valid]
 
         if edges0:
             side_verts = get_strip_verts(edges0)
