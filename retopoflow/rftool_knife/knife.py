@@ -354,13 +354,13 @@ class Knife(RFTool):
             knife_start = self.knife_start or Point_to_Point2D(next(iter(self.sel_verts)).co)
             knife_start_face = self.rfcontext.accel_nearest2D_face(point=knife_start, max_dist=options['knife snap dist'])[0]
             crosses = self._get_crosses(knife_start, self.actions.mouse)
-            # add additional point if mouse is hovering a face
+            # add additional point if mouse is hovering a face or edge
             if bmf:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
+                dist_to_last = (crosses[-1][0] - self.actions.mouse).length if crosses else float('inf')
                 if dist_to_last > self.rfcontext.drawing.scale(options['knife snap dist']):
-                    crosses = [*crosses, (self.actions.mouse, bmf, None)]
+                    crosses += [(self.actions.mouse, bmf, None)]
             elif bme:
-                dist_to_last = (crosses[-1][0] - self.actions.mouse).length
+                dist_to_last = (crosses[-1][0] - self.actions.mouse).length if crosses else float('inf')
                 if dist_to_last > self.rfcontext.drawing.scale(options['knife snap dist']):
                     crosses += [(self.actions.mouse, bme, None)]
             if not crosses:
