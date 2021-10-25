@@ -42,6 +42,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.debug import dprint
 
 
 from ...config.options import options, themes
