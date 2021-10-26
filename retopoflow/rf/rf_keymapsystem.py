@@ -193,10 +193,11 @@ class RetopoFlow_KeymapSystem:
             nk += '+DOUBLE' if editor.getElementById('edit-double').checked else ''
             nk += '+DRAG'   if editor.getElementById('edit-drag').checked   else ''
             a = edit_data['action']
+            al = edit_data['action label']
             # do not change ordering of keymaps, just update
             idx = keymaps[a].index(edit_data['keymap'])
             keymaps[a][idx] = nk
-            rebuild_action(a)
+            rebuild_action(a, al)
         def edit_cancel():
             self.document.body.getElementById('keymapconfig').style = "display: none"
             self.document.body.getElementById('keymapsystem-cover').style = "display: none"
@@ -206,7 +207,7 @@ class RetopoFlow_KeymapSystem:
             self.document.body.getElementById('keymapconfig').style = "display: none"
             self.document.body.getElementById('keymapsystem-cover').style = "display: none"
             delete_keymap(edit_data['action'], edit_data['keymap'])
-        def edit_start(a, k):
+        def edit_start(a, al, k):
             nonlocal edit_data, keymaps
             aid = action_to_id(a)
             ok = str(k)
@@ -222,6 +223,7 @@ class RetopoFlow_KeymapSystem:
             if not is_key: hm, hk = hk, ''
             else: hm = ''
             edit_data['action'] = a
+            edit_data['action label'] = al
             edit_data['keymap'] = ok
             edit_data['key'] = k
             self.document.body.getElementById('keymapsystem-cover').style = ""
@@ -244,25 +246,25 @@ class RetopoFlow_KeymapSystem:
             editor.getElementById('edit-double').checked = hkdouble
             editor.getElementById('edit-drag').checked   = hkdrag
 
-        def add_keymap(a):
+        def add_keymap(a, al):
             nonlocal keymaps
             keymaps[a].append('')
-            edit_start(a, '')
-        def delete_keymap(a, k):
+            edit_start(a, al, '')
+        def delete_keymap(a, al, k):
             keymaps[a].remove(k)
-            rebuild_action(a)
+            rebuild_action(a, al)
 
-        def keymap_html(a):
+        def keymap_html(a, al):
             nonlocal edit_start, delete_keymap, rebuild_action, add_keymap
             aid = action_to_id(a)
             html = ''
             for k in keymaps[a]:
-                html += f'''<button id="keymap-{aid}-key" class="key" on_mouseclick="edit_start('{a}', '{k}')">{humanread(k, visible=True)}</button>'''
-                html += f'''<button id="keymap-{aid}-del" class="delkey" on_mouseclick="delete_keymap('{a}', '{k}')">✕</button>'''
-            html += f'''<button class="half-size" on_mouseclick="add_keymap('{a}')">+ Add New Keymap</button>'''
-            html += f'''<button class="half-size" on_mouseclick="reset_keymap('{a}'); rebuild_action('{a}')">Reset Keymap</button>'''
+                html += f'''<button id="keymap-{aid}-key" class="key" on_mouseclick="edit_start('{a}', '{al}', '{k}')" title="Click to edit this keymap for {al}">{humanread(k, visible=True)}</button>'''
+                html += f'''<button id="keymap-{aid}-del" class="delkey" on_mouseclick="delete_keymap('{a}', '{al}', '{k}')" title="Click to delete this keymap for {al}">✕</button>'''
+            html += f'''<button class="half-size" on_mouseclick="add_keymap('{a}', '{al}')" title="Click to add a new keymap for {al}">+ Add New Keymap</button>'''
+            html += f'''<button class="half-size" on_mouseclick="reset_keymap('{a}'); rebuild_action('{a}', '{al}')" title="Click to reset the keymaps for {al}">Reset Keymap</button>'''
             return html
-        def rebuild_action(a):
+        def rebuild_action(a, al):
             # vvv this must be here so fromHTML() can see these fns!
             nonlocal edit_start, delete_keymap, rebuild_action, add_keymap
             # ^^^ this must be here so fromHTML() can see these fns!
@@ -270,7 +272,7 @@ class RetopoFlow_KeymapSystem:
             aid = action_to_id(a)
             ui_td = self.document.body.getElementById(f'keymap-{aid}')
             ui_td.clear_children()
-            ui_td.append_children(UI_Element.fromHTML(keymap_html(a)))
+            ui_td.append_children(UI_Element.fromHTML(keymap_html(a, al)))
         def rebuild():
             # vvv this must be here so fromHTML() can see these fns!
             nonlocal edit_start, delete_keymap, rebuild_action, add_keymap
@@ -286,7 +288,7 @@ class RetopoFlow_KeymapSystem:
                     aid = action_to_id(a)
                     html += f'<tr>'
                     html += f'<td class="action">{al}:</td>'
-                    html += f'<td id="keymap-{aid}" class="keymap">{keymap_html(a)}</td>'
+                    html += f'<td id="keymap-{aid}" class="keymap">{keymap_html(a, al)}</td>'
                     html += f'</tr>'
                 html += f'</table>'
                 html += f'</details>'

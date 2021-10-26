@@ -182,15 +182,15 @@ def convert_human_readable_to_actions(actions):
     if type(actions) is str: actions = [actions]
     for action in actions:
         if platform.system() == 'Darwin':
-            kmi = kmi.replace('^ Ctrl+',   'CTRL+')
-            kmi = kmi.replace('⇧ Shift+', 'SHIFT+')
-            kmi = kmi.replace('⌥ Opt+',    'ALT+')
-            kmi = kmi.replace('⌘ Cmd+',   'OSKEY+')
+            action = action.replace('^ Ctrl+',   'CTRL+')
+            action = action.replace('⇧ Shift+', 'SHIFT+')
+            action = action.replace('⌥ Opt+',    'ALT+')
+            action = action.replace('⌘ Cmd+',   'OSKEY+')
         else:
-            kmi = kmi.replace('Ctrl+',  'CTRL+')
-            kmi = kmi.replace('Shift+', 'SHIFT+')
-            kmi = kmi.replace('Alt+',   'ALT+')
-            kmi = kmi.replace('Cmd+',   'OSKEY+')
+            action = action.replace('Ctrl+',  'CTRL+')
+            action = action.replace('Shift+', 'SHIFT+')
+            action = action.replace('Alt+',   'ALT+')
+            action = action.replace('Cmd+',   'OSKEY+')
         for hr2kmi in humanreadable_to_kmi:
             kmi = hr2kmi.get(action, action)
         ret.append(kmi)
