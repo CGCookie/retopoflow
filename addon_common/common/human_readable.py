@@ -97,10 +97,10 @@ kmi_to_humanreadable = [
 # platform-specific prefix modifiers
 if platform.system() == 'Darwin':
     kmi_to_humanreadable += [{
-        'SHIFT': '⇧',
-        'CTRL':  '^',
-        'ALT':   '⌥',
-        'OSKEY': '⌘',
+        'SHIFT': '⇧ Shift',
+        'CTRL':  '^ Ctrl',
+        'ALT':   '⌥ Opt',
+        'OSKEY': '⌘ Cmd',
     }]
 else:
     kmi_to_humanreadable += [{
@@ -150,10 +150,10 @@ def convert_human_readable_to_actions(actions):
     for action in actions:
         kmi = humanreadable_to_kmi.get(action, action)
         if platform.system() == 'Darwin':
-            kmi = kmi.replace('^+',  'CTRL+')
-            kmi = kmi.replace('⇧+', 'SHIFT+')
-            kmi = kmi.replace('⌥+',  'ALT+')
-            kmi = kmi.replace('⌘+', 'OSKEY+')
+            kmi = kmi.replace('^ Ctrl+',  'CTRL+')
+            kmi = kmi.replace('⇧ Shift+', 'SHIFT+')
+            kmi = kmi.replace('⌥ Opt+',  'ALT+')
+            kmi = kmi.replace('⌘ Cmd+', 'OSKEY+')
         else:
             kmi = kmi.replace('Ctrl+',  'CTRL+')
             kmi = kmi.replace('Shift+', 'SHIFT+')
