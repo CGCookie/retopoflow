@@ -301,6 +301,7 @@ def show_error_message(message, title="Error", wrap=80):
     show_blender_popup(message, title, "ERROR", wrap)
 
 def get_text_block(name, create=True, error_on_fail=True):
+    name = str(name)
     if name in bpy.data.texts: return bpy.data.texts[name]
     if not create: return None
     old = { t.name for t in bpy.data.texts }

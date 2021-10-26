@@ -274,3 +274,4 @@ class RetopoFlow(
         bpy.ops.object.mode_set(mode='EDIT')
         RetopoFlow.instance = None
 
+RetopoFlow.cc_debug_print_to = 'RetopoFlow_Debug'
