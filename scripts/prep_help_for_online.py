@@ -226,9 +226,9 @@ keymaps.update({
 keymaps_data = []
 for k,v in keymaps.items():
     k = k.replace(' ', '_')
-    # f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
-    # v = '`' + convert_actions_to_human_readable(v, join='`, `') + '`'
-    v = '<code>' + convert_actions_to_human_readable(v, join='</code>, <code>') + '</code>'
+    # f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, sep=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
+    # v = '`' + convert_actions_to_human_readable(v, sep='`, `') + '`'
+    v = '<code>' + convert_actions_to_human_readable(v, sep='</code>, <code>') + '</code>'
     keymaps_data.append(f'{k}: "{v}"')
 keymaps_data = '\n'.join(keymaps_data)
 write_file(path_keymaps, keymaps_data)

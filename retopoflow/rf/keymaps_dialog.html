@@ -25,13 +25,20 @@
                 <table>
                     <tr>
                         <td>Keyboard</td>
-                        <td><label id="edit-key-label" on_mouseclick="edit_capture()" on_keypress="edit_capture_key(event)" title="Click to start capturing a key for action"><input id="edit-key" type="radio" name="edit-key-mouse" value="key"><span id="edit-key-span" title="Click to start capturing a key for action"></span></label></td>
+                        <td><label id="edit-key-label" on_mouseclick="edit_capture()" on_keypress="edit_capture_key(event)"><input id="edit-key" type="radio" name="edit-key-mouse" value="key" title="Click to start capturing a key for action"><span id="edit-key-span" title="Click to start capturing a key for action"></span></label></td>
                     </tr><tr>
                         <td>Mouse Button</td>
-                        <td><label id="edit-lmb-label" title="Click to use left mouse button for action"><input id="edit-lmb" type="radio" name="edit-key-mouse" value="lmb" on_mouseclick="edit_lmb()">LMB</label><label id="edit-mmb-label" title="Click to use middle mouse button for action"><input id="edit-mmb" type="radio" name="edit-key-mouse" value="mmb" on_mouseclick="edit_mmb()">MMB</label><label id="edit-rmb-label" title="Click to use right mouse button for action"><input id="edit-rmb" type="radio" name="edit-key-mouse" value="rmb" on_mouseclick="edit_rmb()">RMB</label></td>
+                        <td>
+                            <label id="edit-lmb-label"><input id="edit-lmb" type="radio" name="edit-key-mouse" value="lmb" on_mouseclick="edit_lmb()" title="Click to use left mouse button (LMB) for action">Left (LMB)</label>
+                            <label id="edit-mmb-label"><input id="edit-mmb" type="radio" name="edit-key-mouse" value="mmb" on_mouseclick="edit_mmb()" title="Click to use middle mouse button (MMB) for action">Middle (MMB)</label>
+                            <label id="edit-rmb-label"><input id="edit-rmb" type="radio" name="edit-key-mouse" value="rmb" on_mouseclick="edit_rmb()" title="Click to use right mouse button (RMB) for action">Right (RMB)</label>
+                        </td>
                     </tr><tr>
                         <td>Mouse Wheel</td>
-                        <td><label id="edit-wu-label" title="Click to use mouse wheel up for action"><input id="edit-wu" type="radio" name="edit-key-mouse" value="wu" on_mouseclick="edit_wheelup()">Wheel Up</label><label id="edit-wd-label" title="Click to use mouse wheel down for action"><input id="edit-wd" type="radio" name="edit-key-mouse" value="wd" on_mouseclick="edit_wheeldown()">Wheel Down</label></td>
+                        <td>
+                            <label id="edit-wu-label"><input id="edit-wu" type="radio" name="edit-key-mouse" value="wu" on_mouseclick="edit_wheelup()" title="Click to use mouse wheel up for action">Wheel Up</label>
+                            <label id="edit-wd-label"><input id="edit-wd" type="radio" name="edit-key-mouse" value="wd" on_mouseclick="edit_wheeldown()" title="Click to use mouse wheel down for action">Wheel Down</label>
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -39,20 +46,20 @@
         <div class="collection" id="edit-modifiers">
             <h1>Interaction modifiers</h1>
             <div class="contents">
-                <label title="Check if control key should be held for action"><input id="edit-ctrl"  type="checkbox" value="ctrl" title="Check if control key should be held for action">Ctrl</label>
-                <label title="Check if shift key should be held for action"><input id="edit-shift" type="checkbox" value="shift" title="Check if shift key should be held for action">Shift</label>
-                <label title="Check if alt key should be held for action"><input id="edit-alt" type="checkbox" value="alt" title="Check if alt key should be held for action">Alt</label>
-                <label title="Check if oskey key should be held for action"><input id="edit-oskey" type="checkbox" value="oskey" title="Check if oskey key should be held for action">Cmd</label>
+                <label><input id="edit-ctrl"  type="checkbox" value="ctrl" title="Check if control key (^) should be held for action"><!-- ^ Ctrl --></label>
+                <label><input id="edit-shift" type="checkbox" value="shift" title="Check if shift key (⇧) should be held for action"><!-- ⇧ Shift --></label>
+                <label><input id="edit-alt" type="checkbox" value="alt" title="Check if alt (⌥ / option) key should be held for action"><!-- ⌥ Alt --></label>
+                <label><input id="edit-oskey" type="checkbox" value="oskey" title="Check if oskey (⌘ / command) key should be held for action"><!-- ⌘ Cmd --></label>
             </div>
         </div>
         <div class="collection" id="edit-type">
             <h1>Interaction type</h1>
             <div class="contents">
-                <label title="Check if action occurs on press of key/mouse"><input id="edit-press" type="radio" name="edit-type" value="press">Press</label>
-                <label title="Check if action occurs on release of key/mouse (not supported at the moment)"><input id="edit-release" type="radio" name="edit-type" value="release" disabled>Release</label>
-                <label title="Check if action occurs on press/click of key/mouse"><input id="edit-click" type="radio" name="edit-type" value="click">Click</label>
-                <label title="Check if action occurs on double press/click of key/mouse"><input id="edit-double" type="radio" name="edit-type" value="double">Double</label>
-                <label title="Check if action occurs on drag of key/mouse"><input id="edit-drag" type="radio" name="edit-type" value="drag">Drag</label>
+                <label><input id="edit-press" type="radio" name="edit-type" value="press" title="Check if action occurs on press of key/mouse">Press</label>
+                <label><input id="edit-release" type="radio" name="edit-type" value="release" title="Check if action occurs on release of key/mouse (not supported at the moment)" disabled>Release</label>
+                <label><input id="edit-click" type="radio" name="edit-type" value="click" title="Check if action occurs on press/click of key/mouse">Click</label>
+                <label><input id="edit-double" type="radio" name="edit-type" value="double" title="Check if action occurs on double press/click of key/mouse">Double</label>
+                <label><input id="edit-drag" type="radio" name="edit-type" value="drag" title="Check if action occurs on drag of key/mouse">Drag</label>
             </div>
         </div>
     </div>

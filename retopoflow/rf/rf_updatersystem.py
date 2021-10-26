@@ -55,7 +55,7 @@ class RetopoFlow_UpdaterSystem:
             m = re.search(r'{{(?P<action>[^}]+)}}', mdown)
             if not m: break
             action = { s.strip() for s in m.group('action').split(',') }
-            sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
+            sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, sep=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 

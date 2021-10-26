@@ -269,7 +269,7 @@ class RetopoFlow_UI:
 
     def setup_ui(self):
         # NOTE: lambda is needed on next line so that RF keymaps are bound!
-        humanread = lambda x: self.actions.to_human_readable(x, join=' / ')
+        humanread = lambda x: self.actions.to_human_readable(x, sep=' / ')
 
         self.hide_target()
 

@@ -29,6 +29,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.ui_core import UI_Element
+from ...addon_common.common.human_readable import convert_actions_to_human_readable
 
 from ...config.options import options, retopoflow_version, retopoflow_helpdocs_url, retopoflow_blendermarket_url
 from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap
@@ -55,7 +56,7 @@ class RetopoFlow_KeymapSystem:
             m = re.search(r'{{(?P<action>[^}]+)}}', mdown)
             if not m: break
             action = { s.strip() for s in m.group('action').split(',') }
-            sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, join=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
+            sub = f'{pre}{wrap_pre}' + self.actions.to_human_readable(action, sep=f'{wrap_post}{separator}{wrap_pre}', onlyfirst=onlyfirst) + f'{wrap_post}{post}'
             mdown = mdown[:m.start()] + sub + mdown[m.end():]
         return mdown
 
@@ -287,6 +288,12 @@ class RetopoFlow_KeymapSystem:
         self.document.body.append_children(ui_keymaps)
         self.document.body.getElementById('keymapconfig').style = 'display: none'
         self.document.body.getElementById('keymapsystem-cover').style = "display: none"
+
+        self.document.body.getElementById('edit-ctrl').innerText  = convert_actions_to_human_readable('CTRL')
+        self.document.body.getElementById('edit-shift').innerText = convert_actions_to_human_readable('SHIFT')
+        self.document.body.getElementById('edit-oskey').innerText = convert_actions_to_human_readable('OSKEY')
+        self.document.body.getElementById('edit-alt').innerText   = convert_actions_to_human_readable('ALT')
+
         rebuild()
         self.document.body.dirty()
 

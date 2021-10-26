@@ -534,10 +534,10 @@ class Actions:
             ret |= (self.keymap.get(action, set()) | self.keymap2.get(action, set())) or { action }
         return ret
 
-    def to_human_readable(self, actions, join=',', onlyfirst=None, visible=False):
+    def to_human_readable(self, actions, *, sep=',', onlyfirst=None, visible=False):
         if type(actions) is str: actions = [actions]
         actions = [ act for action in actions for act in self.convert(action) ]
-        return convert_actions_to_human_readable(actions, join=join, onlyfirst=onlyfirst, visible=visible)
+        return convert_actions_to_human_readable(actions, sep=sep, onlyfirst=onlyfirst, visible=visible)
 
     def from_human_readable(self, actions):
         if type(actions) is str: actions = [actions]
