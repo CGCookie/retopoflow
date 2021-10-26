@@ -38,59 +38,94 @@ kmi_to_humanreadable = [
         'SHIFT+NINE':   '(',
 
         # shifted punctuation
-        'SHIFT+PERIOD': '>',
-        'SHIFT+PLUS':   '+',
-        'SHIFT+MINUS':  '_',
-        'SHIFT+SLASH':  '?',
-        'SHIFT+BACK_SLASH':   '|',
-        'SHIFT+EQUAL':        '+',
-        'SHIFT+SEMI_COLON':   ':', 'SHIFT+COMMA':         '<',
-        'SHIFT+LEFT_BRACKET': '{', 'SHIFT+RIGHT_BRACKET': '}',
-        'SHIFT+QUOTE':        '"', 'SHIFT+ACCENT_GRAVE':  '~',
+        'SHIFT+PERIOD':        '>',
+        'SHIFT+PLUS':          '+',
+        'SHIFT+MINUS':         '_',
+        'SHIFT+SLASH':         '?',
+        'SHIFT+BACK_SLASH':    '|',
+        'SHIFT+EQUAL':         '+',
+        'SHIFT+SEMI_COLON':    ':',
+        'SHIFT+COMMA':         '<',
+        'SHIFT+LEFT_BRACKET':  '{',
+        'SHIFT+RIGHT_BRACKET': '}',
+        'SHIFT+QUOTE':         '"',
+        'SHIFT+ACCENT_GRAVE':  '~',
     },{
-        # top-row and numpad numbers
-        'ZERO':   '0', 'NUMPAD_0':       'Num0',
-        'ONE':    '1', 'NUMPAD_1':       'Num1',
-        'TWO':    '2', 'NUMPAD_2':       'Num2',
-        'THREE':  '3', 'NUMPAD_3':       'Num3',
-        'FOUR':   '4', 'NUMPAD_4':       'Num4',
-        'FIVE':   '5', 'NUMPAD_5':       'Num5',
-        'SIX':    '6', 'NUMPAD_6':       'Num6',
-        'SEVEN':  '7', 'NUMPAD_7':       'Num7',
-        'EIGHT':  '8', 'NUMPAD_8':       'Num8',
-        'NINE':   '9', 'NUMPAD_9':       'Num9',
+        # numpad numbers
+        'NUMPAD_PERIOD':  'Num.',
+        'NUMPAD_PLUS':    'Num+',
+        'NUMPAD_MINUS':   'Num-',
+        'NUMPAD_SLASH':   'Num/',
+        'NUMPAD_ASTERIX': 'Num*',
 
-        # operators and numpad operators
-        'PERIOD': '.', 'NUMPAD_PERIOD':  'Num.',
-        'PLUS':   '+', 'NUMPAD_PLUS':    'Num+',
-        'MINUS':  '-', 'NUMPAD_MINUS':   'Num-',
-        'SLASH':  '/', 'NUMPAD_SLASH':   'Num/',
-                       'NUMPAD_ASTERIX': 'Num*',
+        # numpad operators
+        'NUMPAD_PERIOD':  'Num.',
+        'NUMPAD_PLUS':    'Num+',
+        'NUMPAD_MINUS':   'Num-',
+        'NUMPAD_SLASH':   'Num/',
+        'NUMPAD_ASTERIX': 'Num*',
+
+        # numpad enter
+        'NUMPAD_ENTER': 'NumEnter',
+    },{
+        'BACK_SLASH': '\\',
+    },{
+        # top-row numbers
+        'ZERO':   '0',
+        'ONE':    '1',
+        'TWO':    '2',
+        'THREE':  '3',
+        'FOUR':   '4',
+        'FIVE':   '5',
+        'SIX':    '6',
+        'SEVEN':  '7',
+        'EIGHT':  '8',
+        'NINE':   '9',
+
+        # operators
+        'PERIOD': '.',
+        'PLUS':   '+',
+        'MINUS':  '-',
+        'SLASH':  '/',
 
         # characters that are easier to read as symbols than as their name
-        'SPACE':        ' ', 'EQUAL':        '=',
-        'SEMI_COLON':   ';', 'COMMA':         ',',
-        'LEFT_BRACKET': '[', 'RIGHT_BRACKET': ']',
-        'QUOTE':        "'", 'ACCENT_GRAVE':  '&#96;', #'`',
-        'BACK_SLASH':   '\\',
+        'EQUAL':         '=',
+        'SEMI_COLON':    ';',
+        'COMMA':         ',',
+        'LEFT_BRACKET':  '[',
+        'RIGHT_BRACKET': ']',
+        'QUOTE':         "'",
+        'ACCENT_GRAVE':  '&#96;', #'`',
 
         # non-printable characters
-        'ESC': 'Escape',
-        'BACK_SPACE': 'Backspace',
-        'RET': 'Enter', 'NUMPAD_ENTER': 'NumEnter',
-        'HOME': 'Home', 'END': 'End',
-        'LEFT_ARROW': 'ArrowLeft', 'RIGHT_ARROW': 'ArrowRight',
-        'UP_ARROW': 'ArrowUp', 'DOWN_ARROW': 'ArrowDown',
-        'PAGE_UP': 'PageUp', 'PAGE_DOWN': 'PageDown',
-        'DEL': 'Delete',
-        'TAB': 'Tab',
+        'ESC':         'Escape',
+        'BACK_SPACE':  'Backspace',
+        'RET':         'Enter',
+        'HOME':        'Home',
+        'END':         'End',
+        'LEFT_ARROW':  'ArrowLeft',
+        'RIGHT_ARROW': 'ArrowRight',
+        'UP_ARROW':    'ArrowUp',
+        'DOWN_ARROW':  'ArrowDown',
+        'PAGE_UP':     'PageUp',
+        'PAGE_DOWN':   'PageDown',
+        'INSERT':      'Insert',
+        'DEL':         'Delete',
+        'TAB':         'Tab',
 
         # mouse actions
-        'LEFTMOUSE': 'LMB', 'MIDDLEMOUSE': 'MMB', 'RIGHTMOUSE': 'RMB',
-        'WHEELUPMOUSE': 'WheelUp', 'WHEELDOWNMOUSE': 'WheelDown',
+        'LEFTMOUSE':      'LMB',
+        'MIDDLEMOUSE':    'MMB',
+        'RIGHTMOUSE':     'RMB',
+        'WHEELUPMOUSE':   'WheelUp',
+        'WHEELDOWNMOUSE': 'WheelDown',
 
         # postfix modifiers
-        'DRAG': 'Drag', 'DOUBLE': 'Double', 'CLICK': 'Click',
+        'DRAG':   'Drag',
+        'DOUBLE': 'Double',
+        'CLICK':  'Click',
+    },{
+        'SPACE': ' ',
     }
 ]
 
@@ -112,12 +147,9 @@ else:
 
 
 # reversed human readable dict
-humanreadable_to_kmi = {
-    v:k
-    for s in kmi_to_humanreadable
-    for (k,v) in s.items()
-} # | {'Space': 'SPACE'}  # does not work in Blender 2.92
-humanreadable_to_kmi['Space'] = 'SPACE'
+humanreadable_to_kmi = [ { v:k for (k,v) in s.items() } for s in reversed(kmi_to_humanreadable) ]
+# | {'Space': 'SPACE'}  # does not work in Blender 2.92
+humanreadable_to_kmi += [{'Space': 'SPACE'}]
 
 
 html_char = {
@@ -147,17 +179,19 @@ def convert_actions_to_human_readable(actions, *, sep=',', onlyfirst=None, trans
 
 def convert_human_readable_to_actions(actions):
     ret = []
+    if type(actions) is str: actions = [actions]
     for action in actions:
-        kmi = humanreadable_to_kmi.get(action, action)
         if platform.system() == 'Darwin':
-            kmi = kmi.replace('^ Ctrl+',  'CTRL+')
+            kmi = kmi.replace('^ Ctrl+',   'CTRL+')
             kmi = kmi.replace('⇧ Shift+', 'SHIFT+')
-            kmi = kmi.replace('⌥ Opt+',  'ALT+')
-            kmi = kmi.replace('⌘ Cmd+', 'OSKEY+')
+            kmi = kmi.replace('⌥ Opt+',    'ALT+')
+            kmi = kmi.replace('⌘ Cmd+',   'OSKEY+')
         else:
             kmi = kmi.replace('Ctrl+',  'CTRL+')
             kmi = kmi.replace('Shift+', 'SHIFT+')
             kmi = kmi.replace('Alt+',   'ALT+')
             kmi = kmi.replace('Cmd+',   'OSKEY+')
+        for hr2kmi in humanreadable_to_kmi:
+            kmi = hr2kmi.get(action, action)
         ret.append(kmi)
     return ret

@@ -155,11 +155,21 @@ class RetopoFlow_KeymapSystem:
             clear_edit_key_span()
             edit_data['key'] = 'WheelDown'
         def edit_capture_key(event):
+            if event.key is None or event.key == 'NONE': return
             ui_button = self.document.body.getElementById('edit-key-span')
             if self.document.activeElement != ui_button: return
+            has_ctrl  = 'CTRL+'  in event.key
+            has_shift = 'SHIFT+' in event.key
+            has_alt   = 'ALT+'   in event.key
+            has_oskey = 'OSKEY+' in event.key
             key = event.key.replace('CTRL+','').replace('SHIFT+','').replace('ALT+','').replace('OSKEY+','')
             set_edit_key_span(humanread([key], visible=True))
             edit_data['key'] = key
+            editor = self.document.body.getElementById('keymapconfig')
+            editor.getElementById('edit-ctrl').checked  = has_ctrl
+            editor.getElementById('edit-shift').checked = has_shift
+            editor.getElementById('edit-alt').checked   = has_alt
+            editor.getElementById('edit-oskey').checked = has_oskey
             self.document.blur()
         def edit_ok():
             nonlocal edit_data, keymaps, tokmi
