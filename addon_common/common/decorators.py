@@ -20,9 +20,11 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import os
+import re
 import json
 import time
 import inspect
+from functools import wraps
 
 import bpy
 
@@ -199,6 +201,45 @@ def blender_version_wrapper(op, ver):
 
         if update_fn: fns[fn_name] = fn
 
+        def callit(*args, **kwargs):
+            nonlocal fns, fn_name, error_msg
+            fn = fns.get(fn_name, None)
+            assert fn, error_msg
+            ret = fn(*args, **kwargs)
+            return ret
+
+        return callit
+    return wrapit
+
+re_blender_version = re.compile(r'(?P<comparison><|<=|==|>=|>) *(?P<version>\d\.\d\d)')
+def only_in_blender_version(*args):
+    self = only_in_blender_version
+    if not hasattr(self, 'fns'):
+        major, minor, rev = bpy.app.version
+        self.blenderver = '%d.%02d' % (major, minor)
+        self.fns = fns = {}
+        self.ops = {
+            '<':  lambda v: self.blenderver <  v,
+            '>':  lambda v: self.blenderver >  v,
+            '<=': lambda v: self.blenderver <= v,
+            '==': lambda v: self.blenderver == v,
+            '>=': lambda v: self.blenderver >= v,
+            '!=': lambda v: self.blenderver != v,
+        }
+
+    matches = [re_blender_version.match(arg) for arg in args]
+    assert all(match is not None for match in matches), f'at least one arg did not match version comparison: {args}'
+    results = [self.ops[match.group('comparison')](match.group('version')) for match in matches]
+    update_fn = all(results)
+    def wrapit(fn):
+        nonlocal self, update_fn
+        fn_name = fn.__name__
+        fns = self.fns
+        error_msg = "Could not find appropriate function named %s for version Blender %s" % (fn_name, self.blenderver)
+
+        if update_fn: fns[fn_name] = fn
+
+        @wraps(fn)
         def callit(*args, **kwargs):
             nonlocal fns, fn_name, error_msg
             fn = fns.get(fn_name, None)

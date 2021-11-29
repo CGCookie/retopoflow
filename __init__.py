@@ -102,49 +102,53 @@ if import_succeeded:
     create operators for viewing RetopoFlow help documents
     '''
 
-    class VIEW3D_OT_RetopoFlow_Help_QuickStart(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Quick Start Guide"""
-        bl_idname = "cgcookie.retopoflow_help_quickstart"
-        bl_label = "Quick Start Guide"
-        bl_description = "Open RetopoFlow Quick Start Guide"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'quick_start.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_QuickStart]
+    def VIEW3D_OT_RetopoFlow_Help_Factory(label, filename):
+        idname = label.replace(' ', '')
+        class VIEW3D_OT_RetopoFlow_Help(helpsystem.RetopoFlow_OpenHelpSystem):
+            """Open RetopoFlow Help System"""
+            bl_idname = f'cgcookie.retopoflow_help_{idname.lower()}'
+            bl_label = f'RF Help: {label}'
+            bl_description = f'Open RetopoFlow Help System: {label}'
+            bl_space_type = "VIEW_3D"
+            bl_region_type = "TOOLS"
+            bl_options = set()
+            rf_startdoc = f'{filename}.md'
+        VIEW3D_OT_RetopoFlow_Help.__name__ = f'VIEW3D_OT_RetopoFlow_Help_{idname}'
+        return VIEW3D_OT_RetopoFlow_Help
 
-    class VIEW3D_OT_RetopoFlow_Help_Welcome(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Welcome"""
-        bl_idname = "cgcookie.retopoflow_help_welcome"
-        bl_label = "Welcome Message"
-        bl_description = "Open RetopoFlow Welcome Message"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'welcome.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Welcome]
+    def VIEW3D_OT_RetopoFlow_Online_Factory(label, filename):
+        idname = label.replace(' ', '')
+        class VIEW3D_OT_RetopoFlow_Online(Operator):
+            """Open RetopoFlow Help Online"""
+            bl_idname = f'cgcookie.retopoflow_online_{idname.lower()}'
+            bl_label = f'RF Online: {label}'
+            bl_description = f'Open RetopoFlow Help Online: {label}'
+            bl_space_type = "VIEW_3D"
+            bl_region_type = "TOOLS"
+            bl_options = set()
+            def invoke(self, context, event):
+                bpy.ops.wm.url_open(url=f'https://docs.retopoflow.com/{filename}.html')
+                return {'FINISHED'}
+        VIEW3D_OT_RetopoFlow_Online.__name__ = f'VIEW3D_OT_RetopoFlow_Online_{idname}'
+        return VIEW3D_OT_RetopoFlow_Online
 
-    class VIEW3D_OT_RetopoFlow_Help_TableOfContents(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Table of Contents"""
-        bl_idname = "cgcookie.retopoflow_help_tableofcontents"
-        bl_label = "Table of Contents"
-        bl_description = "Open RetopoFlow Table of Contents"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'table_of_contents.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_TableOfContents]
+    RF_help_classes = [
+        cls
+        for args in [
+            ('Quick Start Guide', 'quick_start'),
+            ('Welcome Message', 'welcome'),
+            ('Table of Contents', 'table_of_contents'),
+            ('FAQ', 'faq'),
+            ('Keymap Editor', 'keymap_editor'),
+            ('Updater System', 'addon_updater'),
+        ]
+        for cls in [
+            VIEW3D_OT_RetopoFlow_Help_Factory(*args),
+            VIEW3D_OT_RetopoFlow_Online_Factory(*args),
+        ]
+    ]
+    RF_classes += RF_help_classes
 
-    class VIEW3D_OT_RetopoFlow_Help_FAQ(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Table of Contents"""
-        bl_idname = "cgcookie.retopoflow_help_faq"
-        bl_label = "RetopoFlow FAQ"
-        bl_description = "Open RetopoFlow Frequently Asked Questions"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'faq.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_FAQ]
 
     class VIEW3D_OT_RetopoFlow_Help_Warnings(helpsystem.RetopoFlow_OpenHelpSystem):
         """Open RetopoFlow Warnings Document"""
@@ -167,37 +171,15 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
-    class VIEW3D_OT_RetopoFlow_KeymapSystem(keymapsystem.RetopoFlow_OpenKeymapSystem):
+    class VIEW3D_OT_RetopoFlow_KeymapEditor(keymapsystem.RetopoFlow_OpenKeymapSystem):
         """Open RetopoFlow Keymap Editor"""
-        bl_idname = "cgcookie.retopoflow_keymap"
+        bl_idname = "cgcookie.retopoflow_keymapeditor"
         bl_label = "Keymap Editor"
         bl_description = "Open RetopoFlow Keymap Editor"
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()
-    RF_classes += [VIEW3D_OT_RetopoFlow_KeymapSystem]
-
-    class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Updater Help"""
-        bl_idname = "cgcookie.retopoflow_help_updater"
-        bl_label = "Updater Help"
-        bl_description = "Open RetopoFlow Updater Help"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'addon_updater.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
-
-    class VIEW3D_OT_RetopoFlow_Help_Keymap(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Keymap Editor Help"""
-        bl_idname = "cgcookie.retopoflow_help_keymap"
-        bl_label = "Keymap Editor Help"
-        bl_description = "Open RetopoFlow Keymap Editor Help"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'keymap_editor.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Keymap]
+    RF_classes += [VIEW3D_OT_RetopoFlow_KeymapEditor]
 
     if options['preload help images']: retopoflow.preload_help_images()
 
@@ -216,8 +198,8 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
         return {'FINISHED'}
 RF_classes += [VIEW3D_OT_RetopoFlow_BlenderMarket]
 
-class VIEW3D_OT_RetopoFlow_Help_Online(Operator):
-    bl_idname = 'cgcookie.retopoflow_help_online'
+class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
+    bl_idname = 'cgcookie.retopoflow_online_main'
     bl_label = 'Online Documentation'
     bl_description = 'Open RetopoFlow Online Documentation'
     bl_space_type = 'VIEW_3D'
@@ -227,7 +209,7 @@ class VIEW3D_OT_RetopoFlow_Help_Online(Operator):
     def invoke(self, context, event):
         bpy.ops.wm.url_open(url='https://docs.retopoflow.com')
         return {'FINISHED'}
-RF_classes += [VIEW3D_OT_RetopoFlow_Help_Online]
+RF_classes += [VIEW3D_OT_RetopoFlow_Online_Main]
 
 
 
@@ -369,54 +351,106 @@ if import_succeeded:
     create panel for showing tools in Blender
     '''
 
+    # some common checker fns
+    def has_sources(context):
+        return retopoflow.RetopoFlow.has_valid_source()
+    def is_editing_target(context):
+        obj = context.active_object
+        mode_string = context.mode
+        edit_object = context.edit_object
+        gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
+        return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
+    def are_sources_too_big(context):
+        # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
+        total = 0
+        for src in retopoflow.RetopoFlow.get_sources():
+            total += len(src.data.polygons)
+        m = convert_numstr_num(options['warning max sources'])
+        return total > m
+    def is_target_too_big(context):
+        # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
+        tar = retopoflow.RetopoFlow.get_target()
+        if not tar: return False
+        m = convert_numstr_num(options['warning max target'])
+        return len(tar.data.polygons) > m
+    def multiple_3dviews(context):
+        views = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
+        return len(views) > 1
+    def in_quadview(context):
+        for area in context.window.screen.areas:
+            if area.type != 'VIEW_3D': continue
+            for space in area.spaces:
+                if space.type != 'VIEW_3D': continue
+                if len(space.region_quadviews) > 0: return True
+        return False
+
+
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
         bl_label = f'RetopoFlow {retopoflow_version}{" (git)" if configoptions.retopoflow_version_git else " (self)" if not configoptions.retopoflow_cgcookie_built else ""}'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
+        # bl_ui_units_x = 100
 
         @staticmethod
-        def has_sources(context):
-            return retopoflow.RetopoFlow.has_valid_source()
+        def draw_popover(self, context):
+            if is_editing_target(context):
+                self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
+            self.layout.popover('VIEW3D_PT_RetopoFlow')
 
-        @staticmethod
-        def is_editing_target(context):
-            obj = context.active_object
-            mode_string = context.mode
-            edit_object = context.edit_object
-            gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
-            return not gp_edit and edit_object and mode_string == 'EDIT_MESH'
+        def draw(self, context):
+            layout = self.layout
+            layout.label(text=self.bl_label)
 
-        @staticmethod
-        def are_sources_too_big(context):
-            # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
-            total = 0
-            for src in retopoflow.RetopoFlow.get_sources():
-                total += len(src.data.polygons)
-            m = convert_numstr_num(options['warning max sources'])
-            return total > m
+    class VIEW3D_PT_RetopoFlow_Warnings(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'WARNINGS!'
 
-        @staticmethod
-        def is_target_too_big(context):
-            # take a look at https://github.com/CoDEmanX/blend_stats/blob/master/blend_stats.py#L98
-            tar = retopoflow.RetopoFlow.get_target()
-            if not tar: return False
-            m = convert_numstr_num(options['warning max target'])
-            return len(tar.data.polygons) > m
+        @classmethod
+        def get_warnings(cls, context):
+            warnings = set()
 
-        @staticmethod
-        def multiple_3dviews(context):
-            views = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
-            return len(views) > 1
+            # source setup checks
+            if not retopoflow.RetopoFlow.get_sources():
+                warnings.add('setup: no sources')
+            elif not all(has_inverse(source.matrix_local) for source in retopoflow.RetopoFlow.get_sources()):
+                warnings.add('setup: source has non-invertible matrix')
 
-        @staticmethod
-        def in_quadview(context):
-            for area in context.window.screen.areas:
-                if area.type != 'VIEW_3D': continue
-                for space in area.spaces:
-                    if space.type != 'VIEW_3D': continue
-                    if len(space.region_quadviews) > 0: return True
-            return False
+            # target setup checks
+            if is_editing_target(context) and not retopoflow.RetopoFlow.get_target():
+                warnings.add('setup: no target')
+            elif retopoflow.RetopoFlow.get_target() and not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local):
+                warnings.add('setup: target has non-invertible matrix')
+
+            # performance checks
+            if is_target_too_big(context):
+                warnings.add('performance: target too big')
+            if are_sources_too_big(context):
+                warnings.add('performance: source too big')
+
+            # layout checks
+            if multiple_3dviews(context):
+                warnings.add('layout: multiple 3dviews')
+            if in_quadview(context):
+                warnings.add('layout. in quad view')
+            if any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D'):
+                warnings.add('layout: view is locked to cursor')
+            if any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D'):
+                warnings.add('layout: view is locked to object')
+
+            # auto save / unsaved checks
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
+                warnings.add('save: auto save is disabled')
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
+                warnings.add('save: unsaved blender file')
+
+            return warnings
+
+        @classmethod
+        def poll(cls, context):
+            return bool(cls.get_warnings(context))
 
         def draw(self, context):
             layout = self.layout
@@ -429,163 +463,197 @@ if import_succeeded:
                     warningbox = layout.box()
                     warningbox.label(text='Warnings', icon='ERROR')
                 return warningbox.box()
-            def add_warning_subbox(label):
+            def get_warning_subbox(label):
                 nonlocal warningsubboxes
                 if label not in warningsubboxes:
-                    box = add_warning().column()
-                    box.label(text=label)
+                    box = layout.box() # add_warning().column()
+                    box.label(text=label, icon='ERROR')
                     warningsubboxes[label] = box
                 return warningsubboxes[label]
 
+            warnings = self.get_warnings(context)
+
             # SETUP CHECKS
-            if not retopoflow.RetopoFlow.get_sources():
-                box = add_warning_subbox('Setup Issue')
+            if 'setup: no sources' in warnings:
+                box = get_warning_subbox('Setup Issue')
                 box.label(text=f'No sources detected', icon='DOT')
-            else:
-                bad_matrix = not all(
-                    has_inverse(source.matrix_local)
-                    for source in retopoflow.RetopoFlow.get_sources()
-                )
-                if bad_matrix:
-                    box = add_warning_subbox('Setup Issue')
-                    box.label(text=f'A source has non-invertible matrix', icon='DOT')
-            if VIEW3D_PT_RetopoFlow.is_editing_target(context) and not retopoflow.RetopoFlow.get_target():
-                box = add_warning_subbox('Setup Issue')
+            if 'setup: source has non-invertible matrix' in warnings:
+                box = get_warning_subbox('Setup Issue')
+                box.label(text=f'A source has non-invertible matrix', icon='DOT')
+            if 'setup: no target' in warnings:
+                box = get_warning_subbox('Setup Issue')
                 box.label(text=f'No target detected', icon='DOT')
-            elif retopoflow.RetopoFlow.get_target():
-                bad_matrix = not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local)
-                if bad_matrix:
-                    box = add_warning_subbox('Setup Issue')
-                    box.label(text=f'Target has non-invertible matrix', icon='DOT')
+            if 'setup: target has non-invertible matrix' in warnings:
+                box = get_warning_subbox('Setup Issue')
+                box.label(text=f'Target has non-invertible matrix', icon='DOT')
 
             # PERFORMANCE CHECKS
-            if VIEW3D_PT_RetopoFlow.is_target_too_big(context):
-                box = add_warning_subbox('Performance Issue')
+            if 'performance: target too big' in warnings:
+                box = get_warning_subbox('Performance Issue')
                 box.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
-            if VIEW3D_PT_RetopoFlow.are_sources_too_big(context):
-                box = add_warning_subbox('Performance Issue')
+            if 'performance: source too big' in warnings:
+                box = get_warning_subbox('Performance Issue')
                 box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
 
             # LAYOUT
-            if VIEW3D_PT_RetopoFlow.multiple_3dviews(context):
-                box = add_warning_subbox('Layout Issue')
+            if 'layout: multiple views' in warnings:
+                box = get_warning_subbox('Layout Issue')
                 box.label(text='Multiple 3D Views', icon='DOT')
-            if VIEW3D_PT_RetopoFlow.in_quadview(context):
-                box = add_warning_subbox('Layout Issue')
+            if 'layout: in quad view' in warnings:
+                box = get_warning_subbox('Layout Issue')
                 box.label(text='Quad View will be disabled', icon='DOT')
-            lock_cursor = any(
-                space.lock_cursor
-                for space in context.area.spaces
-                if space.type == 'VIEW_3D'
-            )
-            if lock_cursor:
-                box = add_warning_subbox('Layout Issue')
+            if 'layout: view is locked to cursor' in warnings:
+                box = get_warning_subbox('Layout Issue')
                 box.label(text='View is locked to cursor', icon='DOT')
-            lock_object = any(
-                space.lock_object
-                for space in context.area.spaces
-                if space.type == 'VIEW_3D'
-            )
-            if lock_object:
-                box = add_warning_subbox('Layout Issue')
+            if 'layout: view is locked to object' in warnings:
+                box = get_warning_subbox('Layout Issue')
                 box.label(text='View is locked to object', icon='DOT')
 
             # AUTO SAVE / UNSAVED
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
-                box = add_warning_subbox('Auto Save / Save')
+            if 'save: auto save is disabled' in warnings:
+                box = get_warning_subbox('Auto Save / Save')
                 box.label(text='Auto Save is disabled', icon='DOT')
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
-                box = add_warning_subbox('Auto Save / Save')
+            if 'save: unsaved blender file' in warnings:
+                box = get_warning_subbox('Auto Save / Save')
                 box.label(text='Unsaved Blender file', icon='DOT')
 
             # show button for more warning details
-            if warningbox:
-                warningbox.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
+            layout.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
 
-            box = layout.box()
-            if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                # currently editing target, so show RF tools
-                box.label(text='Start RetopoFlow with Edit Mesh')
-                col = box.column()
-                for c in RF_tool_classes:
-                    col.operator(c.bl_idname)
-            else:
-                box.label(text='Create New RetopoFlow Target')
-                col = box.column()
-                # currently not editing target, so show operator to create new target
-                col.operator('cgcookie.retopoflow_newtarget_cursor', icon='ADD') #'ORIENTATION_CURSOR')
-                col.operator('cgcookie.retopoflow_newtarget_active', icon='ADD') #'OBJECT_ORIGIN')
 
-            box = layout.box()
-            box.label(text='Help and Support') # , icon='QUESTION')
-            col = box.column()
-            col.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
-            col.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
-            col.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
-            col.operator('cgcookie.retopoflow_help_faq', icon='HELP')
+    class VIEW3D_PT_RetopoFlow_EditMesh(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Continue Editing Target'
 
-            col = box.column()
-            col.operator('cgcookie.retopoflow_help_online', icon='HELP')
+        @classmethod
+        def poll(cls, context):
+            return is_editing_target(context)
 
-            col = box.column()
-            col.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+        def draw(self, context):
+            layout = self.layout
+            # currently editing target, so show RF tools
+            for c in RF_tool_classes:
+                layout.operator(c.bl_idname)
 
-            box = layout.box()
-            box.label(text='Config')
-            box.operator('cgcookie.retopoflow_keymap', icon='PREFERENCES')
+    class VIEW3D_PT_RetopoFlow_CreateNew(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Create New Target'
 
-            box = layout.box()
-            box.label(text='Auto Save') # , icon='FILE_TICK')
-            box.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
+        @classmethod
+        def poll(cls, context):
+            return not is_editing_target(context)
+
+        def draw(self, context):
+            layout = self.layout
+            row = layout.row()
+            row.operator('cgcookie.retopoflow_newtarget_cursor', text='at Cursor', icon='ADD') #'ORIENTATION_CURSOR')
+            row.operator('cgcookie.retopoflow_newtarget_active', text='at Active', icon='ADD') #'OBJECT_ORIGIN')
+
+    class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Help and Support'
+
+        def draw(self, context):
+            layout = self.layout
+
+            row = layout.row()
+            row.label(text='Quick Start Guide')
+            row.operator('cgcookie.retopoflow_help_quickstartguide', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_quickstartguide', text='', icon='URL')
+
+            row = layout.row()
+            row.label(text='Welcome Message')
+            row.operator('cgcookie.retopoflow_help_welcomemessage', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_welcomemessage', text='', icon='URL')
+
+            row = layout.row()
+            row.label(text='Table of Contents')
+            row.operator('cgcookie.retopoflow_help_tableofcontents', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_tableofcontents', text='', icon='URL')
+
+            row = layout.row()
+            row.label(text='FAQ')
+            row.operator('cgcookie.retopoflow_help_faq', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_faq', text='', icon='URL')
+
+            # layout.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
+            # layout.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
+            # layout.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
+            # layout.operator('cgcookie.retopoflow_help_faq', icon='HELP')
+
+            # layout.separator()
+            # layout.operator('cgcookie.retopoflow_online_main', icon='HELP')
+
+            layout.separator()
+            layout.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+
+    class VIEW3D_PT_RetopoFlow_Config(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Configuration'
+
+        def draw(self, context):
+            layout = self.layout
+
+            row = layout.row()
+            row.operator('cgcookie.retopoflow_keymapeditor', icon='PREFERENCES')
+            row.operator('cgcookie.retopoflow_help_keymapeditor', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
+
+
+    class VIEW3D_PT_RetopoFlow_AutoSave(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Auto Save'
+
+        def draw(self, context):
+            layout = self.layout
+            layout.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
             # if retopoflow.RetopoFlow.has_backup():
             #     box.label(text=options['last auto save path'])
 
-            box = layout.box()
-            box.label(text='RetopoFlow Updater')
-            col = box.column()
+
+    class VIEW3D_PT_RetopoFlow_Updater(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Updater'
+
+        def draw(self, context):
+            layout = self.layout
             if configoptions.retopoflow_version_git:
-                col.label(text='RetopoFlow under Git control', icon='DOT')
-                col.label(text='Use Git to Pull latest updates', icon='DOT')
+                box = layout.box().column()
+                box.label(text='RetopoFlow under Git control') #, icon='DOT')
+                box.label(text='Use Git to Pull latest updates') #, icon='DOT')
                 # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
             else:
-                col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
-                col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
-                col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-                # col.operator('cgcookie.retopoflow_help_updater', text='Updater System Help', icon='HELP')
+                layout.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+                layout.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
 
-        #############################################################################
-        # the following two methods add/remove RF to/from the main 3D View menu
-        # NOTE: this is a total hack: hijacked the draw function!
-        @staticmethod
-        def menu_add():
-            # for more icon options, see:
-            #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
-            VIEW3D_PT_RetopoFlow.menu_remove()
-            VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
+                layout.separator()
+                row = layout.row()
+                row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+                row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
 
-            def hijacked(context, layout):
-                obj = context.active_object
-                mode_string = context.mode
-                edit_object = context.edit_object
-                gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
-
-                VIEW3D_PT_RetopoFlow._menu_original(context, layout)
-
-                if context.mode in {'EDIT_MESH', 'OBJECT'}:
-                    row = layout.row(align=True)
-                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-                    if VIEW3D_PT_RetopoFlow.is_editing_target(context):
-                        row.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
-                    row.popover(panel="VIEW3D_PT_RetopoFlow", text=VIEW3D_PT_RetopoFlow.bl_label)
-
-            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
-
-        @staticmethod
-        def menu_remove():
-            if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
-            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
-            del VIEW3D_PT_RetopoFlow._menu_original
-    RF_classes += [VIEW3D_PT_RetopoFlow]
+    RF_classes += [
+        VIEW3D_PT_RetopoFlow,
+        VIEW3D_PT_RetopoFlow_Warnings,
+        VIEW3D_PT_RetopoFlow_CreateNew,
+        VIEW3D_PT_RetopoFlow_EditMesh,
+        VIEW3D_PT_RetopoFlow_HelpAndSupport,
+        VIEW3D_PT_RetopoFlow_Config,
+        VIEW3D_PT_RetopoFlow_AutoSave,
+        VIEW3D_PT_RetopoFlow_Updater,
+    ]
 
 
 if not import_succeeded:
@@ -598,6 +666,10 @@ if not import_succeeded:
         bl_label = "RetopoFlow (broken)"
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
+
+        @staticmethod
+        def draw_popover(self, context):
+            self.layout.popover('VIEW3D_PT_RetopoFlow')
 
         def draw(self, context):
             layout = self.layout
@@ -621,36 +693,6 @@ if not import_succeeded:
             box = layout.box()
             box.operator('cgcookie.retopoflow_blendermarket', icon='URL')
 
-        #############################################################################
-        # the following two methods add/remove RF to/from the main 3D View menu
-        # NOTE: this is a total hack: hijacked the draw function!
-        @staticmethod
-        def menu_add():
-            # for more icon options, see:
-            #     https://docs.blender.org/api/current/bpy.types.UILayout.html#bpy.types.UILayout.operator
-            VIEW3D_PT_RetopoFlow.menu_remove()
-            VIEW3D_PT_RetopoFlow._menu_original = bpy.types.VIEW3D_MT_editor_menus.draw_collapsible
-
-            def hijacked(context, layout):
-                obj = context.active_object
-                mode_string = context.mode
-                edit_object = context.edit_object
-                gp_edit = obj and obj.mode in {'EDIT_GPENCIL', 'PAINT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}
-
-                VIEW3D_PT_RetopoFlow._menu_original(context, layout)
-
-                if context.mode in {'EDIT_MESH', 'OBJECT'} and retopoflow.RetopoFlow.get_sources(): # context.object and context.object.mode in {'EDIT', 'OBJECT'}:
-                    row = layout.row(align=True)
-                    # row.menu("VIEW3D_PT_RetopoFlow", text="RetopoFlow")
-                    row.popover(panel="VIEW3D_PT_RetopoFlow", text="RetopoFlow (broken)")
-
-            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = hijacked
-
-        @staticmethod
-        def menu_remove():
-            if not hasattr(VIEW3D_PT_RetopoFlow, '_menu_original'): return
-            bpy.types.VIEW3D_MT_editor_menus.draw_collapsible = VIEW3D_PT_RetopoFlow._menu_original
-            del VIEW3D_PT_RetopoFlow._menu_original
     RF_classes += [VIEW3D_PT_RetopoFlow]
 
 
@@ -658,11 +700,11 @@ if not import_succeeded:
 def register():
     for cls in RF_classes: bpy.utils.register_class(cls)
     if import_succeeded: updater.register(bl_info)
-    VIEW3D_PT_RetopoFlow.menu_add()
+    bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 
 def unregister():
     if import_succeeded: retopoflow.preload_help_images.quit = True
-    VIEW3D_PT_RetopoFlow.menu_remove()
+    bpy.types.VIEW3D_MT_editor_menus.remove(VIEW3D_PT_RetopoFlow.draw_popover)
     if import_succeeded: updater.unregister()
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)
 
