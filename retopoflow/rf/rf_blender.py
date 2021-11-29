@@ -280,6 +280,8 @@ class RetopoFlow_Blender:
                                 data_space['show_gizmo'] = space.show_gizmo
                                 data_space['show_overlays'] = space.overlay.show_overlays
                                 data_space['show_region_header'] = space.show_region_header
+                                if hasattr(space, 'show_region_tool_header'):
+                                    data_space['show_region_tool_header'] = space.show_region_tool_header
                                 data_space['shading.type'] = space.shading.type
                                 if space == find_space:
                                     data_space['the_space'] = True
@@ -333,6 +335,8 @@ class RetopoFlow_Blender:
                         space.show_gizmo = data_space['show_gizmo']
                         space.overlay.show_overlays = data_space['show_overlays']
                         space.show_region_header = data_space['show_region_header']
+                        if hasattr(space, 'show_region_tool_header'):
+                            space.show_region_tool_header = data_space['show_region_tool_header']
                         space.shading.type = data_space['shading.type']
                         if not ignore_panels:
                             if hasattr(space, 'show_region_toolbar') and 'toolbar' in data_space:

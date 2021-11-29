@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
-from .decorators import blender_version_wrapper
+from .decorators import blender_version_wrapper, only_in_blender_version
 
 @blender_version_wrapper("<=", "2.79")
 def get_preferences(ctx=None):
@@ -202,12 +202,16 @@ def set_active_object(o): bpy.context.view_layer.objects.active = o
 # see https://docs.blender.org/api/current/bpy.context.html
 def get_active_object(): return bpy.context.view_layer.objects.active
 
-@blender_version_wrapper('<=', '2.79')
+@only_in_blender_version('<= 2.79')
 def toggle_screen_header(ctx): bpy.ops.screen.header(ctx)
-@blender_version_wrapper('>=', '2.80')
+@only_in_blender_version('>= 2.80', '< 3.00')
 def toggle_screen_header(ctx):
     space = ctx['space_data'] if type(ctx) is dict else ctx.space_data
     space.show_region_header = not space.show_region_header
+@only_in_blender_version('>= 3.00')
+def toggle_screen_header(ctx):
+    space = ctx['space_data'] if type(ctx) is dict else ctx.space_data
+    space.show_region_tool_header = not space.show_region_tool_header
 
 @blender_version_wrapper('<=', '2.79')
 def toggle_screen_toolbar(ctx):
