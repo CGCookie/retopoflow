@@ -210,6 +210,13 @@ def toggle_screen_header(ctx):
     space.show_region_header = not space.show_region_header
 @only_in_blender_version('>= 3.00')
 def toggle_screen_header(ctx):
+    print(f'Addon Common Warning: Cannot toggle header visibility (addon_common/common/blender.py: toggle_screen_header)')
+    print(f'  Skipping while bug exists in Blender 3.0+, see: https://developer.blender.org/T93410')
+
+@only_in_blender_version('< 3.00')
+def toggle_screen_tool_header(ctx): pass
+@only_in_blender_version('>= 3.00')
+def toggle_screen_tool_header(ctx):
     space = ctx['space_data'] if type(ctx) is dict else ctx.space_data
     space.show_region_tool_header = not space.show_region_tool_header
 

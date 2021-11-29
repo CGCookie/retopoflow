@@ -26,7 +26,12 @@ from ..common.decorators import blender_version_wrapper
 from ..common.debug import debugger
 from ..common.drawing import Drawing
 from ..common.utils import iter_head
-from ..common.blender import toggle_screen_header, toggle_screen_toolbar, toggle_screen_properties, toggle_screen_lastop
+from ..common.blender import (
+    toggle_screen_header, toggle_screen_tool_header,
+    toggle_screen_toolbar,
+    toggle_screen_properties,
+    toggle_screen_lastop,
+    )
 
 
 class CookieCutter_Blender:
@@ -95,54 +100,68 @@ class CookieCutter_Blender:
         #     279: [ HEADER, TOOLS, TOOL_PROPS, UI,  WINDOW ]
         #     280: [ HEADER, TOOLS, UI,         HUD, WINDOW ]
         #            0       1      2           3   4
+        #     300: [ HEADER, TOOL_HEADER, TOOLS, UI, HUD, WINDOW ]
+        #            0       1            2      3   3    4
         # could hard code the indices, but these magic numbers might change.
         # will stick to magic (but also way more descriptive) types
-        rgn_header = iter_head(r for r in self._area.regions if r.type == 'HEADER')
-        rgn_toolshelf = iter_head(r for r in self._area.regions if r.type == 'TOOLS')
-        rgn_properties = iter_head(r for r in self._area.regions if r.type == 'UI')
-        rgn_hud = iter_head(r for r in self._area.regions if r.type == 'HUD')
-        return (rgn_header, rgn_toolshelf, rgn_properties, rgn_hud)
+        return {
+            label: iter_head(r for r in self._area.regions if r.type == rtype)
+            for (label, rtype) in {
+                'header':      'HEADER',
+                'tool header': 'TOOL_HEADER',
+                'tool shelf':  'TOOLS',
+                'properties':  'UI',
+                'hud':         'HUD',
+            }.items()
+        }
 
     def panels_store(self):
-        rgn_header,rgn_toolshelf,rgn_properties,rgn_hud = self._cc_panels_get_details()
-        show_header,show_toolshelf,show_properties = rgn_header.height>1, rgn_toolshelf.width>1, rgn_properties.width>1
-        show_hud = rgn_hud.width>1 if rgn_hud else False
-        self._show_header = show_header
-        self._show_toolshelf = show_toolshelf
-        self._show_properties = show_properties
-        self._show_hud = show_hud
+        rgns = self._cc_panels_get_details()
+        self._show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
+        self._show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
+        self._show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
+        self._show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
+        self._show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
 
     def panels_restore(self):
-        rgn_header,rgn_toolshelf,rgn_properties,rgn_hud = self._cc_panels_get_details()
-        show_header,show_toolshelf,show_properties = rgn_header.height>1, rgn_toolshelf.width>1, rgn_properties.width>1
-        show_hud = rgn_hud.width>1 if rgn_hud else False
+        rgns = self._cc_panels_get_details()
+        show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
+        show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
+        show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
+        show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
+        show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
         ctx = {
-            'area': self._area,
+            'area':       self._area,
             'space_data': self._space,
-            'window': self._window,
-            'screen': self._screen,
-            'region': self._region,
+            'window':     self._window,
+            'screen':     self._screen,
+            'region':     self._region,
         }
-        if self._show_header and not show_header: toggle_screen_header(ctx)
-        if self._show_toolshelf and not show_toolshelf: toggle_screen_toolbar(ctx)
+        if self._show_header     and not show_header:     toggle_screen_header(ctx)
+        if self._show_toolheader and not show_toolheader: toggle_screen_tool_header(ctx)
+        if self._show_toolshelf  and not show_toolshelf:  toggle_screen_toolbar(ctx)
         if self._show_properties and not show_properties: toggle_screen_properties(ctx)
-        if self._show_hud and not show_hud: toggle_screen_lastop(ctx)
+        if self._show_hud        and not show_hud:        toggle_screen_lastop(ctx)
 
     def panels_hide(self):
-        rgn_header,rgn_toolshelf,rgn_properties,rgn_hud = self._cc_panels_get_details()
-        show_header,show_toolshelf,show_properties = rgn_header.height>1, rgn_toolshelf.width>1, rgn_properties.width>1
-        show_hud = rgn_hud.width>1 if rgn_hud else False
+        rgns = self._cc_panels_get_details()
+        show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
+        show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
+        show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
+        show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
+        show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
         ctx = {
-            'area': self._area,
+            'area':       self._area,
             'space_data': self._space,
-            'window': self._window,
-            'screen': self._screen,
-            'region': self._region,
+            'window':     self._window,
+            'screen':     self._screen,
+            'region':     self._region,
         }
-        if show_header: toggle_screen_header(ctx)
-        if show_toolshelf: toggle_screen_toolbar(ctx)
+        if show_header:     toggle_screen_header(ctx)
+        if show_toolheader: toggle_screen_tool_header(ctx)
+        if show_toolshelf:  toggle_screen_toolbar(ctx)
         if show_properties: toggle_screen_properties(ctx)
-        if show_hud: toggle_screen_lastop(ctx)
+        if show_hud:        toggle_screen_lastop(ctx)
 
 
     #########################################
