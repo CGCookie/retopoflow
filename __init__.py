@@ -140,6 +140,7 @@ if import_succeeded:
             ('Table of Contents', 'table_of_contents'),
             ('FAQ', 'faq'),
             ('Keymap Editor', 'keymap_editor'),
+            ('Updater System', 'addon_updater'),
         ]
         for cls in [
             VIEW3D_OT_RetopoFlow_Help_Factory(*args),
@@ -170,17 +171,6 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
-    class VIEW3D_OT_RetopoFlow_Help_Updater(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Updater Help"""
-        bl_idname = "cgcookie.retopoflow_help_updater"
-        bl_label = "Updater Help"
-        bl_description = "Open RetopoFlow Updater Help"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'addon_updater.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Updater]
-
     class VIEW3D_OT_RetopoFlow_KeymapEditor(keymapsystem.RetopoFlow_OpenKeymapSystem):
         """Open RetopoFlow Keymap Editor"""
         bl_idname = "cgcookie.retopoflow_keymapeditor"
@@ -190,17 +180,6 @@ if import_succeeded:
         bl_region_type = "TOOLS"
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_KeymapEditor]
-
-    # class VIEW3D_OT_RetopoFlow_Help_Keymap(helpsystem.RetopoFlow_OpenHelpSystem):
-    #     """Open RetopoFlow Keymap Editor Help"""
-    #     bl_idname = "cgcookie.retopoflow_help_keymap"
-    #     bl_label = "Keymap Editor Help"
-    #     bl_description = "Open RetopoFlow Keymap Editor Help"
-    #     bl_space_type = "VIEW_3D"
-    #     bl_region_type = "TOOLS"
-    #     bl_options = set()
-    #     rf_startdoc = 'keymap_editor.md'
-    # RF_classes += [VIEW3D_OT_RetopoFlow_Help_Keymap]
 
     if options['preload help images']: retopoflow.preload_help_images()
 
@@ -658,8 +637,12 @@ if import_succeeded:
             else:
                 layout.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
                 layout.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
-                layout.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-                # col.operator('cgcookie.retopoflow_help_updater', text='Updater System Help', icon='HELP')
+
+                layout.separator()
+                row = layout.row()
+                row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+                row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
 
     RF_classes += [
         VIEW3D_PT_RetopoFlow,
