@@ -776,6 +776,8 @@ div#helpsystem-buttons > button {
     display: inline;
     width: 25%;
     text-align: center;
+    overflow: hidden;
+    white-space: pre;
 }
 
 
