@@ -75,7 +75,7 @@ else:
             from .config import options as configoptions
             from .retopoflow import updater
             from .addon_common.common.maths import convert_numstr_num, has_inverse
-            from .addon_common.common.blender import get_active_object
+            from .addon_common.common.blender import get_active_object, BlenderIcon
             from .retopoflow import rftool
         options = configoptions.options
         retopoflow_version = configoptions.retopoflow_version
@@ -95,6 +95,11 @@ else:
 
 # the classes to register/unregister
 RF_classes = []
+
+
+# point BlenderIcon to correct icon path
+if import_succeeded:
+    BlenderIcon.path_icons = os.path.join(os.path.dirname(__file__), 'icons')
 
 
 if import_succeeded:
@@ -136,11 +141,11 @@ if import_succeeded:
         cls
         for args in [
             ('Quick Start Guide', 'quick_start'),
-            ('Welcome Message', 'welcome'),
+            ('Welcome Message',   'welcome'),
             ('Table of Contents', 'table_of_contents'),
-            ('FAQ', 'faq'),
-            ('Keymap Editor', 'keymap_editor'),
-            ('Updater System', 'addon_updater'),
+            ('FAQ',               'faq'),
+            ('Keymap Editor',     'keymap_editor'),
+            ('Updater System',    'addon_updater'),
         ]
         for cls in [
             VIEW3D_OT_RetopoFlow_Help_Factory(*args),
@@ -304,15 +309,16 @@ if import_succeeded:
         description = rftool.description
         class VIEW3D_OT_RetopoFlow_Tool(retopoflow.RetopoFlow):
             """Start RetopoFlow with a specific tool"""
-            bl_idname = "cgcookie.retopoflow_%s" % name.lower()
-            bl_label = "RF: %s" % name
-            bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nStart with %s: %s" % (name, description)
+            bl_idname = f'cgcookie.retopoflow_{name.lower()}'
+            bl_label = f'RF: {name}'
+            bl_description = f'A suite of retopology tools for Blender through a unified retopology mode.\nStart with {name}: {description}'
             bl_space_type = "VIEW_3D"
             bl_region_type = "TOOLS"
             bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
             rf_starting_tool = name
+            icon_id = rftool.icon_id
         # just in case: remove spaces, so that class name is proper
-        VIEW3D_OT_RetopoFlow_Tool.__name__ = 'VIEW3D_OT_RetopoFlow_%s' % name.replace(' ', '')
+        VIEW3D_OT_RetopoFlow_Tool.__name__ = f'VIEW3D_OT_RetopoFlow_{name.replace(" ", "")}'
         return VIEW3D_OT_RetopoFlow_Tool
     RF_tool_classes = [
         VIEW3D_OT_RetopoFlow_Tool_Factory(rftool)
@@ -533,9 +539,22 @@ if import_succeeded:
 
         def draw(self, context):
             layout = self.layout
-            # currently editing target, so show RF tools
-            for c in RF_tool_classes:
-                layout.operator(c.bl_idname)
+
+            if False:
+                # currently editing target, so show RF tools
+                for c in RF_tool_classes:
+                    layout.operator(c.bl_idname, text=c.rf_starting_tool, icon_value=c.icon_id)
+            else:
+                col = layout.column(align=True)
+                col.operator('cgcookie.retopoflow')
+
+                buttons = col.grid_flow(
+                    columns=len(RF_tool_classes),
+                    even_columns=True,
+                    align=True,
+                )
+                for c in RF_tool_classes:
+                    buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
 
     class VIEW3D_PT_RetopoFlow_CreateNew(Panel):
         bl_space_type = 'VIEW_3D'
@@ -562,36 +581,33 @@ if import_succeeded:
         def draw(self, context):
             layout = self.layout
 
-            row = layout.row()
+            col = layout.column(align=True)
+
+            row = col.row(align=True)
             row.label(text='Quick Start Guide')
             row.operator('cgcookie.retopoflow_help_quickstartguide', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_quickstartguide', text='', icon='URL')
 
-            row = layout.row()
+            row = col.row(align=True)
             row.label(text='Welcome Message')
             row.operator('cgcookie.retopoflow_help_welcomemessage', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_welcomemessage', text='', icon='URL')
 
-            row = layout.row()
+            row = col.row(align=True)
             row.label(text='Table of Contents')
             row.operator('cgcookie.retopoflow_help_tableofcontents', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_tableofcontents', text='', icon='URL')
 
-            row = layout.row()
+            row = col.row(align=True)
             row.label(text='FAQ')
             row.operator('cgcookie.retopoflow_help_faq', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_faq', text='', icon='URL')
 
-            # layout.operator('cgcookie.retopoflow_help_quickstart', icon='HELP')
-            # layout.operator('cgcookie.retopoflow_help_welcome', icon='HELP')
-            # layout.operator('cgcookie.retopoflow_help_tableofcontents', icon='HELP')
-            # layout.operator('cgcookie.retopoflow_help_faq', icon='HELP')
+            # col.separator()
+            # col.operator('cgcookie.retopoflow_online_main', icon='HELP')
 
-            # layout.separator()
-            # layout.operator('cgcookie.retopoflow_online_main', icon='HELP')
-
-            layout.separator()
-            layout.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+            col.separator()
+            col.operator('cgcookie.retopoflow_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
     class VIEW3D_PT_RetopoFlow_Config(Panel):
         bl_space_type = 'VIEW_3D'
@@ -602,7 +618,7 @@ if import_succeeded:
         def draw(self, context):
             layout = self.layout
 
-            row = layout.row()
+            row = layout.row(align=True)
             row.operator('cgcookie.retopoflow_keymapeditor', icon='PREFERENCES')
             row.operator('cgcookie.retopoflow_help_keymapeditor', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
@@ -630,16 +646,17 @@ if import_succeeded:
         def draw(self, context):
             layout = self.layout
             if configoptions.retopoflow_version_git:
-                box = layout.box().column()
+                box = layout.box().column(align=True)
                 box.label(text='RetopoFlow under Git control') #, icon='DOT')
                 box.label(text='Use Git to Pull latest updates') #, icon='DOT')
                 # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
             else:
-                layout.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
-                layout.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
+                col = layout.column(align=True)
+                col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+                col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
 
-                layout.separator()
-                row = layout.row()
+                col.separator()
+                row = col.row(align=True)
                 row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
                 row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
                 row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')

@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 from functools import wraps
 
+from ..addon_common.common.blender import BlenderIcon
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.functools import find_fns
 from ..addon_common.common.drawing import DrawCallbacks
@@ -157,3 +158,7 @@ class RFTool:
     def _draw_post3d(self): self._draw.post3d()
     def _draw_post2d(self): self._draw.post2d()
 
+    @classmethod
+    @property
+    def icon_id(cls):
+        return BlenderIcon.icon_id(cls.icon)

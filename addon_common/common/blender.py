@@ -19,7 +19,9 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import os
 import bpy
+import bpy.utils.previews
 from .decorators import blender_version_wrapper, only_in_blender_version
 
 @blender_version_wrapper("<=", "2.79")
@@ -28,6 +30,23 @@ def get_preferences(ctx=None):
 @blender_version_wrapper(">=", "2.80")
 def get_preferences(ctx=None):
     return (ctx if ctx else bpy.context).preferences
+
+#############################################################
+
+class BlenderIcon:
+    blender_icons = bpy.utils.previews.new()
+    path_icons = os.path.join(os.path.dirname(__file__), '..', '..')  # default to add-on root
+
+    @staticmethod
+    def icon_id(file):
+        if file not in BlenderIcon.blender_icons:
+            BlenderIcon.blender_icons.load(
+                file,
+                os.path.join(BlenderIcon.path_icons, file),
+                'IMAGE',
+            )
+        return BlenderIcon.blender_icons[file].icon_id
+
 
 #############################################################
 
