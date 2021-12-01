@@ -49,7 +49,7 @@ from ...config.options import (
     retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
-    gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
+    gpu_info,
 )
 
 def get_environment_details():
@@ -66,7 +66,7 @@ def get_environment_details():
         env_details += ['- CG Cookie built']
     env_details += [f'- Blender: {blender_version} {blender_branch} {blender_date}']
     env_details += [f'- Platform: {platform_system}, {platform_release}, {platform_version}, {platform_machine}, {platform_processor}']
-    env_details += [f'- GPU: {gpu_vendor}, {gpu_renderer}, {gpu_version}, {gpu_shading}']
+    env_details += [f'- GPU: {gpu_info}']
     env_details += [f'- Timestamp: {datetime.today().isoformat(" ")}']
 
     return '\n'.join(env_details)

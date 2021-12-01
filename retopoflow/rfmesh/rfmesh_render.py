@@ -115,9 +115,9 @@ class RFMeshRender():
         self.load_faces = opts.get('load faces', True)
 
         self.buf_data_queue     = Queue()
-        self.buf_matrix_model   = rfmesh.xform.to_bglMatrix_Model()
-        self.buf_matrix_inverse = rfmesh.xform.to_bglMatrix_Inverse()
-        self.buf_matrix_normal  = rfmesh.xform.to_bglMatrix_Normal()
+        self.buf_matrix_model   = rfmesh.xform.to_gpubuffer_Model()
+        self.buf_matrix_inverse = rfmesh.xform.to_gpubuffer_Inverse()
+        self.buf_matrix_normal  = rfmesh.xform.to_gpubuffer_Normal()
         self.buffered_renders_static  = []
         self.buffered_renders_dynamic = []
         self.split   = None
@@ -157,14 +157,11 @@ class RFMeshRender():
         self.rfmesh_version = None
 
     @profiler.function
-    def add_buffered_render(self, bgl_type, data, static):
-        batch = BufferedRender_Batch(bgl_type)
+    def add_buffered_render(self, draw_type, data, static):
+        batch = BufferedRender_Batch(draw_type)
         batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'])
         if static: self.buffered_renders_static.append(batch)
         else:      self.buffered_renders_dynamic.append(batch)
-        # buffered_render = BGLBufferedRender(bgl_type)
-        # buffered_render.buffer(data['vco'], data['vno'], data['sel'], data['idx'])
-        # self.buffered_renders.append(buffered_render)
 
     def split_visualization(self, verts=None, edges=None, faces=None):
         if not verts and not edges and not faces:
@@ -275,9 +272,9 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_TRIANGLES, face_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.TRIANGLES, face_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_TRIANGLES, face_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.TRIANGLES, face_data, static)
 
                     if self.load_edges:
                         edges = [bme for bme in edges if bme.is_valid and not bme.hide]
@@ -308,9 +305,9 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_LINES, edge_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.LINES, edge_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_LINES, edge_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.LINES, edge_data, static)
 
                     if self.load_verts:
                         verts = [bmv for bmv in verts if bmv.is_valid and not bmv.hide]
@@ -325,9 +322,9 @@ class RFMeshRender():
                                 'idx': None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
-                                self.buf_data_queue.put((bgl.GL_POINTS, vert_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.POINTS, vert_data, static))
                             else:
-                                self.add_buffered_render(bgl.GL_POINTS, vert_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.POINTS, vert_data, static)
 
                     if self.async_load:
                         self.buf_data_queue.put('done')

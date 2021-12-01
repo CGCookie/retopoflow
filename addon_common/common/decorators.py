@@ -211,13 +211,13 @@ def blender_version_wrapper(op, ver):
         return callit
     return wrapit
 
-re_blender_version = re.compile(r'(?P<comparison><|<=|==|>=|>) *(?P<version>\d\.\d\d)')
-def only_in_blender_version(*args):
+def only_in_blender_version(*args, ignore_others=False, ignore_return=None):
     self = only_in_blender_version
     if not hasattr(self, 'fns'):
         major, minor, rev = bpy.app.version
         self.blenderver = '%d.%02d' % (major, minor)
-        self.fns = fns = {}
+        self.fns = {}
+        self.ignores = {}
         self.ops = {
             '<':  lambda v: self.blenderver <  v,
             '>':  lambda v: self.blenderver >  v,
@@ -226,29 +226,48 @@ def only_in_blender_version(*args):
             '>=': lambda v: self.blenderver >= v,
             '!=': lambda v: self.blenderver != v,
         }
+        self.re_blender_version = re.compile(r'^(?P<comparison><|<=|==|!=|>=|>) *(?P<version>\d\.\d\d)$')
 
-    matches = [re_blender_version.match(arg) for arg in args]
-    assert all(match is not None for match in matches), f'at least one arg did not match version comparison: {args}'
+    matches = [self.re_blender_version.match(arg) for arg in args]
+    assert all(match is not None for match in matches), f'At least one arg did not match version comparison: {args}'
     results = [self.ops[match.group('comparison')](match.group('version')) for match in matches]
-    update_fn = all(results)
-    def wrapit(fn):
-        nonlocal self, update_fn
-        fn_name = fn.__name__
-        fns = self.fns
-        error_msg = "Could not find appropriate function named %s for version Blender %s" % (fn_name, self.blenderver)
+    version_matches = all(results)
 
-        if update_fn: fns[fn_name] = fn
+    def wrapit(fn):
+        fn_name = fn.__name__
+
+        if version_matches:
+            assert fn_name not in self.fns, f'Multiple functions {fn_name} match the Blender version {self.blenderver}'
+            self.fns[fn_name] = fn
+
+        if ignore_others and fn_name not in self.ignores:
+            self.ignores[fn_name] = ignore_return
 
         @wraps(fn)
         def callit(*args, **kwargs):
-            nonlocal fns, fn_name, error_msg
-            fn = fns.get(fn_name, None)
-            assert fn, error_msg
-            ret = fn(*args, **kwargs)
-            return ret
+            fn = self.fns.get(fn_name, None)
+            if fn_name not in self.ignores:
+                assert fn, f'Could not find appropriate function named {fn_name} for version Blender version {self.blenderver}'
+            elif fn is None:
+                return self.ignores[fn_name]
+            return fn(*args, **kwargs)
 
         return callit
     return wrapit
+
+def warn_once(warning):
+    def wrapper(fn):
+        nonlocal warning
+        @wraps(fn)
+        def wrapped(*args, **kwargs):
+            nonlocal warning
+            if warning:
+                print(warning)
+                warning = None
+            return fn(*args, **kwargs)
+        return wrapped
+    return wrapper
+
 
 class PersistentOptions:
     class WrappedDict:

@@ -27,21 +27,20 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
 # a hack to check if we're under git version control
-is_git = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
+# is_git = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "location":    "View 3D > Header",
-    "blender":     (2, 83, 0),
+    "blender":     (2, 93, 0),
     "version":     (3, 2, 5),
-    "warning":     "Alpha",                   # used for warning icon and text in addons panel
+    # "warning":     "Alpha",                   # used for warning icon and text in addons panel
     # "warning":     "Beta",
     # "warning":     "Release Candidate 1",
     # "warning":     "Release Candidate 2",

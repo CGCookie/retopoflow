@@ -67,18 +67,14 @@ class RetopoFlow_Drawing:
         if not self.loading_done: return
         # if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
 
-        buf_matrix_target = self.rftarget_draw.rfmesh.xform.mx_p # self.rftarget_draw.buf_matrix_model
-        buf_matrix_target_inv = self.rftarget_draw.rfmesh.xform.imx_p # self.rftarget_draw.buf_matrix_inverse
-        buf_matrix_view = self.actions.r3d.view_matrix # XForm.to_bglMatrix(self.actions.r3d.view_matrix)
-        buf_matrix_view_invtrans = matrix_normal(self.actions.r3d.view_matrix) # XForm.to_bglMatrix(matrix_normal(self.actions.r3d.view_matrix))
-        buf_matrix_proj = self.actions.r3d.window_matrix # XForm.to_bglMatrix(self.actions.r3d.window_matrix)
-        view_forward = self.Vec_forward()  # self.actions.r3d.view_rotation * Vector((0,0,-1))
+        buf_matrix_target = self.rftarget_draw.rfmesh.xform.mx_p
+        buf_matrix_target_inv = self.rftarget_draw.rfmesh.xform.imx_p
+        buf_matrix_view = self.actions.r3d.view_matrix
+        buf_matrix_view_invtrans = matrix_normal(self.actions.r3d.view_matrix)
+        buf_matrix_proj = self.actions.r3d.window_matrix
+        view_forward = self.Vec_forward()
 
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
-        # bgl.glEnable(bgl.GL_LINE_SMOOTH)
-        # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glEnable(bgl.GL_POINT_SMOOTH)
 
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
             if options['symmetry view'] in {'Edge', 'Face'}:
@@ -131,9 +127,6 @@ class RetopoFlow_Drawing:
                     drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [b, b, b, b, b, b])
 
         # render target
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
-        # bgl.glEnable(bgl.GL_LINE_SMOOTH)
-        # bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
         bgl.glEnable(bgl.GL_BLEND)
         if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']

@@ -3,7 +3,6 @@ import math
 
 import bpy
 import bmesh
-import bgl
 
 from typing import List, Callable
 

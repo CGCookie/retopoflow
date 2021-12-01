@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 
-import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix

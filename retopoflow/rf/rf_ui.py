@@ -49,7 +49,6 @@ from ...config.options import (
     retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
-    gpu_vendor, gpu_renderer, gpu_version, gpu_shading,
 )
 
 

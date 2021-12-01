@@ -20,7 +20,6 @@ https://github.com/CGCookie/retopoflow
 import math
 
 import bpy
-import bgl
 
 from ..common.decorators import blender_version_wrapper
 from ..common.debug import debugger

@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
-import bgl
 import random
 from mathutils import Matrix, Vector
 

@@ -24,6 +24,9 @@ import time
 import bgl
 import bpy
 from math import isnan
+
+from contextlib import contextmanager
+
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
 
@@ -109,6 +112,15 @@ class Strokes(RFTool):
         self._var_fixed_span_count = BoundInt('''options['strokes span count']''', min_value=1, max_value=128)
         self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
         self._var_loop_count  = BoundInt('''self.loop_count''', min_value=1, max_value=500)
+
+    @contextmanager
+    def defer_recomputing_while(self):
+        try:
+            self.defer_recomputing = True
+            yield
+        finally:
+            self.defer_recomputing = False
+            self.update()
 
     def update_span_mode(self):
         mode = options['strokes span insert mode']
@@ -289,8 +301,6 @@ class Strokes(RFTool):
             self.move_cancelled = 'cancel'
             return 'move'
 
-        # if self.rfcontext.actions.pressed({'increase count', 'decrease count'}, unpress=False):
-        #     print('changing count!', self.strip_crosses, self.strip_loops, self.replay)
         if self.rfcontext.actions.pressed('increase count') and self.replay:
             # print('increase count')
             if self.strip_crosses is not None and not self.strip_edges:
@@ -335,6 +345,7 @@ class Strokes(RFTool):
         stroke3D = [raycast_sources_Point2D(s)[0] for s in stroke]
         stroke3D = [s for s in stroke3D if s]
 
+        # bail if there isn't enough stroke data to work with
         if len(stroke3D) < 2: return
 
         self.strip_stroke3D = stroke3D
@@ -343,17 +354,41 @@ class Strokes(RFTool):
         self.strip_edges = False
         self.replay = None
 
-        cyclic = (stroke[0] - stroke[-1]).length < radius and any((s-stroke[0]).length > radius for s in stroke)
+        # are we extruding or creating a new edge strip/loop?
         extrude = not all(e.is_manifold for e in self.rfcontext.get_selected_edges())
+
+        # is the stroke in a circle?  note: circle must have a large enough radius
+        cyclic = (stroke[0] - stroke[-1]).length < radius and any((s-stroke[0]).length > radius for s in stroke)
+
         if extrude:
             if cyclic:
+                print(f'Extrude Cycle')
                 self.replay = self.extrude_cycle
             else:
+                # need to determine shape of extrusion
+                # key: |- stroke
+                #      C  corner in stroke (roughly 90* angle, but not easy to detect)
+                #      ǁ= edges
+                #      O  vertex under stroke
+                #      X  corner vertex (edges change direction)
+                # notes:
+                # - vertex under stroke must be at beginning or ending of stroke
+                # - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
+                # - L, U, Strip are implemented.  C, T, I, O, D are not implemented
+
+                # L-shape   C-shape   U-shape   Strip    T-shape   I-shape   O-shape   D-shape
+                # |         O------   ǁ     ǁ   ======   ===O===   ===O===   X=====O   O-----C
+                # |         ǁ         ǁ     ǁ               |         |      ǁ     |   ǁ     |
+                # O======   X======   O-----O   ------      |      ===O===   X=====O   O-----C
+
+                # L vs C: there is a corner vertex in the edges (could we extend the L shape??)
+                # D has corners in the stroke, which will be tricky to determine... use acceleration?
+
                 sel_verts = self.rfcontext.get_selected_verts()
                 sel_edges = self.rfcontext.get_selected_edges()
-                s0,s1 = Point_to_Point2D(stroke3D[0]),Point_to_Point2D(stroke3D[-1])
-                bmv0,_ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
-                bmv1,_ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+                s0, s1 = Point_to_Point2D(stroke3D[0]), Point_to_Point2D(stroke3D[-1])
+                bmv0, _ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
+                bmv1, _ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
                 if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
                 if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
                 bmv0_sel = bmv0 and bmv0 in sel_verts
@@ -362,18 +397,24 @@ class Strokes(RFTool):
                     if not bmv0_sel or not bmv1_sel:
                         bmv = bmv0 if bmv0_sel else bmv1
                         if len(set(bmv.link_edges) & sel_edges) == 1:
+                            print(f'Extrude L or C')
                             self.replay = self.extrude_l
                         else:
+                            print(f'Extrude I or T')
                             self.replay = self.extrude_t
                     else:
+                        print(f'Extrude U or O')
                         # XXX: I-shaped extrusions?
-                        self.replay = self.extrude_c
+                        self.replay = self.extrude_u
                 else:
+                    print(f'Extrude Strip')
                     self.replay = self.extrude_strip
         else:
             if cyclic:
+                print(f'Create Cycle')
                 self.replay = self.create_cycle
             else:
+                print(f'Create Strip')
                 self.replay = self.create_strip
 
         # print(self.replay)
@@ -398,15 +439,11 @@ class Strokes(RFTool):
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
 
-        self.defer_recomputing = True
-
-        verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
-        edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
-
-        self.rfcontext.select(edges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+        with self.defer_recomputing_while():
+            verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+            edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=True)]
+            self.rfcontext.select(edges)
+            self.just_created = True
 
     @RFTool.dirty_when_done
     def create_strip(self):
@@ -435,26 +472,23 @@ class Strokes(RFTool):
         if not options['strokes snap stroke'] and snap0 and not snap0.select: snap0 = None
         if not options['strokes snap stroke'] and snap1 and not snap1.select: snap1 = None
 
-        self.defer_recomputing = True
+        with self.defer_recomputing_while():
+            verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+            edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
 
-        verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
-        edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
+            if snap0:
+                co = snap0.co
+                verts[0].merge(snap0)
+                verts[0].co = co
+                self.rfcontext.clean_duplicate_bmedges(verts[0])
+            if snap1:
+                co = snap1.co
+                verts[-1].merge(snap1)
+                verts[-1].co = co
+                self.rfcontext.clean_duplicate_bmedges(verts[-1])
 
-        if snap0:
-            co = snap0.co
-            verts[0].merge(snap0)
-            verts[0].co = co
-            self.rfcontext.clean_duplicate_bmedges(verts[0])
-        if snap1:
-            co = snap1.co
-            verts[-1].merge(snap1)
-            verts[-1].co = co
-            self.rfcontext.clean_duplicate_bmedges(verts[-1])
-
-        self.rfcontext.select(edges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+            self.rfcontext.select(edges)
+            self.just_created = True
 
     @RFTool.dirty_when_done
     def extrude_cycle(self):
@@ -527,48 +561,45 @@ class Strokes(RFTool):
             self.strip_loops = max(1, math.ceil(1))  # TODO: calculate!
         loops = self.strip_loops
 
-        self.defer_recomputing = True
+        with self.defer_recomputing_while():
+            patch = []
+            for i in range(crosses):
+                v = Point_to_Point2D(vert_cycle[i].co)
+                s = nstroke[i]
+                cur_line = [vert_cycle[i]]
+                for j in range(1, loops+1):
+                    pj = j / loops
+                    cur_line.append(self.rfcontext.new2D_vert_point(Point2D.weighted_average([
+                        (pj, s),
+                        (1 - pj, v)
+                    ])))
+                patch.append(cur_line)
+            for i0 in range(crosses):
+                i1 = (i0 + 1) % crosses
+                for j0 in range(loops):
+                    j1 = j0 + 1
+                    self.rfcontext.new_face([patch[i0][j0], patch[i0][j1], patch[i1][j1], patch[i1][j0]])
+            end_verts = [l[-1] for l in patch]
+            edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
 
-        patch = []
-        for i in range(crosses):
-            v = Point_to_Point2D(vert_cycle[i].co)
-            s = nstroke[i]
-            cur_line = [vert_cycle[i]]
-            for j in range(1, loops+1):
-                pj = j / loops
-                cur_line.append(self.rfcontext.new2D_vert_point(Point2D.weighted_average([
-                    (pj, s),
-                    (1 - pj, v)
-                ])))
-            patch.append(cur_line)
-        for i0 in range(crosses):
-            i1 = (i0 + 1) % crosses
-            for j0 in range(loops):
-                j1 = j0 + 1
-                self.rfcontext.new_face([patch[i0][j0], patch[i0][j1], patch[i1][j1], patch[i1][j0]])
-        end_verts = [l[-1] for l in patch]
-        edges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(end_verts, wrap=True)]
-
-        self.rfcontext.select(edges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+            self.rfcontext.select(edges)
+            self.just_created = True
 
     @RFTool.dirty_when_done
-    def extrude_c(self):
+    def extrude_u(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        new2D_vert_point = self.rfcontext.new2D_vert_point
+        new_face = self.rfcontext.new_face
+
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         if not all(stroke): return  # part of stroke cannot project
 
         if self.strip_crosses is not None:
-            self.rfcontext.undo_repush('extrude C')
+            self.rfcontext.undo_repush('extrude U')
         else:
-            self.rfcontext.undo_push('extrude C')
+            self.rfcontext.undo_push('extrude U')
 
         self.rfcontext.get_vis_accel(force=True)
-
-        new2D_vert_point = self.rfcontext.new2D_vert_point
-        new_face = self.rfcontext.new_face
 
         # get selected edges that we can extrude
         edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
@@ -617,33 +648,30 @@ class Strokes(RFTool):
         nstroke = restroke(stroke, percentages)
         nsegments = len(diffs0)
 
-        self.defer_recomputing = True
+        with self.defer_recomputing_while():
+            nedges = []
+            nverts = None
+            for istroke,s in enumerate(nstroke):
+                pverts = nverts
+                if istroke == 0:
+                    nverts = verts0
+                elif istroke == crosses:
+                    nverts = verts1
+                else:
+                    p = istroke / crosses
+                    offsets = [diffs0[i] * (1 - p) + diffs1[i] * p for i in range(nsegments)]
+                    nverts = [new2D_vert_point(s + offset) for offset in offsets]
+                if pverts:
+                    for i in range(len(nverts)-1):
+                        lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
+                        if all(lst) and not has_duplicates(lst):
+                            new_face(lst)
+                    bmv1 = nverts[0]
+                    nedges.append(bmv0.shared_edge(bmv1))
+                    bmv0 = bmv1
 
-        nedges = []
-        nverts = None
-        for istroke,s in enumerate(nstroke):
-            pverts = nverts
-            if istroke == 0:
-                nverts = verts0
-            elif istroke == crosses:
-                nverts = verts1
-            else:
-                p = istroke / crosses
-                offsets = [diffs0[i] * (1 - p) + diffs1[i] * p for i in range(nsegments)]
-                nverts = [new2D_vert_point(s + offset) for offset in offsets]
-            if pverts:
-                for i in range(len(nverts)-1):
-                    lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
-                    if all(lst) and not has_duplicates(lst):
-                        new_face(lst)
-                bmv1 = nverts[0]
-                nedges.append(bmv0.shared_edge(bmv1))
-                bmv0 = bmv1
-
-        self.rfcontext.select(nedges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+            self.rfcontext.select(nedges)
+            self.just_created = True
 
     @RFTool.dirty_when_done
     def extrude_t(self):
@@ -704,24 +732,21 @@ class Strokes(RFTool):
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
 
-        self.defer_recomputing = True
+        with self.defer_recomputing_while():
+            nedges = []
+            for s in nstroke[1:]:
+                pverts = nverts
+                nverts = [new2D_vert_point(s+d) for d in ndiffs]
+                for i in range(len(nverts)-1):
+                    lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
+                    if all(lst) and not has_duplicates(lst):
+                        new_face(lst)
+                bmv1 = nverts[0]
+                nedges.append(bmv0.shared_edge(bmv1))
+                bmv0 = bmv1
 
-        nedges = []
-        for s in nstroke[1:]:
-            pverts = nverts
-            nverts = [new2D_vert_point(s+d) for d in ndiffs]
-            for i in range(len(nverts)-1):
-                lst = [pverts[i], pverts[i+1], nverts[i+1], nverts[i]]
-                if all(lst) and not has_duplicates(lst):
-                    new_face(lst)
-            bmv1 = nverts[0]
-            nedges.append(bmv0.shared_edge(bmv1))
-            bmv0 = bmv1
-
-        self.rfcontext.select(nedges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+            self.rfcontext.select(nedges)
+            self.just_created = True
 
     @RFTool.dirty_when_done
     def extrude_strip(self):
@@ -831,53 +856,50 @@ class Strokes(RFTool):
                 self.strip_crosses = options['strokes span count']
         crosses = self.strip_crosses + 1
 
-        self.defer_recomputing = True
+        with self.defer_recomputing_while():
+            # extrude!
+            patch = []
+            prev, last = None, []
+            for (v0, p1) in zip(verts, nstroke):
+                p0 = Point_to_Point2D(v0.co)
+                cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
+                patch += [cur]
+                last.append(cur[-1])
+                if prev:
+                    for i in range(crosses-1):
+                        nface = [prev[i+0], cur[i+0], cur[i+1], prev[i+1]]
+                        if all(nface):
+                            self.rfcontext.new_face(nface)
+                        else:
+                            for v0,v1 in iter_pairs(nface, True):
+                                if v0 and v1 and not v0.share_edge(v1):
+                                    self.rfcontext.new_edge([v0, v1])
+                prev = cur
 
-        # extrude!
-        patch = []
-        prev, last = None, []
-        for (v0, p1) in zip(verts, nstroke):
-            p0 = Point_to_Point2D(v0.co)
-            cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
-            patch += [cur]
-            last.append(cur[-1])
-            if prev:
-                for i in range(crosses-1):
-                    nface = [prev[i+0], cur[i+0], cur[i+1], prev[i+1]]
-                    if all(nface):
-                        self.rfcontext.new_face(nface)
-                    else:
-                        for v0,v1 in iter_pairs(nface, True):
-                            if v0 and v1 and not v0.share_edge(v1):
-                                self.rfcontext.new_edge([v0, v1])
-            prev = cur
+            edges0 = [e for e in edges0 if e.is_valid]
+            edges1 = [e for e in edges1 if e.is_valid]
 
-        edges0 = [e for e in edges0 if e.is_valid]
-        edges1 = [e for e in edges1 if e.is_valid]
+            if edges0:
+                side_verts = get_strip_verts(edges0)
+                if side_verts[1] == verts[0]: side_verts.reverse()
+                for a,b in zip(side_verts[1:], patch[0][1:]):
+                    co = a.co
+                    b.merge(a)
+                    b.co = co
+                    self.rfcontext.clean_duplicate_bmedges(b)
+            if edges1:
+                side_verts = get_strip_verts(edges1)
+                if side_verts[1] == verts[-1]: side_verts.reverse()
+                for a,b in zip(side_verts[1:], patch[-1][1:]):
+                    co = a.co
+                    b.merge(a)
+                    b.co = co
+                    self.rfcontext.clean_duplicate_bmedges(b)
 
-        if edges0:
-            side_verts = get_strip_verts(edges0)
-            if side_verts[1] == verts[0]: side_verts.reverse()
-            for a,b in zip(side_verts[1:], patch[0][1:]):
-                co = a.co
-                b.merge(a)
-                b.co = co
-                self.rfcontext.clean_duplicate_bmedges(b)
-        if edges1:
-            side_verts = get_strip_verts(edges1)
-            if side_verts[1] == verts[-1]: side_verts.reverse()
-            for a,b in zip(side_verts[1:], patch[-1][1:]):
-                co = a.co
-                b.merge(a)
-                b.co = co
-                self.rfcontext.clean_duplicate_bmedges(b)
+            nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
 
-        nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
-
-        self.rfcontext.select(nedges)
-        self.just_created = True
-        self.defer_recomputing = False
-        self.update()
+            self.rfcontext.select(nedges)
+            self.just_created = True
 
     def mergeSnapped(self):
         """ Merging colocated visible verts """
@@ -909,7 +931,7 @@ class Strokes(RFTool):
             #self.set_next_state()
 
     @FSM.on_state('move', 'enter')
-    def move_enter(self, bmverts=None, defer_recomputing=True):
+    def move_enter(self):
         self.rfcontext.undo_push('move grabbed')
 
         self.move_opts = {
@@ -921,12 +943,11 @@ class Strokes(RFTool):
         vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 
-        if not bmverts: bmverts = sel_verts
-        self.bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in bmverts]
-        self.bmverts = [(bmv, co) for (bmv, co) in self.bmverts if co]
+        bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in sel_verts]
+        self.bmverts = [(bmv, co) for (bmv, co) in bmverts if co]
         self.vis_bmverts = [(bmv, Point_to_Point2D(bmv.co)) for bmv in vis_verts if bmv.is_valid and bmv not in sel_verts]
         self.mousedown = self.rfcontext.actions.mouse
-        self.defer_recomputing = defer_recomputing
+        self.defer_recomputing = True
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)

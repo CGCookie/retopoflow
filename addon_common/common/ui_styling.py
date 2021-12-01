@@ -33,7 +33,6 @@ from itertools import chain, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 from bpy.types import BoolProperty
 from mathutils import Matrix
 

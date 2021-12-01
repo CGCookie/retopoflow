@@ -19,7 +19,6 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bgl
 import bpy
 import math
 from mathutils import Vector, Matrix

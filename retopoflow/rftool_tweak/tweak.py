@@ -19,8 +19,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bgl
-
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushfalloff import RFWidget_BrushFalloff_Factory

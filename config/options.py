@@ -27,9 +27,9 @@ import shelve
 import platform
 import tempfile
 
-import bgl
 import bpy
 
+from ..addon_common.common import gpustate
 from ..addon_common.common.blender import get_preferences
 from ..addon_common.common.debug import Debugger, dprint
 from ..addon_common.common.drawing import Drawing
@@ -47,7 +47,7 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.2.5α'  # α β
+retopoflow_version = '3.2.5'  # α β
 retopoflow_version_tuple = (3, 2, 5)
 
 retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
@@ -86,6 +86,12 @@ get_git_info()
 
 retopoflow_cgcookie_built = os.path.exists(os.path.join(os.path.dirname(__file__), '..', '.cgcookie'))
 
+def override_version_settings():
+    global retopoflow_cgcookie_built, retopoflow_version_git
+    retopoflow_version_git = None
+    retopoflow_cgcookie_built = True
+# override_version_settings()
+
 
 ###########################################
 # Get system info
@@ -93,11 +99,7 @@ retopoflow_cgcookie_built = os.path.exists(os.path.join(os.path.dirname(__file__
 build_platform = bpy.app.build_platform.decode('utf-8')
 retopoflow_git_version = git_info()
 platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor = platform.uname()
-# https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
-gpu_vendor = bgl.glGetString(bgl.GL_VENDOR)
-gpu_renderer = bgl.glGetString(bgl.GL_RENDERER)
-gpu_version = bgl.glGetString(bgl.GL_VERSION)
-gpu_shading = bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)
+gpu_info = gpustate.gpu_info()
 
 print('RetopoFlow git: %s' % str(retopoflow_git_version))
 

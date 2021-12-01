@@ -24,7 +24,7 @@ import random
 import re
 from typing import List
 
-import bgl
+import gpu
 from mathutils import Matrix, Vector, Quaternion
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
@@ -1118,20 +1118,17 @@ class XForm:
     def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
 
     @staticmethod
-    def to_bglMatrix(mat):
-        # return bgl.Buffer(
-        #     bgl.GL_FLOAT, len(mat)**2, [v for r in mat for v in r]
-        # )
-        return bgl.Buffer(bgl.GL_FLOAT, [len(mat), len(mat)], mat)
+    def to_gpubuffer(mat):
+        return gpu.types.Buffer('FLOAT', [len(mat), len(mat)], mat)
 
-    def to_bglMatrix_Model(self):
-        return self.to_bglMatrix(self.mx_p)
+    def to_gpubuffer_Model(self):
+        return self.to_gpubuffer(self.mx_p)
 
-    def to_bglMatrix_Inverse(self):
-        return self.to_bglMatrix(self.imx_p)
+    def to_gpubuffer_Inverse(self):
+        return self.to_gpubuffer(self.imx_p)
 
-    def to_bglMatrix_Normal(self):
-        return self.to_bglMatrix(self.mx_n)
+    def to_gpubuffer_Normal(self):
+        return self.to_gpubuffer(self.mx_n)
 
 
 class BBox:
