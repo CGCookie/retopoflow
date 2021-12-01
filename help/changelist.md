@@ -6,7 +6,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - Worked around a major crashing bug in Blender 3.0 and 3.1
 - Overhauled RetopoFlow's Blender menu, by adding custom icons to buttons, improving the wording, buttons to online help documents, buttons to updater
-- Modifier keys (`Ctrl`, `Shift`, `Alt`, `OSKey`) now show OSX-specific symbols (`^`, `⇧`, `⌥`, `⌘`) for better readability on OSX machines
+- Modifier keys (i.e., `Ctrl`, `Shift`, `Alt`, `OSKey`) now show OSX-specific symbols (i.e., `^`, `⇧`, `⌥`, `⌘`) for better readability on OSX machines
 - Improved keymap editor
 - Minor improvements for smaller screens
 - Started working on improvements for error reporting
