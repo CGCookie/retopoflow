@@ -52,7 +52,8 @@ Temporary file path: `{`options.get_auto_save_filepath()`}`
 RetopoFlow is designed to perform well on _typical_ production retopology scenarios.
 Running RetopoFlow on source/target meshes beyond a reasonable range is possible, but it will result in slower performance and a poorer experience.
 
-A typical retopology workflow would involve <{[warning max sources]} polygons in total for all source meshes and <{[warning max target]} polygons for the target mesh. That's the point at which Blender starts to slow down, and there's not a lot we can do to be faster than Blender itself.
+A typical retopology workflow would involve <{[warning max sources]} polygons in total for all source meshes and <{[warning max target]} polygons for the target mesh.
+Beyond these counts is the point at which Blender starts to slow down, and there's not a lot we can do to be faster than Blender itself.
 
 If your retopology target polygon count exceeds the {[warning max target]} count threshold, please try the following:
 
@@ -66,7 +67,7 @@ If your total source mesh(es) polygon count exceeds the {[warning max sources]} 
 - Create a decimated copy of your source mesh and retopologize the copy. As long as it doesn't noticibly impact the silhouette of the object, decimation won't affect the resulting retopology at all
 - Disable any Subdivision Surface modifiers or lower the Multiresolution Modifier display level
 - Segment your sources into separate parts and retopologize one at a time
-
+- Work in a .blend file that links in the large source meshes.  This may not improve the speed of editing, but it will improve (auto-)save times.
 
 
 ## Inverted Normals

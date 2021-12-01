@@ -399,6 +399,7 @@ if import_succeeded:
 
         @staticmethod
         def draw_popover(self, context):
+            self.layout.separator()
             if is_editing_target(context):
                 self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
             self.layout.popover('VIEW3D_PT_RetopoFlow')
@@ -437,9 +438,9 @@ if import_succeeded:
 
             # layout checks
             if multiple_3dviews(context):
-                warnings.add('layout: multiple 3dviews')
+                warnings.add('layout: multiple 3d views')
             if in_quadview(context):
-                warnings.add('layout. in quad view')
+                warnings.add('layout: in quad view')
             if any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D'):
                 warnings.add('layout: view is locked to cursor')
             if any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D'):
@@ -471,7 +472,7 @@ if import_succeeded:
             def get_warning_subbox(label):
                 nonlocal warningsubboxes
                 if label not in warningsubboxes:
-                    box = layout.box() # add_warning().column()
+                    box = layout.box().column(align=True) # add_warning().column()
                     box.label(text=label, icon='ERROR')
                     warningsubboxes[label] = box
                 return warningsubboxes[label]
@@ -501,7 +502,7 @@ if import_succeeded:
                 box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
 
             # LAYOUT
-            if 'layout: multiple views' in warnings:
+            if 'layout: multiple 3d views' in warnings:
                 box = get_warning_subbox('Layout Issue')
                 box.label(text='Multiple 3D Views', icon='DOT')
             if 'layout: in quad view' in warnings:

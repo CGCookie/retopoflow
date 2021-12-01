@@ -4,8 +4,15 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.2.4&rarr;3.2.5
 
-- Redirected CookieCutter debug output to a text block for easier debugging
-- ...
+- Worked around a major crashing bug in Blender 3.0 and 3.1
+- Overhauled RetopoFlow's Blender menu, by adding custom icons to buttons, improving the wording, buttons to online help documents, buttons to updater
+- Modifier keys (`Ctrl`, `Shift`, `Alt`, `OSKey`) now show OSX-specific symbols (`^`, `⇧`, `⌥`, `⌘`) for better readability on OSX machines
+- Improved keymap editor
+- Minor improvements for smaller screens
+- Started working on improvements for error reporting
+- Started refactoring code for major changes to Blender 3.0+ API, such as removing dependence on the deprecated `bgl` module
+- Many bug fixes
+- General cleaning up of old code and adding comments
 
 ### RetopoFlow 3.2.3&rarr;3.2.4
 
