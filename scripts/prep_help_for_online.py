@@ -210,7 +210,25 @@ for fn, path in paths_config:
 # load convert_actions_to_human_readable()
 human_readable = read_file(path_human)
 human_readable = '\n'.join(l for l in human_readable.splitlines() if not re.match(r'(from|import) ', l))
-exec(human_readable, globals(), locals())
+# add platform.system stuff...
+human_readable = f'''
+class platform:
+    @staticmethod
+    def system():
+        return 'Linux'
+
+{human_readable}
+'''
+try:
+    exec(human_readable, globals(), locals())
+except Exception as e:
+    print(f'*****************************************************************')
+    print(f'Caught exception {e} while trying to exec the following:')
+    print(f'')
+    print(human_readable)
+    print(f'')
+    print(f'*****************************************************************')
+    raise e
 
 # load and process default keymaps (assuming LMB Select)
 keymaps = read_file(path_keys)
