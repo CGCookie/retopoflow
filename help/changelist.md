@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.5&rarr;3.2.6
+
+- Added vertex pinning and unpinning, where pinned vertices cannot be moved
+
 ### RetopoFlow 3.2.4&rarr;3.2.5
 
 - Worked around a major crashing bug in Blender 3.0 and 3.1
