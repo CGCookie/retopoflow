@@ -128,6 +128,10 @@ default_rf_keymaps = {
     'pie menu alt0': ['SHIFT+Q', 'SHIFT+ACCENT_GRAVE'],
     'pie menu confirm': ['LEFTMOUSE+CLICK', 'LEFTMOUSE+DRAG'],
 
+    # pinning vertices
+    'pin': ['P'],
+    'unpin': ['ALT+P'],
+
     # shortcuts to tools
     'contours tool': ['ONE', 'CTRL+ALT+C'],
     'polystrips tool': ['TWO', 'CTRL+ALT+P'],

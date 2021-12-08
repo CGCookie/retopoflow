@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import math
 import copy
 import heapq
+import random
 from dataclasses import dataclass, field
 
 import bpy
@@ -242,22 +243,10 @@ class RFMesh():
     def get_obj_name(self):
         return self.obj.name
 
-    @blender_version_wrapper('<', '2.80')
-    def obj_viewport_hide_get(self): return self.obj.hide
-    @blender_version_wrapper('>=', '2.80')
     def obj_viewport_hide_get(self): return self.obj.hide_viewport
-    @blender_version_wrapper('<', '2.80')
-    def obj_viewport_hide_set(self, v): self.obj.hide = v
-    @blender_version_wrapper('>=', '2.80')
     def obj_viewport_hide_set(self, v): self.obj.hide_viewport = v
 
-    @blender_version_wrapper('<','2.80')
-    def obj_select_get(self): return self.obj.select
-    @blender_version_wrapper('>=','2.80')
     def obj_select_get(self): return self.obj.select_get()
-    @blender_version_wrapper('<','2.80')
-    def obj_select_set(self, v): self.obj.select = v
-    @blender_version_wrapper('>=','2.80')
     def obj_select_set(self, v): self.obj.select_set(v)
 
     def obj_render_hide_get(self): return self.obj.hide_render
@@ -1369,6 +1358,10 @@ class RFSource(RFMesh):
     def __str__(self):
         return '<RFSource %s>' % self.obj.name
 
+    @property
+    def layer_pin(self):
+        return None
+
 
 
 class RFTarget(RFMesh):
@@ -1414,6 +1407,11 @@ class RFTarget(RFMesh):
         self.xz_symmetry_accel = xz_symmetry_accel
         self.yz_symmetry_accel = yz_symmetry_accel
         self.unit_scaling_factor = unit_scaling_factor
+
+    @property
+    def layer_pin(self):
+        il = self.bme.verts.layers.int
+        return il['pin'] if 'pin' in il else il.new('pin')
 
     def setup_mirror(self):
         self.mirror_mod = ModifierWrapper_Mirror.get_from_object(self.obj)

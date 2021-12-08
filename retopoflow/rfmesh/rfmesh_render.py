@@ -159,7 +159,7 @@ class RFMeshRender():
     @profiler.function
     def add_buffered_render(self, draw_type, data, static):
         batch = BufferedRender_Batch(draw_type)
-        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'])
+        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'], data['pin'])
         if static: self.buffered_renders_static.append(batch)
         else:      self.buffered_renders_dynamic.append(batch)
 
@@ -204,6 +204,8 @@ class RFMeshRender():
         mirror_y = 'y' in mirror_axes
         mirror_z = 'z' in mirror_axes
 
+        layer_pin = self.rfmesh.layer_pin  # self.bmesh.verts.layers.int['pin']
+
         def gather(verts, edges, faces, static):
             vert_count = 100000
             edge_count = 50000
@@ -233,6 +235,14 @@ class RFMeshRender():
             def warn_face(g):
                 return 1.0
 
+            def pin_vert(g):
+                if not layer_pin: return 0.0
+                return 1.0 if g[layer_pin] else 0.0
+            def pin_edge(g):
+                return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
+            def pin_face(g):
+                return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
+
             try:
                 time_start = time.time()
 
@@ -257,17 +267,22 @@ class RFMeshRender():
                                 'vno': [
                                     tuple(bmf.normal)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
+                                    for _ in verts
                                 ],
                                 'sel': [
                                     sel(bmf)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
+                                    for _ in verts
                                 ],
                                 'warn': [
                                     warn_face(bmf)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
+                                    for _ in verts
+                                ],
+                                'pin': [
+                                    pin_face(bmf)
+                                    for bmf, verts in tri_faces[i0:i1]
+                                    for _ in verts
                                 ],
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
@@ -295,12 +310,17 @@ class RFMeshRender():
                                 'sel': [
                                     sel(bme)
                                     for bme in edges[i0:i1]
-                                    for bmv in bme.verts
+                                    for _ in bme.verts
                                 ],
                                 'warn': [
                                     warn_edge(bme)
                                     for bme in edges[i0:i1]
-                                    for bmv in bme.verts
+                                    for _ in bme.verts
+                                ],
+                                'pin': [
+                                    pin_edge(bme)
+                                    for bme in edges[i0:i1]
+                                    for _ in bme.verts
                                 ],
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
@@ -319,6 +339,7 @@ class RFMeshRender():
                                 'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
                                 'sel': [sel(bmv) for bmv in verts[i0:i1]],
                                 'warn': [warn_vert(bmv) for bmv in verts[i0:i1]],
+                                'pin': [pin_vert(bmv) for bmv in verts[i0:i1]],
                                 'idx': None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
@@ -443,6 +464,7 @@ class RFMeshRender():
             bmegl.glSetDefaultOptions()
 
             opts['no warning'] = not options['warn non-manifold']
+            opts['no pinned']  = not options['show pinned']
 
             opts['cull backfaces'] = cull_backfaces
             opts['alpha backface'] = alpha_backface

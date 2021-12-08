@@ -324,6 +324,13 @@ class RetopoFlow_States(CookieCutter):
                 self.smooth_edge_flow(iterations=options['smooth edge flow iterations'])
                 return
 
+            if self.actions.pressed('pin'):
+                self.pin_selected()
+                return
+            if self.actions.pressed('unpin'):
+                self.unpin_selected()
+                return
+
         return self.modal_main_rest()
 
     def modal_main_rest(self):

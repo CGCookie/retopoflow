@@ -746,6 +746,17 @@ class RetopoFlow_Target:
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
 
+    def pin_selected(self):
+        self.undo_push('pinning selected')
+        for bmv in self.get_selected_verts():
+            bmv.pinned = True
+        self.dirty()
+    def unpin_selected(self):
+        self.undo_push('pinning selected')
+        for bmv in self.get_selected_verts():
+            bmv.pinned = False
+        self.dirty()
+
     def hide_selected(self):
         self.undo_push('hide selected')
         selected = set()

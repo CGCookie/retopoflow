@@ -1,7 +1,9 @@
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
+uniform vec4  color_pinned;     // color of geometry if pinned
 
 uniform bool  use_selection;    // false: ignore selected, true: consider selected
+uniform bool  use_pinned;       // false: ignore pinned, true: consider pinned
 uniform bool  use_rounding;
 
 uniform mat4  matrix_m;         // model xform matrix
@@ -46,7 +48,8 @@ uniform float radius;
 
 attribute vec3  vert_pos;       // position wrt model
 attribute vec3  vert_norm;      // normal wrt model
-attribute float selected;       // is vertex selected?  0=no; 1=yes
+attribute float selected;       // is face selected?  0=no; 1=yes
+attribute float pinned;         // is face pinned?  0=no; 1=yes
 
 
 varying vec4 vPPosition;        // final position (projected)
@@ -120,8 +123,17 @@ void main() {
 
     gl_Position = vPPosition;
 
-    vColor = (!use_selection || selected < 0.5) ? color : color_selected;
-    vColor.a *= (selected > 0.5) ? 1.0 : 1.0 - hidden;
+    vColor = color;
+
+    // if(use_warning   && warning  > 0.5) vColor = mix(vColor, color_warning,  0.75);
+    if(use_pinned    && pinned   > 0.5) vColor = mix(vColor, color_pinned,   0.75);
+    if(use_selection && selected > 0.5) vColor = mix(vColor, color_selected, 0.75);
+
+    vColor.a *= 1.0 - hidden;
+    // vColor.a *= 1.0 - hidden;
+
+    // vColor = (!use_selection || selected < 0.5) ? color : color_selected;
+    // vColor.a *= (selected > 0.5) ? 1.0 : 1.0 - hidden;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
         vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);

@@ -147,7 +147,7 @@ class BufferedRender_Batch:
         self.batch = None
         self._quarantine.setdefault(self.shader, set())
 
-    def buffer(self, pos, norm, sel, warn):
+    def buffer(self, pos, norm, sel, warn, pin):
         if self.shader == None: return
         if self.shader_type == 'POINTS':
             data = {
@@ -155,15 +155,17 @@ class BufferedRender_Batch:
                 'vert_norm':   [n for n in norm for __ in range(6)],
                 'selected':    [s for s in sel  for __ in range(6)],
                 'warning':     [w for w in warn for __ in range(6)],
+                'pinned':      [p for p in pin  for __ in range(6)],
                 'vert_offset': [o for _ in pos for o in [(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)]],
             }
         elif self.shader_type == 'LINES':
             data = {
-                'vert_pos0':   [p0 for (p0,p1) in zip(pos[0::2], pos[1::2] ) for __ in range(6)],
-                'vert_pos1':   [p1 for (p0,p1) in zip(pos[0::2], pos[1::2] ) for __ in range(6)],
-                'vert_norm':   [n0 for (n0,n1) in zip(norm[0::2],norm[1::2]) for __ in range(6)],
-                'selected':    [s0 for (s0,s1) in zip(sel[0::2], sel[1::2] ) for __ in range(6)],
-                'warning':     [s0 for (s0,s1) in zip(warn[0::2], warn[1::2] ) for __ in range(6)],
+                'vert_pos0':   [p0 for (p0,p1) in zip( pos[0::2],  pos[1::2]) for __ in range(6)],
+                'vert_pos1':   [p1 for (p0,p1) in zip( pos[0::2],  pos[1::2]) for __ in range(6)],
+                'vert_norm':   [n0 for (n0,n1) in zip(norm[0::2], norm[1::2]) for __ in range(6)],
+                'selected':    [s0 for (s0,s1) in zip( sel[0::2],  sel[1::2]) for __ in range(6)],
+                'warning':     [s0 for (s0,s1) in zip(warn[0::2], warn[1::2]) for __ in range(6)],
+                'pinned':      [s0 for (s0,s1) in zip( pin[0::2],  pin[1::2]) for __ in range(6)],
                 'vert_offset': [o  for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
         }
         elif self.shader_type == 'TRIS':
@@ -171,6 +173,7 @@ class BufferedRender_Batch:
                 'vert_pos':    pos,
                 'vert_norm':   norm,
                 'selected':    sel,
+                'pinned':      pin,
             }
         else: assert False, 'BufferedRender_Batch.buffer: Unhandled type: ' + self.shader_type
         self.batch = batch_for_shader(self.shader, 'TRIS', data) # self.shader_type, data)
@@ -180,10 +183,10 @@ class BufferedRender_Batch:
         if not opts: return
         shader = self.shader
 
-        prefix = '%s ' % prefix if prefix else ''
+        prefix = f'{prefix} ' if prefix else ''
 
         def set_if_set(opt, cb):
-            opt = '%s%s' % (prefix, opt)
+            opt = f'{prefix}{opt}'
             if opt not in opts: return
             cb(opts[opt])
             Drawing.glCheckError('setting %s to %s' % (str(opt), str(opts[opt])))
@@ -193,6 +196,7 @@ class BufferedRender_Batch:
         set_if_set('color',          lambda v: self.uniform_float('color', v))
         set_if_set('color selected', lambda v: self.uniform_float('color_selected', v))
         set_if_set('color warning',  lambda v: self.uniform_float('color_warning', v))
+        set_if_set('color pinned',   lambda v: self.uniform_float('color_pinned', v))
         set_if_set('hidden',         lambda v: self.uniform_float('hidden', v))
         set_if_set('offset',         lambda v: self.uniform_float('offset', v))
         set_if_set('dotoffset',      lambda v: self.uniform_float('dotoffset', v))
@@ -237,16 +241,20 @@ class BufferedRender_Batch:
         self.uniform_float('color',          (1,1,1,0.5))
         self.uniform_float('color_selected', (0.5,1,0.5,0.5))
         self.uniform_float('color_warning',  (1.0,0.5,0.0,0.5))
+        self.uniform_float('color_pinned',   (1.0,0.0,0.5,0.5))
         self.uniform_float('hidden',         0.9)
         self.uniform_float('offset',         0)
         self.uniform_float('dotoffset',      0)
         self.uniform_float('vert_scale',     (1, 1, 1))
         self.uniform_float('radius',         1) #random.random()*10)
 
-        nosel = opts.get('no selection', False)
-        nowarn = opts.get('no warning', False)
+        nosel  = opts.get('no selection', False)
+        nowarn = opts.get('no warning',   False)
+        nopin  = opts.get('no pinned',    False)
+
         self.uniform_bool('use_selection', [not nosel])  # must be a sequence!?
         self.uniform_bool('use_warning',   [not nowarn]) # must be a sequence!?
+        self.uniform_bool('use_pinned',    [not nopin])  # must be a sequence!?
         self.uniform_bool('use_rounding',  [self.drawtype == self.POINTS]) # must be a sequence!?
 
         self.uniform_float('matrix_m',    opts['matrix model'])

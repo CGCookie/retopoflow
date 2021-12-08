@@ -221,6 +221,10 @@ def symmetry_changed(self):
                             <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')" title="Visualize non-manifold/detached vertices and edges">
                             Non-manifold Outline
                         </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show pinned']''')" title="Visualize pinned vertices and edges">
+                            Pinned Vertices and Edges
+                        </label>
                         <div class="labeled-input-text">
                             <label for="target-draw-normal-offset">Normal Offset</label>
                             <input id="target-draw-normal-offset" type="number" value="BoundFloat('''options['normal offset multiplier']''', min_value=0.0, max_value=2.0)" title="Sets how far geometry is pushed in visualization">

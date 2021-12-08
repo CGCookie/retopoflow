@@ -143,7 +143,7 @@ class BMElemWrapper:
 
 class RFVert(BMElemWrapper):
     def __repr__(self):
-        return '<RFVert: %s>' % repr(self.bmelem)
+        return f'<RFVert: {self.bmelem}>'
 
     @staticmethod
     def get_link_edges(rfverts):
@@ -160,7 +160,8 @@ class RFVert(BMElemWrapper):
     @co.setter
     def co(self, co):
         if any(math.isnan(v) for v in co): return
-        assert not any(math.isnan(v) for v in co), 'Setting RFVert.co to ' + str(co)
+        if self.pinned: return
+        assert not any(math.isnan(v) for v in co), f'Setting RFVert.co to {co}'
         co = self.symmetry_real(co, to_world=False)
         # # the following does not work well, because new verts have co=(0,0,0)
         # mm = BMElemWrapper.mirror_mod
@@ -172,6 +173,13 @@ class RFVert(BMElemWrapper):
         #     if nx or ny or nz:
         #         co = rft.snap_to_symmetry(co, mm._symmetry, to_world=False, from_world=False)
         self.bmelem.co = co
+
+    @property
+    def pinned(self):
+        return bool(self.bmelem[self.rftarget.layer_pin])
+    @pinned.setter
+    def pinned(self, v):
+        self.bmelem[self.rftarget.layer_pin] = 1 if bool(v) else 0
 
     @property
     def normal(self):
