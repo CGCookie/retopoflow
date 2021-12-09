@@ -159,7 +159,7 @@ class RFMeshRender():
     @profiler.function
     def add_buffered_render(self, draw_type, data, static):
         batch = BufferedRender_Batch(draw_type)
-        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'], data['pin'])
+        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'], data['pin'], data['seam'])
         if static: self.buffered_renders_static.append(batch)
         else:      self.buffered_renders_dynamic.append(batch)
 
@@ -204,7 +204,7 @@ class RFMeshRender():
         mirror_y = 'y' in mirror_axes
         mirror_z = 'z' in mirror_axes
 
-        layer_pin = self.rfmesh.layer_pin  # self.bmesh.verts.layers.int['pin']
+        layer_pin = self.rfmesh.layer_pin
 
         def gather(verts, edges, faces, static):
             vert_count = 100000
@@ -242,6 +242,13 @@ class RFMeshRender():
                 return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
             def pin_face(g):
                 return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
+
+            def seam_vert(g):
+                return 1.0 if any(e.seam for e in g.link_edges) else 0.0
+            def seam_edge(g):
+                return 1.0 if g.seam else 0.0
+            def seam_face(g):
+                return 0.0
 
             try:
                 time_start = time.time()
@@ -284,6 +291,11 @@ class RFMeshRender():
                                     for bmf, verts in tri_faces[i0:i1]
                                     for _ in verts
                                 ],
+                                'seam': [
+                                    seam_face(bmf)
+                                    for bmf, verts in tri_faces[i0:i1]
+                                    for _ in verts
+                                ],
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
                             if self.async_load:
@@ -322,6 +334,11 @@ class RFMeshRender():
                                     for bme in edges[i0:i1]
                                     for _ in bme.verts
                                 ],
+                                'seam': [
+                                    seam_edge(bme)
+                                    for bme in edges[i0:i1]
+                                    for _ in bme.verts
+                                ],
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
                             if self.async_load:
@@ -335,12 +352,13 @@ class RFMeshRender():
                         for i0 in range(0, l, vert_count):
                             i1 = min(l, i0 + vert_count)
                             vert_data = {
-                                'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
-                                'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
-                                'sel': [sel(bmv) for bmv in verts[i0:i1]],
-                                'warn': [warn_vert(bmv) for bmv in verts[i0:i1]],
-                                'pin': [pin_vert(bmv) for bmv in verts[i0:i1]],
-                                'idx': None,  # list(range(len(self.bmesh.verts))),
+                                'vco':  [tuple(bmv.co)     for bmv in verts[i0:i1]],
+                                'vno':  [tuple(bmv.normal) for bmv in verts[i0:i1]],
+                                'sel':  [sel(bmv)          for bmv in verts[i0:i1]],
+                                'warn': [warn_vert(bmv)    for bmv in verts[i0:i1]],
+                                'pin':  [pin_vert(bmv)     for bmv in verts[i0:i1]],
+                                'seam': [seam_vert(bmv)    for bmv in verts[i0:i1]],
+                                'idx':  None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.POINTS, vert_data, static))
@@ -465,6 +483,7 @@ class RFMeshRender():
 
             opts['no warning'] = not options['warn non-manifold']
             opts['no pinned']  = not options['show pinned']
+            opts['no seam']    = not options['show seam']
 
             opts['cull backfaces'] = cull_backfaces
             opts['alpha backface'] = alpha_backface

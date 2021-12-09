@@ -1553,7 +1553,7 @@ class RFTarget(RFMesh):
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
     def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
 
-    def apply_symmetry(self, nearest):
+    def apply_mirror_symmetry(self, nearest):
         out = []
         def apply_mirror_and_return_geom(axis):
             return mirror(
@@ -1795,6 +1795,23 @@ class RFTarget(RFMesh):
 
 #     def snap_unselected_verts(self, nearest):
 #         self.snap_verts_filter(nearest, lambda v: v.unselect)
+
+    def pin_selected(self):
+        for v in self.get_verts():
+            if v.select: v.pinned = True
+    def unpin_selected(self):
+        for v in self.get_verts():
+            if v.select: v.pinned = False
+    def unpin_all(self):
+        for v in self.get_verts():
+            v.pinned = False
+
+    def mark_seam_selected(self):
+        for v in self.get_edges():
+            if v.select: v.seam = True
+    def clear_seam_selected(self):
+        for v in self.get_edges():
+            if v.select: v.seam = False
 
     def remove_all_doubles(self, dist):
         bmv = [v for v in self.bme.verts if not v.hide]

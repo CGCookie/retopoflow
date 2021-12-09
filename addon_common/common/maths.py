@@ -504,6 +504,10 @@ class Normal(VecUtils, Entity3D):
 
 class Color(Vector):
     @staticmethod
+    def from_ints(r, g, b, a=255):
+        return Color((r/255.0, g/255.0, b/255.0, a/255.0))
+
+    @staticmethod
     def as_vec4(c):
         if type(c) in {float, int}: return Vector((c, c, c, 1.0))
         if len(c) == 3: return Vector((*c, 1.0))

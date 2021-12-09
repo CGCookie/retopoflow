@@ -367,9 +367,9 @@ class RetopoFlow_Target:
     ########################################
     # symmetry utils
 
-    def apply_symmetry(self):
-        self.undo_push('applying symmetry')
-        self.rftarget.apply_symmetry(self.nearest_sources_Point)
+    def apply_mirror_symmetry(self):
+        self.undo_push('applying mirror symmetry')
+        self.rftarget.apply_mirror_symmetry(self.nearest_sources_Point)
 
     @profiler.function
     def clip_pointloop(self, pointloop, connected):
@@ -748,13 +748,24 @@ class RetopoFlow_Target:
 
     def pin_selected(self):
         self.undo_push('pinning selected')
-        for bmv in self.get_selected_verts():
-            bmv.pinned = True
+        self.rftarget.pin_selected()
         self.dirty()
     def unpin_selected(self):
+        self.undo_push('unpinning selected')
+        self.rftarget.unpin_selected()
+        self.dirty()
+    def unpin_all(self):
+        self.undo_push('unpinning all')
+        self.rftarget.unpin_all()
+        self.dirty()
+
+    def mark_seam_selected(self):
         self.undo_push('pinning selected')
-        for bmv in self.get_selected_verts():
-            bmv.pinned = False
+        self.rftarget.mark_seam_selected()
+        self.dirty()
+    def clear_seam_selected(self):
+        self.undo_push('unpinning selected')
+        self.rftarget.clear_seam_selected()
         self.dirty()
 
     def hide_selected(self):

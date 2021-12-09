@@ -209,6 +209,7 @@ class Options:
         # TARGET VISUALIZATION SETTINGS
         'warn non-manifold':               True,       # visualize non-manifold warnings
         'show pinned':                     True,       # visualize pinned geometry
+        'show seam':                       True,
 
         'target vert size':                4.0,
         'target edge size':                1.0,
@@ -221,32 +222,43 @@ class Options:
         'target alpha poly selected':         0.75,
         'target alpha poly warning':          0.25,
         'target alpha poly pinned':           0.75,
+        'target alpha poly seam':             0.75,
         'target alpha poly mirror':           0.25,
         'target alpha poly mirror selected':  0.25,
         'target alpha poly mirror warning':   0.15,
         'target alpha poly mirror pinned':    0.25,
+        'target alpha poly mirror seam':      0.25,
 
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
         'target alpha line warning':          0.25,
         'target alpha line pinned':           0.25,
+        'target alpha line seam':             0.25,
         'target alpha line mirror':           0.10,
         'target alpha line mirror selected':  0.50,
         'target alpha line mirror warning':   0.15,
         'target alpha line mirror pinned':    0.15,
+        'target alpha line mirror seam':      0.15,
 
         'target alpha point':                 0.25,
         'target alpha point selected':        1.00,
         'target alpha point warning':         0.50,
         'target alpha point pinned':          0.50,
+        'target alpha point seam':            0.50,
         'target alpha point mirror':          0.00,
         'target alpha point mirror selected': 0.50,
         'target alpha point mirror warning':  0.15,
         'target alpha point mirror pinned':   0.15,
+        'target alpha point mirror seam':     0.15,
         'target alpha point highlight':       1.00,
 
         'target alpha mirror':                1.00,
 
+
+        # TARGET PINNING
+        # 'show pinned' is in TARGET VISUALIZATION SETTINGS
+        'pin enabled':                        True,
+        'pin seam':                           True,
 
         # ADDON UPDATER SETTINGS
         'updater auto check update': True,
@@ -504,46 +516,48 @@ class Options:
         return '%s_RetopoFlow_AutoSave%s' % (base, ext)
 
 
-def ints_to_Color(r, g, b, a=255): return Color((r/255.0, g/255.0, b/255.0, a/255.0))
 class Themes:
     # fallback color for when specified key is not found
-    error = ints_to_Color(255,  64, 255, 255)
+    error = Color.from_ints(255,  64, 255, 255)
 
     common = {
-        'mesh':       ints_to_Color(255, 255, 255, 255),
-        'warning':    ints_to_Color(182,  31,   0, 128),
+        'mesh':       Color.from_ints(255, 255, 255, 255),
+        'warning':    Color.from_ints(182,  31,   0, 128),
 
-        'stroke':     ints_to_Color( 255, 255,  0, 255),
-        'highlight':  ints_to_Color(255, 255,  25, 255),
+        'stroke':     Color.from_ints( 255, 255,  0, 255),
+        'highlight':  Color.from_ints(255, 255,  25, 255),
 
         # RFTools
-        'polystrips': ints_to_Color(0, 100, 25, 150),
-        'strokes':    ints_to_Color(0, 100, 90, 150),
-        'tweak':      ints_to_Color(229, 137,  26, 255), # Opacity is set by brush strength
-        'relax':      ints_to_Color(0, 135, 255, 255), # Opacity is set by brush strength
+        'polystrips': Color.from_ints(0, 100, 25, 150),
+        'strokes':    Color.from_ints(0, 100, 90, 150),
+        'tweak':      Color.from_ints(229, 137,  26, 255), # Opacity is set by brush strength
+        'relax':      Color.from_ints(0, 135, 255, 255), # Opacity is set by brush strength
     }
 
     themes = {
         'Blue': {
-            'select':  ints_to_Color( 55, 160, 255),
-            'new':     ints_to_Color( 40,  40, 255),
-            'active':  ints_to_Color( 40, 255, 255),
-            'warn':    ints_to_Color(182,  31,   0),
-            'pin':     ints_to_Color( 16,  16,  64),
+            'select':  Color.from_ints( 55, 160, 255),
+            'new':     Color.from_ints( 40,  40, 255),
+            'active':  Color.from_ints( 40, 255, 255),
+            'warn':    Color.from_ints(182,  31,   0),
+            'pin':     Color.from_ints(128, 128, 192),
+            'seam':    Color.from_ints(255, 255, 160),
         },
         'Green': {
-            'select':  ints_to_Color( 78, 207,  81),
-            'new':     ints_to_Color( 40, 255,  40),
-            'active':  ints_to_Color( 40, 255, 255),
-            'warn':    ints_to_Color(182,  31,   0),
-            'pin':     ints_to_Color( 16,  64,  16),
+            'select':  Color.from_ints( 78, 207,  81),
+            'new':     Color.from_ints( 40, 255,  40),
+            'active':  Color.from_ints( 40, 255, 255),
+            'warn':    Color.from_ints(182,  31,   0),
+            'pin':     Color.from_ints(128, 192, 128),
+            'seam':    Color.from_ints(255, 160, 255),
         },
         'Orange': {
-            'select':  ints_to_Color(255, 135,  54),
-            'new':     ints_to_Color(255, 128,  64),
-            'active':  ints_to_Color(255, 80,  64),
-            'warn':    ints_to_Color(182,  31,   0),
-            'pin':     ints_to_Color( 64,  64,  16),
+            'select':  Color.from_ints(255, 135,  54),
+            'new':     Color.from_ints(255, 128,  64),
+            'active':  Color.from_ints(255, 80,  64),
+            'warn':    Color.from_ints(182,  31,   0),
+            'pin':     Color.from_ints(192, 160, 128),
+            'seam':    Color.from_ints(160, 255, 255),
         },
     }
 
@@ -570,25 +584,31 @@ class Visualization_Settings:
             'target alpha poly selected',
             'target alpha poly warning',
             'target alpha poly pinned',
+            'target alpha poly seam',
             'target alpha poly mirror selected',
             'target alpha poly mirror warning',
             'target alpha poly mirror pinned',
+            'target alpha poly mirror seam',
             'target alpha line',
             'target alpha line selected',
             'target alpha line warning',
             'target alpha line pinned',
+            'target alpha line seam',
             'target alpha line mirror',
             'target alpha line mirror selected',
             'target alpha line mirror warning',
             'target alpha line mirror pinned',
+            'target alpha line mirror seam',
             'target alpha point',
             'target alpha point selected',
             'target alpha point warning',
             'target alpha point pinned',
+            'target alpha point seam',
             'target alpha point mirror',
             'target alpha point mirror selected',
             'target alpha point mirror warning',
             'target alpha point mirror pinned',
+            'target alpha point mirror seam',
             'target alpha point highlight',
             'target alpha mirror',
         ]
@@ -599,6 +619,7 @@ class Visualization_Settings:
         color_select = themes['select']
         color_warn = themes['warn']
         color_pin = themes['pin']
+        color_seam = themes['seam']
         color_hilight = themes['highlight']
         normal_offset_multiplier = options['normal offset multiplier']
         constrain_offset = options['constrain offset']
@@ -616,6 +637,7 @@ class Visualization_Settings:
             'no selection':   True,
             'no warning':     True,
             'no pinned':      True,
+            'no seam':        True,
             'no below':       True,
             'triangles only': True,     # source bmeshes are triangles only!
             'cull backfaces': True,
@@ -631,12 +653,14 @@ class Visualization_Settings:
             'poly color selected':         (*color_select[:3], options['target alpha poly selected']),
             'poly color warning':          (*color_warn[:3],   options['target alpha poly warning']),
             'poly color pinned':           (*color_pin[:3],    options['target alpha poly pinned']),
+            'poly color seam':             (*color_seam[:3],   options['target alpha poly seam']),
             'poly offset':                 0.000010,
             'poly dotoffset':              1.0,
             'poly mirror color':           (*color_mesh[:3],   options['target alpha poly mirror'] * mirror_alpha_factor),
             'poly mirror color selected':  (*color_select[:3], options['target alpha poly mirror selected'] * mirror_alpha_factor),
             'poly mirror color warning':   (*color_warn[:3],   options['target alpha poly mirror warning'] * mirror_alpha_factor),
             'poly mirror color pinned':    (*color_pin[:3],    options['target alpha poly mirror pinned'] * mirror_alpha_factor),
+            'poly mirror color seam':      (*color_seam[:3],   options['target alpha poly mirror seam'] * mirror_alpha_factor),
             'poly mirror offset':          0.000010,
             'poly mirror dotoffset':       1.0,
 
@@ -644,6 +668,7 @@ class Visualization_Settings:
             'line color selected':         (*color_select[:3], options['target alpha line selected']),
             'line color warning':          (*color_warn[:3],   options['target alpha line warning']),
             'line color pinned':           (*color_pin[:3],    options['target alpha line pinned']),
+            'line color seam':             (*color_seam[:3],   options['target alpha line seam']),
             'line width':                  edge_size,
             'line offset':                 0.000012,
             'line dotoffset':              1.0,
@@ -651,6 +676,7 @@ class Visualization_Settings:
             'line mirror color selected':  (*color_select[:3], options['target alpha line mirror selected'] * mirror_alpha_factor),
             'line mirror color warning':   (*color_warn[:3],   options['target alpha line mirror warning'] * mirror_alpha_factor),
             'line mirror color pinned':    (*color_pin[:3],    options['target alpha line mirror pinned'] * mirror_alpha_factor),
+            'line mirror color seam':      (*color_seam[:3],   options['target alpha line mirror seam'] * mirror_alpha_factor),
             'line mirror width':           1.5,
             'line mirror offset':          0.000012,
             'line mirror dotoffset':       1.0,
@@ -659,6 +685,7 @@ class Visualization_Settings:
             'point color selected':        (*color_select[:3], options['target alpha point selected']),
             'point color warning':         (*color_warn[:3],   options['target alpha point warning']),
             'point color pinned':          (*color_pin[:3],    options['target alpha point pinned']),
+            'point color seam':            (*color_seam[:3],   options['target alpha point seam']),
             'point color highlight':       (*color_hilight[:3],options['target alpha point highlight']),
             'point size':                  vert_size,
             'point size highlight':        10.0,
@@ -668,6 +695,7 @@ class Visualization_Settings:
             'point mirror color selected': (*color_select[:3], options['target alpha point mirror selected'] * mirror_alpha_factor),
             'point mirror color warning':  (*color_warn[:3],   options['target alpha point mirror warning'] * mirror_alpha_factor),
             'point mirror color pinned':   (*color_pin[:3],    options['target alpha point mirror pinned'] * mirror_alpha_factor),
+            'point mirror color seam':     (*color_seam[:3],   options['target alpha point mirror seam'] * mirror_alpha_factor),
             'point mirror size':           3.0,
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,

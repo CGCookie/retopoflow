@@ -131,6 +131,7 @@ default_rf_keymaps = {
     # pinning vertices
     'pin': ['P'],
     'unpin': ['ALT+P'],
+    'unpin all': ['SHIFT+ALT+P'],
 
     # shortcuts to tools
     'contours tool': ['ONE', 'CTRL+ALT+C'],

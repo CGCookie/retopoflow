@@ -39,6 +39,8 @@ from ...addon_common.common.maths import (
     Vec2D, Point, Point2D, Vec, Direction, Normal,
 )
 
+from ...config.options import options
+
 
 '''
 BMElemWrapper wraps BMverts, BMEdges, BMFaces to automagically handle
@@ -160,8 +162,9 @@ class RFVert(BMElemWrapper):
     @co.setter
     def co(self, co):
         if any(math.isnan(v) for v in co): return
-        if self.pinned: return
-        assert not any(math.isnan(v) for v in co), f'Setting RFVert.co to {co}'
+        # assert not any(math.isnan(v) for v in co), f'Setting RFVert.co to {co}'
+        if options['pin enabled'] and self.pinned: return
+        if options['pin seam']    and self.seam:   return
         co = self.symmetry_real(co, to_world=False)
         # # the following does not work well, because new verts have co=(0,0,0)
         # mm = BMElemWrapper.mirror_mod
@@ -180,6 +183,10 @@ class RFVert(BMElemWrapper):
     @pinned.setter
     def pinned(self, v):
         self.bmelem[self.rftarget.layer_pin] = 1 if bool(v) else 0
+
+    @property
+    def seam(self):
+        return any(e.seam for e in self.bmelem.link_edges)
 
     @property
     def normal(self):

@@ -330,6 +330,9 @@ class RetopoFlow_States(CookieCutter):
             if self.actions.pressed('unpin'):
                 self.unpin_selected()
                 return
+            if self.actions.pressed('unpin all'):
+                self.unpin_all()
+                return
 
         return self.modal_main_rest()
 

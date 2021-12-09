@@ -2,10 +2,12 @@ uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
 uniform vec4  color_warning;    // color of geometry if warning
 uniform vec4  color_pinned;     // color of geometry if pinned
+uniform vec4  color_seam;       // color of geometry if seam
 
 uniform bool  use_selection;    // false: ignore selected, true: consider selected
 uniform bool  use_warning;      // false: ignore warning, true: consider warning
 uniform bool  use_pinned;       // false: ignore pinned, true: consider pinned
+uniform bool  use_seam;         // false: ignore seam, true: consider seam
 uniform bool  use_rounding;
 
 uniform mat4  matrix_m;         // model xform matrix
@@ -55,6 +57,7 @@ attribute vec3  vert_norm;      // normal wrt model
 attribute float selected;       // is edge selected?  0=no; 1=yes
 attribute float warning;        // is edge warning?  0=no; 1=yes
 attribute float pinned;         // is edge pinned?  0=no; 1=yes
+attribute float seam;           // is edge on seam?  0=no; 1=yes
 
 
 varying vec4 vPPosition;        // final position (projected)
@@ -149,6 +152,7 @@ void main() {
 
     if(use_warning   && warning  > 0.5) vColor = mix(vColor, color_warning,  0.75);
     if(use_pinned    && pinned   > 0.5) vColor = mix(vColor, color_pinned,   0.75);
+    if(use_seam      && seam     > 0.5) vColor = mix(vColor, color_seam,     0.75);
     if(use_selection && selected > 0.5) vColor = mix(vColor, color_selected, 0.75);
 
     vColor.a *= 1.0 - hidden;
