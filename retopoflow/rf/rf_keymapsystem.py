@@ -338,13 +338,10 @@ keymap_details = [
         ('fill', 'Patches: fill'),
         ('knife reset', 'Knife: reset'),
     ]),
-    ('Selection, Hiding/Reveal', [
+    ('Selection', [
         ('select all', 'Select all'),
         ('select invert', 'Select invert'),
         ('deselect all', 'Deselect all'),
-        ('hide selected', 'Hide selected geometry'),
-        ('hide unselected', 'Hide unselected geometry'),
-        ('reveal hidden', 'Reveal hidden geometry'),
         ('select single', 'Select single item (default depends on Blender selection setting)'),
         ('select single add', 'Add single item to selection (default depends on Blender selection setting)'),
         ('select smart', 'Smart selection (default depends on Blender selection setting)'),
@@ -352,6 +349,14 @@ keymap_details = [
         ('select paint', 'Selection painting (default depends on Blender selection setting)'),
         ('select paint add', 'Paint to add to selection (default depends on Blender selection setting)'),
         ('select path add', 'Select along shortest path (default depends on Blender selection setting)'),
+    ]),
+    ('Geometry Attributes', [
+        ('hide selected', 'Hide selected geometry'),
+        ('hide unselected', 'Hide unselected geometry'),
+        ('reveal hidden', 'Reveal hidden geometry'),
+        ('pin', 'Pin selected geometry'),
+        ('unpin', 'Unpin selected geometry'),
+        ('unpin all', 'Unpin all geometry'),
     ]),
     ('Switching Between Tools', [
         ('contours tool', 'Switch to Contours'),
