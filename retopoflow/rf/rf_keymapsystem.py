@@ -32,7 +32,7 @@ from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.human_readable import convert_actions_to_human_readable
 
 from ...config.options import options, retopoflow_version, retopoflow_helpdocs_url, retopoflow_blendermarket_url
-from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap
+from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap, default_rf_keymaps
 
 class RetopoFlow_KeymapSystem:
     @staticmethod
@@ -315,11 +315,12 @@ keymap_details = [
         ('confirm', 'Confirm'),
         ('confirm drag', 'Confirm with Drag (sometimes this is needed for certain actions)'),
         ('cancel', 'Cancel'),
+        ('done', 'Quit RetopoFlow'),
+        ('done alt0', 'Quit RetopoFlow (alternative)'),
+        ('toggle ui', 'Toggle UI visibility'),
     ]),
     ('Insert, Move, Rotate, Scale', [
         ('insert', 'Insert new geometry'),
-        # ('insert alt0', 'Insert new geometry (alt0)'),
-        # ('insert alt1', 'Insert new geometry (alt1)'),
         ('quick insert', 'Quick insert (Knife, Loops)'),
         ('increase count', 'Increase Count'),
         ('decrease count', 'Decrease Count'),
@@ -385,6 +386,7 @@ keymap_details = [
     ('Pie Menus', [
         ('pie menu', 'Show pie menu'),
         ('pie menu alt0', 'Show tool/alt pie menu'),
+        ('pie menu confirm', 'Confirm pie menu selection'),
     ]),
     ('Help', [
         ('all help', 'Show all help'),
@@ -393,3 +395,22 @@ keymap_details = [
     ]),
 ]
 
+ignored_keys = {
+    'autosave',
+    'grease clear', 'grease pencil tool',
+    'stretch tool',
+    'toggle full area',
+}
+
+# check that all keymaps are able to be edited
+def check_keymap_editor():
+    flattened_details = { key for (_, keyset) in keymap_details for (key, _) in keyset }
+    default_keys = set(default_rf_keymaps.keys()) - ignored_keys
+    missing_keys = default_keys - flattened_details
+    extra_keys = flattened_details - default_keys
+    if not missing_keys and not extra_keys: return
+    print(f'Error detected in keymap editor')
+    if missing_keys: print(f'Missing Keys: {sorted(missing_keys)}')
+    if extra_keys:   print(f'Extra Keys: {sorted(extra_keys)}')
+    assert False
+check_keymap_editor()

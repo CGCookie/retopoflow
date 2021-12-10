@@ -276,7 +276,7 @@ class Loops(RFTool):
             self.rfcontext.undo_cancel()
             return
         self.move_done_pressed = None
-        self.move_done_released = ['insert', 'insert alt0']
+        self.move_done_released = 'insert'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('slide edge loop/strip')
         return 'slide'

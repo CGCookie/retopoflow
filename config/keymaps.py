@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 
 import os
+import re
 import copy
 import json
 
@@ -79,8 +80,6 @@ default_rf_keymaps = {
     'done alt0': ['ESC'],
 
     'insert': ['CTRL+LEFTMOUSE', 'CTRL+LEFTMOUSE+DOUBLE'],
-    'insert alt0': ['SHIFT+LEFTMOUSE', 'SHIFT+LEFTMOUSE+DOUBLE'],
-    'insert alt1': ['CTRL+SHIFT+LEFTMOUSE', 'CTRL+SHIFT+LEFTMOUSE+DOUBLE'],
     'quick insert': ['LEFTMOUSE'],
 
     # general commands
@@ -178,6 +177,7 @@ def get_keymaps(force_reload=False):
         for k,v in keymap_lr.items(): keymap[k] = list(v)
         get_keymaps.orig = copy.deepcopy(keymap)
 
+        # apply custom keymaps
         keymap_custom = {}
         path_custom = options.get_path('keymaps filename')
         print(f'RetopoFlow keymaps path: {path_custom}')
@@ -187,10 +187,33 @@ def get_keymaps(force_reload=False):
             except Exception as e:
                 print('Exception caught while trying to read custom keymaps')
                 print(str(e))
-        # apply custom keymaps
         for k,v in keymap_custom.items():
             # print(f'keymap["{k}"] = {v} (was {keymap[k]})')
             keymap[k] = v
+
+        # apply substitution
+        re_sub = re.compile(r'\{(?P<name>[^}]+)\}')
+        new_keymap = {}
+        all_done = False
+        while not all_done:
+            all_done = True
+            for name, keys in keymap.items():
+                work = list(keys)
+                new_keys = []
+                while work:
+                    key = work.pop(0)
+                    m = re_sub.search(key)
+                    if not m:
+                        new_keys.append(key)
+                    else:
+                        all_done = False
+                        sname = m.group('name')
+                        assert sname in keymap, f'Could not find name {sname} in keymap'
+                        for (i, newkey) in enumerate(keymap[sname]):
+                            work.insert(i, key[:m.start()] + newkey + key[m.end():])
+                new_keymap[name] = new_keys
+            keymap = new_keymap
+
         get_keymaps.keymap = keymap
     return get_keymaps.keymap
 get_keymaps.keymap = None
