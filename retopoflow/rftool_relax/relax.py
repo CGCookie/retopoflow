@@ -50,7 +50,7 @@ class Relax(RFTool):
     statusbar   = '{{brush}} Relax\t{{brush alt}} Relax selection\t{{brush radius}} Brush size\t{{brush strength}} Brush strength\t{{brush falloff}} Brush falloff'
     ui_config   = 'relax_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('Relax default')
+    RFWidget_Default      = RFWidget_Default_Factory.create()
     RFWidget_BrushFalloff = RFWidget_BrushFalloff_Factory.create(
         'Relax brush',
         BoundInt('''options['relax radius']''', min_value=1),
@@ -130,9 +130,9 @@ class Relax(RFTool):
     @FSM.on_state('main')
     def main(self):
         if self.actions.using_onlymods(['brush', 'brush alt', 'brush radius', 'brush falloff', 'brush strength']):
-            self.rfwidget = self.rfwidgets['brushstroke']
+            self.set_widget('brushstroke')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
         if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
             self.sel_only = self.rfcontext.actions.using('brush alt')

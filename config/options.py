@@ -184,6 +184,8 @@ class Options:
         'clip start override':  0.05,
         'clip end override':    200.0,
 
+        'hide cursor on tweak': True,   # True: cursor is hidden when tweaking geometry
+
         # VISUALIZATION SETTINGS
         'hide overlays':                   True,       # hide overlays (wireframe, grid, axes, etc.)
         'override shading':                'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap

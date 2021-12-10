@@ -27,6 +27,7 @@ import bgl
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden import RFWidget_Hidden_Factory
 
 from ...addon_common.common.drawing import (
     CC_DRAW,
@@ -58,14 +59,16 @@ class Patches(RFTool):
     statusbar   = '{{action alt1}} Toggle vertex as a corner\t{{increase count}} Increase segments\t{{decrease count}} Decrease Segments\t{{fill}} Create patch'
     ui_config   = 'patches_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('Patches default')
-    RFWidget_Move = RFWidget_Default_Factory.create('Patches move', 'HAND')
+    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Move    = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Hidden  = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
-            'hover': self.RFWidget_Move(self),
+            'hover':   self.RFWidget_Move(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.corners = {}
@@ -133,15 +136,11 @@ class Patches(RFTool):
         self.hovering_sel_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'], selected_only=True)
 
         if self.hovering_sel_edge or self.hovering_sel_face:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.hovering_sel_edge or self.hovering_sel_face:
             if self.actions.pressed('action'):
@@ -240,6 +239,8 @@ class Patches(RFTool):
         self.rfcontext.set_accel_defer(True)
 
         self._timer = self.actions.start_timer(120)
+
+        if options['hide cursor on tweak']: self.set_widget('hidden')
 
     @FSM.on_state('move')
     def move_main(self):

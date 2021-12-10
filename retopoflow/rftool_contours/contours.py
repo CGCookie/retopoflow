@@ -34,7 +34,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.blender import matrix_vector_mult
-from ...addon_common.common.drawing import Drawing, Cursors, DrawCallbacks
+from ...addon_common.common.drawing import Drawing, DrawCallbacks
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
@@ -64,8 +64,8 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     statusbar   = '{{insert}} Insert contour\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments\t{{fill}} Bridge'
     ui_config   = 'contours_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('Contours default')
-    RFWidget_Move = RFWidget_Default_Factory.create('Contours move', 'HAND')
+    RFWidget_Default = RFWidget_Default_Factory.create()
+    RFWidget_Move    = RFWidget_Default_Factory.create(cursor='HAND')
     RFWidget_LineCut = RFWidget_LineCut_Factory.create('Contours line cut')
 
     @RFTool.on_init
@@ -75,7 +75,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             'cut':     self.RFWidget_LineCut(self),
             'hover':   self.RFWidget_Move(self),
         }
-        self.rfwidget = None
+        self.clear_widget()
 
     @RFTool.on_reset
     def reset(self):
@@ -170,17 +170,13 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['cut']
+            self.set_widget('cut')
         elif self.hovering_sel_edge:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.actions.pressed('grab'):
             ''' grab for translations '''
@@ -451,6 +447,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         }
         self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
+
 
     @FSM.on_state('grab')
     @profiler.function

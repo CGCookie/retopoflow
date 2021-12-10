@@ -27,6 +27,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_seg
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.drawing import (
@@ -59,9 +60,10 @@ class Knife(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'knife_options.html'
 
-    RFWidget_Default   = RFWidget_Default_Factory.create('Knife default')
-    RFWidget_Knife     = RFWidget_Default_Factory.create('Knife knife', 'KNIFE')
-    RFWidget_Move      = RFWidget_Default_Factory.create('Knife move', 'HAND')
+    RFWidget_Default   = RFWidget_Default_Factory.create()
+    RFWidget_Knife     = RFWidget_Default_Factory.create(cursor='KNIFE')
+    RFWidget_Move      = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Hidden    = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
@@ -69,6 +71,7 @@ class Knife(RFTool):
             'default': self.RFWidget_Default(self),
             'knife':   self.RFWidget_Knife(self),
             'hover':   self.RFWidget_Move(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.first_time = True
@@ -120,7 +123,7 @@ class Knife(RFTool):
     @FSM.on_state('quick', 'enter')
     def quick_enter(self):
         self.quick_knife = True
-        self.rfwidget = self.rfwidgets['knife']
+        self.set_widget('knife')
 
     @FSM.on_state('quick')
     def quick_main(self):
@@ -165,17 +168,13 @@ class Knife(RFTool):
 
         self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['knife']
+            self.set_widget('knife')
         elif self.nearest_geom and self.nearest_geom.select:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.actions.pressed('insert'):
             return 'insert'
@@ -484,6 +483,8 @@ class Knife(RFTool):
         }
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
+
+        if options['hide cursor on tweak']: self.set_widget('hidden')
 
     @FSM.on_state('move')
     @profiler.function
