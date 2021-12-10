@@ -4,7 +4,10 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.2.5&rarr;3.2.6
 
-- Added vertex pinning and unpinning, where pinned vertices cannot be moved
+- Vertex pinning and unpinning, where pinned vertices cannot be moved
+- Seam edges can be pinned
+- Option to hide cursor when moving geometry
+- Keymap editor shows keys for done and toggle UI
 
 ### RetopoFlow 3.2.4&rarr;3.2.5
 
