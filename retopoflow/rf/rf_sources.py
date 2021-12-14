@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 import time
-from math import isinf
+from math import isinf, isnan
 
 from ...config.options import visualization, options
 from ...addon_common.common.maths import BBox
@@ -102,18 +102,24 @@ class RetopoFlow_Sources:
     # ray casting functions
 
     def raycast_sources_Ray(self, ray:Ray):
-        bp,bn,bi,bd = None,None,None,None
+        bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
             if not self.get_rfsource_snap(rfsource): continue
             hp,hn,hi,hd = rfsource.raycast(ray)
-            if hp is None: continue
-            if isinf(hd): continue
-            if bp and bd < hd: continue
-            bp,bn,bi,bd = hp,hn,hi,hd
+            if hp is None:     continue     # did we miss?
+            if isinf(hd):      continue     # is distance infinitely far away?
+            if isnan(hd):      continue     # is distance NaN?  (issue #1062)
+            if bp and bd < hd: continue     # have we seen a closer hit already?
+            bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
         return (bp,bn,bi,bd)
 
     def raycast_sources_Ray_all(self, ray:Ray):
-        return [hit for rfsource in self.rfsources for hit in rfsource.raycast_all(ray) if self.get_rfsource_snap(rfsource)]
+        return [
+            hit
+            for rfsource in self.rfsources
+            for hit in rfsource.raycast_all(ray)
+            if self.get_rfsource_snap(rfsource)
+        ]
 
     def raycast_sources_Point2D(self, xy:Point2D):
         if xy is None: return None,None,None,None
