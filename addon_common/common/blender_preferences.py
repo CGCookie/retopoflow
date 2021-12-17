@@ -44,10 +44,13 @@ def mouse_select():
     try:
         m = {'LEFTMOUSE': 'LEFT', 'RIGHTMOUSE': 'RIGHT'}
         return m[bpy.context.window_manager.keyconfigs.active.keymaps['3D View'].keymap_items['view3d.select'].type]
+    except:
+        pass
+    try:
+        m = {'LEFTMOUSE': 'LEFT', 'RIGHTMOUSE': 'RIGHT'}
+        return m[bpy.context.window_manager.keyconfigs.default.keymaps['3D View'].keymap_items['view3d.select'].type]
     except Exception as e:
         if not hasattr(mouse_select, 'reported'):
             print('mouse_select: Exception caught')
             print(e)
             mouse_select.reported = True
-
-
