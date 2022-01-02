@@ -12,7 +12,7 @@ All mesh generation is quad-based (unless you explicitly create other ngons) and
 
 You may purchase RetopoFlow on the [Blender Market](https://blendermarket.com/products/retopoflow/)
 
-Purchasing a license entitles you to tool support and helps ensure RetopoFlows continued development.
+Purchasing a copy entitles you to tool support and helps ensure RetopoFlows continued development.
 
 
 ## Getting Support
