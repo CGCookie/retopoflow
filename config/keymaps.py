@@ -43,6 +43,9 @@ Standard US 101 QWERTY Keyboard
 
 
 default_rf_keymaps = {
+    # always pass these actions on to Blender (set in keymap editor only)
+    'blender passthrough': [],
+
     'toggle full area': ['CTRL+UP_ARROW', 'CTRL+DOWN_ARROW'],
 
     # when mouse is hovering a widget or selected geometry, actions take precedence

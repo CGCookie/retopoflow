@@ -141,19 +141,19 @@ class RetopoFlow_KeymapSystem:
             capture_edit_key_span()
         def edit_lmb():
             clear_edit_key_span()
-            edit_data['key'] = 'LMB'
+            edit_data['key'] = 'LEFTMOUSE'
         def edit_mmb():
             clear_edit_key_span()
-            edit_data['key'] = 'MMB'
+            edit_data['key'] = 'MIDDLEMOUSE'
         def edit_rmb():
             clear_edit_key_span()
-            edit_data['key'] = 'RMB'
+            edit_data['key'] = 'RIGHTMOUSE'
         def edit_wheelup():
             clear_edit_key_span()
-            edit_data['key'] = 'WheelUp'
+            edit_data['key'] = 'WHEELUPMOUSE'
         def edit_wheeldown():
             clear_edit_key_span()
-            edit_data['key'] = 'WheelDown'
+            edit_data['key'] = 'WHEELDOWNMOUSE'
         def edit_capture_key(event):
             if event.key is None or event.key == 'NONE': return
             ui_button = self.document.body.getElementById('edit-key-span')
@@ -318,6 +318,7 @@ keymap_details = [
         ('done', 'Quit RetopoFlow'),
         ('done alt0', 'Quit RetopoFlow (alternative)'),
         ('toggle ui', 'Toggle UI visibility'),
+        ('blender passthrough', 'Blender passthrough'),
     ]),
     ('Insert, Move, Rotate, Scale', [
         ('insert', 'Insert new geometry'),

@@ -199,6 +199,8 @@ class RetopoFlow_States(CookieCutter):
         if self.actions.released(self.pie_menu_release, ignoremods=True):
             return 'main'
 
+    def should_pass_through(self, context, event):
+        return self.actions.using('blender passthrough')
 
     @FSM.on_state('main')
     def modal_main(self):

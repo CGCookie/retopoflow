@@ -416,7 +416,7 @@ class Actions:
         self.mousemove = (event_type in Actions.mousemove_actions)
         self.trackpad = (event_type in Actions.trackpad_actions)
         self.ndof = (event_type in Actions.ndof_actions)
-        self.navevent = (event_type in self.keymap['navigate'])
+        self.navevent = False # to be set below...  was =  (event_type in self.keymap['navigate'])
         self.mousemove_stop = not self.mousemove and self.mousemove_prev
 
         if event_type in self.ignore_actions: return
@@ -429,6 +429,7 @@ class Actions:
             self.time_delta = self.time_last - time_cur
             self.time_last = time_cur
             self.trackpad = False
+            self.navevent = False
             return
 
         if self.mousemove:
@@ -448,6 +449,10 @@ class Actions:
             else:
                 self.mousedown_drag = False
                 return
+
+        if event_type in {'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} and not pressed:
+            # release drag when mouse button is released
+            self.mousedown_drag = False
 
         if self.trackpad:
             pressed = True
@@ -476,6 +481,9 @@ class Actions:
                     if l: self.alt_left = pressed
                     else: self.alt_right = pressed
             return # modifier keys do not "fire" pressed events
+
+        full_event_type = event_type + ('+DRAG' if self.mousedown_drag else '')
+        self.navevent = (full_event_type in self.keymap['navigate'])
 
         mouse_event = event_type in self.mousebutton_actions and not self.navevent
         if mouse_event:
@@ -601,11 +609,12 @@ class Actions:
         return any(action_good(action) for action in self.convert(actions))
 
     def navigating(self):
-        actions = self.convert('navigate')
-        if self.trackpad: return True
-        if self.ndof: return True
-        if any(p in actions for p in self.now_pressed.values()): return True
-        return False
+        return self.navevent
+        # actions = self.convert('navigate')
+        # if self.trackpad: return True
+        # if self.ndof: return True
+        # if any(p in actions for p in self.now_pressed.values()): return True
+        # return False
 
     def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, ignoremouse=False, debug=False):
         if actions is None: return False
