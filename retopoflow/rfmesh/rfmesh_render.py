@@ -26,6 +26,7 @@ import json
 import time
 import random
 
+from itertools import chain
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 
@@ -459,7 +460,9 @@ class RFMeshRender():
         if not self.buffered_renders_static and not self.buffered_renders_dynamic: return
 
         try:
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
             bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
+            bgl.glDepthRange(0, 1)
 
             opts = dict(self.opts)
 
@@ -501,9 +504,7 @@ class RFMeshRender():
                 opts['line mirror hidden']  = 1 - alpha_below
                 opts['point hidden']        = 1 - alpha_below
                 opts['point mirror hidden'] = 1 - alpha_below
-                for buffered_render in self.buffered_renders_static:
-                    buffered_render.draw(opts)
-                for buffered_render in self.buffered_renders_dynamic:
+                for buffered_render in chain(self.buffered_renders_static, self.buffered_renders_dynamic):
                     buffered_render.draw(opts)
 
             # geometry above
@@ -514,9 +515,7 @@ class RFMeshRender():
             opts['line mirror hidden']  = 1 - alpha_above
             opts['point hidden']        = 1 - alpha_above
             opts['point mirror hidden'] = 1 - alpha_above
-            for buffered_render in self.buffered_renders_static:
-                buffered_render.draw(opts)
-            for buffered_render in self.buffered_renders_dynamic:
+            for buffered_render in chain(self.buffered_renders_static, self.buffered_renders_dynamic):
                 buffered_render.draw(opts)
 
             bgl.glDepthFunc(bgl.GL_LEQUAL)

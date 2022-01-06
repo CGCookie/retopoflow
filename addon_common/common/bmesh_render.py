@@ -255,7 +255,7 @@ class BufferedRender_Batch:
         self.uniform_float('color_selected', (0.5,1,0.5,0.5))
         self.uniform_float('color_warning',  (1.0,0.5,0.0,0.5))
         self.uniform_float('color_pinned',   (1.0,0.0,0.5,0.5))
-        self.uniform_float('color_seam',   (1.0,0.0,0.5,0.5))
+        self.uniform_float('color_seam',     (1.0,0.0,0.5,0.5))
         self.uniform_float('hidden',         0.9)
         self.uniform_float('offset',         0)
         self.uniform_float('dotoffset',      0)
@@ -322,7 +322,7 @@ class BufferedRender_Batch:
         self._draw(1, 1, 1)
 
         if opts['draw mirrored'] and (mx or my or mz):
-            self.set_options('%s mirror' % self.options_prefix, opts)
+            self.set_options(f'{self.options_prefix} mirror', opts)
             if mx:               self._draw(-1,  1,  1)
             if        my:        self._draw( 1, -1,  1)
             if               mz: self._draw( 1,  1, -1)

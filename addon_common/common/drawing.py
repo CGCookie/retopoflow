@@ -569,7 +569,15 @@ class Drawing:
             traceback.print_stack()
         return True
 
+    def get_view_origin(self, *, orthographic_distance=1000):
+        focus = self.r3d.view_location
+        rot = self.r3d.view_rotation
+        dist = self.r3d.view_distance if self.r3d.is_perspective else orthographic_distance
+        return focus + (rot @ Vector((0, 0, dist)))
 
+        # # the following fails in weird ways when in orthographic projection
+        # center = Point2D((self.area.width / 2, self.area.height / 2))
+        # return Point(region_2d_to_origin_3d(self.rgn, self.r3d, center))
 
     def Point2D_to_Ray(self, p2d):
         o = Point(region_2d_to_origin_3d(self.rgn, self.r3d, p2d))

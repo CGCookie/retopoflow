@@ -176,10 +176,11 @@ class Options:
 
         # VISIBILITY TEST TUNING PARAMETERS
         'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
-        'visible dist offset':  0.1,         # rf_sources.visibility_preset_*
+        'visible dist offset':  0.1,            # rf_sources.visibility_preset_*
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
+        'clip auto adjust':     True,   # True: clip settings are automatically adjusted based on view distance and source bbox
         'clip override':        True,   # True: override with below values; False: scale by unit scale factor
         'clip start override':  0.05,
         'clip end override':    200.0,
@@ -209,6 +210,7 @@ class Options:
         'ui scale':                        1.0,
 
         # TARGET VISUALIZATION SETTINGS
+        # 'pin enabled' and 'pin seam' are in TARGET PINNING SETTINGS
         'warn non-manifold':               True,       # visualize non-manifold warnings
         'show pinned':                     True,       # visualize pinned geometry
         'show seam':                       True,
@@ -216,8 +218,8 @@ class Options:
         'target vert size':                4.0,
         'target edge size':                1.0,
         'target alpha':                    1.00,
-        'target hidden alpha':             0.02,
-        'target alpha backface':           0.2,
+        'target hidden alpha':             0.2,
+        'target alpha backface':           0.1,
         'target cull backfaces':           False,
 
         'target alpha poly':                  0.65,
@@ -257,8 +259,8 @@ class Options:
         'target alpha mirror':                1.00,
 
 
-        # TARGET PINNING
-        # 'show pinned' is in TARGET VISUALIZATION SETTINGS
+        # TARGET PINNING SETTINGS
+        # 'show pinned' and 'show seam' are in TARGET VISUALIZATION SETTINGS
         'pin enabled':                        True,
         'pin seam':                           True,
 
@@ -702,7 +704,7 @@ class Visualization_Settings:
             'point mirror offset':         0.000015,
             'point mirror dotoffset':      1.0,
 
-            'focus mult':                  1.0,
+            'focus mult':                  0.0, #1.0,
             'normal offset':               0.001 * normal_offset_multiplier,    # pushes vertices out along normal
             'constrain offset':            constrain_offset,
         }
