@@ -74,7 +74,7 @@ class RetopoFlow_States(CookieCutter):
 
         view_version = self.get_view_version()
         if self.view_version != view_version:
-            self.update_clip_settings()
+            self.update_clip_settings(rescale=False)
             self.view_version = view_version
             self.rftool._callback('view change')
             if self.rftool.rfwidget:

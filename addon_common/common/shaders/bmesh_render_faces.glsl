@@ -234,7 +234,7 @@ void main() {
                 discard;
                 return;
             } else {
-                alpha *= alpha_backface;
+                alpha *= min(1.0, alpha_backface);
             }
         }
 
@@ -260,7 +260,7 @@ void main() {
                 discard;
                 return;
             } else {
-                alpha *= alpha_backface;
+                alpha *= min(1.0, alpha_backface);
             }
         }
 
@@ -272,7 +272,7 @@ void main() {
             ;
     }
 
-    alpha *= pow(max(vCNormal.z, 0.01), 0.25);
+    alpha *= min(1.0, pow(max(vCNormal.z, 0.01), 0.25));
     outColor = coloring(vec4(rgb, alpha));
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
