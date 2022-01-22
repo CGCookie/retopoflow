@@ -573,6 +573,7 @@ class RetopoFlow_Target:
 
 
     def new_vert_point(self, xyz:Point):
+        if not xyz: return None
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)

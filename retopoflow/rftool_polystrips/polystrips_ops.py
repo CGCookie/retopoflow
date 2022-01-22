@@ -73,11 +73,11 @@ class PolyStrips_Ops:
 
         def snap_point(p2D_init, dist):
             p = raycast(p2D_init)[0]
-            if p is None:
-                # did not hit source, so find nearest point on source to where the point would have been
-                r = Point2D_to_Ray(p2D_init)
-                p = nearest_sources_Point(r.eval(dist))[0]
-            return p
+            if p: return p
+            # did not hit source, so find nearest point on source to where the point would have been
+            r = Point2D_to_Ray(p2D_init)
+            p = r.eval(dist)
+            return nearest_sources_Point(p)[0]
 
         def create_edge(center, tangent, mult, perpendicular):
             nonlocal new_geom
