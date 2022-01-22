@@ -46,7 +46,7 @@ from ...addon_common.common.profiler import profiler
 from ...config.options import (
     options, themes, visualization,
     retopoflow_issues_url, retopoflow_tip_url,
-    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,
+    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,  # these are needed for UI
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
 )

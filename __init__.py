@@ -390,9 +390,15 @@ if import_succeeded:
         return False
 
 
+    rf_label_extra = " (?)"
+    if       configoptions.retopoflow_version_git:    rf_label_extra = " (git)"
+    elif not configoptions.retopoflow_cgcookie_built: rf_label_extra = " (self)"
+    elif     configoptions.retopoflow_github:         rf_label_extra = " (github)"
+    elif     configoptions.retopoflow_blendermarket:  rf_label_extra = ""
+
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
-        bl_label = f'RetopoFlow {retopoflow_version}{" (git)" if configoptions.retopoflow_version_git else " (self)" if not configoptions.retopoflow_cgcookie_built else ""}'
+        bl_label = f'RetopoFlow {retopoflow_version}{rf_label_extra}'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         # bl_ui_units_x = 100

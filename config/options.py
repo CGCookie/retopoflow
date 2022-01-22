@@ -84,13 +84,23 @@ def get_git_info():
         print(e)
 get_git_info()
 
-retopoflow_cgcookie_built = os.path.exists(os.path.join(os.path.dirname(__file__), '..', '.cgcookie'))
+cgcookie_built_path = os.path.join(os.path.dirname(__file__), '..', '.cgcookie')
+cgcookie_built      = (
+    open(cgcookie_built_path, 'rt').read()
+    if os.path.exists(cgcookie_built_path)
+    else ''
+)
+retopoflow_cgcookie_built = bool(cgcookie_built)
+retopoflow_github         = 'GitHub'         in cgcookie_built
+retopoflow_blendermarket  = 'Blender Market' in cgcookie_built
 
-def override_version_settings():
-    global retopoflow_cgcookie_built, retopoflow_version_git
-    retopoflow_version_git = None
-    retopoflow_cgcookie_built = True
-# override_version_settings()
+def override_version_settings(**kwargs):
+    global retopoflow_cgcookie_built, retopoflow_version_git, retopoflow_github, retopoflow_blendermarket
+    if 'git'            in kwargs: retopoflow_version_git    = kwargs['git']
+    if 'cgcookie_built' in kwargs: retopoflow_cgcookie_built = kwargs['cgcookie_built']
+    if 'github'         in kwargs: retopoflow_github         = kwargs['github']
+    if 'blendermarket'  in kwargs: retopoflow_blendermarket  = kwargs['blendermarket']
+override_version_settings()
 
 
 ###########################################

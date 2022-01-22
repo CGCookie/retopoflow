@@ -46,7 +46,7 @@ from ...addon_common.common.profiler import profiler
 from ...config.options import (
     options, themes, visualization,
     retopoflow_issues_url, retopoflow_tip_url,
-    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built,
+    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built, retopoflow_github, retopoflow_blendermarket,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
     gpu_info,
@@ -62,8 +62,15 @@ def get_environment_details():
     env_details += [f'- RetopoFlow: {retopoflow_version}']
     if retopoflow_version_git:
         env_details += [f'- RF git: {retopoflow_version_git}']
-    if retopoflow_cgcookie_built:
-        env_details += ['- CG Cookie built']
+    elif retopoflow_cgcookie_built:
+        if retopoflow_github:
+            env_details += ['- CG Cookie built for GitHub']
+        elif retopoflow_blendermarket:
+            env_details += ['- CG Cookie built for Blender Market']
+        else:
+            env_details += ['- CG Cookie built for ??']
+    else:
+        env_details += ['- Self built']
     env_details += [f'- Blender: {blender_version} {blender_branch} {blender_date}']
     env_details += [f'- Platform: {platform_system}, {platform_release}, {platform_version}, {platform_machine}, {platform_processor}']
     env_details += [f'- GPU: {gpu_info}']
