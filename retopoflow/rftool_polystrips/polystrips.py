@@ -210,7 +210,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         else:
             self.set_widget('default')
 
-        if self.handle_inactive_passthrough(): return True
+        if self.handle_inactive_passthrough(): return 
 
         # handle edits
         if self.hovering_handles:
