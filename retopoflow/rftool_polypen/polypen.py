@@ -569,7 +569,7 @@ class PolyPen(RFTool):
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                dprint('Could not insert: ' + str(bmv3.co))
+                dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)] if bmv1 else []
