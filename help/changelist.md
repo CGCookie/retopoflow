@@ -7,7 +7,10 @@ This document contains details about what has changed in RetopoFlow since versio
 - Vertex pinning and unpinning, where pinned vertices cannot be moved
 - Seam edges can be pinned
 - Option to hide cursor when moving geometry
-- Keymap editor shows keys for done and toggle UI
+- Keymap editor improvements: shows keys for done and toggle UI, added Blender passthrough, fixed bugs
+- Added auto clip adjustment setting, which adjusts clip settings based on view position and distance to bbox of sources
+- Fixed visualization bug where depth test wasn't always enabled and depth range might not be [0,1]
+- Fixed many bugs and cleaned up code
 
 ### RetopoFlow 3.2.4&rarr;3.2.5
 
