@@ -486,8 +486,10 @@ class Knife(RFTool):
 
         if options['hide cursor on tweak']: self.set_widget('hidden')
 
+        # filter out any deleted bmverts (issue #1075) or bmverts that are not on screen
+        self.bmverts = [(bmv, xy) for (bmv, xy) in self.bmverts if bmv and bmv.is_valid and xy]
+
     @FSM.on_state('move')
-    @profiler.function
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
