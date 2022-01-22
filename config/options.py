@@ -102,17 +102,22 @@ def override_version_settings(**kwargs):
     if 'blendermarket'  in kwargs: retopoflow_blendermarket  = kwargs['blendermarket']
 override_version_settings()
 
+print('RetopoFlow git: %s' % str(retopoflow_version_git))
+
 
 ###########################################
 # Get system info
 
 build_platform = bpy.app.build_platform.decode('utf-8')
-retopoflow_git_version = git_info()
-platform_system,platform_node,platform_release,platform_version,platform_machine,platform_processor = platform.uname()
+(
+    platform_system,
+    platform_node,
+    platform_release,
+    platform_version,
+    platform_machine,
+    platform_processor,
+) = platform.uname()
 gpu_info = gpustate.gpu_info()
-
-print('RetopoFlow git: %s' % str(retopoflow_git_version))
-
 
 
 
@@ -386,6 +391,7 @@ class Options:
     is_dirty = False    # does the internal db differ from db stored in file? (need writing)
     last_change = 0     # when did we last changed an option?
     write_delay = 1.0   # seconds to wait before writing db to file
+    write_error = False # True when we failed to write options to file
 
     def __init__(self):
         self._callbacks = []
@@ -451,7 +457,7 @@ class Options:
         Options.last_change = time.time()
         self.update_external_vars()
 
-    def clean(self, force=False):
+    def clean(self, force=False, raise_exception=True):
         if not Options.is_dirty:
             # nothing has changed
             return
@@ -459,8 +465,20 @@ class Options:
             # we haven't waited long enough before storing db
             return
         dprint('Writing options:', Options.db)
-        json.dump(Options.db, open(Options.fndb, 'wt'), indent=2, sort_keys=True)
-        Options.is_dirty = False
+        try:
+            json.dump(
+                Options.db,
+                open(Options.fndb, 'wt'),
+                indent=2,
+                sort_keys=True,
+            )
+            Options.is_dirty = False
+        except PermissionError as e:
+            self.write_error = True
+            if raise_exception: raise e
+        except Exception as e:
+            self.write_error = True
+            if raise_exception: raise e
 
     def read(self):
         Options.db = {}

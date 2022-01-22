@@ -50,7 +50,24 @@ class RetopoFlow_States(CookieCutter):
             self.fsm.update()
             return
 
-        options.clean()
+        options.clean(raise_exception=False)
+        if options.write_error and not hasattr(self, '_write_error_reported'):
+            # could not write options to file for some reason
+            # issue #1070
+            self._write_error_reported = True
+            self.alert_user(
+                '\n'.join([
+                    f'Could not write options to file (incorrect permissions).',
+                    f'',
+                    f'Check that you have permission to write to `{options.options_filename}` to the RetopoFlow add-on folder.',
+                    f'',
+                    f'Or, try: uninstall RetopoFlow from Blender, restart Blender, then install the latest version of RetopoFlow from the Blender Market.',
+                    f'',
+                    f'Note: You can continue using RetopoFlow, but any changes to options will not be saved.',
+                    f'This error will not be reported again during the current RetopoFlow session.'
+                ]),
+                level='error',
+            )
 
         if timer:
             self.rftool._callback('timer')
