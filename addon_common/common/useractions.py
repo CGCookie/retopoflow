@@ -419,6 +419,12 @@ class Actions:
         self.navevent = False # to be set below...  was =  (event_type in self.keymap['navigate'])
         self.mousemove_stop = not self.mousemove and self.mousemove_prev
 
+        # record held modifiers
+        self.ctrl  = event.ctrl
+        self.alt   = event.alt
+        self.shift = event.shift
+        self.oskey = event.oskey
+
         if event_type in self.ignore_actions: return
 
         if fn_debug and event_type not in self.nonprintable_actions:
@@ -464,22 +470,22 @@ class Actions:
             self.scroll = (0, 0)
 
         if event_type in self.modifier_actions:
-            if event_type == 'OSKEY':
-                self.oskey = pressed
-            else:
-                l = event_type.startswith('LEFT_')
-                if event_type.endswith('_CTRL'):
-                    self.ctrl = pressed
-                    if l: self.ctrl_left = pressed
-                    else: self.ctrl_right = pressed
-                if event_type.endswith('_SHIFT'):
-                    self.shift = pressed
-                    if l: self.shift_left = pressed
-                    else: self.shift_right = pressed
-                if event_type.endswith('_ALT'):
-                    self.alt = pressed
-                    if l: self.alt_left = pressed
-                    else: self.alt_right = pressed
+            # if event_type == 'OSKEY':
+            #     self.oskey = pressed
+            # else:
+            #     l = event_type.startswith('LEFT_')
+            #     if event_type.endswith('_CTRL'):
+            #         self.ctrl = pressed
+            #         if l: self.ctrl_left = pressed
+            #         else: self.ctrl_right = pressed
+            #     if event_type.endswith('_SHIFT'):
+            #         self.shift = pressed
+            #         if l: self.shift_left = pressed
+            #         else: self.shift_right = pressed
+            #     if event_type.endswith('_ALT'):
+            #         self.alt = pressed
+            #         if l: self.alt_left = pressed
+            #         else: self.alt_right = pressed
             return # modifier keys do not "fire" pressed events
 
         full_event_type = event_type + ('+DRAG' if self.mousedown_drag else '')
