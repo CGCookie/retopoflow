@@ -382,7 +382,7 @@ class Strokes(RFTool):
 
         if extrude:
             if cyclic:
-                print(f'Extrude Cycle')
+                # print(f'Extrude Cycle')
                 self.replay = self.extrude_cycle
             else:
                 sel_verts = self.rfcontext.get_selected_verts()
@@ -398,24 +398,24 @@ class Strokes(RFTool):
                     if not bmv0_sel or not bmv1_sel:
                         bmv = bmv0 if bmv0_sel else bmv1
                         if len(set(bmv.link_edges) & sel_edges) == 1:
-                            print(f'Extrude L or C')
+                            # print(f'Extrude L or C')
                             self.replay = self.extrude_l
                         else:
-                            print(f'Extrude I or T')
+                            # print(f'Extrude I or T')
                             self.replay = self.extrude_t
                     else:
-                        print(f'Extrude U or O')
+                        # print(f'Extrude U or O')
                         # XXX: I-shaped extrusions?
                         self.replay = self.extrude_u
                 else:
-                    print(f'Extrude Strip')
+                    # print(f'Extrude Strip')
                     self.replay = self.extrude_equals
         else:
             if cyclic:
-                print(f'Create Cycle')
+                # print(f'Create Cycle')
                 self.replay = self.create_cycle
             else:
-                print(f'Create Strip')
+                # print(f'Create Strip')
                 self.replay = self.create_strip
 
         # print(self.replay)
@@ -439,6 +439,13 @@ class Strokes(RFTool):
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
+
+        if len(nstroke) <= 2:
+            # too few vertices for a cycle
+            self.rfcontext.alert_user(
+                'Could not find create cycle from stroke.  Please try again.'
+            )
+            return
 
         with self.defer_recomputing_while():
             verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
