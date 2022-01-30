@@ -173,7 +173,6 @@ class Strokes(RFTool):
 
     @RFTool.on_target_change
     @RFTool.on_view_change
-    @profiler.function
     def update(self):
         if self.defer_recomputing: return
 
@@ -201,7 +200,6 @@ class Strokes(RFTool):
         return bme.select or len(bme.link_faces) < 2
 
     @FSM.on_state('main')
-    @profiler.function
     def modal_main(self):
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
@@ -745,7 +743,8 @@ class Strokes(RFTool):
                     if all(lst) and not has_duplicates(lst):
                         new_face(lst)
                 bmv1 = nverts[0]
-                nedges.append(bmv0.shared_edge(bmv1))
+                if bmv0 and bmv1:
+                    nedges.append(bmv0.shared_edge(bmv1))
                 bmv0 = bmv1
 
             self.rfcontext.select(nedges)
