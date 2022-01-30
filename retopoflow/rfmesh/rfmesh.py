@@ -142,6 +142,9 @@ class RFMesh():
             # print('RFMesh.__setup__: triangulating')
             self.triangulate()
 
+        for bmv in self.bme.verts:
+            bmv.normal_update()
+
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()

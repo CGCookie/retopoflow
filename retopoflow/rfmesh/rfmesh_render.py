@@ -273,9 +273,9 @@ class RFMeshRender():
                                     for bmv in verts
                                 ],
                                 'vno': [
-                                    tuple(bmf.normal)
+                                    tuple(bmv.normal)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for _ in verts
+                                    for bmv in verts
                                 ],
                                 'sel': [
                                     sel(bmf)
@@ -375,6 +375,10 @@ class RFMeshRender():
             except Exception as e:
                 print('EXCEPTION WHILE GATHERING: ' + str(e))
                 raise e
+
+        # self.bmesh.verts.ensure_lookup_table()
+        for bmelem in chain(self.bmesh.verts): # chain(self.bmesh.faces, self.bmesh.edges, self.bmesh.verts):
+            bmelem.normal_update()
 
         self._is_loading = True
         self._is_loaded = False
