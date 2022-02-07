@@ -57,7 +57,9 @@ class Shader():
         logging and error-checking not quite working :(
         '''
 
+        Globals.drawing.glCheckError(f'Pre shader compile')
         bgl.glCompileShader(shader)
+        Globals.drawing.glCheckError(f'Post shader compile {name}')
 
         # report shader compilation log (if any)
         bufLogLen = bgl.Buffer(bgl.GL_INT, 1)

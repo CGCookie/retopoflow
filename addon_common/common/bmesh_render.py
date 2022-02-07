@@ -120,12 +120,14 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from .shaders import Shader
 
+Drawing.glCheckError(f'Pre-compile check: bmesh render shader')
 verts_vs, verts_fs = Shader.parse_file('bmesh_render_verts.glsl', includeVersion=False)
 verts_shader = gpu.types.GPUShader(verts_vs, verts_fs)
 edges_vs, edges_fs = Shader.parse_file('bmesh_render_edges.glsl', includeVersion=False)
 edges_shader = gpu.types.GPUShader(edges_vs, edges_fs)
 faces_vs, faces_fs = Shader.parse_file('bmesh_render_faces.glsl', includeVersion=False)
 faces_shader = gpu.types.GPUShader(faces_vs, faces_fs)
+Drawing.glCheckError(f'Compiled bmesh render shader')
 
 
 class BufferedRender_Batch:

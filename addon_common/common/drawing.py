@@ -55,6 +55,11 @@ from .utils import iter_pairs
 from .functools import find_fns
 
 
+# the following line suppresses a Blender 3.1.0 bug
+# https://developer.blender.org/T95592
+bgl.glGetError()
+
+
 class Cursors:
     # https://docs.blender.org/api/current/bpy.types.Window.html#bpy.types.Window.cursor_set
     _cursors = {
@@ -114,70 +119,6 @@ class Cursors:
     def warp(x, y): bpy.context.window.cursor_warp(x, y)
 
 Globals.set(Cursors())
-
-
-
-
-if bversion() >= "2.80":
-    import gpu
-    from gpu.types import GPUShader
-    from gpu_extras.batch import batch_for_shader
-
-    # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
-
-    def create_shader(fn_glsl):
-        path_here = os.path.dirname(os.path.realpath(__file__))
-        path_shaders = os.path.join(path_here, 'shaders')
-        path_glsl = os.path.join(path_shaders, fn_glsl)
-        txt = open(path_glsl, 'rt').read()
-        vert_source, frag_source = Shader.parse_string(txt)
-        try:
-            return GPUShader(vert_source, frag_source)
-        except Exception as e:
-            print('ERROR WHILE COMPILING SHADER %s' % fn_glsl)
-            assert False
-
-    # 2D point
-    shader_2D_point = create_shader('point_2D.glsl')
-    batch_2D_point = batch_for_shader(shader_2D_point, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
-
-    # 2D line segment
-    shader_2D_lineseg = create_shader('lineseg_2D.glsl')
-    batch_2D_lineseg = batch_for_shader(shader_2D_lineseg, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
-
-    # 2D circle
-    shader_2D_circle = create_shader('circle_2D.glsl')
-    # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
-    cnt = 100
-    pts = [
-        p for i0 in range(cnt)
-        for p in [
-            ((i0+0)/cnt,0), ((i0+1)/cnt,0), ((i0+1)/cnt,1),
-            ((i0+0)/cnt,0), ((i0+1)/cnt,1), ((i0+0)/cnt,1),
-        ]
-    ]
-    batch_2D_circle = batch_for_shader(shader_2D_circle, 'TRIS', {"pos": pts})
-
-    # 3D circle
-    shader_3D_circle = create_shader('circle_3D.glsl')
-    # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
-    cnt = 100
-    pts = [
-        p for i0 in range(cnt)
-        for p in [
-            ((i0+0)/cnt,0), ((i0+1)/cnt,0), ((i0+1)/cnt,1),
-            ((i0+0)/cnt,0), ((i0+1)/cnt,1), ((i0+0)/cnt,1),
-        ]
-    ]
-    batch_3D_circle = batch_for_shader(shader_3D_circle, 'TRIS', {"pos": pts})
-
-    # 3D triangle
-    shader_3D_triangle = create_shader('triangle_3D.glsl')
-    batch_3D_triangle = batch_for_shader(shader_3D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
-
-    # 3D triangle
-    shader_2D_triangle = create_shader('triangle_2D.glsl')
-    batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
 
 
@@ -832,8 +773,80 @@ class Drawing:
         self.glCheckError('done with draw')
         self._draw = None
 
-
+Drawing.glCheckError(f'pre-init check: Drawing')
 Drawing.initialize()
+Drawing.glCheckError(f'post-init check: Drawing')
+
+
+
+
+if bversion() >= "2.80":
+    import gpu
+    from gpu.types import GPUShader
+    from gpu_extras.batch import batch_for_shader
+
+    # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
+
+    def create_shader(fn_glsl):
+        path_here = os.path.dirname(os.path.realpath(__file__))
+        path_shaders = os.path.join(path_here, 'shaders')
+        path_glsl = os.path.join(path_shaders, fn_glsl)
+        txt = open(path_glsl, 'rt').read()
+        vert_source, frag_source = Shader.parse_string(txt)
+        try:
+            Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
+            ret = GPUShader(vert_source, frag_source)
+            Drawing.glCheckError(f'post-compile check: {fn_glsl}')
+            return ret
+        except Exception as e:
+            print('ERROR WHILE COMPILING SHADER %s' % fn_glsl)
+            assert False
+
+    Drawing.glCheckError(f'Pre-compile check: point, lineseg, circle, triangle shaders')
+
+    # 2D point
+    shader_2D_point = create_shader('point_2D.glsl')
+    batch_2D_point = batch_for_shader(shader_2D_point, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
+
+    # 2D line segment
+    shader_2D_lineseg = create_shader('lineseg_2D.glsl')
+    batch_2D_lineseg = batch_for_shader(shader_2D_lineseg, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
+
+    # 2D circle
+    shader_2D_circle = create_shader('circle_2D.glsl')
+    # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
+    cnt = 100
+    pts = [
+        p for i0 in range(cnt)
+        for p in [
+            ((i0+0)/cnt,0), ((i0+1)/cnt,0), ((i0+1)/cnt,1),
+            ((i0+0)/cnt,0), ((i0+1)/cnt,1), ((i0+0)/cnt,1),
+        ]
+    ]
+    batch_2D_circle = batch_for_shader(shader_2D_circle, 'TRIS', {"pos": pts})
+
+    # 3D circle
+    shader_3D_circle = create_shader('circle_3D.glsl')
+    # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
+    cnt = 100
+    pts = [
+        p for i0 in range(cnt)
+        for p in [
+            ((i0+0)/cnt,0), ((i0+1)/cnt,0), ((i0+1)/cnt,1),
+            ((i0+0)/cnt,0), ((i0+1)/cnt,1), ((i0+0)/cnt,1),
+        ]
+    ]
+    batch_3D_circle = batch_for_shader(shader_3D_circle, 'TRIS', {"pos": pts})
+
+    # 3D triangle
+    shader_3D_triangle = create_shader('triangle_3D.glsl')
+    batch_3D_triangle = batch_for_shader(shader_3D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
+
+    # 3D triangle
+    shader_2D_triangle = create_shader('triangle_2D.glsl')
+    batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
+
+    Drawing.glCheckError(f'Compiled point, lineseg, circle shaders')
 
 
 ######################################################################################################
