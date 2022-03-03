@@ -1447,10 +1447,25 @@ class RFTarget(RFMesh):
         px,py,pz = point
         threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
         symmetry = set()
-        if self.mirror_mod.x and px <= threshold: symmetry.add('x')
+        if self.mirror_mod.x and  px <= threshold: symmetry.add('x')
         if self.mirror_mod.y and -py <= threshold: symmetry.add('y')
-        if self.mirror_mod.z and pz <= threshold: symmetry.add('z')
+        if self.mirror_mod.z and  pz <= threshold: symmetry.add('z')
         return symmetry
+
+    def check_symmetry(self):
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
+        ret = list()
+        if self.mirror_mod.x and any(bmv.co.x < -threshold for bmv in self.bme.verts): ret.append('X')
+        if self.mirror_mod.y and any(bmv.co.y >  threshold for bmv in self.bme.verts): ret.append('Y')
+        if self.mirror_mod.z and any(bmv.co.z < -threshold for bmv in self.bme.verts): ret.append('Z')
+        return ret
+
+    def select_bad_symmetry(self):
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
+        for bmv in self.bme.verts:
+            if self.mirror_mod.x and bmv.co.x < -threshold: bmv.select = True
+            if self.mirror_mod.y and bmv.co.y >  threshold: bmv.select = True
+            if self.mirror_mod.z and bmv.co.z < -threshold: bmv.select = True
 
     def snap_to_symmetry(self, point, symmetry, from_world=True, to_world=True):
         if not symmetry and from_world == to_world: return point

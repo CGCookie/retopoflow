@@ -75,6 +75,29 @@ class RetopoFlow_Target:
         self.rftarget.obj_viewport_hide()
         self.rftarget.obj_render_hide()
 
+    def check_target_symmetry(self):
+        bad = self.rftarget.check_symmetry()
+        if not bad: return
+
+        message = ['\n'.join([
+            f'Symmetry is enabled on the {", ".join(bad)} {"axis" if len(bad)==1 else "axes"}, but vertices were found on the "wrong" side of the symmetry {"plane" if len(bad)==1 else "planes"}.',
+            f'',
+            f'Editing these vertices will cause them to snap to the symmetry plane.',
+            f'(Editing vertices on the "correct" side of symmetry will work as expected)',
+            f'',
+            f'You can see these vertices by clicking Select Bad Symmetry button under Target Cleaning > Symmetry',
+        ])]
+
+        self.alert_user(
+            title='Bad Target Symmetry',
+            message='\n\n'.join(message),
+            level='warning',
+        )
+
+    def select_bad_symmetry(self):
+        self.deselect_all()
+        self.rftarget.select_bad_symmetry()
+
     def teardown_target(self):
         # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
         self.rftarget.obj_viewport_unhide()

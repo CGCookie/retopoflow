@@ -445,6 +445,12 @@ def mirror_changed(self):
                         <button title="Recalculates the normal of selected faces, same as Recalculate Outside (Shift + N) in Edit Mode" on_mouseclick="self.recalculate_face_normals()">Recalculate</button>
                     </div>
                 </div>
+                <div class="collection">
+                    <h1>Symmetry</h1>
+                    <div class="contents">
+                        <button title="Select vertices that are on the wrong side of symmetry plane" class="full-size" on_mouseclick="self.select_bad_symmetry()">Select Bad Symmetry</button>
+                    </div>
+                </div>
             </div>
         </details>
         <details id='target-pinning'>
