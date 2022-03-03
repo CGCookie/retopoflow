@@ -72,6 +72,7 @@ default_rf_keymaps = {
     'tool help': ['F2'],
 
     'toggle ui': ['F9'],
+    'reload css': ['F12'],
 
     'autosave': ['TIMER_AUTOSAVE'],
 

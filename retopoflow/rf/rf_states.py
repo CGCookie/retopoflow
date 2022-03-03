@@ -223,16 +223,16 @@ class RetopoFlow_States(CookieCutter):
     def modal_main(self):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
-            if self.actions.pressed({'done'}):
+            # exit
+            if self.actions.pressed('done'):
                 if options['confirm tab quit']:
                     self.show_quit_dialog()
                 else:
                     self.done()
                 return
-            if options['escape to quit'] and self.actions.pressed({'done alt0'}):
+            if options['escape to quit'] and self.actions.pressed('done alt0'):
                 self.done()
                 return
-
 
             # handle help actions
             if self.actions.pressed('all help'):
@@ -279,18 +279,25 @@ class RetopoFlow_States(CookieCutter):
                 ], self.select_rftool, highlighted=self.rftool)
                 return
 
+            # debugging
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
             # if self.actions.pressed('SHIFT+F6'): assert False
             # if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
+            # if self.actions.pressed('F7'):
+            #     assert False, 'test exception throwing'
+            #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
+            #     return
 
-            if self.actions.pressed('SHIFT+F10'):
-                profiler.clear()
-                return
-            if self.actions.pressed('SHIFT+F11'):
-                profiler.printout()
-                self.document.debug_print()
-                return
-            if self.actions.pressed('F12'):
+            # profiler
+            # if self.actions.pressed('SHIFT+F10'):
+            #     profiler.clear()
+            #     return
+            # if self.actions.pressed('SHIFT+F11'):
+            #     profiler.printout()
+            #     self.document.debug_print()
+            #     return
+
+            if self.actions.pressed('reload css'):
                 print('RetopoFlow: Reloading stylings')
                 self.reload_stylings()
                 return
@@ -304,12 +311,7 @@ class RetopoFlow_States(CookieCutter):
                     self.select_rftool(rftool, quick=True)
                     return 'quick switch'
 
-            # if self.actions.pressed('F7'):
-            #     assert False, 'test exception throwing'
-            #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
-            #     return
-
-            # handle undo/redo
+            # undo/redo
             if self.actions.pressed('blender undo'):
                 self.undo_pop()
                 if self.rftool: self.rftool._reset()
@@ -319,40 +321,38 @@ class RetopoFlow_States(CookieCutter):
                 if self.rftool: self.rftool._reset()
                 return
 
-            # handle selection
             # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
+
+            # handle selection
             if self.actions.pressed('select all'):
                 # print('modal_main:selecting all toggle')
                 self.undo_push('select all')
                 self.select_toggle()
                 return
-
             if self.actions.pressed('deselect all'):
                 self.undo_push('deselect all')
                 self.deselect_all()
                 return
-
             if self.actions.pressed('select invert'):
                 self.undo_push('select invert')
                 self.select_invert()
                 return
 
+            # hide/reveal
             if self.actions.pressed('hide selected'):
                 self.hide_selected()
                 return
-
             if self.actions.pressed('hide unselected'):
                 self.hide_unselected()
                 return
-
             if self.actions.pressed('reveal hidden'):
                 self.reveal_hidden()
                 return
 
+            # delete
             if self.actions.pressed('delete'):
                 self.show_delete_dialog()
                 return
-
             if self.actions.pressed('delete pie menu'):
                 def callback(option):
                     if not option: return
@@ -369,10 +369,12 @@ class RetopoFlow_States(CookieCutter):
                 ], callback, release='delete pie menu', always_callback=True, rotate=-60)
                 return
 
+            # smoothing
             if self.actions.pressed('smooth edge flow'):
                 self.smooth_edge_flow(iterations=options['smooth edge flow iterations'])
                 return
 
+            # pin/unpin
             if self.actions.pressed('pin'):
                 self.pin_selected()
                 return

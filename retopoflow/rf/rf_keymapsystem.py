@@ -401,6 +401,7 @@ ignored_keys = {
     'grease clear', 'grease pencil tool',
     'stretch tool',
     'toggle full area',
+    'reload css',
 }
 
 # check that all keymaps are able to be edited
@@ -411,7 +412,7 @@ def check_keymap_editor():
     extra_keys = flattened_details - default_keys
     if not missing_keys and not extra_keys: return
     print(f'Error detected in keymap editor')
-    if missing_keys: print(f'Missing Keys: {sorted(missing_keys)}')
-    if extra_keys:   print(f'Extra Keys: {sorted(extra_keys)}')
+    if missing_keys: print(f'Missing Keys: {sorted(missing_keys)}\nEither add to keymap_details or ignored_keys in rf_keymapsystem.py')
+    if extra_keys:   print(f'Extra Keys: {sorted(extra_keys)}\nRemove these from keymap_details')
     assert False
 check_keymap_editor()
