@@ -39,6 +39,7 @@ The following links provide additional information.
 
 The following provide additional information about more advanced RetopoFlow features.
 
+- [Debbuging](debugging.md)
 - [Updater System](addon_updater.md)
 - [Keymap Editor](keymap_editor.md)
 
