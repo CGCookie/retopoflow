@@ -119,6 +119,15 @@ class Knife(RFTool):
             self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'])
             self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
+    def ensure_all_valid(self):
+        self.sel_verts = [v for v in self.sel_verts if v.is_valid]
+        self.sel_edges = [e for e in self.sel_edges if e.is_valid]
+        self.sel_faces = [f for f in self.sel_faces if f.is_valid]
+
+        self.vis_verts = [v for v in self.vis_verts if v.is_valid]
+        self.vis_edges = [e for e in self.vis_edges if e.is_valid]
+        self.vis_faces = [f for f in self.vis_faces if f.is_valid]
+
 
     @FSM.on_state('quick', 'enter')
     def quick_enter(self):
@@ -614,6 +623,9 @@ class Knife(RFTool):
     @FSM.onlyinstate({'main', 'quick'})
     def draw_postpixel(self):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
+
+        # make sure that all our data structs contain valid data (hasn't been deleted)
+        self.ensure_all_valid()
 
         #if self.rfcontext.nav or self.mode != 'main': return
         if self._fsm.state != 'quick':
