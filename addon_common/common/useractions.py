@@ -142,7 +142,7 @@ def translate_blenderop(action, keyconfig=None):
             if kmi.idname != oop and kmi.idname != top: continue
             ret.add(kmi_details(kmi))
     if not ret:
-        print(f'Addon Common Warning: could not translate blender op "{action}" to actions ({okeymap}->{tkeymap}, {oop}->{top})')
+        dprint(f'Addon Common Warning: could not translate blender op "{action}" to actions ({okeymap}->{tkeymap}, {oop}->{top})')
     return ret
 
 
@@ -158,6 +158,17 @@ def strip_mods(action, ctrl=True, shift=True, alt=True, oskey=True, click=True, 
     if double_click: action = action.replace('+DOUBLE', '')
     if drag_click:   action = action.replace('+DRAG',   '')
     return action
+
+def add_mods(action, *, ctrl=False, shift=False, alt=False, oskey=False, click=False, double_click=False, drag_click=False):
+    if not action: return action
+    ctrl = 'CTRL+' if ctrl else ''
+    shift = 'SHIFT+' if shift else ''
+    alt = 'ALT+' if alt else ''
+    oskey = 'OSKEY+' if oskey else ''
+    click = '+CLICK' if click and not double_click and not drag_click else ''
+    double_click = '+DOUBLE' if double_click and not drag_click else ''
+    drag_click = '+DRAG' if drag_click else ''
+    return f'{ctrl}{shift}{alt}{oskey}{action}{click}{double_click}{drag_click}'
 
 def i18n_translate(text):
     ''' bpy.app.translations.pgettext tries to translate the given parameter '''
@@ -245,7 +256,6 @@ class Actions:
         {
             'name': 'navigate',
             'operators': [
-                '3D View | view3d.rotate',
                 '3D View | view3d.rotate',                # Rotate View
                 '3D View | view3d.move',                  # Move View
                 '3D View | view3d.zoom',                  # Zoom View
@@ -262,6 +272,7 @@ class Actions:
                 '3D View | view3d.ndof_all',              # NDOF Move View
                 '3D View | view3d.view_selected',         # View Selected
                 '3D View | view3d.view_center_cursor',    # Center View to Cursor
+                '3D View | view3d.view_center_pick',      # Center View to Mouse
                 # '3D View | view3d.navigate',              # View Navigation
             ],
         }, {
@@ -324,6 +335,7 @@ class Actions:
             self.keymap.setdefault(name, set())
             for op in ops:
                 self.keymap[name] |= translate_blenderop(op)
+        # print(f'useractions navigate={self.keymap["navigate"]}')
 
         self.context = context
         self.area = context.area
@@ -416,8 +428,14 @@ class Actions:
         self.mousemove = (event_type in Actions.mousemove_actions)
         self.trackpad = (event_type in Actions.trackpad_actions)
         self.ndof = (event_type in Actions.ndof_actions)
-        self.navevent = (event_type in self.keymap['navigate'])
+        self.navevent = False # to be set below...  was =  (event_type in self.keymap['navigate'])
         self.mousemove_stop = not self.mousemove and self.mousemove_prev
+
+        # record held modifiers
+        self.ctrl  = event.ctrl
+        self.alt   = event.alt
+        self.shift = event.shift
+        self.oskey = event.oskey
 
         if event_type in self.ignore_actions: return
 
@@ -429,6 +447,7 @@ class Actions:
             self.time_delta = self.time_last - time_cur
             self.time_last = time_cur
             self.trackpad = False
+            self.navevent = False
             return
 
         if self.mousemove:
@@ -449,6 +468,10 @@ class Actions:
                 self.mousedown_drag = False
                 return
 
+        if event_type in {'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} and not pressed:
+            # release drag when mouse button is released
+            self.mousedown_drag = False
+
         if self.trackpad:
             pressed = True
             self.scroll = (event.mouse_x - event.mouse_prev_x, event.mouse_y - event.mouse_prev_y)
@@ -459,23 +482,11 @@ class Actions:
             self.scroll = (0, 0)
 
         if event_type in self.modifier_actions:
-            if event_type == 'OSKEY':
-                self.oskey = pressed
-            else:
-                l = event_type.startswith('LEFT_')
-                if event_type.endswith('_CTRL'):
-                    self.ctrl = pressed
-                    if l: self.ctrl_left = pressed
-                    else: self.ctrl_right = pressed
-                if event_type.endswith('_SHIFT'):
-                    self.shift = pressed
-                    if l: self.shift_left = pressed
-                    else: self.shift_right = pressed
-                if event_type.endswith('_ALT'):
-                    self.alt = pressed
-                    if l: self.alt_left = pressed
-                    else: self.alt_right = pressed
             return # modifier keys do not "fire" pressed events
+
+        full_event_type = add_mods(event_type, ctrl=self.ctrl, alt=self.alt, shift=self.shift, oskey=self.oskey, drag_click=self.mousedown_drag)
+        self.navevent = (full_event_type in self.keymap['navigate'])
+        # if self.navevent: print(f'useractions.update navevent from {full_event_type}')
 
         mouse_event = event_type in self.mousebutton_actions and not self.navevent
         if mouse_event:
@@ -601,11 +612,12 @@ class Actions:
         return any(action_good(action) for action in self.convert(actions))
 
     def navigating(self):
-        actions = self.convert('navigate')
-        if self.trackpad: return True
-        if self.ndof: return True
-        if any(p in actions for p in self.now_pressed.values()): return True
-        return False
+        return self.navevent
+        # actions = self.convert('navigate')
+        # if self.trackpad: return True
+        # if self.ndof: return True
+        # if any(p in actions for p in self.now_pressed.values()): return True
+        # return False
 
     def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, ignoremouse=False, debug=False):
         if actions is None: return False

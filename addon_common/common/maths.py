@@ -504,6 +504,10 @@ class Normal(VecUtils, Entity3D):
 
 class Color(Vector):
     @staticmethod
+    def from_ints(r, g, b, a=255):
+        return Color((r/255.0, g/255.0, b/255.0, a/255.0))
+
+    @staticmethod
     def as_vec4(c):
         if type(c) in {float, int}: return Vector((c, c, c, 1.0))
         if len(c) == 3: return Vector((*c, 1.0))
@@ -627,7 +631,8 @@ class Ray(Entity3D):
         return self.__str__()
 
     def eval(self, t: float):
-        return self.o + max(0.0, min(self.max, t)) * self.d
+        v = self.d * clamp(t, 0.0, self.max)
+        return self.o + v
 
     @classmethod
     def from_screenspace(cls, pos: Vector):
@@ -1204,6 +1209,21 @@ class BBox:
             m - margin <= v and v <= M + margin
             for (v, m, M) in zip(point, self.min, self.max)
         )
+
+    def closest_Point(self, point:Point):
+        return Point((
+            clamp(point.x, self.mx, self.Mx),
+            clamp(point.y, self.my, self.My),
+            clamp(point.z, self.mz, self.Mz),
+        ))
+
+    def farthest_Point(self, point:Point):
+        cx, cy, cz = (self.mx + self.Mx) / 2, (self.my + self.My) / 2, (self.mz + self.Mz) / 2
+        return Point((
+            self.mx if point.x > cx else self.Mx,
+            self.my if point.y > cy else self.My,
+            self.mz if point.z > cz else self.Mz,
+        ))
 
     def get_min_dimension(self):
         return self.min_dim

@@ -1,9 +1,13 @@
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
 uniform vec4  color_warning;    // color of geometry if warning
+uniform vec4  color_pinned;     // color of geometry if pinned
+uniform vec4  color_seam;       // color of geometry if seam
 
 uniform bool  use_selection;    // false: ignore selected, true: consider selected
 uniform bool  use_warning;      // false: ignore warning, true: consider warning
+uniform bool  use_pinned;       // false: ignore pinned, true: consider pinned
+uniform bool  use_seam;         // false: ignore seam, true: consider seam
 uniform bool  use_rounding;
 
 uniform mat4  matrix_m;         // model xform matrix
@@ -50,8 +54,10 @@ attribute vec3  vert_pos0;      // position wrt model
 attribute vec3  vert_pos1;      // position wrt model
 attribute vec2  vert_offset;
 attribute vec3  vert_norm;      // normal wrt model
-attribute float selected;       // is vertex selected?  0=no; 1=yes
-attribute float warning;        // is vertex warning?  0=no; 1=yes
+attribute float selected;       // is edge selected?  0=no; 1=yes
+attribute float warning;        // is edge warning?  0=no; 1=yes
+attribute float pinned;         // is edge pinned?  0=no; 1=yes
+attribute float seam;           // is edge on seam?  0=no; 1=yes
 
 
 varying vec4 vPPosition;        // final position (projected)
@@ -142,13 +148,13 @@ void main() {
 
     gl_Position = vPPosition;
 
-    if(use_selection && selected > 0.5) {
-        vColor = color_selected;
-    } else if(use_warning && warning > 0.5) {
-        vColor = color_warning;
-    } else {
-        vColor = color;
-    }
+    vColor = color;
+
+    if(use_warning   && warning  > 0.5) vColor = mix(vColor, color_warning,  0.75);
+    if(use_pinned    && pinned   > 0.5) vColor = mix(vColor, color_pinned,   0.75);
+    if(use_seam      && seam     > 0.5) vColor = mix(vColor, color_seam,     0.75);
+    if(use_selection && selected > 0.5) vColor = mix(vColor, color_selected, 0.75);
+
     vColor.a *= 1.0 - hidden;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
@@ -236,7 +242,7 @@ void main() {
         discard;
         return;
     }
-    alpha *= alpha_mult;
+    alpha *= min(1.0, alpha_mult);
 
     if(perspective) {
         // perspective projection
@@ -250,7 +256,7 @@ void main() {
                 discard;
                 return;
             } else {
-                alpha *= alpha_backface;
+                alpha *= min(1.0, alpha_backface);
             }
         }
 
@@ -276,7 +282,7 @@ void main() {
                 discard;
                 return;
             } else {
-                alpha *= alpha_backface;
+                alpha *= min(1.0, alpha_backface);
             }
         }
 
@@ -288,7 +294,7 @@ void main() {
             ;
     }
 
-    alpha *= pow(max(vCNormal.z, 0.01), 0.25);
+    alpha *= min(1.0, pow(max(vCNormal.z, 0.01), 0.25));
     outColor = coloring(vec4(rgb, alpha));
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);

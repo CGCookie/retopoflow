@@ -39,7 +39,7 @@ bl_info = {
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "location":    "View 3D > Header",
     "blender":     (2, 93, 0),
-    "version":     (3, 2, 5),
+    "version":     (3, 2, 6),
     # "warning":     "Alpha",                   # used for warning icon and text in addons panel
     # "warning":     "Beta",
     # "warning":     "Release Candidate 1",
@@ -390,9 +390,15 @@ if import_succeeded:
         return False
 
 
+    rf_label_extra = " (?)"
+    if       configoptions.retopoflow_version_git:    rf_label_extra = " (git)"
+    elif not configoptions.retopoflow_cgcookie_built: rf_label_extra = " (self)"
+    elif     configoptions.retopoflow_github:         rf_label_extra = " (github)"
+    elif     configoptions.retopoflow_blendermarket:  rf_label_extra = ""
+
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
-        bl_label = f'RetopoFlow {retopoflow_version}{" (git)" if configoptions.retopoflow_version_git else " (self)" if not configoptions.retopoflow_cgcookie_built else ""}'
+        bl_label = f'RetopoFlow {retopoflow_version}{rf_label_extra}'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         # bl_ui_units_x = 100

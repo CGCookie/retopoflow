@@ -97,8 +97,9 @@ class UI_Draw:
         vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
         print(f'Addon Common: compiling UI shader')
+        Drawing.glCheckError(f'Pre-compile check: UI Shader check')
         shader = gpu.types.GPUShader(vertex_shader, fragment_shader) #name='RetopoFlowUIShader'
-        Drawing.glCheckError(f'Compiled shader {shader}')
+        Drawing.glCheckError(f'Compiled UI Shader {shader}')
         print(f'Addon Common: batching for shader')
         batch = batch_for_shader(shader, 'TRIS', {"pos": vertex_positions})
         Drawing.glCheckError(f'Batched for shader {batch}')
@@ -177,6 +178,7 @@ class UI_Draw:
             if texture_id is not None:
                 bgl.glActiveTexture(atex)
                 bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
+            # Drawing.glCheckError(f'checking gl errors after binding shader and setting uniforms')
             batch.draw(shader)
 
         UI_Draw._draw = draw

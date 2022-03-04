@@ -118,8 +118,8 @@ class RetopoFlow_Spaces:
     def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
         # computes size of 3D object at distance (depth) as it projects to 2D size
         # TODO: there are more efficient methods of computing this!
-        # note: scaling then unscaling by inverse of near clip to account for numerical instability with small clip_start values
-        scale = 1.0 / self.actions.space.clip_start
+        # note: scaling then unscaling helps with numerical instability when clip_start is small
+        scale = 1000.0 # 1.0 / self.actions.space.clip_start
         p3d0 = self.Point2D_to_Point(xy, depth)
         p3d1 = self.Point2D_to_Point(xy + Vec2D((scale * size2D, 0)), depth)
         return (p3d0 - p3d1).length / scale

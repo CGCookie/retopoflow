@@ -28,6 +28,7 @@ import itertools
 from ..rftool import RFTool
 from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 
 from ...addon_common.common.maths import (
     Point, Vec, Normal, Direction,
@@ -55,9 +56,10 @@ class Loops(RFTool):
     quick_shortcut = 'loops quick'
     statusbar   = '{{insert}} Insert edge loop\t{{smooth edge flow}} Smooth edge flow'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('Loops default')
-    RFWidget_Move = RFWidget_Default_Factory.create('Loops move', 'HAND')
-    RFWidget_Crosshair = RFWidget_Default_Factory.create('Loops crosshair', 'CROSSHAIR')
+    RFWidget_Default   = RFWidget_Default_Factory.create()
+    RFWidget_Move      = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Crosshair = RFWidget_Default_Factory.create(cursor='CROSSHAIR')
+    RFWidget_Hidden    = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
@@ -65,6 +67,7 @@ class Loops(RFTool):
             'default': self.RFWidget_Default(self),
             'cut':     self.RFWidget_Crosshair(self),
             'hover':   self.RFWidget_Move(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
@@ -116,7 +119,7 @@ class Loops(RFTool):
     @FSM.on_state('quick', 'enter')
     def quick_enter(self):
         self.hovering_sel_edge = None
-        self.rfwidget = self.rfwidgets['cut']
+        self.set_widget('cut')
 
     @FSM.on_state('quick')
     def quick_main(self):
@@ -145,17 +148,13 @@ class Loops(RFTool):
 
         self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['cut']
+            self.set_widget('cut')
         elif self.hovering_edge:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.hovering_edge:
             #print(f'hovering edge {self.actions.using("action")} {self.hovering_edge} {self.hovering_sel_edge}')
@@ -276,7 +275,7 @@ class Loops(RFTool):
             self.rfcontext.undo_cancel()
             return
         self.move_done_pressed = None
-        self.move_done_released = ['insert', 'insert alt0']
+        self.move_done_released = 'insert'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('slide edge loop/strip')
         return 'slide'
@@ -504,6 +503,7 @@ class Loops(RFTool):
     def slide_enter(self):
         self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'hover')
         tag_redraw_all('entering slide')
 
     @FSM.on_state('slide')
@@ -517,8 +517,6 @@ class Loops(RFTool):
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
-
-        self.rfwidget = self.rfwidgets['hover']
 
         if not self.actions.mousemove_stop: return
         # # only update loop on timer events and when mouse has moved

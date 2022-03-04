@@ -27,6 +27,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_seg
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.drawing import (
@@ -59,9 +60,10 @@ class Knife(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'knife_options.html'
 
-    RFWidget_Default   = RFWidget_Default_Factory.create('Knife default')
-    RFWidget_Knife     = RFWidget_Default_Factory.create('Knife knife', 'KNIFE')
-    RFWidget_Move      = RFWidget_Default_Factory.create('Knife move', 'HAND')
+    RFWidget_Default   = RFWidget_Default_Factory.create()
+    RFWidget_Knife     = RFWidget_Default_Factory.create(cursor='KNIFE')
+    RFWidget_Move      = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Hidden    = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
@@ -69,6 +71,7 @@ class Knife(RFTool):
             'default': self.RFWidget_Default(self),
             'knife':   self.RFWidget_Knife(self),
             'hover':   self.RFWidget_Move(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.first_time = True
@@ -116,11 +119,20 @@ class Knife(RFTool):
             self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['action dist'])
             self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
+    def ensure_all_valid(self):
+        self.sel_verts = [v for v in self.sel_verts if v.is_valid]
+        self.sel_edges = [e for e in self.sel_edges if e.is_valid]
+        self.sel_faces = [f for f in self.sel_faces if f.is_valid]
+
+        self.vis_verts = [v for v in self.vis_verts if v.is_valid]
+        self.vis_edges = [e for e in self.vis_edges if e.is_valid]
+        self.vis_faces = [f for f in self.vis_faces if f.is_valid]
+
 
     @FSM.on_state('quick', 'enter')
     def quick_enter(self):
         self.quick_knife = True
-        self.rfwidget = self.rfwidgets['knife']
+        self.set_widget('knife')
 
     @FSM.on_state('quick')
     def quick_main(self):
@@ -165,17 +177,13 @@ class Knife(RFTool):
 
         self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['knife']
+            self.set_widget('knife')
         elif self.nearest_geom and self.nearest_geom.select:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.actions.pressed('insert'):
             return 'insert'
@@ -485,8 +493,12 @@ class Knife(RFTool):
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
 
+        if options['hide cursor on tweak']: self.set_widget('hidden')
+
+        # filter out any deleted bmverts (issue #1075) or bmverts that are not on screen
+        self.bmverts = [(bmv, xy) for (bmv, xy) in self.bmverts if bmv and bmv.is_valid and xy]
+
     @FSM.on_state('move')
-    @profiler.function
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -612,9 +624,12 @@ class Knife(RFTool):
     def draw_postpixel(self):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
+        # make sure that all our data structs contain valid data (hasn't been deleted)
+        self.ensure_all_valid()
+
         #if self.rfcontext.nav or self.mode != 'main': return
         if self._fsm.state != 'quick':
-            if not self.actions.using_onlymods('insert'): return   #'insert alt1'??
+            if not self.actions.using_onlymods('insert'): return
         hit_pos = self.actions.hit_pos
 
         if self.knife_start is None and len(self.sel_verts) == 0:

@@ -32,8 +32,9 @@ from mathutils.geometry import intersect_point_tri_2d
 
 from ..rftool import RFTool
 from ..rfwidget import RFWidget
-from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_default     import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
+from ..rfwidgets.rfwidget_hidden      import RFWidget_Hidden_Factory
 
 
 from ...addon_common.common.debug import dprint
@@ -69,13 +70,14 @@ class Strokes(RFTool):
     statusbar   = '{{insert}} Insert edge strip and bridge\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
     ui_config   = 'strokes_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('Strokes default')
+    RFWidget_Default     = RFWidget_Default_Factory.create()
+    RFWidget_Move        = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Hidden      = RFWidget_Hidden_Factory.create()
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
         'Strokes stroke',
         BoundInt('''options['strokes radius']''', min_value=1),
         outer_border_color=themes['strokes'],
     )
-    RFWidget_Move = RFWidget_Default_Factory.create('Strokes move', 'HAND')
 
     @property
     def cross_count(self):
@@ -103,8 +105,9 @@ class Strokes(RFTool):
     def init(self):
         self.rfwidgets = {
             'default': self.RFWidget_Default(self),
-            'brush': self.RFWidget_BrushStroke(self),
+            'brush':   self.RFWidget_BrushStroke(self),
             'hover':   self.RFWidget_Move(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.strip_crosses = None
@@ -170,7 +173,6 @@ class Strokes(RFTool):
 
     @RFTool.on_target_change
     @RFTool.on_view_change
-    @profiler.function
     def update(self):
         if self.defer_recomputing: return
 
@@ -198,7 +200,6 @@ class Strokes(RFTool):
         return bme.select or len(bme.link_faces) < 2
 
     @FSM.on_state('main')
-    @profiler.function
     def modal_main(self):
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
@@ -223,17 +224,13 @@ class Strokes(RFTool):
             self.connection_pre = None
 
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['brush']
+            self.set_widget('brush')
         elif self.hovering_sel_edge:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.rfcontext.actions.pressed('pie menu alt0'):
             def callback(option):
@@ -331,21 +328,24 @@ class Strokes(RFTool):
     def stroke(self):
         # called when artist finishes a stroke
 
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        Point_to_Point2D        = self.rfcontext.Point_to_Point2D
         raycast_sources_Point2D = self.rfcontext.raycast_sources_Point2D
-        accel_nearest2D_vert = self.rfcontext.accel_nearest2D_vert
+        accel_nearest2D_vert    = self.rfcontext.accel_nearest2D_vert
 
         # filter stroke down where each pt is at least 1px away to eliminate local wiggling
         radius = self.rfwidgets['brush'].radius
         stroke = self.rfwidgets['brush'].stroke2D
         stroke = process_stroke_filter(stroke)
-        #stroke = process_stroke_source(stroke, raycast_sources_Point2D, is_point_on_mirrored_side=self.rfcontext.is_point_on_mirrored_side)
-        #stroke = process_stroke_source(stroke, raycast_sources_Point2D, Point_to_Point2D=Point_to_Point2D, mirror_point=self.rfcontext.mirror_point)
-        stroke = process_stroke_source(stroke, raycast_sources_Point2D, Point_to_Point2D=Point_to_Point2D, clamp_point_to_symmetry=self.rfcontext.clamp_point_to_symmetry)
+        stroke = process_stroke_source(
+            stroke,
+            raycast_sources_Point2D,
+            Point_to_Point2D=Point_to_Point2D,
+            clamp_point_to_symmetry=self.rfcontext.clamp_point_to_symmetry,
+        )
         stroke3D = [raycast_sources_Point2D(s)[0] for s in stroke]
         stroke3D = [s for s in stroke3D if s]
 
-        # bail if there isn't enough stroke data to work with
+        # bail if there aren't enough stroke data points to work with
         if len(stroke3D) < 2: return
 
         self.strip_stroke3D = stroke3D
@@ -360,30 +360,31 @@ class Strokes(RFTool):
         # is the stroke in a circle?  note: circle must have a large enough radius
         cyclic = (stroke[0] - stroke[-1]).length < radius and any((s-stroke[0]).length > radius for s in stroke)
 
+        # need to determine shape of extrusion
+        # key: |- stroke  (‾_/\)
+        #      C  corner in stroke (roughly 90° angle, but not easy to detect.  what if the stroke loops over itself?)
+        #      ǁ= edges
+        #      O  vertex under stroke
+        #      X  corner vertex (edges change direction)
+        # notes:
+        # - vertex under stroke must be at beginning or ending of stroke
+        # - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
+
+        #  Strip   Cycle    L-shape   C-shape   U-shape   Equals   T-shape   I-shape   O-shape   D-shape
+        #    |     /‾‾‾\    |         O------   ǁ     ǁ   ======   ===O===   ===O===   X=====O   O-----C
+        #    |    |     |   |         ǁ         ǁ     ǁ               |         |      ǁ     |   ǁ     |
+        #    |     \___/    O======   X======   O-----O   ------      |      ===O===   X=====O   O-----C
+
+        # so far only Strip, Cycle, L, U, Strip are implemented.  C, T, I, O, D are not yet implemented
+
+        # L vs C: there is a corner vertex in the edges (could we extend the L shape??)
+        # D has corners in the stroke, which will be tricky to determine... use acceleration?
+
         if extrude:
             if cyclic:
-                print(f'Extrude Cycle')
+                # print(f'Extrude Cycle')
                 self.replay = self.extrude_cycle
             else:
-                # need to determine shape of extrusion
-                # key: |- stroke
-                #      C  corner in stroke (roughly 90* angle, but not easy to detect)
-                #      ǁ= edges
-                #      O  vertex under stroke
-                #      X  corner vertex (edges change direction)
-                # notes:
-                # - vertex under stroke must be at beginning or ending of stroke
-                # - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
-                # - L, U, Strip are implemented.  C, T, I, O, D are not implemented
-
-                # L-shape   C-shape   U-shape   Strip    T-shape   I-shape   O-shape   D-shape
-                # |         O------   ǁ     ǁ   ======   ===O===   ===O===   X=====O   O-----C
-                # |         ǁ         ǁ     ǁ               |         |      ǁ     |   ǁ     |
-                # O======   X======   O-----O   ------      |      ===O===   X=====O   O-----C
-
-                # L vs C: there is a corner vertex in the edges (could we extend the L shape??)
-                # D has corners in the stroke, which will be tricky to determine... use acceleration?
-
                 sel_verts = self.rfcontext.get_selected_verts()
                 sel_edges = self.rfcontext.get_selected_edges()
                 s0, s1 = Point_to_Point2D(stroke3D[0]), Point_to_Point2D(stroke3D[-1])
@@ -397,24 +398,24 @@ class Strokes(RFTool):
                     if not bmv0_sel or not bmv1_sel:
                         bmv = bmv0 if bmv0_sel else bmv1
                         if len(set(bmv.link_edges) & sel_edges) == 1:
-                            print(f'Extrude L or C')
+                            # print(f'Extrude L or C')
                             self.replay = self.extrude_l
                         else:
-                            print(f'Extrude I or T')
+                            # print(f'Extrude I or T')
                             self.replay = self.extrude_t
                     else:
-                        print(f'Extrude U or O')
+                        # print(f'Extrude U or O')
                         # XXX: I-shaped extrusions?
                         self.replay = self.extrude_u
                 else:
-                    print(f'Extrude Strip')
-                    self.replay = self.extrude_strip
+                    # print(f'Extrude Strip')
+                    self.replay = self.extrude_equals
         else:
             if cyclic:
-                print(f'Create Cycle')
+                # print(f'Create Cycle')
                 self.replay = self.create_cycle
             else:
-                print(f'Create Strip')
+                # print(f'Create Strip')
                 self.replay = self.create_strip
 
         # print(self.replay)
@@ -438,6 +439,13 @@ class Strokes(RFTool):
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses)]
         nstroke = restroke(stroke, percentages)
+
+        if len(nstroke) <= 2:
+            # too few vertices for a cycle
+            self.rfcontext.alert_user(
+                'Could not find create cycle from stroke.  Please try again.'
+            )
+            return
 
         with self.defer_recomputing_while():
             verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
@@ -742,14 +750,15 @@ class Strokes(RFTool):
                     if all(lst) and not has_duplicates(lst):
                         new_face(lst)
                 bmv1 = nverts[0]
-                nedges.append(bmv0.shared_edge(bmv1))
+                if bmv0 and bmv1:
+                    nedges.append(bmv0.shared_edge(bmv1))
                 bmv0 = bmv1
 
             self.rfcontext.select(nedges)
             self.just_created = True
 
     @RFTool.dirty_when_done
-    def extrude_strip(self):
+    def extrude_equals(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         stroke = [Point_to_Point2D(s) for s in self.strip_stroke3D]
         if not all(stroke): return  # part of stroke cannot project
@@ -775,8 +784,8 @@ class Strokes(RFTool):
         if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else []
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else []
-        edges0 = [e for e in edges0 if e.is_valid]
-        edges1 = [e for e in edges1 if e.is_valid]
+        edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
+        edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
                 'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
@@ -876,8 +885,8 @@ class Strokes(RFTool):
                                     self.rfcontext.new_edge([v0, v1])
                 prev = cur
 
-            edges0 = [e for e in edges0 if e.is_valid]
-            edges1 = [e for e in edges1 if e.is_valid]
+            edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
+            edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
 
             if edges0:
                 side_verts = get_strip_verts(edges0)
@@ -951,6 +960,8 @@ class Strokes(RFTool):
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
         self._timer = self.actions.start_timer(120)
+
+        if options['hide cursor on tweak']: self.set_widget('hidden')
 
     @FSM.on_state('move')
     @RFTool.dirty_when_done

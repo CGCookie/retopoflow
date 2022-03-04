@@ -186,6 +186,7 @@ class RetopoFlow(
             ('Setting up user interface',           self.setup_ui),                  # must be called after self.setup_target() and self.setup_rftools()!!
             ('Setting up undo system',              self.setup_undo),                # must be called after self.setup_ui()!!
             ('Checking auto save / save',           self.check_auto_save_warnings),
+            ('Checking target symmetry',            self.check_target_symmetry),
             ('Loading welcome message',             self.show_welcome_message),
             ('Resuming help image preloading',      self.preload_help_resume),
         ]

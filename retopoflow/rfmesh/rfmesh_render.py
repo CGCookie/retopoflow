@@ -26,6 +26,7 @@ import json
 import time
 import random
 
+from itertools import chain
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 
@@ -159,7 +160,7 @@ class RFMeshRender():
     @profiler.function
     def add_buffered_render(self, draw_type, data, static):
         batch = BufferedRender_Batch(draw_type)
-        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'])
+        batch.buffer(data['vco'], data['vno'], data['sel'], data['warn'], data['pin'], data['seam'])
         if static: self.buffered_renders_static.append(batch)
         else:      self.buffered_renders_dynamic.append(batch)
 
@@ -204,6 +205,8 @@ class RFMeshRender():
         mirror_y = 'y' in mirror_axes
         mirror_z = 'z' in mirror_axes
 
+        layer_pin = self.rfmesh.layer_pin
+
         def gather(verts, edges, faces, static):
             vert_count = 100000
             edge_count = 50000
@@ -233,6 +236,21 @@ class RFMeshRender():
             def warn_face(g):
                 return 1.0
 
+            def pin_vert(g):
+                if not layer_pin: return 0.0
+                return 1.0 if g[layer_pin] else 0.0
+            def pin_edge(g):
+                return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
+            def pin_face(g):
+                return 1.0 if all(pin_vert(v) for v in g.verts) else 0.0
+
+            def seam_vert(g):
+                return 1.0 if any(e.seam for e in g.link_edges) else 0.0
+            def seam_edge(g):
+                return 1.0 if g.seam else 0.0
+            def seam_face(g):
+                return 0.0
+
             try:
                 time_start = time.time()
 
@@ -255,19 +273,29 @@ class RFMeshRender():
                                     for bmv in verts
                                 ],
                                 'vno': [
-                                    tuple(bmf.normal)
+                                    tuple(bmv.normal)
                                     for bmf, verts in tri_faces[i0:i1]
                                     for bmv in verts
                                 ],
                                 'sel': [
                                     sel(bmf)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
+                                    for _ in verts
                                 ],
                                 'warn': [
                                     warn_face(bmf)
                                     for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
+                                    for _ in verts
+                                ],
+                                'pin': [
+                                    pin_face(bmf)
+                                    for bmf, verts in tri_faces[i0:i1]
+                                    for _ in verts
+                                ],
+                                'seam': [
+                                    seam_face(bmf)
+                                    for bmf, verts in tri_faces[i0:i1]
+                                    for _ in verts
                                 ],
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
@@ -295,12 +323,22 @@ class RFMeshRender():
                                 'sel': [
                                     sel(bme)
                                     for bme in edges[i0:i1]
-                                    for bmv in bme.verts
+                                    for _ in bme.verts
                                 ],
                                 'warn': [
                                     warn_edge(bme)
                                     for bme in edges[i0:i1]
-                                    for bmv in bme.verts
+                                    for _ in bme.verts
+                                ],
+                                'pin': [
+                                    pin_edge(bme)
+                                    for bme in edges[i0:i1]
+                                    for _ in bme.verts
+                                ],
+                                'seam': [
+                                    seam_edge(bme)
+                                    for bme in edges[i0:i1]
+                                    for _ in bme.verts
                                 ],
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
@@ -315,11 +353,13 @@ class RFMeshRender():
                         for i0 in range(0, l, vert_count):
                             i1 = min(l, i0 + vert_count)
                             vert_data = {
-                                'vco': [tuple(bmv.co) for bmv in verts[i0:i1]],
-                                'vno': [tuple(bmv.normal) for bmv in verts[i0:i1]],
-                                'sel': [sel(bmv) for bmv in verts[i0:i1]],
-                                'warn': [warn_vert(bmv) for bmv in verts[i0:i1]],
-                                'idx': None,  # list(range(len(self.bmesh.verts))),
+                                'vco':  [tuple(bmv.co)     for bmv in verts[i0:i1]],
+                                'vno':  [tuple(bmv.normal) for bmv in verts[i0:i1]],
+                                'sel':  [sel(bmv)          for bmv in verts[i0:i1]],
+                                'warn': [warn_vert(bmv)    for bmv in verts[i0:i1]],
+                                'pin':  [pin_vert(bmv)     for bmv in verts[i0:i1]],
+                                'seam': [seam_vert(bmv)    for bmv in verts[i0:i1]],
+                                'idx':  None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.POINTS, vert_data, static))
@@ -335,6 +375,10 @@ class RFMeshRender():
             except Exception as e:
                 print('EXCEPTION WHILE GATHERING: ' + str(e))
                 raise e
+
+        # self.bmesh.verts.ensure_lookup_table()
+        for bmelem in chain(self.bmesh.verts): # chain(self.bmesh.faces, self.bmesh.edges, self.bmesh.verts):
+            bmelem.normal_update()
 
         self._is_loading = True
         self._is_loaded = False
@@ -420,7 +464,9 @@ class RFMeshRender():
         if not self.buffered_renders_static and not self.buffered_renders_dynamic: return
 
         try:
+            bgl.glEnable(bgl.GL_DEPTH_TEST)
             bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
+            bgl.glDepthRange(0, 1)
 
             opts = dict(self.opts)
 
@@ -443,6 +489,8 @@ class RFMeshRender():
             bmegl.glSetDefaultOptions()
 
             opts['no warning'] = not options['warn non-manifold']
+            opts['no pinned']  = not options['show pinned']
+            opts['no seam']    = not options['show seam']
 
             opts['cull backfaces'] = cull_backfaces
             opts['alpha backface'] = alpha_backface
@@ -460,9 +508,7 @@ class RFMeshRender():
                 opts['line mirror hidden']  = 1 - alpha_below
                 opts['point hidden']        = 1 - alpha_below
                 opts['point mirror hidden'] = 1 - alpha_below
-                for buffered_render in self.buffered_renders_static:
-                    buffered_render.draw(opts)
-                for buffered_render in self.buffered_renders_dynamic:
+                for buffered_render in chain(self.buffered_renders_static, self.buffered_renders_dynamic):
                     buffered_render.draw(opts)
 
             # geometry above
@@ -473,9 +519,7 @@ class RFMeshRender():
             opts['line mirror hidden']  = 1 - alpha_above
             opts['point hidden']        = 1 - alpha_above
             opts['point mirror hidden'] = 1 - alpha_above
-            for buffered_render in self.buffered_renders_static:
-                buffered_render.draw(opts)
-            for buffered_render in self.buffered_renders_dynamic:
+            for buffered_render in chain(self.buffered_renders_static, self.buffered_renders_dynamic):
                 buffered_render.draw(opts)
 
             bgl.glDepthFunc(bgl.GL_LEQUAL)

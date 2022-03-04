@@ -37,16 +37,16 @@ RFWidget_Default has no callbacks/actions.
 This RFWidget is useful for very simple cursor setting.
 '''
 
-class RFWidget_Default_Factory:
+class RFWidget_Hidden_Factory:
     '''
     This is a class factory.  It is needed, because the FSM is shared across instances.
     RFTools might need to share RFWidgets that are independent of each other.
     '''
 
     @staticmethod
-    def create(*, action_name=None, cursor='DEFAULT'):
-        class RFWidget_Default(RFWidget):
-            rfw_name = 'Default'
+    def create(*, action_name=None, cursor='NONE'):
+        class RFWidget_Hidden(RFWidget):
+            rfw_name = 'Hidden'
             rfw_cursor = cursor
 
             @RFWidget.on_init
@@ -57,4 +57,4 @@ class RFWidget_Default_Factory:
             def modal_main(self):
                 pass
 
-        return RFWidget_Default
+        return RFWidget_Hidden

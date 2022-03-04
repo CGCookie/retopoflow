@@ -59,7 +59,8 @@ from ...addon_common.common.utils import iter_pairs
 from ...config.options import options, themes
 
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
-from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_default     import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden      import RFWidget_Hidden_Factory
 
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 
@@ -73,13 +74,14 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     statusbar   = '{{insert}} Insert strip of quads\t{{brush radius}} Brush size\t{{action}} Grab selection\t{{increase count}} Increase segments\t{{decrease count}} Decrease segments'
     ui_config   = 'polystrips_options.html'
 
-    RFWidget_Default = RFWidget_Default_Factory.create('PolyStrips default')
+    RFWidget_Default     = RFWidget_Default_Factory.create()
+    RFWidget_Move        = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Hidden      = RFWidget_Hidden_Factory.create()
     RFWidget_BrushStroke = RFWidget_BrushStroke_Factory.create(
         'PolyStrips stroke',
         BoundInt('''options['polystrips radius']''', min_value=1),
         outer_border_color=themes['polystrips']
     )
-    RFWidget_Move = RFWidget_Default_Factory.create('PolyStrips move', 'HAND')
 
     @RFTool.on_init
     def init(self):
@@ -87,6 +89,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             'default':     self.RFWidget_Default(self),
             'brushstroke': self.RFWidget_BrushStroke(self),
             'move':        self.RFWidget_Move(self),
+            'hidden':      self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
 
@@ -199,19 +202,15 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
                 self.hovering_strips.add(strip)
 
         if self.actions.using_onlymods('insert'):
-            self.rfwidget = self.rfwidgets['brushstroke']
+            self.set_widget('brushstroke')
         elif self.hovering_handles:
-            self.rfwidget = self.rfwidgets['move']
+            self.set_widget('move')
         elif self.hovering_sel_face:
-            self.rfwidget = self.rfwidgets['move']
+            self.set_widget('move')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return 
 
         # handle edits
         if self.hovering_handles:
@@ -292,13 +291,13 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
 
         self.sel_cbpts = [(cbpt, cbpt in inners, Point(cbpt), self.rfcontext.Point_to_Point2D(cbpt)) for cbpt in cbpts]
         self.mousedown = self.actions.mouse
-        self.rfwidget = self.rfwidgets['move']
         self.move_done_pressed = 'confirm'
         self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'move')
 
     @FSM.on_state('move handle')
     def movehandle(self):
@@ -371,13 +370,13 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         for strip in self.mod_strips: strip.capture_edges()
 
         self.mousedown = self.actions.mouse
-        self.rfwidget = self.rfwidgets['move']
         self.move_done_pressed = 'confirm'
         self.move_done_released = 'action alt0'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('rotate')
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'move')
 
     @FSM.on_state('rotate')
     @profiler.function
@@ -453,7 +452,6 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     @FSM.on_state('scale', 'enter')
     def scale_enter(self):
         self.mousedown = self.actions.mouse
-        self.rfwidget = None #self.rfwidgets['default']
         self.rfcontext.undo_push('scale')
         self.move_done_pressed = None
         self.move_done_released = 'action'
@@ -482,6 +480,8 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
 
         self._timer = self.actions.start_timer(120.0)
         self.rfcontext.set_accel_defer(True)
+
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'default') # None
 
     @FSM.on_state('scale')
     @profiler.function
@@ -531,7 +531,6 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     def moveall_enter(self):
         lmb_drag = self.actions.using('action')
         self.actions.unpress()
-        self.rfwidget = None  # self.rfwidgets['default']
         self.rfcontext.undo_push('move grabbed')
         self.moveall_opts = {
             'mousedown': self.actions.mouse,
@@ -542,6 +541,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         }
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'default')  # None
 
     @FSM.on_state('move all')
     @profiler.function

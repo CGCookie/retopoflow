@@ -2,6 +2,18 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.5&rarr;3.2.6
+
+- Vertex pinning and unpinning, where pinned vertices cannot be moved
+- Seam edges can be pinned
+- Option to hide mouse cursor when moving geometry
+- Keymap editor improvements: shows keys for done and toggle UI, added Blender passthrough, fixed many bugs
+- Fixed bug where modifier key states would be out of sync if pressed or unpressed while changing view
+- Added auto clip adjustment setting, which adjusts clip settings based on view position and distance to bbox of sources
+- Fixed visualization bug where depth test wasn't always enabled and depth range might not be [0,1]
+- Added check for and button to select vertices that are on the "wrong" side of symmetry planes.
+- Fixed many bugs and cleaned up code
+
 ### RetopoFlow 3.2.4&rarr;3.2.5
 
 - Worked around a major crashing bug in Blender 3.0 and 3.1

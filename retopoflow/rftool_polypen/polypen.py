@@ -26,6 +26,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_seg
 
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
+from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
 from ...addon_common.common.drawing import (
@@ -57,10 +58,11 @@ class PolyPen(RFTool):
     statusbar   = '{{insert}} Insert'
     ui_config   = 'polypen_options.html'
 
-    RFWidget_Default   = RFWidget_Default_Factory.create('PolyPen default')
-    RFWidget_Crosshair = RFWidget_Default_Factory.create('PolyPen crosshair', 'CROSSHAIR')
-    RFWidget_Move      = RFWidget_Default_Factory.create('PolyPen move', 'HAND')
-    RFWidget_Knife     = RFWidget_Default_Factory.create('PolyPen knife', 'KNIFE')
+    RFWidget_Default   = RFWidget_Default_Factory.create()
+    RFWidget_Crosshair = RFWidget_Default_Factory.create(cursor='CROSSHAIR')
+    RFWidget_Move      = RFWidget_Default_Factory.create(cursor='HAND')
+    RFWidget_Knife     = RFWidget_Default_Factory.create(cursor='KNIFE')
+    RFWidget_Hidden    = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
@@ -69,6 +71,7 @@ class PolyPen(RFTool):
             'insert':  self.RFWidget_Crosshair(self),
             'hover':   self.RFWidget_Move(self),
             'knife':   self.RFWidget_Knife(self),
+            'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
         self.update_state_info()
@@ -223,19 +226,15 @@ class PolyPen(RFTool):
         self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             if self.next_state == 'knife selected edge':
-                self.rfwidget = self.rfwidgets['knife']
+                self.set_widget('knife')
             else:
-                self.rfwidget = self.rfwidgets['insert']
+                self.set_widget('insert')
         elif self.nearest_geom and self.nearest_geom.select:
-            self.rfwidget = self.rfwidgets['hover']
+            self.set_widget('hover')
         else:
-            self.rfwidget = self.rfwidgets['default']
+            self.set_widget('default')
 
-        for rfwidget in self.rfwidgets.values():
-            if self.rfwidget == rfwidget: continue
-            if rfwidget.inactive_passthrough():
-                self.rfwidget = rfwidget
-                return
+        if self.handle_inactive_passthrough(): return
 
         if self.actions.pressed('pie menu alt0'):
             def callback(option):
@@ -570,7 +569,7 @@ class PolyPen(RFTool):
             self.rfcontext.select(bmv1, only=False)
             xy = self.rfcontext.Point_to_Point2D(bmv1.co)
             if not xy:
-                dprint('Could not insert: ' + str(bmv3.co))
+                dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
             self.bmverts = [(bmv1, xy)] if bmv1 else []
@@ -656,6 +655,8 @@ class PolyPen(RFTool):
         self.rfcontext.split_target_visualization_selected()
         self.previs_timer.start()
         self.rfcontext.set_accel_defer(True)
+
+        if options['hide cursor on tweak']: self.set_widget('hidden')
 
     @FSM.on_state('move')
     @profiler.function
@@ -746,7 +747,7 @@ class PolyPen(RFTool):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
         #if self.rfcontext.nav or self.mode != 'main': return
-        if not self.actions.using_onlymods('insert'): return  # 'insert alt1'??
+        if not self.actions.using_onlymods('insert'): return
         hit_pos = self.actions.hit_pos
         if not hit_pos: return
 

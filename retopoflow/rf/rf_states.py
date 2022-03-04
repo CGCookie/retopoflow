@@ -50,7 +50,24 @@ class RetopoFlow_States(CookieCutter):
             self.fsm.update()
             return
 
-        options.clean()
+        options.clean(raise_exception=False)
+        if options.write_error and not hasattr(self, '_write_error_reported'):
+            # could not write options to file for some reason
+            # issue #1070
+            self._write_error_reported = True
+            self.alert_user(
+                '\n'.join([
+                    f'Could not write options to file (incorrect permissions).',
+                    f'',
+                    f'Check that you have permission to write to `{options.options_filename}` to the RetopoFlow add-on folder.',
+                    f'',
+                    f'Or, try: uninstall RetopoFlow from Blender, restart Blender, then install the latest version of RetopoFlow from the Blender Market.',
+                    f'',
+                    f'Note: You can continue using RetopoFlow, but any changes to options will not be saved.',
+                    f'This error will not be reported again during the current RetopoFlow session.'
+                ]),
+                level='error',
+            )
 
         if timer:
             self.rftool._callback('timer')
@@ -74,6 +91,7 @@ class RetopoFlow_States(CookieCutter):
 
         view_version = self.get_view_version()
         if self.view_version != view_version:
+            self.update_clip_settings(rescale=False)
             self.view_version = view_version
             self.rftool._callback('view change')
             if self.rftool.rfwidget:
@@ -82,6 +100,35 @@ class RetopoFlow_States(CookieCutter):
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
+
+    def update_clip_settings(self, *, rescale=True):
+        if options['clip auto adjust']:
+            # adjust clipping settings
+            view_origin = self.drawing.get_view_origin(orthographic_distance=1000)
+            view_focus  = self.actions.r3d.view_location
+            bbox = self.sources_bbox
+            closest  = bbox.closest_Point(view_origin)
+            farthest = bbox.farthest_Point(view_origin)
+            self.drawing.space.clip_start = max(
+                0.0001,
+                (view_origin - closest).length * 0.001,
+            )
+            self.drawing.space.clip_end = (view_origin - farthest).length * 100
+            # print(f'clip auto adjusting')
+            # print(f'  origin:   {view_origin}')
+            # print(f'  focus:    {view_focus}')
+            # print(f'  closest:  {closest}')
+            # print(f'  farthest: {farthest}')
+            # print(f'  dist from origin to closest:  {(view_origin - closest).length}')
+            # print(f'  dist from origin to farthest: {(view_origin - farthest).length}')
+            # print(f'  dist from origin to focus:    {(view_origin - view_focus).length}')
+        elif rescale:
+            self.unscale_from_unit_box()
+            self.scale_to_unit_box(
+                clip_override=options['clip override'],
+                clip_start=options['clip start override'],
+                clip_end=options['clip end override'],
+            )
 
 
     def which_pie_menu_section(self):
@@ -169,21 +216,23 @@ class RetopoFlow_States(CookieCutter):
         if self.actions.released(self.pie_menu_release, ignoremods=True):
             return 'main'
 
+    def should_pass_through(self, context, event):
+        return self.actions.using('blender passthrough')
 
     @FSM.on_state('main')
     def modal_main(self):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
-            if self.actions.pressed({'done'}):
+            # exit
+            if self.actions.pressed('done'):
                 if options['confirm tab quit']:
                     self.show_quit_dialog()
                 else:
                     self.done()
                 return
-            if options['escape to quit'] and self.actions.pressed({'done alt0'}):
+            if options['escape to quit'] and self.actions.pressed('done alt0'):
                 self.done()
                 return
-
 
             # handle help actions
             if self.actions.pressed('all help'):
@@ -230,18 +279,25 @@ class RetopoFlow_States(CookieCutter):
                 ], self.select_rftool, highlighted=self.rftool)
                 return
 
+            # debugging
             # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
             # if self.actions.pressed('SHIFT+F6'): assert False
             # if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
+            # if self.actions.pressed('F7'):
+            #     assert False, 'test exception throwing'
+            #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
+            #     return
 
-            if self.actions.pressed('SHIFT+F10'):
-                profiler.clear()
-                return
-            if self.actions.pressed('SHIFT+F11'):
-                profiler.printout()
-                self.document.debug_print()
-                return
-            if self.actions.pressed('F12'):
+            # profiler
+            # if self.actions.pressed('SHIFT+F10'):
+            #     profiler.clear()
+            #     return
+            # if self.actions.pressed('SHIFT+F11'):
+            #     profiler.printout()
+            #     self.document.debug_print()
+            #     return
+
+            if self.actions.pressed('reload css'):
                 print('RetopoFlow: Reloading stylings')
                 self.reload_stylings()
                 return
@@ -255,12 +311,7 @@ class RetopoFlow_States(CookieCutter):
                     self.select_rftool(rftool, quick=True)
                     return 'quick switch'
 
-            # if self.actions.pressed('F7'):
-            #     assert False, 'test exception throwing'
-            #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
-            #     return
-
-            # handle undo/redo
+            # undo/redo
             if self.actions.pressed('blender undo'):
                 self.undo_pop()
                 if self.rftool: self.rftool._reset()
@@ -270,40 +321,38 @@ class RetopoFlow_States(CookieCutter):
                 if self.rftool: self.rftool._reset()
                 return
 
-            # handle selection
             # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
+
+            # handle selection
             if self.actions.pressed('select all'):
                 # print('modal_main:selecting all toggle')
                 self.undo_push('select all')
                 self.select_toggle()
                 return
-
             if self.actions.pressed('deselect all'):
                 self.undo_push('deselect all')
                 self.deselect_all()
                 return
-
             if self.actions.pressed('select invert'):
                 self.undo_push('select invert')
                 self.select_invert()
                 return
 
+            # hide/reveal
             if self.actions.pressed('hide selected'):
                 self.hide_selected()
                 return
-
             if self.actions.pressed('hide unselected'):
                 self.hide_unselected()
                 return
-
             if self.actions.pressed('reveal hidden'):
                 self.reveal_hidden()
                 return
 
+            # delete
             if self.actions.pressed('delete'):
                 self.show_delete_dialog()
                 return
-
             if self.actions.pressed('delete pie menu'):
                 def callback(option):
                     if not option: return
@@ -320,8 +369,20 @@ class RetopoFlow_States(CookieCutter):
                 ], callback, release='delete pie menu', always_callback=True, rotate=-60)
                 return
 
+            # smoothing
             if self.actions.pressed('smooth edge flow'):
                 self.smooth_edge_flow(iterations=options['smooth edge flow iterations'])
+                return
+
+            # pin/unpin
+            if self.actions.pressed('pin'):
+                self.pin_selected()
+                return
+            if self.actions.pressed('unpin'):
+                self.unpin_selected()
+                return
+            if self.actions.pressed('unpin all'):
+                self.unpin_all()
                 return
 
         return self.modal_main_rest()

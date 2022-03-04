@@ -38,7 +38,7 @@ from ...config.options import themes
 class RFWidget_BrushStroke_Factory:
     '''
     This is a class factory.  It is needed, because the FSM is shared across instances.
-    RFTools might need to share RFWidges that are independent of each other.
+    RFTools might need to share RFWidgets that are independent of each other.
     '''
 
     @staticmethod

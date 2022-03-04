@@ -1,4 +1,5 @@
 <script type="python">
+
 def theme_change(e):
     if not e.target.checked: return
     if e.target.value is None: return
@@ -35,33 +36,31 @@ def reset_alpha_options(self):
     self.document.body.dirty(children=True)
 
 
-def update_clip_distances(self, rescale=True):
-    if rescale:
-        self.unscale_from_unit_box()
-        self.scale_to_unit_box(clip_override=options['clip override'], clip_start=options['clip start override'], clip_end=options['clip end override'])
-    if options['clip override']:
-        self.ui_options.getElementById('scaled-clipping-distances').style = 'display:none'
-        self.ui_options.getElementById('fixed-clipping-distances').style = 'display:block'
+def update_clip_distances(self, *, rescale=True):
+    self.update_clip_settings(rescale=rescale)
+    if options['clip auto adjust']:
+        self.ui_options.getElementById('clip-options').style = 'display:none'
     else:
-        self.ui_options.getElementById('scaled-clipping-distances').style = 'display:block'
-        self.ui_options.getElementById('fixed-clipping-distances').style = 'display:none'
+        self.ui_options.getElementById('clip-options').style = 'display:block'
+        self.ui_options.getElementById('scaled-clipping-distances').style = f'display:{"none"  if options["clip override"] else "block"}'
+        self.ui_options.getElementById('fixed-clipping-distances').style  = f'display:{"block" if options["clip override"] else "none" }'
 
 def update_hide_overlays(self):
     if options['hide overlays']: self.overlays_hide()
     else: self.overlays_restore()
 
-def symmetry_viz_change(e):
+def mirror_viz_change(e):
     if not e.target.checked: return
     options['symmetry view'] = e.target.value
 
-def symmetry_changed(self):
+def mirror_changed(self):
     if not hasattr(self, 'ui_options'): return
     s = []
     if self.rftarget.mirror_mod.x: s += ['X']
     if self.rftarget.mirror_mod.y: s += ['Y']
     if self.rftarget.mirror_mod.z: s += ['Z']
     if not s: s = ['(none)']
-    self.ui_options.getElementById('symmetryoptions_summary').innerText = f'Symmetry: {",".join(s)}'
+    self.ui_options.getElementById('mirroroptions_summary').innerText = f'Symmetry: {",".join(s)}'
     self.dirty_render()
 
 </script>
@@ -76,8 +75,8 @@ def symmetry_changed(self):
         <details id="generaloptions">
             <summary title="General options">General</summary>
             <div class="contents">
-                <div class="collection">
-                    <h1 title="These options control what runs when RetopoFlow starts and quits">Start Up and Quit</h1>
+                <details>
+                    <summary title="These options control what runs when RetopoFlow starts and quits">Start Up and Quit</summary>
                     <div class="contents">
                         <label>
                             <input type="checkbox" checked="BoundBool('''options['welcome']''')" title="If enabled, the welcome message is displayed when RetopoFlow starts">
@@ -100,7 +99,11 @@ def symmetry_changed(self):
                             Escape to Quit
                         </label>
                     </div>
-                </div>
+                </details>
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['hide cursor on tweak']''')" title="Check to hide cursor when moving geometry">
+                    Hide Cursor on Grab
+                </label>
                 <div class="collection">
                     <h1 title="These options control the RetopoFlow UI">Interface</h1>
                     <div class="contents">
@@ -139,7 +142,7 @@ def symmetry_changed(self):
                 <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options(self)">Reset All Settings</button>
             </div>
         </details>
-        <details id="view-options">
+        <details id="display-options">
             <summary title="Display options, such as shading theme, selection theme, and clipping.">Viewport Display</summary>
             <div class="contents">
                 <div class="collection">
@@ -189,27 +192,33 @@ def symmetry_changed(self):
                     <h1>View Clipping</h1>
                     <div class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
                         <label>
-                            <input type="checkbox" checked="BoundBool('''options['clip override']''')" on_input="update_clip_distances(self)" title="If enabled, clipping distances will be set to fixed override values rather than scaled.">
-                            Override with Fixed Values
+                            <input type="checkbox" id="clip-auto-adjust" checked="BoundBool('''options['clip auto adjust']''')" on_input="update_clip_distances(self)" title="If enabled, clipping settings are automatically adjusted based on view distance and bounding box of sources">
+                            Automatically Adjust
                         </label>
-                        <div id="scaled-clipping-distances">
-                            <div class="labeled-input-text">
-                                <label for="clip-start-scaled">Start (scaled)</label>
-                                <input id="clip-start-scaled" type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)" title="Near clipping distance (scaled)">
+                        <div id="clip-options">
+                            <label>
+                                <input type="checkbox" checked="BoundBool('''options['clip override']''')" on_input="update_clip_distances(self)" title="If enabled, clipping distances will be set to fixed override values rather than scaled.">
+                                Override with Fixed Values
+                            </label>
+                            <div id="scaled-clipping-distances">
+                                <div class="labeled-input-text">
+                                    <label for="clip-start-scaled">Start (scaled)</label>
+                                    <input id="clip-start-scaled" type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)" title="Near clipping distance (scaled)">
+                                </div>
+                                <div class="labeled-input-text">
+                                    <label for="clip-end-scaled">End (scaled)</label>
+                                    <input id="clip-end-scaled" type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)" title="Far clipping distance (scaled)">
+                                </div>
                             </div>
-                            <div class="labeled-input-text">
-                                <label for="clip-end-scaled">End (scaled)</label>
-                                <input id="clip-end-scaled" type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)" title="Far clipping distance (scaled)">
-                            </div>
-                        </div>
-                        <div id="fixed-clipping-distances">
-                            <div class="labeled-input-text">
-                                <label for="clip-start-fixed">Start</label>
-                                <input id="clip-start-fixed" type="number" value="BoundFloat('''options['clip start override']''', min_value=0)" on_input="update_clip_distances(self)" title="Near clipping distance (fixed)">
-                            </div>
-                            <div class="labeled-input-text">
-                                <label for="clip-end-fixed">End</label>
-                                <input id="clip-end-fixed" type="number" value="BoundFloat('''options['clip end override']''', min_value=0)" on_input="update_clip_distances(self)" title="Far clipping distance (fixed)">
+                            <div id="fixed-clipping-distances">
+                                <div class="labeled-input-text">
+                                    <label for="clip-start-fixed">Start</label>
+                                    <input id="clip-start-fixed" type="number" value="BoundFloat('''options['clip start override']''', min_value=0)" on_input="update_clip_distances(self)" title="Near clipping distance (fixed)">
+                                </div>
+                                <div class="labeled-input-text">
+                                    <label for="clip-end-fixed">End</label>
+                                    <input id="clip-end-fixed" type="number" value="BoundFloat('''options['clip end override']''', min_value=0)" on_input="update_clip_distances(self)" title="Far clipping distance (fixed)">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -220,6 +229,14 @@ def symmetry_changed(self):
                         <label>
                             <input type="checkbox" checked="BoundBool('''options['warn non-manifold']''')" title="Visualize non-manifold/detached vertices and edges">
                             Non-manifold Outline
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show pinned']''')" title="Visualize pinned geometry (vertices, edges, polygons)">
+                            Pinned Geometry
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show seam']''')" title="Visualize seam edges">
+                            Seam Edges
                         </label>
                         <div class="labeled-input-text">
                             <label for="target-draw-normal-offset">Normal Offset</label>
@@ -375,7 +392,7 @@ def symmetry_changed(self):
                 </details>
             </div>
         </details>
-        <details id='visibility-options'>
+        <details id='target-visibility-options'>
             <summary title="Hide/reveal target geometry">Target Visibility</summary>
             <div class="contents">
                 <div class="collection">
@@ -396,7 +413,7 @@ def symmetry_changed(self):
                 </div>
             </div>
         </details>
-        <details id='cleaning-options'>
+        <details id='target-cleaning-options'>
             <summary title="Clean up target geometry, such as snapping vertices to nearest point on source(s)">Target Cleaning</summary>
             <div class="contents">
                 <div class="collection">
@@ -428,45 +445,87 @@ def symmetry_changed(self):
                         <button title="Recalculates the normal of selected faces, same as Recalculate Outside (Shift + N) in Edit Mode" on_mouseclick="self.recalculate_face_normals()">Recalculate</button>
                     </div>
                 </div>
+                <div class="collection">
+                    <h1>Symmetry</h1>
+                    <div class="contents">
+                        <button title="Select vertices that are on the wrong side of symmetry plane" class="full-size" on_mouseclick="self.select_bad_symmetry()">Select Bad Symmetry</button>
+                    </div>
+                </div>
             </div>
         </details>
-        <details>
-            <summary id="symmetryoptions_summary" title="Symmetry (mirroring) options" on_load='symmetry_changed(self)'>Symmetry</summary>
+        <details id='target-pinning'>
+            <summary title="Target pinning options">Pinning / Seams</summary>
             <div class="contents">
-                <label class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.x''')" on_input="symmetry_changed(self)" title="Check to mirror along x-axis">
+                <div class="collection">
+                    <h1>Geometry Pinning</h1>
+                    <div class="contents">
+                        <label class="pin-enable">
+                            <input type="checkbox" checked="BoundBool('''options['pin enabled']''')" title="Check to enable geometry pinning, where pinned geometry cannot be moved">
+                            Enabled
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show pinned']''')" title="Visualize pinned geometry (vertices, edges, polygons)">
+                            Show
+                        </label>
+                        <button title="Pin selected geometry" on_mouseclick="self.pin_selected()">Pin Selected</button>
+                        <button title="Unpin selected geometry" on_mouseclick="self.unpin_selected()" class="half-size">Unpin Selected</button>
+                        <button title="Unpin all geometry" on_mouseclick="self.unpin_all()" class="half-size">Unpin All</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Seams</h1>
+                    <div class="contents">
+                        <label class="pin-seams">
+                            <input type="checkbox" checked="BoundBool('''options['pin seam']''')" title="Check to pin seams, where seam edges cannot be moved">
+                            Pin
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['show seam']''')" title="Visualize seam edges">
+                            Show
+                        </label>
+                        <button title="Mark selected edges as seam" on_mouseclick="self.mark_seam_selected()" class="half-size">Mark Selected</button>
+                        <button title="Unmark selected edges as seam" on_mouseclick="self.clear_seam_selected()" class="half-size">Clear Selected</button>
+                    </div>
+                </div>
+            </div>
+        </details>
+        <details id="mirror-options">
+            <summary id="mirroroptions_summary" title="Mirroring options" on_load='mirror_changed(self)'>Symmetry</summary>
+            <div class="contents">
+                <label class="mirror-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.x''')" on_input="mirror_changed(self)" title="Check to mirror along x-axis">
                     x
                 </label>
-                <label class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.y''')" on_input="symmetry_changed(self)" title="Check to mirror along y-axis">
+                <label class="mirror-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.y''')" on_input="mirror_changed(self)" title="Check to mirror along y-axis">
                     y
                 </label>
-                <label class="symmetry-enable">
-                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.z''')" on_input="symmetry_changed(self)" title="Check to mirror along z-axis">
+                <label class="mirror-enable">
+                    <input type="checkbox" checked="BoundBool('''self.rftarget.mirror_mod.z''')" on_input="mirror_changed(self)" title="Check to mirror along z-axis">
                     z
                 </label>
                 <div class="collection">
                     <h1>Visualization</h1>
                     <div class="contents">
                         <label class='fourth-size'>
-                            <input type="radio" id='symmetry-viz-none' name='symmetry-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, no symmetry will be visualized, even if symmetry is enabled (above).  This setting will improve overall performance when working with very large source mesh(es).'>
+                            <input type="radio" id='mirror-viz-none' name='mirror-viz' value='None' checked="BoundString('''options['symmetry view']''')" on_input="mirror_viz_change(event)" title='If checked, no mirror will be visualized, even if mirror is enabled (above).  This setting will improve overall performance when working with very large source mesh(es).'>
                             None
                         </label>
                         <label class='fourth-size'>
-                            <input type="radio" id="symmetry-viz-plane" name="symmetry-viz" value="Plane" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized by drawing the symmetry planes as colored quads.  This setting will improve overall performance when working with very large source mesh(es).'>
+                            <input type="radio" id="mirror-viz-plane" name="mirror-viz" value="Plane" checked="BoundString('''options['symmetry view']''')" on_input="mirror_viz_change(event)" title='If checked, mirror will be visualized by drawing the mirror planes as colored quads.  This setting will improve overall performance when working with very large source mesh(es).'>
                             Plane
                         </label>
                         <label class='fourth-size'>
-                            <input type="radio" id="symmetry-viz-edge" name="symmetry-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).'>
+                            <input type="radio" id="mirror-viz-edge" name="mirror-viz" value="Edge" checked="BoundString('''options['symmetry view']''')" on_input="mirror_viz_change(event)" title='If checked, mirror will be visualized as a line, the intersection of the source meshes and the mirroring plane(s).'>
                             Edge
                         </label>
                         <label class='fourth-size'>
-                            <input type="radio" id="symmetry-viz-face" name="symmetry-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="symmetry_viz_change(event)" title='If checked, symmetry will be visualized by coloring the mirrored side of source mesh(es).'>
+                            <input type="radio" id="mirror-viz-face" name="mirror-viz" value="Face" checked="BoundString('''options['symmetry view']''')" on_input="mirror_viz_change(event)" title='If checked, mirror will be visualized by coloring the mirrored side of source mesh(es).'>
                             Face
                         </label>
                         <div class="labeled-input-text">
                             <label for="visualization-source-effect">Source Effect</label>
-                            <input id="visualization-source-effect" type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)" title="Effect of symmetry source visualization">  <!-- scrub -->
+                            <input id="visualization-source-effect" type="number" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)" title="Effect of mirror source visualization">  <!-- scrub -->
                         </div>
                         <input type="range" value="BoundFloat('''options['symmetry effect']''', min_value=0.0, max_value=1.0)">
                         <div class="labeled-input-text">
@@ -483,7 +542,7 @@ def symmetry_changed(self):
                             <label for="merge-apply-threshold">Threshold</label>
                             <input id="merge-apply-threshold" type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.001)" title='Distance within which mirrored vertices will be merged'> <!-- scrub -->
                         </div>
-                        <button title="Apply symmetry to target mesh" on_mouseclick="self.apply_symmetry()">Apply Symmetry</button>
+                        <button title="Apply mirror symmetry to target mesh" on_mouseclick="self.apply_mirror_symmetry()">Apply Mirror</button>
                     </div>
                 </div>
             </div>

@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import math
 import copy
 import heapq
+import random
 from dataclasses import dataclass, field
 
 import bpy
@@ -141,6 +142,9 @@ class RFMesh():
             # print('RFMesh.__setup__: triangulating')
             self.triangulate()
 
+        for bmv in self.bme.verts:
+            bmv.normal_update()
+
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()
@@ -242,22 +246,10 @@ class RFMesh():
     def get_obj_name(self):
         return self.obj.name
 
-    @blender_version_wrapper('<', '2.80')
-    def obj_viewport_hide_get(self): return self.obj.hide
-    @blender_version_wrapper('>=', '2.80')
     def obj_viewport_hide_get(self): return self.obj.hide_viewport
-    @blender_version_wrapper('<', '2.80')
-    def obj_viewport_hide_set(self, v): self.obj.hide = v
-    @blender_version_wrapper('>=', '2.80')
     def obj_viewport_hide_set(self, v): self.obj.hide_viewport = v
 
-    @blender_version_wrapper('<','2.80')
-    def obj_select_get(self): return self.obj.select
-    @blender_version_wrapper('>=','2.80')
     def obj_select_get(self): return self.obj.select_get()
-    @blender_version_wrapper('<','2.80')
-    def obj_select_set(self, v): self.obj.select = v
-    @blender_version_wrapper('>=','2.80')
     def obj_select_set(self, v): self.obj.select_set(v)
 
     def obj_render_hide_get(self): return self.obj.hide_render
@@ -664,11 +656,12 @@ class RFMesh():
     def raycast(self, ray:Ray):
         ray_local = self.xform.w2l_ray(ray)
         p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
-        if p is None: return (None,None,None,None)
+        if p is None: return (None, None, None, None)
         #if not self.get_bbox().Point_within(p, margin=1):
         #    return (None,None,None,None)
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
+        if math.isinf(d_w) or math.isnan(d_w): return (None, None, None, None)
         return (p_w,n_w,i,d_w)
 
     def raycast_all(self, ray:Ray):
@@ -1369,6 +1362,10 @@ class RFSource(RFMesh):
     def __str__(self):
         return '<RFSource %s>' % self.obj.name
 
+    @property
+    def layer_pin(self):
+        return None
+
 
 
 class RFTarget(RFMesh):
@@ -1415,6 +1412,11 @@ class RFTarget(RFMesh):
         self.yz_symmetry_accel = yz_symmetry_accel
         self.unit_scaling_factor = unit_scaling_factor
 
+    @property
+    def layer_pin(self):
+        il = self.bme.verts.layers.int
+        return il['pin'] if 'pin' in il else il.new('pin')
+
     def setup_mirror(self):
         self.mirror_mod = ModifierWrapper_Mirror.get_from_object(self.obj)
         if not self.mirror_mod:
@@ -1445,10 +1447,25 @@ class RFTarget(RFMesh):
         px,py,pz = point
         threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
         symmetry = set()
-        if self.mirror_mod.x and px <= threshold: symmetry.add('x')
+        if self.mirror_mod.x and  px <= threshold: symmetry.add('x')
         if self.mirror_mod.y and -py <= threshold: symmetry.add('y')
-        if self.mirror_mod.z and pz <= threshold: symmetry.add('z')
+        if self.mirror_mod.z and  pz <= threshold: symmetry.add('z')
         return symmetry
+
+    def check_symmetry(self):
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
+        ret = list()
+        if self.mirror_mod.x and any(bmv.co.x < -threshold for bmv in self.bme.verts): ret.append('X')
+        if self.mirror_mod.y and any(bmv.co.y >  threshold for bmv in self.bme.verts): ret.append('Y')
+        if self.mirror_mod.z and any(bmv.co.z < -threshold for bmv in self.bme.verts): ret.append('Z')
+        return ret
+
+    def select_bad_symmetry(self):
+        threshold = self.mirror_mod.symmetry_threshold * self.unit_scaling_factor / 2.0
+        for bmv in self.bme.verts:
+            if self.mirror_mod.x and bmv.co.x < -threshold: bmv.select = True
+            if self.mirror_mod.y and bmv.co.y >  threshold: bmv.select = True
+            if self.mirror_mod.z and bmv.co.z < -threshold: bmv.select = True
 
     def snap_to_symmetry(self, point, symmetry, from_world=True, to_world=True):
         if not symmetry and from_world == to_world: return point
@@ -1555,7 +1572,7 @@ class RFTarget(RFMesh):
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
     def has_symmetry(self, axis): return self.mirror_mod.is_enabled_axis(axis)
 
-    def apply_symmetry(self, nearest):
+    def apply_mirror_symmetry(self, nearest):
         out = []
         def apply_mirror_and_return_geom(axis):
             return mirror(
@@ -1797,6 +1814,23 @@ class RFTarget(RFMesh):
 
 #     def snap_unselected_verts(self, nearest):
 #         self.snap_verts_filter(nearest, lambda v: v.unselect)
+
+    def pin_selected(self):
+        for v in self.get_verts():
+            if v.select: v.pinned = True
+    def unpin_selected(self):
+        for v in self.get_verts():
+            if v.select: v.pinned = False
+    def unpin_all(self):
+        for v in self.get_verts():
+            v.pinned = False
+
+    def mark_seam_selected(self):
+        for v in self.get_edges():
+            if v.select: v.seam = True
+    def clear_seam_selected(self):
+        for v in self.get_edges():
+            if v.select: v.seam = False
 
     def remove_all_doubles(self, dist):
         bmv = [v for v in self.bme.verts if not v.hide]

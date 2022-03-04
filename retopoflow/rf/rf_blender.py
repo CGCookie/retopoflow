@@ -159,10 +159,12 @@ class RetopoFlow_Blender:
         # override/scale clipping distances
         if not hasattr(self, '_clip_distances'):
             # store original clip distances
+            print(f'RetopoFlow: storing clip distances: {space.clip_start} {space.clip_end}')
             self._clip_distances = {
                 'start': space.clip_start,
                 'end':   space.clip_end,
             }
+
         if clip_restore:
             space.clip_start = self._clip_distances['start']
             space.clip_end   = self._clip_distances['end']

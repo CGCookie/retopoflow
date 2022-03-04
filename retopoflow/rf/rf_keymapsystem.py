@@ -32,7 +32,7 @@ from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.human_readable import convert_actions_to_human_readable
 
 from ...config.options import options, retopoflow_version, retopoflow_helpdocs_url, retopoflow_blendermarket_url
-from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap
+from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap, default_rf_keymaps
 
 class RetopoFlow_KeymapSystem:
     @staticmethod
@@ -141,19 +141,19 @@ class RetopoFlow_KeymapSystem:
             capture_edit_key_span()
         def edit_lmb():
             clear_edit_key_span()
-            edit_data['key'] = 'LMB'
+            edit_data['key'] = 'LEFTMOUSE'
         def edit_mmb():
             clear_edit_key_span()
-            edit_data['key'] = 'MMB'
+            edit_data['key'] = 'MIDDLEMOUSE'
         def edit_rmb():
             clear_edit_key_span()
-            edit_data['key'] = 'RMB'
+            edit_data['key'] = 'RIGHTMOUSE'
         def edit_wheelup():
             clear_edit_key_span()
-            edit_data['key'] = 'WheelUp'
+            edit_data['key'] = 'WHEELUPMOUSE'
         def edit_wheeldown():
             clear_edit_key_span()
-            edit_data['key'] = 'WheelDown'
+            edit_data['key'] = 'WHEELDOWNMOUSE'
         def edit_capture_key(event):
             if event.key is None or event.key == 'NONE': return
             ui_button = self.document.body.getElementById('edit-key-span')
@@ -315,11 +315,13 @@ keymap_details = [
         ('confirm', 'Confirm'),
         ('confirm drag', 'Confirm with Drag (sometimes this is needed for certain actions)'),
         ('cancel', 'Cancel'),
+        ('done', 'Quit RetopoFlow'),
+        ('done alt0', 'Quit RetopoFlow (alternative)'),
+        ('toggle ui', 'Toggle UI visibility'),
+        ('blender passthrough', 'Blender passthrough'),
     ]),
     ('Insert, Move, Rotate, Scale', [
         ('insert', 'Insert new geometry'),
-        # ('insert alt0', 'Insert new geometry (alt0)'),
-        # ('insert alt1', 'Insert new geometry (alt1)'),
         ('quick insert', 'Quick insert (Knife, Loops)'),
         ('increase count', 'Increase Count'),
         ('decrease count', 'Decrease Count'),
@@ -338,13 +340,10 @@ keymap_details = [
         ('fill', 'Patches: fill'),
         ('knife reset', 'Knife: reset'),
     ]),
-    ('Selection, Hiding/Reveal', [
+    ('Selection', [
         ('select all', 'Select all'),
         ('select invert', 'Select invert'),
         ('deselect all', 'Deselect all'),
-        ('hide selected', 'Hide selected geometry'),
-        ('hide unselected', 'Hide unselected geometry'),
-        ('reveal hidden', 'Reveal hidden geometry'),
         ('select single', 'Select single item (default depends on Blender selection setting)'),
         ('select single add', 'Add single item to selection (default depends on Blender selection setting)'),
         ('select smart', 'Smart selection (default depends on Blender selection setting)'),
@@ -352,6 +351,14 @@ keymap_details = [
         ('select paint', 'Selection painting (default depends on Blender selection setting)'),
         ('select paint add', 'Paint to add to selection (default depends on Blender selection setting)'),
         ('select path add', 'Select along shortest path (default depends on Blender selection setting)'),
+    ]),
+    ('Geometry Attributes', [
+        ('hide selected', 'Hide selected geometry'),
+        ('hide unselected', 'Hide unselected geometry'),
+        ('reveal hidden', 'Reveal hidden geometry'),
+        ('pin', 'Pin selected geometry'),
+        ('unpin', 'Unpin selected geometry'),
+        ('unpin all', 'Unpin all geometry'),
     ]),
     ('Switching Between Tools', [
         ('contours tool', 'Switch to Contours'),
@@ -380,6 +387,7 @@ keymap_details = [
     ('Pie Menus', [
         ('pie menu', 'Show pie menu'),
         ('pie menu alt0', 'Show tool/alt pie menu'),
+        ('pie menu confirm', 'Confirm pie menu selection'),
     ]),
     ('Help', [
         ('all help', 'Show all help'),
@@ -388,3 +396,23 @@ keymap_details = [
     ]),
 ]
 
+ignored_keys = {
+    'autosave',
+    'grease clear', 'grease pencil tool',
+    'stretch tool',
+    'toggle full area',
+    'reload css',
+}
+
+# check that all keymaps are able to be edited
+def check_keymap_editor():
+    flattened_details = { key for (_, keyset) in keymap_details for (key, _) in keyset }
+    default_keys = set(default_rf_keymaps.keys()) - ignored_keys
+    missing_keys = default_keys - flattened_details
+    extra_keys = flattened_details - default_keys
+    if not missing_keys and not extra_keys: return
+    print(f'Error detected in keymap editor')
+    if missing_keys: print(f'Missing Keys: {sorted(missing_keys)}\nEither add to keymap_details or ignored_keys in rf_keymapsystem.py')
+    if extra_keys:   print(f'Extra Keys: {sorted(extra_keys)}\nRemove these from keymap_details')
+    assert False
+check_keymap_editor()

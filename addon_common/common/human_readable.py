@@ -182,9 +182,9 @@ def convert_human_readable_to_actions(actions):
     if type(actions) is str: actions = [actions]
     for action in actions:
         if platform.system() == 'Darwin':
-            action = action.replace('^ Ctrl+',   'CTRL+')
+            action = action.replace('^ Ctrl+',  'CTRL+')
             action = action.replace('⇧ Shift+', 'SHIFT+')
-            action = action.replace('⌥ Opt+',    'ALT+')
+            action = action.replace('⌥ Opt+',   'ALT+')
             action = action.replace('⌘ Cmd+',   'OSKEY+')
         else:
             action = action.replace('Ctrl+',  'CTRL+')

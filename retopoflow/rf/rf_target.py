@@ -75,6 +75,29 @@ class RetopoFlow_Target:
         self.rftarget.obj_viewport_hide()
         self.rftarget.obj_render_hide()
 
+    def check_target_symmetry(self):
+        bad = self.rftarget.check_symmetry()
+        if not bad: return
+
+        message = ['\n'.join([
+            f'Symmetry is enabled on the {", ".join(bad)} {"axis" if len(bad)==1 else "axes"}, but vertices were found on the "wrong" side of the symmetry {"plane" if len(bad)==1 else "planes"}.',
+            f'',
+            f'Editing these vertices will cause them to snap to the symmetry plane.',
+            f'(Editing vertices on the "correct" side of symmetry will work as expected)',
+            f'',
+            f'You can see these vertices by clicking Select Bad Symmetry button under Target Cleaning > Symmetry',
+        ])]
+
+        self.alert_user(
+            title='Bad Target Symmetry',
+            message='\n\n'.join(message),
+            level='warning',
+        )
+
+    def select_bad_symmetry(self):
+        self.deselect_all()
+        self.rftarget.select_bad_symmetry()
+
     def teardown_target(self):
         # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
         self.rftarget.obj_viewport_unhide()
@@ -367,9 +390,9 @@ class RetopoFlow_Target:
     ########################################
     # symmetry utils
 
-    def apply_symmetry(self):
-        self.undo_push('applying symmetry')
-        self.rftarget.apply_symmetry(self.nearest_sources_Point)
+    def apply_mirror_symmetry(self):
+        self.undo_push('applying mirror symmetry')
+        self.rftarget.apply_mirror_symmetry(self.nearest_sources_Point)
 
     @profiler.function
     def clip_pointloop(self, pointloop, connected):
@@ -573,6 +596,7 @@ class RetopoFlow_Target:
 
 
     def new_vert_point(self, xyz:Point):
+        if not xyz: return None
         xyz,norm,_,_ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
@@ -745,6 +769,28 @@ class RetopoFlow_Target:
     def select_inner_edge_loop(self, edge, **kwargs):
         eloop,connected = self.get_inner_edge_loop(edge)
         self.rftarget.select(eloop, **kwargs)
+
+    def pin_selected(self):
+        self.undo_push('pinning selected')
+        self.rftarget.pin_selected()
+        self.dirty()
+    def unpin_selected(self):
+        self.undo_push('unpinning selected')
+        self.rftarget.unpin_selected()
+        self.dirty()
+    def unpin_all(self):
+        self.undo_push('unpinning all')
+        self.rftarget.unpin_all()
+        self.dirty()
+
+    def mark_seam_selected(self):
+        self.undo_push('pinning selected')
+        self.rftarget.mark_seam_selected()
+        self.dirty()
+    def clear_seam_selected(self):
+        self.undo_push('unpinning selected')
+        self.rftarget.clear_seam_selected()
+        self.dirty()
 
     def hide_selected(self):
         self.undo_push('hide selected')

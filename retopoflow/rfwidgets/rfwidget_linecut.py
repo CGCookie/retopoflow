@@ -42,7 +42,7 @@ When cutting, a line segment is drawn from mouse down to current mouse position 
 class RFWidget_LineCut_Factory:
     '''
     This function is a class factory.  It is needed, because the FSM is shared across instances.
-    RFTools might need to share RFWidges that are independent of each other.
+    RFTools might need to share RFWidgets that are independent of each other.
     '''
 
     @staticmethod
