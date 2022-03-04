@@ -39,8 +39,8 @@ bl_info = {
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "location":    "View 3D > Header",
     "blender":     (2, 93, 0),
-    "version":     (3, 2, 6),
-    # "warning":     "Alpha",                   # used for warning icon and text in addons panel
+    "version":     (3, 2, 7),
+    "warning":     "Alpha",                   # used for warning icon and text in addons panel
     # "warning":     "Beta",
     # "warning":     "Release Candidate 1",
     # "warning":     "Release Candidate 2",
