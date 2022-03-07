@@ -484,8 +484,15 @@ class Actions:
         if event_type in self.modifier_actions:
             return # modifier keys do not "fire" pressed events
 
-        full_event_type = add_mods(event_type, ctrl=self.ctrl, alt=self.alt, shift=self.shift, oskey=self.oskey, drag_click=self.mousedown_drag)
-        self.navevent = (full_event_type in self.keymap['navigate'])
+        if len(self.now_pressed) == 0:
+            # nav events should only occur when no other keys are pressed
+            full_event_type = add_mods(
+                event_type,
+                ctrl=self.ctrl, alt=self.alt,
+                shift=self.shift, oskey=self.oskey,
+                drag_click=self.mousedown_drag,
+            )
+            self.navevent = (full_event_type in self.keymap['navigate'])
         # if self.navevent: print(f'useractions.update navevent from {full_event_type}')
 
         mouse_event = event_type in self.mousebutton_actions and not self.navevent
@@ -506,7 +513,8 @@ class Actions:
             if 'WHEELUPMOUSE' in ftype or 'WHEELDOWNMOUSE' in ftype:
                 # mouse wheel actions have no release, so handle specially
                 self.just_pressed = ftype
-            self.now_pressed[event_type] = ftype
+            else:
+                self.now_pressed[event_type] = ftype
             self.last_pressed = ftype
         else:
             if event_type in self.now_pressed:

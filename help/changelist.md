@@ -4,6 +4,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.2.6&rarr;3.2.7
 
+- Fixed bug when pressing MMB while moving geometry with LMB
 - ...
 
 ### RetopoFlow 3.2.5&rarr;3.2.6
