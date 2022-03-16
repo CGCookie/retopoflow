@@ -566,9 +566,7 @@ class Actions:
     def unuse(self, actions):
         actions = self.convert(actions)
         keys = [k for k,v in self.now_pressed.items() if v in actions]
-        # print('Actions.unuse', actions, self.now_pressed, keys)
         for k in keys: del self.now_pressed[k]
-        # print('unuse', self.just_pressed)
         self.mousedown = None
         self.mousedown_left = None
         self.mousedown_middle = None
@@ -577,14 +575,13 @@ class Actions:
         self.unpress()
 
     def unpress(self):
-        # print('unpress', self.just_pressed)
-        # for entry in enumerate(inspect.stack()):
-        #     print('  %s' % str(entry))
         if not self.just_pressed: return
-        if '+CLICK' in self.just_pressed:
-            del self.now_pressed[strip_mods(self.just_pressed)]
-        elif '+DOUBLE' in self.just_pressed:
-            del self.now_pressed[strip_mods(self.just_pressed)]
+        just_pressed_no_mods = strip_mods(self.just_pressed)
+        if just_pressed_no_mods in self.now_pressed:
+            if '+CLICK' in self.just_pressed:
+                del self.now_pressed[just_pressed_no_mods]
+            elif '+DOUBLE' in self.just_pressed:
+                del self.now_pressed[just_pressed_no_mods]
         self.just_pressed = None
 
     def using(self, actions, using_all=False, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False):
