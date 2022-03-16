@@ -321,6 +321,7 @@ class Options:
         'knife snap dist':              5,          # pixels away to snap
 
         'polypen merge dist':           10,         # pixels away to merge
+        'polypen insert dist':          15,         # pixels away for inserting new vertex in existing geo
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 

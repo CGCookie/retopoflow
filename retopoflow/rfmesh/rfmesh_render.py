@@ -377,8 +377,11 @@ class RFMeshRender():
                 raise e
 
         # self.bmesh.verts.ensure_lookup_table()
-        for bmelem in chain(self.bmesh.verts): # chain(self.bmesh.faces, self.bmesh.edges, self.bmesh.verts):
-            bmelem.normal_update()
+        for bmv in self.bmesh.verts:
+            if bmv.link_faces:
+                bmv.normal_update()
+        # for bmelem in chain(self.bmesh.faces, self.bmesh.edges):
+        #     bmelem.normal_update()
 
         self._is_loading = True
         self._is_loaded = False

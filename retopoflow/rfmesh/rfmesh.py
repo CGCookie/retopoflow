@@ -143,7 +143,8 @@ class RFMesh():
             self.triangulate()
 
         for bmv in self.bme.verts:
-            bmv.normal_update()
+            if bmv.link_faces:
+                bmv.normal_update()
 
         # setup finishing
         self.selection_center = Point((0, 0, 0))
@@ -1656,14 +1657,14 @@ class RFTarget(RFMesh):
                 for f in v.link_faces:
                     if f not in faces: continue
                     working_next |= {v_ for v_ in f.verts if v_ in remaining}
-            average = Point.average([v.co for v in working])
+            average = Point.average(v.co for v in working)
             p, n, _, _ = nearest(average)
-            bmv = self.new_vert(p, n)
+            rfv = self.new_vert(p, n)
             for v in working:
-                bmv = bmv.merge_robust(v)
-            bmv.co = p
-            bmv.normal = n
-            bmv.select = True
+                rfv = rfv.merge_robust(v)
+            rfv.co = p
+            rfv.normal = n
+            rfv.select = True
 
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
@@ -1715,7 +1716,7 @@ class RFTarget(RFMesh):
         dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
-        faces = set(f for v in verts if v.is_valid for f in self._unwrap(v).link_faces)
+        faces = { f for v in verts if v.is_valid for f in self._unwrap(v).link_faces }
         for bmf in faces:
             n = compute_normal(v.co for v in bmf.verts)
             vnorm = sum((v.normal for v in bmf.verts), Vector())
@@ -1796,11 +1797,11 @@ class RFTarget(RFMesh):
         '''
         snap verts when fn_filter returns True
         '''
-        for v in self.get_verts():
-            if not fn_filter(v): continue
-            xyz,norm,_,_ = nearest(v.co)
-            v.co = xyz
-            v.normal = norm
+        for rfv in self.get_verts():
+            if not fn_filter(rfv): continue
+            xyz,norm,_,_ = nearest(rfv.co)
+            rfv.co = xyz
+            rfv.normal = norm
         self.dirty()
 
 #    def snap_all_verts(self, nearest):
@@ -1847,7 +1848,8 @@ class RFTarget(RFMesh):
             bmf.normal_flip()
             for bmv in bmf.verts: verts.add(bmv)
         for bmv in verts:
-            bmv.normal_update()
+            if bmv.link_faces:
+                bmv.normal_update()
         self.dirty()
 
     def recalculate_face_normals(self, *, verts=None, faces=None):

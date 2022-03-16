@@ -611,7 +611,7 @@ class RetopoFlow_Target:
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
-        if rfvert.normal.dot(self.Point2D_to_Direction(xy)) > 0 and self.is_visible(rfvert.co):
+        if rfvert.normal.dot(self.Point2D_to_Direction(xy)) >= 0 and self.is_visible(rfvert.co):
             self._detected_bad_normals = True
         return rfvert
 

@@ -134,9 +134,7 @@ class Vec(VecUtils, Entity3D):
         for v in vecs:
             vx,vy,vz = v
             ax,ay,az,ac = ax+vx,ay+vy,az+vz,ac+1
-        if ac == 0:
-            return Vec((0, 0, 0))
-        return Vec((ax / ac, ay / ac, az / ac))
+        return Vec((ax / ac, ay / ac, az / ac)) if ac else Vec((0, 0, 0))
 
 
 class Index2D:
@@ -216,9 +214,7 @@ class Point2D(Vector, Entity2D):
             x += p.x
             y += p.y
             c += 1
-        if c == 0:
-            return Point2D((0, 0))
-        return Point2D((x / c, y / c))
+        return Point2D((x / c, y / c)) if c else Point2D((0, 0))
 
     @staticmethod
     def weighted_average(weight_points):
@@ -227,9 +223,7 @@ class Point2D(Vector, Entity2D):
             x += p.x * w
             y += p.y * w
             c += w
-        if c == 0:
-            return Point2D((0, 0))
-        return Point2D((x / c, y / c))
+        return Point2D((x / c, y / c)) if c else Point2D((0, 0))
 
 
 class RelPoint2D(Vector, Entity2D):
@@ -288,9 +282,7 @@ class RelPoint2D(Vector, Entity2D):
             x += p.x
             y += p.y
             c += 1
-        if c == 0:
-            return RelPoint2D((0, 0))
-        return RelPoint2D((x / c, y / c))
+        return RelPoint2D((x / c, y / c)) if c else RelPoint2D((0, 0))
 
     @staticmethod
     def weighted_average(weight_points):
@@ -299,9 +291,7 @@ class RelPoint2D(Vector, Entity2D):
             x += p.x * w
             y += p.y * w
             c += w
-        if c == 0:
-            return RelPoint2D((0, 0))
-        return RelPoint2D((x / c, y / c))
+        return RelPoint2D((x / c, y / c)) if c else RelPoint2D((0, 0))
 RelPoint2D.ZERO = RelPoint2D((0,0))
 
 
@@ -365,9 +355,7 @@ class Point(Vector, Entity3D):
             y += p.y
             z += p.z
             c += 1
-        if c == 0:
-            return Point((0, 0, 0))
-        return Point((x / c, y / c, z / c))
+        return Point((x / c, y / c, z / c)) if c else Point((0, 0, 0))
 
     @staticmethod
     def weighted_average(weight_points):
@@ -377,9 +365,7 @@ class Point(Vector, Entity3D):
             y += p.y * w
             z += p.z * w
             c += w
-        if c == 0:
-            return Point((0, 0, 0))
-        return Point((x / c, y / c, z / c))
+        return Point((x / c, y / c, z / c)) if c else Point((0, 0, 0))
 
 class Direction2D(Vector, Entity2D):
     @stats_wrapper
@@ -498,8 +484,7 @@ class Normal(VecUtils, Entity3D):
         for n in normals:
             v += n
             c += 1
-        if c: return Normal(v)
-        return v
+        return Normal(v) if c else v
 
 
 class Color(Vector):

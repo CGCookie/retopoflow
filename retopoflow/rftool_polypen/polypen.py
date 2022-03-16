@@ -140,8 +140,9 @@ class PolyPen(RFTool):
         num_verts = len(self.sel_verts)
         num_edges = len(self.sel_edges)
         num_faces = len(self.sel_faces)
+        self.insert_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen insert dist'])
 
-        if self.nearest_edge and self.nearest_edge.select:      # overriding: if hovering over a selected edge, knife it!
+        if self.insert_edge and self.insert_edge.select:      # overriding: if hovering over a selected edge, knife it!
             self.next_state = 'knife selected edge'
 
         elif options['polypen insert mode'] == 'Tri/Quad':
@@ -204,7 +205,7 @@ class PolyPen(RFTool):
             if num_verts == 0:
                 self.next_state = 'new vertex'
             else:
-                if self.nearest_edge:
+                if self.insert_edge:
                     self.next_state = 'vert-edge'
                 else:
                     self.next_state = 'vert-edge-vert'
@@ -390,7 +391,7 @@ class PolyPen(RFTool):
             if not bmv:
                 self.rfcontext.undo_cancel()
                 return 'main'
-            bme0,bmv2 = self.nearest_edge.split()
+            bme0,bmv2 = self.insert_edge.split()
             bmv.merge(bmv2)
             self.rfcontext.select(bmv)
             self.mousedown = self.actions.mousedown
@@ -423,7 +424,7 @@ class PolyPen(RFTool):
                 if not bmv1:
                     self.rfcontext.undo_cancel()
                     return 'main'
-                if dist is not None and dist < self.rfcontext.drawing.scale(15):
+                if dist is not None and dist < self.rfcontext.drawing.scale(options['polypen insert dist']):
                     if bmv0 in nearest_edge.verts:
                         # selected vert already part of edge; split
                         bme0,bmv2 = nearest_edge.split()
@@ -581,7 +582,7 @@ class PolyPen(RFTool):
         if not bmv:
             self.rfcontext.undo_cancel()
             return 'main'
-        if d is not None and d < self.rfcontext.drawing.scale(15):
+        if d is not None and d < self.rfcontext.drawing.scale(options['polypen insert dist']):
             bme0,bmv2 = nearest_edge.split()
             bmv.merge(bmv2)
         self.rfcontext.select(bmv)
@@ -759,8 +760,8 @@ class PolyPen(RFTool):
         CC_DRAW.line_width(2)
 
         if self.next_state == 'knife selected edge':
-            bmv1,bmv2 = self.nearest_edge.verts
-            faces = self.nearest_edge.link_faces
+            bmv1,bmv2 = self.insert_edge.verts
+            faces = self.insert_edge.link_faces
             if faces:
                 for f in faces:
                     lco = []
@@ -778,7 +779,7 @@ class PolyPen(RFTool):
             e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
             if e1:
                 bmv1,bmv2 = e1.verts
-                if d is not None and d < self.rfcontext.drawing.scale(15):
+                if d is not None and d < self.rfcontext.drawing.scale(options['polypen insert dist']):
                     f = next(iter(e1.link_faces), None)
                     if f:
                         lco = []
@@ -805,7 +806,7 @@ class PolyPen(RFTool):
                 e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 if e1:
                     bmv1,bmv2 = e1.verts
-                    if d is not None and d < self.rfcontext.drawing.scale(15):
+                    if d is not None and d < self.rfcontext.drawing.scale(options['polypen insert dist']):
                         f = next(iter(e1.link_faces), None)
                         if f:
                             lco = []
@@ -834,7 +835,7 @@ class PolyPen(RFTool):
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
                 if not e0: return
                 e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-                if e1 and d < self.rfcontext.drawing.scale(15) and e0 == e1:
+                if e1 and d < self.rfcontext.drawing.scale(options['polypen insert dist']) and e0 == e1:
                     bmv1,bmv2 = e1.verts
                     p0 = hit_pos
                     f = next(iter(e1.link_faces), None)
