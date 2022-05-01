@@ -244,8 +244,7 @@ class RetopoFlow(
         self.scene_scale_set(1.0)
 
         # DO THESE BEFORE SWITCHING TO OBJECT MODE BELOW AND BEFORE SETTING UP SOURCES AND TARGET!
-        self.src_objects = self.get_sources()
-        self.tar_object = self.get_target()
+        self.mark_sources_target()
 
         # bpy.context.object.update_from_editmode()
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -253,14 +252,13 @@ class RetopoFlow(
         # get scaling factor to fit all sources into unit box
         print('RetopoFlow: setting up scaling factor')
         self.unit_scaling_factor = self.get_unit_scaling_factor()
-        print('Unit scaling factor:', self.unit_scaling_factor)
+        print(f'  Unit scaling factor: {self.unit_scaling_factor}')
         self.scale_to_unit_box(clip_override=options['clip override'], clip_start=options['clip start override'], clip_end=options['clip end override'])
 
         self.setup_ui_blender()
         self.reload_stylings()
 
         # the rest of setup is handled in `loading` state and self.setup_next_stage above
-        # self.fsm.init(self, start='main')
         self.fsm.force_set_state('loading')
 
 
@@ -273,6 +271,7 @@ class RetopoFlow(
         # one more toggle, because done_target() might push to target mesh
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.mode_set(mode='EDIT')
+        self.unmark_sources_target()  # DO THIS AS ONE OF LAST
         RetopoFlow.instance = None
 
 RetopoFlow.cc_debug_print_to = 'RetopoFlow_Debug'

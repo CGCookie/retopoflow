@@ -143,7 +143,7 @@ class RFMesh():
             self.triangulate()
 
         for bmv in self.bme.verts:
-            if bmv.link_faces:
+            if not bmv.is_wire:
                 bmv.normal_update()
 
         # setup finishing
@@ -1544,30 +1544,46 @@ class RFTarget(RFMesh):
     def cancel(self):
         self.restore_state()
 
+
     def clean(self):
         super().clean()
+
         version = self.get_version()
         if self.editmesh_version == version: return
         self.editmesh_version = version
 
-        # print('CLEANING RFTARGET')
+        try:
+            self._clean_mesh()
+            self._clean_selection()
+            self._clean_mirror()
+            self._clean_displace()
+        except Exception as e:
+            print(f'Caught Exception while trying to clean RFTarget: {e}')
+            self.handle_exception(e)
 
-        # bpy.ops.object.editmode_toggle()
-        self.bme.to_mesh(self.obj.data)
-        # bpy.ops.object.editmode_toggle()
+    def _clean_mesh(self):
+        prev_mesh = self.obj.data
+        prev_mesh_name = prev_mesh.name
+        new_mesh = self.obj.data.copy()
+        self.bme.to_mesh(new_mesh)
+        self.obj.data = new_mesh
+        bpy.data.meshes.remove(prev_mesh)
+        new_mesh.name = prev_mesh_name
 
-        # bmesh.update_edit_mesh(self.obj.data)
+    def _clean_selection(self):
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
         for bme,eme in zip(self.bme.edges, self.obj.data.edges):
             eme.select = bme.select
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             emf.select = bmf.select
-        self.mirror_mod.write()
-        self.clean_displace()
 
-    def clean_displace(self):
+    def _clean_mirror(self):
+        self.mirror_mod.write()
+
+    def _clean_displace(self):
         self.displace_mod.strength = self.displace_strength
+
 
     def enable_symmetry(self, axis): self.mirror_mod.enable_axis(axis)
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
@@ -1848,7 +1864,7 @@ class RFTarget(RFMesh):
             bmf.normal_flip()
             for bmv in bmf.verts: verts.add(bmv)
         for bmv in verts:
-            if bmv.link_faces:
+            if not bmv.is_wire:
                 bmv.normal_update()
         self.dirty()
 

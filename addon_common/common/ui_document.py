@@ -176,9 +176,9 @@ class UI_Document:
         if element is None: return
         def center():
             element._relative_pos = None
-            mx,my = self.actions.mouse
+            mx, my = self.actions.mouse if self.actions.mouse else (100, 100)
             # w,h = element.width_pixels,element.height_pixels
-            w,h = element.width_pixels,element._dynamic_full_size.height
+            w, h = element.width_pixels, element._dynamic_full_size.height
             l = mx-w/2
             t = -self._body.height_pixels + my + h/2
             element.reposition(left=l, top=t)

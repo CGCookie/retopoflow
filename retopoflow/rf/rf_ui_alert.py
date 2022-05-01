@@ -101,13 +101,18 @@ class RetopoFlow_UI_Alert:
 
     @CookieCutter.Exception_Callback
     def handle_exception(self, e):
-        print('RF_UI.handle_exception', e)
+        print('RetopoFlow_UI_Alert.handle_exception', e)
         if False:
             for entry in inspect.stack():
                 print(f'  {entry}')
         message,h = Globals.debugger.get_exception_info_and_hash()
         message = '\n'.join(f'- {l}' for l in message.splitlines())
-        self.alert_user(title='Exception caught', message=message, level='exception', msghash=h)
+        self.alert_user(
+            title='Exception caught',
+            message=message,
+            level='exception',
+            msghash=h,
+        )
         if hasattr(self, 'rftool'): self.rftool._reset()
 
     def alert_user(self, message=None, title=None, level=None, msghash=None):
@@ -239,6 +244,8 @@ class RetopoFlow_UI_Alert:
             show_quit = True
             darken = True
         elif level in {'assert', 'exception'}:
+            self.save_emergency()  # make an emergency save!
+
             if level == 'assert':
                 title = 'Assert Error' + (f': {title}' if title else '!')
                 desc = 'An internal assertion has failed.'

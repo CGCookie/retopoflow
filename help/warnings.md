@@ -34,6 +34,7 @@ Disable either of these settings in the 3D View Sidebar (`N`) before starting Re
 
 ![View Locks](warning_viewlock.png max-height:103px)
 
+
 ## Auto Save / Save
 
 If Blender's auto save is disabled, any work done since the last time you saved can be lost if Blender crashes. To enable auto save, go Edit > Preferences > Save & Load > Auto Save.
@@ -45,6 +46,9 @@ Temporary file path: `{`options.get_auto_save_filepath()`}`
 <input type="checkbox" value="options['check auto save']">Warn if auto save is disabled</input>
 
 <input type="checkbox" value="options['check unsaved']">Warn if file is unsaved</input>
+
+If you directly open an auto saved file, some of the visual settings and mesh sizes will be different.
+Clicking the "Finish Auto Save Recovery" button will recover the original visual settings and mesh sizes.
 
 
 ## Performance: Target/Sources Too Large

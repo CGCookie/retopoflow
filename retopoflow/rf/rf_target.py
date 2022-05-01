@@ -49,8 +49,9 @@ class RetopoFlow_Target:
     @profiler.function
     def setup_target(self):
         ''' target is the active object.  must be selected and visible '''
-        assert self.tar_object, 'Could not find valid target?'
-        self.rftarget = RFTarget.new(self.tar_object, self.unit_scaling_factor)
+        tar_object = self.get_target()
+        assert tar_object, 'Could not find valid target?'
+        self.rftarget = RFTarget.new(tar_object, self.unit_scaling_factor)
         opts = visualization.get_target_settings()
         self.rftarget_draw = RFMeshRender.new(self.rftarget, opts)
         self.rftarget_version = None
@@ -106,8 +107,7 @@ class RetopoFlow_Target:
     def done_target(self):
         del self.rftarget_draw
         del self.rftarget
-        self.tar_object.to_mesh_clear()
-        del self.tar_object
+        self.get_target().to_mesh_clear()
 
 
     #########################################

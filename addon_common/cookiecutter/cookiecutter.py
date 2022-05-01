@@ -119,8 +119,11 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         self.context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
-    def done(self, cancel=False):
-        self._done = 'commit' if not cancel else 'cancel'
+    def done(self, *, cancel=False, emergency_bail=False):
+        if emergency_bail:
+            self._done = 'bail'
+        else:
+            self._done = 'commit' if not cancel else 'cancel'
 
     def modal(self, context, event):
         # print('CookieCutter.modal', event.type, time.time())
@@ -134,14 +137,15 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
             profiler.printfile()
 
         if self._done:
-            try:
-                if self._done == 'commit':
-                    self.end_commit()
-                else:
-                    self.end_cancel()
-                self.end()
-            except Exception as e:
-                self._handle_exception(e, 'call end() with %s' % self._done)
+            if self._done != 'bail':
+                try:
+                    if self._done == 'commit':
+                        self.end_commit()
+                    else:
+                        self.end_cancel()
+                    self.end()
+                except Exception as e:
+                    self._handle_exception(e, 'call end() with %s' % self._done)
             self._cc_ui_end()
             self._cc_actions_end()
             self._cc_exception_done()

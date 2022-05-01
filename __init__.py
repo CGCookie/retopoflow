@@ -243,15 +243,7 @@ if import_succeeded:
             return True
 
         def invoke(self, context, event):
-            auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
-            bpy.context.preferences.edit.use_enter_edit_mode = False
-            for o in bpy.data.objects: o.select_set(False)
-            mesh = bpy.data.meshes.new('RetopoFlow')
-            obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
-            obj.select_set(True)
-            context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
+            retopoflow.RetopoFlow.create_new_target(context)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Cursor]
 
@@ -279,17 +271,7 @@ if import_succeeded:
             return True
 
         def invoke(self, context, event):
-            active = get_active_object()
-            auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
-            bpy.context.preferences.edit.use_enter_edit_mode = False
-            for o in bpy.data.objects: o.select_set(False)
-            mesh = bpy.data.meshes.new('RetopoFlow')
-            obj = object_utils.object_data_add(context, mesh, name='RetopoFlow')
-            obj.select_set(True)
-            context.view_layer.objects.active = obj
-            obj.matrix_world = active.matrix_world
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
+            retopoflow.RetopoFlow.create_new_target(context)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
 
@@ -331,10 +313,10 @@ if import_succeeded:
     create operator for recovering auto save
     '''
 
-    class VIEW3D_OT_RetopoFlow_Recover(Operator):
-        bl_idname = 'cgcookie.retopoflow_recover'
-        bl_label = 'Recover Auto Save'
-        bl_description = 'Recover from RetopoFlow auto save'
+    class VIEW3D_OT_RetopoFlow_RecoverOpen(Operator):
+        bl_idname = 'cgcookie.retopoflow_recover_open'
+        bl_label = 'Recover: Open Last Auto Save'
+        bl_description = 'Recover by opening last file automatically saved by RetopoFlow'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'TOOLS'
         bl_options = set()
@@ -342,13 +324,30 @@ if import_succeeded:
 
         @classmethod
         def poll(cls, context):
-            return retopoflow.RetopoFlow.has_backup()
+            return retopoflow.RetopoFlow.has_auto_save()
 
         def invoke(self, context, event):
-            global perform_backup_recovery
-            retopoflow.RetopoFlow.backup_recover()
+            retopoflow.RetopoFlow.recover_auto_save()
             return {'FINISHED'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_Recover]
+    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverOpen]
+
+    class VIEW3D_OT_RetopoFlow_RecoverRevert(Operator):
+        bl_idname = 'cgcookie.retopoflow_recover_finish'
+        bl_label = 'Recover: Finish Auto Save Recovery'
+        bl_description = 'Finish recovering open file'
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'TOOLS'
+        bl_options = set()
+        rf_icon = 'rf_recover_icon'
+
+        @classmethod
+        def poll(cls, context):
+            return retopoflow.RetopoFlow.can_recover()
+
+        def invoke(self, context, event):
+            retopoflow.RetopoFlow.recovery_revert()
+            return {'FINISHED'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverRevert]
 
 
 if import_succeeded:
@@ -457,6 +456,10 @@ if import_succeeded:
                 warnings.add('save: auto save is disabled')
             if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
                 warnings.add('save: unsaved blender file')
+            if retopoflow.RetopoFlow.can_recover():
+                # user directly opened an auto save file
+                warnings.add('save: can recover auto save')
+
 
             return warnings
 
@@ -528,6 +531,14 @@ if import_succeeded:
             if 'save: unsaved blender file' in warnings:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text='Unsaved Blender file', icon='DOT')
+            if 'save: can recover auto save' in warnings:
+                box = get_warning_subbox('Auto Save')
+                box.label(text=f'Auto Save file opened', icon='DOT')
+                box.operator(
+                    'cgcookie.retopoflow_recover_finish',
+                    text='Finish Auto Save Recovery',
+                    icon='RECOVER_LAST',
+                )
 
             # show button for more warning details
             layout.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
@@ -638,7 +649,11 @@ if import_succeeded:
 
         def draw(self, context):
             layout = self.layout
-            layout.operator('cgcookie.retopoflow_recover', icon='RECOVER_LAST')
+            layout.operator(
+                'cgcookie.retopoflow_recover_open',
+                text='Open Last Auto Save',
+                icon='RECOVER_LAST',
+            )
             # if retopoflow.RetopoFlow.has_backup():
             #     box.label(text=options['last auto save path'])
 

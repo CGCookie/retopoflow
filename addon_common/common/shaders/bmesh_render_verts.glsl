@@ -87,7 +87,12 @@ vec4 get_pos(vec3 p) {
         float focus = (view_distance - clip_start) / clip_dist + 0.04;
         mult = focus;
     }
-    return vec4((p + vert_norm * normal_offset * mult * unit_scaling_factor) * vert_scale, 1.0);
+    return vec4(
+        (
+            p +
+            vert_norm * normal_offset * mult / unit_scaling_factor
+        ) * vert_scale,
+        1.0);
 }
 
 vec4 xyz(vec4 v) {

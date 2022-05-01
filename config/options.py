@@ -541,12 +541,20 @@ class Options:
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
-    def get_auto_save_filepath(self):
-        if not getattr(bpy.data, 'filepath', ''):
+    def get_auto_save_filepath(self, *, suffix=None):
+        suffix = f'_{suffix}' if suffix else ''
+
+        if not getattr(bpy.data, 'filepath', None):
             # not working on a saved .blend file, yet!
-            return os.path.join(tempfile.gettempdir(), self['backup_filename'])
-        base, ext = os.path.splitext(bpy.data.filepath)
-        return '%s_RetopoFlow_AutoSave%s' % (base, ext)
+            path = tempfile.gettempdir()
+            filename = self['backup_filename']
+        else:
+            fullpath = os.path.abspath(bpy.data.filepath)
+            path, filename = os.path.split(fullpath)
+            suffix = f'_RetopoFlow_AutoSave{suffix}'
+
+        base, ext = os.path.splitext(filename)
+        return os.path.join(path, f'{base}{suffix}{ext}')
 
 
 class Themes:
