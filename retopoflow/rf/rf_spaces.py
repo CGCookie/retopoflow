@@ -122,6 +122,7 @@ class RetopoFlow_Spaces:
         return Plane(o, n)
 
     def Point_to_Point2D(self, xyz:Point):
+        if not xyz: return None
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         if xy is None: return None
         return Point2D(xy)
@@ -132,17 +133,20 @@ class RetopoFlow_Spaces:
         computes the distance of point (xyz) from view camera
         '''
 
+        if not xyz: return None
         xy = self.Point_to_Point2D(xyz)
         if xy is None: return None
         oxyz = self.Point2D_to_Origin(xy)
         return (xyz - oxyz).length
 
     def Point_to_Direction(self, xyz:Point):
+        if not xyz: return None
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         return self.Point2D_to_Direction(xy)
 
     @profiler.function
     def Point_to_Ray(self, xyz:Point, min_dist=0, max_dist_offset=0):
+        if not xyz: return None
         xy = location_3d_to_region_2d(self.actions.region, self.actions.r3d, xyz)
         if not xy: return None
         o = self.Point2D_to_Origin(xy)
@@ -156,13 +160,18 @@ class RetopoFlow_Spaces:
         # TODO: there are more efficient methods of computing this!
         # note: scaling then unscaling helps with numerical instability when clip_start is small
         scale = 1000.0 # 1.0 / self.actions.space.clip_start
+        if not xy: return None
         p3d0 = self.Point2D_to_Point(xy, depth)
         p3d1 = self.Point2D_to_Point(xy + Vec2D((scale * size2D, 0)), depth)
+        if not p3d0 or not p3d1: return None
         return (p3d0 - p3d1).length / scale
 
     def size_to_size2D(self, size:float, xyz:Point):
+        if not xyz: return None
         xy = self.Point_to_Point2D(xyz)
+        if not xy: return None
         pt2D = self.Point_to_Point2D(xyz - self.Vec_up() * size)
+        if not pt2D: return None
         return abs(xy.y - pt2D.y)
 
 
