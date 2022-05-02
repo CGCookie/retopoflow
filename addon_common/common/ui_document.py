@@ -176,7 +176,7 @@ class UI_Document:
         if element is None: return
         def center():
             element._relative_pos = None
-            mx, my = self.actions.mouse if self.actions.mouse else (100, 100)
+            mx, my = self.actions.mouse if self.actions.mouse else (10, 10)
             # w,h = element.width_pixels,element.height_pixels
             w, h = element.width_pixels, element._dynamic_full_size.height
             l = mx-w/2
@@ -202,6 +202,12 @@ class UI_Document:
             self._under_mousedown = None
         if self._focus and self._focus.is_descendant_of(ui_element):
             self._focus = None
+
+    def force_dirty_all(self):
+        self._body.dirty(children=True)
+        self._body.dirty_styling()
+        self._body.dirty_flow()
+        tag_redraw_all('Force Dirty All')
 
     @profiler.function
     def update(self, context, event):

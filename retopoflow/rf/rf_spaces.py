@@ -42,6 +42,42 @@ class RetopoFlow_Spaces:
     Note: if 2D is not specified, then it is a 1D or 3D entity (whichever is applicable)
     '''
 
+    def update_clip_settings(self, *, rescale=True):
+        if options['clip auto adjust']:
+            # adjust clipping settings
+            view_origin = self.drawing.get_view_origin(orthographic_distance=1000)
+            view_focus  = self.actions.r3d.view_location
+            bbox = self.sources_bbox
+            closest  = bbox.closest_Point(view_origin)
+            farthest = bbox.farthest_Point(view_origin)
+            self.drawing.space.clip_start = max(
+                options['clip auto start min'],
+                (view_origin - closest).length * options['clip auto start mult'],
+            )
+            self.drawing.space.clip_end = min(
+                options['clip auto end max'],
+                (view_origin - farthest).length * options['clip auto end mult'],
+            )
+            # print(f'clip auto adjusting')
+            # print(f'  origin:   {view_origin}')
+            # print(f'  focus:    {view_focus}')
+            # print(f'  closest:  {closest}')
+            # print(f'  farthest: {farthest}')
+            # print(f'  dist from origin to closest:  {(view_origin - closest).length}')
+            # print(f'  dist from origin to farthest: {(view_origin - farthest).length}')
+            # print(f'  dist from origin to focus:    {(view_origin - view_focus).length}')
+            # print(f'  clip_start: {self.drawing.space.clip_start}')
+            # print(f'  clip_end:   {self.drawing.space.clip_end}')
+        elif rescale:
+            self.unscale_from_unit_box()
+            self.scale_to_unit_box(
+                clip_override=options['clip override'],
+                clip_start=options['clip start override'],
+                clip_end=options['clip end override'],
+            )
+
+
+
     def get_view_origin(self):
         # does not work in ORTHO
         view_loc = self.actions.r3d.view_location

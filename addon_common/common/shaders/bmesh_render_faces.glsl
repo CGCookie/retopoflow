@@ -92,7 +92,7 @@ vec4 get_pos(vec3 p) {
     return vec4(
         (
             p +
-            vert_norm * normal_offset * mult / unit_scaling_factor
+            vert_norm * normal_offset * mult // * unit_scaling_factor
         ) * vert_scale,
         1.0);
 }

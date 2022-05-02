@@ -37,13 +37,20 @@ def reset_alpha_options(self):
 
 
 def update_clip_distances(self, *, rescale=True):
+    def show_ui_if(ui_id, cond):
+        ui = self.ui_options.getElementById(ui_id)
+        ui.style = 'display:block' if cond else 'display:none'
+        ui.dirty()
+        ui.dirty_flow()
     self.update_clip_settings(rescale=rescale)
-    if options['clip auto adjust']:
-        self.ui_options.getElementById('clip-options').style = 'display:none'
-    else:
-        self.ui_options.getElementById('clip-options').style = 'display:block'
-        self.ui_options.getElementById('scaled-clipping-distances').style = f'display:{"none"  if options["clip override"] else "block"}'
-        self.ui_options.getElementById('fixed-clipping-distances').style  = f'display:{"block" if options["clip override"] else "none" }'
+    ratio = options['clip auto end max'] / options['clip auto start min']
+    show_ui_if('clip-auto-ratio-warning', ratio > 400000)
+    # print(ratio)
+
+    show_ui_if('clip-auto-options', options['clip auto adjust'] == True)
+    show_ui_if('clip-options',      options['clip auto adjust'] == False)
+    show_ui_if('fixed-clipping-distances',  options['clip override'] == True)
+    show_ui_if('scaled-clipping-distances', options['clip override'] == False)
 
 def update_hide_overlays(self):
     if options['hide overlays']: self.overlays_hide()
@@ -190,17 +197,38 @@ def mirror_changed(self):
                 </div>
                 <div class="collection">
                     <h1>View Clipping</h1>
-                    <div class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
+                    <div id="view-clipping-options" class="contents" on_visibilitychange="update_clip_distances(self, rescale=False)">
                         <label>
                             <input type="checkbox" id="clip-auto-adjust" checked="BoundBool('''options['clip auto adjust']''')" on_input="update_clip_distances(self)" title="If enabled, clipping settings are automatically adjusted based on view distance and bounding box of sources">
                             Automatically Adjust
                         </label>
-                        <div id="clip-options">
+                        <div id="clip-auto-options" class="show-hide">
+                            <div id="clip-auto-ratio-warning">
+                                WARNING: the ratio of End Maximum over Start Minimum is very large, which can result in odd "snapping" behavior when working inside or very close to the sources.  Consider increasing Start Minimum or decreasing End Maximum.
+                            </div>
+                            <div class="labeled-input-text">
+                                <label for="clip-auto-start-mult">Start Factor</label>
+                                <input id="clip-auto-start-mult" type="number" value="BoundFloat('''options['clip auto start mult']''', min_value=0.0001)" on_input="update_clip_distances(self)" title="Multiplying factor for near clipping distance">
+                            </div>
+                            <div class="labeled-input-text">
+                                <label for="clip-auto-start-min">Start Minimum</label>
+                                <input id="clip-auto-start-min" type="number" value="BoundFloat('''options['clip auto start min']''', min_value=0.0005)" on_input="update_clip_distances(self)" title="Minimum value for near clipping distance">
+                            </div>
+                            <div class="labeled-input-text">
+                                <label for="clip-auto-end-mult">End Factor</label>
+                                <input id="clip-auto-end-mult" type="number" value="BoundFloat('''options['clip auto end mult']''', min_value=0.0001)" on_input="update_clip_distances(self)" title="Multiplying factor for near clipping distance">
+                            </div>
+                            <div class="labeled-input-text">
+                                <label for="clip-auto-end-max">End Maximum</label>
+                                <input id="clip-auto-end-max" type="number" value="BoundFloat('''options['clip auto end max']''', min_value=0.0005, max_value=10000)" on_input="update_clip_distances(self)" title="Maximum value for far clipping distance">
+                            </div>
+                        </div>
+                        <div id="clip-options" class="show-hide">
                             <label>
                                 <input type="checkbox" checked="BoundBool('''options['clip override']''')" on_input="update_clip_distances(self)" title="If enabled, clipping distances will be set to fixed override values rather than scaled.">
                                 Override with Fixed Values
                             </label>
-                            <div id="scaled-clipping-distances">
+                            <div id="scaled-clipping-distances" class="show-hide">
                                 <div class="labeled-input-text">
                                     <label for="clip-start-scaled">Start (scaled)</label>
                                     <input id="clip-start-scaled" type="number" value="BoundFloat('''self.actions.space.clip_start''', min_value=0)" title="Near clipping distance (scaled)">
@@ -210,7 +238,7 @@ def mirror_changed(self):
                                     <input id="clip-end-scaled" type="number" value="BoundFloat('''self.actions.space.clip_end''', min_value=0)" title="Far clipping distance (scaled)">
                                 </div>
                             </div>
-                            <div id="fixed-clipping-distances">
+                            <div id="fixed-clipping-distances" class="show-hide">
                                 <div class="labeled-input-text">
                                     <label for="clip-start-fixed">Start</label>
                                     <input id="clip-start-fixed" type="number" value="BoundFloat('''options['clip start override']''', min_value=0)" on_input="update_clip_distances(self)" title="Near clipping distance (fixed)">

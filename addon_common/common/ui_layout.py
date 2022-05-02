@@ -40,6 +40,7 @@ from .ui_settings import DEBUG_COLOR_CLEAN, DEBUG_PROPERTY, DEBUG_COLOR, DEBUG_D
 
 
 import bpy
+import bgl
 import blf
 import gpu
 

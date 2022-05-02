@@ -247,11 +247,8 @@ def load_image(fn):
     return load_image._cache[fn]
 
 @add_cache('_image', None)
-def get_loading_image(fn):
-    nfn = f'{os.path.splitext(fn)[0]}.thumb.png'
-    if get_image_path(nfn):
-        return load_image(nfn)
-    if not get_loading_image._image:
+def get_unfound_image():
+    if not get_unfound_image._image:
         c0, c1 = [128,128,128,0], [128,128,128,128]
         w, h = 10, 10
         image = []
@@ -261,8 +258,14 @@ def get_loading_image(fn):
                 c = c0 if (x+y)%2 == 0 else c1
                 row.append(c)
             image.append(row)
-        get_loading_image._image = image
-    return get_loading_image._image
+        get_unfound_image._image = image
+    return get_unfound_image._image
+
+@add_cache('_image', None)
+def get_loading_image(fn):
+    base, _ = os.path.splitext(fn)
+    nfn = f'{base}.thumb.png'
+    return load_image(nfn) if get_image_path(nfn) else get_unfound_image()
 
 def is_image_cached(fn):
     return fn in load_image._cache
@@ -657,7 +660,16 @@ class UI_Element_PreventMultiCalls:
 
 
 
-class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, UI_Element_Debug, UI_Element_PreventMultiCalls, UI_Element_Elements, UI_Markdown, UI_Layout):
+class UI_Element(
+        UI_Element_Utils,
+        UI_Element_Properties,
+        UI_Element_Dirtiness,
+        UI_Element_Debug,
+        UI_Element_PreventMultiCalls,
+        UI_Element_Elements,
+        UI_Markdown,
+        UI_Layout,
+):
     @staticmethod
     @add_cache('uid', 0)
     def get_uid():
@@ -692,6 +704,7 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
         self._type            = None
         self._value           = None
         self._value_bound     = False
+        self._maxlength       = None
         self._valueMax        = None
         self._valueMin        = None
         self._valueStep       = None
@@ -916,6 +929,10 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                         # k is an attribute
                         print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
                         setattr(self, k, v)
+                elif k == 'max':
+                    self.valueMax = v
+                elif k == 'min':
+                    self.valueMin = v
                 else:
                     unhandled_keys.add(k)
 
@@ -1442,19 +1459,29 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                     pass
                 elif self._src == 'image loaded':
                     self._src = 'image'
-                    self._image_data = load_texture(self.src, image=self._image_data)
+                    self._image_data = load_texture(
+                        self.src,
+                        image=self._image_data,
+                    )
                     self._new_content = True
-                    self.dirty()
+                    self.dirty_styling()
+                    self.dirty_flow()
+                    self.dirty(parent=True, children=True)
                 else:
                     self._src = 'image loading'
-                    self._image_data = load_texture(f'image loading {self.src}', image=get_loading_image(self.src), mag_filter=bgl.GL_LINEAR)
+                    self._image_data = load_texture(
+                        f'image loading {self.src}',
+                        image=get_loading_image(self.src),
+                        mag_filter=bgl.GL_LINEAR,
+                    )
                     self._new_content = True
                     def callback(image):
                         self._src = 'image loaded'
                         self._image_data = image
-                        self.dirty(children=True)
+                        self._new_content = True
                         self.dirty_styling()
                         self.dirty_flow()
+                        self.dirty(parent=True, children=True)
                     def load():
                         async_load_image(self.src, callback)
                     ThreadPoolExecutor().submit(load)
@@ -1779,7 +1806,6 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
             background_override = None
 
         bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDisable(bgl.GL_CULL_FACE)
         # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
 
         sc = self._style_cache
@@ -1850,7 +1876,24 @@ class UI_Element(UI_Element_Utils, UI_Element_Properties, UI_Element_Dirtiness, 
                 bgl.glEnable(bgl.GL_BLEND)
                 bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
                 texture_id = self._cacheRenderBuf.color_texture
-                draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
+                if True:
+                    draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
+                else:
+                    dpi_mult = Globals.drawing.get_dpi_mult()
+                    texture_fit = 0
+                    background_override = None
+                    ui_draw.draw(self._l+ox, self._t+oy, self._w, self._h, dpi_mult, {
+                        'background-color': (0,0,0,0),
+                        'margin-top': 0,
+                        'margin-right': 0,
+                        'margin-bottom': 0,
+                        'margin-left': 0,
+                        'padding-top': 0,
+                        'padding-right': 0,
+                        'padding-bottom': 0,
+                        'padding-left': 0,
+                        'border-width': 0,
+                        }, texture_id, texture_fit, background_override=background_override)
             else:
                 bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
                 self._draw_real(offset)

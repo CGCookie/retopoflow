@@ -35,6 +35,7 @@ from itertools import chain
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+import bgl
 
 from .ui_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head
@@ -110,7 +111,7 @@ def load_text_file(path):
 
 class UI_Markdown:
     @profiler.function
-    def set_markdown(self, mdown=None, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, frame_depth=1):
+    def set_markdown(self, mdown=None, *, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, frame_depth=1, remove_indentation=True):
         if f_globals is None or f_locals is None:
             frame = inspect.currentframe()                      # get frame   of calling function
             for _ in range(frame_depth): frame = frame.f_back
@@ -119,7 +120,18 @@ class UI_Markdown:
 
         self._src_mdown_path = mdown_path or ''
 
-        if mdown_path: mdown = load_text_file(get_mdown_path(mdown_path))
+        if mdown_path:
+            mdown = load_text_file(get_mdown_path(mdown_path))
+        if remove_indentation and mdown:
+            indent = min((
+                len(line) - len(line.lstrip())
+                for line in mdown.splitlines()
+                if line.strip()
+            ), default=0)
+            mdown = '\n'.join(
+                line if not line.strip() else line[indent:]
+                for line in mdown.splitlines()
+            )
         if preprocess_fns:
             for preprocess_fn in preprocess_fns:
                 mdown = preprocess_fn(mdown)
@@ -191,24 +203,32 @@ class UI_Markdown:
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='b', innerText=word))
                         elif t == 'italic':
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='i', innerText=word))
-                        elif t == 'checkbox':
-                            params = m.group('params')
-                            innertext = m.group('innertext')
-                            value = None
-                            for param in re.finditer(r'(?P<key>[a-zA-Z]+)(="(?P<val>.*?)")?', params):
-                                key = param.group('key')
-                                val = param.group('val')
-                                if key == 'type':
-                                    pass
-                                elif key == 'value':
-                                    value = val
-                                else:
-                                    assert False, 'Unhandled checkbox parameter key="%s", val="%s" (%s)' % (key,val,param)
-                            assert value is not None, 'Unhandled checkbox parameters: expected value (%s)' % (params)
-                            # print('CREATING input_checkbox(label="%s", checked=BoundVar("%s", ...)' % (innertext, value))
-                            ui_label = container.append_new_child(tagName='label')
-                            ui_label.append_new_child(tagName='input', type='checkbox', checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals))
-                            ui_label.append_new_child(tagName='text', innerText=innertext, pseudoelement='text')
+                        elif t == 'html':
+                            ui = container.append_new_children_fromHTML(m.group(), f_globals=f_globals, f_locals=f_locals)
+                        # elif t == 'checkbox':
+                        #     params = m.group('params')
+                        #     innertext = m.group('innertext')
+                        #     value = None
+                        #     for param in re.finditer(r'(?P<key>[a-zA-Z]+)(="(?P<val>.*?)")?', params):
+                        #         key = param.group('key')
+                        #         val = param.group('val')
+                        #         if key == 'type':
+                        #             pass
+                        #         elif key == 'value':
+                        #             value = val
+                        #         else:
+                        #             assert False, 'Unhandled checkbox parameter key="%s", val="%s" (%s)' % (key,val,param)
+                        #     assert value is not None, 'Unhandled checkbox parameters: expected value (%s)' % (params)
+                        #     # print('CREATING input_checkbox(label="%s", checked=BoundVar("%s", ...)' % (innertext, value))
+                        #     ui_label = container.append_new_child(tagName='label')
+                        #     ui_label.append_new_child(tagName='input', type='checkbox', checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals))
+                        #     ui_label.append_new_child(tagName='text', innerText=innertext, pseudoelement='text')
+                        # elif t == 'button':
+                        #     ui_element = self.fromHTML(m.group(0), f_globals=f_globals, f_locals=f_locals)[0]
+                        #     container.append_child(ui_element)
+                        # elif t == 'progress':
+                        #     ui_element = self.fromHTML(m.group(0), f_globals=f_globals, f_locals=f_locals)[0]
+                        #     container.append_child(ui_element)
                         else:
                             assert False, 'Unhandled inline markdown type "%s" ("%s") with "%s"' % (str(t), str(m), line)
                         para = para[m.end():]

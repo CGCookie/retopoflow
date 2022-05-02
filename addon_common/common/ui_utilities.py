@@ -36,6 +36,7 @@ from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+import bgl
 import blf
 import gpu
 

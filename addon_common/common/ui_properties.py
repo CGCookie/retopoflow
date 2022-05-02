@@ -35,6 +35,7 @@ from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+import bgl
 import blf
 import gpu
 
@@ -243,6 +244,10 @@ class UI_Element_Properties:
     def append_new_child(self, *args, **kwargs):
         ui = self.new_element(*args, **kwargs)
         self.append_child(ui)
+        return ui
+    def append_new_children_fromHTML(self, html, **kwargs):
+        ui = self.fromHTML(html, frame_depth=2, **kwargs)
+        self.append_children(ui)
         return ui
     def prepend_new_child(self, *args, **kwargs):
         ui = self.new_element(*args, **kwargs)
@@ -963,6 +968,7 @@ class UI_Element_Properties:
         if not self.is_visible: return
         self.dispatch_event('on_input')
         self.dirty(cause='changing value can affect selector and content', children=True)
+        self.dirty_flow()
     def value_bind(self, boundvar):
         self._value = boundvar
         self._value.on_change(self._value_change)
@@ -972,6 +978,13 @@ class UI_Element_Properties:
         self._value = v
         self._value_bound = False
         return p
+
+    @property
+    def maxlength(self):
+        return self._maxlength
+    @maxlength.setter
+    def maxlength(self, v):
+        self._maxlength = max(0, int(v))
 
     @property
     def valueMax(self):

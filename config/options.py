@@ -195,10 +195,14 @@ class Options:
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
-        'clip auto adjust':     True,   # True: clip settings are automatically adjusted based on view distance and source bbox
-        'clip override':        True,   # True: override with below values; False: scale by unit scale factor
-        'clip start override':  0.05,
-        'clip end override':    200.0,
+        'clip auto adjust':     True,       # True: clip settings are automatically adjusted based on view distance and source bbox
+        'clip auto start mult': 0.0010,     # factor for clip_start
+        'clip auto start min':  0.0010,     # absolute minimum for clip_start
+        'clip auto end mult':   100.00,     # factor for clip_end
+        'clip auto end max':    1000.0,     # absolute maximum for clip_end
+        'clip override':        True,       # True: override with below values; False: scale by unit scale factor
+        'clip start override':  0.0500,
+        'clip end override':    200.00,
 
         'hide cursor on tweak': True,   # True: cursor is hidden when tweaking geometry
 
@@ -220,7 +224,7 @@ class Options:
         'color theme':                     'Green',
         'symmetry view':                   'Edge',
         'symmetry effect':                 0.5,
-        'normal offset multiplier':        1.0,
+        'normal offset multiplier':        0.1,
         'constrain offset':                True,
         'ui scale':                        1.0,
 
