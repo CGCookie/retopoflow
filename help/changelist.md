@@ -12,6 +12,8 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed issue where lose verts and edges are unselectable
 - Fixed issue with crashing when using tablet
 - Improved auto adjustment of view clipping
+- Improved stability of Strokes
+- Added option for snapping to geometry while using Strokes instead of using brush radius
 - Improved and debugged UI code
 - ...
 
