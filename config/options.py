@@ -199,7 +199,7 @@ class Options:
         'clip auto start mult': 0.0010,     # factor for clip_start
         'clip auto start min':  0.0010,     # absolute minimum for clip_start
         'clip auto end mult':   100.00,     # factor for clip_end
-        'clip auto end max':    1000.0,     # absolute maximum for clip_end
+        'clip auto end max':    500.0,      # absolute maximum for clip_end
         'clip override':        True,       # True: override with below values; False: scale by unit scale factor
         'clip start override':  0.0500,
         'clip end override':    200.00,

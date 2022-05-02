@@ -44,7 +44,7 @@ def update_clip_distances(self, *, rescale=True):
         ui.dirty_flow()
     self.update_clip_settings(rescale=rescale)
     ratio = options['clip auto end max'] / options['clip auto start min']
-    show_ui_if('clip-auto-ratio-warning', ratio > 400000)
+    show_ui_if('clip-auto-ratio-warning', ratio > 500000)
     # print(ratio)
 
     show_ui_if('clip-auto-options', options['clip auto adjust'] == True)
