@@ -5,6 +5,14 @@ This document contains details about what has changed in RetopoFlow since versio
 ### RetopoFlow 3.2.6&rarr;3.2.7
 
 - Fixed bug when pressing MMB while moving geometry with LMB
+- Significantly improved Auto Save and Auto Save recovery
+- Added quick bail if unexpected exceptions occur to prevent work loss
+- Temp mesh is used when updating to prevent work loss
+- PolyPen now has option to adjust distance for inserting vertex into edge
+- Fixed issue where lose verts and edges are unselectable
+- Fixed issue with crashing when using tablet
+- Improved auto adjustment of view clipping
+- Improved and debugged UI code
 - ...
 
 ### RetopoFlow 3.2.5&rarr;3.2.6
