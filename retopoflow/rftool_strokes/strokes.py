@@ -179,7 +179,7 @@ class Strokes(RFTool):
         self.update_ui()
 
         self.edge_collections = []
-        edges = {e for e in self.rfcontext.get_selected_edges() if not e.is_manifold}
+        edges = self.get_edges_for_extrude()
         while edges:
             current = set()
             working = set([edges.pop()])
@@ -206,7 +206,7 @@ class Strokes(RFTool):
             # the artist might move mouse off selected edge before drag kicks in!
             if time.time() - self.hovering_edge_time > 0.125:
                 self.hovering_edge_time = time.time()
-                self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+                self.hovering_edge,_     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
                 self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
             pass
 
@@ -214,10 +214,12 @@ class Strokes(RFTool):
         if self.actions.using_onlymods('insert'):
             if time.time() - self.connection_pre_time > 0.01:
                 self.connection_pre_time = time.time()
-                hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-                if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
-                    point_to_point2d = self.rfcontext.Point_to_Point2D
-                    self.connection_pre = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+                hovering_sel_vert_snap,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
+                if options['strokes snap stroke'] and hovering_sel_vert_snap:
+                    self.connection_pre = (
+                        self.rfcontext.Point_to_Point2D(hovering_sel_vert_snap.co),
+                        self.actions.mouse,
+                    )
                 else:
                     self.connection_pre = None
         else:
@@ -318,11 +320,14 @@ class Strokes(RFTool):
 
     @RFWidget.on_actioning('Strokes stroke')
     def stroking(self):
-        self.connection_post = None
-        hovering_sel_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=self.rfwidgets['brush'].radius)
-        if hovering_sel_vert and (options['strokes snap stroke'] or hovering_sel_vert.select):
-            point_to_point2d = self.rfcontext.Point_to_Point2D
-            self.connection_post = (point_to_point2d(hovering_sel_vert.co), self.actions.mouse)
+        hovering_sel_vert_snap,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
+        if options['strokes snap stroke'] and hovering_sel_vert_snap:
+            self.connection_post = (
+                self.rfcontext.Point_to_Point2D(hovering_sel_vert_snap.co),
+                self.actions.mouse,
+            )
+        else:
+            self.connection_post = None
 
     @RFWidget.on_action('Strokes stroke')
     def stroke(self):
@@ -354,31 +359,38 @@ class Strokes(RFTool):
         self.strip_edges = False
         self.replay = None
 
+        boundary_edges = self.get_edges_for_extrude()
+
         # are we extruding or creating a new edge strip/loop?
-        extrude = not all(e.is_manifold for e in self.rfcontext.get_selected_edges())
+        extrude = bool(boundary_edges)
 
         # is the stroke in a circle?  note: circle must have a large enough radius
-        cyclic = (stroke[0] - stroke[-1]).length < radius and any((s-stroke[0]).length > radius for s in stroke)
+        cyclic  = (stroke[0] - stroke[-1]).length < radius
+        cyclic &= any((s - stroke[0]).length > 2.0 * radius for s in stroke)
 
         # need to determine shape of extrusion
         # key: |- stroke  (‾_/\)
         #      C  corner in stroke (roughly 90° angle, but not easy to detect.  what if the stroke loops over itself?)
-        #      ǁ= edges
+        #      ǁ= selected boundary or wire edges
         #      O  vertex under stroke
         #      X  corner vertex (edges change direction)
         # notes:
         # - vertex under stroke must be at beginning or ending of stroke
         # - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
 
-        #  Strip   Cycle    L-shape   C-shape   U-shape   Equals   T-shape   I-shape   O-shape   D-shape
-        #    |     /‾‾‾\    |         O------   ǁ     ǁ   ======   ===O===   ===O===   X=====O   O-----C
-        #    |    |     |   |         ǁ         ǁ     ǁ               |         |      ǁ     |   ǁ     |
-        #    |     \___/    O======   X======   O-----O   ------      |      ===O===   X=====O   O-----C
+        #  Strip   Cycle    L-shape   C-shape   T-shape   U-shape   I-shape   Equals   O-shape   D-shape
+        #    |     /‾‾‾\    |         O------   ===O===   ǁ     ǁ   ===O===   ======   X=====O   O-----C
+        #    |    |     |   |         ǁ            |      ǁ     ǁ      |               ǁ     |   ǁ     |
+        #    |     \___/    O======   X======      |      O-----O   ===O===   ------   X=====O   O-----C
 
         # so far only Strip, Cycle, L, U, Strip are implemented.  C, T, I, O, D are not yet implemented
 
         # L vs C: there is a corner vertex in the edges (could we extend the L shape??)
         # D has corners in the stroke, which will be tricky to determine... use acceleration?
+
+        face_islands = list(self.get_edge_connected_faces(boundary_edges))
+        # print(f'stroke: {len(boundary_edges)} {len(face_islands)}')
+        # print(face_islands)
 
         if extrude:
             if cyclic:
@@ -388,23 +400,24 @@ class Strokes(RFTool):
                 sel_verts = self.rfcontext.get_selected_verts()
                 sel_edges = self.rfcontext.get_selected_edges()
                 s0, s1 = Point_to_Point2D(stroke3D[0]), Point_to_Point2D(stroke3D[-1])
-                bmv0, _ = accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
-                bmv1, _ = accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
-                if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
-                if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
+                bmv0, _ = accel_nearest2D_vert(point=s0, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
+                bmv1, _ = accel_nearest2D_vert(point=s1, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
+                if not options['strokes snap stroke']:
+                    if bmv0 and not bmv0.select: bmv0 = None
+                    if bmv1 and not bmv1.select: bmv1 = None
                 bmv0_sel = bmv0 and bmv0 in sel_verts
                 bmv1_sel = bmv1 and bmv1 in sel_verts
-                if bmv0_sel or bmv1_sel:
-                    if not bmv0_sel or not bmv1_sel:
+                if any([bmv0_sel, bmv1_sel]):
+                    if not all([bmv0_sel, bmv1_sel]):
                         bmv = bmv0 if bmv0_sel else bmv1
                         if len(set(bmv.link_edges) & sel_edges) == 1:
                             # print(f'Extrude L or C')
                             self.replay = self.extrude_l
                         else:
-                            # print(f'Extrude I or T')
+                            # print(f'Extrude T')
                             self.replay = self.extrude_t
                     else:
-                        # print(f'Extrude U or O')
+                        # print(f'Extrude U or O or I')
                         # XXX: I-shaped extrusions?
                         self.replay = self.extrude_u
                 else:
@@ -420,6 +433,40 @@ class Strokes(RFTool):
 
         # print(self.replay)
         if self.replay: self.replay()
+
+    def get_edges_for_extrude(self, only_closest=None):
+        edges = { e for e in self.rfcontext.get_selected_edges() if e.is_boundary or e.is_wire }
+        if not only_closest:
+            return edges
+        # TODO: find vert-connected-edge-island that has the edge closest to stroke
+        return edges
+
+    def get_vert_connected_edges(self, edges):
+        edges = set(edges)
+        while edges:
+            island = set()
+            working = { next(iter(edges)) }
+            while working:
+                edge = working.pop()
+                if edge not in edges: continue
+                edges.remove(edge)
+                island.add(edge)
+                working |= { e for v in edge.verts for e in v.link_edges }
+            yield island
+
+    def get_edge_connected_faces(self, edges):
+        edges = set(edges)
+        while edges:
+            island = set()
+            working = { next(iter(edges)) }
+            while working:
+                edge = working.pop()
+                if edge not in edges: continue
+                edges.remove(edge)
+                faces = set(edge.link_faces)
+                island |= faces
+                working |= { e2 for f in faces for e in f.edges for f2 in e.link_faces for e2 in f2.edges }
+            yield island
 
     @RFTool.dirty_when_done
     def create_cycle(self):
@@ -475,8 +522,8 @@ class Strokes(RFTool):
 
         if len(nstroke) < 2: return  # too few stroke points, from a short stroke?
 
-        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0], max_dist=self.rfwidgets['brush'].radius)
-        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=self.rfwidgets['brush'].radius)
+        snap0,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[0],  max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
+        snap1,_ = self.rfcontext.accel_nearest2D_vert(point=nstroke[-1], max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
         if not options['strokes snap stroke'] and snap0 and not snap0.select: snap0 = None
         if not options['strokes snap stroke'] and snap1 and not snap1.select: snap1 = None
 
@@ -520,7 +567,7 @@ class Strokes(RFTool):
             stroke_centered.reverse()
 
         # get selected edges that we can extrude
-        edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
+        edges = self.get_edges_for_extrude()
         # find cycle in selection
         best = None
         best_score = None
@@ -610,12 +657,12 @@ class Strokes(RFTool):
         self.rfcontext.get_vis_accel(force=True)
 
         # get selected edges that we can extrude
-        edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
+        edges = self.get_edges_for_extrude()
         sel_verts = {v for e in edges for v in e.verts}
 
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         assert bmv0 and bmv1
@@ -704,12 +751,12 @@ class Strokes(RFTool):
         new_face = self.rfcontext.new_face
 
         # get selected edges that we can extrude
-        edges = set(e for e in self.rfcontext.get_selected_edges() if not e.is_manifold)
-        sel_verts = {v for e in edges for v in e.verts}
+        edges = self.get_edges_for_extrude()
+        sel_verts = { v for e in edges for v in e.verts }
 
         s0, s1 = stroke[0], stroke[-1]
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
         if bmv1 in sel_verts:
@@ -769,8 +816,8 @@ class Strokes(RFTool):
             self.rfcontext.undo_push('extrude strip')
 
         # get selected edges that we can extrude
-        edges = [e for e in self.rfcontext.get_selected_edges() if not e.is_manifold]
-        sel_verts = {v for e in edges for v in e.verts}
+        edges = self.get_edges_for_extrude()
+        sel_verts = { v for e in edges for v in e.verts }
 
         self.rfcontext.get_vis_accel(force=True)
 
@@ -778,8 +825,8 @@ class Strokes(RFTool):
         sd = s1 - s0
 
         # check if verts near stroke ends connect to any of the selected strips
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=self.rfwidgets['brush'].radius)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=self.rfwidgets['brush'].radius)
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
         if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
         if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else []
@@ -871,7 +918,10 @@ class Strokes(RFTool):
             prev, last = None, []
             for (v0, p1) in zip(verts, nstroke):
                 p0 = Point_to_Point2D(v0.co)
-                cur = [v0] + [self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1))) for c in range(1, crosses)]
+                cur = [v0] + [
+                    self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1)))
+                    for c in range(1, crosses)
+                ]
                 patch += [cur]
                 last.append(cur[-1])
                 if prev:
@@ -905,7 +955,11 @@ class Strokes(RFTool):
                     b.co = co
                     self.rfcontext.clean_duplicate_bmedges(b)
 
-            nedges = [v0.shared_edge(v1) for (v0, v1) in iter_pairs(last, wrap=False)]
+            nedges = [
+                v0.shared_edge(v1)
+                for (v0, v1) in iter_pairs(last, wrap=False)
+                if v0 and v1
+            ]
 
             self.rfcontext.select(nedges)
             self.just_created = True
@@ -944,7 +998,11 @@ class Strokes(RFTool):
         self.rfcontext.undo_push('move grabbed')
 
         self.move_opts = {
-            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+            'vis_accel': self.rfcontext.get_custom_vis_accel(
+                selection_only=False,
+                include_edges=False,
+                include_faces=False,
+            ),
         }
 
         sel_verts = self.rfcontext.get_selected_verts()
