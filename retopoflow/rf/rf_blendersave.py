@@ -136,7 +136,7 @@ class RetopoFlow_BlenderSave:
                 'The Auto Save option in Blender (Edit > Preferences > Save & Load > Auto Save) is currently disabled.',
                 'Your changes will _NOT_ be saved automatically!',
                 '',
-                '''<input type="checkbox" value="options['check auto save']">Check Auto Save option when RetopoFlow starts</input>''',
+                '''<label><input type="checkbox" value="options['check auto save']">Check Auto Save option when RetopoFlow starts</label>''',
             ])]
 
         if not good_unsaved:
@@ -144,7 +144,7 @@ class RetopoFlow_BlenderSave:
                 'You are currently working on an _UNSAVED_ Blender file.',
                 f'Your changes will be saved to `{path_autosave}` when you press `{save}`',
                 '',
-                '''<input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</input>''',
+                '''<label><input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</label>''',
             ])]
         else:
             message += ['Press `%s` any time to save your changes.' % (save)]
