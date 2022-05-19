@@ -109,7 +109,7 @@ def process_mdown(mdown):
     nf = []
     for l in mdown.splitlines():
         while True:
-            m = re_input.search(l)
+            m = re_notonline.search(l)
             if not m: break
             l = l[:m.start()] + l[m.end():]
         nf += [l]

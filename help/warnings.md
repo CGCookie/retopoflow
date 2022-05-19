@@ -43,9 +43,9 @@ If you are working on an unsaved blend file, your changes will be saved to a tem
 
 Temporary file path: `{`options.get_auto_save_filepath()`}`
 
-<label><input type="checkbox" checked="BoundBool('''options['check auto save']''')">Warn if auto save is disabled</label>
+<label class="not-online"><input type="checkbox" checked="BoundBool('''options['check auto save']''')">Warn if auto save is disabled</label>
 
-<label><input type="checkbox" checked="BoundBool('''options['check unsaved']''')">Warn if file is unsaved</label>
+<label class="not-online"><input type="checkbox" checked="BoundBool('''options['check unsaved']''')">Warn if file is unsaved</label>
 
 If you directly open an auto saved file, some of the visual settings and mesh sizes will be different.
 Clicking the "Finish Auto Save Recovery" button will recover the original visual settings and mesh sizes.

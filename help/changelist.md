@@ -9,13 +9,12 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added quick bail if unexpected exceptions occur to prevent work loss
 - Temp mesh is used when updating to prevent work loss
 - PolyPen now has option to adjust distance for inserting vertex into edge
-- Fixed issue where lose verts and edges are unselectable
+- Fixed issue where loose verts and edges are unselectable
 - Fixed issue with crashing when using tablet
 - Improved auto adjustment of view clipping
-- Improved stability of Strokes
+- Improved stability of Strokes and PolyPen
 - Added option for snapping to geometry while using Strokes instead of using brush radius
 - Improved and debugged UI code
-- ...
 
 ### RetopoFlow 3.2.5&rarr;3.2.6
 
