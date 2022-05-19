@@ -92,19 +92,27 @@ class RetopoFlow_Spaces:
 
     def Point2D_to_Vec(self, xy:Point2D):
         if xy is None: return None
-        return Vec(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
+        v = region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy)
+        if v is None: return None
+        return Vec(v)
 
     def Point2D_to_Direction(self, xy:Point2D):
         if xy is None: return None
-        return Direction(region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy))
+        d = region_2d_to_vector_3d(self.actions.region, self.actions.r3d, xy)
+        if d is None: return None
+        return Direction(d)
 
     def Point2D_to_Origin(self, xy:Point2D):
         if xy is None: return None
-        return Point(region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy))
+        o = region_2d_to_origin_3d(self.actions.region, self.actions.r3d, xy)
+        if o is None: return None
+        return Point(o)
 
     def Point2D_to_Ray(self, xy:Point2D):
         if xy is None: return None
-        return Ray(self.Point2D_to_Origin(xy), self.Point2D_to_Direction(xy))
+        o, d = self.Point2D_to_Origin(xy), self.Point2D_to_Direction(xy)
+        if o is None or d is None: return None
+        return Ray(o, d)
 
     def Point2D_to_Point(self, xy:Point2D, depth:float):
         r = self.Point2D_to_Ray(xy)
@@ -152,6 +160,7 @@ class RetopoFlow_Spaces:
         o = self.Point2D_to_Origin(xy)
         #return Ray.from_segment(o, xyz)
         d = self.Point2D_to_Vec(xy)
+        if o is None or d is None: return None
         dist = (o - xyz).length
         return Ray(o, d, min_dist=min_dist, max_dist=dist+max_dist_offset)
 
