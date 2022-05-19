@@ -90,8 +90,10 @@ class Markdown:
         return (None, None)
 
     re_html_char = re.compile(r'(?P<pre>[^ ]*?)(?P<code>&([a-zA-Z]+|#x?[0-9A-Fa-f]+);)(?P<post>.*)')
+    re_embedded_code = re.compile(r'(?P<pre>[^ `]+)(?P<code>`[^`]*`)(?P<post>.*)')
     @staticmethod
     def split_word(line, allow_empty_pre=False):
+        # search for html characters, like &nbsp;
         m = Markdown.re_html_char.match(line)
         if m:
             pr = m.group('pre')
@@ -105,6 +107,13 @@ class Markdown:
             if pr or allow_empty_pre:
                 return (pr, f'{co}{po}')
             return (co, po)
+        # search for embedded code in word, like (`-`)
+        m = Markdown.re_embedded_code.match(line)
+        if m:
+            pr = m.group('pre')
+            co = m.group('code')
+            po = m.group('post')
+            return (pr, f'{co}{po}')
         if ' ' not in line:
             return (line,'')
         i = line.index(' ') + 1

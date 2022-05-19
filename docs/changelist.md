@@ -14,6 +14,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved auto adjustment of view clipping
 - Improved stability of Strokes and PolyPen
 - Added option for snapping to geometry while using Strokes instead of using brush radius
+- Checking for invalid characters in add-on folder name
 - Improved and debugged UI code
 
 ### RetopoFlow 3.2.5&rarr;3.2.6

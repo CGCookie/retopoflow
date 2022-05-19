@@ -387,6 +387,11 @@ if import_succeeded:
                 if space.type != 'VIEW_3D': continue
                 if len(space.region_quadviews) > 0: return True
         return False
+    def is_addon_folder_valid(context):
+        bad_chars = set(re.sub(r'[a-zA-Z0-9_]', '', __package__))
+        if not bad_chars: return True
+        print(f'Bad characters found in add-on: {bad_chars}')
+        return False
 
 
     rf_label_extra = " (?)"
@@ -460,6 +465,9 @@ if import_succeeded:
                 # user directly opened an auto save file
                 warnings.add('save: can recover auto save')
 
+            # install checks
+            if not is_addon_folder_valid(context):
+                warnings.add('install: invalid add-on folder')
 
             return warnings
 
@@ -539,6 +547,11 @@ if import_succeeded:
                     text='Finish Auto Save Recovery',
                     icon='RECOVER_LAST',
                 )
+
+            # INSTALL
+            if 'install: invalid add-on folder' in warnings:
+                box = get_warning_subbox('Installation')
+                box.label(text=f'Invalid add-on folder name', icon='DOT')
 
             # show button for more warning details
             layout.operator('cgcookie.retopoflow_help_warnings', icon='HELP')

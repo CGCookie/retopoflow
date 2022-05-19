@@ -407,7 +407,7 @@ class Options:
             Options.path_root = os.path.abspath(os.path.join(path, '..'))
             Options.fndb = os.path.join(Options.path_root, Options.options_filename)
             # Options.fndb = self.get_path('options filename')
-            print('RetopoFlow options path: %s' % Options.fndb)
+            print(f'RetopoFlow options path: {Options.fndb}')
             self.read()
             self['version update'] = (self['rf version'] != retopoflow_version)
             self['rf version'] = retopoflow_version
