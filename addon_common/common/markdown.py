@@ -35,30 +35,39 @@ class Markdown:
 
     # markdown inline
     inline_tests = {
-        'br':     re.compile(r'<br */?> *'),
-        'img':    re.compile(r'!\[(?P<caption>[^\]]*)\]\((?P<filename>[^) ]+)(?P<style>[^)]*)\)'),
-        'bold':   re.compile(r'\*(?P<text>.+?)\*'),
-        'code':   re.compile(r'`(?P<text>[^`]+)`'),
-        'link':   re.compile(r'\[(?P<text>.+?)\]\((?P<link>.+?)\)'),
-        'italic': re.compile(r'_(?P<text>.+?)_'),
-        'checkbox': re.compile(r'<input (?P<params>.*?type="checkbox".*?)>(?P<innertext>.*?)<\/input>'),
+        'br':       re.compile(r'<br */?> *'),
+        'img':      re.compile(r'!\[(?P<caption>[^\]]*)\]\((?P<filename>[^) ]+)(?P<style>[^)]*)\)'),
+        'bold':     re.compile(r'\*(?P<text>.+?)\*'),
+        'code':     re.compile(r'`(?P<text>[^`]+)`'),
+        'link':     re.compile(r'\[(?P<text>.+?)\]\((?P<link>.+?)\)'),
+        'italic':   re.compile(r'_(?P<text>.+?)_'),
+        'html':     re.compile(r'''<((?P<tagname>[a-zA-Z]+)(?P<params>( +(?P<key>[a-zA-Z_]+(=(?P<val>"[^"]*"|'[^']*'|[^"' >]+))?)))*)(>(?P<contents>.*?)(?P<closetag></\2>)|(?P<selfclose> +/>))'''),
+        # 'checkbox': re.compile(r'<input (?P<params>.*?type="checkbox".*?)>(?P<innertext>.*?)<\/input>'),
+        # 'number':   re.compile(r'<input (?P<params>.*?type="number".*?)>'),
+        # 'button':   re.compile(r'<button(?P<params>[^>]*)>(?P<innertext>.*?)<\/button>'),
+        # 'progress': re.compile(r'<progress(?P<params>.*?)(>(?P<innertext>.*?)<\/progress>| \/>)'),
 
         # https://www.toptal.com/designers/htmlarrows/arrows/
-        'arrow':  re.compile(r'&(?P<dir>uarr|darr|larr|rarr|harr|varr|uArr|dArr|lArr|rArr|hArr|vArr); *'),
+        'arrow':    re.compile(r'&(?P<dir>uarr|darr|larr|rarr|harr|varr|uArr|dArr|lArr|rArr|hArr|vArr); *'),
     }
+
+    # process markdown text similarly to Markdown
+    preprocessing = [
+        (r'<!--.*?-->', r''),       # remove comments
+        (r'^\n*',       r''),       # remove leading \n
+        (r'\n*$',       r''),       # remove trailing \n
+        (r'\n\n\n*',    r'\n\n'),   # 2+ \n => \n\n
+        (r'---',        r'—'),      # em dash
+        (r'--',         r'–'),      # en dash
+    ]
 
     # https://stackoverflow.com/questions/3809401/what-is-a-good-regular-expression-to-match-a-url
     re_url    = re.compile(r'^((https?)|mailto)://([-a-zA-Z0-9@:%._\+~#=]+\.)*?[-a-zA-Z0-9@:%._+~#=]+\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)$')
 
     @staticmethod
     def preprocess(txt):
-        # process message similarly to Markdown
-        txt = re.sub(r'<!--.*?-->', r'', txt)   # remove comments
-        txt = re.sub(r'^\n*', r'', txt)         # remove leading \n
-        txt = re.sub(r'\n*$', r'', txt)         # remove trailing \n
-        txt = re.sub(r'\n\n\n*', r'\n\n', txt)  # 2+ \n => \n\n
-        txt = re.sub(r'---', r'—', txt)         # em dash
-        txt = re.sub(r'--', r'–', txt)          # en dash
+        for m,r in Markdown.preprocessing:
+            txt = re.sub(m, r, txt)
         return txt
 
     @staticmethod
@@ -81,8 +90,10 @@ class Markdown:
         return (None, None)
 
     re_html_char = re.compile(r'(?P<pre>[^ ]*?)(?P<code>&([a-zA-Z]+|#x?[0-9A-Fa-f]+);)(?P<post>.*)')
+    re_embedded_code = re.compile(r'(?P<pre>[^ `]+)(?P<code>`[^`]*`)(?P<post>.*)')
     @staticmethod
     def split_word(line, allow_empty_pre=False):
+        # search for html characters, like &nbsp;
         m = Markdown.re_html_char.match(line)
         if m:
             pr = m.group('pre')
@@ -96,6 +107,13 @@ class Markdown:
             if pr or allow_empty_pre:
                 return (pr, f'{co}{po}')
             return (co, po)
+        # search for embedded code in word, like (`-`)
+        m = Markdown.re_embedded_code.match(line)
+        if m:
+            pr = m.group('pre')
+            co = m.group('code')
+            po = m.group('post')
+            return (pr, f'{co}{po}')
         if ' ' not in line:
             return (line,'')
         i = line.index(' ') + 1

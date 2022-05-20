@@ -33,46 +33,78 @@ from ...config.options import options, retopoflow_version
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
-from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object
-from ...addon_common.common.blender import toggle_screen_header, toggle_screen_toolbar, toggle_screen_properties, toggle_screen_lastop
+from ...addon_common.common.blender import (
+    matrix_vector_mult,
+    get_preferences,
+    set_object_selection,
+    set_active_object,
+    toggle_screen_header,
+    toggle_screen_toolbar,
+    toggle_screen_properties,
+    toggle_screen_lastop,
+    show_error_message,
+)
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
 from .rf_blender import RetopoFlow_Blender
 
 
+
 @persistent
-def handle_recover(*args, **kwargs):
-    print('RetopoFlow: handling recover from auto save')
-
+def revert_auto_save_after_load(*_, **__):
     # remove recover handler
-    bpy.app.handlers.load_post.remove(handle_recover)
-
-    ##################
-    # restore
-    
-    # the rotate object should not exist, but just in case
-    if options['rotate object'] in bpy.data.objects:
-        bpy.data.objects.remove(bpy.data.objects[options['rotate object']], do_unlink=True)
-
-    # grab previous blender state
-    if options['blender state'] not in bpy.data.texts: return   # no blender state!?!?
-    data = json.loads(bpy.data.texts[options['blender state']].as_string())
-
-    # get target object and reset settings
-    tar_object = bpy.data.objects[data['active object']]
-    bpy.context.view_layer.objects.active = tar_object
-    tar_object.hide_viewport = False
-    tar_object.hide_render = False
-
-    # restore window state (mostly tool, properties, header, etc.)
-    RetopoFlow_Blender.restore_window_state(ignore_panels=False, ignore_mode=False)
+    bpy.app.handlers.load_post.remove(revert_auto_save_after_load)
+    RetopoFlow_BlenderSave.recovery_revert()
 
 
 class RetopoFlow_BlenderSave:
     '''
     backup / restore methods
     '''
+
+    @staticmethod
+    def can_recover():
+        if options['rotate object'] in bpy.data.objects: return True
+        if options['blender state'] in bpy.data.texts: return True
+        return False
+
+    @staticmethod
+    def recovery_revert():
+        print('RetopoFlow: recovering from auto save')
+
+        # the rotate object should not exist, but just in case
+        if options['rotate object'] in bpy.data.objects:
+            bpy.data.objects.remove(
+                bpy.data.objects[options['rotate object']],
+                do_unlink=True,
+            )
+
+        # grab previous blender state
+        if options['blender state'] not in bpy.data.texts: return   # no blender state!?!?
+        data = json.loads(bpy.data.texts[options['blender state']].as_string())
+
+        # get target object and reset settings
+        tar_object = bpy.data.objects[data['active object']]
+        tar_object.hide_viewport = False
+        tar_object.hide_render = False
+        bpy.context.view_layer.objects.active = tar_object
+        tar_object.select_set(True)
+
+        # restore window state (mostly tool, properties, header, etc.)
+        RetopoFlow_Blender.restore_window_state(
+            ignore_panels=False,
+            ignore_mode=False,
+        )
+
+        factor = data['unit scaling factor']
+        RetopoFlow_Blender.scale_sources_target(factor)
+
+        bpy.data.texts.remove(
+            bpy.data.texts[options['blender state']],
+            do_unlink=True,
+        )
+
 
     @staticmethod
     def get_auto_save_settings(context):
@@ -104,7 +136,7 @@ class RetopoFlow_BlenderSave:
                 'The Auto Save option in Blender (Edit > Preferences > Save & Load > Auto Save) is currently disabled.',
                 'Your changes will _NOT_ be saved automatically!',
                 '',
-                '''<input type="checkbox" value="options['check auto save']">Check Auto Save option when RetopoFlow starts</input>''',
+                '''<label><input type="checkbox" value="options['check auto save']">Check Auto Save option when RetopoFlow starts</label>''',
             ])]
 
         if not good_unsaved:
@@ -112,7 +144,7 @@ class RetopoFlow_BlenderSave:
                 'You are currently working on an _UNSAVED_ Blender file.',
                 f'Your changes will be saved to `{path_autosave}` when you press `{save}`',
                 '',
-                '''<input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</input>''',
+                '''<label><input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</label>''',
             ])]
         else:
             message += ['Press `%s` any time to save your changes.' % (save)]
@@ -142,39 +174,99 @@ class RetopoFlow_BlenderSave:
             self.time_to_save = time.time() + auto_save_time
 
     @staticmethod
-    def has_backup():
+    def has_auto_save():
         filepath = options['last auto save path']
         return filepath and os.path.exists(filepath)
 
     @staticmethod
-    def backup_recover():
+    def recover_auto_save():
         filepath = options['last auto save path']
-        if not filepath or not os.path.exists(filepath): return
+        print(f'backup recover: {filepath}')
+        if not filepath or not os.path.exists(filepath):
+            print(f'  DOES NOT EXIST!')
+            return
 
-        bpy.app.handlers.load_post.append(handle_recover)
+        bpy.app.handlers.load_post.append(revert_auto_save_after_load)
 
-        print('backup recover:', filepath)
         bpy.ops.wm.open_mainfile(filepath=filepath)
 
-
+    def save_emergency(self):
+        try:
+            filepath = options.get_auto_save_filepath(suffix='EMERGENCY')
+            bpy.ops.wm.save_as_mainfile(
+                filepath=filepath,
+                compress=True,          # write compressed file
+                check_existing=False,   # do not warn if file already exists
+                copy=True,              # does not make saved file active
+            )
+        except:
+            self.done(emergency_bail=True)
+            show_error_message(
+                "RetopoFlow crashed unexpectedly.  Be sure to save your work, and report what happened so that we can try fixing it.",
+                "Unexpected Crash!",
+            )
 
     def save_backup(self):
         if hasattr(self, '_backup_broken'): return
         if self.last_change_count == self.change_count:
-            dprint('skipping backup save')
+            print('skipping backup save')
             return
+
         filepath = options.get_auto_save_filepath()
-        filepath1 = "%s1" % filepath
-        dprint('saving backup to %s' % filepath)
-        if os.path.exists(filepath1): os.remove(filepath1)
-        if os.path.exists(filepath): os.rename(filepath, filepath1)
-        try:
-            bpy.ops.wm.save_as_mainfile(filepath=filepath, check_existing=False, copy=True)
-            options['last auto save path'] = filepath
-            self.last_change_count = self.change_count
-        except Exception as e:
+        filepath1 = f'{filepath}1'
+
+        print(f'saving backup: {filepath}')
+        errors = {}
+
+        if os.path.exists(filepath):
+            if os.path.exists(filepath1):
+                try:
+                    print(f'  deleting old backup: {filepath1}')
+                    os.remove(filepath1)
+                except Exception as e:
+                    print(f'    caught exception: {e}')
+                    errors['delete old'] = e
+
+            try:
+                print(f'  renaming prev backup: {filepath1}')
+                os.rename(filepath, filepath1)
+            except Exception as e:
+                print(f'    caught exception: {e}')
+                errors['rename prev'] = e
+
+        if 'rename prev' not in errors:
+            try:
+                print(f'  saving...')
+                bpy.ops.wm.save_as_mainfile(
+                    filepath=filepath,
+                    compress=True,          # write compressed file
+                    check_existing=False,   # do not warn if file already exists
+                    copy=True,              # does not make saved file active
+                )
+                options['last auto save path'] = filepath
+                self.last_change_count = self.change_count
+            except Exception as e:
+                print(f'   caught exception: {e}')
+                errors['saving'] = e
+        else:
+            '''
+            skipping normal save, because we might lose data!
+            '''
+            errors['skipped save'] = 'error while trying to rename prev'
+
+        if errors:
             self._backup_broken = True
-            self.alert_user(title='Could not save backup', message=f'Could not save backup file.  Temporarily preventing further backup attempts.  You might try saving file manually.\n\nFile path: `{filepath}`\n\nError message: "{e}"')
+            self.alert_user(
+                title='Could not save backup',
+                level='assert',
+                message=(
+                    f'Could not save backup file.  '
+                    f'Temporarily preventing further backup attempts.  '
+                    f'You might try saving file manually.\n\n'
+                    f'File paths: `{filepath}`, `{filepath1}`\n\n'
+                    f'Errors: {errors}\n\n'
+                ),
+            )
 
     def save_normal(self):
         self.blender_ui_reset()
@@ -184,11 +276,11 @@ class RetopoFlow_BlenderSave:
             # could not save for some reason; let the artist know!
             self.alert_user(
                 title='Could not save',
-                message='Could not save blend file.\n\n%s' % (str(e)),
-                level='warning'
+                message=f'Could not save blend file.\n\nError message: "{e}"',
+                level='warning',
             )
         self.blender_ui_set()
         # note: filepath might not be set until after save
         filepath = os.path.abspath(bpy.data.filepath)
-        dprint('saved to %s' % filepath)
+        print(f'saved: {filepath}')
 

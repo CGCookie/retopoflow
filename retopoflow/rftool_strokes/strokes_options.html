@@ -31,10 +31,19 @@ def set_span_mode(self, value):
                 </div>
             </div>
         </div>
-        <label>
-            <input type="checkbox" checked="BoundBool('''options['strokes snap stroke']''')" title="Allow stroke to snap to nearby unselected geometry">
-            Snap Stroke to Unselected
-        </label>
+        <div class="collection">
+            <h1>Snap Stroke</h1>
+            <div class="contents">
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['strokes snap stroke']''')" title="Allow stroke to snap to nearby geometry">
+                    Enable Stroke Snapping
+                </label>
+                <div class="labeled-input-text">
+                    <label for="strokes-snap-distance">Snap distance</label>
+                    <input id="strokes-snap-distance" type="number" value="BoundInt( '''options['strokes snap dist'] ''')" title="Pixel distance for snapping stroke to nearby geometry (only when Stroke Snapping is enabled)">
+                </div>
+            </div>
+        </div>
         <div class="collection">
             <h1>Automerge</h1>
             <div class="contents">

@@ -143,7 +143,8 @@ class RFMesh():
             self.triangulate()
 
         for bmv in self.bme.verts:
-            bmv.normal_update()
+            if not bmv.is_wire:
+                bmv.normal_update()
 
         # setup finishing
         self.selection_center = Point((0, 0, 0))
@@ -1543,30 +1544,46 @@ class RFTarget(RFMesh):
     def cancel(self):
         self.restore_state()
 
+
     def clean(self):
         super().clean()
+
         version = self.get_version()
         if self.editmesh_version == version: return
         self.editmesh_version = version
 
-        # print('CLEANING RFTARGET')
+        try:
+            self._clean_mesh()
+            self._clean_selection()
+            self._clean_mirror()
+            self._clean_displace()
+        except Exception as e:
+            print(f'Caught Exception while trying to clean RFTarget: {e}')
+            self.handle_exception(e)
 
-        # bpy.ops.object.editmode_toggle()
-        self.bme.to_mesh(self.obj.data)
-        # bpy.ops.object.editmode_toggle()
+    def _clean_mesh(self):
+        prev_mesh = self.obj.data
+        prev_mesh_name = prev_mesh.name
+        new_mesh = self.obj.data.copy()
+        self.bme.to_mesh(new_mesh)
+        self.obj.data = new_mesh
+        bpy.data.meshes.remove(prev_mesh)
+        new_mesh.name = prev_mesh_name
 
-        # bmesh.update_edit_mesh(self.obj.data)
+    def _clean_selection(self):
         for bmv,emv in zip(self.bme.verts, self.obj.data.vertices):
             emv.select = bmv.select
         for bme,eme in zip(self.bme.edges, self.obj.data.edges):
             eme.select = bme.select
         for bmf,emf in zip(self.bme.faces, self.obj.data.polygons):
             emf.select = bmf.select
-        self.mirror_mod.write()
-        self.clean_displace()
 
-    def clean_displace(self):
+    def _clean_mirror(self):
+        self.mirror_mod.write()
+
+    def _clean_displace(self):
         self.displace_mod.strength = self.displace_strength
+
 
     def enable_symmetry(self, axis): self.mirror_mod.enable_axis(axis)
     def disable_symmetry(self, axis): self.mirror_mod.disable_axis(axis)
@@ -1656,14 +1673,14 @@ class RFTarget(RFMesh):
                 for f in v.link_faces:
                     if f not in faces: continue
                     working_next |= {v_ for v_ in f.verts if v_ in remaining}
-            average = Point.average([v.co for v in working])
+            average = Point.average(v.co for v in working)
             p, n, _, _ = nearest(average)
-            bmv = self.new_vert(p, n)
+            rfv = self.new_vert(p, n)
             for v in working:
-                bmv = bmv.merge_robust(v)
-            bmv.co = p
-            bmv.normal = n
-            bmv.select = True
+                rfv = rfv.merge_robust(v)
+            rfv.co = p
+            rfv.normal = n
+            rfv.select = True
 
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
@@ -1715,7 +1732,7 @@ class RFTarget(RFMesh):
         dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
-        faces = set(f for v in verts if v.is_valid for f in self._unwrap(v).link_faces)
+        faces = { f for v in verts if v.is_valid for f in self._unwrap(v).link_faces }
         for bmf in faces:
             n = compute_normal(v.co for v in bmf.verts)
             vnorm = sum((v.normal for v in bmf.verts), Vector())
@@ -1796,11 +1813,11 @@ class RFTarget(RFMesh):
         '''
         snap verts when fn_filter returns True
         '''
-        for v in self.get_verts():
-            if not fn_filter(v): continue
-            xyz,norm,_,_ = nearest(v.co)
-            v.co = xyz
-            v.normal = norm
+        for rfv in self.get_verts():
+            if not fn_filter(rfv): continue
+            xyz,norm,_,_ = nearest(rfv.co)
+            rfv.co = xyz
+            rfv.normal = norm
         self.dirty()
 
 #    def snap_all_verts(self, nearest):
@@ -1847,7 +1864,8 @@ class RFTarget(RFMesh):
             bmf.normal_flip()
             for bmv in bmf.verts: verts.add(bmv)
         for bmv in verts:
-            bmv.normal_update()
+            if not bmv.is_wire:
+                bmv.normal_update()
         self.dirty()
 
     def recalculate_face_normals(self, *, verts=None, faces=None):

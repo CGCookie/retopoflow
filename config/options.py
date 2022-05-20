@@ -47,8 +47,8 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.2.6'  # α β
-retopoflow_version_tuple = (3, 2, 6)
+retopoflow_version = '3.2.7'  # α β
+retopoflow_version_tuple = (3, 2, 7)
 
 retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
 retopoflow_issues_url        = "https://github.com/CGCookie/retopoflow/issues"
@@ -195,10 +195,14 @@ class Options:
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
-        'clip auto adjust':     True,   # True: clip settings are automatically adjusted based on view distance and source bbox
-        'clip override':        True,   # True: override with below values; False: scale by unit scale factor
-        'clip start override':  0.05,
-        'clip end override':    200.0,
+        'clip auto adjust':     True,       # True: clip settings are automatically adjusted based on view distance and source bbox
+        'clip auto start mult': 0.0010,     # factor for clip_start
+        'clip auto start min':  0.0010,     # absolute minimum for clip_start
+        'clip auto end mult':   100.00,     # factor for clip_end
+        'clip auto end max':    500.0,      # absolute maximum for clip_end
+        'clip override':        True,       # True: override with below values; False: scale by unit scale factor
+        'clip start override':  0.0500,
+        'clip end override':    200.00,
 
         'hide cursor on tweak': True,   # True: cursor is hidden when tweaking geometry
 
@@ -220,7 +224,7 @@ class Options:
         'color theme':                     'Green',
         'symmetry view':                   'Edge',
         'symmetry effect':                 0.5,
-        'normal offset multiplier':        1.0,
+        'normal offset multiplier':        0.1,
         'constrain offset':                True,
         'ui scale':                        1.0,
 
@@ -313,14 +317,16 @@ class Options:
         'strokes span insert mode':    'Brush Size',
         'strokes span count':           1,
         'strokes snap stroke':          True,       # should stroke snap to unselected geometry?
-        'strokes merge dist':           10,         # pixels away to merge
+        'strokes snap dist':            10,         # pixels away to snap
         'strokes automerge':            True,
+        'strokes merge dist':           10,         # pixels away to merge
 
         'knife automerge':              True,
         'knife merge dist':             10,         # pixels away to merge
         'knife snap dist':              5,          # pixels away to snap
 
         'polypen merge dist':           10,         # pixels away to merge
+        'polypen insert dist':          15,         # pixels away for inserting new vertex in existing geo
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
@@ -401,7 +407,7 @@ class Options:
             Options.path_root = os.path.abspath(os.path.join(path, '..'))
             Options.fndb = os.path.join(Options.path_root, Options.options_filename)
             # Options.fndb = self.get_path('options filename')
-            print('RetopoFlow options path: %s' % Options.fndb)
+            print(f'RetopoFlow options path: {Options.fndb}')
             self.read()
             self['version update'] = (self['rf version'] != retopoflow_version)
             self['rf version'] = retopoflow_version
@@ -540,12 +546,20 @@ class Options:
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
-    def get_auto_save_filepath(self):
-        if not getattr(bpy.data, 'filepath', ''):
+    def get_auto_save_filepath(self, *, suffix=None):
+        suffix = f'_{suffix}' if suffix else ''
+
+        if not getattr(bpy.data, 'filepath', None):
             # not working on a saved .blend file, yet!
-            return os.path.join(tempfile.gettempdir(), self['backup_filename'])
-        base, ext = os.path.splitext(bpy.data.filepath)
-        return '%s_RetopoFlow_AutoSave%s' % (base, ext)
+            path = tempfile.gettempdir()
+            filename = self['backup_filename']
+        else:
+            fullpath = os.path.abspath(bpy.data.filepath)
+            path, filename = os.path.split(fullpath)
+            suffix = f'_RetopoFlow_AutoSave{suffix}'
+
+        base, ext = os.path.splitext(filename)
+        return os.path.join(path, f'{base}{suffix}{ext}')
 
 
 class Themes:

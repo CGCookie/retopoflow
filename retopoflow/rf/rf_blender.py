@@ -42,22 +42,10 @@ class RetopoFlow_Blender:
     '''
 
     @staticmethod
-    @blender_version_wrapper('<','2.80')
-    def is_valid_source(o, test_poly_count=True):
-        assert False, "TODO: NEED TO UPDATE!!! SEE 2.80+ VERSION BELOW"
-        if not o: return False
-        if type(o) is not bpy.types.Object: return False
-        if type(o.data) is not bpy.types.Mesh: return False
-        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
-        if o.hide: return False
-        if o.select and o == get_active_object(): return False
-        if test_poly_count and not o.data.polygons: return False
-        return True
-
-    @staticmethod
-    @blender_version_wrapper('>=','2.80')
     def is_valid_source(o, test_poly_count=True):
         if not o: return False
+        mark = RetopoFlow_Blender.get_sources_target_mark(o)
+        if mark is not None: return mark == 'source'
         # if o == get_active_object(): return False
         if o == bpy.context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
@@ -67,22 +55,10 @@ class RetopoFlow_Blender:
         return True
 
     @staticmethod
-    @blender_version_wrapper('<','2.80')
-    def is_valid_target(o):
-        assert False, "TODO: NEED TO UPDATE!!! SEE 2.80+ VERSION BELOW"
-        if not o: return False
-        if o != get_active_object(): return False
-        if type(o) is not bpy.types.Object: return False
-        if type(o.data) is not bpy.types.Mesh: return False
-        if not any(vl and ol for vl,ol in zip(bpy.context.scene.layers, o.layers)): return False
-        if o.hide: return False
-        if not o.select: return False
-        return True
-
-    @staticmethod
-    @blender_version_wrapper('>=','2.80')
     def is_valid_target(o):
         if not o: return False
+        mark = RetopoFlow_Blender.get_sources_target_mark(o)
+        if mark is not None: return mark == 'target'
         # if o != get_active_object(): return False
         if o != bpy.context.edit_object: return False
         if not o.visible_get(): return False
@@ -108,53 +84,65 @@ class RetopoFlow_Blender:
         return True
 
     @staticmethod
+    def mark_sources_target():
+        for obj in bpy.data.objects:
+            if RetopoFlow_Blender.is_valid_source(obj):
+                # set as source
+                obj['RetopFlow'] = 'source'
+            elif RetopoFlow_Blender.is_valid_target(obj):
+                obj['RetopoFlow'] = 'target'
+            else:
+                obj['RetopoFlow'] = 'unused'
+
+    @staticmethod
+    def unmark_sources_target():
+        for obj in bpy.data.objects:
+            if 'RetopoFlow' not in obj: continue
+            del obj['RetopoFlow']
+
+    @staticmethod
+    def get_sources_target_mark(obj):
+        if 'RetopoFlow' not in obj: return None
+        return obj['RetopoFlow']
+
+    @staticmethod
     def get_sources():
-        return [o for o in bpy.data.objects if RetopoFlow_Blender.is_valid_source(o)]
+        is_valid = RetopoFlow_Blender.is_valid_source
+        return [ o for o in bpy.data.objects if is_valid(o) ]
 
     @staticmethod
     def get_target():
-        o = get_active_object()
-        return o if RetopoFlow_Blender.is_valid_target(o) else None
+        is_valid = RetopoFlow_Blender.is_valid_target
+        return next(( o for o in bpy.data.objects if is_valid(o) ), None)
 
+    @staticmethod
+    def create_new_target(context):
+        auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
+        bpy.context.preferences.edit.use_enter_edit_mode = False
+
+        for o in bpy.data.objects: o.select_set(False)
+
+        mesh = bpy.data.meshes.new('RetopoFlow')
+        obj = object_data_add(context, mesh, name='RetopoFlow')
+
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
 
     ###################################################
     # handle scaling objects and view so sources fit
     # in unit box for scale-independent rendering
 
-    @staticmethod
-    def scale_by(factor, r3d, space, tar_object=None):
-        print('RetopoFlow: scaling view, sources, and target by %0.2f' % factor)
-
-        def scale_object(o):
-            for i in range(3):
-                for j in range(4):
-                    o.matrix_world[i][j] *= factor
-
-        r3d.view_distance *= factor
-        r3d.view_location *= factor
-        space.clip_start *= factor
-        space.clip_end *= factor
-
-        for src in RetopoFlow_Blender.get_sources(): scale_object(src)
-
-        if tar_object is None: tar_object = RetopoFlow_Blender.get_target()
-        if tar_object: scale_object(tar_object)
-
     def _scale_by(self, factor, clip_override=True, clip_start=None, clip_end=None, clip_restore=False):
-        # RetopoFlow_Blender.scale_by(factor, self.actions.r3d, self.actions.space, tar_object=getattr(self, 'tar_object', None))
         r3d = self.actions.r3d
         space = self.actions.space
-
-        def scale_object(o):
-            for i in range(3):
-                for j in range(4):
-                    o.matrix_world[i][j] *= factor
 
         print('RetopoFlow: scaling view, sources, and target by %0.2f' % factor)
 
         # scale view
-        r3d.view_distance *= factor
-        r3d.view_location *= factor
+        self.scale_view(r3d, factor)
 
         # override/scale clipping distances
         if not hasattr(self, '_clip_distances'):
@@ -178,11 +166,21 @@ class RetopoFlow_Blender:
             else:
                 space.clip_end *= factor
 
-        # scale sources
-        for src in self.src_objects: scale_object(src)
+        self.scale_sources_target(factor)
 
-        # scale target
-        scale_object(self.tar_object)
+    @staticmethod
+    def scale_view(r3d, factor):
+        r3d.view_distance *= factor
+        r3d.view_location *= factor
+
+    @staticmethod
+    def scale_sources_target(factor):
+        M = Matrix.Identity(4) * factor
+        objects = RetopoFlow_Blender.get_sources()
+        objects += [RetopoFlow_Blender.get_target()]
+        for obj in objects:
+            if not obj: continue
+            obj.matrix_world = M @ obj.matrix_world
 
     def scale_to_unit_box(self, clip_override=True, clip_start=None, clip_end=None):
         self._scale_by(1.0 / self.unit_scaling_factor, clip_override=clip_override, clip_start=clip_start, clip_end=clip_end)
@@ -223,7 +221,7 @@ class RetopoFlow_Blender:
         # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
         if options['rotate object'] not in bpy.data.objects: return
         self.del_rotate_object()
-        bpy.context.view_layer.objects.active = self.tar_object
+        bpy.context.view_layer.objects.active = self.get_target()
 
     @staticmethod
     def del_rotate_object():
@@ -282,6 +280,10 @@ class RetopoFlow_Blender:
                                 data_space['show_gizmo'] = space.show_gizmo
                                 data_space['show_overlays'] = space.overlay.show_overlays
                                 data_space['show_region_header'] = space.show_region_header
+                                data_space['clip_start'] = space.clip_start
+                                data_space['clip_end'] = space.clip_end
+                                data_space['region_3d.view_distance'] = space.region_3d.view_distance
+                                data_space['region_3d.view_location'] = list(space.region_3d.view_location)
                                 if hasattr(space, 'show_region_tool_header'):
                                     data_space['show_region_tool_header'] = space.show_region_tool_header
                                 data_space['shading.type'] = space.shading.type
@@ -310,6 +312,10 @@ class RetopoFlow_Blender:
         data['selected objects'] = [o.name for o in bpy.data.objects if getattr(o, 'select', False)]
         data['hidden objects'] = [o.name for o in bpy.data.objects if getattr(o, 'hide', False)]
 
+        RetopoFlow_Blender.write_window_state(data)
+
+    @staticmethod
+    def write_window_state(data):
         # store data in text block (might need to create textblock!)
         name = options['blender state']
         texts = bpy.data.texts
@@ -317,11 +323,17 @@ class RetopoFlow_Blender:
         text.from_string(json.dumps(data, indent=4, sort_keys=True))
 
     @staticmethod
-    def restore_window_state(ignore_panels=False, ignore_mode=False):
+    def restore_window_state(*, ignore_panels=False, ignore_mode=False):
         name = options['blender state']
-        texts = bpy.data.texts
-        if name not in texts: return  # no stored blender state!?!?
-        data = json.loads(texts[name].as_string())
+        if name not in bpy.data.texts: return  # no stored blender state!?!?
+        data = json.loads(bpy.data.texts[name].as_string())
+
+        if data['retopoflow'] != retopoflow_version:
+            print(f'WARNING!!!')
+            print(f'Recovery data from a different version of RetopoFlow!')
+            print(f'Recovering might cause RF / Blender to crash')
+            print(f'Cancelling restoration')
+            return
 
         # bpy.context.window.screen = bpy.data.screens[data['screen name']]
 
@@ -340,6 +352,10 @@ class RetopoFlow_Blender:
                         if hasattr(space, 'show_region_tool_header'):
                             space.show_region_tool_header = data_space['show_region_tool_header']
                         space.shading.type = data_space['shading.type']
+                        space.clip_start = data_space['clip_start']
+                        space.clip_end = data_space['clip_end']
+                        space.region_3d.view_distance = data_space['region_3d.view_distance']
+                        space.region_3d.view_location = Vector(data_space['region_3d.view_location'])
                         if not ignore_panels:
                             if hasattr(space, 'show_region_toolbar') and 'toolbar' in data_space:
                                 space.show_region_toolbar = data_space['toolbar']
@@ -384,4 +400,12 @@ class RetopoFlow_Blender:
         if not ignore_mode:
             bpy.ops.object.mode_set(mode=data['mode translated'])
 
-        return found
+
+
+
+
+
+
+
+
+

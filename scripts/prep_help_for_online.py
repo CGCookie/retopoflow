@@ -12,12 +12,12 @@ DELETE_ALL_OLD   = False
 PROCESS_MARKDOWN = True
 COPY_IMAGES      = True
 
-re_keymap  = re.compile(r'{{(?P<key>.*?)}}')
-re_options = re.compile(r'{\[(?P<key>.*?)\]}')
-re_table   = re.compile(r'\|(?P<pre> +)(?P<dashes>--+)(?P<post> +)\|')
-re_emptyth = re.compile(r'\|( +\|){2,}')
-re_input   = re.compile(r'<input[^>]*>[^<]*</input>')
-re_image   = re.compile(r'!\[(?P<caption>[^\]]*)\]\((?P<filename>[^ \)]+)(?P<styling>[^\)]*)\)')
+re_keymap    = re.compile(r'{{(?P<key>.*?)}}')
+re_options   = re.compile(r'{\[(?P<key>.*?)\]}')
+re_table     = re.compile(r'\|(?P<pre> +)(?P<dashes>--+)(?P<post> +)\|')
+re_emptyth   = re.compile(r'\|( +\|){2,}')
+re_notonline = re.compile(r'<label .*?class="not-online".*?>.*?</label>') #  r'<input[^>]*>[^<]*</input>'
+re_image     = re.compile(r'!\[(?P<caption>[^\]]*)\]\((?P<filename>[^ \)]+)(?P<styling>[^\)]*)\)')
 
 def read_file(filename):
     try: return codecs.open(filename, encoding='utf-8').read()
@@ -104,12 +104,12 @@ def process_mdown(mdown):
         nf += [current]
     mdown = '\n'.join(nf)
 
-    # remove <input ...>...</input>
+    # remove <label class="not-online">...</label>
     # found in welcome.md
     nf = []
     for l in mdown.splitlines():
         while True:
-            m = re_input.search(l)
+            m = re_notonline.search(l)
             if not m: break
             l = l[:m.start()] + l[m.end():]
         nf += [l]

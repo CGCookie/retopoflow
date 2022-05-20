@@ -156,7 +156,9 @@ class RFWidget_BrushStroke_Factory:
                 if not p: return
                 depth = self.rfcontext.Point_to_depth(p)
                 if not depth: return
-                self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                if scale is None: return
+                self.scale = scale
 
                 # draw below
                 bgl.glDepthFunc(bgl.GL_GREATER)

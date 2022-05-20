@@ -307,8 +307,7 @@ class RFVert(BMElemWrapper):
         vert_dissolve(bmv)
 
     def compute_normal(self):
-        ''' computes normal as average of normals of all linked faces '''
-        return Normal(sum((f.compute_normal() for f in self.link_faces), Vec((0,0,0))))
+        return Normal.average(f.compute_normal() for f in self.link_faces)
 
 
 class RFEdge(BMElemWrapper):
@@ -628,7 +627,7 @@ class RFFace(BMElemWrapper):
         for bmv in vs:
             bmv0,bmv1,bmv2 = bmv1,bmv2,bmv
             v0,v1 = -v1,bmv2.co-bmv1.co
-            an = an + Normal(v0.cross(v1))
+            an = an + v0.cross(v1)
         return self.l2w_normal(Normal(an))
 
     def is_flipped(self):

@@ -312,7 +312,7 @@ class Contours_Ops:
                 self.rfcontext.alert_user('\n'.join([
                     'It seems the stroke has cut across a non-manifold edge in the source mesh.',
                     '',
-                    '''<input type="checkbox" value="options['contours non-manifold check']">Perform this check</input>'''
+                    '''<label><input type="checkbox" value="options['contours non-manifold check']">Perform this check</label>'''
                 ]), level='warning')
 
     @RFTool.dirty_when_done

@@ -17,7 +17,7 @@
 
 NAME            = RetopoFlow
 
-VERSION         = "v3.2.6"
+VERSION         = "v3.2.7"
 
 # NOTE: one of the following must be uncommented
 # RELEASE         = "alpha"
@@ -38,7 +38,8 @@ DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
 CGCOOKIE_BUILT    = $(NAME)/.cgcookie
-ZIP_FILE          = $(NAME)_$(ZIP_VERSION).zip
+ZIP_GH            = $(NAME)_$(ZIP_VERSION)-GitHub.zip
+ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 
 
 .DEFAULT_GOAL 	:= build
@@ -95,7 +96,7 @@ build-github: check
 	# create thumbnails
 	cd $(BUILD_DIR)/$(NAME)/help && python3 $(CREATE_THUMBNAILS)
 	# zip it!
-	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
+	cd $(BUILD_DIR) && zip -r $(ZIP_GH) $(NAME)
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"
@@ -114,7 +115,7 @@ build-blendermarket: check
 	# create thumbnails
 	cd $(BUILD_DIR)/$(NAME)/help && python3 $(CREATE_THUMBNAILS)
 	# zip it!
-	cd $(BUILD_DIR) && zip -r $(ZIP_FILE) $(NAME)
+	cd $(BUILD_DIR) && zip -r $(ZIP_BM) $(NAME)
 
 	@echo
 	@echo $(NAME)" "$(VERSION)" is ready"

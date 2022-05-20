@@ -4,7 +4,7 @@ RetopoFlow is a suite of Blender tools that automatically generate geometry whic
 
 The tools work because of our custom "Retopology Mode", which gets more information about the objects you're drawing on than Blender can give in Edit Mode. It also alows us to display the polygons in a cleaner, more helful style. 
 
-<input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
+<label class="not-online"><input type="checkbox" checked="BoundBool('''options['welcome']''')">Show this Welcome note when RetopoFlow starts</label>
 
 ![feature](retopoflow_3_feature.png)
 
@@ -62,4 +62,4 @@ Cheers!
 ---The CG Cookie Tool Development Team
 
 
-<input type="checkbox" value="options['welcome']">Show this Welcome note when RetopoFlow starts</input>
+<label class="not-online"><input type="checkbox" checked="BoundBool('''options['welcome']''')">Show this Welcome note when RetopoFlow starts</label>

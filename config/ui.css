@@ -581,6 +581,11 @@ div.collection > div#fpsdiv {
     margin: 4px;
 }
 
+/* these are used to show/hide content based on state */
+div.show-hide {
+    margin: 0px;
+    padding: 0px;
+}
 
 
 /********************************/

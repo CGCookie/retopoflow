@@ -23,6 +23,7 @@ import os
 import re
 import bpy
 
+from ...addon_common.common.boundvar import BoundBool
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings

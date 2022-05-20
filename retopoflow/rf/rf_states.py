@@ -101,35 +101,6 @@ class RetopoFlow_States(CookieCutter):
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
 
-    def update_clip_settings(self, *, rescale=True):
-        if options['clip auto adjust']:
-            # adjust clipping settings
-            view_origin = self.drawing.get_view_origin(orthographic_distance=1000)
-            view_focus  = self.actions.r3d.view_location
-            bbox = self.sources_bbox
-            closest  = bbox.closest_Point(view_origin)
-            farthest = bbox.farthest_Point(view_origin)
-            self.drawing.space.clip_start = max(
-                0.0001,
-                (view_origin - closest).length * 0.001,
-            )
-            self.drawing.space.clip_end = (view_origin - farthest).length * 100
-            # print(f'clip auto adjusting')
-            # print(f'  origin:   {view_origin}')
-            # print(f'  focus:    {view_focus}')
-            # print(f'  closest:  {closest}')
-            # print(f'  farthest: {farthest}')
-            # print(f'  dist from origin to closest:  {(view_origin - closest).length}')
-            # print(f'  dist from origin to farthest: {(view_origin - farthest).length}')
-            # print(f'  dist from origin to focus:    {(view_origin - view_focus).length}')
-        elif rescale:
-            self.unscale_from_unit_box()
-            self.scale_to_unit_box(
-                clip_override=options['clip override'],
-                clip_start=options['clip start override'],
-                clip_end=options['clip end override'],
-            )
-
 
     def which_pie_menu_section(self):
         delta = self.actions.mouse - self.pie_menu_center

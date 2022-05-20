@@ -43,7 +43,7 @@ class RetopoFlow_Sources:
     def setup_sources(self):
         ''' find all valid source objects, which are mesh objects that are visible and not active '''
         print('  rfsources...')
-        self.rfsources = [RFSource.new(src) for src in self.src_objects]
+        self.rfsources = [RFSource.new(src) for src in self.get_sources()]
         print('  bboxes...')
         self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
         dprint('%d sources found' % len(self.rfsources))

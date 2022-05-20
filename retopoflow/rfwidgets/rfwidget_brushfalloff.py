@@ -122,7 +122,9 @@ class RFWidget_BrushFalloff_Factory:
                 if not p: return
                 depth = self.rfcontext.Point_to_depth(p)
                 if not depth: return
-                self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                if scale is None: return
+                self.scale = scale
 
                 r = self.radius * self.scale
                 co = self.outer_color
@@ -282,7 +284,9 @@ class RFWidget_BrushFalloff_Factory:
                 if not p: return
                 depth = self.rfcontext.Point_to_depth(p)
                 if not depth: return
-                self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                if scale is None: return
+                self.scale = scale
 
                 # p,n = self.actions.hit_pos,self.actions.hit_norm
                 # if p is None or n is None:
@@ -295,7 +299,6 @@ class RFWidget_BrushFalloff_Factory:
                 # xy = self.rfcontext.actions.mouse
                 rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
                 self.hit = True
-                self.scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
                 self.hit_p = p
                 self.hit_x = Vec(matrix_vector_mult(rmat, Direction.X))
                 self.hit_y = Vec(matrix_vector_mult(rmat, Direction.Y))
