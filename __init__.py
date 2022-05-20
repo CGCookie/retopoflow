@@ -402,21 +402,22 @@ if import_succeeded:
 
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
-        bl_label = f'RetopoFlow {retopoflow_version}{rf_label_extra}'
+        bl_label = 'RetopoFlow'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         # bl_ui_units_x = 100
 
         @staticmethod
         def draw_popover(self, context):
-            self.layout.separator()
-            if is_editing_target(context):
-                self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
-            self.layout.popover('VIEW3D_PT_RetopoFlow')
+            if context.mode == 'EDIT_MESH' or context.mode == 'OBJECT':
+                self.layout.separator()
+                if is_editing_target(context):
+                    self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
+                self.layout.popover('VIEW3D_PT_RetopoFlow')
 
         def draw(self, context):
             layout = self.layout
-            layout.label(text=self.bl_label)
+            layout.label(text=f'RetopoFlow {retopoflow_version}{rf_label_extra}')
 
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'

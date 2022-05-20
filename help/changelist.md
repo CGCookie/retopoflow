@@ -16,6 +16,8 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added option for snapping to geometry while using Strokes instead of using brush radius
 - Checking for invalid characters in add-on folder name
 - Improved and debugged UI code
+- Removed RetopoFlow menu from all modes other than Object and Mesh Edit
+- Moved version number from the menu title to the menu header
 
 ### RetopoFlow 3.2.5&rarr;3.2.6
 
