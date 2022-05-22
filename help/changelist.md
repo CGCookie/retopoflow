@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.7&rarr;3.2.8
+
+- Fixed bug where checkedness of alert checkboxes is not saved
+- Fixed bug with Stroke snapping distance
+
 ### RetopoFlow 3.2.6&rarr;3.2.7
 
 - Fixed bug when pressing MMB while moving geometry with LMB

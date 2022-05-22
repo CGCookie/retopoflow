@@ -353,6 +353,22 @@ class Strokes(RFTool):
         # bail if there aren't enough stroke data points to work with
         if len(stroke3D) < 2: return
 
+        sel_verts = self.rfcontext.get_selected_verts()
+        sel_edges = self.rfcontext.get_selected_edges()
+        s0, s1 = Point_to_Point2D(stroke3D[0]), Point_to_Point2D(stroke3D[-1])
+        bmv0, _ = accel_nearest2D_vert(point=s0, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
+        bmv1, _ = accel_nearest2D_vert(point=s1, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
+        if not options['strokes snap stroke']:
+            if bmv0 and not bmv0.select: bmv0 = None
+            if bmv1 and not bmv1.select: bmv1 = None
+        bmv0_sel = bmv0 and bmv0 in sel_verts
+        bmv1_sel = bmv1 and bmv1 in sel_verts
+
+        if bmv0:
+            stroke3D = [bmv0.co] + stroke3D
+        if bmv1:
+            stroke3D = stroke3D + [bmv1.co]
+
         self.strip_stroke3D = stroke3D
         self.strip_crosses = None
         self.strip_loops = None
@@ -397,16 +413,6 @@ class Strokes(RFTool):
                 # print(f'Extrude Cycle')
                 self.replay = self.extrude_cycle
             else:
-                sel_verts = self.rfcontext.get_selected_verts()
-                sel_edges = self.rfcontext.get_selected_edges()
-                s0, s1 = Point_to_Point2D(stroke3D[0]), Point_to_Point2D(stroke3D[-1])
-                bmv0, _ = accel_nearest2D_vert(point=s0, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
-                bmv1, _ = accel_nearest2D_vert(point=s1, max_dist=options['strokes snap dist']) # self.rfwidgets['brush'].radius)
-                if not options['strokes snap stroke']:
-                    if bmv0 and not bmv0.select: bmv0 = None
-                    if bmv1 and not bmv1.select: bmv1 = None
-                bmv0_sel = bmv0 and bmv0 in sel_verts
-                bmv1_sel = bmv1 and bmv1 in sel_verts
                 if any([bmv0_sel, bmv1_sel]):
                     if not all([bmv0_sel, bmv1_sel]):
                         bmv = bmv0 if bmv0_sel else bmv1

@@ -27,23 +27,28 @@ import inspect
 class IgnoreChange(Exception): pass
 
 class BoundVar:
-    def __init__(self, value_str, *, on_change=None, frame_depth=1, f_globals=None, f_locals=None, callbacks=None, validators=None, disabled=False, pre_wrap=None, post_wrap=None, wrap=None):
+    def __init__(self, value_str, *, on_change=None, frame_depth=1, frames_deep=1, f_globals=None, f_locals=None, callbacks=None, validators=None, disabled=False, pre_wrap=None, post_wrap=None, wrap=None):
         assert type(value_str) is str, f'BoundVar: constructor needs value as string, but received {value_str} instead!'
         if f_globals is None or f_locals is None:
             frame = inspect.currentframe()
-            for i in range(frame_depth): frame = frame.f_back
-            self._f_globals = f_globals or frame.f_globals
-            self._f_locals = dict(f_locals or frame.f_locals)
+            ff_globals, ff_locals = {}, {}
+            for i in range(frame_depth + frames_deep):
+                if i >= frame_depth:
+                    ff_globals = frame.f_globals | ff_globals
+                    ff_locals  = frame.f_locals  | ff_locals
+                frame = frame.f_back
+            self._f_globals = f_globals or ff_globals
+            self._f_locals  = dict(f_locals or ff_locals)
         else:
             self._f_globals = f_globals
             self._f_locals = dict(f_locals)
         try:
             exec(value_str, self._f_globals, self._f_locals)
         except Exception as e:
-            print('Caught exception when trying to bind to variable')
-            print('exception:', e)
-            print('globals:', f_globals)
-            print('locals:', f_locals)
+            print(f'Caught exception when trying to bind to variable')
+            print(f'exception: {e}')
+            print(f'globals: {self._f_globals}')
+            print(f'locals: {self._f_locals}')
             assert False, f'BoundVar: value string ("{value_str}") must be a valid variable!'
         self._f_locals.update({'boundvar_interface': self._boundvar_interface})
         self._value_str  = value_str

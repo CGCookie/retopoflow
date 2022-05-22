@@ -42,6 +42,7 @@ from ...addon_common.common.blender import get_preferences
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.inspect import ScopeBuilder
 
 from ...config.options import (
     options, themes, visualization,
@@ -116,6 +117,8 @@ class RetopoFlow_UI_Alert:
         if hasattr(self, 'rftool'): self.rftool._reset()
 
     def alert_user(self, message=None, title=None, level=None, msghash=None):
+        scope = ScopeBuilder()
+
         if not hasattr(self, '_msghashes'): self._msghashes = set()
         if not hasattr(self, 'alert_windows'): self.alert_windows = 0
         if msghash and msghash in self._msghashes: return # have already seen this error!!
@@ -224,11 +227,11 @@ class RetopoFlow_UI_Alert:
                     print(e)
                     # ignore for now
                     pass
-                size = f'{"fourth" if buttons==4 else "fifth"}-size'
-                UI_Element.BUTTON(innerText='Screenshot', classes=f'action {size}', on_mouseclick=screenshot, title='Save a screenshot of Blender', parent=ui_buttons)
-                UI_Element.BUTTON(innerText='Similar',    classes=f'action {size}', on_mouseclick=search, title='Search the RetopoFlow Issue Tracker for similar issues', parent=ui_buttons)
-                UI_Element.BUTTON(innerText='All Issues', classes=f'action {size}', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', parent=ui_buttons)
-                UI_Element.BUTTON(innerText='Report',     classes=f'action {size}', on_mouseclick=report, title='Report a new issue on the RetopoFlow Issue Tracker', parent=ui_buttons)
+                size = 'fourth-size' if buttons==4 else 'fifth-size'
+                UI_Element.BUTTON(innerText='Screenshot', classes=f'action {size}', parent=ui_buttons, on_mouseclick=screenshot,  title='Save a screenshot of Blender')
+                UI_Element.BUTTON(innerText='Similar',    classes=f'action {size}', parent=ui_buttons, on_mouseclick=search,      title='Search the RetopoFlow Issue Tracker for similar issues')
+                UI_Element.BUTTON(innerText='All Issues', classes=f'action {size}', parent=ui_buttons, on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker')
+                UI_Element.BUTTON(innerText='Report',     classes=f'action {size}', parent=ui_buttons, on_mouseclick=report,      title='Report a new issue on the RetopoFlow Issue Tracker')
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
@@ -276,6 +279,7 @@ class RetopoFlow_UI_Alert:
             title = level.upper() + (f': {title}' if title else '')
             message = message or 'a note'
 
+        @scope.capture_fn
         def close():
             nonlocal win
             if win.parent:
@@ -284,11 +288,14 @@ class RetopoFlow_UI_Alert:
             if self.document.sticky_element == win:
                 self.document.sticky_element = None
             self.document.clear_last_under()
+        @scope.capture_fn
         def mouseleave_event(e):
             nonlocal win
             if not win.is_hovered: close()
+        @scope.capture_fn
         def keypress_event(e):
             if e.key == 'ESC': close()
+        @scope.capture_fn
         def quit():
             self.done()
 
@@ -296,10 +303,16 @@ class RetopoFlow_UI_Alert:
             return
             #self.exit = True
 
-        win = UI_Element.fromHTMLFile(abspath('alert_dialog.html'))[0]
+        scope.capture_var('level')
+
+        win = UI_Element.fromHTMLFile(
+            abspath('alert_dialog.html'),
+            frame_depth=2,
+            **scope
+        )[0]
         self.document.body.append_child(win)
         win.getElementById('alert-title').innerText = title
-        win.getElementById('alert-message').set_markdown(mdown=message)
+        win.getElementById('alert-message').set_markdown(mdown=message, frame_depth=2, **scope)
         if not msg_report and not ui_checker:
             win.getElementById('alert-details').is_visible = False
         if msg_report: win.getElementById('alert-report').innerText = msg_report

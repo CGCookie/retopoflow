@@ -32,6 +32,7 @@ from bpy.app.handlers import persistent
 from ...config.options import options, retopoflow_version
 
 from ...addon_common.common.globals import Globals
+from ...addon_common.common.boundvar import BoundBool
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
     matrix_vector_mult,
@@ -132,19 +133,21 @@ class RetopoFlow_BlenderSave:
         message = []
 
         if not good_auto_save:
+            opt_autosave = '''options['check auto save']'''
             message += ['\n'.join([
                 'The Auto Save option in Blender (Edit > Preferences > Save & Load > Auto Save) is currently disabled.',
                 'Your changes will _NOT_ be saved automatically!',
                 '',
-                '''<label><input type="checkbox" value="options['check auto save']">Check Auto Save option when RetopoFlow starts</label>''',
+                '''<label><input type="checkbox" checked="BoundBool(opt_autosave)">Check Auto Save option when RetopoFlow starts</label>''',
             ])]
 
         if not good_unsaved:
+            opt_unsaved = '''options['check unsaved']'''
             message += ['\n'.join([
                 'You are currently working on an _UNSAVED_ Blender file.',
                 f'Your changes will be saved to `{path_autosave}` when you press `{save}`',
                 '',
-                '''<label><input type="checkbox" value="options['check unsaved']">Run check for unsaved .blend file when RetopoFlow starts</label>''',
+                '''<label><input type="checkbox" checked="BoundBool(opt_unsaved)">Run check for unsaved .blend file when RetopoFlow starts</label>''',
             ])]
         else:
             message += ['Press `%s` any time to save your changes.' % (save)]

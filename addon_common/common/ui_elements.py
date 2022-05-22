@@ -208,24 +208,37 @@ events_known = {
 
 class UI_Element_Elements():
     @classmethod
-    def fromHTMLFile(cls, path_html, *, frame_depth=1, f_globals=None, f_locals=None):
+    def fromHTMLFile(cls, path_html, *, frame_depth=1, frames_deep=1, f_globals=None, f_locals=None, **kwargs):
         if not path_html: return []
         assert os.path.exists(path_html), f'Could not find HTML {path_html}'
         html = open(path_html, 'rt').read()
-        return cls.fromHTML(html, frame_depth=frame_depth+1, f_globals=f_globals, f_locals=f_locals)
+        return cls.fromHTML(
+            html,
+            frame_depth=frame_depth+1,
+            frames_deep=frames_deep,
+            f_globals=f_globals,
+            f_locals=f_locals,
+            **kwargs
+        )
 
     @classmethod
-    def fromHTML(cls, html, *, frame_depth=1, f_globals=None, f_locals=None):
+    def fromHTML(cls, html, *, frame_depth=1, frames_deep=1, f_globals=None, f_locals=None, **kwargs):
         # use passed global and local contexts or grab contexts from calling function
         # these contexts are needed for bound variables
         if f_globals and f_locals:
             f_globals = f_globals
             f_locals = dict(f_locals)
         else:
+            ff_globals, ff_locals = {}, {}
             frame = inspect.currentframe()
-            for i in range(frame_depth): frame = frame.f_back
-            f_globals = f_globals or frame.f_globals
-            f_locals = dict(f_locals or frame.f_locals)
+            for i in range(frame_depth + frames_deep):
+                if i >= frame_depth:
+                    ff_globals = frame.f_globals | ff_globals
+                    ff_locals  = frame.f_locals  | ff_locals
+                frame = frame.f_back
+            f_globals = f_globals or ff_globals
+            f_locals  = dict(f_locals or ff_locals)
+        f_locals |= kwargs
 
         def next_close(html, tagName):
             m_tag = re_html_tag.search(html)
@@ -310,10 +323,18 @@ class UI_Element_Elements():
                         v = delay_exec(v, f_globals=f_globals, f_locals=f_locals, ordered_parameters=['event'], precall=precall)
                     elif v.lower() in {'true'}:  v = True
                     elif v.lower() in {'false'}: v = False
-                    elif m_self:                 v = eval(v, f_globals, f_locals)
-                    elif m_bound:                v = eval(v, f_globals, f_locals)
                     elif m_int:                  v = int(v)
                     elif m_float:                v = float(v)
+                    elif m_self:                 v = eval(v, f_globals, f_locals)
+                    elif m_bound:
+                        try:
+                            v = eval(v, f_globals, f_locals)
+                        except Exception as e:
+                            print(f'')
+                            print(f'Caught Exception {e} while trying to eval {v}')
+                            print(f'{f_globals=}')
+                            print(f'{f_locals=}')
+                            raise e
 
                     attribs[k] = v
 

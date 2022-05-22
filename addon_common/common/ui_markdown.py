@@ -111,12 +111,27 @@ def load_text_file(path):
 
 class UI_Markdown:
     @profiler.function
-    def set_markdown(self, mdown=None, *, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, frame_depth=1, remove_indentation=True):
-        if f_globals is None or f_locals is None:
-            frame = inspect.currentframe()                      # get frame   of calling function
-            for _ in range(frame_depth): frame = frame.f_back
-            if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
-            if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
+    def set_markdown(self, mdown=None, *, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, frame_depth=1, frames_deep=1, remove_indentation=True, **kwargs):
+        if f_globals and f_locals:
+            f_globals = f_globals
+            f_locals = dict(f_locals)
+        else:
+            ff_globals, ff_locals = {}, {}
+            frame = inspect.currentframe()
+            for i in range(frame_depth + frames_deep):
+                if i >= frame_depth:
+                    ff_globals = frame.f_globals | ff_globals
+                    ff_locals  = frame.f_locals  | ff_locals
+                frame = frame.f_back
+            f_globals = f_globals or ff_globals
+            f_locals  = dict(f_locals or ff_locals)
+        f_locals |= kwargs
+
+        # if f_globals is None or f_locals is None:
+        #     frame = inspect.currentframe()                      # get frame   of calling function
+        #     for _ in range(frame_depth): frame = frame.f_back
+        #     if f_globals is None: f_globals = frame.f_globals   # get globals of calling function
+        #     if f_locals  is None: f_locals  = frame.f_locals    # get locals  of calling function
 
         self._src_mdown_path = mdown_path or ''
 

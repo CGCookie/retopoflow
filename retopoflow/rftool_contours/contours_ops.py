@@ -309,10 +309,11 @@ class Contours_Ops:
 
         if perform_nonmanifold_check is None or perform_nonmanifold_check:
             if options['contours non-manifold check'] and not connected and (verts[0].co - verts[-1].co).length < 0.01:
+                opt_nonmanifold = '''options['contours non-manifold check']'''
                 self.rfcontext.alert_user('\n'.join([
                     'It seems the stroke has cut across a non-manifold edge in the source mesh.',
                     '',
-                    '''<label><input type="checkbox" value="options['contours non-manifold check']">Perform this check</label>'''
+                    '''<label><input type="checkbox" checked="BoundBool(opt_nonmanifold)">Perform this check</label>'''
                 ]), level='warning')
 
     @RFTool.dirty_when_done
