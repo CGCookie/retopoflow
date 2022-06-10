@@ -453,6 +453,8 @@ class PolyPen(RFTool):
                     if not bmv1:
                         self.rfcontext.undo_cancel()
                         return 'main'
+                if bmv0 == bmv1:
+                    return 'main'
                 bme = bmv0.shared_edge(bmv1) or self.rfcontext.new_edge((bmv0, bmv1))
                 self.rfcontext.select(bmv1)
 
