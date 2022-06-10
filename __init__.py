@@ -390,7 +390,7 @@ if import_succeeded:
     def is_addon_folder_valid(context):
         bad_chars = set(re.sub(r'[a-zA-Z0-9_]', '', __package__))
         if not bad_chars: return True
-        print(f'Bad characters found in add-on: {bad_chars}')
+        # print(f'Bad characters found in add-on: {bad_chars}')
         return False
 
 
@@ -541,7 +541,7 @@ if import_succeeded:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text='Unsaved Blender file', icon='DOT')
             if 'save: can recover auto save' in warnings:
-                box = get_warning_subbox('Auto Save')
+                box = get_warning_subbox('Auto Save / Save')
                 box.label(text=f'Auto Save file opened', icon='DOT')
                 box.operator(
                     'cgcookie.retopoflow_recover_finish',
