@@ -27,7 +27,6 @@ import atexit
 
 from .rf.rf_blender_objects import RetopoFlow_Blender_Objects
 from .rf.rf_blender_save    import RetopoFlow_Blender_Save
-from .rf.rf_blender_ui      import RetopoFlow_Blender_UI
 from .rf.rf_drawing         import RetopoFlow_Drawing
 from .rf.rf_fsm             import RetopoFlow_FSM
 from .rf.rf_grease          import RetopoFlow_Grease
@@ -69,7 +68,6 @@ from ..config.options import options
 class RetopoFlow(
     RetopoFlow_Blender_Objects,
     RetopoFlow_Blender_Save,
-    RetopoFlow_Blender_UI,
     RetopoFlow_Drawing,
     RetopoFlow_FSM,
     RetopoFlow_Grease,
@@ -129,7 +127,6 @@ class RetopoFlow(
 
         # self.store_window_state(self.actions.r3d, self.actions.space)
 
-        self.scene_scale_set(1.0)
         bpy.ops.object.mode_set(mode='OBJECT')
         self.init_normalize()       # get scaling factor to fit all sources into unit box
         self.setup_ui_blender()

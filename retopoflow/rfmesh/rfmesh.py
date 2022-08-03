@@ -113,7 +113,6 @@ class RFMesh():
         # setup init
         self.obj = obj
         self.xform = XForm(self.obj.matrix_world)
-        # print('hashing object')
         self.hash = hash_object(self.obj)
         self._version = None
         self._version_selection = None

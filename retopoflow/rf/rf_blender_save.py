@@ -48,9 +48,6 @@ from ...addon_common.common.blender import (
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
-from .rf_blender_ui import RetopoFlow_Blender_UI
-
-
 
 @persistent
 def revert_auto_save_after_load(*_, **__):
