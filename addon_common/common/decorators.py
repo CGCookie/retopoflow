@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -27,6 +27,15 @@ import inspect
 from functools import wraps
 
 import bpy
+
+
+def run(*args, **kwargs):
+    if len(args) == 1 and not kwargs and inspect.isfunction(args[0]):
+        # call right away
+        return args[0]()
+    def wrapper(fn):
+        return fn(*args, **kwargs)
+    return wrapper
 
 
 debug_run_test_calls = False

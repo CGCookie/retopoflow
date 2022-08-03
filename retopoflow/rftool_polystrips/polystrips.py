@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -165,7 +165,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             self._var_cut_count.set(len(self.strips[0]))
             self._var_cut_count.disabled = False
 
-        if self.rfcontext.undo_last_action() != 'change segment count':
+        if self.rfcontext.get_last_action() != 'change segment count':
             self.setup_change_count()
 
     @profiler.function

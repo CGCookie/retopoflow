@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 
 https://github.com/CGCookie/retopoflow
 
@@ -21,247 +21,225 @@ import math
 
 import bpy
 
+from ..common.blender import region_label_to_data, create_simple_context
 from ..common.decorators import blender_version_wrapper
 from ..common.debug import debugger
-from ..common.drawing import Drawing
+from ..common.drawing import Drawing, Cursors
 from ..common.utils import iter_head
-from ..common.blender import (
-    toggle_screen_header, toggle_screen_tool_header,
-    toggle_screen_toolbar,
-    toggle_screen_properties,
-    toggle_screen_lastop,
-    )
+
+
+class StoreRestore:
+    def __init__(self):
+        self._storage = {}
+        self._bindings = {}
+    def bind(self, k, fn_get, fn_set):
+        self._bindings[k] = (fn_get, fn_set)
+    def store(self, k):
+        fn_get, _ = self._bindings[k]
+        self._storage[k] = fn_get()
+    def store_all(self):
+        for k in self._bindings:
+            self.store(k)
+    def get(self, k):
+        return self._storage[k]
+    def discard(self, k):
+        del self._storage[k]
+    def restore(self, k, *, discard=False):
+        _, fn_set = self._bindings[k]
+        fn_set(self._storage[k])
+        if discard: self.discard(k)
+    def restore_all(self, *, ignore=None, clear=False):
+        touched = set()
+        for k in self._storage:
+            if ignore and k in ignore: continue
+            self.restore(k)
+            touched.add(k)
+        if clear:
+            for k in touched:
+                del self._storage[k]
 
 
 class CookieCutter_Blender:
     def _cc_blenderui_init(self):
-        self._scene = self.context.scene
-        self._area = self.context.area
-        self._space = self.context.space_data
-        self._window = self.context.window
-        self._screen = self.context.screen
-        self._region = self.context.region
-        self._rgn3d = self.context.space_data.region_3d
-        self.scene_scale_store()
-        self.viewaa_store()
-        self.manipulator_store()
-        self.panels_store()
-        self.overlays_store()
-        self.statusbar_stats_store()
-        self.quadview_store()
-        self.shading_store()
+        self._storerestore = StoreRestore()
+        bind = self._storerestore.bind
+        # self._storerestore.bind('workspace', self.workspace_get, self.workspace_set)
+        # self._storerestore.bind('scene', self.scene_get, self.scene_set)
+        bind('objects selected',  self.objects_selected_get,  self.objects_selected_set)
+        bind('objects visible',   self.objects_visible_get,   self.objects_visible_set)
+        bind('object active',     self.object_active_get,     self.object_active_set)
+        bind('scene scale',       self.scene_scale_get,       self.scene_scale_set)
+        bind('panels',            self.panels_get,            self.panels_set)
+        bind('shading type',      self.shading_type_get,      self.shading_type_set)
+        bind('shading light',     self.shading_light_get,     self.shading_light_set)
+        bind('shading matcap',    self.shading_matcap_get,    self.shading_matcap_set)
+        bind('shading colortype', self.shading_colortype_get, self.shading_colortype_set)
+        bind('shading color',     self.shading_color_get,     self.shading_color_set)
+        bind('shading backface',  self.shading_backface_get,  self.shading_backface_set)
+        bind('shading shadows',   self.shading_shadows_get,   self.shading_shadows_set)
+        bind('shading xray',      self.shading_xray_get,      self.shading_xray_set)
+        bind('shading cavity',    self.shading_cavity_get,    self.shading_cavity_set)
+        bind('shading outline',   self.shading_outline_get,   self.shading_outline_set)
+        bind('quadview',          self.quadview_get,          self.quadview_set)
+        bind('overlays',          self.overlays_get,          self.overlays_set)
+        bind('gizmo',             self.gizmo_get,             self.gizmo_set)
+        bind('viewaa',            self.viewaa_get,            self.viewaa_set)
+        self._storerestore.store_all()
 
-    def _cc_blenderui_end(self, ignore_panels=False):
-        self.shading_restore()
-        self.quadview_restore()
-        self.overlays_restore()
-        if not ignore_panels: self.panels_restore()
-        self.statusbar_stats_restore()
-        self.manipulator_restore()
-        self.viewaa_restore()
-        self.cursor_modal_restore()
+
+    def _cc_blenderui_end(self, ignore=None):
+        self._storerestore.restore_all(ignore=ignore)
+
         self.header_text_restore()
-        self.scene_scale_restore()
+        self.statusbar_text_restore()
+        self.cursor_restore()
 
 
     #########################################
-    # Header
+    # Workspace and Scene
 
-    @blender_version_wrapper("<=", "2.79")
-    def header_text_set(self, s=None):
-        if s is None:
-            self._area.header_text_set()
-        else:
-            self._area.header_text_set(s)
-    @blender_version_wrapper(">=", "2.80")
-    def header_text_set(self, s=None):
-        self._area.header_text_set(s)
+    def workspace_set(self, name):  self.context.window.workspace = bpy.data.workspaces[name]
+    def workspace_get(self): return self.context.window.workspace.name
 
-    def header_text_restore(self):
-        self.header_text_set()
+    def scene_set(self, name):  self.context.window.scene = bpy.data.scenes[name]
+    def scene_get(self): return self.context.window.scene.name
+
+    def scene_scale_get(self):     return self.context.scene.unit_settings.scale_length
+    def scene_scale_set(self, v):  self.context.scene.unit_settings.scale_length = v
 
 
     #########################################
-    # Cursor
+    # Objects
+    # NOTE: select, active, and visible properties are stored in scene!
 
-    def cursor_modal_set(self, v):
-        self._window.cursor_modal_set(v)
+    def objects_selected_get(self): return { o.name for o in bpy.data.objects if o.select_get() }
+    def objects_selected_set(self, names, *, only=False):
+        for o in bpy.data.objects:
+            if only: o.select_set(o.name in names)
+            elif o.name in names: o.select_set(True)
 
-    def cursor_modal_restore(self):
-        self._window.cursor_modal_restore()
+    def objects_visible_get(self): return { o.name for o in bpy.data.objects if not o.hide_get() }
+    def objects_visible_set(self, names, *, only=False):
+        for o in bpy.data.objects:
+            if only: o.hide_set(o.name not in names)
+            elif o.name in names: o.hide_set(False)
+
+    def object_active_get(self): return self.context.view_layer.objects.active.name if self.context.view_layer.objects.active else None
+    def object_active_set(self, name):
+        if not name: return
+        obj = bpy.data.objects[name]
+        obj.select_set(True)
+        self.context.view_layer.objects.active = obj
 
 
     #########################################
-    # Panels
+    # Header, Status Bar, Cursor
 
-    def _cc_panels_get_details(self):
-        # regions for 3D View:
-        #     279: [ HEADER, TOOLS, TOOL_PROPS, UI,  WINDOW ]
-        #     280: [ HEADER, TOOLS, UI,         HUD, WINDOW ]
-        #            0       1      2           3   4
-        #     300: [ HEADER, TOOL_HEADER, TOOLS, UI, HUD, WINDOW ]
-        #            0       1            2      3   3    4
-        # could hard code the indices, but these magic numbers might change.
-        # will stick to magic (but also way more descriptive) types
+    def header_text_set(self, s=None): self.context.area.header_text_set(text=s)
+    def header_text_restore(self):     self.header_text_set()
+
+    def statusbar_text_set(self, s=None, *, internal=False):
+        if not internal: self.context.workspace.status_text_set(text=s)
+        else:            self.context.workspace.status_text_set_internal(text=s)
+    def statusbar_text_restore(self):     self.statusbar_text_set()
+
+    def cursor_set(self, cursor): Cursors.set(cursor)
+    def cursor_restore(self):     Cursors.restore()
+
+
+    #########################################
+    # Region Panels
+
+    def _get_region(self, *, label=None, type=None):
+        if label: type = region_label_to_data[label].type
+        return next((r for r in self.context.area.regions if r.type == type), None)
+    def _get_regions(self):
+        return { label: self._get_region(label=label) for label in region_label_to_data }
+
+    def panels_get(self):
+        rgns = self._get_regions()
         return {
-            label: iter_head(r for r in self._area.regions if r.type == rtype)
-            for (label, rtype) in {
-                'header':      'HEADER',
-                'tool header': 'TOOL_HEADER',
-                'tool shelf':  'TOOLS',
-                'properties':  'UI',
-                'hud':         'HUD',
-            }.items()
+            label: (rgns[label].width > 1 and rgns[label].height > 1) if rgns[label] else False
+            for label in region_label_to_data
         }
-
-    def panels_store(self):
-        rgns = self._cc_panels_get_details()
-        self._show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
-        self._show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
-        self._show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
-        self._show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
-        self._show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
-
-    def panels_restore(self):
-        rgns = self._cc_panels_get_details()
-        show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
-        show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
-        show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
-        show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
-        show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
-        ctx = {
-            'area':       self._area,
-            'space_data': self._space,
-            'window':     self._window,
-            'screen':     self._screen,
-            'region':     self._region,
-        }
-        if self._show_header     and not show_header:     toggle_screen_header(ctx)
-        if self._show_toolheader and not show_toolheader: toggle_screen_tool_header(ctx)
-        if self._show_toolshelf  and not show_toolshelf:  toggle_screen_toolbar(ctx)
-        if self._show_properties and not show_properties: toggle_screen_properties(ctx)
-        if self._show_hud        and not show_hud:        toggle_screen_lastop(ctx)
-
-    def panels_hide(self):
-        rgns = self._cc_panels_get_details()
-        show_header     = (rgns['header'].height      > 1) if rgns['header']      else False
-        show_toolheader = (rgns['tool header'].height > 1) if rgns['tool header'] else False
-        show_toolshelf  = (rgns['tool shelf'].width   > 1) if rgns['tool shelf']  else False
-        show_properties = (rgns['properties'].width   > 1) if rgns['properties']  else False
-        show_hud        = (rgns['hud'].width          > 1) if rgns['hud']         else False
-        ctx = {
-            'area':       self._area,
-            'space_data': self._space,
-            'window':     self._window,
-            'screen':     self._screen,
-            'region':     self._region,
-        }
-        if show_header:     toggle_screen_header(ctx)
-        if show_toolheader: toggle_screen_tool_header(ctx)
-        if show_toolshelf:  toggle_screen_toolbar(ctx)
-        if show_properties: toggle_screen_properties(ctx)
-        if show_hud:        toggle_screen_lastop(ctx)
+    def panels_set(self, state):
+        ctx = create_simple_context(self.context)
+        current = self.panels_get()
+        for label, val in state.items():
+            if val == current[label]: continue
+            fn_toggle = region_label_to_data[label].fn_toggle
+            if fn_toggle: fn_toggle(ctx)
+    def panels_hide(self, *, ignore=None):
+        if not ignore: ignore = set()
+        self.panels_set({ label: False for label in region_label_to_data if label not in ignore })
 
 
     #########################################
-    # Viewport Shading
+    # Viewport Shading and Settings
 
-    def shading_type_get(self): return self._space.shading.type
-    def shading_type_set(self, v): self._space.shading.type = v
+    def shading_type_get(self): return self.context.space_data.shading.type
+    def shading_type_set(self, v): self.context.space_data.shading.type = v
 
-    def shading_light_get(self): return self._space.shading.light
-    def shading_light_set(self, v): self._space.shading.light = v
+    def shading_light_get(self): return self.context.space_data.shading.light
+    def shading_light_set(self, v): self.context.space_data.shading.light = v
 
-    def shading_matcap_get(self): return self._space.shading.studio_light
-    def shading_matcap_set(self, v): self._space.shading.studio_light = v
+    def shading_matcap_get(self): return self.context.space_data.shading.studio_light
+    def shading_matcap_set(self, v): self.context.space_data.shading.studio_light = v
 
-    def shading_colortype_get(self): return self._space.shading.color_type
-    def shading_colortype_set(self, v): self._space.shading.color_type = v
+    def shading_colortype_get(self): return self.context.space_data.shading.color_type
+    def shading_colortype_set(self, v): self.context.space_data.shading.color_type = v
 
-    def shading_color_get(self): return self._space.shading.single_color
-    def shading_color_set(self, v): self._space.shading.single_color = v
+    def shading_color_get(self): return self.context.space_data.shading.single_color
+    def shading_color_set(self, v): self.context.space_data.shading.single_color = v
 
-    def shading_backface_get(self): return self._space.shading.show_backface_culling
-    def shading_backface_set(self, v): self._space.shading.show_backface_culling = v
+    def shading_backface_get(self): return self.context.space_data.shading.show_backface_culling
+    def shading_backface_set(self, v): self.context.space_data.shading.show_backface_culling = v
 
-    def shading_shadows_get(self): return self._space.shading.show_shadows
-    def shading_shadows_set(self, v): self._space.shading.show_shadows = v
+    def shading_shadows_get(self): return self.context.space_data.shading.show_shadows
+    def shading_shadows_set(self, v): self.context.space_data.shading.show_shadows = v
 
-    def shading_xray_get(self): return self._space.shading.show_xray
-    def shading_xray_set(self, v): self._space.shading.show_xray = v
+    def shading_xray_get(self): return self.context.space_data.shading.show_xray
+    def shading_xray_set(self, v): self.context.space_data.shading.show_xray = v
 
-    def shading_cavity_get(self): return self._space.shading.show_cavity
-    def shading_cavity_set(self, v): self._space.shading.show_cavity = v
+    def shading_cavity_get(self): return self.context.space_data.shading.show_cavity
+    def shading_cavity_set(self, v): self.context.space_data.shading.show_cavity = v
 
-    def shading_outline_get(self): return self._space.shading.show_object_outline
-    def shading_outline_set(self, v): self._space.shading.show_object_outline = v
+    def shading_outline_get(self): return self.context.space_data.shading.show_object_outline
+    def shading_outline_set(self, v): self.context.space_data.shading.show_object_outline = v
 
-    def shading_store(self):
-        self._shading = {
-            'type': self.shading_type_get(),
-            'light': self.shading_light_get(),
-            'matcap': self.shading_matcap_get(),
-            'colortype': self.shading_colortype_get(),
-            'color': self.shading_color_get(),
-            'backface': self.shading_backface_get(),
-            'shadows': self.shading_shadows_get(),
-            'xray': self.shading_xray_get(),
-            'cavity': self.shading_cavity_get(),
-            'outline': self.shading_outline_get(),
-        }
-    def shading_restore(self):
-        if self._shading['type'] == 'WIREFRAME':
-            self.shading_type_set(self._shading['type'])
-            self.shading_xray_set(self._shading['xray'])
-            self.shading_outline_set(self._shading['outline'])
-        else:
-            self.shading_type_set(self._shading['type'])
-            self.shading_light_set(self._shading['light'])
-            self.shading_matcap_set(self._shading['matcap'])
-            self.shading_colortype_set(self._shading['colortype'])
-            self.shading_color_set(self._shading['color'])
-            self.shading_backface_set(self._shading['backface'])
-            self.shading_shadows_set(self._shading['shadows'])
-            self.shading_xray_set(self._shading['xray'])
-            self.shading_cavity_set(self._shading['cavity'])
-            self.shading_outline_set(self._shading['outline'])
+    def quadview_get(self):     return bool(self.context.space_data.region_quadviews)
+    def quadview_toggle(self):  bpy.ops.screen.region_quadview({'area': self.context.area, 'region': self._get_region(label='window')})
+    def quadview_set(self, v):
+                                if self.quadview_get() != v: self.quadview_toggle()
+    def quadview_hide(self):    self.quadview_set(False)
+    def quadview_show(self):    self.quadview_set(True)
+
+    def viewaa_get(self):       return self.context.preferences.system.viewport_aa
+    def viewaa_set(self, v):    self.context.preferences.system.viewport_aa = v
+    def viewaa_simplify(self):  self.viewaa_set('FXAA' if self.viewaa_get() != 'OFF' else 'OFF')
 
 
     #########################################
-    # Overlays and Manipulators/Gizmos
+    # Overlays
 
-    @blender_version_wrapper("<=", "2.79")
-    def overlays_get(self): return None
-    @blender_version_wrapper("<=", "2.79")
-    def overlays_set(self, v): pass
+    def overlays_get(self):     return self.context.space_data.overlay.show_overlays
+    def overlays_set(self, v):  self.context.space_data.overlay.show_overlays = v
+    def overlays_hide(self):    self.overlays_set(False)
+    def overlays_show(self):    self.overlays_set(True)
 
-    @blender_version_wrapper(">=", "2.80")
-    def overlays_get(self): return self._space.overlay.show_overlays
-    @blender_version_wrapper(">=", "2.80")
-    def overlays_set(self, v): self._space.overlay.show_overlays = v
 
-    @blender_version_wrapper("<=", "2.79")
-    def manipulator_get(self): return self._space.show_manipulator
-    @blender_version_wrapper("<=", "2.79")
-    def manipulator_set(self, v): self._space.show_manipulator = v
+    #########################################
+    # Gizmo
 
-    def shading_type_get(self): return self._space.shading.type
-    def shading_type_set(self, v): self._space.shading.type = v
-
-    def scene_scale_get(self): return self._scene.unit_settings.scale_length
-    def scene_scale_set(self, v): self._scene.unit_settings.scale_length = v
-
-    @blender_version_wrapper(">=", "2.80")
-    def manipulator_get(self):
-        # return self._space.show_gizmo
-        spc = self._space
+    def gizmo_get(self):
+        # return self.context.space_data.show_gizmo
+        spc = self.context.space_data
         settings = { k:getattr(spc, k) for k in dir(spc) if k.startswith('show_gizmo') }
         # print('manipulator_settings:', settings)
         return settings
-    @blender_version_wrapper(">=", "2.80")
-    def manipulator_set(self, v):
-        # self._space.show_gizmo = v
-        spc = self._space
+    def gizmo_set(self, v):
+        # self.context.space_data.show_gizmo = v
+        spc = self.context.space_data
         if type(v) is bool:
             for k in dir(spc):
                 # DO NOT CHANGE `show_gizmo` VALUE
@@ -270,51 +248,6 @@ class CookieCutter_Blender:
         else:
             for k,v_ in v.items():
                 setattr(spc, k, v_)
+    def gizmo_hide(self):       self.gizmo_set(False)
+    def gizmo_show(self):       self.gizmo_set(True)
 
-    @blender_version_wrapper('<=', '2.83')
-    def statusbar_stats_get(self): return None
-    @blender_version_wrapper('<=', '2.83')
-    def statusbar_stats_set(self, v): pass
-    @blender_version_wrapper('>', '2.83')
-    def statusbar_stats_get(self): return self.context.preferences.view.show_statusbar_stats
-    @blender_version_wrapper('>', '2.83')
-    def statusbar_stats_set(self, v): self.context.preferences.view.show_statusbar_stats = v
-
-    def overlays_store(self):   self._overlays = self.overlays_get()
-    def overlays_restore(self): self.overlays_set(self._overlays)
-    def overlays_hide(self):    self.overlays_set(False)
-    def overlays_show(self):    self.overlays_set(True)
-
-    def quadview_get(self):     return bool(self._space.region_quadviews)
-    def quadview_toggle(self):  bpy.ops.screen.region_quadview({'area': self._area, 'region': self._area.regions[5]})
-    def quadview_set(self, v):
-        if self.quadview_get() != v: self.quadview_toggle()
-    def quadview_store(self):   self._quadview = bool(self._space.region_quadviews)
-    def quadview_restore(self): self.quadview_set(self._quadview)
-    def quadview_hide(self):    self.quadview_set(False)
-    def quadview_show(self):    self.quadview_set(True)
-
-    def scene_scale_store(self):   self._scene_scale = self.scene_scale_get()
-    def scene_scale_restore(self): self.scene_scale_set(self._scene_scale)
-
-    def manipulator_store(self):   self._manipulator = self.manipulator_get()
-    def manipulator_restore(self): self.manipulator_set(self._manipulator)
-    def manipulator_hide(self):    self.manipulator_set(False)
-    def manipulator_show(self):    self.manipulator_set(True)
-
-    def statusbar_stats_store(self):   self._statusbar_stats = self.statusbar_stats_get()
-    def statusbar_stats_restore(self): self.statusbar_stats_set(self._statusbar_stats)
-    def statusbar_stats_hide(self):    self.statusbar_stats_set(False)
-    def statusbar_stats_show(self):    self.statusbar_stats_set(True)
-
-    def gizmo_store(self):         self._manipulator = self.manipulator_get()
-    def gizmo_restore(self):       self.manipulator_set(self._manipulator)
-    def gizmo_hide(self):          self.manipulator_set(False)
-    def gizmo_show(self):          self.manipulator_set(True)
-
-    def viewaa_store(self):         self._viewaa = self.context.preferences.system.viewport_aa
-    def viewaa_restore(self):       self.context.preferences.system.viewport_aa = self._viewaa
-    def viewaa_set(self, v):        self.context.preferences.system.viewport_aa = v
-    def viewaa_simplify(self):
-        if self._viewaa == 'OFF': return
-        self.viewaa_set('FXAA')

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -24,19 +24,20 @@ import re
 import bpy
 
 from ...addon_common.common.boundvar import BoundBool
+from ...addon_common.common.blender import get_path_from_addon_root
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.ui_core import UI_Element
 
-from ...config.options import options, retopoflow_helpdocs_url
+from ...config.options import options, retopoflow_urls
 from ...config.keymaps import get_keymaps
 
 class RetopoFlow_HelpSystem:
     @staticmethod
     def reload_stylings():
         load_defaultstylings()
-        path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')
+        path = get_path_from_addon_root('config', 'ui.css')
         try:
             Globals.ui_draw.load_stylesheet(path)
         except AssertionError as e:
@@ -103,7 +104,7 @@ class RetopoFlow_HelpSystem:
                         self.helpsystem_open(self.rftool.help)
                 elif e.key == 'ESC':
                     close()
-            ui_help = UI_Element.fromHTMLFile(abspath('help_dialog.html'))[0]
+            ui_help = UI_Element.fromHTMLFile(abspath('../html/help_dialog.html'))[0]
             ui_markdown = ui_help.getElementById('helpsystem-mdown')
             self.document.body.append_child(ui_help)
             self.document.body.dirty()

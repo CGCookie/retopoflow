@@ -1,5 +1,5 @@
 <dialog class="framed minimizeable moveable" id="maindialog" on_visibilitychange="self.update_main_ui_window()">
-    <h1>RetopoFlow <script>write(retopoflow_version)</script></h1>
+    <h1>RetopoFlow <script>write(retopoflow_product['version'])</script></h1>
     <div class="contents">
         <div id="tools"></div>
         <details id='help-buttons'>
@@ -22,7 +22,7 @@
                 <button title="Test exception alert" on_mouseclick="self.alert_user(message='Foo', title='Test Alert', level='exception')">Exception</button>
             </div>
         </details>-->
-        <button title='Report an issue with RetopoFlow' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_issues_url)">Report Issue</button>
+        <button title='Report an issue with RetopoFlow' on_mouseclick="bpy.ops.wm.url_open(url=retopoflow_urls['github issues'])">Report Issue</button>
         <button title='Quit RetopoFlow ({humanread("done")})' on_mouseclick="self.done()">Exit</button>
     </div>
 </dialog>

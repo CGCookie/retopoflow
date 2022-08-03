@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import os
 import re
+import json
 import time
 import textwrap
 import importlib
@@ -31,23 +32,56 @@ from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
-# a hack to check if we're under git version control
-# is_git = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
 bl_info = {
     "name":        "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "location":    "View 3D > Header",
     "blender":     (2, 93, 0),
-    "version":     (3, 2, 9),
-    "warning":     "Alpha",                   # used for warning icon and text in addons panel
-    # "warning":     "Beta",
-    # "warning":     "Release Candidate 1",
-    # "warning":     "Release Candidate 2",
+    #######################################################################################
+    # NOTE: the following two lines are automatically updated based on hive.json
+    "version":     (3, 3, 0),   # @hive.version
+    "warning":     "Alpha",     # @hive.release
+    # if "warning" is present (not commented out), a warning icon will show in add-ons list
+    #######################################################################################
     "doc_url":     "https://docs.retopoflow.com",
     "tracker_url": "https://github.com/CGCookie/retopoflow/issues",
     "category":    "3D View",
 }
+
+# update bl_info above based on hive data
+def update_based_on_hive():
+    # the following lines prevent the searching code below from seeing the @hive -dot- things below
+    look_version = '.'.join(['@hive', 'version'])
+    look_release = '.'.join(['@hive', 'release'])
+    from .addon_common.hive.hive import Hive
+    hive = Hive()
+    hive_version = tuple(int(i) for i in hive['version'].split('.'))
+    hive_release = hive['release'].title()
+
+    changed = False
+    changed |= (hive_version != bl_info['version'])
+    changed |= (hive_release != bl_info.get('warning', 'Official'))
+    if not changed: return
+
+    lines = open(__file__, 'rt').read().splitlines()
+    for i in range(len(lines)):
+        if look_version in lines[i]:
+            lines[i] = re.sub(r'\(\d+, *\d+, *\d+\)', str(hive_version), lines[i])
+        elif look_release in lines[i]:
+            if hive_release == 'Official':
+                if not lines[i].lstrip().startswith('# '):
+                    lines[i] = re.sub(r'"warning"', '# "warning"', lines[i])
+            else:
+                if lines[i].lstrip().startswith('# '):
+                    lines[i] = re.sub(r'# "warning"', '"warning"', lines[i])
+                lines[i] = re.sub(r'"(Alpha|Beta|Release Candidate \d)"', f'"{hive_release}"', lines[i])
+    print(f'vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv')
+    print(f'RetopoFlow: UPDATING __init__.py!')
+    print(f'^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
+    open(__file__, 'wt').write('\n'.join(lines))
+update_based_on_hive()
+
 
 import_succeeded = False
 
@@ -59,6 +93,7 @@ else:
             print('RetopoFlow: RELOADING!')
             # reloading RF modules
             importlib.reload(retopoflow)
+            importlib.reload(image_preloader)
             importlib.reload(helpsystem)
             importlib.reload(updatersystem)
             importlib.reload(keymapsystem)
@@ -74,10 +109,10 @@ else:
             from .config import options as configoptions
             from .retopoflow import updater
             from .addon_common.common.maths import convert_numstr_num, has_inverse
-            from .addon_common.common.blender import get_active_object, BlenderIcon
+            from .addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root
+            from .addon_common.common.image_preloader import ImagePreloader
             from .retopoflow import rftool
         options = configoptions.options
-        retopoflow_version = configoptions.retopoflow_version
         import_succeeded = True
         RFTool = rftool.RFTool
     except ModuleNotFoundError as e:
@@ -98,7 +133,7 @@ RF_classes = []
 
 # point BlenderIcon to correct icon path
 if import_succeeded:
-    BlenderIcon.path_icons = os.path.join(os.path.dirname(__file__), 'icons')
+    BlenderIcon.path_icons = get_path_from_addon_root('icons')
 
 
 if import_succeeded:
@@ -185,7 +220,12 @@ if import_succeeded:
         bl_options = set()
     RF_classes += [VIEW3D_OT_RetopoFlow_KeymapEditor]
 
-    if options['preload help images']: retopoflow.preload_help_images()
+    if options['preload help images']:
+        ImagePreloader.start([
+            ('help'),
+            ('icons'),
+            ('addon_common', 'common', 'images'),
+        ])
 
 
 
@@ -274,6 +314,36 @@ if import_succeeded:
             retopoflow.RetopoFlow.create_new_target(context)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
+
+    # class VIEW3D_OT_RetopoFlow_Initialize(retopoflow.RetopoFlow_BlenderUI, Operator):
+    #     """Create new target object+mesh at the active source and start RetopoFlow"""
+    #     bl_idname = "cgcookie.retopoflow_initialize"
+    #     bl_label = "RF: Initialize"
+    #     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nInitialize Blender for a RetopoFlow session"
+    #     bl_space_type = "VIEW_3D"
+    #     bl_region_type = "TOOLS"
+    #     bl_options = {'INTERNAL'}
+
+    #     retopoflow_operator = None
+
+    #     @classmethod
+    #     def poll(cls, context):
+    #         if not context.region or context.region.type != 'WINDOW': return False
+    #         if not context.space_data or context.space_data.type != 'VIEW_3D': return False
+    #         # check we are not in mesh editmode
+    #         if context.mode == 'EDIT_MESH': return False
+    #         # make sure we have source meshes
+    #         if not retopoflow.RetopoFlow.get_sources(): return False
+    #         o = get_active_object()
+    #         if not o: return False
+    #         if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False): return False
+    #         # all seems good!
+    #         return True
+
+    #     def invoke(self, context, event):
+    #         self.initialize(context, event)
+    #         return self.retopoflow_operator('INVOKE_DEFAULT')
+    # RF_classes += [VIEW3D_OT_RetopoFlow_Initialize]
 
     class VIEW3D_OT_RetopoFlow_LastTool(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
@@ -395,10 +465,10 @@ if import_succeeded:
 
 
     rf_label_extra = " (?)"
-    if       configoptions.retopoflow_version_git:    rf_label_extra = " (git)"
-    elif not configoptions.retopoflow_cgcookie_built: rf_label_extra = " (self)"
-    elif     configoptions.retopoflow_github:         rf_label_extra = " (github)"
-    elif     configoptions.retopoflow_blendermarket:  rf_label_extra = ""
+    if       configoptions.retopoflow_product['git version']:     rf_label_extra = " (git)"
+    elif not configoptions.retopoflow_product['cgcookiue built']: rf_label_extra = " (self)"
+    elif     configoptions.retopoflow_product['github']:          rf_label_extra = " (github)"
+    elif     configoptions.retopoflow_product['blender market']:  rf_label_extra = ""
 
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
@@ -417,7 +487,7 @@ if import_succeeded:
 
         def draw(self, context):
             layout = self.layout
-            layout.label(text=f'RetopoFlow {retopoflow_version}{rf_label_extra}')
+            layout.label(text=f'RetopoFlow {configoptions.retopoflow_product["version"]}{rf_label_extra}')
 
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'
@@ -680,7 +750,7 @@ if import_succeeded:
 
         def draw(self, context):
             layout = self.layout
-            if configoptions.retopoflow_version_git:
+            if configoptions.retopoflow_product['git version']:
                 box = layout.box().column(align=True)
                 box.label(text='RetopoFlow under Git control') #, icon='DOT')
                 box.label(text='Use Git to Pull latest updates') #, icon='DOT')
@@ -713,6 +783,8 @@ if not import_succeeded:
     importing failed.  show this to the user!
     '''
 
+    from .addon_common.common.utils import normalize_triplequote
+
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
         bl_label = "RetopoFlow (broken)"
@@ -730,17 +802,41 @@ if not import_succeeded:
             box.label(text='RetopoFlow cannot start.', icon='ERROR')
 
             box = layout.box()
-            tw = textwrap.TextWrapper(width=35)
-            report_lines = [
-                'This is likely due to an incorrect installation of the add-on.',
-                'Please try restarting Blender.'
-                'If that does not work, please download the latest version from the Blender Market.',
-                'If you continue to see this error, contact us through the Blender Market Indox, and we will work to get it fixed!',
-            ]
-            for report_line in report_lines:
-                col = box.column()
-                for l in tw.wrap(text=report_line):
-                    col.label(text=l)
+            tw_p = textwrap.TextWrapper(width=36)
+            tw_ul = textwrap.TextWrapper(width=30)
+            report_lines = normalize_triplequote('''
+                This is likely due to an incorrect installation of the add-on.
+
+                Please try restarting Blender.
+
+                If that does not work, please try:
+
+                - remove RetopoFlow from Blender,
+                - restart Blender,
+                - download the latest version from the Blender Market, then
+                - install RetopoFlow in Blender.
+
+                If you continue to see this error, contact us through the Blender Market Inbox, and we will work to get it fixed!
+            ''')
+            for paragraph in report_lines.split('\n\n'):
+                lines = paragraph.split('\n')
+                icons = ('NONE', 'NONE')
+                tw = tw_p
+                if lines[0].startswith('- '):
+                    nlines = []
+                    for line in lines:
+                        line = line.strip()
+                        if not line.startswith('- '):
+                            nlines[-1] += f' {line}'
+                        else:
+                            nlines += [line[2:].strip()]
+                    lines = nlines
+                    icons = ('DOT', 'BLANK1')
+                    tw = tw_ul
+                col = box.column(align=True)
+                for line in lines:
+                    for i, l in enumerate(tw.wrap(text=line)):
+                        col.label(text=l, icon=icons[0 if i==0 else 1])
 
             box = layout.box()
             box.operator('cgcookie.retopoflow_blendermarket', icon='URL')
@@ -755,7 +851,7 @@ def register():
     bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 
 def unregister():
-    if import_succeeded: retopoflow.preload_help_images.quit = True
+    if import_succeeded: ImagePreloader.quit()
     bpy.types.VIEW3D_MT_editor_menus.remove(VIEW3D_PT_RetopoFlow.draw_popover)
     if import_succeeded: updater.unregister()
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)

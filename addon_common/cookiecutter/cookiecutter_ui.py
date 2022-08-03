@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 
 https://github.com/CGCookie/retopoflow
 
@@ -120,9 +120,10 @@ class CookieCutter_UI:
                 ScissorStack.end(force=True)
                 self._done = True               # consider this a fatal failure
 
-        self._handle_preview   = self._space.draw_handler_add(preview,   tuple(), 'WINDOW', 'PRE_VIEW')
-        self._handle_postview  = self._space.draw_handler_add(postview,  tuple(), 'WINDOW', 'POST_VIEW')
-        self._handle_postpixel = self._space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
+        space = bpy.types.SpaceView3D
+        self._handle_preview   = space.draw_handler_add(preview,   tuple(), 'WINDOW', 'PRE_VIEW')
+        self._handle_postview  = space.draw_handler_add(postview,  tuple(), 'WINDOW', 'POST_VIEW')
+        self._handle_postpixel = space.draw_handler_add(postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
         tag_redraw_all('CC ui_start', only_tag=False)
 
     def _cc_ui_update(self):
@@ -134,9 +135,10 @@ class CookieCutter_UI:
 
     def _cc_ui_end(self):
         self._cc_blenderui_end()
-        self._space.draw_handler_remove(self._handle_preview,   'WINDOW')
-        self._space.draw_handler_remove(self._handle_postview,  'WINDOW')
-        self._space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
+        space = bpy.types.SpaceView3D
+        space.draw_handler_remove(self._handle_preview,   'WINDOW')
+        space.draw_handler_remove(self._handle_postview,  'WINDOW')
+        space.draw_handler_remove(self._handle_postpixel, 'WINDOW')
         self.region_restore()
         self.context.workspace.status_text_set(None)
         tag_redraw_all('CC ui_end', only_tag=False)

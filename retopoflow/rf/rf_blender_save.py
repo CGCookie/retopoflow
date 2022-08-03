@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -29,7 +29,7 @@ from mathutils import Matrix, Vector
 from bpy_extras.object_utils import object_data_add
 from bpy.app.handlers import persistent
 
-from ...config.options import options, retopoflow_version
+from ...config.options import options
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.boundvar import BoundBool
@@ -48,7 +48,7 @@ from ...addon_common.common.blender import (
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 
-from .rf_blender import RetopoFlow_Blender
+from .rf_blender_ui import RetopoFlow_Blender_UI
 
 
 
@@ -56,10 +56,10 @@ from .rf_blender import RetopoFlow_Blender
 def revert_auto_save_after_load(*_, **__):
     # remove recover handler
     bpy.app.handlers.load_post.remove(revert_auto_save_after_load)
-    RetopoFlow_BlenderSave.recovery_revert()
+    RetopoFlow_Blender_Save.recovery_revert()
 
 
-class RetopoFlow_BlenderSave:
+class RetopoFlow_Blender_Save:
     '''
     backup / restore methods
     '''
@@ -82,29 +82,34 @@ class RetopoFlow_BlenderSave:
             )
 
         # grab previous blender state
-        if options['blender state'] not in bpy.data.texts: return   # no blender state!?!?
-        data = json.loads(bpy.data.texts[options['blender state']].as_string())
+        if options['blender state'] not in bpy.data.texts:
+            data = json.loads(bpy.data.texts[options['blender state']].as_string())
 
-        # get target object and reset settings
-        tar_object = bpy.data.objects[data['active object']]
-        tar_object.hide_viewport = False
-        tar_object.hide_render = False
-        bpy.context.view_layer.objects.active = tar_object
-        tar_object.select_set(True)
+            # get target object and reset settings
+            tar_object = bpy.data.objects[data['active object']]
+            tar_object.hide_viewport = False
+            tar_object.hide_render = False
+            bpy.context.view_layer.objects.active = tar_object
+            tar_object.select_set(True)
+
+            RetopoFlow_Normalize.end_normalize(bpy.context)
+
+            bpy.data.texts.remove(
+                bpy.data.texts[options['blender state']],
+                do_unlink=True,
+            )
 
         # restore window state (mostly tool, properties, header, etc.)
-        RetopoFlow_Blender.restore_window_state(
-            ignore_panels=False,
-            ignore_mode=False,
-        )
+        # RetopoFlow_Blender_UI.restore_window_state(
+        #     ignore_panels=False,
+        #     ignore_mode=False,
+        # )
+        print('X'*100)
+        print('X'*100)
+        print('TODO: IMPLEMENT RetopoFlow_Blender_Save.recovery_revert')
+        print('X'*100)
+        print('X'*100)
 
-        factor = data['unit scaling factor']
-        RetopoFlow_Blender.scale_sources_target(factor)
-
-        bpy.data.texts.remove(
-            bpy.data.texts[options['blender state']],
-            do_unlink=True,
-        )
 
 
     @staticmethod
@@ -122,7 +127,7 @@ class RetopoFlow_BlenderSave:
         }
 
     def check_auto_save_warnings(self):
-        settings = RetopoFlow_BlenderSave.get_auto_save_settings(self.actions.context)
+        settings = RetopoFlow_Blender_Save.get_auto_save_settings(self.actions.context)
         save = self.actions.to_human_readable('blender save')
         good_auto_save = settings['auto save']
         path_autosave = settings['auto save path']
@@ -212,13 +217,13 @@ class RetopoFlow_BlenderSave:
     def save_backup(self):
         if hasattr(self, '_backup_broken'): return
         if self.last_change_count == self.change_count:
-            print('skipping backup save')
+            print(f'RetopoFlow: skipping backup save (no changes detected)')
             return
 
         filepath = options.get_auto_save_filepath()
         filepath1 = f'{filepath}1'
 
-        print(f'saving backup: {filepath}')
+        print(f'RetopoFlow: saving backup to {filepath}')
         errors = {}
 
         if os.path.exists(filepath):
@@ -272,18 +277,17 @@ class RetopoFlow_BlenderSave:
             )
 
     def save_normal(self):
-        self.blender_ui_reset()
-        try:
-            bpy.ops.wm.save_mainfile()
-        except Exception as e:
-            # could not save for some reason; let the artist know!
-            self.alert_user(
-                title='Could not save',
-                message=f'Could not save blend file.\n\nError message: "{e}"',
-                level='warning',
-            )
-        self.blender_ui_set()
+        with self.blender_ui_pause():
+            try:
+                bpy.ops.wm.save_mainfile()
+            except Exception as e:
+                # could not save for some reason; let the artist know!
+                self.alert_user(
+                    title='Could not save',
+                    message=f'Could not save blend file.\n\nError message: "{e}"',
+                    level='warning',
+                )
         # note: filepath might not be set until after save
         filepath = os.path.abspath(bpy.data.filepath)
-        print(f'saved: {filepath}')
+        print(f'RetopoFlow: saved to {filepath}')
 

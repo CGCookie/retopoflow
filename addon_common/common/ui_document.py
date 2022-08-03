@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -124,7 +124,7 @@ class UI_Document:
 
         self._context = context
         self._area = context.area
-        self.actions = ActionHandler(bpy.context, UI_Document.default_keymap)
+        self.actions = ActionHandler(context, UI_Document.default_keymap)
         self._body = UI_Element(tagName='body', document=self)  # root level element
         self._tooltip = UI_Element(tagName='dialog', classes='tooltip', can_hover=False, parent=self._body)
         self._tooltip.is_visible = False

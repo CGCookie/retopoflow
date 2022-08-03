@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -45,11 +45,12 @@ from .ui_utilities import (
     skip_token,
 )
 
+from .blender import get_path_from_addon_common
 from .decorators import blender_version_wrapper, debug_test_call, add_cache
 from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
 from .profiler import profiler
 from .drawing import Drawing, ScissorStack
-from .utils import iter_head, UniqueCounter, join, abspath
+from .utils import iter_head, UniqueCounter, join
 from .shaders import Shader
 from .fontmanager import FontManager
 
@@ -1119,7 +1120,7 @@ class UI_Styling:
 ui_defaultstylings = UI_Styling(defaults=True)
 def load_defaultstylings():
     global ui_defaultstylings
-    path = abspath('config', 'ui_defaultstyles.css')
+    path = get_path_from_addon_common('common', 'config', 'ui_defaultstyles.css')
     if os.path.exists(path): ui_defaultstylings.load_from_file(path)
     else: ui_defaultstylings.rules = []
 load_defaultstylings()

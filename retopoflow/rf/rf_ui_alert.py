@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -35,19 +35,18 @@ from concurrent.futures import ThreadPoolExecutor
 import bpy
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
+from ...addon_common.common.blender import get_preferences, get_path_from_addon_root
 from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat, BoundString
-from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.globals import Globals
-from ...addon_common.common.blender import get_preferences
+from ...addon_common.common.inspect import ScopeBuilder
+from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
-from ...addon_common.common.profiler import profiler
-from ...addon_common.common.inspect import ScopeBuilder
+from ...addon_common.common.utils import delay_exec
 
 from ...config.options import (
     options, themes, visualization,
-    retopoflow_issues_url, retopoflow_tip_url,
-    retopoflow_version, retopoflow_version_git, retopoflow_cgcookie_built, retopoflow_github, retopoflow_blendermarket,
+    retopoflow_urls, retopoflow_product, retopoflow_files,
     build_platform,
     platform_system, platform_node, platform_release, platform_version, platform_machine, platform_processor,
     gpu_info,
@@ -60,13 +59,13 @@ def get_environment_details():
 
     env_details = []
     env_details += ['Environment:\n']
-    env_details += [f'- RetopoFlow: {retopoflow_version}']
-    if retopoflow_version_git:
-        env_details += [f'- RF git: {retopoflow_version_git}']
-    elif retopoflow_cgcookie_built:
-        if retopoflow_github:
+    env_details += [f'- RetopoFlow: {retopoflow_product["version"]}']
+    if retopoflow_product['git version']:
+        env_details += [f'- RF git: {retopoflow_product["git version"]}']
+    elif retopoflow_product['cgcookie built']:
+        if retopoflow_product['github']:
             env_details += ['- CG Cookie built for GitHub']
-        elif retopoflow_blendermarket:
+        elif retopoflow_product['blender market']:
             env_details += ['- CG Cookie built for Blender Market']
         else:
             env_details += ['- CG Cookie built for ??']
@@ -140,7 +139,7 @@ class RetopoFlow_UI_Alert:
         if title is None and self.rftool: title = self.rftool.name
 
         def screenshot():
-            ss_filename = options['screenshot filename']
+            ss_filename = retopoflow_files['screenshot filename']
             if getattr(bpy.data, 'filepath', ''):
                 # loaded .blend file
                 filepath = os.path.split(os.path.abspath(bpy.data.filepath))[0]
@@ -151,7 +150,7 @@ class RetopoFlow_UI_Alert:
             bpy.ops.screen.screenshot(filepath=filepath)
             self.alert_user(message=f'Saved screenshot to "{filepath}"')
         def open_issues():
-            bpy.ops.wm.url_open(url=retopoflow_issues_url)
+            bpy.ops.wm.url_open(url=retopoflow_urls['github issues'])
         def search():
             url = f'https://github.com/CGCookie/retopoflow/issues?q=is%3Aissue+{msghash}'
             bpy.ops.wm.url_open(url=url)
@@ -159,13 +158,13 @@ class RetopoFlow_UI_Alert:
             nonlocal msg_report
             nonlocal report_details
 
-            path = abspath('..', '..', 'help', 'issue_template_simple.md')
+            path = get_path_from_addon_root('help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
                 'title': f'{self.rftool.name}: {title}',
                 'body': f'{issue_template}\n\n```\n{msg_report}\n```',
             }
-            url =  f'{options["github new issue url"]}?{urllib.parse.urlencode(data)}'
+            url =  f'{retopoflow_urls["new github issue"]}?{urllib.parse.urlencode(data)}'
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
@@ -306,7 +305,7 @@ class RetopoFlow_UI_Alert:
         scope.capture_var('level')
 
         win = UI_Element.fromHTMLFile(
-            abspath('alert_dialog.html'),
+            get_path_from_addon_root('retopoflow', 'html', 'alert_dialog.html'),
             frame_depth=2,
             **scope
         )[0]

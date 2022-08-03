@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -45,7 +45,7 @@ class RetopoFlow_Sources:
         print('  rfsources...')
         self.rfsources = [RFSource.new(src) for src in self.get_sources()]
         print('  bboxes...')
-        self.sources_bbox = BBox.merge([rfs.get_bbox() for rfs in self.rfsources])
+        self.sources_bbox = BBox.merge(rfs.get_bbox() for rfs in self.rfsources)
         dprint('%d sources found' % len(self.rfsources))
         opts = visualization.get_source_settings()
         print('  drawing...')

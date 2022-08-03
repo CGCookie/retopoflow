@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -24,6 +24,7 @@ import time
 import inspect
 import contextlib
 
+from .blender import get_path_from_addon_root
 from .globals import Globals
 
 def clamp(v, m, M):
@@ -306,8 +307,7 @@ class Profiler:
         self.last_profile_out = time.time()
 
         # .. back to retopoflow root
-        path = os.path.dirname(os.path.abspath(__file__))
-        filename = os.path.join(path, '..', Profiler._filename)
+        filename = get_path_from_addon_root(Profiler._filename)
         open(filename, 'wt').write(self.strout())
 
 profiler = Profiler()

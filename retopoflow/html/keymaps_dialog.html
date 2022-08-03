@@ -28,15 +28,15 @@
                     </tr><tr>
                         <td>Mouse Button</td>
                         <td>
-                            <label id="edit-lmb-label"><input id="edit-lmb" type="radio" name="edit-key-mouse" value="lmb" on_mouseclick="edit_lmb()" title="Click to use left mouse button (LMB) for action">Left (LMB)</label>
-                            <label id="edit-mmb-label"><input id="edit-mmb" type="radio" name="edit-key-mouse" value="mmb" on_mouseclick="edit_mmb()" title="Click to use middle mouse button (MMB) for action">Middle (MMB)</label>
-                            <label id="edit-rmb-label"><input id="edit-rmb" type="radio" name="edit-key-mouse" value="rmb" on_mouseclick="edit_rmb()" title="Click to use right mouse button (RMB) for action">Right (RMB)</label>
+                            <label id="edit-lmb-label"><input id="edit-lmb" type="radio" name="edit-key-mouse" value="lmb" on_mouseclick="edit_capture_mouse('LEFTMOUSE')" title="Click to use left mouse button (LMB) for action">Left (LMB)</label>
+                            <label id="edit-mmb-label"><input id="edit-mmb" type="radio" name="edit-key-mouse" value="mmb" on_mouseclick="edit_capture_mouse('MIDDLEMOUSE')" title="Click to use middle mouse button (MMB) for action">Middle (MMB)</label>
+                            <label id="edit-rmb-label"><input id="edit-rmb" type="radio" name="edit-key-mouse" value="rmb" on_mouseclick="edit_capture_mouse('RIGHTMOUSE')" title="Click to use right mouse button (RMB) for action">Right (RMB)</label>
                         </td>
                     </tr><tr>
                         <td>Mouse Wheel</td>
                         <td>
-                            <label id="edit-wu-label"><input id="edit-wu" type="radio" name="edit-key-mouse" value="wu" on_mouseclick="edit_wheelup()" title="Click to use mouse wheel up for action">Wheel Up</label>
-                            <label id="edit-wd-label"><input id="edit-wd" type="radio" name="edit-key-mouse" value="wd" on_mouseclick="edit_wheeldown()" title="Click to use mouse wheel down for action">Wheel Down</label>
+                            <label id="edit-wu-label"><input id="edit-wu" type="radio" name="edit-key-mouse" value="wu" on_mouseclick="edit_capture_mouse('WHEELUPMOUSE')" title="Click to use mouse wheel up for action">Wheel Up</label>
+                            <label id="edit-wd-label"><input id="edit-wd" type="radio" name="edit-key-mouse" value="wd" on_mouseclick="edit_capture_mouse('WHEELDOWNMOUSE')" title="Click to use mouse wheel down for action">Wheel Down</label>
                         </td>
                     </tr>
                 </table>

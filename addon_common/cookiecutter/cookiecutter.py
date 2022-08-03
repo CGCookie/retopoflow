@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 
 https://github.com/CGCookie/retopoflow
 
@@ -79,12 +79,15 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
     @classmethod
     def can_start(cls, context): return True
 
+    def prestart(self): pass
+    def is_ready_to_start(self): return True
     def start(self): pass
     def update(self): pass
     def end_commit(self): pass
     def end_cancel(self): pass
     def end(self): pass
     def should_pass_through(self, context, event): return False
+
     ############################################################################
 
     @classmethod
@@ -94,13 +97,59 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         return False
 
     def invoke(self, context, event):
-        global CC_DEBUG
+        self._cc_stage = 'prestart'
+        self.context = context
+        self.event = event
 
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        self.context = context
+        self.event = event
+
+        if self._cc_stage == 'quit':
+            return {'FINISHED'}
+
+        if self._cc_stage == 'prestart':
+            print(f'CookieCutter: calling prestart')
+            self._cc_fsm_force_event()
+            return self.modal_prestart()
+
+        if self._cc_stage == 'start when ready':
+            self._cc_fsm_force_event()
+            return self.modal_start_when_ready()
+
+        if self._cc_stage == 'start':
+            print(f'CookieCutter: calling start')
+            self._cc_fsm_force_event()
+            return self.modal_start()
+
+        return self.modal_mainloop()
+
+    def modal_prestart(self):
+        try:
+            self.prestart()
+            self._cc_stage = 'start when ready'
+            return {'RUNNING_MODAL'}
+        except Exception as e:
+            self._handle_exception(e, 'call prestart()')
+            return {'CANCELLED'}
+
+    def modal_start_when_ready(self):
+        try:
+            if self.is_ready_to_start():
+                self._cc_stage = 'start'
+            self.context.window.cursor_warp(self.event.mouse_x, self.event.mouse_y)
+            return {'RUNNING_MODAL'}
+        except Exception as e:
+            self._handle_exception(e, 'call is_ready_to_start()')
+            return {'CANCELLED'}
+
+    def modal_start(self):
         self._nav = False
         self._nav_time = 0
         self._done = False
-        self.context = context
-        self.event = None
         self._start_time = time.time()
         self._tmp_time = self._start_time
 
@@ -111,24 +160,25 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
             self._cc_actions_init()
         except Exception as e:
             self._handle_exception(e, 'initializing Exception Callbacks, FSM, UI, Actions')
-        try: self.start()
-        except Exception as e: self._handle_exception(e, 'call start()')
-        try: self._cc_ui_start()
-        except Exception as e: self._handle_exception(e, 'starting UI')
+            return {'CANCELLED'}
 
-        self.context.window_manager.modal_handler_add(self)
+        try:
+            self.start()
+        except Exception as e:
+            self._handle_exception(e, 'call start()')
+            return {'CANCELLED'}
+
+        try:
+            self._cc_ui_start()
+        except Exception as e:
+            self._handle_exception(e, 'starting UI')
+            return {'CANCELLED'}
+
+        self._cc_stage = 'main loop'
         return {'RUNNING_MODAL'}
 
-    def done(self, *, cancel=False, emergency_bail=False):
-        if emergency_bail:
-            self._done = 'bail'
-        else:
-            self._done = 'commit' if not cancel else 'cancel'
-
-    def modal(self, context, event):
+    def modal_mainloop(self):
         # print('CookieCutter.modal', event.type, time.time())
-        self.context = context
-        self.event = event
         self.drawcallbacks.reset_pre()
 
         if time.time() - self._tmp_time >= 1:
@@ -178,15 +228,22 @@ class CookieCutter(Operator, CookieCutter_UI, CookieCutter_FSM, CookieCutter_Ble
         except Exception as e: self._handle_exception(e, 'call update')
 
 
-        if self.should_pass_through(context, event):
+        if self.should_pass_through(self.context, self.event):
             ret = {'PASS_THROUGH'}
 
         if not ret:
             self._cc_fsm_update()
             ret = {'RUNNING_MODAL'}
 
-        perform_redraw_all(only_area=context.area)
+        perform_redraw_all(only_area=self.context.area)
         return ret
+
+
+    def done(self, *, cancel=False, emergency_bail=False):
+        if emergency_bail:
+            self._done = 'bail'
+        else:
+            self._done = 'commit' if not cancel else 'cancel'
 
 
     def _cc_actions_init(self):

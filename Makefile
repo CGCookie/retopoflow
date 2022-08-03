@@ -11,38 +11,36 @@
 # SETTINGS
 # /./././././././././././././././././././././././././././././././
 
-# TODO: get version from options
 # TODO: warn if profiling is enabled!
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
-NAME            = RetopoFlow
-
-VERSION         = "v3.2.9"
-
-# NOTE: one of the following must be uncommented
-RELEASE         = "alpha"
-# RELEASE         = "beta"
-# RELEASE         = "official"
-
-
-ifeq ($(RELEASE), "official")
-	ZIP_VERSION = "$(VERSION)"
-else
-	ZIP_VERSION = "$(VERSION)-$(RELEASE)"
-endif
-GIT_TAG_MESSAGE = "This is the $(RELEASE) release for RetopoFlow $(VERSION)"
-
-BUILD_DIR         = ../retopoflow_release
-INSTALL_DIR       = ~/.config/blender/addons
+# scripts
+HIVE_VAL          = $(shell pwd)/scripts/get_hive_value.py
 DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
+
+# name, version, and release are pulled from hive.json file
+NAME    = "$(shell $(HIVE_VAL) name)"
+VERSION = "$(shell $(HIVE_VAL) version)"
+RELEASE = "$(shell $(HIVE_VAL) release)"
+
+VVERSION = "v$(VERSION)"
+ifeq ($(RELEASE), "official")
+	ZIP_VERSION = "$(VVERSION)"
+else
+	ZIP_VERSION = "$(VVERSION)-$(RELEASE)"
+endif
+GIT_TAG_MESSAGE = "This is the $(RELEASE) release for RetopoFlow $(VVERSION)"
+
+BUILD_DIR         = $(shell pwd)/../retopoflow_release
+INSTALL_DIR       = ~/.config/blender/addons
 CGCOOKIE_BUILT    = $(NAME)/.cgcookie
 ZIP_GH            = $(NAME)_$(ZIP_VERSION)-GitHub.zip
 ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 
 
-.DEFAULT_GOAL 	:= build
+.DEFAULT_GOAL 	:= info
 
 .PHONY: docs
 
@@ -52,6 +50,12 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 # /./././././././././././././././././././././././././././././././
 
 
+info:
+	@echo "Information:"
+	@echo "  "$(NAME)" "$(ZIP_VERSION)
+	@echo "  Build: "$(BUILD_DIR)
+	@echo "  Install: "$(INSTALL_DIR)
+
 clean:
 	rm -rf $(BUILD_DIR)
 	@echo "Release folder deleted"
@@ -59,8 +63,8 @@ clean:
 
 gittag:
 	# create a new annotated (-a) tag and push to GitHub
-	git tag -a $(VERSION) -m $(GIT_TAG_MESSAGE)
-	git push origin $(VERSION)
+	git tag -a $(VVERSION) -m $(GIT_TAG_MESSAGE)
+	git push origin $(VVERSION)
 
 
 docs:
@@ -99,7 +103,7 @@ build-github: check
 	cd $(BUILD_DIR) && zip -r $(ZIP_GH) $(NAME)
 
 	@echo
-	@echo $(NAME)" "$(VERSION)" is ready"
+	@echo $(NAME)" "$(VVERSION)" is ready"
 
 build-blendermarket: check
 	mkdir -p $(BUILD_DIR)
@@ -118,7 +122,8 @@ build-blendermarket: check
 	cd $(BUILD_DIR) && zip -r $(ZIP_BM) $(NAME)
 
 	@echo
-	@echo $(NAME)" "$(VERSION)" is ready"
+	@echo $(NAME)" "$(VVERSION)" is ready"
+
 
 install:
 	rm -r $(INSTALL_DIR)/$(NAME)

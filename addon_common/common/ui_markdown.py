@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -41,6 +41,7 @@ from .ui_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head
 from .ui_styling import UI_Styling
 
+from .blender import get_path_from_addon_root, get_path_from_addon_common
 from .boundvar import BoundVar, BoundFloat, BoundInt, BoundString, BoundStringToBool, BoundBool
 from .decorators import blender_version_wrapper
 from .drawing import Drawing, ScissorStack
@@ -49,7 +50,7 @@ from .globals import Globals
 from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit
 from .markdown import Markdown
 from .profiler import profiler, time_it
-from .utils import Dict, delay_exec, get_and_discard, strshort, abspath
+from .utils import Dict, delay_exec, get_and_discard, strshort
 
 
 from ..ext import png
@@ -90,12 +91,11 @@ def get_mdown_path(fn, ext=None, subfolders=None):
     # or <root>/images where <root> is the 2 levels above this file
     if subfolders is None:
         subfolders = ['help']
-    if ext:
-        fn = '%s.%s' % (fn,ext)
-    paths = [abspath('..', '..', p, fn) for p in subfolders]
-    paths += [abspath('images', fn)]
+    if ext: fn = f'{fn}.{ext}'
+    paths = [get_path_from_addon_root(subfolder, fn) for subfolder in subfolders]
+    paths += [get_path_from_addon_common('common', 'images', fn)]
     paths = [p for p in paths if os.path.exists(p)]
-    return iter_head(paths, None)
+    return iter_head(paths, default=None)
 
 def load_text_file(path):
     try: return open(path, 'rt').read()

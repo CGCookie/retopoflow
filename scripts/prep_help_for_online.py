@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import glob
+import json
 import shutil
 import codecs
 
@@ -252,9 +253,20 @@ keymaps_data = '\n'.join(keymaps_data)
 write_file(path_keymaps, keymaps_data)
 
 
+# process hive
+release_short = {
+    'alpha':    'α',
+    'beta':     'β',
+    'official': '',
+}
+hive_path = os.path.join(os.path.dirname(__file__), '..', 'hive.json')
+hive = json.load(open(hive_path, 'rt'))
+version = retopoflow_product['hive']['version']
+release = retopoflow_product['hive']['release']
+
+
 # process options
 grab = [
-    ('rf_version',          re.compile(r'''retopoflow_version *= *(?P<val>'[^']+'|"[^"]+")''')),
     ('warning_max_sources', re.compile(r''''warning max sources' *: *(?P<val>'[^']+'|"[^"]*")''')),
     ('warning_max_target',  re.compile(r''''warning max target' *: *(?P<val>'[^']+'|"[^"]*")''')),
 ]
@@ -266,6 +278,7 @@ for k,r in grab:
         print(f'Could not find match for ({k},{r})')
         continue
     options_data.append(f"{k}: {m.group('val')}")
+options_data += [f'rf_version: {version}{release_short[release]}']
 options_data = '\n'.join(options_data)
 write_file(path_options, options_data)
 

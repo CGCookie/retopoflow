@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -53,7 +53,7 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
-from .blender import tag_redraw_all
+from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
 from .drawing import ScissorStack, FrameBuffer
@@ -72,7 +72,7 @@ from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .shaders import Shader
-from .utils import iter_head, any_args, join, abspath
+from .utils import iter_head, any_args, join
 
 from ..ext import png
 from ..ext.apng import APNG
@@ -110,9 +110,9 @@ class UI_Element_Defaults:
 
 @add_cache('_cache', {})
 @add_cache('_paths', [
-    os.path.abspath(os.path.curdir),
-    os.path.join(os.path.abspath(os.path.curdir), 'fonts'),
-    abspath('fonts'),
+    get_path_from_addon_common('common', 'fonts'),
+    get_path_from_addon_common('common'),
+    get_path_from_addon_root('fonts'),
 ])
 def get_font_path(fn, ext=None):
     cache = get_font_path._cache
@@ -193,21 +193,21 @@ def get_image_path(fn, ext=None, subfolders=None):
     returns first path where fn is found
     order of search: <addon_root>/icons, <addon_root>/images, <addon_root>/help, <addon_root>/addon_common/common/images
     '''
-    path_here = os.path.dirname(__file__)
-    path_root = os.path.join(path_here, '..', '..')
-    if subfolders is None:
-        path_addon_common = os.path.dirname(os.path.abspath(path_here))
-        subfolders = [
-            'icons',
-            'images',
-            'help',
-            os.path.join(path_addon_common, 'common', 'images'),
-        ]
+    assert not subfolders, f'Subfolders arg for get_image_path not implemented, yet'
     if ext: fn = f'{fn}.{ext}'
-    paths = [os.path.join(path_root, subfolder, fn) for subfolder in subfolders]
-    paths = [p for p in paths if os.path.exists(p)]
-    found = iter_head(paths, None)
-    return found
+    return iter_head(
+        [
+            path
+            for path in [
+                get_path_from_addon_root('icons', fn),
+                get_path_from_addon_root('images', fn),
+                get_path_from_addon_root('help', fn),
+                get_path_from_addon_common('common', 'images', fn),
+            ]
+            if os.path.exists(path)
+        ],
+        default=None,
+    )
 
 
 

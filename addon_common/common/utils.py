@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -41,6 +41,38 @@ from .maths import (
 )
 
 
+def normalize_triplequote(
+    s,
+    *,
+    remove_trailing_spaces=True,
+    remove_first_leading_newline=True,
+    remove_all_leading_newlines=False,
+    dedent=True,
+    remove_all_trailing_newlines=True,
+    ensure_trailing_newline=True,
+):
+    '''
+    todo:
+    - (re)wrap text to given line length
+    - sub '\n\n' for '\n\n\n+'
+    - replace HTML chars with UTF?
+    '''
+    if remove_trailing_spaces:
+        s = '\n'.join(l.rstrip() for l in s.splitlines())
+    if remove_all_leading_newlines:
+        s = re.sub(r'^\n+', '', s)
+    elif remove_first_leading_newline:
+        s = re.sub(r'^\n', '', s)
+    if dedent:
+        lines = s.splitlines()
+        indent = min((len(line) - len(line.lstrip()) for line in lines if line.lstrip()), default=0)
+        s = '\n'.join(line[indent:] for line in lines)
+    if remove_all_trailing_newlines:
+        s = re.sub(r'\n+$', '', s)
+    if ensure_trailing_newline:
+        if not s.endswith('\n'):
+            s += '\n'
+    return s
 
 
 ##################################################
@@ -78,72 +110,72 @@ def registered_check():
 #################################################
 
 
-def find_and_import_all_subclasses(cls, root_path=None):
-    here_path = os.path.realpath(os.path.dirname(__file__))
-    if root_path is None:
-        root_path = os.path.realpath(os.path.join(here_path, '..'))
+# def find_and_import_all_subclasses(cls, root_path=None):
+#     here_path = os.path.realpath(os.path.dirname(__file__))
+#     if root_path is None:
+#         root_path = os.path.realpath(os.path.join(here_path, '..'))
 
-    touched_paths = set()
-    found_subclasses = set()
+#     touched_paths = set()
+#     found_subclasses = set()
 
-    def search(root):
-        nonlocal touched_paths, found_subclasses, here_path
+#     def search(root):
+#         nonlocal touched_paths, found_subclasses, here_path
 
-        root = os.path.realpath(root)
-        if root in touched_paths: return
-        touched_paths.add(root)
+#         root = os.path.realpath(root)
+#         if root in touched_paths: return
+#         touched_paths.add(root)
 
-        relpath = os.path.relpath(root, here_path)
-        #print('  relpath: %s' % relpath)
+#         relpath = os.path.relpath(root, here_path)
+#         #print('  relpath: %s' % relpath)
 
-        for path in glob.glob(os.path.join(root, '*')):
-            if os.path.isdir(path):
-                if not path.endswith('__pycache__'):
-                    search(path)
-                continue
-            if os.path.splitext(path)[1] != '.py':
-                continue
+#         for path in glob.glob(os.path.join(root, '*')):
+#             if os.path.isdir(path):
+#                 if not path.endswith('__pycache__'):
+#                     search(path)
+#                 continue
+#             if os.path.splitext(path)[1] != '.py':
+#                 continue
 
-            try:
-                pyfile = os.path.splitext(os.path.basename(path))[0]
-                if pyfile == '__init__': continue
-                pyfile = os.path.join(relpath, pyfile)
-                pyfile = re.sub(r'\\', '/', pyfile)
-                if pyfile.startswith('./'): pyfile = pyfile[2:]
-                level = pyfile.count('..')
-                pyfile = re.sub(r'^(\.\./)*', '', pyfile)
-                pyfile = re.sub('/', '.', pyfile)
-                #print('    Searching: %s (%d, %s)' % (pyfile, level, path))
-                try:
-                    tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
-                except Exception as e:
-                    print('Caught exception while attempting to search for classes')
-                    print('  cls: %s' % str(cls))
-                    print('  pyfile: %s' % pyfile)
-                    print('  %s' % str(e))
-                    #print('      Could not import')
-                    continue
-                for tk in dir(tmp):
-                    m = getattr(tmp, tk)
-                    if not inspect.ismodule(m): continue
-                    for k in dir(m):
-                        v = getattr(m, k)
-                        if not inspect.isclass(v): continue
-                        if v is cls: continue
-                        if not issubclass(v, cls): continue
-                        # v is a subclass of cls, so add it to the global namespace
-                        #print('      Found %s in %s' % (str(v), pyfile))
-                        globals()[k] = v
-                        found_subclasses.add(v)
-            except Exception as e:
-                print('Exception occurred while searching %s' % path)
-                debugger.print_exception()
+#             try:
+#                 pyfile = os.path.splitext(os.path.basename(path))[0]
+#                 if pyfile == '__init__': continue
+#                 pyfile = os.path.join(relpath, pyfile)
+#                 pyfile = re.sub(r'\\', '/', pyfile)
+#                 if pyfile.startswith('./'): pyfile = pyfile[2:]
+#                 level = pyfile.count('..')
+#                 pyfile = re.sub(r'^(\.\./)*', '', pyfile)
+#                 pyfile = re.sub('/', '.', pyfile)
+#                 #print('    Searching: %s (%d, %s)' % (pyfile, level, path))
+#                 try:
+#                     tmp = importlib.__import__(pyfile, globals(), locals(), [], level=level+1)
+#                 except Exception as e:
+#                     print('Caught exception while attempting to search for classes')
+#                     print('  cls: %s' % str(cls))
+#                     print('  pyfile: %s' % pyfile)
+#                     print('  %s' % str(e))
+#                     #print('      Could not import')
+#                     continue
+#                 for tk in dir(tmp):
+#                     m = getattr(tmp, tk)
+#                     if not inspect.ismodule(m): continue
+#                     for k in dir(m):
+#                         v = getattr(m, k)
+#                         if not inspect.isclass(v): continue
+#                         if v is cls: continue
+#                         if not issubclass(v, cls): continue
+#                         # v is a subclass of cls, so add it to the global namespace
+#                         #print('      Found %s in %s' % (str(v), pyfile))
+#                         globals()[k] = v
+#                         found_subclasses.add(v)
+#             except Exception as e:
+#                 print('Exception occurred while searching %s' % path)
+#                 debugger.print_exception()
 
-    #print('Searching for class %s' % str(cls))
-    #print('  cwd: %s' % os.getcwd())
-    #print('  Root: %s' % root_path)
-    search(root_path)
-    return found_subclasses
+#     #print('Searching for class %s' % str(cls))
+#     #print('  cwd: %s' % os.getcwd())
+#     #print('  Root: %s' % root_path)
+#     search(root_path)
+#     return found_subclasses
 
 
 #########################################################
@@ -173,41 +205,41 @@ def delay_exec(action, f_globals=None, f_locals=None, ordered_parameters=None, p
 #########################################################
 
 
-def git_info(start_at_caller=True):
-    if start_at_caller:
-        path_root = os.path.abspath(inspect.stack()[1][1])
-    else:
-        path_root = os.path.abspath(os.path.dirname(__file__))
-    try:
-        path_git_head = None
-        while path_root:
-            path_test = os.path.join(path_root, '.git', 'HEAD')
-            if os.path.exists(path_test):
-                # found it!
-                path_git_head = path_test
-                break
-            if os.path.split(path_root)[1] in {'addons', 'addons_contrib'}:
-                break
-            path_root = os.path.dirname(path_root)  # try next level up
-        if not path_git_head:
-            # could not find .git folder
-            return None
-        path_git_ref = open(path_git_head).read().split()[1]
-        if not path_git_ref.startswith('refs/heads/'):
-            print('git detected, but HEAD uses unexpected format')
-            return None
-        path_git_ref = path_git_ref[len('refs/heads/'):]
-        git_ref_fullpath = os.path.join(path_root, '.git', 'logs', 'refs', 'heads', path_git_ref)
-        if not os.path.exists(git_ref_fullpath):
-            print('git detected, but could not find ref file %s' % git_ref_fullpath)
-            return None
-        log = open(git_ref_fullpath).read().splitlines()
-        commit = log[-1].split()[1]
-        return ('%s %s' % (path_git_ref, commit))
-    except Exception as e:
-        print('An exception occurred while checking git info')
-        print(e)
-    return None
+# def git_info(start_at_caller=True):
+#     if start_at_caller:
+#         path_root = os.path.abspath(inspect.stack()[1][1])
+#     else:
+#         path_root = os.path.abspath(os.path.dirname(__file__))
+#     try:
+#         path_git_head = None
+#         while path_root:
+#             path_test = os.path.join(path_root, '.git', 'HEAD')
+#             if os.path.exists(path_test):
+#                 # found it!
+#                 path_git_head = path_test
+#                 break
+#             if os.path.split(path_root)[1] in {'addons', 'addons_contrib'}:
+#                 break
+#             path_root = os.path.dirname(path_root)  # try next level up
+#         if not path_git_head:
+#             # could not find .git folder
+#             return None
+#         path_git_ref = open(path_git_head).read().split()[1]
+#         if not path_git_ref.startswith('refs/heads/'):
+#             print('git detected, but HEAD uses unexpected format')
+#             return None
+#         path_git_ref = path_git_ref[len('refs/heads/'):]
+#         git_ref_fullpath = os.path.join(path_root, '.git', 'logs', 'refs', 'heads', path_git_ref)
+#         if not os.path.exists(git_ref_fullpath):
+#             print('git detected, but could not find ref file %s' % git_ref_fullpath)
+#             return None
+#         log = open(git_ref_fullpath).read().splitlines()
+#         commit = log[-1].split()[1]
+#         return ('%s %s' % (path_git_ref, commit))
+#     except Exception as e:
+#         print('An exception occurred while checking git info')
+#         print(e)
+#     return None
 
 
 
@@ -344,7 +376,7 @@ def blender_version():
     return '%d.%02d' % (major,minor)
 
 
-def iter_head(i, default=None):
+def iter_head(i, *, default=None):
     try:
         return next(iter(i))
     except StopIteration:

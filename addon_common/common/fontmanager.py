@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -23,10 +23,10 @@ import bpy
 import blf
 import bgl
 
+from .blender import get_preferences, get_path_from_addon_root, get_path_shortened_from_addon_root
 from .debug import dprint
-from .blender import get_preferences
-from .profiler import profiler
 from .decorators import blender_version_wrapper
+from .profiler import profiler
 
 # https://docs.blender.org/api/current/blf.html
 
@@ -55,7 +55,7 @@ class FontManager:
                 # note: loading the same file multiple times is not a problem.
                 #       blender is smart enough to cache
                 fontid = blf.load(val)
-                print(f'Addon Common: Loaded font "{val}" as id {fontid}')
+                print(f'Addon Common: Loaded font id={fontid}: {val}')
                 FontManager._cache[val] = fontid
                 FontManager._cache[fontid] = fontid
                 if load_callback: load_callback(fontid)

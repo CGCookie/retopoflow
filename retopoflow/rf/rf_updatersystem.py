@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -25,19 +25,20 @@ import bpy
 
 from ..updater import updater
 
+from ...addon_common.common.blender import get_path_from_addon_root
 from ...addon_common.common.globals import Globals
-from ...addon_common.common.utils import delay_exec, abspath
+from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.ui_core import UI_Element
 
-from ...config.options import options, retopoflow_version, retopoflow_helpdocs_url, retopoflow_blendermarket_url
+from ...config.options import options, retopoflow_product, retopoflow_urls
 from ...config.keymaps import get_keymaps
 
 class RetopoFlow_UpdaterSystem:
     @staticmethod
     def reload_stylings():
         load_defaultstylings()
-        path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')
+        path = get_path_from_addon_root('config', 'ui.css')
         try:
             Globals.ui_draw.load_stylesheet(path)
         except AssertionError as e:
@@ -94,7 +95,7 @@ class RetopoFlow_UpdaterSystem:
             if e.key == 'ESC':
                 close()
         def blendermarket():
-            bpy.ops.wm.url_open(url=retopoflow_blendermarket_url)
+            bpy.ops.wm.url_open(url=retopoflow_urls['blender market'])
         def open_staging_folder():
             path = updater.stage_path
             if not os.path.exists(path):
@@ -154,8 +155,8 @@ class RetopoFlow_UpdaterSystem:
                 updater.set_tag(tag)
             updater.run_update(callback=done_updating)
 
-        ui_updater = UI_Element.fromHTMLFile(abspath('updater_dialog.html'))[0]
-        ui_updater.getElementById('current-version').innerText = retopoflow_version
+        ui_updater = UI_Element.fromHTMLFile(get_path_from_addon_root('retopoflow', 'html', 'updater_dialog.html'))[0]
+        ui_updater.getElementById('current-version').innerText = retopoflow_product['version']
         # ui_updater.getElementById('staging-folder').innerText = updater.stage_path
         ui_updater.getElementById('update-succeeded').is_visible = False
         ui_updater.getElementById('update-failed').is_visible = False

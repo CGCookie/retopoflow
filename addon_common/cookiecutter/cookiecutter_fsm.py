@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 https://github.com/CGCookie/retopoflow
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -25,3 +25,7 @@ class CookieCutter_FSM:
 
     def _cc_fsm_update(self):
         self.fsm.update()
+
+    def _cc_fsm_force_event(self):
+        # call cursor warp to force an event into event queue, which will cause modal operator to be called ASAP
+        self.context.window.cursor_warp(self.event.mouse_x, self.event.mouse_y)

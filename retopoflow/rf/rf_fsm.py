@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -27,6 +27,7 @@ from collections import deque
 
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
+from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.drawing import Cursors
@@ -34,11 +35,11 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
-from ...addon_common.cookiecutter.cookiecutter import CookieCutter
-from ...config.options import options
+from ...addon_common.common.utils import normalize_triplequote
+from ...config.options import options, retopoflow_files
 
 
-class RetopoFlow_States(CookieCutter):
+class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to override fns
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
@@ -55,19 +56,17 @@ class RetopoFlow_States(CookieCutter):
             # could not write options to file for some reason
             # issue #1070
             self._write_error_reported = True
-            self.alert_user(
-                '\n'.join([
-                    f'Could not write options to file (incorrect permissions).',
-                    f'',
-                    f'Check that you have permission to write to `{options.options_filename}` to the RetopoFlow add-on folder.',
-                    f'',
-                    f'Or, try: uninstall RetopoFlow from Blender, restart Blender, then install the latest version of RetopoFlow from the Blender Market.',
-                    f'',
-                    f'Note: You can continue using RetopoFlow, but any changes to options will not be saved.',
-                    f'This error will not be reported again during the current RetopoFlow session.'
-                ]),
-                level='error',
-            )
+            message = normalize_triplequote(f'''
+                    Could not write options to file (incorrect permissions).
+
+                    Check that you have permission to write to `{retopoflow_files["options filename"]}` to the RetopoFlow add-on folder.
+
+                    Or, try: uninstall RetopoFlow from Blender, restart Blender, then install the latest version of RetopoFlow from the Blender Market.
+
+                    Note: You can continue using RetopoFlow, but any changes to options will not be saved.
+                    This error will not be reported again during the current RetopoFlow session.
+            ''')
+            self.alert_user(message, level='error')
 
         if timer:
             self.rftool._callback('timer')
@@ -279,7 +278,7 @@ class RetopoFlow_States(CookieCutter):
                     self.select_rftool(rftool)
                     return
                 if self.actions.pressed(rftool.quick_shortcut, unpress=False):
-                    self.select_rftool(rftool, quick=True)
+                    self.quick_select_rftool(rftool)
                     return 'quick switch'
 
             # undo/redo
@@ -404,7 +403,7 @@ class RetopoFlow_States(CookieCutter):
 
     @FSM.on_state('quick switch', 'exit')
     def quick_switch_exit(self):
-        self.select_rftool(self.rftool_return)
+        self.quick_restore_rftool()
 
 
     def setup_action(self, pt0, pt1, fn_callback, done_pressed=None, done_released=None, cancel_pressed=None):

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -69,12 +69,14 @@ class RetopoFlow_Spaces:
             # print(f'  clip_start: {self.drawing.space.clip_start}')
             # print(f'  clip_end:   {self.drawing.space.clip_end}')
         elif rescale:
-            self.unscale_from_unit_box()
-            self.scale_to_unit_box(
-                clip_override=options['clip override'],
-                clip_start=options['clip start override'],
-                clip_end=options['clip end override'],
-            )
+            self.end_normalize(self.context)
+            self.start_normalize()
+            # self.unscale_from_unit_box()
+            # self.scale_to_unit_box(
+            #     clip_override=options['clip override'],
+            #     clip_start=options['clip start override'],
+            #     clip_end=options['clip end override'],
+            # )
 
 
 

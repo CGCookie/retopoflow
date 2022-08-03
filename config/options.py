@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -21,24 +21,28 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import re
+import copy
 import json
 import time
 import shelve
 import platform
 import tempfile
+from datetime import datetime
 
 import bpy
 
 from ..addon_common.common import gpustate
-from ..addon_common.common.blender import get_preferences
+from ..addon_common.common.blender import get_preferences, get_path_from_addon_root
+from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ..addon_common.common.debug import Debugger, dprint
+from ..addon_common.common.decorators import run
 from ..addon_common.common.drawing import Drawing
 from ..addon_common.common.logger import Logger
 from ..addon_common.common.maths import Color
 from ..addon_common.common.profiler import Profiler
-from ..addon_common.common.utils import git_info
 from ..addon_common.common.ui_document import UI_Document
-from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ..addon_common.common.utils import normalize_triplequote
+from ..addon_common.hive.hive import Hive
 
 
 ###########################################
@@ -47,28 +51,69 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.2.9α'  # α β
-retopoflow_version_tuple = (3, 2, 9)
+retopoflow_product = {
+    # all the values are filled in by code below...
+    'hive':           None, # based on `hive.json` contents
+    'version':        None, # based on hive above
+    'version tuple':  None, # based on hive above
+    'git version':    None, # looks for `.git` folder
+    'cgcookie built': None, # looks for `.cgcookie` file
+    'github':         None, # depends on `.cgcookie` contents
+    'blender market': None, # depends on `.cgcookie` contents
+}
 
-retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
-retopoflow_issues_url        = "https://github.com/CGCookie/retopoflow/issues"
-retopoflow_helpdocs_url      = 'https://docs.retopoflow.com'
+retopoflow_urls = {
+    'blender market':   'https://blendermarket.com/products/retopoflow',
+    'github issues':    'https://github.com/CGCookie/retopoflow/issues',
+    'new github issue': 'https://github.com/CGCookie/retopoflow/issues/new',
+    'help docs':        'https://docs.retopoflow.com',
+    'tip':              'https://paypal.me/gfxcoder/',  # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
+                                                        # note: can add number to URL to set a default, ex: https://paypal.me/retopoflow/5
+}
 
-# TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
-# NOTE: can add number to url to start the amount off
-# ex: https://paypal.me/retopoflow/5
-retopoflow_tip_url    = "https://paypal.me/gfxcoder/"
+# files created by retopoflow, all located at the root of RetopoFlow add-on
+retopoflow_files = {
+    'options filename':     'RetopoFlow_options.json',
+    'screenshot filename':  'RetopoFlow_screenshot.png',
+    'instrument filename':  'RetopoFlow_instrument.txt',
+    'log filename':         'RetopoFlow_log.txt',
+    'backup filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
+    'profiler filename':    'RetopoFlow_profiler.txt',
+    'keymaps filename':     'RetopoFlow_keymaps.json',
+}
+
+retopoflow_datablocks = {
+    'rotate object': 'RetopoFlow_Rotate',           # name of rotate object used for setting view
+    'session data':  'RetopoFlow_SessionData',      # name of textblock containing session data
+}
+
 
 # the following enables / disables profiler code, overriding the options['profiler']
 # TODO: make this False before shipping!
 # TODO: make Makefile check this value!
 retopoflow_profiler = False
 
-retopoflow_version_git = None
-def get_git_info():
-    global retopoflow_version_git
+
+# convert version string to tuple
+@run
+def set_version_info():
+    global retopoflow_product
+    release_short = {
+        'alpha':    'α',
+        'beta':     'β',
+        'official': '',
+    }
+    retopoflow_product['hive'] = Hive()
+    version = retopoflow_product['hive']['version']
+    release = retopoflow_product['hive']['release']
+    retopoflow_product['version'] = f'{version}{release_short[release]}'
+    retopoflow_product['version tuple'] = tuple(int(i) for i in version.split('.'))
+
+@run
+def set_git_info():
+    global retopoflow_product
     try:
-        path_git = os.path.join(os.path.dirname(__file__), '..', '.git')
+        path_git = get_path_from_addon_root('.git')
         git_head_path = os.path.join(path_git, 'HEAD')
         if not os.path.exists(git_head_path): return
         git_ref_path = open(git_head_path).read().split()[1]
@@ -78,31 +123,38 @@ def get_git_info():
         if not os.path.exists(git_ref_fullpath): return
         log = open(git_ref_fullpath).read().splitlines()
         commit = log[-1].split()[1]
-        retopoflow_version_git = '%s %s' % (git_ref_path, commit)
+        retopoflow_product['git version'] = f'{git_ref_path} {commit}'
     except Exception as e:
         print('An exception occurred while checking git info')
         print(e)
-get_git_info()
 
-cgcookie_built_path = os.path.join(os.path.dirname(__file__), '..', '.cgcookie')
-cgcookie_built      = (
-    open(cgcookie_built_path, 'rt').read()
-    if os.path.exists(cgcookie_built_path)
-    else ''
-)
-retopoflow_cgcookie_built = bool(cgcookie_built)
-retopoflow_github         = 'GitHub'         in cgcookie_built
-retopoflow_blendermarket  = 'Blender Market' in cgcookie_built
+@run
+def set_build_info():
+    global retopoflow_product
+    try:
+        cgcookie_built_path = get_path_from_addon_root('cgcookie')
+        cgcookie_built      = (
+            open(cgcookie_built_path, 'rt').read()
+            if os.path.exists(cgcookie_built_path)
+            else ''
+        )
+        retopoflow_product['cgcookie built'] = bool(cgcookie_built)
+        retopoflow_product['github']         = 'GitHub'         in cgcookie_built
+        retopoflow_product['blender market'] = 'Blender Market' in cgcookie_built
+    except Exception as e:
+        print('An exception occurred while getting build info')
+        print(e)
 
+#@run(git=None)
 def override_version_settings(**kwargs):
-    global retopoflow_cgcookie_built, retopoflow_version_git, retopoflow_github, retopoflow_blendermarket
-    if 'git'            in kwargs: retopoflow_version_git    = kwargs['git']
-    if 'cgcookie_built' in kwargs: retopoflow_cgcookie_built = kwargs['cgcookie_built']
-    if 'github'         in kwargs: retopoflow_github         = kwargs['github']
-    if 'blendermarket'  in kwargs: retopoflow_blendermarket  = kwargs['blendermarket']
-override_version_settings()
+    # use kwargs defined below to override product info for testing purposes
+    global retopoflow_product
+    if 'git'            in kwargs: retopoflow_product['git version']    = kwargs['git']
+    if 'cgcookie_built' in kwargs: retopoflow_product['cgcookie built'] = kwargs['cgcookie_built']
+    if 'github'         in kwargs: retopoflow_product['github']         = kwargs['github']
+    if 'blendermarket'  in kwargs: retopoflow_product['blender market'] = kwargs['blendermarket']
 
-print('RetopoFlow git: %s' % str(retopoflow_version_git))
+print(f'RetopoFlow git: {retopoflow_product["git version"]}')
 
 
 ###########################################
@@ -122,24 +174,12 @@ gpu_info = gpustate.gpu_info()
 
 
 class Options:
-    path_root = None
-    options_filename = 'RetopoFlow_options.json'    # the filename of the Shelve object
-                                                    # will be located at root of RF plug-in
-
     default_options = {                 # all the default settings for unset or reset
+
         'rf version':           None,   # if versions differ, flush stored options
         'version update':       False,
 
-        'github issues url':    'https://github.com/CGCookie/retopoflow/issues',
-        'github new issue url': 'https://github.com/CGCookie/retopoflow/issues/new',
-
-        'screenshot filename':  'RetopoFlow_screenshot.png',
-        'instrument_filename':  'RetopoFlow_instrument',
-        'log_filename':         'RetopoFlow_log',
-        'backup_filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
-        'quickstart_filename':  'RetopoFlow_quickstart',
-        'profiler_filename':    'RetopoFlow_profiler.txt',
-        'keymaps filename':     'RetopoFlow_keymaps.json',
+        # OBJECTS / DATA CREATED BY RETOPOFLOW
         'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
         'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 
@@ -148,18 +188,24 @@ class Options:
         'warning max sources':  '1m',
         'warning normal check': True,
 
-
         'show experimental':    False,  # should show experimental tools?
+
         'preload help images':  False,
+        'async mesh loading':   True,   # True: load source meshes asynchronously
+        'async image loading':  True,
 
         # AUTO SAVE
         'last auto save path':  '',     # file path of last auto save (used for recover)
 
         # STARTUP
-        'check auto save':      True,   # give warning about disabled auto save at start
-        'check unsaved':        True,   # give warning about unsaved blend file at start
-        'welcome':              True,   # show welcome message?
-        'quickstart tool':      'PolyPen',  # which tool to start with when clicking diamond
+        'check auto save':      True,       # give warning about disabled auto save at start
+        'check unsaved':        True,       # give warning about unsaved blend file at start
+        'welcome':              True,       # show welcome message?
+        'starting tool':        'PolyPen',  # which tool to start with when clicking diamond
+
+        # BLENDER UI
+        'hide panels no overlap':   True,   # hide panels even when region overlap is disabled
+        'hide header panel':        True,   # hide header panel (where RF menu shows)
 
         # DIALOGS
         'show main window':     True,   # True: show main window; False: show tiny
@@ -167,66 +213,65 @@ class Options:
         'show geometry window': True,   # show geometry counts window
         'tools autohide':       True,   # should tool's options auto-hide/-show when switching tools?
 
-        # DEBUGGING SETTINGS
+        # DEBUG, PROFILE, INSTRUMENT SETTINGS
         'profiler':             False,  # enable profiler?
         'instrument':           False,  # enable instrumentation?
         'debug level':          0,      # debug level, 0--5 (for printing to console). 0=no print; 5=print all
         'debug actions':        False,  # print actions (except MOUSEMOVE) to console
 
-        'show tooltips':        True,
-        'tooltip delay':        0.75,
-        'escape to quit':       False,  # True:ESC is action for quitting
-        'confirm tab quit':     True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
-
+        # UNDO SETTINGS
         'undo change tool':     False,  # should undo change the selected tool?
         'undo depth':           100,    # size of undo stack
 
-        'async mesh loading':   True,   # True: load source meshes asynchronously
-        'async image loading':  True,
-
-        'select dist':          10,             # pixels away to select
-        'action dist':          20,             # pixels away to allow action
-        'remove doubles dist':  0.001,
-        'push and snap distance': 0.1,          # distance to push vertices out along normal before snapping back to source surface
+        'select dist':              10,         # pixels away to select
+        'action dist':              20,         # pixels away to allow action
+        'remove doubles dist':      0.001,
+        'push and snap distance':   0.1,        # distance to push vertices out along normal before snapping back to source surface
 
         # VISIBILITY TEST TUNING PARAMETERS
-        'visible bbox factor':  0.01,           # rf_sources.visibility_preset_*
-        'visible dist offset':  0.1,            # rf_sources.visibility_preset_*
+        'visible bbox factor':      0.01,       # rf_sources.visibility_preset_*
+        'visible dist offset':      0.1,        # rf_sources.visibility_preset_*
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
-        'clip auto adjust':     True,       # True: clip settings are automatically adjusted based on view distance and source bbox
-        'clip auto start mult': 0.0010,     # factor for clip_start
-        'clip auto start min':  0.0010,     # absolute minimum for clip_start
-        'clip auto end mult':   100.00,     # factor for clip_end
-        'clip auto end max':    500.0,      # absolute maximum for clip_end
-        'clip override':        True,       # True: override with below values; False: scale by unit scale factor
-        'clip start override':  0.0500,
-        'clip end override':    200.00,
 
-        'hide cursor on tweak': True,   # True: cursor is hidden when tweaking geometry
-
+        ####################################################
         # VISUALIZATION SETTINGS
-        'hide overlays':                   True,       # hide overlays (wireframe, grid, axes, etc.)
-        'override shading':                'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
-        'shading view':                    'SOLID',
-        'shading light':                   'MATCAP',
-        'shading matcap light':            'basic_1.exr',
-        'shading matcap dark':             'basic_dark.exr',
-        'shading colortype':               'SINGLE',
-        'shading color light':             [0.5, 0.5, 0.5],
-        'shading color dark':              [0.9, 0.9, 0.9],
-        'shading backface culling':        True,
-        'shading xray':                    False,
-        'shading shadows':                 False,
-        'shading cavity':                  False,
-        'shading outline':                 False,
-        'color theme':                     'Green',
-        'symmetry view':                   'Edge',
-        'symmetry effect':                 0.5,
-        'normal offset multiplier':        0.1,
-        'constrain offset':                True,
-        'ui scale':                        1.0,
+
+        # UX SETTINGS
+        'show tooltips':                True,
+        'tooltip delay':                0.75,
+        'escape to quit':               False,  # True:ESC is action for quitting
+        'confirm tab quit':             True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
+        'hide cursor on tweak':         True,   # True: cursor is hidden when tweaking geometry
+        'hide overlays':                True,       # hide overlays (wireframe, grid, axes, etc.)
+        'override shading':             'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
+        'shading view':                 'SOLID',
+        'shading light':                'MATCAP',
+        'shading matcap light':         'basic_1.exr',
+        'shading matcap dark':          'basic_dark.exr',
+        'shading colortype':            'SINGLE',
+        'shading color light':          [0.5, 0.5, 0.5],
+        'shading color dark':           [0.9, 0.9, 0.9],
+        'shading backface culling':     True,
+        'shading xray':                 False,
+        'shading shadows':              False,
+        'shading cavity':               False,
+        'shading outline':              False,
+        'color theme':                  'Green',
+        'symmetry view':                'Edge',
+        'symmetry effect':              0.5,
+        'normal offset multiplier':     0.1,
+        'constrain offset':             True,
+        'ui scale':                     1.0,
+        'clip auto adjust':             True,       # True: clip settings are automatically adjusted based on view distance and source bbox
+        'clip auto start mult':         0.0010,     # factor for clip_start
+        'clip auto start min':          0.0010,     # absolute minimum for clip_start
+        'clip auto end mult':           100.00,     # factor for clip_end
+        'clip auto end max':            500.0,      # absolute maximum for clip_end
+        'clip override':                True,       # True: override with below values; False: scale by unit scale factor
+        'clip start override':          0.0500,
+        'clip end override':            200.00,
 
         # TARGET VISUALIZATION SETTINGS
         # 'pin enabled' and 'pin seam' are in TARGET PINNING SETTINGS
@@ -277,23 +322,24 @@ class Options:
 
         'target alpha mirror':                1.00,
 
-
         # TARGET PINNING SETTINGS
         # 'show pinned' and 'show seam' are in TARGET VISUALIZATION SETTINGS
-        'pin enabled':                        True,
-        'pin seam':                           True,
+        'pin enabled':  True,
+        'pin seam':     True,
 
         # ADDON UPDATER SETTINGS
-        'updater auto check update': True,
-        'updater interval months': 0,
-        'updater interval days': 1,
-        'updater interval hours': 0,
-        'updater interval minutes': 0,
+        'updater auto check update':    True,
+        'updater interval months':      0,
+        'updater interval days':        1,
+        'updater interval hours':       0,
+        'updater interval minutes':     0,
+
 
         #######################################
         # GENERAL SETTINGS
 
         'smooth edge flow iterations':  10,
+
 
         #######################################
         # TOOL SETTINGS
@@ -403,22 +449,20 @@ class Options:
         self._callbacks = []
         self._calling = False
         if not Options.fndb:
-            path = os.path.dirname(os.path.abspath(__file__))
-            Options.path_root = os.path.abspath(os.path.join(path, '..'))
-            Options.fndb = os.path.join(Options.path_root, Options.options_filename)
+            Options.fndb = get_path_from_addon_root(retopoflow_files['options filename'])
             # Options.fndb = self.get_path('options filename')
             print(f'RetopoFlow options path: {Options.fndb}')
             self.read()
-            self['version update'] = (self['rf version'] != retopoflow_version)
-            self['rf version'] = retopoflow_version
+            self['version update'] = (self['rf version'] != retopoflow_product['version'])
+            self['rf version'] = retopoflow_product['version']
         self.update_external_vars()
 
     def __getitem__(self, key):
         return Options.db[key] if key in Options.db else Options.default_options[key]
 
     def __setitem__(self, key, val):
-        assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
-        assert not self._calling, 'Attempting to change option %s to %s while calling callbacks' % (str(key), str(val))
+        assert key in Options.default_options, f'Attempting to write "{key}":"{val}" to options, but key does not exist'
+        assert not self._calling, f'Attempting to change option "{key}" to "{val}" while calling callbacks'
         if self[key] == val: return
         oldval = self[key]
         Options.db[key] = val
@@ -437,7 +481,7 @@ class Options:
         self._calling = False
 
     def get_path(self, key):
-        return os.path.join(Options.path_root, self[key])
+        return get_path_from_addon_root(retopoflow_files[key])
 
     def get_path_incremented(self, key):
         p = self.get_path(key)
@@ -450,9 +494,9 @@ class Options:
 
     def update_external_vars(self):
         Debugger.set_error_level(self['debug level'])
-        Logger.set_log_filename(self['log_filename'])  #self.get_path('log_filename'))
+        Logger.set_log_filename(retopoflow_files['log filename'])
         # Profiler.set_profiler_enabled(self['profiler'] and retopoflow_profiler)
-        Profiler.set_profiler_filename(self.get_path('profiler_filename'))
+        Profiler.set_profiler_filename(self.get_path('profiler filename'))
         Drawing.set_custom_dpi_mult(self['ui scale'])
         UI_Document.show_tooltips = self['show tooltips']
         UI_Document.tooltip_delay = self['tooltip delay']
@@ -496,7 +540,7 @@ class Options:
                 print(str(e))
             # remove options that are not in default options
             for k in set(Options.db.keys()) - set(Options.default_options.keys()):
-                print('Deleting key "%s" from options' % k)
+                print(f'Deleting key "{k}" from options')
                 del Options.db[k]
         else:
             print('No options file')
@@ -513,13 +557,13 @@ class Options:
             if key in Options.db:
                 del Options.db[key]
         if version:
-            Options.db['rf version'] = retopoflow_version
+            Options.db['rf version'] = retopoflow_product['version']
         self.dirty()
         self.clean()
 
     def set_default(self, key, val):
         # does not dirty nor invoke write!
-        assert key in Options.default_options, 'Attempting to write "%s":"%s" to options, but key does not exist' % (str(key),str(val))
+        assert key in Options.default_options, f'Attempting to write "{key}":"{val}" to options, but key does not exist'
         if key not in Options.db:
             Options.db[key] = val
 
@@ -552,7 +596,7 @@ class Options:
         if not getattr(bpy.data, 'filepath', None):
             # not working on a saved .blend file, yet!
             path = tempfile.gettempdir()
-            filename = self['backup_filename']
+            filename = retopoflow_files['backup filename']
         else:
             fullpath = os.path.abspath(bpy.data.filepath)
             path, filename = os.path.split(fullpath)
@@ -570,14 +614,14 @@ class Themes:
         'mesh':       Color.from_ints(255, 255, 255, 255),
         'warning':    Color.from_ints(182,  31,   0, 128),
 
-        'stroke':     Color.from_ints( 255, 255,  0, 255),
+        'stroke':     Color.from_ints(255, 255,   0, 255),
         'highlight':  Color.from_ints(255, 255,  25, 255),
 
         # RFTools
-        'polystrips': Color.from_ints(0, 100, 25, 150),
-        'strokes':    Color.from_ints(0, 100, 90, 150),
+        'polystrips': Color.from_ints(  0, 100,  25, 150),
+        'strokes':    Color.from_ints(  0, 100,  90, 150),
         'tweak':      Color.from_ints(229, 137,  26, 255), # Opacity is set by brush strength
-        'relax':      Color.from_ints(0, 135, 255, 255), # Opacity is set by brush strength
+        'relax':      Color.from_ints(  0, 135, 255, 255), # Opacity is set by brush strength
     }
 
     themes = {
@@ -600,7 +644,7 @@ class Themes:
         'Orange': {
             'select':  Color.from_ints(255, 135,  54),
             'new':     Color.from_ints(255, 128,  64),
-            'active':  Color.from_ints(255, 80,  64),
+            'active':  Color.from_ints(255,  80,  64),
             'warn':    Color.from_ints(182,  31,   0),
             'pin':     Color.from_ints(192, 160, 128),
             'seam':    Color.from_ints(160, 255, 255),
@@ -778,7 +822,183 @@ class Visualization_Settings:
         self.clean()
 
 
+
+
+class SessionOptions:
+    '''
+    options/settings that are specific to this particular .blend file.
+    useful for storing current state and restoring in case of failure.
+    data is stored in bpy.context.scene['RetopoFlow']
+    '''
+
+    textblockname = 'RetopoFlow Session Data'
+
+    userfriendlytext = normalize_triplequote('''
+        RetopoFlow customizes several aspects of Blender for optimal retopology
+        experience by overriding viewport settings, rendering settings, mesh sizes,
+        and so on.  This text block is used to store the previous options and settings
+        that RetopoFlow overrides when it starts, so that they can be restored when
+        RetopoFlow quits.
+
+        Normally, this text block is never seen.  However, if Blender happens to crash or
+        is closed before RetopoFlow was able to restore the Blender options and settings,
+        these changes will remain in the last saved .blend file.  RetopoFlow will use
+        this information to restore everything back to normal the next time the .blend
+        file is opened.
+
+        If you see this text block, RetopoFlow has not finished restoring the Blender
+        settings.  In the 3D View, click RetopoFlow > Recover: Finish Auto Save Recovery.
+    ''')
+
+    default = {
+        'retopoflow': {
+            'version': retopoflow_product['version'],
+            'timestamp': None, # automatically filled out when getting session data
+        },
+        'workspace': None,
+
+
+        'context': {
+            'mode': None,
+            'mode translated': None,
+            'screen': None,
+            'show_properties': None,
+            'show_toolshelf': None,
+        },
+        'objects': {
+            'active': None,
+            'select': None,
+            'hidden': None,
+        },
+        'blender': {
+            'region_overlap': None,
+        },
+        'window managers': None,
+        'normalize': {
+            'unit scaling factor': None,
+            'mesh scaling factor': 1.0,
+            'clip distances': {
+                'start': None,
+                'end': None,
+            },
+            'view': {
+                'distance': None,
+                'location': None,
+            }
+        },
+    }
+
+
+    @classmethod
+    def has_session_data(cls):
+        return cls.textblockname in bpy.data.texts
+
+    @classmethod
+    def _get_data(cls):
+        if not cls.has_session_data():
+            # create text block for storing state
+            session = bpy.data.texts.new(SessionOptions.textblockname)
+            # set user-friendly message
+            session.from_string(SessionOptions.userfriendlytext)
+            # assignment below will create deep copy of default
+            session['data'] = SessionOptions.default
+            cls.set('retopoflow', 'timestamp', str(datetime.now()))
+            #cls.set('retopoflow', 'timestamp', timestamp)
+        else:
+            session = bpy.data.texts[SessionOptions.textblockname]
+        return session['data']
+
+    class Walker:
+        def __init__(self, *path):
+            if len(path) == 1 and type(path[0]) is str:
+                path = [path]
+            self.__dict__['path'] = path
+
+        @property
+        def path(self):
+            return self.__dict__['path']
+
+        def __truediv__(self, key):
+            return SessionOptions.Walker(*self.path, key)
+
+        def __getattr__(self, key):
+            return SessionOptions.get(*self.path, key)
+
+        def __setattr__(self, key, value):
+            SessionOptions.set(*self.path, key, val)
+            return val
+
+        @property
+        def value(self):
+            return SessionOptions.get(*self.path)
+        @value.setter
+        def value(self, val):
+            SessionOptions.set(*self.path, val)
+
+    @classmethod
+    def __truediv__(cls, key):
+        return SessionOptions.Walker([key])
+
+    @classmethod
+    @property
+    def data(cls):
+        return SessionOptions.Walker()
+
+    @classmethod
+    def get(cls, *keys):
+        data = cls._get_data()
+        if len(keys) == 1 and type(keys[0]) is not str:
+            keys = keys[0]
+        for key in keys: data = data[key]
+        return data
+
+    @classmethod
+    def _get_default(cls, *keys):
+        data = cls.default
+        if len(keys) == 1 and type(keys[0]) is not str:
+            keys = keys[0]
+        for key in keys: data = data[key]
+        return data
+
+    @classmethod
+    def set(cls, *args):
+        if len(args) == 1:
+            # `args` contains a dictionary
+            dict_keys_vals = args[0]
+            assert type(dict_keys_vals) is dict, f'SessionOptions.set expects dictionary ({dict_keys_vals=})'
+            def s(*args):
+                *path, dkv = args
+                if type(dkv) is dict and type(cls._get_default(*path)) is dict:
+                    for k,v in dkv.items():
+                        s(*path, k, v)
+                else:
+                    cls.set(*path, dkv)
+            s(dict_keys_vals)
+        else:
+            # `args` is a list, where all but last are keys into SessionOptions and last is the value to set
+            keys_then_value = args
+            assert len(keys_then_value) >= 2, f'SessionOptions.set expects at least 2 arguments ({keys_then_value=})'
+            *keys, value = keys_then_value
+            data = cls.get(keys[:-1])
+            data[keys[-1]] = value
+
+    def __getitem__(self, keys):
+        if type(keys) is str: keys = (keys,)
+        return self.get(*keys)
+
+    def __setitem__(self, keys, value):
+        if type(keys) is str: keys = (keys,)
+        return self.set(*keys, value)
+
+    @classmethod
+    def clear(cls):
+        if not cls.has_session_data(): return
+        textblock = bpy.data.texts[cls.textblockname]
+        bpy.data.texts.remove(textblock)
+
+
 # set all the default values!
 options = Options()
 themes = Themes()
 visualization = Visualization_Settings()
+sessionoptions = SessionOptions()

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -39,15 +39,24 @@ class RetopoFlow_Tools:
         self.rftool = None
         self.rftools = [rftool(self) for rftool in RFTool.registry]
 
-    def select_rftool(self, rftool, quick=False):
-        assert rftool in self.rftools
-        if rftool == self.rftool: return
-
-        self.rftool_return = self.rftool if quick else None
-
-        self.rftool = rftool
+    def reset_rftool(self):
         self.rftool._reset()
 
+    def _select_rftool(self, rftool, *, reset=True):
+        assert rftool in self.rftools
+
+        # return if tool already set
+        if rftool == self.rftool:
+            if reset: self.reset_rftool()
+            return False
+
+        self.rftool = rftool
+        if reset: self.reset_rftool()
+        self._update_rftool_ui(rftool)
+        self.update_ui()
+        return True
+
+    def _update_rftool_ui(self, rftool):
         self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
         self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
         self.ui_main.dirty(cause='changed tools', children=True)
@@ -56,7 +65,20 @@ class RetopoFlow_Tools:
         statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
         statusbar = statusbar.replace('\t', '    ')
         self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
-        self.update_ui()
 
-        if not quick: options['quickstart tool'] = rftool.name
+    def select_rftool(self, rftool, *, reset=True):
+        self.rftool_return = None
+        if self._select_rftool(rftool, reset=reset):
+            # remember this tool as last used, so clicking diamond can start with this tool
+            options['starting tool'] = rftool.name
+
+    def quick_select_rftool(self, rftool, *, reset=True):
+        prev_tool = self.rftool
+        if self._select_rftool(rftool, reset=reset):
+            self._rftool_return = prev_tool
+
+    def quick_restore_rftool(self):
+        if not self._rftool_return: return
+        if self.select_rftool(self._rftool_return, reset=reset):
+            self._rftool_return = None
 

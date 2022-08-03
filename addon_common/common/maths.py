@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -911,6 +911,19 @@ class Frame:
 
 class XForm:
     @staticmethod
+    def Scale(factor):
+        if type(factor) in {int, float}:
+            x = y = z = factor
+        else:
+            x, y, z = factor
+        return XForm(rows=((
+            (x, 0, 0, 0),
+            (0, y, 0, 0),
+            (0, 0, z, 0),
+            (0, 0, 0, 1),
+            )))
+
+    @staticmethod
     def get_mats(mx: Matrix):
         smat, d = str(mx), XForm.get_mats.__dict__
         if smat not in d:
@@ -919,20 +932,22 @@ class XForm:
                 'mx_d': None, 'imx_d': None,
                 'mx_n': None, 'imx_n': None
             }
-            m['mx_p'] = Matrix(mx)
-            m['mx_t'] = mx.transposed()
+            m[ 'mx_p'] = Matrix(mx)
+            m[ 'mx_t'] = mx.transposed()
             m['imx_p'] = mx.inverted_safe()
-            m['mx_d'] = mx.to_3x3()
+            m[ 'mx_d'] = mx.to_3x3()
             m['imx_d'] = m['mx_d'].inverted_safe()
-            m['mx_n'] = m['imx_d'].transposed()
+            m[ 'mx_n'] = m['imx_d'].transposed()
             m['imx_n'] = m['mx_d'].transposed()
             d[smat] = m
         return d[smat]
 
     @stats_wrapper
-    def __init__(self, mx: Matrix=None):
+    def __init__(self, mx: Matrix=None, *, rows=None):
         if mx is None:
             mx = Matrix()
+        elif type(mx) is not Matrix:
+            mx = Matrix(rows)
         self.assign(mx)
 
     def assign(self, mx):
@@ -975,7 +990,18 @@ class XForm:
                '       (%0.4f, %0.4f, %0.4f, %0.4f)>' % v
 
     def __repr__(self):
-        return self.__str__()
+        v = tuple(x for r in self.mx_p for x in r)
+        return 'XForm(((%f, %f, %f, %f),\n' \
+               '       (%f, %f, %f, %f),\n' \
+               '       (%f, %f, %f, %f),\n' \
+               '       (%f, %f, %f, %f)))' % v
+
+    @property
+    def matrix(self):
+        return Matrix(self.mx_p)
+    @matrix.setter
+    def matrix(self, mx):
+        self.assign(mx)
 
     def __mul__(self, other):
         t = type(other)
@@ -996,14 +1022,6 @@ class XForm:
         for v in self.mx_p:
             yield v
 
-    @blender_version_wrapper('<', '2.80')
-    def to_frame(self):
-        o = Point(self.mx_p * Point((0, 0, 0)))
-        x = Direction(self.mx_d * Direction((1, 0, 0)))
-        y = Direction(self.mx_d * Direction((0, 1, 0)))
-        z = Direction(self.mx_d * Direction((0, 0, 1)))
-        return Frame(o=o, x=x, y=y, z=z)
-    @blender_version_wrapper('>=', '2.80')
     def to_frame(self):
         o = Point(self.mx_p @ Point((0, 0, 0)))
         x = Direction(self.mx_d @ Direction((1, 0, 0)))
@@ -1027,50 +1045,21 @@ class XForm:
         )
         return self.fn_w2l_typed[t](data)
 
-    @blender_version_wrapper('<', '2.80')
-    def l2w_point(self, p: Point) -> Point: return Point(self.mx_p * p)
-    @blender_version_wrapper('>=', '2.80')
     def l2w_point(self, p: Point) -> Point:
         #return Point(self.mx_p @ p)
         v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
         return Point(v.xyz / v.w)
 
-    @blender_version_wrapper('<', '2.80')
-    def w2l_point(self, p: Point) -> Point: return Point(self.imx_p * p)
-    @blender_version_wrapper('>=', '2.80')
     def w2l_point(self, p: Point) -> Point:
         # return Point(self.imx_p @ p)
         v = self.imx_p @ Vector((p.x, p.y, p.z, 1.0))
         return Point(v.xyz / v.w)
 
-    @blender_version_wrapper('<', '2.80')
-    def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() * d)
-    @blender_version_wrapper('>=', '2.80')
     def l2w_direction(self, d: Direction) -> Direction: return Direction(self.mx_d.to_3x3() @ d)
-
-    @blender_version_wrapper('<', '2.80')
-    def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() * d)
-    @blender_version_wrapper('>=', '2.80')
     def w2l_direction(self, d: Direction) -> Direction: return Direction(self.imx_d.to_3x3() @ d)
-
-    @blender_version_wrapper('<', '2.80')
-    def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() * n)
-    @blender_version_wrapper('>=', '2.80')
     def l2w_normal(self, n: Normal) -> Normal: return Normal(self.mx_n.to_3x3() @ n)
-
-    @blender_version_wrapper('<', '2.80')
-    def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() * n)
-    @blender_version_wrapper('>=', '2.80')
     def w2l_normal(self, n: Normal) -> Normal: return Normal(self.imx_n.to_3x3() @ n)
-
-    @blender_version_wrapper('<', '2.80')
-    def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() * v)
-    @blender_version_wrapper('>=', '2.80')
     def l2w_vector(self, v: Vector) -> Vec: return Vec(self.mx_d.to_3x3() @ v)
-
-    @blender_version_wrapper('<', '2.80')
-    def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() * v)
-    @blender_version_wrapper('>=', '2.80')
     def w2l_vector(self, v: Vector) -> Vec: return Vec(self.imx_d.to_3x3() @ v)
 
     def l2w_ray(self, ray: Ray) -> Ray:
@@ -1097,14 +1086,7 @@ class XForm:
     def w2l_plane(self, plane: Plane) -> Plane:
         return Plane(o=self.w2l_point(plane.o), n=self.w2l_normal(plane.n))
 
-    @blender_version_wrapper('<', '2.80')
-    def l2w_bmvert(self, bmv: BMVert) -> Point: return Point(self.mx_p * bmv.co)
-    @blender_version_wrapper('>=', '2.80')
     def l2w_bmvert(self, bmv: BMVert) -> Point: return Point(self.mx_p @ bmv.co)
-
-    @blender_version_wrapper('<', '2.80')
-    def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p * bmv.co)
-    @blender_version_wrapper('>=', '2.80')
     def w2l_bmvert(self, bmv: BMVert) -> Point: return Point(self.imx_p @ bmv.co)
 
     @staticmethod
@@ -1171,7 +1153,9 @@ class BBox:
     def size_z(self): return self.Mz - self.mz
 
     @staticmethod
-    def merge(boxes):
+    def merge(boxes, *args):
+        if type(boxes) is BBox: boxes = [boxes]
+        if args: boxes = boxes + args
         return BBox(from_coords=[Point(p) for b in boxes for p in [
             (b.mx, b.my, b.mz),
             (b.Mx, b.My, b.Mz)

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -25,20 +25,21 @@ import bpy
 
 from ..updater import updater
 
+from ...addon_common.common.blender import get_path_from_addon_root
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import delay_exec, abspath
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.human_readable import convert_actions_to_human_readable
 
-from ...config.options import options, retopoflow_version, retopoflow_helpdocs_url, retopoflow_blendermarket_url
+from ...config.options import options
 from ...config.keymaps import get_keymaps, reset_all_keymaps, save_custom_keymaps, reset_keymap, default_rf_keymaps
 
 class RetopoFlow_KeymapSystem:
     @staticmethod
     def reload_stylings():
         load_defaultstylings()
-        path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'ui.css')
+        path = get_path_from_addon_root('config', 'ui.css')
         try:
             Globals.ui_draw.load_stylesheet(path)
         except AssertionError as e:
@@ -139,21 +140,9 @@ class RetopoFlow_KeymapSystem:
             ui_button.can_focus = True
             self.document.focus(ui_button, full=True)
             capture_edit_key_span()
-        def edit_lmb():
+        def edit_capture_mouse(action):
             clear_edit_key_span()
-            edit_data['key'] = 'LEFTMOUSE'
-        def edit_mmb():
-            clear_edit_key_span()
-            edit_data['key'] = 'MIDDLEMOUSE'
-        def edit_rmb():
-            clear_edit_key_span()
-            edit_data['key'] = 'RIGHTMOUSE'
-        def edit_wheelup():
-            clear_edit_key_span()
-            edit_data['key'] = 'WHEELUPMOUSE'
-        def edit_wheeldown():
-            clear_edit_key_span()
-            edit_data['key'] = 'WHEELDOWNMOUSE'
+            edit_data['key'] = action
         def edit_capture_key(event):
             if event.key is None or event.key == 'NONE': return
             ui_button = self.document.body.getElementById('edit-key-span')
@@ -296,7 +285,7 @@ class RetopoFlow_KeymapSystem:
             ui_keymaps.append_children(UI_Element.fromHTML(html))
 
 
-        ui_keymaps = UI_Element.fromHTMLFile(abspath('keymaps_dialog.html'))
+        ui_keymaps = UI_Element.fromHTMLFile(abspath('../html/keymaps_dialog.html'))
         self.document.body.append_children(ui_keymaps)
         self.document.body.getElementById('keymapconfig').style = 'display: none'
         self.document.body.getElementById('keymapsystem-cover').style = "display: none"

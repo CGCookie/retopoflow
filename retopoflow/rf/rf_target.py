@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -100,7 +100,7 @@ class RetopoFlow_Target:
         self.rftarget.select_bad_symmetry()
 
     def teardown_target(self):
-        # IMPORTANT: changes here should also go in rf_blendersave.backup_recover()
+        # IMPORTANT: changes here should also go in rf_blender_save.backup_recover()
         self.rftarget.obj_viewport_unhide()
         self.rftarget.obj_render_unhide()
 

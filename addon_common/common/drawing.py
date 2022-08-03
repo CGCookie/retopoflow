@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -42,17 +42,17 @@ from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .hasher import Hasher
-from .globals import Globals
-from .shaders import Shader
-from .blender import get_preferences, bversion
+from .blender import get_preferences, bversion, get_path_from_addon_root, get_path_from_addon_common
+from .debug import dprint, debugger
 from .decorators import blender_version_wrapper, add_cache
 from .fontmanager import FontManager as fm
+from .functools import find_fns
+from .globals import Globals
+from .hasher import Hasher
 from .maths import Point2D, Vec2D, Point, Ray, Direction, mid, Color, Normal, Frame
 from .profiler import profiler
-from .debug import dprint, debugger
+from .shaders import Shader
 from .utils import iter_pairs
-from .functools import find_fns
 
 
 # the following line suppresses a Blender 3.1.0 bug
@@ -107,6 +107,12 @@ class Cursors:
         for wm in bpy.data.window_managers:
             for win in wm.windows:
                 win.cursor_modal_set(cursor)
+
+    @staticmethod
+    def restore():
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                win.cursor_modal_restore()
 
     @property
     @staticmethod
@@ -788,9 +794,7 @@ if bversion() >= "2.80":
     # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
 
     def create_shader(fn_glsl):
-        path_here = os.path.dirname(os.path.realpath(__file__))
-        path_shaders = os.path.join(path_here, 'shaders')
-        path_glsl = os.path.join(path_shaders, fn_glsl)
+        path_glsl = get_path_from_addon_common('common', 'shaders', fn_glsl)
         txt = open(path_glsl, 'rt').read()
         vert_source, frag_source = Shader.parse_string(txt)
         try:

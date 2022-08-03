@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -64,7 +64,7 @@ from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
 from .shaders import Shader
-from .utils import iter_head, any_args, join, abspath
+from .utils import iter_head, any_args, join
 
 from ..ext import png
 from ..ext.apng import APNG

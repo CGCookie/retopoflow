@@ -2,8 +2,14 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
-### RetopoFlow 3.2.8&rarr;3.2.9
+### RetopoFlow 3.2.8&rarr;3.3.0
 
+- New undo system
+- New recovery system
+- Lots of refactored code and cleaned code
+- Removed code for Blender 2.79 and earlier
+- Reorganized file structure
+- Improved Hive integration
 - ...
 
 ### RetopoFlow 3.2.7&rarr;3.2.8

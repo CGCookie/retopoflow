@@ -159,6 +159,14 @@ def mirror_changed(self):
                             <input type="checkbox" checked="BoundBool('''options['hide overlays']''')" on_input="update_hide_overlays(self)" title="If enabled, overlays (source wireframes, grid, axes, etc.) are hidden.">
                             Hide Overlays
                         </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['hide header panel']''')" title="If enabled, header panel of 3D Viewport is hidden when starting RetopoFlow.">
+                            Hide Header
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['hide panels no overlap']''')" title="If enabled, panels of 3D Viewport are hidden when starting RetopoFlow with region overlap disabled.  Enabling this option can cause a slight jump when starting and ending RetopoFlow.">
+                            Hide Panels With No Region Overlap
+                        </label>
                         <div class="collection">
                             <h1>Optimize Shading</h1>
                             <div class="contents">

@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2021 CG Cookie
+Copyright (C) 2022 CG Cookie
 
 Created by Jonathan Denning, Jonathan Williamson
 
@@ -25,6 +25,7 @@ import bgl
 import ctypes
 from itertools import chain
 
+from .blender import get_path_from_addon_common
 from .debug import dprint
 from .globals import Globals
 from .decorators import blender_version_wrapper
@@ -42,7 +43,7 @@ from ..ext.bgl_ext import VoidBufValue
 #      3.2    150      4.4    440
 #      3.3    330      4.5    450
 #                      4.6    460
-print('Addon Common: (shaders) GLSL Version:', bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION))
+print(f'Addon Common: (shaders) GLSL Version: {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}')
 
 DEBUG_PRINT = False
 
@@ -70,10 +71,10 @@ class Shader():
             bgl.glGetShaderInfoLog(shader, bufLogLen[0], bufLogLen, bufLog)
             log = ''.join(chr(v) for v in bufLog.to_list() if v)
             if log:
-                print('SHADER REPORT %s' % name)
-                print('\n'.join(['    %s'%l for l in log.splitlines()]))
+                print(f'SHADER REPORT {name}')
+                print('\n'.join([f'    {l}' for l in log.splitlines()]))
             else:
-                print('Shader %s has no report' % name)
+                print(f'Shader {name} has no report')
         else:
             log = ''
 
@@ -81,8 +82,8 @@ class Shader():
         bufStatus = bgl.Buffer(bgl.GL_INT, 1)
         bgl.glGetShaderiv(shader, bgl.GL_COMPILE_STATUS, bufStatus)
         if bufStatus[0] == 0:
-            print('ERROR WHILE COMPILING SHADER %s' % name)
-            print('\n'.join(['   % 4d  %s'%(i+1,l) for (i,l) in enumerate(src.splitlines())]))
+            print(f'ERROR WHILE COMPILING SHADER {name}')
+            print('\n'.join([f'   {(i+1): 4d}  {l}' for (i,l) in enumerate(src.splitlines())]))
             assert False
 
         return log
@@ -183,7 +184,7 @@ class Shader():
 
     @staticmethod
     def parse_file(filename, includeVersion=True, constant_overrides=None, define_overrides=None, force_shim=False):
-        filename_guess = os.path.join(os.path.dirname(__file__), 'shaders', filename)
+        filename_guess = get_path_from_addon_common('common', 'shaders', filename)
         if os.path.exists(filename):
             pass
         elif os.path.exists(filename_guess):
@@ -225,13 +226,17 @@ class Shader():
         bgl.glShaderSource(self.shaderVert, srcVertex)
         bgl.glShaderSource(self.shaderFrag, srcFragment)
 
-        print('RetopoFlow Shader Info: %s (%d)' % (self.name,self.shaderProg))
-        logv = self.shader_compile(name, self.shaderVert, srcVertex)
-        logf = self.shader_compile(name, self.shaderFrag, srcFragment)
-        if len(logv.strip()):
-            print('  vert log:\n' + '\n'.join(('    '+l) for l in logv.splitlines()))
-        if len(logf.strip()):
-            print('  frag log:\n' + '\n'.join(('    '+l) for l in logf.splitlines()))
+        if DEBUG_PRINT: print(f'RetopoFlow Shader Info: {self.name} ({self.shaderProg})')
+        logv = self.shader_compile(name, self.shaderVert, srcVertex).strip()
+        logf = self.shader_compile(name, self.shaderFrag, srcFragment).strip()
+        if logv or logf:
+            if not DEBUG_PRINT: print(f'RetopoFlow Shader Info: {self.name} ({self.shaderProg})')
+            if logv:
+                print('  vert log:')
+                print('\n'.join(f'    {l}' for l in logv.splitlines()))
+            if logf:
+                print('  frag log')
+                print('\n'.join(f'    {l}' for l in logf.splitlines()))
 
         bgl.glAttachShader(self.shaderProg, self.shaderVert)
         bgl.glAttachShader(self.shaderProg, self.shaderFrag)
@@ -242,12 +247,13 @@ class Shader():
         bgl.glLinkProgram(self.shaderProg)
 
         self.shaderVars = {}
-        lvars = [l for l in srcVertex.splitlines() if l.startswith('in ')]
-        lvars += [l for l in srcVertex.splitlines() if l.startswith('attribute ')]
-        lvars += [l for l in srcVertex.splitlines() if l.startswith('uniform ')]
+        lvars = []
+        lvars += [l for l in srcVertex.splitlines()   if l.startswith('in ')]
+        lvars += [l for l in srcVertex.splitlines()   if l.startswith('attribute ')]
+        lvars += [l for l in srcVertex.splitlines()   if l.startswith('uniform ')]
         lvars += [l for l in srcFragment.splitlines() if l.startswith('uniform ')]
         for l in lvars:
-            m = re.match('^(?P<qualifier>[^ ]+) +(?P<type>[^ ]+) +(?P<name>[^ ;]+)', l)
+            m = re.match(r'^(?P<qualifier>[^ ]+) +(?P<type>[^ ]+) +(?P<name>[^ ;]+)', l)
             assert m
             m = m.groupdict()
             q,t,n = m['qualifier'],m['type'],m['name']
@@ -260,8 +266,9 @@ class Shader():
                 'reported': False,
                 }
 
-        print('  attribs: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
-        print('  uniforms: ' + ', '.join((k + ' (%d)'%self.shaderVars[k]['location']) for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
+        if DEBUG_PRINT:
+            print('  attribs: '  + ', '.join(f'{k} ({self.shaderVars[k]["location"]})' for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'in','attribute'}))
+            print('  uniforms: ' + ', '.join(f'{k} ({self.shaderVars[k]["location"]})' for k in self.shaderVars if self.shaderVars[k]['qualifier'] in {'uniform'}))
 
         self.funcStart = funcStart
         self.funcEnd = funcEnd
@@ -285,11 +292,11 @@ class Shader():
             q,l,t = v['qualifier'],v['location'],v['type']
             if l == -1:
                 if not v['reported']:
-                    print('ASSIGNING TO UNUSED ATTRIBUTE (%s): %s = %s' % (self.name, varName,str(varValue)))
+                    print(f'ASSIGNING TO UNUSED ATTRIBUTE ({self.name}): {varName} = {varValue}')
                     v['reported'] = True
                 return
             if DEBUG_PRINT:
-                print('%s (%s,%d,%s) = %s' % (varName, q, l, t, str(varValue)))
+                print(f'{varName} ({q},{l},{t}) = {varValue}')
             if q in {'in','attribute'}:
                 if t == 'float':
                     bgl.glVertexAttrib1f(l, varValue)
@@ -302,7 +309,7 @@ class Shader():
                 elif t == 'vec4':
                     bgl.glVertexAttrib4f(l, *varValue)
                 else:
-                    assert False, 'Unhandled type %s for attrib %s' % (t, varName)
+                    assert False, f'Unhandled type {t} for attrib {varName}'
                 self.checkErrors(f'assign attrib {varName} = {varValue}')
             elif q in {'uniform'}:
                 # cannot set bools with BGL! :(
@@ -319,12 +326,12 @@ class Shader():
                 elif t == 'mat4':
                     bgl.glUniformMatrix4fv(l, 1, bgl.GL_TRUE, varValue)
                 else:
-                    assert False, 'Unhandled type %s for uniform %s' % (t, varName)
+                    assert False, f'Unhandled type {t} for uniform {varName}'
                 self.checkErrors(f'assign uniform {varName} ({t} {l}) = {varValue}')
             else:
                 assert False, 'Unhandled qualifier %s for variable %s' % (q, varName)
         except Exception as e:
-            print('ERROR Shader.assign(%s, %s)): %s' % (varName, str(varValue), str(e)))
+            print(f'ERROR Shader.assign({varName}, {varValue})): {e}')
 
     def assign_all(self, **kwargs):
         for k,v in kwargs.items():
@@ -336,11 +343,11 @@ class Shader():
         q,l,t = v['qualifier'],v['location'],v['type']
         if l == -1:
             if not v['reported']:
-                print('COULD NOT FIND %s' % (varName))
+                print(f'COULD NOT FIND {varName}')
                 v['reported'] = True
             return
         if DEBUG_PRINT:
-            print('enable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+            print(f'enable vertattrib array: {varName} ({q},{l},{t})')
         bgl.glEnableVertexAttribArray(l)
         self.checkErrors(f'enableVertexAttribArray {varName}')
 
@@ -357,12 +364,12 @@ class Shader():
         q,l,t = v['qualifier'],v['location'],v['type']
         if l == -1:
             if not v['reported']:
-                print('COULD NOT FIND %s' % (varName))
+                print(f'COULD NOT FIND {varName}')
                 v['reported'] = True
             return
 
         if DEBUG_PRINT:
-            print('assign (enable=%s) vertattrib pointer: %s (%s,%d,%s) = %d (%dx%s,normalized=%s,stride=%d)' % (str(enable), varName, q, l, t, vbo, size, self.gltype_names[gltype], str(normalized),stride))
+            print(f'assign (enable={enable}) vertattrib pointer: {varName} ({q},{l},{t}) = {vbo} ({size}x{self.gltype_names[gltype]},normalized={normalized},stride={stride})')
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo)
         bgl.glVertexAttribPointer(l, size, gltype, normalized, stride, buf)
         self.checkErrors(f'vertexAttribPointer {varName}')
@@ -371,16 +378,16 @@ class Shader():
         bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
 
     def disableVertexAttribArray(self, varName):
-        assert varName in self.shaderVars, 'Variable %s not found' % varName
+        assert varName in self.shaderVars, f'Variable {varName} not found'
         v = self.shaderVars[varName]
         q,l,t = v['qualifier'],v['location'],v['type']
         if l == -1:
             if not v['reported']:
-                print('COULD NOT FIND %s' % (varName))
+                print(f'COULD NOT FIND {varName}')
                 v['reported'] = True
             return
         if DEBUG_PRINT:
-            print('disable vertattrib array: %s (%s,%d,%s)' % (varName, q, l, t))
+            print(f'disable vertattrib array: {varName} ({q},{l},{t})')
         bgl.glDisableVertexAttribArray(l)
         self.checkErrors(f'disableVertexAttribArray {varName}')
 
@@ -390,7 +397,7 @@ class Shader():
             if self.funcStart: self.funcStart(self)
             funcCallback(self)
         except Exception as e:
-            print('ERROR WITH USING SHADER: ' + str(e))
+            print(f'ERROR WITH USING SHADER: {e}')
         finally:
             bgl.glUseProgram(0)
 
@@ -421,7 +428,7 @@ class Shader():
         try:
             if self.funcEnd: self.funcEnd(self)
         except Exception as e:
-            print('Error with shader: ' + str(e))
+            print(f'Error with shader: {e}')
         bgl.glUseProgram(0)
         self.checkErrors(f'disable program ({self.name}, {self.shaderProg}) post')
 
