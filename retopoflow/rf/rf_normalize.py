@@ -104,7 +104,7 @@ class RetopoFlow_Normalize:
             fac = (factor if mesh == 'SCALE' else 1.0) or 0.0
             if fac > 0.0:
                 prev_factor = normalize_opts['mesh scaling factor']
-                M = Matrix.Identity(4) * (fac / prev_factor)  # scale translate, too!
+                M = (Matrix.Identity(3) * (fac / prev_factor)).to_4x4()
                 sources = RetopoFlow_Blender_Objects.get_sources()
                 targets = [RetopoFlow_Blender_Objects.get_target()]
                 for obj in chain(sources, targets):
@@ -135,6 +135,7 @@ class RetopoFlow_Normalize:
             clip_start=options['clip start override'],
             clip_end=options['clip end override'],
         )
+        self.scene_scale_set(1.0)
 
     def init_normalize(self):
         '''
