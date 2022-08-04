@@ -6,7 +6,10 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - New undo system
 - New recovery system
-- Lots of refactored code and cleaned code
+- Revamped action system
+- Added button to open online documents for Warning Details
+- Improved error handling at startup
+- Refactored large sections and cleaned code
 - Removed code for Blender 2.79 and earlier
 - Reorganized file structure
 - Improved Hive integration

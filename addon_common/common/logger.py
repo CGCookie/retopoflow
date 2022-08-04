@@ -58,8 +58,13 @@ class Logger:
 
     @staticmethod
     def add(line):
-        log = Logger.get_log()
-        log.write('%s%s' % (Logger._divider, str(line)))
+        try:
+            log = Logger.get_log()
+            log.write('%s%s' % (Logger._divider, str(line)))
+        except Exception as e:
+            print(f'Logger: Caught exception while trying to write to log')
+            print(f'  {line=}"')
+            print(f'  {e}')
 
     @staticmethod
     def open_log():

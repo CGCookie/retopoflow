@@ -65,227 +65,227 @@ def create_simple_context(context=None):
 
 
 
-class Temp:
-    _store = {}
+# class Temp:
+#     _store = {}
 
-    @classmethod
-    def assign(cls, var, val):
-        frame = inspect.currentframe().f_back
-        f_globals, f_locals = frame.f_globals, frame.f_locals
-        if var not in cls._store:
-            cls._store[var] = {
-                'val': eval(var, globals=f_globals, locals=f_locals),
-                'globals': f_globals,
-                'locals': f_locals,
-            }
-        exec(f'{var} = {val}', globals=f_globals, locals=f_locals)
+#     @classmethod
+#     def assign(cls, var, val):
+#         frame = inspect.currentframe().f_back
+#         f_globals, f_locals = frame.f_globals, frame.f_locals
+#         if var not in cls._store:
+#             cls._store[var] = {
+#                 'val': eval(var, globals=f_globals, locals=f_locals),
+#                 'globals': f_globals,
+#                 'locals': f_locals,
+#             }
+#         exec(f'{var} = {val}', globals=f_globals, locals=f_locals)
 
-    @classmethod
-    def restore_all(cls):
-        for var, data in cls._store.items():
-            exec(f'{var} = {data["val"]}', globals=data['globals'], locals=data['locals'])
-        cls._store.clear()
+#     @classmethod
+#     def restore_all(cls):
+#         for var, data in cls._store.items():
+#             exec(f'{var} = {data["val"]}', globals=data['globals'], locals=data['locals'])
+#         cls._store.clear()
 
-    @classmethod
-    def restore(cls, var):
-        val, f_globals, f_locals = cls._store[var]
-        exec(f'{var} = {data["val"]}', globals=f_globals, locals=f_locals)
-        del cls._store[var]
+#     @classmethod
+#     def restore(cls, var):
+#         val, f_globals, f_locals = cls._store[var]
+#         exec(f'{var} = {data["val"]}', globals=f_globals, locals=f_locals)
+#         del cls._store[var]
 
-    @classmethod
-    def discard(cls, var):
-        if var in cls._store[var]:
-            del cls._store[var]
+#     @classmethod
+#     def discard(cls, var):
+#         if var in cls._store[var]:
+#             del cls._store[var]
 
 
-class TempBPYData:
-    '''
-    wrapper for bpy.data that allows the changing of settings while
-    storing original settings for later restoration.
+# class TempBPYData:
+#     '''
+#     wrapper for bpy.data that allows the changing of settings while
+#     storing original settings for later restoration.
 
-    This is _different_ than pre-storing the settings, in that we don't
-    need to know beforehand what should be stored/restored.
-    '''
+#     This is _different_ than pre-storing the settings, in that we don't
+#     need to know beforehand what should be stored/restored.
+#     '''
 
-    _always_store = True
-    _store = {}
+#     _always_store = True
+#     _store = {}
 
-    is_bpy_type = lambda o: any(isinstance(o, t) for t in {
-        bpy.types.bpy_func,
-        bpy.types.bpy_prop,
-        bpy.types.bpy_prop_array,
-        bpy.types.bpy_struct,
-        bpy.types.bpy_struct_meta_idprop,
-    })
+#     is_bpy_type = lambda o: any(isinstance(o, t) for t in {
+#         bpy.types.bpy_func,
+#         bpy.types.bpy_prop,
+#         bpy.types.bpy_prop_array,
+#         bpy.types.bpy_struct,
+#         bpy.types.bpy_struct_meta_idprop,
+#     })
 
-    is_stop_type = lambda o: any(isinstance(o, t) for t in {
-        bpy.types.Object,
-    })
+#     is_stop_type = lambda o: any(isinstance(o, t) for t in {
+#         bpy.types.Object,
+#     })
 
-    class WKey:
-        @classmethod
-        def Attr(cls, key): return cls(key, True)
-        @classmethod
-        def Item(cls, key): return cls(key, False)
+#     class WKey:
+#         @classmethod
+#         def Attr(cls, key): return cls(key, True)
+#         @classmethod
+#         def Item(cls, key): return cls(key, False)
 
-        def __init__(self, key, is_attr):
-            self._key = key
-            self._is_attr = is_attr
+#         def __init__(self, key, is_attr):
+#             self._key = key
+#             self._is_attr = is_attr
 
-        def __str__(self):
-            return f'.{self._key}' if self._is_attr else f'[{self._key}]'
+#         def __str__(self):
+#             return f'.{self._key}' if self._is_attr else f'[{self._key}]'
 
-        @property
-        def key(self):     return self._key
-        @property
-        def is_attr(self): return self._is_attr
-        @property
-        def is_item(self): return not self._is_attr
+#         @property
+#         def key(self):     return self._key
+#         @property
+#         def is_attr(self): return self._is_attr
+#         @property
+#         def is_item(self): return not self._is_attr
 
-        def get(self, data):
-            return getattr(data, self._key) if self._is_attr else data[self._key]
-        def set(self, data, val):
-            if self._is_attr: setattr(data, self._key, val)
-            else: data[self._key] = val
+#         def get(self, data):
+#             return getattr(data, self._key) if self._is_attr else data[self._key]
+#         def set(self, data, val):
+#             if self._is_attr: setattr(data, self._key, val)
+#             else: data[self._key] = val
 
-    class Walker:
-        def __init__(self, *keys, from_walker=None):
-            if from_walker:
-                assert from_walker.in_struct
-                full_keys = from_walker.keys
-                data = from_walker.data
-                path = from_walker.path
-            else:
-                full_keys = tuple()
-                data = bpy.data
-                path = 'bpy.data'
-            pre_data = None
-            for key in keys:
-                data, pre_data, path = key.get(data), data
-                path = f'{path}{key}'
-                full_keys += key
+#     class Walker:
+#         def __init__(self, *keys, from_walker=None):
+#             if from_walker:
+#                 assert from_walker.in_struct
+#                 full_keys = from_walker.keys
+#                 data = from_walker.data
+#                 path = from_walker.path
+#             else:
+#                 full_keys = tuple()
+#                 data = bpy.data
+#                 path = 'bpy.data'
+#             pre_data = None
+#             for key in keys:
+#                 data, pre_data, path = key.get(data), data
+#                 path = f'{path}{key}'
+#                 full_keys += key
 
-            self.__dict__['_data'] = {
-                'path':      path,
-                'keys':      full_keys,
-                'data':      data,
-                'prev':      (pre_data, keys[-1]),
-                'in_struct': TempBPYData.is_bpy_type(data),
-                'is_stop':   TempBPYData.is_stop_type(data),
-            }
+#             self.__dict__['_data'] = {
+#                 'path':      path,
+#                 'keys':      full_keys,
+#                 'data':      data,
+#                 'prev':      (pre_data, keys[-1]),
+#                 'in_struct': TempBPYData.is_bpy_type(data),
+#                 'is_stop':   TempBPYData.is_stop_type(data),
+#             }
 
-        def __repr__(self):                  return f'<Walker {self.path} = {self.data}>'
-        def __iter__(self):                  return iter(self.data)
-        def __call__(self, *args, **kwargs): return self.data(*args, **kwargs)
-        def __getattr__(self, key):          return self.get(key, True)
-        def __setattr__(self, key, val):     return self.set(key, True, val)
-        def __getitem__(self, key):          return self.get(key, False)
-        def __setitem__(self, key, val):     return self.set(key, False, val)
+#         def __repr__(self):                  return f'<Walker {self.path} = {self.data}>'
+#         def __iter__(self):                  return iter(self.data)
+#         def __call__(self, *args, **kwargs): return self.data(*args, **kwargs)
+#         def __getattr__(self, key):          return self.get(key, True)
+#         def __setattr__(self, key, val):     return self.set(key, True, val)
+#         def __getitem__(self, key):          return self.get(key, False)
+#         def __setitem__(self, key, val):     return self.set(key, False, val)
 
-        @classmethod
-        def unwrap(cls, val): return val.data if isinstance(val, cls) else val
+#         @classmethod
+#         def unwrap(cls, val): return val.data if isinstance(val, cls) else val
 
-        @property
-        def path(self):       return self.__dict__['_data']['path']
-        @property
-        def keys(self): return self.__dict__['_data']['keys']
-        @property
-        def data(self):       return self.__dict__['_data']['data']
-        @property
-        def prev(self):       return self.__dict__['_data']['prev']
-        @property
-        def in_struct(self):  return self.__dict__['_data']['in_struct']
-        @property
-        def is_struct(self):  return self.__dict__['_data']['is_stop']
+#         @property
+#         def path(self):       return self.__dict__['_data']['path']
+#         @property
+#         def keys(self): return self.__dict__['_data']['keys']
+#         @property
+#         def data(self):       return self.__dict__['_data']['data']
+#         @property
+#         def prev(self):       return self.__dict__['_data']['prev']
+#         @property
+#         def in_struct(self):  return self.__dict__['_data']['in_struct']
+#         @property
+#         def is_struct(self):  return self.__dict__['_data']['is_stop']
 
-        def get(self, key, attr):
-            if self.is_stop:
-                return getattr(self.data, key) if attr else self.data[key]
-            wk = TempBPYData.WKey(key, attr)
-            w = TempBPYData.Walker(wk, from_walker=self)
-            return w if w.in_struct else w.data
-        def set(self, key, attr, val):
-            assert self.in_struct
-            TempBPYData.store(list(self.keys) + [(key, attr)])
-            val = self.unwrap(val)
-            if attr: setattr(self.data, key, val)
-            else:    self.data[key] = val
-        # def ignore(self)
+#         def get(self, key, attr):
+#             if self.is_stop:
+#                 return getattr(self.data, key) if attr else self.data[key]
+#             wk = TempBPYData.WKey(key, attr)
+#             w = TempBPYData.Walker(wk, from_walker=self)
+#             return w if w.in_struct else w.data
+#         def set(self, key, attr, val):
+#             assert self.in_struct
+#             TempBPYData.store(list(self.keys) + [(key, attr)])
+#             val = self.unwrap(val)
+#             if attr: setattr(self.data, key, val)
+#             else:    self.data[key] = val
+#         # def ignore(self)
 
-    @classmethod
-    def debug_print_store(cls):
-        print(f'TempBPYData.store = {{')
-        for keys_attrs, val in cls._store.items():
-            print(f'  {cls.keys_attrs_to_path(keys_attrs)}: {val}')
-        print(f'}}')
+#     @classmethod
+#     def debug_print_store(cls):
+#         print(f'TempBPYData.store = {{')
+#         for keys_attrs, val in cls._store.items():
+#             print(f'  {cls.keys_attrs_to_path(keys_attrs)}: {val}')
+#         print(f'}}')
 
-    @classmethod
-    def get_from_keys_attrs(cls, keys_attrs):
-        data = bpy.data
-        for (key, attr) in keys_attrs:
-            data = cls.get_from_key(data, key)
-        return data
-    @classmethod
-    def get_from_key(cls, data, key):
-        return getattr(data, key[1:]) if key.startswith('.') else data[key][1:-1]
-    @classmethod
-    def set_from_key_attr(cls, data, key, attr, val):
-        if attr: setattr(data, key, val)
-        else:    data[key] = val
+#     @classmethod
+#     def get_from_keys_attrs(cls, keys_attrs):
+#         data = bpy.data
+#         for (key, attr) in keys_attrs:
+#             data = cls.get_from_key(data, key)
+#         return data
+#     @classmethod
+#     def get_from_key(cls, data, key):
+#         return getattr(data, key[1:]) if key.startswith('.') else data[key][1:-1]
+#     @classmethod
+#     def set_from_key_attr(cls, data, key, attr, val):
+#         if attr: setattr(data, key, val)
+#         else:    data[key] = val
 
-    @classmethod
-    def keys_to_path(cls, keys_attrs):
-        path = 'bpy.data'
-        for (key, attr) in keys_attrs:
-            path += f'.{key}' if attr else f'[{key}]'
-        return path
+#     @classmethod
+#     def keys_to_path(cls, keys_attrs):
+#         path = 'bpy.data'
+#         for (key, attr) in keys_attrs:
+#             path += f'.{key}' if attr else f'[{key}]'
+#         return path
 
-    @classmethod
-    def store(cls, keys_attrs):
-        store_key = tuple(keys_attrs)
-        store_val = cls.get_from_keys_attrs(keys_attrs)
-        if cls._always_store or not cls.is_bpy_type(store_val):
-            # only remember previous values if keys points to a non bpy_type.
-            # an example of keys that point to a bpy_type that we would wish to assign
-            # bpy.data.window_managers[0].windows[0].view_layer.objects.active
-            cls._store.setdefault(store_key, store_val)
+#     @classmethod
+#     def store(cls, keys_attrs):
+#         store_key = tuple(keys_attrs)
+#         store_val = cls.get_from_keys_attrs(keys_attrs)
+#         if cls._always_store or not cls.is_bpy_type(store_val):
+#             # only remember previous values if keys points to a non bpy_type.
+#             # an example of keys that point to a bpy_type that we would wish to assign
+#             # bpy.data.window_managers[0].windows[0].view_layer.objects.active
+#             cls._store.setdefault(store_key, store_val)
 
-    @classmethod
-    def clear(cls):
-        cls._store.clear()
+#     @classmethod
+#     def clear(cls):
+#         cls._store.clear()
 
-    @classmethod
-    def discard(cls, keys_attrs):
-        if type(keys_attrs) is cls.Walker:
-            keys_attrs = keys_attrs.key_attrs
-        if keys_attrs in cls._store:
-            del cls._store[keys_attrs]
+#     @classmethod
+#     def discard(cls, keys_attrs):
+#         if type(keys_attrs) is cls.Walker:
+#             keys_attrs = keys_attrs.key_attrs
+#         if keys_attrs in cls._store:
+#             del cls._store[keys_attrs]
 
-    @classmethod
-    def restore_all(cls, *, clear=True):
-        for (keys_attrs, val) in cls._store.items():
-            data = bpy.data
-            for (key, attr) in keys_attrs[:-1]:
-                data = cls.get_from_key(data, key)
-            (key, attr) = keys_attrs[-1]
-            cls.set_from_key_attr(data, key, attr, val)
-        if clear:
-            cls.clear()
+#     @classmethod
+#     def restore_all(cls, *, clear=True):
+#         for (keys_attrs, val) in cls._store.items():
+#             data = bpy.data
+#             for (key, attr) in keys_attrs[:-1]:
+#                 data = cls.get_from_key(data, key)
+#             (key, attr) = keys_attrs[-1]
+#             cls.set_from_key_attr(data, key, attr, val)
+#         if clear:
+#             cls.clear()
 
-    @classmethod
-    def is_bpy_type(cls, o):
-        if any(isinstance(o, t) for t in cls._stop_at_types):
-            return False
-        return any(isinstance(o, t) for t in cls._bpy_types)
+#     @classmethod
+#     def is_bpy_type(cls, o):
+#         if any(isinstance(o, t) for t in cls._stop_at_types):
+#             return False
+#         return any(isinstance(o, t) for t in cls._bpy_types)
 
-    @classmethod
-    def __getattr__(cls, key): return cls.Walker(cls.WKey(key, True))
-    @classmethod
-    def __getitem__(cls, key): return cls.Walker(cls.WKey(key, False))
+#     @classmethod
+#     def __getattr__(cls, key): return cls.Walker(cls.WKey(key, True))
+#     @classmethod
+#     def __getitem__(cls, key): return cls.Walker(cls.WKey(key, False))
 
-    def __init__(self): pass
+#     def __init__(self): pass
 
-bpy_data = TempBPYData()
+# bpy_data = TempBPYData()
 
 # if True:
 #     win = bpy_data.window_managers[0].windows[0]

@@ -28,6 +28,7 @@ import importlib
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
+
 from bpy.types import Menu, Operator, Panel
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
@@ -99,6 +100,7 @@ else:
             importlib.reload(keymapsystem)
             importlib.reload(configoptions)
             importlib.reload(updater)
+            importlib.reload(cookiecutter)
             importlib.reload(rftool)
         else:
             print('RetopoFlow: Initial load')
@@ -108,6 +110,7 @@ else:
             from .retopoflow import keymapsystem
             from .config import options as configoptions
             from .retopoflow import updater
+            from .addon_common.cookiecutter import cookiecutter
             from .addon_common.common.maths import convert_numstr_num, has_inverse
             from .addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root
             from .addon_common.common.image_preloader import ImagePreloader
@@ -180,6 +183,7 @@ if import_succeeded:
             ('FAQ',               'faq'),
             ('Keymap Editor',     'keymap_editor'),
             ('Updater System',    'addon_updater'),
+            ('Warning Details',   'warnings'),
         ]
         for cls in [
             VIEW3D_OT_RetopoFlow_Help_Factory(*args),
@@ -187,18 +191,6 @@ if import_succeeded:
         ]
     ]
     RF_classes += RF_help_classes
-
-
-    class VIEW3D_OT_RetopoFlow_Help_Warnings(helpsystem.RetopoFlow_OpenHelpSystem):
-        """Open RetopoFlow Warnings Document"""
-        bl_idname = "cgcookie.retopoflow_help_warnings"
-        bl_label = "See details on these warnings"
-        bl_description = "See details on the RetopoFlow warnings"
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-        rf_startdoc = 'warnings.md'
-    RF_classes += [VIEW3D_OT_RetopoFlow_Help_Warnings]
 
     class VIEW3D_OT_RetopoFlow_UpdaterSystem(updatersystem.RetopoFlow_OpenUpdaterSystem):
         """Open RetopoFlow Updater System"""
@@ -483,11 +475,16 @@ if import_succeeded:
                 self.layout.separator()
                 if is_editing_target(context):
                     self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
-                self.layout.popover('VIEW3D_PT_RetopoFlow')
+                if cookiecutter.is_broken:
+                    self.layout.popover('VIEW3D_PT_RetopoFlow', text='RetopoFlow BROKEN')
+                else:
+                    self.layout.popover('VIEW3D_PT_RetopoFlow')
 
         def draw(self, context):
             layout = self.layout
             layout.label(text=f'RetopoFlow {configoptions.retopoflow_product["version"]}{rf_label_extra}')
+            if cookiecutter.is_broken:
+                layout.label(text=f'BROKEN')
 
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'
@@ -498,6 +495,12 @@ if import_succeeded:
         @classmethod
         def get_warnings(cls, context):
             warnings = set()
+
+            # install checks
+            if not is_addon_folder_valid(context):
+                warnings.add('install: invalid add-on folder')
+            if cookiecutter.is_broken:
+                warnings.add('install: unexpected runtime error occurred')
 
             # source setup checks
             if not retopoflow.RetopoFlow.get_sources():
@@ -536,10 +539,6 @@ if import_succeeded:
                 # user directly opened an auto save file
                 warnings.add('save: can recover auto save')
 
-            # install checks
-            if not is_addon_folder_valid(context):
-                warnings.add('install: invalid add-on folder')
-
             return warnings
 
         @classmethod
@@ -566,6 +565,14 @@ if import_succeeded:
                 return warningsubboxes[label]
 
             warnings = self.get_warnings(context)
+
+            # INSTALL
+            if 'install: invalid add-on folder' in warnings:
+                box = get_warning_subbox('Installation')
+                box.label(text=f'Invalid add-on folder name', icon='DOT')
+            if 'install: unexpected runtime error occurred' in warnings:
+                box = get_warning_subbox('Installation')
+                box.label(text=f'Unexpected runtime error', icon='DOT')
 
             # SETUP CHECKS
             if 'setup: no sources' in warnings:
@@ -619,13 +626,11 @@ if import_succeeded:
                     icon='RECOVER_LAST',
                 )
 
-            # INSTALL
-            if 'install: invalid add-on folder' in warnings:
-                box = get_warning_subbox('Installation')
-                box.label(text=f'Invalid add-on folder name', icon='DOT')
-
             # show button for more warning details
-            layout.operator('cgcookie.retopoflow_help_warnings', icon='HELP')
+            row = layout.row(align=True)
+            row.label(text='See details on these warnings')
+            row.operator('cgcookie.retopoflow_help_warningdetails', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_warningdetails', text='', icon='URL')
 
 
     class VIEW3D_PT_RetopoFlow_EditMesh(Panel):

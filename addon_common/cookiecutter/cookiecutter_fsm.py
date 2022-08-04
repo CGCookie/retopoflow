@@ -13,8 +13,11 @@ https://github.com/CGCookie/retopoflow
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from ..common.fsm import FSM
+import bpy
+
 from ..common.debug import debugger
+from ..common.fsm import FSM
+from ..common.timerhandler import TimerHandler
 
 class CookieCutter_FSM:
     def _cc_fsm_init(self):
@@ -27,5 +30,26 @@ class CookieCutter_FSM:
         self.fsm.update()
 
     def _cc_fsm_force_event(self):
-        # call cursor warp to force an event into event queue, which will cause modal operator to be called ASAP
-        self.context.window.cursor_warp(self.event.mouse_x, self.event.mouse_y)
+        # add some NOP event to event queue to force modal operator to be called again right away
+
+        # # warp cursor to same spot
+        # # DOES NOT WORK: (event.mouse_x, event.mouse_y) might be incorrect!!!
+        # self.context.window.cursor_warp(self.event.mouse_x, self.event.mouse_y)
+
+        # # simulate an event
+        # # DOES NOT WORK: only works with `--enable-event-simulate`, but then Blender cannot accept any input!!!
+        # self.context.window.event_simulate(type='NONE', value='NOTHING')
+
+        # # register a short-lived timer (only returns `None`)
+        # # DOES NOT WORK: these timers do NOT cause modal operator to be called for some reason :(
+        # bpy.app.timers.register(lambda:None, first_interval=0.01)
+
+        # create a short-lived WindowManager timer
+        # self.actions might not yet be created!
+        if not hasattr(self, '_cc_force_event_handler'):
+            self._cc_force_event_handler = TimerHandler(120, context=self.context, enabled=False)
+        self._cc_force_event_handler.start()
+
+    def _cc_fsm_stop_force_event(self):
+        if hasattr(self, '_cc_force_event_handler'):
+            self._cc_force_event_handler.stop()
