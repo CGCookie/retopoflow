@@ -342,15 +342,18 @@ def index_of_area_space(area, space):
 
 @add_cache('root', {})
 def get_path_from_addon_root(*path_join):
-    fn_path = lambda filename: os.path.realpath(os.path.dirname(filename))
-    path_here = fn_path(__file__)
-    if path_here not in get_path_from_addon_root.root:
-        import addon_utils
-        # NOTE: append '/' to end to prevent matching subfolders that have appended stuff
-        modules = [mod for mod in addon_utils.modules() if path_here.startswith(fn_path(mod.__file__) + '/')]
-        assert len(modules) == 1, f'Could not find root for add-on containing {path_here}: {modules}'
-        get_path_from_addon_root.root[path_here] = fn_path(modules[0].__file__)
-    return os.path.join(get_path_from_addon_root.root[path_here], *path_join)
+    path_here = os.path.realpath(os.path.dirname(__file__))
+    path_addon_root = os.path.realpath(os.path.join(path_here, '..', '..'))
+    return os.path.join(path_addon_root, *path_join)
+    # fn_path = lambda filename: os.path.realpath(os.path.dirname(filename))
+    # path_here = fn_path(__file__)
+    # if path_here not in get_path_from_addon_root.root:
+    #     import addon_utils
+    #     # NOTE: append '/' to end to prevent matching subfolders that have appended stuff
+    #     modules = [mod for mod in addon_utils.modules() if path_here.startswith(fn_path(mod.__file__) + '/')]
+    #     assert len(modules) == 1, f'Could not find root for add-on containing {path_here}: {modules}'
+    #     get_path_from_addon_root.root[path_here] = fn_path(modules[0].__file__)
+    # return os.path.join(get_path_from_addon_root.root[path_here], *path_join)
 
 def get_path_from_addon_common(*path_join):
     path_here = os.path.dirname(__file__)
