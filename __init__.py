@@ -458,7 +458,7 @@ if import_succeeded:
 
     rf_label_extra = " (?)"
     if       configoptions.retopoflow_product['git version']:     rf_label_extra = " (git)"
-    elif not configoptions.retopoflow_product['cgcookiue built']: rf_label_extra = " (self)"
+    elif not configoptions.retopoflow_product['cgcookie built']:  rf_label_extra = " (self)"
     elif     configoptions.retopoflow_product['github']:          rf_label_extra = " (github)"
     elif     configoptions.retopoflow_product['blender market']:  rf_label_extra = ""
 

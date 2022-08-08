@@ -12,6 +12,7 @@ tmp/
 /test-models/*
 /docs/
 /devnotes/
+/issues/
 
 updater_tmp/*.json
 
