@@ -147,6 +147,7 @@ class RetopoFlow_UI:
         self.blender_ui_reset(ignore_panels=ignore_panels)
         yield None
         self.blender_ui_set()
+        self.update_clip_settings(rescale=False)
 
     def setup_ui_blender(self):
         self.blender_ui_set(scale_to_unit_box=False, add_rotate=False, hide_target=False)

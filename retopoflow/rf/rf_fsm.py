@@ -90,6 +90,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
         view_version = self.get_view_version()
         if self.view_version != view_version:
+            self.update_view_sessionoptions(self.context)
             self.update_clip_settings(rescale=False)
             self.view_version = view_version
             self.rftool._callback('view change')

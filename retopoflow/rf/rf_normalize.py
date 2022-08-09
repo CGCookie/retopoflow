@@ -44,6 +44,14 @@ class RetopoFlow_Normalize:
     allows RetopoFlow to work with normalized lengths
     '''
 
+    def update_view_sessionoptions(self, context):
+        r3d = context.space_data.region_3d
+        normalize_opts = sessionoptions['normalize']
+        fac = normalize_opts['view scaling factor']
+        view_opts = normalize_opts['view']
+        view_opts['distance'] = r3d.view_distance / fac
+        view_opts['location'] = r3d.view_location / fac
+
     @staticmethod
     def _normalize_set(
         *,
@@ -76,6 +84,7 @@ class RetopoFlow_Normalize:
             if fac and fac > 0.0:
                 r3d.view_distance = orig_view['distance'] * fac
                 r3d.view_location = Vector(orig_view['location']) * fac
+            normalize_opts['view scaling factor'] = fac
         elif view == 'OVERRIDE':
             if view_distance is not None: r3d.view_distance = view_distance
             if view_location is not None: r3d.view_location = view_location

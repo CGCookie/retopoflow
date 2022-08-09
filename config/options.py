@@ -877,6 +877,7 @@ class SessionOptions:
         'normalize': {
             'unit scaling factor': None,
             'mesh scaling factor': 1.0,
+            'view scaling factor': 1.0,
             'clip distances': {
                 'start': None,
                 'end': None,
@@ -884,7 +885,7 @@ class SessionOptions:
             'view': {
                 'distance': None,
                 'location': None,
-            }
+            },
         },
     }
 
