@@ -196,35 +196,51 @@ copied from:
 direction: { 'ANY', 'NORTH', 'NORTH_EAST', 'EAST', 'SOUTH_EAST', 'SOUTH', 'SOUTH_WEST', 'WEST', 'NORTH_WEST' }
 type: {
     'NONE',
+
+    # System
     'WINDOW_DEACTIVATE',  # window lost focus (minimized, switch away from, etc.)
+    'ACTIONZONE_AREA', 'ACTIONZONE_REGION', 'ACTIONZONE_FULLSCREEN',
+
+    # Mouse
     'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
     'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE',
     'MOUSEROTATE', 'MOUSESMARTZOOM', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
     'PEN', 'ERASER',
     'TRACKPADPAN', 'TRACKPADZOOM',
+
+    # Keyboard
+    'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT', 'OSKEY',
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
     'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
-    'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT', 'OSKEY',
-    'APP',
-    'GRLESS',
-    'ESC', 'TAB', 'RET', 'SPACE', 'LINE_FEED', 'BACK_SPACE', 'DEL',
     'SEMI_COLON', 'PERIOD', 'COMMA', 'QUOTE', 'ACCENT_GRAVE', 'MINUS', 'PLUS', 'SLASH', 'BACK_SLASH', 'EQUAL', 'LEFT_BRACKET', 'RIGHT_BRACKET',
-    'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
+    'GRLESS',
     'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9',
     'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_0', 'NUMPAD_MINUS', 'NUMPAD_ENTER', 'NUMPAD_PLUS',
     'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F13', 'F14', 'F15', 'F16', 'F17', 'F18', 'F19', 'F20', 'F21', 'F22', 'F23', 'F24',
     'PAUSE', 'INSERT',
     'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
     'MEDIA_PLAY', 'MEDIA_STOP', 'MEDIA_FIRST', 'MEDIA_LAST',
+    'ESC', 'TAB', 'RET', 'SPACE', 'LINE_FEED', 'BACK_SPACE', 'DEL',
+    'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
+
+    # ???
+    'APP',
+
+    # Text Input
     'TEXTINPUT',
+
+    # Timer
     'TIMER', 'TIMER0', 'TIMER1', 'TIMER2', 'TIMER_JOBS', 'TIMER_AUTOSAVE', 'TIMER_REPORT', 'TIMERREGION',
+
+    # NDOF
     'NDOF_MOTION', 'NDOF_BUTTON_MENU', 'NDOF_BUTTON_FIT', 'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT',
     'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK', 'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2', 'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
     'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW', 'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW', 'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
     'NDOF_BUTTON_DOMINANT', 'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS',
     'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5', 'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
     'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
-    'ACTIONZONE_AREA', 'ACTIONZONE_REGION', 'ACTIONZONE_FULLSCREEN',
+
+    # ???
     'XR_ACTION'
 }
 value: { 'ANY', 'PRESS', 'RELEASE', 'CLICK', 'DOUBLE_CLICK', 'CLICK_DRAG', 'NOTHING' }
@@ -298,57 +314,259 @@ notes:
 
 '''
 
-class EventManager:
-    modifier_types = {
-        'LEFT_CTRL',  'LEFT_ALT',  'LEFT_SHIFT',
-        'RIGHT_CTRL', 'RIGHT_ALT', 'RIGHT_SHIFT',
-        'OSKEY',
+class EventHandler:
+    keyboard_modifier_types = {
+        'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT', 'OSKEY',
+    }
+    keyboard_alpha_types = {
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    }
+    keyboard_number_types = {
+        'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
+        'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9', 'NUMPAD_0',
+    }
+    keyboard_numpad_types = {
+        'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9', 'NUMPAD_0',
+        'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_MINUS', 'NUMPAD_PLUS',
+        'NUMPAD_ENTER',
+    }
+    keyboard_function_types = {
+        'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+        'F13', 'F14', 'F15', 'F16', 'F17', 'F18', 'F19', 'F20', 'F21', 'F22', 'F23', 'F24',
+    }
+    keyboard_symbols_types = {
+        'SEMI_COLON', 'PERIOD', 'COMMA', 'QUOTE', 'ACCENT_GRAVE', 'MINUS', 'PLUS', 'SLASH', 'BACK_SLASH', 'EQUAL', 'LEFT_BRACKET', 'RIGHT_BRACKET',
+        'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_MINUS', 'NUMPAD_PLUS',
+        'GRLESS',
+    }
+    keyboard_media_types = {
+        'MEDIA_PLAY', 'MEDIA_STOP', 'MEDIA_FIRST', 'MEDIA_LAST',
+        'PAUSE',  # ???
+    }
+    keyboard_movement_types = {
+        'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
+        'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
+    }
+    keyboard_escape_types = {
+        'ESC',
+        # 'TAB', ???
+    }
+    keyboard_edit_types = {
+        'INSERT', 'TAB', 'RET', 'SPACE', 'LINE_FEED', 'BACK_SPACE', 'DEL',
+    }
+    keyboard_drag_types = {
+        *keyboard_alpha_types,
+        *keyboard_number_types,
+        *keyboard_numpad_types,
+        *keyboard_symbols_types,
+    }
+    keyboard_types = {
+        *keyboard_modifier_types,
+        *keyboard_alpha_types,
+        *keyboard_number_types,
+        *keyboard_numpad_types,
+        *keyboard_function_types,
+        *keyboard_symbols_types,
+        *keyboard_media_types,
+        *keyboard_movement_types,
+        *keyboard_edit_types,
     }
 
-    def __init__(self, context):
-        self.mods = {
-            'alt':   False,
-            'ctrl':  False,
-            'oskey': False,
-            'shift': False,
+    mouse_button_types = {
+        'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
+        'MOUSEROTATE', 'MOUSESMARTZOOM', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
+        'PEN', 'ERASER',
+        'TRACKPADPAN', 'TRACKPADZOOM',
+    }
+    mouse_move_types = {
+        'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE',
+    }
+    mouse_types = { *mouse_button_types, *mouse_move_types, }
+
+    ndof_types = {
+        'NDOF_MOTION', 'NDOF_BUTTON_MENU', 'NDOF_BUTTON_FIT', 'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT',
+        'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK', 'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2', 'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
+        'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW', 'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW', 'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
+        'NDOF_BUTTON_DOMINANT', 'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS',
+        'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5', 'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
+        'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
+    }
+
+    timer_types = {
+        'TIMER', 'TIMER0', 'TIMER1', 'TIMER2', 'TIMER_JOBS', 'TIMER_AUTOSAVE', 'TIMER_REPORT', 'TIMERREGION',
+    }
+
+
+    scrollable_types = {
+        'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
+        'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
+        'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
+        'TRACKPADPAN',
+    }
+
+    pressable_types = {
+        # pressable also means releasable, clickable, double-clickable
+        *keyboard_types,
+        *mouse_button_types,
+        *ndof_types
+    }
+
+
+    special_types = {
+        'mousemove':  { 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE' },
+        'timer':      { 'TIMER', 'TIMER_REPORT', 'TIMERREGION' },
+        'deactivate': { 'WINDOW_DEACTIVATE' },
+    }
+
+    def __init__(self, context, *, allow_keyboard_dragging=False):
+        self._allow_keyboard_dragging = allow_keyboard_dragging
+
+        self.reset()
+
+    def reset(self):
+        # current states
+        self.mods = { mod: False for mod in ['alt', 'ctrl', 'shift', 'oskey'] }
+        self.mouse = None
+        self.mouse_prev = None
+        self._held = {}          # types that are currently held.  {event.type: time of first held}
+        self._is_dragging     = False
+        self.is_navigating = False # <- need this???
+
+        # memory
+        self._first_held = None  # contains details of when first held action happened (held type, mouse loc, time)
+        self._last_event_type = None
+        self._just_released = None # keep track of last pressed for double click
+
+
+
+    # these properties are for very temporal state changes
+    @property
+    def is_mousemove(self):
+        return self._last_event_type in self.special_types['mousemove']
+    @property
+    def is_timer(self):
+        return self._last_event_type in self.special_types['timer']
+    @property
+    def is_deactivate(self):
+        return self._last_event_type in self.special_types['deactivate']
+
+
+    def is_draggable(self, event):
+        if self._allow_keyboard_dragging and event.type in self.keyboard_drag_types:
+            return True
+        if event.type in self.mouse_button_types:
+            return True
+        return False
+
+    def is_double_click(self, *, event=None):
+        if event and event.type != self.get_just_held('type'):
+            return False
+        delta = self.get_just_held('time') - time.time()
+        return delta < prefs.mouse_doubleclick()
+
+    def is_dragging(self, *, event=None):
+        return get_held(event.type, prop='dragging') if event else self.get_first_held(prop='dragging')
+
+    def holding_non_modifiers(self):
+        return bool(t for t in self._held if t not in self.keyboard_modifier_types)
+
+    def get_held(self, etype, *, prop=None, default=None):
+        if etype not in self._held: return default
+        d = self._held[etype]
+        return d[prop] if prop else d
+
+    def get_first_held(self, *, ignore_mods=True, prop=None, default=None):
+        held = self._held
+        if ignore_mods:
+            held = {htype:held[htype] for htype in held if htype not in self.keyboard_modifier_types}
+        if not held: return default
+        d = min(held, key=lambda htype: held[htype]['time'])
+        return d[prop] if prop else d
+    def get_first_held(self, prop, *, default=None):
+        return self._first_held[prop] if self._first_held else default
+
+    def get_just_held(self, *, prop=None, default=None):
+        return self._first_held[prop] if self._first_held else default
+
+    def handle_press(self, event):
+        # ignore non-pressable events
+        if event.type not in self.pressable_types:
+            return
+
+        # FIRST, if nothing is held (ignoring modifiers), record first held details
+        if not self.holding_non_modifiers():
+            self._first_held = {
+                'type':     event.type,
+                'time':     time.time(),
+                'mouse':    self.mouse,
+                'dragging': False,
+                'can drag': self.is_type_draggable(event),
+                'double':   self.is_double_click(event),
+            }
+
+        self._held[event.type] = {
+            'type':     event.type,
+            'time':     time.time(),
+            'mouse':    self.mouse,
+            'dragging': False,
+            'can drag': self.is_type_draggable(event),
+            'double':   self.is_double_click(event),
         }
 
-        self.pressed = {}           # types that are currently pressed.  {event.type: time of press}
-        self.first_pressed = None   # which type pressed first
+    def handle_release(self, event, *, prev=False):
+        etype = event.type if not prev else event.prev_type
 
-        self.is_dragging = False
+        if etype == self.get_first_held(prop='type'):
+            self._just_released = self._first_held
+            self._first_held = None
 
-        self.is_navigating = False
+        if etype in self.held:
+            del self._held[etype]
 
+    def handle_drag(self, event):
+        if self.get_first_held(prop='dragging') or not self.get_first_held(prop='can drag'):
+            return
 
-    def clear_press(self, etype):
-        if etype not in self.pressed: return
-        if etype == self.first_pressed:
-            self.first_pressed = None
-        del self.pressed[etype]
+        # has mouse moved far enough?
+        mouse_travel = (self.get_first_held(prop='mouse') - self.mouse).length
+        if mouse_travel > bprefs.mouse_drag():
+            self._first_held['dragging'] = True
+
+        fhtype = self._first_held['type']
+        if self._allow_keyboard_dragging and fhtype in self.keyboard_drag_types:
+            self._first_held['dragging'] = True
+        elif fhtype in self.mouse_button_types:
+            self._first_held['dragging'] = True
 
     def update(self, context, event):
+        self._last_event_type = event.type
+
+        if self.is_deactivate:
+            # any time these actions are received, all action states will be flushed
+            self.reset()
+
         self.mods['alt']   = event.alt
         self.mods['ctrl']  = event.ctrl
         self.mods['oskey'] = event.oskey
         self.mods['shift'] = event.shift
+        self.mouse = Point2D((event.mouse_x, event.mouse_y))
+        self.mouse_prev = Point2D((event.mouse_prev_x, event.mouse_prev_y))
 
         if event.value_prev == 'RELEASE':
-            self.clear_press(event.type_prev)
+            self.handle_release(event, prev=True)
 
-        if event.value == 'PRESS':
-            if { t for t in self.pressed if t not in self.modifier_types }:
-                self.first_pressed = {
-                    'type': event.type,
-                    'time': time.time(),
-                    'mouse': (event.mouse_x, event.mouse_y),
-                }
-            self.pressed[event.type] = time.time()
-        elif event.value == 'RELEASE':
-            self.clear_press(event.type)
-        elif event.value == 'NOTHING':
-            if event.type == 'MOUSEMOVE':
-                pass
+        match event.value:
+            case 'PRESS':
+                self.handle_press(event)
+            case 'RELEASE':
+                self.handle_release(event)
+            case 'NOTHING':
+                if event.type == 'MOUSEMOVE':
+                    pass
+
+        if event.type not in self.mouse_move_types:
+            self.handle_drag(event)
 
         pass
 
