@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.8&rarr;3.2.9
+
+- Fixed bug where scaling of target and viewport changes with save/undo
+- Fixed rare bug in PolyPen
+
 ### RetopoFlow 3.2.7&rarr;3.2.8
 
 - Fixed bug where checkedness of alert checkboxes is not saved
