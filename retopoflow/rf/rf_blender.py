@@ -175,7 +175,7 @@ class RetopoFlow_Blender:
 
     @staticmethod
     def scale_sources_target(factor):
-        M = Matrix.Identity(4) * factor
+        M = (Matrix.Identity(3) * factor).to_4x4()
         objects = RetopoFlow_Blender.get_sources()
         objects += [RetopoFlow_Blender.get_target()]
         for obj in objects:
@@ -282,8 +282,8 @@ class RetopoFlow_Blender:
                                 data_space['show_region_header'] = space.show_region_header
                                 data_space['clip_start'] = space.clip_start
                                 data_space['clip_end'] = space.clip_end
-                                data_space['region_3d.view_distance'] = space.region_3d.view_distance
-                                data_space['region_3d.view_location'] = list(space.region_3d.view_location)
+                                # data_space['region_3d.view_distance'] = space.region_3d.view_distance
+                                # data_space['region_3d.view_location'] = list(space.region_3d.view_location)
                                 if hasattr(space, 'show_region_tool_header'):
                                     data_space['show_region_tool_header'] = space.show_region_tool_header
                                 data_space['shading.type'] = space.shading.type
@@ -354,8 +354,8 @@ class RetopoFlow_Blender:
                         space.shading.type = data_space['shading.type']
                         space.clip_start = data_space['clip_start']
                         space.clip_end = data_space['clip_end']
-                        space.region_3d.view_distance = data_space['region_3d.view_distance']
-                        space.region_3d.view_location = Vector(data_space['region_3d.view_location'])
+                        # space.region_3d.view_distance = data_space['region_3d.view_distance']
+                        # space.region_3d.view_location = Vector(data_space['region_3d.view_location'])
                         if not ignore_panels:
                             if hasattr(space, 'show_region_toolbar') and 'toolbar' in data_space:
                                 space.show_region_toolbar = data_space['toolbar']
