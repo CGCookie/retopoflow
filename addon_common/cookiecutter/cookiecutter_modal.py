@@ -116,15 +116,7 @@ class CookieCutter_Modal:
             profiler.printfile()
 
         if self._done:
-            if self._done != 'bail':
-                try:
-                    if self._done == 'commit':
-                        self.end_commit()
-                    else:
-                        self.end_cancel()
-                    self.end()
-                except Exception as e:
-                    self._handle_exception(e, 'call end() with %s' % self._done)
+            self.modal_maindone()
             self._cc_ui_end()
             self._cc_actions_end()
             self._cc_exception_done()
@@ -161,5 +153,16 @@ class CookieCutter_Modal:
 
         perform_redraw_all(only_area=self.context.area)
         return ret
+
+    def modal_maindone(self):
+        if self._done == 'bail':
+            return
+
+        try:
+            fn_end = self.end_commit if self._done == 'commit' else self.end_cancel
+            fn_end()
+            self.end()
+        except Exception as e:
+            self._handle_exception(e, 'call end() with %s' % self._done)
 
 
