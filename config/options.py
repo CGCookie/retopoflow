@@ -47,7 +47,7 @@ from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, Boun
 # important: update Makefile and root/__init__.py, too!
 # TODO: make Makefile pull version from here or some other file?
 # TODO: make __init__.py pull version from here or some other file?
-retopoflow_version = '3.2.9α'  # α β
+retopoflow_version = '3.2.9'  # α β
 retopoflow_version_tuple = (3, 2, 9)
 
 retopoflow_blendermarket_url = 'https://blendermarket.com/products/retopoflow'
