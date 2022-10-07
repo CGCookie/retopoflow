@@ -1,42 +1,21 @@
-CG Cookie RetopoFlow
+RetopoFlow
 ====================
 
-RetopoFlow is a suite of retopology tools for Blender built by [CG Cookie](https://cgcookie.com).
-The tools are offered as add-on for Blender that provides a dedicated set of mesh tools designed specifically for retopology, creating a complete workflow in Blender without the need for outside applications.
+## A suite of fun, sketch-based retopology tools for Blender from [Orange Turbine](https://orangeturbine.com).
 
-RetopoFlow includes several tools, all of which automatically snap the resulting mesh to the target object surface.
-All mesh generation is quad-based (unless you explicitly create other ngons) and tools are modal.
+You can read about the features and purchase a copy on [our website](https://orangeturbine.com/downloads/retopoflow) or the [Blender Market](https://blendermarket.com/products/retopoflow/). 
 
+## Usage
 
-# Getting RetopoFlow
-
-You may purchase RetopoFlow on the [Blender Market](https://blendermarket.com/products/retopoflow/)
-
-Purchasing a copy entitles you to tool support and helps ensure RetopoFlows continued development.
-
+The code for RetopoFlow is open source under the [GPL 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) license. The non-code assets in this repository are not. Students, teachers, and those using RetopoFlow for educational purposes are welcome to download it for free from our [release](https://github.com/CGCookie/retopoflow/releases) page. Please note that installing the source code from the green 'Code' button above rather than the release page will not work since it needs to be packaged appropriately. 
 
 ## Getting Support
 
-You can get support for tools by sending a message to CG Cookie on your [Blender Market Inbox](https://blendermarket.com/inbox).
+To get started with installing and using the add-on, please [read our documentation](http://docs.retopoflow.com/). You can get support for RetopoFlow by sending a message to Orange Turbine from your [Blender Market inbox](https://blendermarket.com/inbox) once you've purchased a copy.
 
-A valid purchase is required for product support.
-
-:warning:
-While it is permissible to grab a copy of RetopoFlow from GitHub, this method is recommended for developers only, because it can get technical.
-If you have issues with enabling the add-on after installing RetopoFlow using this method, please make sure that you have installed RetopoFlow _correctly_ before creating an issue.
-Alternatively, you can purchase a copy from the [Blender Market](https://blendermarket.com/products/retopoflow), and you will get full support along with a packaged version of RetopoFlow.
-
-
-## Releases
-
-In addition to the [Blender Market](https://blendermarket.com/products/retopoflow), all releases of RetopoFlow are accessible from the [GitHub RetopoFlow Releases](https://github.com/CGCookie/retopoflow/releases).
-Simply download the appropriate attached zip (_NOT_ the Source Code!), then install as Blender add-on (Blender > Edit > Preferences > Add-ons > Install...).
-
-
-# Contributing
+## Contributing
 
 Pull requests are welcome!
 If you'd like to contribute to the project then simply fork the repo, work on your changes, and then submit a pull request.
 We are quite strict on what we allow in, but all suggestions are welcome.
 If you're unsure what to contribute, then look at the [open issues](https://github.com/CGCookie/retopoflow/issues) for the current to-dos.
-
