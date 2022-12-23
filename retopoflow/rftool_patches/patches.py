@@ -310,7 +310,7 @@ class Patches(RFTool):
         line_color = themes['new']
         poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
 
-        verts = [point_to_point2D(v if type(v) is Point else v.co) for v in previz['verts']]
+        verts = [point_to_point2D(v if type(v) is Point else (v.co if v.is_valid else None)) for v in previz['verts']]
 
         with Globals.drawing.draw(CC_2D_LINES) as draw:
             draw.color(line_color)
