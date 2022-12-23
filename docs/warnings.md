@@ -5,6 +5,29 @@ RetopoFlow might present a warning if it detects a situation which is not ideal 
 ![](warnings.png)
 
 
+
+## Installation: Invalid add-on folder name
+
+Parts of RetopoFlow can fail if the add-on folder name contains letters that are not alphanumeric character (i.e., `a-z`, `A-Z`, `0-9`).
+This happens when RetopoFlow is installed from a zip file that was not packaged correctly.
+
+In particular, the zip file created by GitHub (either Code > Download Zip or Releases > Download Source) will use folder names with invalid characters, usually a dash.
+
+Our recommended solution is to uninstall the unofficially packaged RetopoFlow and then install an officially packaged RetopoFlow from Blender Market.
+
+
+
+## Installation: Unexpected runtime error
+
+An unexpected error was thrown while RetopoFlow is enabled.
+This could be due to an issue with installing, but it might be due to an unexpected system setup.
+
+Try uninstalling RetopoFlow, restart Blender, and then install an officially packaged RetopoFlow from Blender Market.
+
+Please report it as a [new issue](https://github.com/CGCookie/retopoflow/issues/new) so that we can fix it.
+
+
+
 ## Setup: Source / Target Meshes
 
 RetopoFlow requires at least source mesh to start.
@@ -79,17 +102,6 @@ Temporary file path: `{`options.get_auto_save_filepath()`}`
 
 If you directly open an auto saved file, some of the visual settings and mesh sizes will be different.
 Clicking the "Finish Auto Save Recovery" button will recover the original visual settings and mesh sizes.
-
-
-
-## Installation
-
-Parts of RetopoFlow can fail if the add-on folder name contains letters that are not alphanumeric character (i.e., `a-z`, `A-Z`, `0-9`).
-This happens when RetopoFlow is installed from a zip file that was not packaged correctly.
-
-In particular, the zip file created by GitHub (either Code > Download Zip or Releases > Download Source) will use folder names with invalid characters, usually a dash.
-
-Our recommended solution is to uninstall the unofficially packaged RetopoFlow and then install an officially packaged RetopoFlow from Blender Market.
 
 
 

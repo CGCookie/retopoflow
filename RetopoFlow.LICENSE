@@ -1,13 +1,10 @@
-Unless otherwise stated, all source contained within is licensed
-and copyrighted as follows.
+Copyright (C) 2022 Orange Turbine
+http://orangeturbine.com
+retopoflow@cgcookie.com
 
-Copyright (C) 2022 CG Cookie
-http://cgcookie.com
-hello@cgcookie.com
+Created by Dr. Jonathan Denning, Patrick Moore, Jonathan Williamson, and Jonathan Lampel
 
-Created by Jonathan Denning, Patrick Moore, Jonathan Williamson, Jonathan Lampel
-
-This program is free software: you can redistribute it and/or modify
+All code included in this repository is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
@@ -19,3 +16,5 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+All non-code assets, unless otherwise stated, are property of CG Cookie Inc and may not be distributed with the source code unless granted permission by Orange Turbine.

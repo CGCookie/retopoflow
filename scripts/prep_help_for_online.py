@@ -261,8 +261,8 @@ release_short = {
 }
 hive_path = os.path.join(os.path.dirname(__file__), '..', 'hive.json')
 hive = json.load(open(hive_path, 'rt'))
-version = retopoflow_product['hive']['version']
-release = retopoflow_product['hive']['release']
+version = hive['version']
+release = hive['release']
 
 
 # process options

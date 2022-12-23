@@ -2,6 +2,24 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.2.9&rarr;3.3.0
+
+- New undo system
+- New recovery system
+- Revamped action system
+- Added button to open online documents for Warning Details
+- Improved error handling at startup
+- Refactored large sections and cleaned code
+- Removed code for Blender 2.79 and earlier
+- Reorganized file structure
+- Improved Hive integration
+- ...
+
+### RetopoFlow 3.2.8&rarr;3.2.9
+
+- Fixed bug where scaling of target and viewport changes with save/undo
+- Fixed rare bug in PolyPen
+
 ### RetopoFlow 3.2.7&rarr;3.2.8
 
 - Fixed bug where checkedness of alert checkboxes is not saved

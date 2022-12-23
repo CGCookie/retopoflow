@@ -2,7 +2,7 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
-### RetopoFlow 3.2.8&rarr;3.3.0
+### RetopoFlow 3.2.9&rarr;3.3.0
 
 - New undo system
 - New recovery system
@@ -14,6 +14,11 @@ This document contains details about what has changed in RetopoFlow since versio
 - Reorganized file structure
 - Improved Hive integration
 - ...
+
+### RetopoFlow 3.2.8&rarr;3.2.9
+
+- Fixed bug where scaling of target and viewport changes with save/undo
+- Fixed rare bug in PolyPen
 
 ### RetopoFlow 3.2.7&rarr;3.2.8
 
