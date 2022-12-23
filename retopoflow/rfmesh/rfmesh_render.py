@@ -208,9 +208,9 @@ class RFMeshRender():
         layer_pin = self.rfmesh.layer_pin
 
         def gather(verts, edges, faces, static):
-            vert_count = 100000
-            edge_count = 50000
-            face_count = 10000
+            vert_count = 100_000
+            edge_count = 50_000
+            face_count = 10_000
 
             '''
             IMPORTANT NOTE: DO NOT USE PROFILER INSIDE THIS FUNCTION IF LOADING ASYNCHRONOUSLY!
