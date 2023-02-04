@@ -88,12 +88,13 @@ class UndoStack:
         self._restore(step, *args, **kwargs)
         self._changes += 1
 
-    def restore(self, *args, **kwargs):
-        if self._is_empty(): return
-        step = self._top()
-        self._restore(step, *args, **kwargs)
-        self._redo.clear()
-        self._changes += 1
+    #### the following code is not working??
+    # def restore(self, *args, **kwargs):
+    #     if self._is_empty(): return
+    #     step = self._top()
+    #     self._restore(step, *args, **kwargs)
+    #     self._redo.clear()
+    #     self._changes += 1
 
     def cancel(self, *args, **kwargs):
         if self._is_empty(): return

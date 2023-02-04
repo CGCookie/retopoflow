@@ -74,7 +74,10 @@ class RetopoFlow_Undo:
         self._undostack.push(action, repeatable=repeatable)
 
     def undo_repush(self, __action):
-        self._undostack.restore(reset_tool=False)
+        ### the restore method does not work?
+        # self._undostack.restore(reset_tool=False)
+        self._undostack.pop(reset_tool=False)
+        self._undostack.push(__action, repeatable=True)
 
     def undo_pop(self):
         self._undostack.pop(reset_tool=True, instrument_action='undo')
