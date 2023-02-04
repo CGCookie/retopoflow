@@ -1215,7 +1215,7 @@ class RFMesh():
         touched = set()
         edges = [edge]
 
-        '''
+        r'''
         description of crawl(bme0, bmv01) below...
         given: bme0=A, bmv01=B
         find:  bme1=C, bmv12=D
@@ -1812,7 +1812,7 @@ class RFTarget(RFMesh):
         '''
         snap verts when fn_filter returns True
         '''
-        for rfv in self.get_verts():
+        for rfv in self.iter_verts():
             if not fn_filter(rfv): continue
             xyz,norm,_,_ = nearest(rfv.co)
             rfv.co = xyz
@@ -1832,20 +1832,20 @@ class RFTarget(RFMesh):
 #         self.snap_verts_filter(nearest, lambda v: v.unselect)
 
     def pin_selected(self):
-        for v in self.get_verts():
+        for v in self.iter_verts():
             if v.select: v.pinned = True
     def unpin_selected(self):
-        for v in self.get_verts():
+        for v in self.iter_verts():
             if v.select: v.pinned = False
     def unpin_all(self):
-        for v in self.get_verts():
+        for v in self.iter_verts():
             v.pinned = False
 
     def mark_seam_selected(self):
-        for v in self.get_edges():
+        for v in self.iter_edges():
             if v.select: v.seam = True
     def clear_seam_selected(self):
-        for v in self.get_edges():
+        for v in self.iter_edges():
             if v.select: v.seam = False
 
     def remove_all_doubles(self, dist):

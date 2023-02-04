@@ -130,7 +130,7 @@ class RFWidget_BrushFalloff_Factory:
                 co = self.outer_color
                 ci = self.inner_color
                 cc = self.fill_color * self.fill_color_scale
-                ff = math.pow(0.5, 1.0 / self.falloff)
+                ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
                 fs = (1-ff) * r
 
                 # draw below
@@ -160,7 +160,7 @@ class RFWidget_BrushFalloff_Factory:
                 co = self.outer_color
                 ci = self.inner_color
                 cc = self.fill_color * self.fill_color_scale
-                ff = math.pow(0.5, 1.0 / self.falloff)
+                ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
                 fs = (1-ff) * self.radius
                 Globals.drawing.draw2D_circle(self._change_center, r-fs/2, cc, width=fs)
                 Globals.drawing.draw2D_circle(self._change_center, r,      co, width=1)
@@ -249,14 +249,14 @@ class RFWidget_BrushFalloff_Factory:
                 falloff.set(max(0.0, min(100.0, float(v))))
 
             def falloff_to_dist(self):
-                return self.radius * math.pow(0.5, 1.0 / self.falloff)
+                return self.radius * math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
 
             def dist_to_falloff(self, d):
                 self.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, d / self.radius)))
 
             def falloff_gettersetter(self):
                 def getter():
-                    return int(100 * math.pow(0.5, 1.0 / self.falloff))
+                    return int(100 * math.pow(0.5, 1.0 / max(self.falloff, 0.0001)))
                 def setter(v):
                     self.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, v / 100)))
                     pass

@@ -489,9 +489,8 @@ class RetopoFlow_Target:
     def push_then_snap_all_verts(self):
         self.undo_push('push then snap all non-hidden verts')
         d = options['push and snap distance']
-        bmvs = self.rftarget.get_verts()
-        for bmv in bmvs:
-            if not bmv.hide: bmv.co += bmv.normal * d
+        bmvs = [bmv for bmv in self.rftarget.get_verts() if not bmv.hide]
+        for bmv in bmvs: bmv.co += bmv.normal * d
         self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
         self.recalculate_face_normals(verts=bmvs)
 
@@ -499,8 +498,7 @@ class RetopoFlow_Target:
         self.undo_push('push then snap selected verts')
         d = options['push and snap distance']
         bmvs = self.rftarget.get_selected_verts()
-        for bmv in bmvs:
-            if bmv.select: bmv.co += bmv.normal * d
+        for bmv in bmvs: bmv.co += bmv.normal * d
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
         self.recalculate_face_normals(verts=bmvs)
 
