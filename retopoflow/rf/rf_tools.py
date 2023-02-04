@@ -38,6 +38,7 @@ class RetopoFlow_Tools:
     def setup_rftools(self):
         self.rftool = None
         self.rftools = [rftool(self) for rftool in RFTool.registry]
+        self._rftool_return = None
 
     def reset_rftool(self):
         self.rftool._reset()
@@ -77,7 +78,7 @@ class RetopoFlow_Tools:
         if self._select_rftool(rftool, reset=reset):
             self._rftool_return = prev_tool
 
-    def quick_restore_rftool(self):
+    def quick_restore_rftool(self, *, reset=True):
         if not self._rftool_return: return
         if self.select_rftool(self._rftool_return, reset=reset):
             self._rftool_return = None
