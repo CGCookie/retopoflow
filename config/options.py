@@ -234,6 +234,7 @@ class Options:
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
+        'move rotate object if no selection': True,
 
         ####################################################
         # VISUALIZATION SETTINGS

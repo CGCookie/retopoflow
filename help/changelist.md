@@ -13,6 +13,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Removed code for Blender 2.79 and earlier
 - Reorganized file structure
 - Improved Hive integration
+- Added option to keep viewport orbit center when nothing is selected
 - ...
 
 ### RetopoFlow 3.2.8&rarr;3.2.9

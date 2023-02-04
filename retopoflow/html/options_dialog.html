@@ -406,6 +406,10 @@ def mirror_changed(self):
                     <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
                     Block Backface
                 </label>
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['move rotate object if no selection']''')" title="If enabled, viewport orbitting will center on all sources when nothing is selected.  Disable to keep orbit center at previous position.">
+                    Center Orbit on Sources
+                </label>
                 <details>
                     <summary title="These options are used to tune the parameters for visibility testing">Advanced</summary>
                     <div class="contents">

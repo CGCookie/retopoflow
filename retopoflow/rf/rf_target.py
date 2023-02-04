@@ -910,6 +910,7 @@ class RetopoFlow_Target:
     def update_rot_object(self):
         bbox = self.rftarget.get_selection_bbox()
         if bbox.min == None:
+            if not options['move rotate object if no selection']: return
             #bbox = BBox.merge(src.get_bbox() for src in self.rfsources)
             bboxes = []
             for s in self.rfsources:
