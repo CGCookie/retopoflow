@@ -2010,6 +2010,7 @@ class UI_Element(
 
     @profiler.function
     def get_under_mouse(self, p:Point2D):
+        if p is None: return None
         if self._pseudoelement: return None
         if self._w < 1 or self._h < 1: return None
         if not (self._l <= p.x <= self._r and self._b <= p.y <= self._t): return None
