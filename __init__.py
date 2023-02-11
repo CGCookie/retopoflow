@@ -303,7 +303,8 @@ if import_succeeded:
             return True
 
         def invoke(self, context, event):
-            retopoflow.RetopoFlow.create_new_target(context)
+            o = get_active_object()
+            retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
 

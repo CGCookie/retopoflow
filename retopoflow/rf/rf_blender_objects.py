@@ -125,7 +125,7 @@ class RetopoFlow_Blender_Objects:
         return next(( o for o in bpy.data.objects if is_valid(o) ), None)
 
     @staticmethod
-    def create_new_target(context):
+    def create_new_target(context, *, matrix_world=None):
         auto_edit_mode = bpy.context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
         bpy.context.preferences.edit.use_enter_edit_mode = False
 
@@ -136,6 +136,10 @@ class RetopoFlow_Blender_Objects:
 
         obj.select_set(True)
         context.view_layer.objects.active = obj
+
+        if matrix_world:
+            obj.matrix_world = matrix_world
+
         bpy.ops.object.mode_set(mode='EDIT')
 
         bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
