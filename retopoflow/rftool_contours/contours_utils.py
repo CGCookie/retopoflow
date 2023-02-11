@@ -47,7 +47,7 @@ class Contours_Utils:
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
-    #def get_count(self): return 
+    #def get_count(self): return
 
 
 import math
@@ -105,28 +105,37 @@ def next_edge_in_string(edge0, vert01, ignore_two_faced=False):
 
 def find_loops(edges):
     if not edges: return []
-    touched,loops = set(),[]
+    edges = set(edges)
+    touched, loops = set(), []
 
-    def crawl(v0, edge01, vert_list):
-        nonlocal edges, touched
-        # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
-        #  > came-^-from-^        ^-going-^-to >
-        vert_list.append(v0)
-        touched.add(edge01)
-        v1 = edge01.other_vert(v0)
-        if v1 == vert_list[0]: return vert_list
-        next_edges = [e for e in v1.link_edges if e in edges and e != edge01]
-        if not next_edges: return []
-        if len(next_edges) == 1: edge12 = next_edges[0]
-        else: edge12 = next_edge_in_string(edge01, v1)
-        if not edge12 or edge12 in touched or edge12 not in edges: return []
-        return crawl(v1, edge12, vert_list)
+    def crawl(v0, edge01):
+        nonlocal edges, touched, loops
+
+        vert_list = []
+        while True:
+            # ... -- v0 -- edge01 -- v1 -- edge12 -- ...
+            #  > came-^-from-^        ^-going-^-to >
+            vert_list.append(v0)
+            touched.add(edge01)
+            v1 = edge01.other_vert(v0)
+            if v1 == vert_list[0]:
+                # found a loop!
+                loops.append(vert_list)
+                return
+            next_edges = [e for e in v1.link_edges if e in edges and e != edge01]
+            if not next_edges:
+                # could not find a loop
+                return
+            if len(next_edges) == 1: edge12 = next_edges[0]
+            else: edge12 = next_edge_in_string(edge01, v1)
+            if not edge12 or edge12 in touched or edge12 not in edges:
+                # could not find a loop
+                return
+            v0, edge01 = v1, edge12
 
     for edge in edges:
         if edge in touched: continue
-        vert_list = crawl(edge.verts[0], edge, [])
-        if vert_list:
-            loops.append(vert_list)
+        crawl(edge.verts[0], edge)
 
     return loops
 
