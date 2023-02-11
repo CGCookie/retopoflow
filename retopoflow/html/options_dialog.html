@@ -201,6 +201,19 @@ def mirror_changed(self):
                                 </label>
                             </div>
                         </div>
+                        <div class="collection">
+                            <h1>Brush Settings</h1>
+                            <div class="contents">
+                                <div class="labeled-input-text">
+                                    <label for="brush-min-alpha">Min Alpha</label>
+                                    <input id="brush-min-alpha" type="number" value="BoundFloat('''options['brush min alpha']''', min_value=0.0, max_value=1.0)" title="Minimum alpha for Tweak and Relax brushes">
+                                </div>
+                                <div class="labeled-input-text">
+                                    <label for="brush-max-alpha">Max Alpha</label>
+                                    <input id="brush-max-alpha" type="number" value="BoundFloat('''options['brush max alpha']''', min_value=0.0, max_value=1.0)" title="Minimum alpha for Tweak and Relax brushes">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="collection">

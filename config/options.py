@@ -377,6 +377,9 @@ class Options:
         'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
+        'brush min alpha':              0.10,
+        'brush max alpha':              0.70,
+
         'relax radius':                 50,
         'relax falloff':                1.5,
         'relax strength':               0.5,

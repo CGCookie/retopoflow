@@ -32,7 +32,7 @@ from ...addon_common.common.blender import tag_redraw_all, matrix_vector_mult
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color, Vec2D
-from ...config.options import themes
+from ...config.options import themes, options
 
 
 class RFWidget_BrushFalloff_Factory:
@@ -270,7 +270,7 @@ class RFWidget_BrushFalloff_Factory:
 
             @property
             def fill_color_scale(self):
-                return Color((1, 1, 1, self.strength * 0.60 + 0.10))
+                return Color((1, 1, 1, self.strength * (options['brush max alpha'] - options['brush min alpha']) + options['brush min alpha']))
 
             ##################
             # mouse
