@@ -74,6 +74,8 @@ class PolyPen(RFTool):
             'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
+        self.next_state = 'unset'
+        self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
         self.update_state_info()
         self.first_time = True
         self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
@@ -101,7 +103,6 @@ class PolyPen(RFTool):
     @RFTool.on_target_change
     @RFTool.on_view_change
     @FSM.onlyinstate('main')
-    @profiler.function
     def update_state_info(self):
         with profiler.code('getting selected geometry'):
             self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
@@ -123,11 +124,17 @@ class PolyPen(RFTool):
         self.set_next_state(force=True)
         tag_redraw_all('PolyPen mouse stop')
 
-    @profiler.function
     def set_next_state(self, force=False):
         '''
         determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
         '''
+
+        # if previously computed nearest geometry is invalid, force a recompute
+        force |= self.nearest_vert is not None and not self.nearest_vert.is_valid
+        force |= self.nearest_edge is not None and not self.nearest_edge.is_valid
+        force |= self.nearest_face is not None and not self.nearest_face.is_valid
+        force |= self.nearest_geom is not None and not self.nearest_geom.is_valid
+
         if not self.actions.mouse and not force: return
 
         with profiler.code('getting nearest geometry'):
@@ -223,6 +230,8 @@ class PolyPen(RFTool):
             self.set_next_state(force=True)
             self.first_time = False
             tag_redraw_all('PolyPen mousemove')
+        elif self.nearest_geom and not self.nearest_geom.is_valid:
+            self.set_next_state(force=True)
 
         self.previs_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
@@ -754,7 +763,8 @@ class PolyPen(RFTool):
         hit_pos = self.actions.hit_pos
         if not hit_pos: return
 
-        self.set_next_state()
+        if self.next_state == 'unset': return
+        #self.set_next_state()
 
         bgl.glEnable(bgl.GL_BLEND)
         CC_DRAW.stipple(pattern=[4,4])
