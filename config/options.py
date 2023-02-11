@@ -596,7 +596,8 @@ class Options:
 
         if not getattr(bpy.data, 'filepath', None):
             # not working on a saved .blend file, yet!
-            path = tempfile.gettempdir()
+            path = bpy.context.preferences.filepaths.temporary_directory
+            if not path: path = tempfile.gettempdir()
             filename = retopoflow_files['backup filename']
         else:
             fullpath = os.path.abspath(bpy.data.filepath)
