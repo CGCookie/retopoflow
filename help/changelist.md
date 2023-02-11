@@ -14,6 +14,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Reorganized file structure
 - Improved Hive integration
 - Added option to keep viewport orbit center when nothing is selected
+- General code improvement
 - ...
 
 ### RetopoFlow 3.2.8&rarr;3.2.9
