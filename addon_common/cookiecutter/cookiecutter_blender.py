@@ -226,6 +226,7 @@ class CookieCutter_Blender:
     def overlays_set(self, v):  self.context.space_data.overlay.show_overlays = v
     def overlays_hide(self):    self.overlays_set(False)
     def overlays_show(self):    self.overlays_set(True)
+    def overlays_restore(self): self._storerestore.restore('overlays')
 
 
     #########################################

@@ -53,8 +53,10 @@ def update_clip_distances(self, *, rescale=True):
     show_ui_if('scaled-clipping-distances', options['clip override'] == False)
 
 def update_hide_overlays(self):
-    if options['hide overlays']: self.overlays_hide()
-    else: self.overlays_restore()
+    if options['hide overlays']:
+        self.overlays_hide()
+    else:
+        self.overlays_restore()
 
 def mirror_viz_change(e):
     if not e.target.checked: return
