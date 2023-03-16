@@ -430,7 +430,7 @@ class EventHandler:
         self.mouse = None
         self.mouse_prev = None
         self._held = {}          # types that are currently held.  {event.type: time of first held}
-        self._is_dragging     = False
+        self._is_dragging = False
         self.is_navigating = False # <- need this???
 
         # memory
@@ -483,13 +483,11 @@ class EventHandler:
         if not held: return default
         d = min(held, key=lambda htype: held[htype]['time'])
         return d[prop] if prop else d
-    def get_first_held(self, prop, *, default=None):
-        return self._first_held[prop] if self._first_held else default
 
     def get_just_held(self, *, prop=None, default=None):
         return self._first_held[prop] if self._first_held else default
 
-    def handle_press(self, event):
+    def _update_press(self, event):
         # ignore non-pressable events
         if event.type not in self.pressable_types:
             return
@@ -514,7 +512,7 @@ class EventHandler:
             'double':   self.is_double_click(event),
         }
 
-    def handle_release(self, event, *, prev=False):
+    def _update_release(self, event, *, prev=False):
         etype = event.type if not prev else event.prev_type
 
         if etype == self.get_first_held(prop='type'):
@@ -524,12 +522,13 @@ class EventHandler:
         if etype in self.held:
             del self._held[etype]
 
-    def handle_drag(self, event):
-        if self.get_first_held(prop='dragging') or not self.get_first_held(prop='can drag'):
+    def _update_drag(self, event):
+        first_held = self.get_first_held()
+        if first_held['dragging'] or not first_held['can drag']:
             return
 
         # has mouse moved far enough?
-        mouse_travel = (self.get_first_held(prop='mouse') - self.mouse).length
+        mouse_travel = (first_held['mouse'] - self.mouse).length
         if mouse_travel > bprefs.mouse_drag():
             self._first_held['dragging'] = True
 
@@ -554,21 +553,20 @@ class EventHandler:
         self.mouse_prev = Point2D((event.mouse_prev_x, event.mouse_prev_y))
 
         if event.value_prev == 'RELEASE':
-            self.handle_release(event, prev=True)
+            self._update_release(event, prev=True)
 
         match event.value:
             case 'PRESS':
-                self.handle_press(event)
+                self._update_press(event)
             case 'RELEASE':
-                self.handle_release(event)
+                self._update_release(event)
             case 'NOTHING':
                 if event.type == 'MOUSEMOVE':
                     pass
 
         if event.type not in self.mouse_move_types:
-            self.handle_drag(event)
+            self._update_drag(event)
 
-        pass
 
 
 class Actions:
@@ -625,7 +623,7 @@ class Actions:
         'RIGHT_CTRL', 'RIGHT_SHIFT', 'RIGHT_ALT',
     }
 
-    special_events = [
+    blender_keymaps = [
         {
             'name': 'navigate',
             'operators': [
@@ -706,7 +704,7 @@ class Actions:
         self.keymap['navigate'] |= Actions.trackpad_actions
         self.keymap['navigate'] |= Actions.ndof_actions
 
-        for group in Actions.special_events:
+        for group in Actions.blender_keymaps:
             group_name, blenderops = group['name'], group['operators']
 
             self.keymap.setdefault(group_name, set())
