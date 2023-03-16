@@ -17,6 +17,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added options to control Tweak/Relax brush alpha
 - Fixed disappearing text on detail UI elements at certain Blender UI scales
 - Fixed crash when exiting RetopoFlow after starting in wireframe mode
+- Turning off shading optimization now restores original shading settings
 - General code improvement
 - ...
 

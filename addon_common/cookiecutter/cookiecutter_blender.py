@@ -209,6 +209,10 @@ class CookieCutter_Blender:
     def shading_outline_get(self): return self.context.space_data.shading.show_object_outline
     def shading_outline_set(self, v): self.context.space_data.shading.show_object_outline = v
 
+    def shading_restore(self):
+        for k in ['type','light','matcap','colortype','color','backface','shadows','xray','cavity','outline']:
+            self._storerestore.restore(f'shading {k}')
+
     def quadview_get(self):     return bool(self.context.space_data.region_quadviews)
     def quadview_toggle(self):  bpy.ops.screen.region_quadview({'area': self.context.area, 'region': self._get_region(label='window')})
     def quadview_set(self, v):

@@ -132,8 +132,7 @@ class RetopoFlow_UI:
                 self.shading_matcap_set(options['shading matcap dark'])
                 self.shading_color_set(options['shading color dark'])
         else:
-            # self.shading_restore()
-            pass
+            self.shading_restore()
 
     def blender_ui_reset(self, *, ignore_panels=False):
         # IMPORTANT: changes here should also go in rf_blender_save.backup_recover()
