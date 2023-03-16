@@ -1684,32 +1684,32 @@ class RFTarget(RFMesh):
 
     def delete_selection(self, del_empty_edges=True, del_empty_verts=True, del_verts=True, del_edges=True, del_faces=True):
         if del_faces:
-            faces = set(f for f in self.bme.faces if f.select)
+            faces = { f for f in self.bme.faces if f.select }
             self.delete_faces(faces, del_empty_edges=del_empty_edges, del_empty_verts=del_empty_verts)
         if del_edges:
-            edges = set(e for e in self.bme.edges if e.select)
+            edges = { e for e in self.bme.edges if e.select }
             self.delete_edges(edges, del_empty_verts=del_empty_verts)
         if del_verts:
-            verts = set(v for v in self.bme.verts if v.select)
+            verts = { v for v in self.bme.verts if v.select }
             self.delete_verts(verts)
 
 
     def delete_verts(self, verts):
         for bmv in map(self._unwrap, verts):
-            if bmv.is_valid: self.bme.verts.remove(bmv)
+            if bmv.is_valid and not bmv.hide: self.bme.verts.remove(bmv)
 
     def delete_edges(self, edges, del_empty_verts=True):
-        edges = set(self._unwrap(e) for e in edges)
-        verts = set(v for e in edges for v in e.verts)
+        edges = { self._unwrap(e) for e in edges if e.is_valid and not e.hide }
+        verts = { v for e in edges for v in e.verts }
         for bme in edges: self.bme.edges.remove(bme)
         if del_empty_verts:
             for bmv in verts:
                 if len(bmv.link_edges) == 0: self.bme.verts.remove(bmv)
 
     def delete_faces(self, faces, del_empty_edges=True, del_empty_verts=True):
-        faces = set(self._unwrap(f) for f in faces)
-        edges = set(e for f in faces for e in f.edges)
-        verts = set(v for f in faces for v in f.verts)
+        faces = { self._unwrap(f) for f in faces if f.is_valid and not f.hide }
+        edges = { e for f in faces for e in f.edges }
+        verts = { v for f in faces for v in f.verts }
         for bmf in faces: self.bme.faces.remove(bmf)
         if del_empty_edges:
             for bme in edges:
@@ -1719,15 +1719,15 @@ class RFTarget(RFMesh):
                 if len(bmv.link_faces) == 0: self.bme.verts.remove(bmv)
 
     def dissolve_verts(self, verts, use_face_split=False, use_boundary_tear=False):
-        verts = list(map(self._unwrap, verts))
+        verts = [ self._unwrap(v) for v in verts if v.is_valid and not v.hide ]
         dissolve_verts(self.bme, verts=verts, use_face_split=use_face_split, use_boundary_tear=use_boundary_tear)
 
     def dissolve_edges(self, edges, use_verts=True, use_face_split=False):
-        edges = list(map(self._unwrap, edges))
+        edges = [ self._unwrap(e) for e in edges if e.is_valid and not e.hide ]
         dissolve_edges(self.bme, edges=edges, use_verts=use_verts, use_face_split=use_face_split)
 
     def dissolve_faces(self, faces, use_verts=True):
-        faces = list(map(self._unwrap, faces))
+        faces = [ self._unwrap(f) for f in faces if f.is_valid and not f.hide ]
         dissolve_faces(self.bme, faces=faces, use_verts=use_verts)
 
     def update_verts_faces(self, verts):
