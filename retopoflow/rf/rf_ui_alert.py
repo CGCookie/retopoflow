@@ -235,6 +235,7 @@ class RetopoFlow_UI_Alert:
             executor = ThreadPoolExecutor()
             executor.submit(check_github)
 
+        msg_report = ''
         if level in {'note'}:
             title = 'Note' + (f': {title}' if title else '')
             message = message or 'a note'
@@ -268,10 +269,6 @@ class RetopoFlow_UI_Alert:
                 get_trace_details(undo_stack_actions, msghash=msghash, message=message_orig),
             ])
 
-            def clipboard():
-                try: bpy.context.window_manager.clipboard = msg_report
-                except: pass
-
             show_quit = True
             darken = True
         else:
@@ -297,6 +294,11 @@ class RetopoFlow_UI_Alert:
         @scope.capture_fn
         def quit():
             self.done()
+        @scope.capture_fn
+        def copy_to_clipboard():
+            nonlocal msg_report
+            try: bpy.context.window_manager.clipboard = msg_report
+            except: pass
 
         if self.alert_windows >= 5:
             return
