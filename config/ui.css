@@ -428,7 +428,7 @@ summary {
     background: transparent;
     margin: 0px;
     border: 0px;
-    padding: 4px 6px;
+    padding: 4px 0px 0px 6px; /* leave right and bottom at 0 to help prevent wrapping of innertext! */
 }
 summary:hover {
     background: var(--option-hover-background);
