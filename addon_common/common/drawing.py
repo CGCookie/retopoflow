@@ -57,7 +57,8 @@ from .utils import iter_pairs
 
 # the following line suppresses a Blender 3.1.0 bug
 # https://developer.blender.org/T95592
-bgl.glGetError()
+if not bpy.app.background:
+    bgl.glGetError()
 
 
 class Cursors:
@@ -779,14 +780,15 @@ class Drawing:
         self.glCheckError('done with draw')
         self._draw = None
 
-Drawing.glCheckError(f'pre-init check: Drawing')
-Drawing.initialize()
-Drawing.glCheckError(f'post-init check: Drawing')
+if not bpy.app.background:
+    Drawing.glCheckError(f'pre-init check: Drawing')
+    Drawing.initialize()
+    Drawing.glCheckError(f'post-init check: Drawing')
 
 
 
 
-if bversion() >= "2.80":
+if bversion() >= "2.80" and not bpy.app.background:
     import gpu
     from gpu.types import GPUShader
     from gpu_extras.batch import batch_for_shader
@@ -927,7 +929,9 @@ class CC_DRAW:
     @classmethod
     def end(cls):
         gpu.shader.unbind()
-CC_DRAW.reset()
+
+if not bpy.app.background:
+    CC_DRAW.reset()
 
 
 class CC_2D_POINTS(CC_DRAW):

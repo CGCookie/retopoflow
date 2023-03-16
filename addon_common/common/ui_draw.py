@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import bpy
 import bgl
 
 from .ui_styling import UI_Styling, ui_defaultstylings
@@ -184,6 +185,7 @@ class UI_Draw:
         UI_Draw._draw = draw
 
     def __init__(self):
+        if bpy.app.background: return
         if not UI_Draw._initialized:
             self.init_draw()
             UI_Draw._initialized = True

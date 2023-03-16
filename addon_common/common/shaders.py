@@ -43,7 +43,8 @@ from ..ext.bgl_ext import VoidBufValue
 #      3.2    150      4.4    440
 #      3.3    330      4.5    450
 #                      4.6    460
-print(f'Addon Common: (shaders) GLSL Version: {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}')
+if not bpy.app.background:
+    print(f'Addon Common: (shaders) GLSL Version: {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}')
 
 DEBUG_PRINT = False
 
