@@ -114,25 +114,29 @@ class RetopoFlow_UI:
         if hide_target: self.hide_target()
 
     def blender_shading_update(self):
-        if options['override shading'] != 'off':
-            self.shading_type_set(options['shading view'])
-            self.shading_backface_set(options['shading backface culling'])
-            self.shading_shadows_set(options['shading shadows'])
-            self.shading_xray_set(options['shading xray'])
-            self.shading_cavity_set(options['shading cavity'])
-            self.shading_outline_set(options['shading outline'])
-            if options['override shading'] == 'light':
-                self.shading_light_set(options['shading light'])
-                self.shading_colortype_set(options['shading colortype'])
-                self.shading_matcap_set(options['shading matcap light'])
-                self.shading_color_set(options['shading color light'])
-            elif options['override shading'] == 'dark':
-                self.shading_light_set(options['shading light'])
-                self.shading_colortype_set(options['shading colortype'])
-                self.shading_matcap_set(options['shading matcap dark'])
-                self.shading_color_set(options['shading color dark'])
-        else:
+        if options['override shading'] == 'off':
             self.shading_restore()
+            return
+
+        # common optimizations
+        self.shading_type_set(options['shading view'])
+        self.shading_backface_set(options['shading backface culling'])
+        self.shading_shadows_set(options['shading shadows'])
+        self.shading_xray_set(options['shading xray'])
+        self.shading_cavity_set(options['shading cavity'])
+        self.shading_outline_set(options['shading outline'])
+
+        # theme-based optimizations
+        if options['override shading'] == 'light':
+            self.shading_light_set(options['shading light'])
+            self.shading_colortype_set(options['shading colortype'])
+            self.shading_matcap_set(options['shading matcap light'])
+            self.shading_color_set(options['shading color light'])
+        elif options['override shading'] == 'dark':
+            self.shading_light_set(options['shading light'])
+            self.shading_colortype_set(options['shading colortype'])
+            self.shading_matcap_set(options['shading matcap dark'])
+            self.shading_color_set(options['shading color dark'])
 
     def blender_ui_reset(self, *, ignore_panels=False):
         # IMPORTANT: changes here should also go in rf_blender_save.backup_recover()
