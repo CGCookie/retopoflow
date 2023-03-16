@@ -53,6 +53,26 @@ def debug_test_call(*args, **kwargs):
     return wrapper
 
 
+def ignore_exceptions(*exceptions, default=None, warn=False):
+    def wrap(fn):
+        @wraps(fn)
+        def run_with_ignore_exceptions(*args, **kwargs):
+            ret = default
+            try:
+                ret = fn(*args, **kwargs)
+            except Exception as e:
+                if not any(isinstance(e, ex) for ex in exceptions):
+                    # this exception should not be ignored
+                    raise e
+                # ignoring thrown exception!
+                if warn:
+                    print(f'Addon Common: ignoring exception')
+                    print(f'  Function:  {fn.__name__}')
+                    print(f'  Exception: {e}')
+            return ret
+        return run_with_ignore_exceptions
+    return wrap
+
 
 def stats_wrapper(fn):
     return fn

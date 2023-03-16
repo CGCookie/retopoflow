@@ -22,7 +22,7 @@ import math
 import bpy
 
 from ..common.blender import region_label_to_data, create_simple_context
-from ..common.decorators import blender_version_wrapper
+from ..common.decorators import blender_version_wrapper, ignore_exceptions
 from ..common.debug import debugger
 from ..common.drawing import Drawing, Cursors
 from ..common.utils import iter_head
@@ -184,9 +184,11 @@ class CookieCutter_Blender:
     def shading_light_set(self, v): self.context.space_data.shading.light = v
 
     def shading_matcap_get(self): return self.context.space_data.shading.studio_light
+    @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
     def shading_matcap_set(self, v): self.context.space_data.shading.studio_light = v
 
     def shading_colortype_get(self): return self.context.space_data.shading.color_type
+    @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
     def shading_colortype_set(self, v): self.context.space_data.shading.color_type = v
 
     def shading_color_get(self): return self.context.space_data.shading.single_color

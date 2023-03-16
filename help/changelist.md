@@ -16,6 +16,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added option to keep viewport orbit center when nothing is selected
 - Added options to control Tweak/Relax brush alpha
 - Fixed disappearing text on detail UI elements at certain Blender UI scales
+- Fixed crash when exiting RetopoFlow after starting in wireframe mode
 - General code improvement
 - ...
 
