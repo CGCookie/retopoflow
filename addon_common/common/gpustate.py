@@ -95,7 +95,7 @@ def depth_test(mode): gpu.state.depth_test_set(mode)
 def gpu_info(): return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
 @only_in_blender_version('>= 3.00')
 @warn_once('gpustate.gpu_info cannot get shader version!')
-def gpu_info(): return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}, (no shader version)'
+def gpu_info(): return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
 
 
 

@@ -28,10 +28,21 @@ from itertools import chain
 from .blender import get_path_from_addon_common
 from .debug import dprint
 from .globals import Globals
-from .decorators import blender_version_wrapper
+from .decorators import blender_version_wrapper, only_in_blender_version, warn_once
 from .utils import kwargs_splitter
 
 from ..ext.bgl_ext import VoidBufValue
+
+# https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
+@only_in_blender_version('< 3.00')
+def gpu_info_shaders():
+    import bgl
+    return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
+@only_in_blender_version('>= 3.00')
+@warn_once('gpustate.gpu_info cannot get shader version!')
+def gpu_info_shaders():
+    import gpu
+    return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
 
 # note: not all supported by user system, but we don't need full functionality
 # https://en.wikipedia.org/wiki/OpenGL_Shading_Language#Versions
@@ -44,7 +55,9 @@ from ..ext.bgl_ext import VoidBufValue
 #      3.3    330      4.5    450
 #                      4.6    460
 if not bpy.app.background:
-    print(f'Addon Common: (shaders) GLSL Version: {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}')
+    print(f'Addon Common: (shaders) {gpu_info_shaders()}')
+
+
 
 DEBUG_PRINT = False
 

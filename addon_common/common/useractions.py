@@ -145,7 +145,7 @@ class Action:
             if all([
                 kmi.active,
                 kmi.idname in {ooperator, toperator},
-                kmi.direction == 'ANY'
+                getattr(kmi, 'direction', 'ANY') == 'ANY'
             ])
         }
 
@@ -555,14 +555,13 @@ class EventHandler:
         if event.value_prev == 'RELEASE':
             self._update_release(event, prev=True)
 
-        match event.value:
-            case 'PRESS':
-                self._update_press(event)
-            case 'RELEASE':
-                self._update_release(event)
-            case 'NOTHING':
-                if event.type == 'MOUSEMOVE':
-                    pass
+        if event.value == 'PRESS':
+            self._update_press(event)
+        elif event.value == 'RELEASE':
+            self._update_release(event)
+        elif event.value == 'NOTHING':
+            if event.type == 'MOUSEMOVE':
+                pass
 
         if event.type not in self.mouse_move_types:
             self._update_drag(event)
@@ -641,6 +640,7 @@ class Actions:
                 '3D View | view3d.ndof_orbit',            # NDOF Orbit View
                 '3D View | view3d.ndof_pan',              # NDOF Pan View
                 '3D View | view3d.ndof_all',              # NDOF Move View
+                '3D View | view3d.view_roll',             # NDOF View Roll
                 '3D View | view3d.view_selected',         # View Selected
                 '3D View | view3d.view_center_cursor',    # Center View to Cursor
                 '3D View | view3d.view_center_pick',      # Center View to Mouse
