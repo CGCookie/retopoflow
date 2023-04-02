@@ -41,8 +41,8 @@ bl_info = {
     "blender":     (2, 93, 0),
     #######################################################################################
     # NOTE: the following two lines are automatically updated based on hive.json
-    "version":     (3, 3, 0),   # @hive.version
-    # "warning":     "Alpha",     # @hive.release
+    "version":     (3, 3, 1),   # @hive.version
+    "warning":     "Alpha",     # @hive.release
     # if "warning" is present (not commented out), a warning icon will show in add-ons list
     #######################################################################################
     "doc_url":     "https://docs.retopoflow.com",

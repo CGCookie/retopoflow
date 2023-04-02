@@ -2,6 +2,8 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.3.0&rarr;3.3.1
+
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
 - New undo system

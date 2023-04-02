@@ -1,8 +1,8 @@
 {
     "name": "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
-    "version": "3.3.0",
-    "release": "official",
+    "version": "3.3.1",
+    "release": "alpha",
     "source": "Blender Market",
     "product url": "https://blendermarket.com/products/retopoflow",
     "documentation url": "https://docs.retopoflow.com",

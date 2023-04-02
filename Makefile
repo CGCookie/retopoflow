@@ -53,8 +53,12 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 info:
 	@echo "Information:"
 	@echo "  "$(NAME)" "$(ZIP_VERSION)
-	@echo "  Build: "$(BUILD_DIR)
-	@echo "  Install: "$(INSTALL_DIR)
+	@echo "  Build Path: "$(BUILD_DIR)
+	@echo "  Install Path: "$(INSTALL_DIR)
+	@echo "Targets:"
+	@echo "  documentation: docs, docs-serve, docs-clean, thumbnails"
+	@echo "  development: clean, check, gittag, install"
+	@echo "  build: build-github, build-blendermarket"
 
 clean:
 	rm -rf $(BUILD_DIR)
