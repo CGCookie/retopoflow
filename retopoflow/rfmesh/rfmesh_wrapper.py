@@ -346,32 +346,38 @@ class RFEdge(BMElemWrapper):
         return RFVert(o)
 
     def share_vert(self, bme):
+        if not self.is_valid or not bme.is_valid: return False
         bme = self._unwrap(bme)
-        return any(v in bme.verts for v in self.bmelem.verts)
+        return any(v in bme.verts for v in self.bmelem.verts if v.is_valid)
 
     def shared_vert(self, bme):
+        if not self.is_valid or not bme.is_valid: return None
         bme = self._unwrap(bme)
-        verts = [v for v in self.bmelem.verts if v in bme.verts]
+        verts = [v for v in self.bmelem.verts if v.is_valid and v in bme.verts]
         if not verts:
             return None
         return RFVert(verts[0])
 
     def nonshared_vert(self, bme):
+        if not self.is_valid or not bme.is_valid: return None
         bme = self._unwrap(bme)
-        verts = [v for v in self.bmelem.verts if v not in bme.verts]
+        verts = [v for v in self.bmelem.verts if v.is_valid and v not in bme.verts]
         if len(verts) != 1:
             return None
         return RFVert(verts[0])
 
     def share_face(self, bme):
+        if not self.is_valid or not bme.is_valid: return False
         bme = self._unwrap(bme)
         return any(f in bme.link_faces for f in self.bmelem.link_faces)
 
     def shared_faces(self, bme):
+        if not self.is_valid or not bme.is_valid: return set()
         bme = self._unwrap(bme)
         return {
             RFFace(f)
             for f in (set(self.bmelem.link_faces) & set(bme.link_faces))
+            if f.is_valid
         }
 
     @property
