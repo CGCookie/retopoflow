@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 import blf
-import bgl
+import gpu
 
 from .blender import get_preferences, get_path_from_addon_root, get_path_shortened_from_addon_root
 from .debug import dprint
@@ -140,31 +140,13 @@ class FontManager:
         if fontsize: FontManager.size(fontsize, dpi=dpi, fontid=fontid)
         return blf.draw(fontid, text)
 
-    _pre_blend = bgl.Buffer(bgl.GL_BYTE, 1)
-    _pre_src_rgb  = bgl.Buffer(bgl.GL_INT, 1)
-    _pre_dst_rgb  = bgl.Buffer(bgl.GL_INT, 1)
-    _pre_src_a  = bgl.Buffer(bgl.GL_INT, 1)
-    _pre_dst_a  = bgl.Buffer(bgl.GL_INT, 1)
     @staticmethod
     def draw_simple(text, xyz):
         fontid = FontManager._last_fontid
         blf.position(fontid, *xyz)
-
-        # blf.draw overwrites blend settings!  store so we can restore
-        bgl.glGetBooleanv(bgl.GL_BLEND_SRC_RGB, FontManager._pre_src_rgb)
-        bgl.glGetIntegerv(bgl.GL_BLEND_DST_RGB, FontManager._pre_dst_rgb)
-        bgl.glGetBooleanv(bgl.GL_BLEND_SRC_ALPHA, FontManager._pre_src_a)
-        bgl.glGetIntegerv(bgl.GL_BLEND_DST_ALPHA, FontManager._pre_dst_a)
-        bgl.glGetIntegerv(bgl.GL_BLEND, FontManager._pre_blend)
-
+        blend_eqn = gpu.state.blend_get()   # storing blend settings, because blf.draw used to overwrite them (not sure if still applies)
         ret = blf.draw(fontid, text)
-
-        # restore blend settings!
-        if FontManager._pre_blend[0]: bgl.glEnable(bgl.GL_BLEND)
-        else: bgl.glDisable(bgl.GL_BLEND)
-        bgl.glBlendFunc(FontManager._pre_src_rgb[0], FontManager._pre_dst_rgb[0])
-        #bgl.glBlendEquationSeparate(FontManager._pre_src_rgb[0], FontManager._pre_dst_rgb[0], FontManager._pre_src_a[0], FontManager._pre_dst_a[0])
-
+        gpu.state.blend_set(blend_eqn)      # restore blend settings
         return ret
 
     @staticmethod

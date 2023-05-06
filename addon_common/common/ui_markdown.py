@@ -35,7 +35,6 @@ from itertools import chain
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 
 from .ui_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head

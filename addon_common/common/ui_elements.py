@@ -34,7 +34,6 @@ from itertools import dropwhile
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 import blf
 import gpu
 
