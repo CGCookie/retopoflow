@@ -8,7 +8,6 @@ from typing import List, Callable
 
 from mathutils import Vector, Matrix, Color, kdtree
 from mathutils.bvhtree import BVHTree
-from mathutils.geometry import intersect_point_line, intersect_line_plane
 from bpy_extras import view3d_utils
 
 from .maths import Point, Normal, XForm, Ray, Vector, Point2D

@@ -116,6 +116,7 @@ else:
             from .addon_common.common.image_preloader import ImagePreloader
             from .retopoflow import rftool
         options = configoptions.options
+        rfurls = configoptions.retopoflow_urls
         import_succeeded = True
         RFTool = rftool.RFTool
     except ModuleNotFoundError as e:
@@ -169,7 +170,9 @@ if import_succeeded:
             bl_region_type = "TOOLS"
             bl_options = set()
             def invoke(self, context, event):
-                bpy.ops.wm.url_open(url=f'https://docs.retopoflow.com/{filename}.html')
+                return self.execute(context)
+            def execute(self, context):
+                bpy.ops.wm.url_open(url=rfurls['help doc'](filename))
                 return {'FINISHED'}
         VIEW3D_OT_RetopoFlow_Online.__name__ = f'VIEW3D_OT_RetopoFlow_Online_{idname}'
         return VIEW3D_OT_RetopoFlow_Online
@@ -230,9 +233,26 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     bl_options = set()
 
     def invoke(self, context, event):
-        bpy.ops.wm.url_open(url='https://blendermarket.com/products/retopoflow')
+        return self.execute(context)
+    def execute(self, context):
+        bpy.ops.wm.url_open(url=rfurls['blender market'])
         return {'FINISHED'}
 RF_classes += [VIEW3D_OT_RetopoFlow_BlenderMarket]
+
+class VIEW3D_OT_RetopoFlow_GitHub_NewIssue(Operator):
+    bl_idname = 'cgcookie.retopoflow_github_newissue'
+    bl_label = 'Create a new issue on GitHub'
+    bl_description = 'Open the RetopoFlow GitHub new issue page'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_options = set()
+
+    def invoke(self, context, event):
+        return self.execute(context)
+    def execute(self, context):
+        bpy.ops.wm.url_open(url=rfurls['new github issue'])
+        return {'FINISHED'}
+RF_classes += [VIEW3D_OT_RetopoFlow_GitHub_NewIssue]
 
 class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
     bl_idname = 'cgcookie.retopoflow_online_main'
@@ -243,7 +263,9 @@ class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
     bl_options = set()
 
     def invoke(self, context, event):
-        bpy.ops.wm.url_open(url='https://docs.retopoflow.com')
+        return self.execute(context)
+    def execute(self, context):
+        bpy.ops.wm.url_open(url=rfurls['help docs'])
         return {'FINISHED'}
 RF_classes += [VIEW3D_OT_RetopoFlow_Online_Main]
 
@@ -388,8 +410,9 @@ if import_succeeded:
         @classmethod
         def poll(cls, context):
             return retopoflow.RetopoFlow.has_auto_save()
-
         def invoke(self, context, event):
+            return self.execute(context)
+        def execute(self, context):
             retopoflow.RetopoFlow.recover_auto_save()
             return {'FINISHED'}
     RF_classes += [VIEW3D_OT_RetopoFlow_RecoverOpen]
@@ -406,8 +429,9 @@ if import_succeeded:
         @classmethod
         def poll(cls, context):
             return retopoflow.RetopoFlow.can_recover()
-
         def invoke(self, context, event):
+            return self.execute(context)
+        def execute(self, context):
             retopoflow.RetopoFlow.recovery_revert()
             return {'FINISHED'}
     RF_classes += [VIEW3D_OT_RetopoFlow_RecoverRevert]

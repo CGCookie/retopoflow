@@ -46,6 +46,7 @@ from ..addon_common.common.blender import (
     tag_redraw_all,
     get_path_from_addon_root,
     workspace_duplicate,
+    show_error_message, BlenderPopupOperator, BlenderIcon,
     scene_duplicate,
 )
 from ..addon_common.common.decorators import add_cache
@@ -200,6 +201,17 @@ class RetopoFlow(
                 stage_fn()
         except Exception as e:
             debugger.print_exception()
+            self.done(cancel=True, emergency_bail=True)
+            show_error_message(
+                [
+                    'An unexpected error occurred while trying to start RetopoFlow.',
+                    'Please consider reporting this issue so that we can fix it.',
+                    BlenderPopupOperator('cgcookie.retopoflow_blendermarket', icon='URL'),
+                    BlenderPopupOperator('cgcookie.retopoflow_github_newissue', icon='URL'),
+                ],
+                title='RetopoFlow Error',
+            )
+            return
             assert False
         d['i_step'] = (d['i_step'] + 1) % 2
         if d['i_step'] == 0: d['i_stage'] += 1

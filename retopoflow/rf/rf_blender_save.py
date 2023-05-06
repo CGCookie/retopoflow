@@ -207,8 +207,11 @@ class RetopoFlow_Blender_Save:
         except:
             self.done(emergency_bail=True)
             show_error_message(
-                "RetopoFlow crashed unexpectedly.  Be sure to save your work, and report what happened so that we can try fixing it.",
-                "Unexpected Crash!",
+                '\n'.join([
+                    'RetopoFlow crashed unexpectedly.',
+                    'Be sure to save your work, and report what happened so that we can try fixing it.',
+                ]),
+                title='RetopoFlow Error',
             )
 
     def save_backup(self):

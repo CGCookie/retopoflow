@@ -639,8 +639,14 @@ def perform_redraw_all(only_area=None):
 
 
 
+class BlenderPopupOperator:
+    def __init__(self, idname, **kwargs):
+        self.idname = idname
+        self.kwargs = kwargs
+    def draw(self, layout):
+        layout.operator(self.idname, **self.kwargs)
 
-def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
+def show_blender_popup(message, *, title="Message", icon="INFO", wrap=80):
     '''
     icons: NONE, QUESTION, ERROR, CANCEL,
            TRIA_RIGHT, TRIA_DOWN, TRIA_LEFT, TRIA_UP,
@@ -655,31 +661,40 @@ def show_blender_popup(message, title="Message", icon="INFO", wrap=80):
     '''  # noqa
 
     if not message: return
-    lines = message.splitlines()
+    if type(message) is list:
+        lines = message
+    else:
+        lines = message.splitlines()
     if wrap > 0:
         nlines = []
         for line in lines:
-            spc = len(line) - len(line.lstrip())
-            while len(line) > wrap:
-                i = line.rfind(' ',0,wrap)
-                if i == -1:
-                    nlines += [line[:wrap]]
-                    line = line[wrap:]
-                else:
-                    nlines += [line[:i]]
-                    line = line[i+1:]
-                if line:
-                    line = ' '*spc + line
+            if type(line) is str:
+                spc = len(line) - len(line.lstrip())
+                while len(line) > wrap:
+                    i = line.rfind(' ',0,wrap)
+                    if i == -1:
+                        nlines += [line[:wrap]]
+                        line = line[wrap:]
+                    else:
+                        nlines += [line[:i]]
+                        line = line[i+1:]
+                    if line:
+                        line = ' '*spc + line
             nlines += [line]
         lines = nlines
     def draw(self,context):
         for line in lines:
-            self.layout.label(line)
+            if type(line) is str:
+                self.layout.label(text=line)
+            elif type(line) is BlenderPopupOperator:
+                line.draw(self.layout)
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
     return
 
-def show_error_message(message, title="Error", wrap=80):
-    show_blender_popup(message, title, "ERROR", wrap)
+def show_error_message(message, **kwargs):
+    kwargs.setdefault('title', 'Error')
+    kwargs.setdefault('icon', 'ERROR')
+    show_blender_popup(message, **kwargs)
 
 def get_text_block(name, create=True, error_on_fail=True):
     name = str(name)

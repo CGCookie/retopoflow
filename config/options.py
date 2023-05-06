@@ -67,6 +67,7 @@ retopoflow_urls = {
     'github issues':    'https://github.com/CGCookie/retopoflow/issues',
     'new github issue': 'https://github.com/CGCookie/retopoflow/issues/new',
     'help docs':        'https://docs.retopoflow.com',
+    'help doc':         lambda fn: f'https://docs.retopoflow.com/{fn}.html',
     'tip':              'https://paypal.me/gfxcoder/',  # TODO: REPLACE WITH COOKIE-RELATED ACCOUNT!! :)
                                                         # note: can add number to URL to set a default, ex: https://paypal.me/retopoflow/5
 }

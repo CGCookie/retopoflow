@@ -71,7 +71,7 @@ class Logger:
         if Logger.has_log():
             show_blender_text(Logger._log_filename)
         else:
-            show_blender_popup('Log file (%s) not found' % Logger._log_filename)
+            show_blender_popup(f'Log file ({Logger._log_filename}) not found')
 
 logger = Logger()
 Globals.set(logger)

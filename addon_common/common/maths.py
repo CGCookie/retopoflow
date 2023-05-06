@@ -62,6 +62,10 @@ class Entity3D:
 
 
 class VecUtils(Vector):
+    @classmethod
+    def new_from_vector(cls, v):
+        return cls(v) if v else None
+
     def normalize(self):
         super().normalize()
         return self
@@ -296,6 +300,10 @@ RelPoint2D.ZERO = RelPoint2D((0,0))
 
 
 class Point(Vector, Entity3D):
+    @classmethod
+    def new_from_vector(cls, v):
+        return cls(v) if v else None
+
     @stats_wrapper
     def __init__(self, *args, **kwargs):
         Vector.__init__(*args, **kwargs)
@@ -672,10 +680,17 @@ class Plane(Entity3D):
     def triangle_intersect(self, points: List[Point]):
         return abs(sum(self.side(p) for p in points)) != 3
 
+    def line_intersection(self, p0:Point, p1:Point):
+        v01 = p1 - p0
+        if v01.dot(self.n) == 0: return None
+        l = Direction(v01)
+        d = (self.o - p0).dot(self.n) / l.dot(self.n)
+        return p0 + l * d
+        #return intersect_line_plane(p0, p1, self.o, self.n)
+
     @profiler.function
     def triangle_intersection(self, points: List[Point]):
-        l = len(points)
-        assert l == 3, 'triangle intersection on non triangle (%d)' % (l,)
+        assert len(points) == 3, f'triangle intersection on non triangle ({len(points)=})'
         s0, s1, s2 = map(self.side, points)
         if abs(s0 + s1 + s2) == 3:
             return []    # all points on same side of plane
@@ -701,9 +716,9 @@ class Plane(Entity3D):
             # one point on plane, other two on different sides
             # pass through and catch this case below
         # two points on one side, one point on the other
-        p01 = intersect_line_plane(p0, p1, self.o, self.n)
-        p12 = intersect_line_plane(p1, p2, self.o, self.n)
-        p20 = intersect_line_plane(p2, p0, self.o, self.n)
+        p01 = self.line_intersection(p0, p1)
+        p12 = self.line_intersection(p1, p2)
+        p20 = self.line_intersection(p2, p0)
         if s0 == 0:
             return [(p0, p12)]
         if s1 == 0:
@@ -716,13 +731,12 @@ class Plane(Entity3D):
             return [(p01, p12)]
         if s2 != s0 and s2 != s1 and p12 and p20:
             return [(p12, p20)]
-        print('%s %s %s' % (str(p0), str(p1), str(p2)))
-        print('%s %s %s' % (str(s0), str(s1), str(s2)))
-        print('%s %s %s' % (str(p01), str(p12), str(p20)))
+        print(f'{self.o=} {self.n=} {self.d=}')
+        print(f'{p0=} {s0=}')
+        print(f'{p1=} {s1=}')
+        print(f'{p2=} {s2=}')
+        print(f'{p01=} {p12=} {p20=}')
         assert False
-
-    def line_intersection(self, p0:Point, p1:Point):
-        return intersect_line_plane(p0, p1, self.o, self.n)
 
     @stats_wrapper
     def edge_intersect(self, points: List[Point]):
@@ -740,7 +754,7 @@ class Plane(Entity3D):
             return [(p0, p0)]
         if s1 == 0:
             return [(p1, p1)]
-        p01 = Point(intersect_line_plane(p0, p1, self.o, self.n))
+        p01 = self.line_intersection(p0, p1)
         return [(p01, p01)]
 
     def edge_intersection(self, p0:Point, p1:Point, threshold=zero_threshold):
@@ -749,8 +763,7 @@ class Plane(Entity3D):
         if s1 == 0: return Point(p1)    # p1 is on plane
         if s0 == s1: return None        # points on same side
         # points on opposite sides of plane, might be parallel to plane...
-        p = intersect_line_plane(p0, p1, self.o, self.n)
-        return Point(p) if p else None
+        return self.line_intersection(p0, p1)
 
     def edge_crosses(self, points):
         p0, p1 = points
