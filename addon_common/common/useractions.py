@@ -852,9 +852,11 @@ class Actions:
             time_cur = time.time()
             self.time_delta = self.time_last - time_cur
             self.time_last = time_cur
-            self.trackpad = False
-            self.navevent = False
+            # self.trackpad = False
+            # self.navevent = False
             return
+        else:
+            self.navevent = False
 
         # handle mouse move event
         if self.mousemove:
@@ -891,6 +893,7 @@ class Actions:
             shift=self.shift, oskey=self.oskey,
             drag_click=self.mousedown_drag,
         )
+
         self.navevent = (full_event_type in self.keymap['navigate']) and pressed
         self.navevent_cause = full_event_type if self.navevent else None
         if self.navevent:

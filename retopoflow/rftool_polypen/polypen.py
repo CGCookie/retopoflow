@@ -758,6 +758,8 @@ class PolyPen(RFTool):
     def draw_postpixel(self):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
+        if self.actions.navigating(): return
+
         #if self.rfcontext.nav or self.mode != 'main': return
         if not self.actions.using_onlymods('insert'): return
         hit_pos = self.actions.hit_pos
