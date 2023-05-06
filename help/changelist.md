@@ -8,6 +8,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed compatibility with Blender 2.93--3.2
 - Improved performance when navigating
 - Improved error handling during startup
+- Continued removing code that uses `bgl` module
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
