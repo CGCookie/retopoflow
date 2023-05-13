@@ -28,6 +28,7 @@ from mathutils import Matrix
 
 from ..rftool import RFTool
 
+from ...addon_common.common.boundvar import BoundBool
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import max_index, iter_pairs
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec,Plane

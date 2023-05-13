@@ -10,6 +10,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved error handling during startup
 - Continued removing code that uses `bgl` module
 - Added keymap to select all linked
+- Fixed crashing bug when cutting across non-manifold edge using Contours
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
