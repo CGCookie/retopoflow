@@ -764,6 +764,9 @@ class RetopoFlow_Target:
     def select_invert(self):
         self.rftarget.select_invert()
 
+    def select_linked(self, *, select=True, connected_to=None):
+        self.rftarget.select_linked(select=select, connected_to=connected_to)
+
     def select_edge_loop(self, edge, only=True, **kwargs):
         eloop,connected = self.get_edge_loop(edge)
         self.rftarget.select(eloop, only=only, **kwargs)

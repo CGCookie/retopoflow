@@ -61,6 +61,9 @@ default_rf_keymaps = {
     'select paint': [],
     'select paint add': [],
     'select path add': [],
+    'select linked': ['CTRL+L'],
+    'select linked mouse': ['L'],
+    'deselect linked mouse': ['SHIFT+L'],
 
     'select all': ['A'],
     'select invert': ['CTRL+I'],

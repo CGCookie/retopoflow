@@ -66,26 +66,28 @@ For example, pressing `G` in Contours will slide the selected loop.
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.insert }}                            | : | create new geometry with current tool / apply relax or tweak |
-| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }}  | : | select single |
-| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}    | : | selection painting |
-| {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}    | : | smart selection |
-| {{ site.data.keymaps.select_path_add }}                   | : | select along shortest path |
-| {{ site.data.keymaps.select_all }}                        | : | select / deselect all |
-| {{ site.data.keymaps.deselect_all }}                      | : | deselect all |
-| {{ site.data.keymaps.select_invert }}                     | : | invert selection |
-| {{ site.data.keymaps.hide_selected }}                     | : | hide selected geometry |
-| {{ site.data.keymaps.hide_unselected }}                   | : | hide unselected geometry |
-| {{ site.data.keymaps.reveal_hidden }}                     | : | reveal hidden geometry |
-| {{ site.data.keymaps.action }}                            | : | transform selection when mouse hovers selected geometry |
-| {{ site.data.keymaps.grab }}                              | : | grab and move selected geometry |
-| {{ site.data.keymaps.rotate }}                            | : | rotate selected geometry |
-| {{ site.data.keymaps.scale }}                             | : | scale selected geometry |
-| {{ site.data.keymaps.smooth_edge_flow }}                  | : | smooths edge flow of selected geometry |
-| {{ site.data.keymaps.delete }}                            | : | delete / dissolve dialog |
-| {{ site.data.keymaps.delete_pie_menu }}                   | : | delete / dissolve pie menu
-| {{ site.data.keymaps.blender_undo }}                      | : | undo |
-| {{ site.data.keymaps.blender_redo }}                      | : | redo |
+| {{ site.data.keymaps.insert }}                                     | : | create new geometry with current tool / apply relax or tweak |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }}           | : | select single |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}             | : | selection painting |
+| {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}             | : | smart selection |
+| {{ site.data.keymaps.select_path_add }}                            | : | select along shortest path |
+| {{ site.data.keymaps.select_all }}                                 | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                               | : | deselect all |
+| {{ site.data.keymaps.select_invert }}                              | : | invert selection |
+| {{ site.data.keymaps.select_linked }}                              | : | select all linked |
+| {{ site.data.keymaps.select_linked_mouse }}, {{ site.data.keymaps.deselect_linked_mouse }} | : | select / deselect all linked under mouse |
+| {{ site.data.keymaps.hide_selected }}                              | : | hide selected geometry |
+| {{ site.data.keymaps.hide_unselected }}                            | : | hide unselected geometry |
+| {{ site.data.keymaps.reveal_hidden }}                              | : | reveal hidden geometry |
+| {{ site.data.keymaps.action }}                                     | : | transform selection when mouse hovers selected geometry |
+| {{ site.data.keymaps.grab }}                                       | : | grab and move selected geometry |
+| {{ site.data.keymaps.rotate }}                                     | : | rotate selected geometry |
+| {{ site.data.keymaps.scale }}                                      | : | scale selected geometry |
+| {{ site.data.keymaps.smooth_edge_flow }}                           | : | smooths edge flow of selected geometry |
+| {{ site.data.keymaps.delete }}                                     | : | delete / dissolve dialog |
+| {{ site.data.keymaps.delete_pie_menu }}                            | : | delete / dissolve pie menu
+| {{ site.data.keymaps.blender_undo }}                               | : | undo |
+| {{ site.data.keymaps.blender_redo }}                               | : | redo |
 
 
 General selection has a few options to help with selecting troublesome vertices (ex: just below surface of source).

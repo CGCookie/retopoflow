@@ -1304,6 +1304,39 @@ class RFMesh():
             for bmf in self.bme.faces: bmf.select = not bmf.select
         self.dirty()
 
+    def select_linked(self, *, select=True, connected_to=None):
+        if connected_to is None:
+            # if None, use current selection
+            working = set(self.get_selected_verts())
+        elif type(connected_to) is set or type(connected_to) is list:
+            working = set(connected_to)
+        elif isinstance(connected_to, RFVert) or isinstance(connected_to, RFEdge) or isinstance(connected_to, RFFace):
+            working = { connected_to }
+        else:
+            assert False, f'Unhandled type of connected_to: {connected_to}'
+        pworking, working = working, set()
+        for e in pworking:
+            if isinstance(e, RFVert) or isinstance(e, BMVert):
+                working.add(e)
+            else:
+                for v in e.verts:
+                    working.add(v)
+        linked_verts = set(working)
+        while working:
+            bmv = working.pop()
+            for bme in bmv.link_edges:
+                bmvo = bme.other_vert(bmv)
+                if bmvo in linked_verts: continue
+                working.add(bmvo)
+                linked_verts.add(bmvo)
+        for bmv in linked_verts:
+            bmv.select = select
+            for bme in bmv.link_edges:
+                bme.select = select
+            for bmf in bmv.link_faces:
+                bmf.select = select
+        self.dirty()
+
 
 class RFSource(RFMesh):
     '''

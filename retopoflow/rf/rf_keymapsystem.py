@@ -332,6 +332,9 @@ keymap_details = [
     ('Selection', [
         ('select all', 'Select all'),
         ('select invert', 'Select invert'),
+        ('select linked', 'Select linked'),
+        ('select linked mouse', 'Select linked under mouse'),
+        ('deselect linked mouse', 'Deelect linked under mouse'),
         ('deselect all', 'Deselect all'),
         ('select single', 'Select single item (default depends on Blender selection setting)'),
         ('select single add', 'Add single item to selection (default depends on Blender selection setting)'),

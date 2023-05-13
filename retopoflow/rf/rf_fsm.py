@@ -308,6 +308,21 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                 self.undo_push('select invert')
                 self.select_invert()
                 return
+            if self.actions.pressed('select linked'):
+                self.undo_push('select linked')
+                self.select_linked()
+                return
+            if self.actions.pressed({'select linked mouse', 'deselect linked mouse'}, unpress=False):
+                select = self.actions.pressed('select linked mouse')
+                self.actions.unpress()
+                bmv,_ = self.accel_nearest2D_vert(max_dist=options['select dist'])
+                bme,_ = self.accel_nearest2D_edge(max_dist=options['select dist'])
+                bmf,_ = self.accel_nearest2D_face(max_dist=options['select dist'])
+                connected_to = bmv or bme or bmf
+                if connected_to:
+                    self.undo_push('select linked mouse')
+                    self.select_linked(connected_to=connected_to, select=select)
+                return
 
             # hide/reveal
             if self.actions.pressed('hide selected'):

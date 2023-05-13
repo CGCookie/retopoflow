@@ -66,26 +66,28 @@ For example, pressing `G` in Contours will slide the selected loop.
 
 |  |  |  |
 | --- | --- | --- |
-| {{insert}}                            | : | create new geometry with current tool / apply relax or tweak |
-| {{select single, select single add}}  | : | select single |
-| {{select paint, select paint add}}    | : | selection painting |
-| {{select smart, select smart add}}    | : | smart selection |
-| {{select path add}}                   | : | select along shortest path |
-| {{select all}}                        | : | select / deselect all |
-| {{deselect all}}                      | : | deselect all |
-| {{select invert}}                     | : | invert selection |
-| {{hide selected}}                     | : | hide selected geometry |
-| {{hide unselected}}                   | : | hide unselected geometry |
-| {{reveal hidden}}                     | : | reveal hidden geometry |
-| {{action}}                            | : | transform selection when mouse hovers selected geometry |
-| {{grab}}                              | : | grab and move selected geometry |
-| {{rotate}}                            | : | rotate selected geometry |
-| {{scale}}                             | : | scale selected geometry |
-| {{smooth edge flow}}                  | : | smooths edge flow of selected geometry |
-| {{delete}}                            | : | delete / dissolve dialog |
-| {{delete pie menu}}                   | : | delete / dissolve pie menu
-| {{blender undo}}                      | : | undo |
-| {{blender redo}}                      | : | redo |
+| {{insert}}                                     | : | create new geometry with current tool / apply relax or tweak |
+| {{select single, select single add}}           | : | select single |
+| {{select paint, select paint add}}             | : | selection painting |
+| {{select smart, select smart add}}             | : | smart selection |
+| {{select path add}}                            | : | select along shortest path |
+| {{select all}}                                 | : | select / deselect all |
+| {{deselect all}}                               | : | deselect all |
+| {{select invert}}                              | : | invert selection |
+| {{select linked}}                              | : | select all linked |
+| {{select linked mouse, deselect linked mouse}} | : | select / deselect all linked under mouse |
+| {{hide selected}}                              | : | hide selected geometry |
+| {{hide unselected}}                            | : | hide unselected geometry |
+| {{reveal hidden}}                              | : | reveal hidden geometry |
+| {{action}}                                     | : | transform selection when mouse hovers selected geometry |
+| {{grab}}                                       | : | grab and move selected geometry |
+| {{rotate}}                                     | : | rotate selected geometry |
+| {{scale}}                                      | : | scale selected geometry |
+| {{smooth edge flow}}                           | : | smooths edge flow of selected geometry |
+| {{delete}}                                     | : | delete / dissolve dialog |
+| {{delete pie menu}}                            | : | delete / dissolve pie menu
+| {{blender undo}}                               | : | undo |
+| {{blender redo}}                               | : | redo |
 
 
 General selection has a few options to help with selecting troublesome vertices (ex: just below surface of source).

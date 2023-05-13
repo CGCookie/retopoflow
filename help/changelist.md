@@ -9,6 +9,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved performance when navigating
 - Improved error handling during startup
 - Continued removing code that uses `bgl` module
+- Added keymap to select all linked
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
