@@ -384,6 +384,9 @@ class Knife(RFTool):
                     cur = e
                 else:
                     cur = self.rfcontext.new2D_vert_point(p)
+                    if not cur:
+                        # this happens if no source under the point (issue #1197)
+                        continue
                     if type(e) is RFEdge:
                         eo,bmv = e.split()
                         cur.merge(bmv)
