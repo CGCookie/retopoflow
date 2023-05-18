@@ -247,7 +247,7 @@ class Options:
         'confirm tab quit':             True,   # True:pressing TAB to quit is confirmed (prevents accidentally leaving when pie menu was intended)
         'hide cursor on tweak':         True,   # True: cursor is hidden when tweaking geometry
         'hide overlays':                True,       # hide overlays (wireframe, grid, axes, etc.)
-        'override shading':             'light',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
+        'override shading':             'dark',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
         'shading view':                 'SOLID',
         'shading light':                'MATCAP',
         'shading matcap light':         'basic_1.exr',

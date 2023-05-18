@@ -413,6 +413,7 @@ def mirror_changed(self):
         <details id="selection-options">
             <summary title="Options for selection">Selection</summary>
             <div class="contents">
+                <button title="Select everything connected to the current selection" on_mouseclick="self.select_linked()">Select Linked</button>
                 <label>
                     <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
                     Block Occluded

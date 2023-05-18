@@ -311,7 +311,7 @@ class Contours_Ops:
             if options['contours non-manifold check'] and not connected and (verts[0].co - verts[-1].co).length < 0.01:
                 opt_nonmanifold = '''options['contours non-manifold check']'''
                 self.rfcontext.alert_user('\n'.join([
-                    'It seems the stroke has cut across a non-manifold edge in the source mesh.',
+                    'The stroke has cut across a non-manifold edge in the source mesh and results may not be as expected. Please double check your source for duplicate vertices, un-merged symmetry, and holes.',
                     '',
                     '''<label><input type="checkbox" checked="BoundBool(opt_nonmanifold)">Perform this check</label>'''
                 ]), level='warning')
