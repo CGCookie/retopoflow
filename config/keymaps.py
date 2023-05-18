@@ -101,7 +101,7 @@ default_rf_keymaps = {
     'hide unselected': ['SHIFT+H'],
     'reveal hidden': ['ALT+H'],
 
-    'increase count': ['EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE'],
+    'increase count': ['EQUAL','SHIFT+EQUAL','SHIFT+UP_ARROW', 'SHIFT+WHEELUPMOUSE', 'PLUS'],
     'decrease count': ['MINUS','SHIFT+DOWN_ARROW','SHIFT+WHEELDOWNMOUSE'],
 
     # contours
