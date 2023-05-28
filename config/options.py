@@ -32,7 +32,7 @@ from datetime import datetime
 import bpy
 
 from ..addon_common.common import gpustate
-from ..addon_common.common.blender import get_preferences, get_path_from_addon_root
+from ..addon_common.common.blender import get_path_from_addon_root
 from ..addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ..addon_common.common.debug import Debugger, dprint
 from ..addon_common.common.decorators import run
@@ -676,38 +676,16 @@ class Visualization_Settings:
             'constrain offset',
             'target vert size',
             'target edge size',
-            'target alpha poly',
-            'target alpha poly selected',
-            'target alpha poly warning',
-            'target alpha poly pinned',
-            'target alpha poly seam',
-            'target alpha poly mirror selected',
-            'target alpha poly mirror warning',
-            'target alpha poly mirror pinned',
-            'target alpha poly mirror seam',
-            'target alpha line',
-            'target alpha line selected',
-            'target alpha line warning',
-            'target alpha line pinned',
-            'target alpha line seam',
-            'target alpha line mirror',
-            'target alpha line mirror selected',
-            'target alpha line mirror warning',
-            'target alpha line mirror pinned',
-            'target alpha line mirror seam',
-            'target alpha point',
-            'target alpha point selected',
-            'target alpha point warning',
-            'target alpha point pinned',
-            'target alpha point seam',
-            'target alpha point mirror',
-            'target alpha point mirror selected',
-            'target alpha point mirror warning',
-            'target alpha point mirror pinned',
-            'target alpha point mirror seam',
+            *[f'target alpha poly {p}'         for p in ['', 'selected', 'warning', 'pinned', 'seam']],
+            *[f'target alpha poly mirror {p}'  for p in ['', 'selected', 'warning', 'pinned', 'seam']],
+            *[f'target alpha line {p}'         for p in ['', 'selected', 'warning', 'pinned', 'seam']],
+            *[f'target alpha line mirror {p}'  for p in ['', 'selected', 'warning', 'pinned', 'seam']],
+            *[f'target alpha point {p}'        for p in ['', 'selected', 'warning', 'pinned', 'seam']],
+            *[f'target alpha point mirror {p}' for p in ['', 'selected', 'warning', 'pinned', 'seam']],
             'target alpha point highlight',
             'target alpha mirror',
         ]
+        watch = [w.strip() for w in watch]  # strip watched properties to remove trailing spaces
         if all(getattr(self._last, key, None) == options[key] for key in watch): return
         for key in watch: self._last[key] = options[key]
 
@@ -834,7 +812,7 @@ class SessionOptions:
     '''
     options/settings that are specific to this particular .blend file.
     useful for storing current state and restoring in case of failure.
-    data is stored in bpy.context.scene['RetopoFlow']
+    data is stored in bpy.data.texts[textblockname]['data'].
     '''
 
     textblockname = 'RetopoFlow Session Data'
@@ -860,26 +838,9 @@ class SessionOptions:
         'retopoflow': {
             'version': retopoflow_product['version'],
             'timestamp': None, # automatically filled out when getting session data
+            'target': None,    # automatically filled out when starting RF
         },
-        'workspace': None,
 
-
-        'context': {
-            'mode': None,
-            'mode translated': None,
-            'screen': None,
-            'show_properties': None,
-            'show_toolshelf': None,
-        },
-        'objects': {
-            'active': None,
-            'select': None,
-            'hidden': None,
-        },
-        'blender': {
-            'region_overlap': None,
-        },
-        'window managers': None,
         'normalize': {
             'unit scaling factor': None,
             'mesh scaling factor': 1.0,
@@ -892,6 +853,10 @@ class SessionOptions:
                 'distance': None,
                 'location': None,
             },
+        },
+
+        'blender': {
+            # to be filled in by CookieCutter_Blender and RetopoFlow_Normalize
         },
     }
 
@@ -907,6 +872,7 @@ class SessionOptions:
             session = bpy.data.texts.new(SessionOptions.textblockname)
             # set user-friendly message
             session.from_string(SessionOptions.userfriendlytext)
+            session.cursor_set(0, character=0)
             # assignment below will create deep copy of default
             session['data'] = SessionOptions.default
             cls.set('retopoflow', 'timestamp', str(datetime.now()))

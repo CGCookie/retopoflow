@@ -32,9 +32,10 @@ from bpy_extras.object_utils import object_data_add
 from .rf_blender_objects import RetopoFlow_Blender_Objects
 from ...config.options import sessionoptions, options
 
+from ...addon_common.cookiecutter.cookiecutter_blender import CookieCutter_Blender
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
-from ...addon_common.common.blender import matrix_vector_mult, get_preferences, set_object_selection, set_active_object, get_active_object
+from ...addon_common.common.blender import matrix_vector_mult, set_object_selection, set_active_object, get_active_object
 from ...addon_common.common.blender import toggle_screen_header, toggle_screen_toolbar, toggle_screen_properties, toggle_screen_lastop
 from ...addon_common.common.maths import BBox, XForm, Point
 from ...addon_common.common.debug import dprint
@@ -51,6 +52,12 @@ class RetopoFlow_Normalize:
         view_opts = normalize_opts['view']
         view_opts['distance'] = r3d.view_distance / fac
         view_opts['location'] = r3d.view_location / fac
+
+    @CookieCutter_Blender.blender_change_callback
+    def blenderui_change_callback(self, storage):
+        sessionoptions['blender'] = dict(storage)
+
+
 
     @staticmethod
     def _normalize_set(
@@ -75,6 +82,9 @@ class RetopoFlow_Normalize:
             view = clip = mesh = 'RESTORE'
             factor = 1.0
 
+        rf_target = RetopoFlow_Blender_Objects.get_target()
+
+        sessionoptions['retopoflow']['target'] = rf_target.name
         print(f'RetopoFlow: scaling to {factor=}, {view=}, {clip=}, {mesh=}')
 
         # scale view
@@ -115,7 +125,7 @@ class RetopoFlow_Normalize:
                 prev_factor = normalize_opts['mesh scaling factor']
                 M = (Matrix.Identity(3) * (fac / prev_factor)).to_4x4()
                 sources = RetopoFlow_Blender_Objects.get_sources()
-                targets = [RetopoFlow_Blender_Objects.get_target()]
+                targets = [rf_target]
                 for obj in chain(sources, targets):
                     if not obj: continue
                     obj.matrix_world = M @ obj.matrix_world
@@ -151,6 +161,8 @@ class RetopoFlow_Normalize:
         initializes normalize functions
         call only once!
         '''
+
+        self.blender_change_init(sessionoptions['blender'])
         normalize_opts = sessionoptions['normalize']
 
         space = self.context.space_data

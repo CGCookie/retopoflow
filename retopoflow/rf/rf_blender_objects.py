@@ -29,7 +29,6 @@ from bpy_extras.object_utils import object_data_add
 
 from ...config.options import (
     options,
-    sessionoptions,
     retopoflow_datablocks,
     retopoflow_product,
 )
@@ -38,7 +37,6 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
     matrix_vector_mult,
-    get_preferences,
     set_object_selection,
     get_active_object, set_active_object,
     toggle_screen_header,
@@ -46,6 +44,7 @@ from ...addon_common.common.blender import (
     toggle_screen_properties,
     toggle_screen_lastop,
 )
+from ...addon_common.common.blender_preferences import get_preferences
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
 

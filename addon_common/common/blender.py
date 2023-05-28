@@ -20,13 +20,431 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import os
-import bpy
+import math
 import inspect
+from inspect import ismethod, isfunction, signature
 from collections import namedtuple
+from contextlib import contextmanager
 
+import bpy
 import bpy.utils.previews
 
-from .decorators import blender_version_wrapper, only_in_blender_version, add_cache
+from .decorators import blender_version_wrapper, only_in_blender_version, add_cache, ignore_exceptions
+from .functools import find_fns, self_wrapper
+from .blender_cursors import Cursors
+
+
+
+
+class StoreRestore:
+    def __init__(self, *, init_storage=None):
+        self._bindings = {}
+        self._bind_order = []
+        self._storage = {}
+        self._restoring = False
+        self._callbacks = []
+        self._delay = False
+        self._delayed = False
+        if init_storage: self.init_storage(init_storage)
+
+    def init_storage(self, storage, *, update_only=False):
+        if update_only:
+            for k in storage:
+                self._storage[k] = storage[k]
+        else:
+            self._storage = storage
+
+    def bind(self, key, fn_get, fn_set, fn_restore=None):
+        def fn_set_wrapper():
+            def wrapped(*args, **kwargs):
+                # print(f'SETTING {key} {args} {kwargs} {self._restoring} {fn_set} {fn_restore}')
+                if self._restoring and fn_restore:
+                    return fn_restore(*args, **kwargs)
+                return fn_set(*args, **kwargs)
+            return wrapped
+        self._bindings[key] = (fn_get, fn_set_wrapper())
+        self._bind_order.append(key)
+    def bind_all(self, iter_key_get_set_optrestore):
+        for (key, *fns) in iter_key_get_set_optrestore:
+            self.bind(key, *fns)
+
+    def clear_storage_change_callbacks(self):
+        self._callbacks.clear()
+    def register_storage_change_callback(self, fn):
+        if fn in self._callbacks: return
+        self._callbacks.append(fn)
+        self.call_storage_change_callback()
+    @contextmanager
+    def delay_storage_change_callback(self):
+        try:
+            self._delay = True
+            self._delayed = False
+            yield None
+        finally:
+            # print(f'$$ {self._delayed=}')
+            self._delay = False
+            if self._delayed:
+                self.call_storage_change_callback()
+    def call_storage_change_callback(self):
+        if not self._callbacks: return
+        if self._delay:
+            self._delayed = True
+        else:
+            for fn in self._callbacks:
+                fn(self._storage)
+
+    def __setitem__(self, k, v): self.set(k, v)
+    def set(self, k, v):
+        self.store(k, only_new=True)
+        _, fn_set = self._bindings[k]
+        fn_set(v)
+    def __getitem__(self, k): return self.get(k)
+    def get(self, k):
+        fn_get, _ = self._bindings[k]
+        return fn_get()
+
+    def store(self, k, *, only_new=True):
+        if only_new and k in self._storage: return
+        fn_get, _ = self._bindings[k]
+        nv = fn_get()
+        if k in self._storage:
+            # print(f'>> {k=} {self._storage[k]=} {nv=}')
+            if self._storage[k] == nv: return
+        else:
+            # print(f'++ {k=} {nv=}')
+            pass
+        self._storage[k] = nv
+        self.call_storage_change_callback()
+    def store_all(self, *, only_new=True):
+        with self.delay_storage_change_callback():
+            for k in self._bindings:
+                self.store(k, only_new=only_new)
+
+    def discard(self, k):
+        # print(f'-- discard({k=})')
+        self._storage.discard(k)
+        self.call_storage_change_callback()
+    def remove(self, k):
+        # print(f'-- remove({k=})')
+        self._storage.remove(k)
+        self.call_storage_change_callback()
+
+    def restore(self, k, *, discard=False):
+        if k not in self._storage: return
+        if k not in self._bindings:
+            print(f'Addon Common: Could not find setter for {k}')
+        else:
+            # print(f'Addon Common: Restoring {k} = {self._storage[k]}')
+            _, fn_set = self._bindings[k]
+            try:
+                self._restoring = True
+                fn_set(self._storage[k])
+            finally:
+                self._restoring = False
+        if discard: self.discard(k)
+    def restore_all(self, *, ignore=None, discard=False):
+        ignore = ignore or set()
+        with self.delay_storage_change_callback():
+            for k in self._bind_order:
+                if k not in self._storage or k in ignore: continue
+                self.restore(k, discard=discard)
+
+
+class BlenderSettings:
+
+    #########################################
+    # Workspace and Scene
+
+    @staticmethod
+    def workspace_get(): return bpy.context.window.workspace.name
+    @staticmethod
+    def workspace_set(name): bpy.context.window.workspace = bpy.data.workspaces[name]
+
+    @staticmethod
+    def scene_get(): return bpy.context.window.scene.name
+    @staticmethod
+    def scene_set(name): bpy.context.window.scene = bpy.data.scenes[name]
+
+    @staticmethod
+    def scene_scale_get(): return bpy.context.scene.unit_settings.scale_length
+    @staticmethod
+    def scene_scale_set(v): bpy.context.scene.unit_settings.scale_length = v
+
+
+    #########################################
+    # Objects
+    # NOTE: select, active, and visible properties are stored in scene!
+
+    @staticmethod
+    def objects_selected_get():
+        return [ o.name for o in bpy.data.objects if o.select_get() ]
+    @staticmethod
+    def objects_selected_restore(names):
+        BlenderSettings.objects_selected_set(names, only=True)
+    @staticmethod
+    def objects_selected_set(names, *, only=False):
+        names = set(names)
+        for o in bpy.data.objects:
+            if only: o.select_set(o.name in names)
+            elif o.name in names: o.select_set(True)
+
+    @staticmethod
+    def objects_visible_get():
+        return [ o.name for o in bpy.data.objects if not o.hide_viewport ] #hide_get() ]
+    @staticmethod
+    def objects_visible_restore(names):
+        BlenderSettings.objects_visible_set(names, only=True)
+    @staticmethod
+    def objects_visible_set(names, *, only=False):
+        names = set(names)
+        for o in bpy.data.objects:
+            if only: o.hide_viewport = (o.name not in names) #hide_set(o.name not in names)
+            elif o.name in names: o.hide_viewport = False # hide_set(False)
+
+    @staticmethod
+    def object_active_get():
+        return bpy.context.view_layer.objects.active.name if bpy.context.view_layer.objects.active else None
+    @staticmethod
+    def object_active_set(name):
+        if not name: return
+        obj = bpy.data.objects[name]
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
+
+    #########################################
+    # Header, Status Bar, Cursor
+
+    @staticmethod
+    def header_text_set(s=None): bpy.context.area.header_text_set(text=s)
+    @staticmethod
+    def header_text_restore(): BlenderSettings.header_text_set()
+
+    @staticmethod
+    def statusbar_text_set(s=None, *, internal=False):
+        if not internal: bpy.context.workspace.status_text_set(text=s)
+        else:            bpy.context.workspace.status_text_set_internal(text=s)
+    @staticmethod
+    def statusbar_text_restore():
+        BlenderSettings.statusbar_text_set()
+
+    @staticmethod
+    def cursor_set(cursor): Cursors.set(cursor)
+    @staticmethod
+    def cursor_restore(): Cursors.restore()
+
+
+    #########################################
+    # Region Panels
+
+    @staticmethod
+    def _get_region(*, label=None, type=None):
+        if label: type = region_label_to_data[label].type
+        return next((r for r in bpy.context.area.regions if r.type == type), None)
+    @staticmethod
+    def _get_regions():
+        return { label: BlenderSettings._get_region(label=label) for label in region_label_to_data }
+
+    @staticmethod
+    def panels_get():
+        rgns = BlenderSettings._get_regions()
+        return {
+            label: (rgns[label].width > 1 and rgns[label].height > 1) if rgns[label] else False
+            for label in region_label_to_data
+        }
+    @staticmethod
+    def panels_set(state):
+        ctx = create_simple_context(bpy.context)
+        current = BlenderSettings.panels_get()
+        for label, val in state.items():
+            if val == current[label]: continue
+            fn_toggle = region_label_to_data[label].fn_toggle
+            if fn_toggle: fn_toggle(ctx)
+    @staticmethod
+    def panels_hide(*, ignore=None):
+        ignore = ignore or set()
+        BlenderSettings.panels_set({
+            label: False for label in region_label_to_data if label not in ignore
+        })
+
+
+
+    #########################################
+    # Viewport Shading and Settings
+
+    @staticmethod
+    def shading_type_get(): return bpy.context.space_data.shading.type
+    @staticmethod
+    def shading_type_set(v): bpy.context.space_data.shading.type = v
+
+    @staticmethod
+    def shading_light_get(): return bpy.context.space_data.shading.light
+    @staticmethod
+    def shading_light_set(v): bpy.context.space_data.shading.light = v
+
+    @staticmethod
+    def shading_matcap_get(): return bpy.context.space_data.shading.studio_light
+    @staticmethod
+    @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
+    def shading_matcap_set(v): bpy.context.space_data.shading.studio_light = v
+
+    @staticmethod
+    def shading_colortype_get(): return bpy.context.space_data.shading.color_type
+    @staticmethod
+    @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
+    def shading_colortype_set(v): bpy.context.space_data.shading.color_type = v
+
+    @staticmethod
+    def shading_color_get(): return bpy.context.space_data.shading.single_color
+    @staticmethod
+    def shading_color_set(v): bpy.context.space_data.shading.single_color = v
+
+    @staticmethod
+    def shading_backface_get(): return bpy.context.space_data.shading.show_backface_culling
+    @staticmethod
+    def shading_backface_set(v): bpy.context.space_data.shading.show_backface_culling = v
+
+    @staticmethod
+    def shading_shadows_get(): return bpy.context.space_data.shading.show_shadows
+    @staticmethod
+    def shading_shadows_set(v): bpy.context.space_data.shading.show_shadows = v
+
+    @staticmethod
+    def shading_xray_get(): return bpy.context.space_data.shading.show_xray
+    @staticmethod
+    def shading_xray_set(v): bpy.context.space_data.shading.show_xray = v
+
+    @staticmethod
+    def shading_cavity_get(): return bpy.context.space_data.shading.show_cavity
+    @staticmethod
+    def shading_cavity_set(v): bpy.context.space_data.shading.show_cavity = v
+
+    @staticmethod
+    def shading_outline_get(): return bpy.context.space_data.shading.show_object_outline
+    @staticmethod
+    def shading_outline_set(v): bpy.context.space_data.shading.show_object_outline = v
+
+    @staticmethod
+    def shading_restore():
+        for k in ['type','light','matcap','colortype','color','backface','shadows','xray','cavity','outline']:
+            BlenderSettings._storerestore.restore(f'shading {k}')
+
+    @staticmethod
+    def quadview_get(): return bool(bpy.context.space_data.region_quadviews)
+    @staticmethod
+    def quadview_toggle():
+        bpy.ops.screen.region_quadview({'area': bpy.context.area, 'region': BlenderSettings._get_region(label='window')})
+    @staticmethod
+    def quadview_set(v):
+        if BlenderSettings.quadview_get() != v: BlenderSettings.quadview_toggle()
+    @staticmethod
+    def quadview_hide(): BlenderSettings.quadview_set(False)
+    @staticmethod
+    def quadview_show(): BlenderSettings.quadview_set(True)
+
+    @staticmethod
+    def viewaa_get(): return bpy.context.preferences.system.viewport_aa
+    @staticmethod
+    def viewaa_set(v): bpy.context.preferences.system.viewport_aa = v
+    @staticmethod
+    def viewaa_simplify():
+        BlenderSettings.viewaa_set('FXAA' if BlenderSettings.viewaa_get() != 'OFF' else 'OFF')
+
+    @staticmethod
+    def clip_distances_get(): return (bpy.context.space_data.clip_start, bpy.context.space_data.clip_end)
+    @staticmethod
+    def clip_distances_set(v): (bpy.context.space_data.clip_start, bpy.context.space_data.clip_end) = v
+
+
+    #########################################
+    # Overlays
+
+    @staticmethod
+    def overlays_get(): return bpy.context.space_data.overlay.show_overlays
+    @staticmethod
+    def overlays_set(v): bpy.context.space_data.overlay.show_overlays = v
+    @staticmethod
+    def overlays_hide(): BlenderSettings.overlays_set(False)
+    @staticmethod
+    def overlays_show(): BlenderSettings.overlays_set(True)
+
+    @staticmethod
+    def overlays_restore(self): BlenderSettings._storerestore.restore('overlays')
+
+
+    #########################################
+    # Gizmo
+
+    @staticmethod
+    def gizmo_get():
+        # return bpy.context.space_data.show_gizmo
+        spc = bpy.context.space_data
+        settings = { k:getattr(spc, k) for k in dir(spc) if k.startswith('show_gizmo') }
+        # print('manipulator_settings:', settings)
+        return settings
+    @staticmethod
+    def gizmo_set(v):
+        # bpy.context.space_data.show_gizmo = v
+        spc = bpy.context.space_data
+        if type(v) is bool:
+            for k in dir(spc):
+                # DO NOT CHANGE `show_gizmo` VALUE
+                if not k.startswith('show_gizmo_'): continue
+                setattr(spc, k, v)
+        else:
+            for k,v_ in v.items():
+                setattr(spc, k, v_)
+    @staticmethod
+    def gizmo_hide(): BlenderSettings.gizmo_set(False)
+    @staticmethod
+    def gizmo_show(): BlenderSettings.gizmo_set(True)
+
+
+    #########################################
+    # StoreRestore instance
+
+    @staticmethod
+    def storerestore_init(*, init_storage=None, clear_callbacks=True):
+        cls = BlenderSettings
+        cls._storerestore = StoreRestore(init_storage=init_storage)
+        cls._storerestore.bind_all([
+            # ('workspace', cls.workspace_get, cls.workspace_set),
+            # ('scene', cls.scene_get, cls.scene_set),
+            # IMPORTANT: visible must be _before_ selected, because object must be visible before it can be selected
+            ('objects visible',   cls.objects_visible_get,   cls.objects_visible_set,  cls.objects_visible_restore),
+            ('objects selected',  cls.objects_selected_get,  cls.objects_selected_set, cls.objects_selected_restore),
+            ('object active',     cls.object_active_get,     cls.object_active_set),
+            ('scene scale',       cls.scene_scale_get,       cls.scene_scale_set),
+            ('panels',            cls.panels_get,            cls.panels_set),
+            ('shading type',      cls.shading_type_get,      cls.shading_type_set),
+            ('shading light',     cls.shading_light_get,     cls.shading_light_set),
+            ('shading matcap',    cls.shading_matcap_get,    cls.shading_matcap_set),
+            ('shading colortype', cls.shading_colortype_get, cls.shading_colortype_set),
+            ('shading color',     cls.shading_color_get,     cls.shading_color_set),
+            ('shading backface',  cls.shading_backface_get,  cls.shading_backface_set),
+            ('shading shadows',   cls.shading_shadows_get,   cls.shading_shadows_set),
+            ('shading xray',      cls.shading_xray_get,      cls.shading_xray_set),
+            ('shading cavity',    cls.shading_cavity_get,    cls.shading_cavity_set),
+            ('shading outline',   cls.shading_outline_get,   cls.shading_outline_set),
+            ('quadview',          cls.quadview_get,          cls.quadview_set),
+            ('overlays',          cls.overlays_get,          cls.overlays_set),
+            ('gizmo',             cls.gizmo_get,             cls.gizmo_set),
+            ('viewaa',            cls.viewaa_get,            cls.viewaa_set),
+            ('clip distances',    cls.clip_distances_get,    cls.clip_distances_set),
+        ])
+        if clear_callbacks:
+            cls._storerestore.clear_storage_change_callbacks()
+
+    def __init__(self, **kwargs):
+        self.storerestore_init(**kwargs)
+
+    @staticmethod
+    def init_storage(*args, **kwargs):
+        BlenderSettings._storerestore.init_storage(*args, **kwargs)
+    @staticmethod
+    def restore_all(*args, **kwargs):
+        BlenderSettings._storerestore.restore_all(*args, **kwargs)
+
 
 
 def workspace_duplicate(*, context=None, name=None, use=True):
@@ -310,13 +728,6 @@ def create_simple_context(context=None):
 
 
 ###########################################################
-
-
-
-def get_preferences(ctx=None):
-    return (ctx if ctx else bpy.context).preferences
-
-###############################################################
 # Mode
 
 def mode_translate(mode):

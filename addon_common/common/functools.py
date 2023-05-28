@@ -19,7 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from inspect import isfunction
+from inspect import isfunction, signature
 
 
 ##################################################
@@ -39,3 +39,11 @@ def find_fns(obj, key):
         for method in methods
         if hasattr(method, key)
     ]
+
+def self_wrapper(self, fn):
+    sig = signature(fn)
+    params = list(sig.parameters.values())
+    if params[0].name != 'self': return fn
+    def wrapped(*args, **kwargs):
+        return fn(self, *args, **kwargs)
+    return wrapped

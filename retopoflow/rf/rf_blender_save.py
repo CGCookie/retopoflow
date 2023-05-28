@@ -24,19 +24,19 @@ import bpy
 import json
 import time
 from datetime import datetime
+from itertools import chain
 
 from mathutils import Matrix, Vector
 from bpy_extras.object_utils import object_data_add
 from bpy.app.handlers import persistent
 
-from ...config.options import options
+from ...config.options import options, sessionoptions
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.boundvar import BoundBool
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
     matrix_vector_mult,
-    get_preferences,
     set_object_selection,
     set_active_object,
     toggle_screen_header,
@@ -44,16 +44,30 @@ from ...addon_common.common.blender import (
     toggle_screen_properties,
     toggle_screen_lastop,
     show_error_message,
+    StoreRestore,
+    BlenderSettings,
 )
+from ...addon_common.common.blender_preferences import get_preferences
 from ...addon_common.common.maths import BBox
 from ...addon_common.common.debug import dprint
+
+from .rf_blender_objects import RetopoFlow_Blender_Objects
 
 
 @persistent
 def revert_auto_save_after_load(*_, **__):
     # remove recover handler
     bpy.app.handlers.load_post.remove(revert_auto_save_after_load)
-    RetopoFlow_Blender_Save.recovery_revert()
+    window = bpy.context.window
+    screen = window.screen
+    area = next((a for a in screen.areas if a.type == 'VIEW_3D'), None)
+    assert area
+    space_data = next((s for s in area.spaces if s.type == 'VIEW_3D'), None)
+    assert space_data
+    region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+    assert region
+    with bpy.context.temp_override(window=window, screen=screen, area=area, space_data=space_data, region=region):
+        RetopoFlow_Blender_Save.recovery_revert()
 
 
 class RetopoFlow_Blender_Save:
@@ -64,7 +78,7 @@ class RetopoFlow_Blender_Save:
     @staticmethod
     def can_recover():
         if options['rotate object'] in bpy.data.objects: return True
-        if options['blender state'] in bpy.data.texts: return True
+        if sessionoptions.has_session_data(): return True
         return False
 
     @staticmethod
@@ -78,34 +92,60 @@ class RetopoFlow_Blender_Save:
                 do_unlink=True,
             )
 
-        # grab previous blender state
-        if options['blender state'] not in bpy.data.texts:
-            data = json.loads(bpy.data.texts[options['blender state']].as_string())
+        if sessionoptions.has_session_data():
+            data = dict(sessionoptions['blender'])
+            print(f'RetopoFlow: Restoring Session Data')
+            print(f'  {data}')
+            bs = BlenderSettings(init_storage=data)
+            bs.restore_all()
 
-            # get target object and reset settings
-            tar_object = bpy.data.objects[data['active object']]
-            tar_object.hide_viewport = False
-            tar_object.hide_render = False
-            bpy.context.view_layer.objects.active = tar_object
-            tar_object.select_set(True)
+            space = bpy.context.space_data
+            r3d = space.region_3d
+            normalize_opts = sessionoptions['normalize']
+            # scale view
+            orig_view = normalize_opts['view']
+            r3d.view_distance = orig_view['distance']
+            r3d.view_location = Vector(orig_view['location'])
+            # scale clip start and end
+            orig_clip = normalize_opts['clip distances']
+            space.clip_start = orig_clip['start']
+            space.clip_end   = orig_clip['end']
+            # scale meshes
+            prev_factor = normalize_opts['mesh scaling factor']
+            M = (Matrix.Identity(3) * (1.0 / prev_factor)).to_4x4()
+            sources = RetopoFlow_Blender_Objects.get_sources()
+            targets = [RetopoFlow_Blender_Objects.get_target()]
+            for obj in chain(sources, targets):
+                if not obj: continue
+                obj.matrix_world = M @ obj.matrix_world
 
-            RetopoFlow_Normalize.end_normalize(bpy.context)
+            bpy.ops.object.mode_set(mode='EDIT')
 
-            bpy.data.texts.remove(
-                bpy.data.texts[options['blender state']],
-                do_unlink=True,
-            )
+            sessionoptions.clear()
+
+        # # grab previous blender state
+        # if options['blender state'] in bpy.data.texts:
+        #     data = json.loads(bpy.data.texts[options['blender state']].as_string())
+
+        #     # get target object and reset settings
+        #     tar_object = bpy.data.objects[data['active object']]
+        #     tar_object.hide_viewport = False
+        #     tar_object.hide_render = False
+        #     bpy.context.view_layer.objects.active = tar_object
+        #     tar_object.select_set(True)
+
+        #     RetopoFlow_Normalize.end_normalize(bpy.context)
+
+        #     bpy.data.texts.remove(
+        #         bpy.data.texts[options['blender state']],
+        #         do_unlink=True,
+        #     )
 
         # restore window state (mostly tool, properties, header, etc.)
         # RetopoFlow_Blender_UI.restore_window_state(
         #     ignore_panels=False,
         #     ignore_mode=False,
         # )
-        print('X'*100)
-        print('X'*100)
-        print('TODO: IMPLEMENT RetopoFlow_Blender_Save.recovery_revert')
-        print('X'*100)
-        print('X'*100)
 
 
 
@@ -190,10 +230,17 @@ class RetopoFlow_Blender_Save:
         if not filepath or not os.path.exists(filepath):
             print(f'  DOES NOT EXIST!')
             return
-
         bpy.app.handlers.load_post.append(revert_auto_save_after_load)
-
         bpy.ops.wm.open_mainfile(filepath=filepath)
+
+    @staticmethod
+    def delete_auto_save():
+        filepath = options['last auto save path']
+        print(f'backup delete: {filepath}')
+        if not filepath or not os.path.exists(filepath):
+            print(f'  DOES NOT EXIST!')
+            return
+        os.remove(filepath)
 
     def save_emergency(self):
         try:

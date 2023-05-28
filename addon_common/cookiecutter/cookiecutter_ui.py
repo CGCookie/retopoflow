@@ -147,24 +147,6 @@ class CookieCutter_UI:
     #########################################
     # Region Darkening
 
-    @blender_version_wrapper("<=", "2.79")
-    def _cc_region_draw_cover(self, a):
-        bgl.glPushAttrib(bgl.GL_ALL_ATTRIB_BITS)
-        bgl.glMatrixMode(bgl.GL_PROJECTION)
-        bgl.glPushMatrix()
-        bgl.glLoadIdentity()
-        bgl.glColor4f(0,0,0,0.5)    # TODO: use window background color??
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDisable(bgl.GL_DEPTH_TEST)
-        bgl.glBegin(bgl.GL_QUADS)   # TODO: not use immediate mode
-        bgl.glVertex2f(-1, -1)
-        bgl.glVertex2f( 1, -1)
-        bgl.glVertex2f( 1,  1)
-        bgl.glVertex2f(-1,  1)
-        bgl.glEnd()
-        bgl.glPopMatrix()
-        bgl.glPopAttrib()
-    @blender_version_wrapper(">=", "2.80")
     def _cc_region_draw_cover(self, a):
         bgl.glEnable(bgl.GL_BLEND)
         bgl.glDisable(bgl.GL_DEPTH_TEST)

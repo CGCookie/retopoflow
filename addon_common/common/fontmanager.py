@@ -23,7 +23,8 @@ import bpy
 import blf
 import gpu
 
-from .blender import get_preferences, get_path_from_addon_root, get_path_shortened_from_addon_root
+from .blender import get_path_from_addon_root, get_path_shortened_from_addon_root
+from .blender_preferences import get_preferences
 from .debug import dprint
 from .decorators import blender_version_wrapper
 from .profiler import profiler

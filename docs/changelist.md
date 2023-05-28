@@ -12,6 +12,8 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added keymap to select all linked
 - Fixed crashing bug when cutting across non-manifold edge using Contours
 - Fixed bug when using knife where no source geometry exists
+- Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
+- Fixed recovery of auto saves
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

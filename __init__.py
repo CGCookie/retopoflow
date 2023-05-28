@@ -417,6 +417,25 @@ if import_succeeded:
             return {'FINISHED'}
     RF_classes += [VIEW3D_OT_RetopoFlow_RecoverOpen]
 
+    class VIEW3D_OT_RetopoFlow_RecoverDelete(Operator):
+        bl_idname = 'cgcookie.retopoflow_recover_delete'
+        bl_label = 'Recover: Delete Last Auto Save'
+        bl_description = 'Delete last file automatically saved by RetopoFlow'
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'TOOLS'
+        bl_options = set()
+        rf_icon = 'rf_recover_icon'
+
+        @classmethod
+        def poll(cls, context):
+            return retopoflow.RetopoFlow.has_auto_save()
+        def invoke(self, context, event):
+            return self.execute(context)
+        def execute(self, context):
+            retopoflow.RetopoFlow.delete_auto_save()
+            return {'FINISHED'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverDelete]
+
     class VIEW3D_OT_RetopoFlow_RecoverRevert(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_finish'
         bl_label = 'Recover: Finish Auto Save Recovery'
@@ -472,7 +491,7 @@ if import_succeeded:
             if area.type != 'VIEW_3D': continue
             for space in area.spaces:
                 if space.type != 'VIEW_3D': continue
-                if len(space.region_quadviews) > 0: return True
+                if bool(space.region_quadviews): return True
         return False
     def is_addon_folder_valid(context):
         bad_chars = set(re.sub(r'[a-zA-Z0-9_]', '', __package__))
@@ -563,6 +582,9 @@ if import_succeeded:
             if retopoflow.RetopoFlow.can_recover():
                 # user directly opened an auto save file
                 warnings.add('save: can recover auto save')
+            if retopoflow.RetopoFlow.has_auto_save():
+                # auto save file detected
+                warnings.add('save: has auto save')
 
             return warnings
 
@@ -650,6 +672,19 @@ if import_succeeded:
                     text='Finish Auto Save Recovery',
                     icon='RECOVER_LAST',
                 )
+            if 'save: has auto save' in warnings:
+                box = get_warning_subbox('Auto Save / Save')
+                box.label(text=f'Auto Save file found', icon='DOT')
+                box.operator(
+                    'cgcookie.retopoflow_recover_open',
+                    text='Open Last Auto Save',
+                    icon='RECOVER_LAST',
+                )
+                # box.operator(
+                #     'cgcookie.retopoflow_recover_delete',
+                #     text='Delete Last Auto Save',
+                #     icon='X',
+                # )
 
             # show button for more warning details
             row = layout.row(align=True)

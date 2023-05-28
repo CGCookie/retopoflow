@@ -38,7 +38,8 @@ from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.boundvar import BoundVar, BoundBool, BoundFloat, BoundString
 from ...addon_common.common.utils import delay_exec
 from ...addon_common.common.globals import Globals
-from ...addon_common.common.blender import get_preferences, get_path_from_addon_root
+from ...addon_common.common.blender import get_path_from_addon_root
+from ...addon_common.common.blender_preferences import get_preferences
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.profiler import profiler

@@ -31,7 +31,7 @@ import importlib
 import bpy
 from mathutils import Vector, Matrix
 
-from .blender import get_preferences
+from .blender_preferences import get_preferences
 from .profiler import profiler
 from .debug import dprint, debugger
 from .maths import (

@@ -22,6 +22,10 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 
 
+def get_preferences(ctx=None):
+    return (ctx if ctx else bpy.context).preferences
+
+
 def mouse_doubleclick():
     # time/delay (in seconds) for a double click
     return bpy.context.preferences.inputs.mouse_double_click_time / 1000

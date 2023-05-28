@@ -42,7 +42,9 @@ from mathutils import Matrix, Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
 
-from .blender import get_preferences, bversion, get_path_from_addon_root, get_path_from_addon_common
+from .blender import bversion, get_path_from_addon_root, get_path_from_addon_common
+from .blender_cursors import Cursors
+from .blender_preferences import get_preferences
 from .debug import dprint, debugger
 from .decorators import blender_version_wrapper, add_cache
 from .fontmanager import FontManager as fm
@@ -59,73 +61,6 @@ from .utils import iter_pairs
 # https://developer.blender.org/T95592
 if not bpy.app.background:
     bgl.glGetError()
-
-
-class Cursors:
-    # https://docs.blender.org/api/current/bpy.types.Window.html#bpy.types.Window.cursor_set
-    _cursors = {
-
-        # blender cursors
-        'DEFAULT':      'DEFAULT',
-        'NONE':         'NONE',
-        'WAIT':         'WAIT',
-        'CROSSHAIR':    'CROSSHAIR',
-        'MOVE_X':       'MOVE_X',
-        'MOVE_Y':       'MOVE_Y',
-        'KNIFE':        'KNIFE',
-        'TEXT':         'TEXT',
-        'PAINT_BRUSH':  'PAINT_BRUSH',
-        'HAND':         'HAND',
-        'SCROLL_X':     'SCROLL_X',
-        'SCROLL_Y':     'SCROLL_Y',
-        'EYEDROPPER':   'EYEDROPPER',
-
-        # lower case version of blender cursors
-        'default':      'DEFAULT',
-        'none':         'NONE',
-        'wait':         'WAIT',
-        'crosshair':    'CROSSHAIR',
-        'move_x':       'MOVE_X',
-        'move_y':       'MOVE_Y',
-        'knife':        'KNIFE',
-        'text':         'TEXT',
-        'paint_brush':  'PAINT_BRUSH',
-        'hand':         'HAND',
-        'scroll_x':     'SCROLL_X',
-        'scroll_y':     'SCROLL_Y',
-        'eyedropper':   'EYEDROPPER',
-    }
-
-    @staticmethod
-    def __getattr__(cursor):
-        assert cursor in Cursors._cursors
-        return Cursors._cursors.get(cursor, 'DEFAULT')
-
-    @staticmethod
-    def set(cursor):
-        # print('Cursors.set', cursor)
-        cursor = Cursors._cursors.get(cursor, 'DEFAULT')
-        for wm in bpy.data.window_managers:
-            for win in wm.windows:
-                win.cursor_modal_set(cursor)
-
-    @staticmethod
-    def restore():
-        for wm in bpy.data.window_managers:
-            for win in wm.windows:
-                win.cursor_modal_restore()
-
-    @property
-    @staticmethod
-    def cursor(): return 'DEFAULT'   # TODO: how to get??
-    @cursor.setter
-    @staticmethod
-    def cursor(cursor): Cursors.set(cursor)
-
-    @staticmethod
-    def warp(x, y): bpy.context.window.cursor_warp(x, y)
-
-Globals.set(Cursors())
 
 
 
