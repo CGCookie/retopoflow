@@ -839,7 +839,7 @@ if import_succeeded:
         VIEW3D_PT_RetopoFlow_HelpAndSupport,
         VIEW3D_PT_RetopoFlow_Config,
         # VIEW3D_PT_RetopoFlow_AutoSave,
-        VIEW3D_PT_RetopoFlow_Updater,
+        # VIEW3D_PT_RetopoFlow_Updater,
     ]
 
 
