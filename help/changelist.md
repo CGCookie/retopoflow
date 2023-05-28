@@ -15,6 +15,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
 - Fixed recovery of auto saves
 - Fixed NDOF inputs
+- Fixed bug when cancelling Contours cut
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

@@ -93,6 +93,7 @@ class RFWidget_LineCut_Factory:
             def draw_line(self):
                 #cr,cg,cb,ca = self.line_color
                 p0,p1 = self.line2D
+                if not p0 or not p1: return
                 ctr = p0 + (p1-p0)/2
 
                 bgl.glEnable(bgl.GL_BLEND)
