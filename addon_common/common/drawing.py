@@ -57,12 +57,6 @@ from .shaders import Shader
 from .utils import iter_pairs
 
 
-# the following line suppresses a Blender 3.1.0 bug
-# https://developer.blender.org/T95592
-if not bpy.app.background:
-    bgl.glGetError()
-
-
 
 class Drawing:
     _instance = None
@@ -82,18 +76,6 @@ class Drawing:
         Drawing.update_dpi()
 
     @staticmethod
-    @blender_version_wrapper('<','2.79')
-    def update_dpi():
-        dbl = 2 if Drawing._prefs.system.virtual_pixel_mode == 'DOUBLE' else 1
-        Drawing._dpi_mult = int(Drawing._prefs.system.dpi * Drawing._prefs.system.pixel_size * dbl) / 72
-
-    @staticmethod
-    @blender_version_wrapper('==','2.79')
-    def update_dpi():
-        Drawing._dpi_mult = Drawing._prefs.view.ui_scale * Drawing._prefs.system.pixel_size * Drawing._prefs.system.dpi / 72
-
-    @staticmethod
-    @blender_version_wrapper('>=','2.80')
     def update_dpi():
         # print(f'view.ui_scale={Drawing._prefs.view.ui_scale}, system.ui_scale={Drawing._prefs.system.ui_scale}, system.dpi={Drawing._prefs.system.dpi}')
         Drawing._dpi_mult = (
@@ -142,8 +124,8 @@ class Drawing:
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
     def get_dpi_mult(self): return self._dpi_mult
     def get_pixel_size(self): return self._pixel_size
-    def line_width(self, width): bgl.glLineWidth(max(1, self.scale(width)))
-    def point_size(self, size): bgl.glPointSize(max(1, self.scale(size)))
+    def line_width(self, width): gpu.state.line_width_set(max(1, self.scale(width)))
+    def point_size(self, size): gpu.state.point_size_set(max(1, self.scale(size)))
 
     def set_font_color(self, fontid, color):
         fm.color(color, fontid=fontid)
@@ -233,19 +215,6 @@ class Drawing:
         fm.disable_clipping(fontid=fontid)
         # blf.disable(self.font_id, blf.CLIPPING)
 
-    def enable_stipple(self):
-        bgl.glLineStipple(4, 0x5555)
-        bgl.glEnable(bgl.GL_LINE_STIPPLE)
-    def disable_stipple(self):
-        bgl.glDisable(bgl.GL_LINE_STIPPLE)
-    def set_stipple(self, enable):
-        if enable: self.enable_stipple()
-        else: self.disable_stipple()
-
-    @blender_version_wrapper('<', '2.80')
-    def text_color_set(self, color, fontid):
-        if color is not None: bgl.glColor4f(*color)
-    @blender_version_wrapper('>=', '2.80')
     def text_color_set(self, color, fontid):
         if color is not None: fm.color(color, fontid=fontid)
 
@@ -259,7 +228,7 @@ class Drawing:
         if dropshadow:
             self.text_draw2D(text, (l+1,t-1), color=dropshadow, fontsize=fontsize, fontid=fontid, lineheight=lineheight)
 
-        bgl.glEnable(bgl.GL_BLEND)
+        gpu.state.blend_set('ALPHA')
         self.text_color_set(color, fontid)
         for line in lines:
             fm.draw(line, xyz=(l, t - lb, 0), fontid=fontid)
@@ -328,10 +297,6 @@ class Drawing:
             ])
         return cache['m']
 
-    def get_pixel_matrix_buffer(self):
-        if not self.r3d: return None
-        return bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_pixel_matrix_list())
-
     def get_view_matrix_list(self):
         return list(self.get_view_matrix()) if self.r3d else None
 
@@ -342,90 +307,61 @@ class Drawing:
         if not self.r3d: return None
         return Hasher(self.r3d.view_matrix, self.space.lens, self.r3d.view_distance)
 
-    def get_view_matrix_buffer(self):
-        if not self.r3d: return None
-        return bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_view_matrix_list())
+    # def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7, fontid=None):
+    #     '''
+    #     textbox_position specifies where the textbox is drawn in relation to pos.
+    #     ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
+    #     tip: textbox_position is arranged same as numpad
+    #                 +-----+
+    #                 |7 8 9|
+    #                 |4 5 6|
+    #                 |1 2 3|
+    #                 +-----+
+    #     '''
+    #     lh = self.line_height
 
-    def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7, fontid=None):
-        '''
-        textbox_position specifies where the textbox is drawn in relation to pos.
-        ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
-        tip: textbox_position is arranged same as numpad
-                    +-----+
-                    |7 8 9|
-                    |4 5 6|
-                    |1 2 3|
-                    +-----+
-        '''
-        lh = self.line_height
+    #     # TODO: wrap text!
+    #     lines = text.splitlines()
+    #     w = max(self.get_text_width(line) for line in lines)
+    #     h = len(lines) * lh
 
-        # TODO: wrap text!
-        lines = text.splitlines()
-        w = max(self.get_text_width(line) for line in lines)
-        h = len(lines) * lh
+    #     # find top-left corner (adjusting for textbox_position)
+    #     l,t = round(pos[0]),round(pos[1])
+    #     textbox_position -= 1
+    #     lcr = textbox_position % 3
+    #     tmb = int(textbox_position / 3)
+    #     l += [w+padding,round(w/2),-padding][lcr]
+    #     t += [h+padding,round(h/2),-padding][tmb]
 
-        # find top-left corner (adjusting for textbox_position)
-        l,t = round(pos[0]),round(pos[1])
-        textbox_position -= 1
-        lcr = textbox_position % 3
-        tmb = int(textbox_position / 3)
-        l += [w+padding,round(w/2),-padding][lcr]
-        t += [h+padding,round(h/2),-padding][tmb]
+    #     gpu.state.blend_set('ALPHA')
 
-        bgl.glEnable(bgl.GL_BLEND)
+    #     bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
+    #     bgl.glBegin(bgl.GL_QUADS)
+    #     bgl.glVertex2f(l+w+padding,t+padding)
+    #     bgl.glVertex2f(l-padding,t+padding)
+    #     bgl.glVertex2f(l-padding,t-h-padding)
+    #     bgl.glVertex2f(l+w+padding,t-h-padding)
+    #     bgl.glEnd()
 
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
-        bgl.glBegin(bgl.GL_QUADS)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glEnd()
+    #     bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
+    #     self.drawing.line_width(1.0)
+    #     bgl.glBegin(bgl.GL_LINE_STRIP)
+    #     bgl.glVertex2f(l+w+padding,t+padding)
+    #     bgl.glVertex2f(l-padding,t+padding)
+    #     bgl.glVertex2f(l-padding,t-h-padding)
+    #     bgl.glVertex2f(l+w+padding,t-h-padding)
+    #     bgl.glVertex2f(l+w+padding,t+padding)
+    #     bgl.glEnd()
 
-        bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-        self.drawing.line_width(1.0)
-        bgl.glBegin(bgl.GL_LINE_STRIP)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glVertex2f(l-padding,t+padding)
-        bgl.glVertex2f(l-padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t-h-padding)
-        bgl.glVertex2f(l+w+padding,t+padding)
-        bgl.glEnd()
-
-        bgl.glColor4f(1,1,1,0.5)
-        for i,line in enumerate(lines):
-            th = self.get_text_height(line)
-            y = t - (i+1)*lh + int((lh-th) / 2)
-            fm.draw(line, xyz=(l, y, 0), fontid=fontid)
-            # blf.position(self.font_id, l, y, 0)
-            # blf.draw(self.font_id, line)
+    #     bgl.glColor4f(1,1,1,0.5)
+    #     for i,line in enumerate(lines):
+    #         th = self.get_text_height(line)
+    #         y = t - (i+1)*lh + int((lh-th) / 2)
+    #         fm.draw(line, xyz=(l, y, 0), fontid=fontid)
+    #         # blf.position(self.font_id, l, y, 0)
+    #         # blf.draw(self.font_id, line)
 
     @staticmethod
-    @blender_version_wrapper('<', '2.80')
-    def glCheckError(title):
-        err = bgl.glGetError()
-        if err == bgl.GL_NO_ERROR: return False
-
-        Drawing._error_count += 1
-        if Drawing._error_count <= Drawing._error_limit:
-            derrs = {
-                bgl.GL_INVALID_ENUM: 'invalid enum',
-                bgl.GL_INVALID_VALUE: 'invalid value',
-                bgl.GL_INVALID_OPERATION: 'invalid operation',
-                bgl.GL_STACK_OVERFLOW: 'stack overflow',
-                bgl.GL_STACK_UNDERFLOW: 'stack underflow',
-                bgl.GL_OUT_OF_MEMORY: 'out of memory',
-                bgl.GL_INVALID_FRAMEBUFFER_OPERATION: 'invalid framebuffer operation',
-            }
-            if err in derrs:
-                print('ERROR %d (%s): %s' % (Drawing._error_count, title, derrs[err]))
-            else:
-                print('ERROR %d (%s): code %d' % (Drawing._error_count, title, err))
-            traceback.print_stack()
-
-        return True
-    @staticmethod
-    @blender_version_wrapper('>=', '2.80')
     def glCheckError(title):
         if not Drawing._error_check: return
         err = bgl.glGetError()

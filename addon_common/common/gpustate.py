@@ -33,6 +33,18 @@ from .decorators import only_in_blender_version, warn_once
 
 
 
+# note: not all supported by user system, but we don't need full functionality
+# https://en.wikipedia.org/wiki/OpenGL_Shading_Language#Versions
+#     OpenGL  GLSL    OpenGL  GLSL
+#      2.0    110      4.0    400
+#      2.1    120      4.1    410
+#      3.0    130      4.2    420
+#      3.1    140      4.3    430
+#      3.2    150      4.4    440
+#      3.3    330      4.5    450
+#                      4.6    460
+
+
 #########################################################################
 # import the appropriate module
 # note: there is a small overlap of modules imported [2.93, 3.00)
@@ -56,74 +68,32 @@ if blender_ver >= '2.93':
 
 
 
+
 ######################################
 #
 
-@only_in_blender_version('< 2.93')
-@warn_once('gpustate.blend: modes mapping for 2.93 is NOT complete')
-def blend(mode):
-    # https://learnopengl.com/Advanced-OpenGL/Blending
-    gldisable[mode == 'NONE'](bgl.GL_BLEND)
-    if   mode == 'NONE':             pass
-    elif mode == 'ALPHA':            bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'ALPHA_PREMULT':    bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'ADDITIVE':         bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'ADDITIVE_PREMULT': bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'MULTIPLY':         bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'SUBTRACT':         bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-    elif mode == 'INVERT':           bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_COLOR)
-@only_in_blender_version('>= 2.93')
 def blend(mode): gpu.state.blend_set(mode)
 
-@only_in_blender_version('< 2.93')
-def depth_test(mode):
-    gldisable[mode == 'NONE'](bgl.GL_DEPTH_TEST)
-    # https://khronos.org/registry/OpenGL-Refpages/gl4/html/glDepthFunc.xhtml
-    if   mode == 'NONE':          pass
-    elif mode == 'ALWAYS':        bgl.glDepthFunc(bgl.GL_ALWAYS)
-    elif mode == 'LESS':          bgl.glDepthFunc(bgl.GL_LESS)
-    elif mode == 'LESS_EQUAL':    bgl.glDepthFunc(bgl.GL_LEQUAL)
-    elif mode == 'EQUAL':         bgl.glDepthFunc(bgl.GL_EQUAL)
-    elif mode == 'GREATER':       bgl.glDepthFunc(bgl.GL_GREATER)
-    elif mode == 'GREATER_EQUAL': bgl.glDepthFunc(bgl.GL_GEQUAL)
-@only_in_blender_version('>= 2.93')
 def depth_test(mode): gpu.state.depth_test_set(mode)
 
 
 # https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
 @only_in_blender_version('< 3.00')
-def gpu_info(): return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
-@only_in_blender_version('>= 3.00')
-@warn_once('gpustate.gpu_info cannot get shader version!')
-def gpu_info(): return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
+def gpu_info():
+    import bgl
+    return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
 
+@only_in_blender_version('>= 3.00', '< 3.04')
+def gpu_info():
+    import gpu
+    return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
 
+@only_in_blender_version('>= 3.04')
+def gpu_info():
+    import gpu
+    return f'backend:{gpu.platform.backend_type_get()}, device:{gpu.platform.device_type_get()}, vendor:{gpu.platform.vendor_get()}, renderer:{gpu.platform.renderer_get()}, version:{gpu.platform.version_get()}'
 
-
-########################################
-# functions without known equivalents
-
-# ...
-
-
-
-######################################
-# deprecated functionality
-
-@only_in_blender_version('< 2.93', ignore_others=True)
-@warn_once('gpustate.lighting is deprecated')
-def lighting(enable): glenable[enable](bgl.GL_LIGHTING)
-
-@only_in_blender_version('< 2.93', ignore_others=True)
-@warn_once('gpustate.multisample is deprecated')
-def multisample(enable): glenable[enable](bgl.GL_MULTISAMPLE)
-
-@only_in_blender_version('< 2.93', ignore_others=True)
-@warn_once('gpustate.point_smooth is deprecated')
-def point_smooth(enable): glenable[enable](bgl.GL_POINT_SMOOTH)
-
-@only_in_blender_version('< 2.93', ignore_others=True)
-@warn_once('gpustate.line_smooth is deprecated')
-def line_smooth(enable): glenable[enable](bgl.GL_LINE_SMOOTH)
+if not bpy.app.background:
+    print(f'Addon Common: {gpu_info()}')
 
 

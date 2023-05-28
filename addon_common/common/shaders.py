@@ -33,30 +33,6 @@ from .utils import kwargs_splitter
 
 from ..ext.bgl_ext import VoidBufValue
 
-# https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glGetString.xml
-@only_in_blender_version('< 3.00')
-def gpu_info_shaders():
-    import bgl
-    return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
-@only_in_blender_version('>= 3.00')
-@warn_once('gpustate.gpu_info cannot get shader version!')
-def gpu_info_shaders():
-    import gpu
-    return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
-
-# note: not all supported by user system, but we don't need full functionality
-# https://en.wikipedia.org/wiki/OpenGL_Shading_Language#Versions
-#     OpenGL  GLSL    OpenGL  GLSL
-#      2.0    110      4.0    400
-#      2.1    120      4.1    410
-#      3.0    130      4.2    420
-#      3.1    140      4.3    430
-#      3.2    150      4.4    440
-#      3.3    330      4.5    450
-#                      4.6    460
-if not bpy.app.background:
-    print(f'Addon Common: (shaders) {gpu_info_shaders()}')
-
 
 
 DEBUG_PRINT = False

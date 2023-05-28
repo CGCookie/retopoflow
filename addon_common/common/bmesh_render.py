@@ -61,18 +61,6 @@ from .decorators import blender_version_wrapper, add_cache, only_in_blender_vers
 
 
 
-# note: not all supported by user system, but we don't need full functionality
-# https://en.wikipedia.org/wiki/OpenGL_Shading_Language#Versions
-#     OpenGL  GLSL    OpenGL  GLSL
-#      2.0    110      4.0    400
-#      2.1    120      4.1    410
-#      3.0    130      4.2    420
-#      3.1    140      4.3    430
-#      3.2    150      4.4    440
-#      3.3    330      4.5    450
-#                      4.6    460
-print(f'Addon Common: (bmesh_render) GLSL Version: {gpustate.gpu_info()}')
-
 
 def glSetDefaultOptions():
     gpustate.blend('ALPHA')
