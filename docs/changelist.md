@@ -14,6 +14,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed bug when using knife where no source geometry exists
 - Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
 - Fixed recovery of auto saves
+- Fixed NDOF inputs
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

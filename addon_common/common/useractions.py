@@ -586,6 +586,7 @@ class Actions:
         'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
+    ndof_nonpress = { 'NDOF_MOTION' }
 
     mousebutton_actions = {
         'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE',
@@ -895,6 +896,7 @@ class Actions:
         )
 
         self.navevent = (full_event_type in self.keymap['navigate']) and pressed
+        self.navevent |= (self.event_type in Actions.ndof_nonpress)  # some NDOF events do not have value == PRESSED
         self.navevent_cause = full_event_type if self.navevent else None
         if self.navevent:
             self.unuse(self.navevent_cause)
