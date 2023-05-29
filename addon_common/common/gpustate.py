@@ -23,11 +23,14 @@ Created by Jonathan Denning, Jonathan Williamson
 #######################################################################
 # THE FOLLOWING FUNCTIONS ARE ONLY FOR THE TRANSITION FROM BGL TO GPU #
 # THIS FILE **SHOULD** GO AWAY ONCE WE DROP SUPPORT FOR BLENDER 2.83  #
-# AROUND JUNE 2022 AS BLENDER 2.93 HAS GPU MODULE                     #
+# AROUND JUNE 2023 AS BLENDER 2.93 HAS GPU MODULE                     #
 #######################################################################
 
 
+from inspect import isroutine
+
 import bpy
+import gpu
 
 from .decorators import only_in_blender_version, warn_once
 
@@ -45,35 +48,7 @@ from .decorators import only_in_blender_version, warn_once
 #                      4.6    460
 
 
-#########################################################################
-# import the appropriate module
-# note: there is a small overlap of modules imported [2.93, 3.00)
-
-major, minor, rev = bpy.app.version
-blender_ver = f'{major}.{minor:02d}'
-
-if blender_ver < '3.00':
-    import bgl
-    glenable = {                 # convenience function
-        True:  bgl.glEnable,
-        False: bgl.glDisable,
-    }
-    gldisable = {                # negation of above
-        False: bgl.glEnable,
-        True:  bgl.glDisable,
-    }
-
-if blender_ver >= '2.93':
-    import gpu
-
-
-
-
-######################################
-#
-
 def blend(mode): gpu.state.blend_set(mode)
-
 def depth_test(mode): gpu.state.depth_test_set(mode)
 
 
@@ -81,17 +56,38 @@ def depth_test(mode): gpu.state.depth_test_set(mode)
 @only_in_blender_version('< 3.00')
 def gpu_info():
     import bgl
-    return f'{bgl.glGetString(bgl.GL_VENDOR)}, {bgl.glGetString(bgl.GL_RENDERER)}, {bgl.glGetString(bgl.GL_VERSION)}, {bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION)}'
+    return {
+        'vendor':   bgl.glGetString(bgl.GL_VENDOR),
+        'renderer': bgl.glGetString(bgl.GL_RENDERER),
+        'version':  bgl.glGetString(bgl.GL_VERSION),
+        'shading':  bgl.glGetString(bgl.GL_SHADING_LANGUAGE_VERSION),
+    }
 
 @only_in_blender_version('>= 3.00', '< 3.04')
 def gpu_info():
     import gpu
-    return f'{gpu.platform.vendor_get()}, {gpu.platform.renderer_get()}, {gpu.platform.version_get()}'
+    return {
+        'vendor':   gpu.platform.vendor_get(),
+        'renderer': gpu.platform.renderer_get(),
+        'version':  gpu.platform.version_get(),
+    }
 
 @only_in_blender_version('>= 3.04')
 def gpu_info():
     import gpu
-    return f'backend:{gpu.platform.backend_type_get()}, device:{gpu.platform.device_type_get()}, vendor:{gpu.platform.vendor_get()}, renderer:{gpu.platform.renderer_get()}, version:{gpu.platform.version_get()}'
+    platform = {
+        'backend':  gpu.platform.backend_type_get(),
+        'device':   gpu.platform.device_type_get(),
+        'vendor':   gpu.platform.vendor_get(),
+        'renderer': gpu.platform.renderer_get(),
+        'version':  gpu.platform.version_get(),
+    }
+    cap = [(a, getattr(gpu.capabilities, a)) for a in dir(gpu.capabilities) if 'extensions' not in a]
+    cap = [(a, fn) for (a, fn) in cap if isroutine(fn)]
+    capabilities = {
+        a: fn() for (a, fn) in cap
+    }
+    return platform | capabilities
 
 if not bpy.app.background:
     print(f'Addon Common: {gpu_info()}')

@@ -35,7 +35,6 @@ from itertools import chain
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 import gpu
 from bpy.types import BoolProperty
 from mathutils import Matrix, Vector
@@ -46,7 +45,7 @@ from .blender import bversion, get_path_from_addon_root, get_path_from_addon_com
 from .blender_cursors import Cursors
 from .blender_preferences import get_preferences
 from .debug import dprint, debugger
-from .decorators import blender_version_wrapper, add_cache
+from .decorators import blender_version_wrapper, add_cache, only_in_blender_version
 from .fontmanager import FontManager as fm
 from .functools import find_fns
 from .globals import Globals
@@ -307,63 +306,11 @@ class Drawing:
         if not self.r3d: return None
         return Hasher(self.r3d.view_matrix, self.space.lens, self.r3d.view_distance)
 
-    # def textbox_draw2D(self, text, pos:Point2D, padding=5, textbox_position=7, fontid=None):
-    #     '''
-    #     textbox_position specifies where the textbox is drawn in relation to pos.
-    #     ex: if textbox_position==7, then the textbox is drawn where pos is the upper-left corner
-    #     tip: textbox_position is arranged same as numpad
-    #                 +-----+
-    #                 |7 8 9|
-    #                 |4 5 6|
-    #                 |1 2 3|
-    #                 +-----+
-    #     '''
-    #     lh = self.line_height
-
-    #     # TODO: wrap text!
-    #     lines = text.splitlines()
-    #     w = max(self.get_text_width(line) for line in lines)
-    #     h = len(lines) * lh
-
-    #     # find top-left corner (adjusting for textbox_position)
-    #     l,t = round(pos[0]),round(pos[1])
-    #     textbox_position -= 1
-    #     lcr = textbox_position % 3
-    #     tmb = int(textbox_position / 3)
-    #     l += [w+padding,round(w/2),-padding][lcr]
-    #     t += [h+padding,round(h/2),-padding][tmb]
-
-    #     gpu.state.blend_set('ALPHA')
-
-    #     bgl.glColor4f(0.0, 0.0, 0.0, 0.25)
-    #     bgl.glBegin(bgl.GL_QUADS)
-    #     bgl.glVertex2f(l+w+padding,t+padding)
-    #     bgl.glVertex2f(l-padding,t+padding)
-    #     bgl.glVertex2f(l-padding,t-h-padding)
-    #     bgl.glVertex2f(l+w+padding,t-h-padding)
-    #     bgl.glEnd()
-
-    #     bgl.glColor4f(0.0, 0.0, 0.0, 0.75)
-    #     self.drawing.line_width(1.0)
-    #     bgl.glBegin(bgl.GL_LINE_STRIP)
-    #     bgl.glVertex2f(l+w+padding,t+padding)
-    #     bgl.glVertex2f(l-padding,t+padding)
-    #     bgl.glVertex2f(l-padding,t-h-padding)
-    #     bgl.glVertex2f(l+w+padding,t-h-padding)
-    #     bgl.glVertex2f(l+w+padding,t+padding)
-    #     bgl.glEnd()
-
-    #     bgl.glColor4f(1,1,1,0.5)
-    #     for i,line in enumerate(lines):
-    #         th = self.get_text_height(line)
-    #         y = t - (i+1)*lh + int((lh-th) / 2)
-    #         fm.draw(line, xyz=(l, y, 0), fontid=fontid)
-    #         # blf.position(self.font_id, l, y, 0)
-    #         # blf.draw(self.font_id, line)
-
     @staticmethod
+    @only_in_blender_version('< 3.05')
     def glCheckError(title):
         if not Drawing._error_check: return
+        import bgl
         err = bgl.glGetError()
         if err == bgl.GL_NO_ERROR: return False
         Drawing._error_count += 1
@@ -388,6 +335,19 @@ class Drawing:
             traceback.print_stack()
         return True
 
+    @staticmethod
+    @only_in_blender_version('>= 3.05')
+    def glCheckError(title):
+        return False
+
+    @staticmethod
+    @contextlib.contextmanager
+    def glCheckError_wrap(title, *, stop_on_error=False):
+        if Drawing.glCheckError(f'addon common: pre {title}') and stop_on_error: return True
+        yield None
+        if Drawing.glCheckError(f'addon common: post {title}') and stop_on_error: return True
+        return False
+
     def get_view_origin(self, *, orthographic_distance=1000):
         focus = self.r3d.view_location
         rot = self.r3d.view_rotation
@@ -405,54 +365,6 @@ class Drawing:
 
     def Point_to_Point2D(self, p3d):
         return Point2D(location_3d_to_region_2d(self.rgn, self.r3d, p3d))
-
-    # draw line segment in screen space
-    @blender_version_wrapper('<', '2.80')
-    def draw2D_line(self, p0:Point2D, p1:Point2D, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
-        # TODO: better test this!
-        print('THIS IS NOT TESTED!')
-        if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
-        if not hasattr(Drawing, '_line_data'):
-            sizeOfFloat, sizeOfInt = 4, 4
-            vbos = bgl.Buffer(bgl.GL_INT, 1)
-            bgl.glGenBuffers(1, vbos)
-            vbo_weights = vbos[0]
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, vbo_weights)
-            weights = [[0,0], [1,0], [1,1], [0,0], [1,1], [0,1]]
-            weightsSize = [len(weights), len(weights[0])]
-            buf_weights = bgl.Buffer(bgl.GL_FLOAT, weightsSize, weights)
-            bgl.glBufferData(bgl.GL_ARRAY_BUFFER, weightsSize[0] * weightsSize[1] * sizeOfFloat, buf_weights, bgl.GL_STATIC_DRAW)
-            del buf_weights
-            bgl.glBindBuffer(bgl.GL_ARRAY_BUFFER, 0)
-            shader = Shader.load_from_file('linesegment', 'linesegment.glsl')
-            Drawing._line_data = {
-                'vbos': vbos,
-                'vbo_weights': vbo_weights,
-                'gltype': bgl.GL_TRIANGLES,
-                'shader': shader,
-                'size_weights': weightsSize,
-            }
-        width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
-        offset = self.scale(offset)
-        d = Drawing._line_data
-        shader = d['shader']
-
-        shader.enable()
-        shader.assign('uScreenSize', (self.area.width, self.area.height))
-        shader.assign('uPos0', p0)
-        shader.assign('uPos1', p1)
-        shader.assign('uColor0', color0)
-        shader.assign('uColor1', color1)
-        shader.assign('uWidth', width)
-        shader.assign('uStipple', stipple)
-        shader.assign('uStippleOffset', offset)
-        mvpmatrix_buffer = bgl.Buffer(bgl.GL_FLOAT, [4,4], self.get_pixel_matrix())
-        shader.assign('uMVPMatrix', mvpmatrix_buffer)
-        shader.vertexAttribPointer(d['vbo_weights'], 'aWeight', d['size_weights'][1], bgl.GL_FLOAT)
-        bgl.glDrawArrays(d['gltype'], 0, d['size_weights'][0])
-        shader.disableVertexAttribArray('aWeight')
-        shader.disable()
 
     @blender_version_wrapper('>=', '2.80')
     def draw2D_point(self, pt:Point2D, color:Color, *, radius=1, border=0, borderColor=None):
@@ -490,7 +402,6 @@ class Drawing:
         gpu.shader.unbind()
 
     # draw line segment in screen space
-    @blender_version_wrapper('>=', '2.80')
     def draw2D_line(self, p0:Point2D, p1:Point2D, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
@@ -509,7 +420,6 @@ class Drawing:
         batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
 
-    @blender_version_wrapper('>=', '2.80')
     def draw2D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         self.glCheckError('starting draw2D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
@@ -533,7 +443,6 @@ class Drawing:
         gpu.shader.unbind()
         self.glCheckError('done with draw2D_lines')
 
-    @blender_version_wrapper('>=', '2.80')
     def draw3D_lines(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         self.glCheckError('starting draw3D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
@@ -557,7 +466,6 @@ class Drawing:
         gpu.shader.unbind()
         self.glCheckError('done with draw3D_lines')
 
-    @blender_version_wrapper('>=', '2.80')
     def draw2D_linestrip(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
@@ -579,7 +487,6 @@ class Drawing:
         gpu.shader.unbind()
 
     # draw circle in screen space
-    @blender_version_wrapper('>=', '2.80')
     def draw2D_circle(self, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         radius = self.scale(radius)
@@ -599,7 +506,6 @@ class Drawing:
         batch_2D_circle.draw(shader_2D_circle)
         gpu.shader.unbind()
 
-    @blender_version_wrapper('>=', '2.80')
     def draw3D_circle(self, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None):
         assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
         f = Frame(o=center, x=x, y=y, z=n)
@@ -616,7 +522,6 @@ class Drawing:
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
 
-    @blender_version_wrapper('>=', '2.80')
     def draw3D_triangles(self, points:[Point], colors:[Color]):
         self.glCheckError('starting draw3D_triangles')
         shader_3D_triangle.bind()
@@ -659,7 +564,7 @@ if not bpy.app.background:
 
 
 
-if bversion() >= "2.80" and not bpy.app.background:
+if not bpy.app.background:
     import gpu
     from gpu.types import GPUShader
     from gpu_extras.batch import batch_for_shader
@@ -1032,6 +937,7 @@ class FrameBuffer:
         other._is_freed = True
 
     def _create(self, width, height):
+        import bgl
         Drawing.glCheckError('FrameBuffer._create: start')
         self._width = max(1, int(width))
         self._height = max(1, int(height))
@@ -1069,6 +975,7 @@ class FrameBuffer:
         Drawing.glCheckError('FrameBuffer._create: done')
 
     def __del__(self):
+        import bgl
         if self not in FrameBuffer._all_fbs: return
         assert not self._is_freed
         FrameBuffer._all_fbs.remove(self)
@@ -1096,6 +1003,7 @@ class FrameBuffer:
         return self._height
 
     def _config_textures(self):
+        import bgl
         bgl.glBindRenderbuffer(bgl.GL_RENDERBUFFER, self._buf_depth[0])
         bgl.glRenderbufferStorage(bgl.GL_RENDERBUFFER, bgl.GL_DEPTH_COMPONENT, self._width, self._height)
         bgl.glBindRenderbuffer(bgl.GL_RENDERBUFFER, 0)
@@ -1109,6 +1017,7 @@ class FrameBuffer:
         # del NULL
 
     def bind(self, set_viewport=True, set_projection=True, clear_color=True, clear_depth=True):
+        import bgl
         assert not self._is_bound, 'Cannot bind a bounded FrameBuffer'
         assert not self._is_error, 'Cannot bind a FrameBuffer with error'
         assert not self._is_freed, 'Cannot bind a freed FrameBuffer'
@@ -1133,6 +1042,7 @@ class FrameBuffer:
         if clear_depth: bgl.glClear(bgl.GL_DEPTH_BUFFER_BIT)
 
     def unbind(self, unset_viewport=True, unset_projection=True):
+        import bgl
         assert self._is_bound, 'Cannot unbind a unbounded FrameBuffer'
         assert not self._is_error, 'Cannot unbind a FrameBuffer with error'
         assert not self._is_freed, 'Cannot unbind a freed FrameBuffer'
@@ -1193,6 +1103,7 @@ class FrameBufferWrapper:
 
 
 class ScissorStack:
+    import bgl
     buf = bgl.Buffer(bgl.GL_INT, 4)
     is_started = False
     scissor_test_was_enabled = False
@@ -1201,6 +1112,7 @@ class ScissorStack:
 
     @staticmethod
     def start(context):
+        import bgl
         assert not ScissorStack.is_started, 'Attempting to start a started ScissorStack'
 
         # region pos and size are window-coordinates
@@ -1229,6 +1141,7 @@ class ScissorStack:
 
     @staticmethod
     def end(force=False):
+        import bgl
         if not force:
             assert ScissorStack.is_started, 'Attempting to end a non-started ScissorStack'
             assert len(ScissorStack.stack) == 1, 'Attempting to end a non-empty ScissorStack (size: %d)' % (len(ScissorStack.stack)-1)
@@ -1239,10 +1152,13 @@ class ScissorStack:
 
     @staticmethod
     def _set_scissor():
+        import bgl
         assert ScissorStack.is_started, 'Attempting to set scissor settings with non-started ScissorStack'
         l,t,w,h = ScissorStack.stack[-1]
         b = t - (h - 1)
+        # bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, ScissorStack.buf)
         bgl.glScissor(l, b, w, h)
+        # print(f'{ScissorStack.buf} {(l,b,w,h)} {gpu.state.scissor_get()}')
 
     @staticmethod
     def push(nl, nt, nw, nh, msg='', clamp=True):

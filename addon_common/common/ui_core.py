@@ -220,8 +220,8 @@ def temp_bglbuffer(*args):
 
 def load_image_png(path):
     # note: assuming 4 channels (rgba) per pixel!
-    w,h,d,m = png.Reader(path).asRGBA()
-    img = [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
+    width, height, data, m = png.Reader(path).asRGBA()
+    img = [[row[i:i+4] for i in range(0, width*4, 4)] for row in data]
     return img
 
 def load_image_apng(path):
@@ -290,6 +290,8 @@ def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, 
         assert depth == 4, 'Expected texture %s to have 4 channels per pixel (RGBA), not %d' % (fn_image, depth)
         image = reversed(image) # flip image
         image_flat = [d for r in image for c in r for d in c]
+        buffer = gpu.types.Buffer('FLOAT', (width * height * 4), [v / 255.0 for v in image_flat])
+        gputexture = gpu.types.GPUTexture((width, height), format='RGBA16F', data=buffer)
         with temp_bglbuffer(bgl.GL_INT, [1]) as buf:
             bgl.glGenTextures(1, buf)
             texid = buf[0]
@@ -302,10 +304,11 @@ def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, 
             bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, width, height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
         bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
         load_texture._cache[fn_image] = {
-            'width': width,
+            'width':  width,
             'height': height,
-            'depth': depth,
-            'texid': texid,
+            'depth':  depth,
+            'texid':  texid,
+            'gputexture': gputexture,
         }
     return load_texture._cache[fn_image]
 
@@ -1817,8 +1820,9 @@ class UI_Element(
 
         with profiler.code('drawing mbp'):
             texture_id = self._image_data['texid'] if self._src in {'image', 'image loading'} else None
+            gputexture = self._image_data['gputexture'] if self._src in {'image', 'image loading'} else None
             texture_fit = self._computed_styles.get('object-fit', 'fill')
-            ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, texture_fit, background_override=background_override, depth=len(self._selector))
+            ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, gputexture, texture_fit, background_override=background_override, depth=len(self._selector))
 
         with profiler.code('drawing children'):
             # compute inner scissor area
