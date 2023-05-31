@@ -49,9 +49,13 @@ from .decorators import only_in_blender_version, warn_once, add_cache
 #      3.3    330      4.5    450
 #                      4.6    460
 
-use_bgl_default = gpu.platform.backend_type_get() in {'OPENGL',}
-use_gpu_default = not use_bgl_default
 
+if bpy.app.version < (3,4,0):
+    use_bgl_default = True
+    use_gpu_default = False
+else:
+    use_bgl_default = False # gpu.platform.backend_type_get() in {'OPENGL',}
+    use_gpu_default = True  # not use_bgl_default
 
 def blend(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
@@ -120,29 +124,29 @@ def get_depth_mask(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
 
 def scissor(left, bottom, width, height, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
-    if use_bgl:
+    if use_bgl or True:
         import bgl
         bgl.glScissor(left, bottom, width, height)
-    if use_gpu:
+    if use_gpu and False:
         gpu.state.scissor_set(left, bottom, width, height)
 def get_scissor(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
-    if use_bgl:
+    if use_bgl or True:
         return bgl_get_integerv_tuple('GL_SCISSOR_BOX', 4)
-    if use_gpu:
+    if use_gpu and False:
         return gpu.state.scissor_get()
 
 def scissor_test(enable, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
-    if use_bgl:
+    if use_bgl or True:
         bgl_enable('GL_SCISSOR_TEST', enable)
-    if use_gpu:
+    if use_gpu and False:
         gpu.state.scissor_test_set(enable)
 def get_scissor_test(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
-    if use_bgl:
+    if use_bgl or True:
         return bgl_is_enabled('GL_SCISSOR_TEST')
-    if use_gpu:
+    if use_gpu and False:
         # NOTE: no equivalent in `gpu` module as of Blender 3.5.1
         # return gpu.state.scissor_test_get()
         return False

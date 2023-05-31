@@ -229,25 +229,26 @@ class BufferedRender_Batch:
         if self.drawtype == self.LINES  and opts.get('line width', 1.0) <= 0: return
         if self.drawtype == self.POINTS and opts.get('point size', 1.0) <= 0: return
 
-        shader = self.shader
-
-        shader.bind()
-
-        # set defaults
-        self.uniform_float('color',          (1,1,1,0.5))
-        self.uniform_float('color_selected', (0.5,1,0.5,0.5))
-        self.uniform_float('color_warning',  (1.0,0.5,0.0,0.5))
-        self.uniform_float('color_pinned',   (1.0,0.0,0.5,0.5))
-        self.uniform_float('color_seam',     (1.0,0.0,0.5,0.5))
-        self.uniform_float('hidden',         0.9)
-        self.uniform_float('offset',         0)
-        self.uniform_float('dotoffset',      0)
-        self.uniform_float('vert_scale',     (1, 1, 1))
-        self.uniform_float('radius',         1) #random.random()*10)
+        ctx = bpy.context
+        area, spc, r3d = ctx.area, ctx.space_data, ctx.space_data.region_3d
 
         if 'blend'      in opts: gpustate.blend(opts['blend'])
         if 'depth test' in opts: gpustate.depth_test(opts['depth test'])
         if 'depth mask' in opts: gpustate.depth_mask(opts['depth mask'])
+
+        self.shader.bind()
+
+        # set defaults
+        self.uniform_float('color',          (1.0, 1.0, 1.0, 0.5))
+        self.uniform_float('color_selected', (0.5, 1.0, 0.5, 0.5))
+        self.uniform_float('color_warning',  (1.0, 0.5, 0.0, 0.5))
+        self.uniform_float('color_pinned',   (1.0, 0.0, 0.5, 0.5))
+        self.uniform_float('color_seam',     (1.0, 0.0, 0.5, 0.5))
+        self.uniform_float('hidden',         0.9)
+        self.uniform_float('offset',         0.0)
+        self.uniform_float('dotoffset',      0.0)
+        self.uniform_float('vert_scale',     (1.0, 1.0, 1.0))
+        self.uniform_float('radius',         1.0)
 
         self.uniform_bool('use_selection', (not opts.get('no selection', False)))
         self.uniform_bool('use_warning',   (not opts.get('no warning',   False)))
@@ -287,8 +288,6 @@ class BufferedRender_Batch:
         self.uniform_float('normal_offset',   opts.get('normal offset', 0.0))
         self.uniform_bool('constrain_offset', opts.get('constrain offset', True))
 
-        ctx = bpy.context
-        area, spc, r3d = ctx.area, ctx.space_data, ctx.space_data.region_3d
         self.uniform_bool('perspective', (r3d.view_perspective != 'ORTHO'))
         self.uniform_float('clip_start', spc.clip_start)
         self.uniform_float('clip_end', spc.clip_end)

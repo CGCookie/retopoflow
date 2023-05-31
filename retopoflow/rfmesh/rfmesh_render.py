@@ -507,7 +507,7 @@ class RFMeshRender():
                 # draw geometry hidden behind
                 # geometry below
                 opts['depth test']          = 'GREATER'
-                opts['depth mask']          = False
+                # opts['depth mask']          = False
                 opts['poly hidden']         = 1 - alpha_below
                 opts['poly mirror hidden']  = 1 - alpha_below
                 opts['line hidden']         = 1 - alpha_below
@@ -519,7 +519,7 @@ class RFMeshRender():
 
             # geometry above
             opts['depth test']          = 'LESS_EQUAL'
-            opts['depth mask']          = False
+            # opts['depth mask']          = False
             opts['poly hidden']         = 1 - alpha_above
             opts['poly mirror hidden']  = 1 - alpha_above
             opts['line hidden']         = 1 - alpha_above

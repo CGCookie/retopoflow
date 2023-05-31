@@ -38,7 +38,7 @@ bl_info = {
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "location":    "View 3D > Header",
-    "blender":     (2, 93, 0),
+    "blender":     (3, 4, 0),
     #######################################################################################
     # NOTE: the following two lines are automatically updated based on hive.json
     "version":     (3, 3, 1),   # @hive.version
@@ -370,6 +370,16 @@ if import_succeeded:
         bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
     RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
+    class VIEW3D_OT_RetopoFlow_Warnings(retopoflow.RetopoFlow):
+        """Start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow_warnings"
+        bl_label = "Start RetopoFlow (with warnings)"
+        bl_description = "\nWARNINGS were detected!\n\nA suite of retopology tools for Blender through a unified retopology mode.\nStart with last used tool"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_Warnings]
+
     def VIEW3D_OT_RetopoFlow_Tool_Factory(rftool):
         name = rftool.name
         description = rftool.description
@@ -518,7 +528,10 @@ if import_succeeded:
             if context.mode == 'EDIT_MESH' or context.mode == 'OBJECT':
                 self.layout.separator()
                 if is_editing_target(context):
-                    self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
+                    if VIEW3D_PT_RetopoFlow_Warnings.get_warnings(context):
+                        self.layout.operator('cgcookie.retopoflow_warnings', text="", icon='ERROR')
+                    else:
+                        self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
                 if cookiecutter.is_broken:
                     self.layout.popover('VIEW3D_PT_RetopoFlow', text='RetopoFlow BROKEN')
                 else:
@@ -545,6 +558,8 @@ if import_succeeded:
                 warnings.add('install: invalid add-on folder')
             if cookiecutter.is_broken:
                 warnings.add('install: unexpected runtime error occurred')
+            if bpy.app.version < bl_info['blender']:
+                warnings.add('install: invalid version')
 
             # source setup checks
             if not retopoflow.RetopoFlow.get_sources():
@@ -620,6 +635,10 @@ if import_succeeded:
             if 'install: unexpected runtime error occurred' in warnings:
                 box = get_warning_subbox('Installation')
                 box.label(text=f'Unexpected runtime error', icon='DOT')
+            if 'install: invalid version' in warnings:
+                box = get_warning_subbox('Installation')
+                def neatver(v): return f'{v[0]}.{v[1]}'
+                box.label(text=f'Incorrect versions ({neatver(bpy.app.version)} < {neatver(bl_info["blender"])})', icon='DOT')
 
             # SETUP CHECKS
             if 'setup: no sources' in warnings:

@@ -28,6 +28,8 @@ import shelve
 import platform
 import tempfile
 from datetime import datetime
+from contextlib import contextmanager
+from collections.abc import Iterable
 
 import bpy
 
@@ -841,6 +843,8 @@ class SessionOptions:
             'target': None,    # automatically filled out when starting RF
         },
 
+        'disabled': False,
+
         'normalize': {
             'unit scaling factor': None,
             'mesh scaling factor': 1.0,
@@ -860,26 +864,55 @@ class SessionOptions:
         },
     }
 
+    @classmethod
+    def _get_data_as_pydata(cls):
+        if cls.textblockname not in bpy.data.texts: return None
+        def convert(d):
+            # print(f'{d=} {type(d)=}')
+            if type(d) in {bool, int, float, str}:
+                return d
+            if hasattr(d, 'keys'):
+                return { k: convert(d[k]) for k in d.keys() }
+            # ASSUMING it is a list!
+            return [ convert(v) for v in d ]
+            assert False, f'Unknown type: {d} ({type(d)})'
+        return convert(bpy.data.texts[cls.textblockname]['data'])
+
+    @classmethod
+    @contextmanager
+    def temp_disable(cls):
+        if not cls.has_session_data():
+            yield None
+            return
+        cls.set('disabled', True)
+        yield None
+        cls.set('disabled', False)
+
+    @classmethod
+    def has_active_session_data(cls):
+        if not cls.has_session_data(): return False
+        if bpy.data.texts[cls.textblockname]['data']['disabled']: return False
 
     @classmethod
     def has_session_data(cls):
-        return cls.textblockname in bpy.data.texts
+        if cls.textblockname not in bpy.data.texts: return False
+        return True
 
     @classmethod
     def _get_data(cls):
         if not cls.has_session_data():
             # create text block for storing state
-            session = bpy.data.texts.new(SessionOptions.textblockname)
+            textblock = bpy.data.texts.new(SessionOptions.textblockname)
             # set user-friendly message
-            session.from_string(SessionOptions.userfriendlytext)
-            session.cursor_set(0, character=0)
+            textblock.from_string(SessionOptions.userfriendlytext)
+            textblock.cursor_set(0, character=0)
             # assignment below will create deep copy of default
-            session['data'] = SessionOptions.default
+            textblock['data'] = SessionOptions.default
             cls.set('retopoflow', 'timestamp', str(datetime.now()))
             #cls.set('retopoflow', 'timestamp', timestamp)
         else:
-            session = bpy.data.texts[SessionOptions.textblockname]
-        return session['data']
+            textblock = bpy.data.texts[SessionOptions.textblockname]
+        return textblock['data']
 
     class Walker:
         def __init__(self, *path):

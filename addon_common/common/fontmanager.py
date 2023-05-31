@@ -26,7 +26,7 @@ import gpu
 from .blender import get_path_from_addon_root, get_path_shortened_from_addon_root
 from .blender_preferences import get_preferences
 from .debug import dprint
-from .decorators import blender_version_wrapper
+from .decorators import blender_version_wrapper, only_in_blender_version
 from .profiler import profiler
 
 # https://docs.blender.org/api/current/blf.html
@@ -199,8 +199,14 @@ class FontManager:
         return blf.shadow_offset(FontManager.load(fontid), *xy)
 
     @staticmethod
+    @only_in_blender_version('<= 3.3')
     def size(size, fontid=None):
         # if not dpi: dpi = FontManager.get_dpi()
+        return blf.size(FontManager.load(fontid), size, 72)
+
+    @staticmethod
+    @only_in_blender_version('> 3.3')
+    def size(size, fontid=None):
         return blf.size(FontManager.load(fontid), size)
 
     @staticmethod

@@ -63,7 +63,7 @@ from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 from ..config.keymaps import get_keymaps
-from ..config.options import options
+from ..config.options import options, sessionoptions
 
 
 class RetopoFlow(
@@ -148,6 +148,7 @@ class RetopoFlow(
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.mode_set(mode='EDIT')
         self.unmark_sources_target()  # DO THIS AS ONE OF LAST
+        sessionoptions.clear()
         RetopoFlow.instance = None
 
 

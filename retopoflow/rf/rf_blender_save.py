@@ -44,7 +44,6 @@ from ...addon_common.common.blender import (
     toggle_screen_properties,
     toggle_screen_lastop,
     show_error_message,
-    StoreRestore,
     BlenderSettings,
 )
 from ...addon_common.common.blender_preferences import get_preferences
@@ -78,7 +77,7 @@ class RetopoFlow_Blender_Save:
     @staticmethod
     def can_recover():
         if options['rotate object'] in bpy.data.objects: return True
-        if sessionoptions.has_session_data(): return True
+        if sessionoptions.has_active_session_data(): return True
         return False
 
     @staticmethod
@@ -325,15 +324,16 @@ class RetopoFlow_Blender_Save:
 
     def save_normal(self):
         with self.blender_ui_pause():
-            try:
-                bpy.ops.wm.save_mainfile()
-            except Exception as e:
-                # could not save for some reason; let the artist know!
-                self.alert_user(
-                    title='Could not save',
-                    message=f'Could not save blend file.\n\nError message: "{e}"',
-                    level='warning',
-                )
+            with sessionoptions.temp_disable():
+                try:
+                    bpy.ops.wm.save_mainfile()
+                except Exception as e:
+                    # could not save for some reason; let the artist know!
+                    self.alert_user(
+                        title='Could not save',
+                        message=f'Could not save blend file.\n\nError message: "{e}"',
+                        level='warning',
+                    )
         # note: filepath might not be set until after save
         filepath = os.path.abspath(bpy.data.filepath)
         print(f'RetopoFlow: saved to {filepath}')
