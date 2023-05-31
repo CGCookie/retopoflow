@@ -41,7 +41,7 @@ bl_info = {
     "blender":     (3, 4, 0),
     #######################################################################################
     # NOTE: the following two lines are automatically updated based on hive.json
-    "version":     (3, 3, 1),   # @hive.version
+    "version":     (3, 4, 0),   # @hive.version
     "warning":     "Alpha",     # @hive.release
     # if "warning" is present (not commented out), a warning icon will show in add-ons list
     #######################################################################################

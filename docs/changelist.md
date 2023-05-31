@@ -2,7 +2,7 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
-### RetopoFlow 3.3.0&rarr;3.3.1
+### RetopoFlow 3.3.0&rarr;3.4.0
 
 - Added `view_roll` keymap
 - Fixed compatibility with Blender 2.93--3.2
