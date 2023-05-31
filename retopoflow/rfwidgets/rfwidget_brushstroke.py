@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
-import bgl
 import random
 from mathutils import Matrix, Vector
 
@@ -28,6 +27,7 @@ from ..rfwidget import RFWidget
 
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
+from ...addon_common.common import gpustate
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
@@ -42,7 +42,7 @@ class RFWidget_BrushStroke_Factory:
     '''
 
     @staticmethod
-    def create(action_name, radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
+    def create(action_name, radius, outer_border_color=Color((0,0,0,0.5)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.25))):
         class RFWidget_BrushStroke(RFWidget):
             rfw_name = 'Brush Stroke'
             rfw_cursor = 'CROSSHAIR'
@@ -161,38 +161,34 @@ class RFWidget_BrushStroke_Factory:
                 self.scale = scale
 
                 # draw below
-                bgl.glDepthFunc(bgl.GL_GREATER)
-                bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color * self.color_mult_below, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color * self.color_mult_below, n=n, width=2*self.scale)
-                bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color * self.color_mult_below, n=n, width=8*self.scale)
+                gpustate.depth_test('GREATER')
+                gpustate.depth_mask(False)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color * self.color_mult_below, n=n, width=8*self.scale, depth_far=0.99996)
 
                 # draw above
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale)
-                bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color, n=n, width=2*self.scale)
+                gpustate.depth_test('LESS_EQUAL')
+                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale, depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color, n=n, width=2*self.scale, depth_far=0.99995)
 
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDepthRange(0.0, 1.0)
+                # reset
+                gpustate.depth_test('LESS_EQUAL')
+                gpustate.depth_mask(True)
 
             @DrawCallbacks.on_draw('post2d')
             @FSM.onlyinstate('stroking')
             def draw_line(self):
                 # draw brush strokes (screen space)
                 #cr,cg,cb,ca = self.line_color
-                bgl.glEnable(bgl.GL_BLEND)
-                # bgl.glEnable(bgl.GL_MULTISAMPLE)
+                gpustate.blend('ALPHA')
                 Globals.drawing.draw2D_linestrip(self.stroke2D, themes['stroke'], width=2, stipple=[5, 5])
 
             @DrawCallbacks.on_draw('post2d')
             @FSM.onlyinstate('brush sizing')
             def draw_brush_sizing(self):
-                bgl.glEnable(bgl.GL_BLEND)
-                # bgl.glEnable(bgl.GL_MULTISAMPLE)
+                gpustate.blend('ALPHA')
                 r = (self.sizing_pos - self.actions.mouse).length
 
                 # Globals.drawing.draw2D_circle(self.sizing_pos, r*0.75, self.fill_color, width=r*0.5)

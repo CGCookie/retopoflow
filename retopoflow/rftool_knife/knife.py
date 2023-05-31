@@ -22,7 +22,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 import time
 import random
 
-import bgl
 from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_segment
 
 from ..rftool import RFTool
@@ -36,6 +35,7 @@ from ...addon_common.common.drawing import (
     CC_2D_LINES, CC_2D_LINE_LOOP,
     CC_2D_TRIANGLES, CC_2D_TRIANGLE_FAN,
 )
+from ...addon_common.common import gpustate
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Point2D, Vec2D, Vec, Direction2D, intersection2d_line_line, closest2d_point_segment
 from ...addon_common.common.globals import Globals
@@ -642,7 +642,7 @@ class Knife(RFTool):
         else:
             next_state = 'knife cut'
 
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
         CC_DRAW.stipple(pattern=[4,4])
         CC_DRAW.point_size(8)
         CC_DRAW.line_width(2)

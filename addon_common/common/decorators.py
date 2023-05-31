@@ -244,7 +244,7 @@ def only_in_blender_version(*args, ignore_others=False, ignore_return=None):
     self = only_in_blender_version
     if not hasattr(self, 'fns'):
         major, minor, rev = bpy.app.version
-        self.blenderver = '%d.%02d' % (major, minor)
+        self.blenderver = f'{major}.{minor:02d}'
         self.fns = {}
         self.ignores = {}
         self.ops = {
@@ -255,11 +255,15 @@ def only_in_blender_version(*args, ignore_others=False, ignore_return=None):
             '>=': lambda v: self.blenderver >= v,
             '!=': lambda v: self.blenderver != v,
         }
-        self.re_blender_version = re.compile(r'^(?P<comparison><|<=|==|!=|>=|>) *(?P<version>\d\.\d\d)$')
+        self.re_blender_version = re.compile(r'^(?P<comparison><|<=|==|!=|>=|>) *(?P<version>\d\.\d+)$')
+
+    def ver(mver):
+        major, minor = map(int, mver.split('.'))
+        return f'{major}.{minor:02d}'
 
     matches = [self.re_blender_version.match(arg) for arg in args]
     assert all(match is not None for match in matches), f'At least one arg did not match version comparison: {args}'
-    results = [self.ops[match.group('comparison')](match.group('version')) for match in matches]
+    results = [self.ops[match.group('comparison')](ver(match.group('version'))) for match in matches]
     version_matches = all(results)
 
     def wrapit(fn):

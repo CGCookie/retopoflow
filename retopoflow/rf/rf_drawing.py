@@ -21,7 +21,6 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import os
 import bpy
-import bgl
 import math
 import time
 import urllib
@@ -30,6 +29,7 @@ from mathutils import Vector
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
+from ...addon_common.common import gpustate
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
@@ -74,7 +74,7 @@ class RetopoFlow_Drawing:
         buf_matrix_proj = self.actions.r3d.window_matrix
         view_forward = self.Vec_forward()
 
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
 
         if options['symmetry view'] != 'None' and self.rftarget.mirror_mod.xyz:
             if options['symmetry view'] in {'Edge', 'Face'}:
@@ -95,9 +95,8 @@ class RetopoFlow_Drawing:
                     )
             elif options['symmetry view'] == 'Plane':
                 # draw symmetry planes
-                bgl.glEnable(bgl.GL_DEPTH_TEST)
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDisable(bgl.GL_CULL_FACE)
+                gpustate.depth_test('LESS_EQUAL')
+                gpustate.culling('NONE')
                 drawing = Globals.drawing
                 a = pow(options['symmetry effect'], 2.0) # fudge this value, because effect is different with plane than edge/face
                 r = (1.0, 0.2, 0.2, a)
@@ -127,7 +126,7 @@ class RetopoFlow_Drawing:
                     drawing.draw3D_triangles([quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]], [b, b, b, b, b, b])
 
         # render target
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
         if True:
             alpha_above,alpha_below = options['target alpha'],options['target hidden alpha']
             cull_backfaces = options['target cull backfaces']
@@ -143,26 +142,26 @@ class RetopoFlow_Drawing:
     @DrawCallbacks.on_draw('post3d')
     def draw_greasemarks(self):
         return
-        if not self.actions.r3d: return
-        # THE FOLLOWING CODE NEEDS UPDATED TO NOT USE GLBEGIN!
-        # grease marks
-        bgl.glBegin(bgl.GL_QUADS)
-        for stroke_data in self.grease_marks:
-            bgl.glColor4f(*stroke_data['color'])
-            t = stroke_data['thickness']
-            s0,p0,n0,d0,d1 = None,None,None,None,None
-            for s1 in stroke_data['marks']:
-                p1,n1 = s1
-                if p0 and p1:
-                    v01 = p1 - p0
-                    if d0 is None: d0 = Direction(v01.cross(n0))
-                    d1 = Direction(v01.cross(n1))
-                    bgl.glVertex3f(*(p0-d0*t+n0*0.001))
-                    bgl.glVertex3f(*(p0+d0*t+n0*0.001))
-                    bgl.glVertex3f(*(p1+d1*t+n1*0.001))
-                    bgl.glVertex3f(*(p1-d1*t+n1*0.001))
-                s0,p0,n0,d0 = s1,p1,n1,d1
-        bgl.glEnd()
+        # if not self.actions.r3d: return
+        # # THE FOLLOWING CODE NEEDS UPDATED TO NOT USE GLBEGIN!
+        # # grease marks
+        # bgl.glBegin(bgl.GL_QUADS)
+        # for stroke_data in self.grease_marks:
+        #     bgl.glColor4f(*stroke_data['color'])
+        #     t = stroke_data['thickness']
+        #     s0,p0,n0,d0,d1 = None,None,None,None,None
+        #     for s1 in stroke_data['marks']:
+        #         p1,n1 = s1
+        #         if p0 and p1:
+        #             v01 = p1 - p0
+        #             if d0 is None: d0 = Direction(v01.cross(n0))
+        #             d1 = Direction(v01.cross(n1))
+        #             bgl.glVertex3f(*(p0-d0*t+n0*0.001))
+        #             bgl.glVertex3f(*(p0+d0*t+n0*0.001))
+        #             bgl.glVertex3f(*(p1+d1*t+n1*0.001))
+        #             bgl.glVertex3f(*(p1-d1*t+n1*0.001))
+        #         s0,p0,n0,d0 = s1,p1,n1,d1
+        # bgl.glEnd()
 
 
     ##################################

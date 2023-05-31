@@ -135,10 +135,10 @@ class FontManager:
         return blf.disable(FontManager.load(fontid), blf.WORD_WRAP)
 
     @staticmethod
-    def draw(text, xyz=None, fontsize=None, dpi=None, fontid=None):
+    def draw(text, xyz=None, fontsize=None, fontid=None):
         fontid = FontManager.load(fontid)
         if xyz: blf.position(fontid, *xyz)
-        if fontsize: FontManager.size(fontsize, dpi=dpi, fontid=fontid)
+        if fontsize: FontManager.size(fontsize, fontid=fontid)
         return blf.draw(fontid, text)
 
     @staticmethod
@@ -199,9 +199,9 @@ class FontManager:
         return blf.shadow_offset(FontManager.load(fontid), *xy)
 
     @staticmethod
-    def size(size, dpi=None, fontid=None):
-        if not dpi: dpi = FontManager.get_dpi()
-        return blf.size(FontManager.load(fontid), size, dpi)
+    def size(size, fontid=None):
+        # if not dpi: dpi = FontManager.get_dpi()
+        return blf.size(FontManager.load(fontid), size)
 
     @staticmethod
     def word_wrap(wrap_width, fontid=None):

@@ -32,7 +32,6 @@ from inspect import signature
 from itertools import dropwhile
 
 import bpy
-import bgl
 import blf
 import gpu
 
@@ -45,10 +44,12 @@ from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
-from .drawing import ScissorStack, FrameBuffer
+from .drawing import ScissorStack
 from .fsm import FSM
 
 from .useractions import ActionHandler
+
+from . import gpustate
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
@@ -693,13 +694,9 @@ class UI_Document:
 
         Globals.drawing.glCheckError('UI_Document.draw: setting options')
         ScissorStack.start(context)
-        bgl.glClearColor(0, 0, 0, 0)
-        bgl.glBlendColor(0, 0, 0, 0)
-        bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glEnable(bgl.GL_SCISSOR_TEST)
-        bgl.glDisable(bgl.GL_DEPTH_TEST)
-        bgl.glClear(bgl.GL_DEPTH_BUFFER_BIT)
+        gpustate.blend('ALPHA')
+        gpustate.scissor_test(True)
+        gpustate.depth_test('NONE')
 
         Globals.drawing.glCheckError('UI_Document.draw: drawing')
         self._body.draw()

@@ -19,11 +19,13 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bgl
-import bpy
 import math
 import time
 import random
+
+import bpy
+import gpu
+
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
@@ -598,7 +600,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             border_outer = options['polystrips handle border']
             border_inner = options['polystrips handle border']
 
-            bgl.glEnable(bgl.GL_BLEND)
+            gpu.state.blend_set('ALPHA')
 
             # draw outer-inner lines
             pts = [Point_to_Point2D(p) for strip in strips for p in strip.curve.points()]
@@ -623,70 +625,12 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             self.rfcontext.drawing.draw2D_points(pts_outer, (1.00,1.00,1.00,1.0), radius=size_outer, border=border_outer, borderColor=(0.00,0.00,0.00,0.5))
             self.rfcontext.drawing.draw2D_points(pts_inner, (0.25,0.25,0.25,0.8), radius=size_inner, border=border_inner, borderColor=(0.75,0.75,0.75,0.4))
 
-        if True:
-            # always draw on top!
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glDisable(bgl.GL_DEPTH_TEST)
-            bgl.glDepthMask(bgl.GL_FALSE)
-            draw(1.0, 1.0, False)
-            bgl.glEnable(bgl.GL_DEPTH_TEST)
-            bgl.glDepthMask(bgl.GL_TRUE)
-        else:
-            # allow handles to go under surface
-            bgl.glDepthRange(0, 0.9999)     # squeeze depth just a bit
-            bgl.glEnable(bgl.GL_BLEND)
-            bgl.glDepthMask(bgl.GL_FALSE)   # do not overwrite depth
-            bgl.glEnable(bgl.GL_DEPTH_TEST)
-
-            # draw behind geometry
-            bgl.glDepthFunc(bgl.GL_GREATER)
-            draw(
-                options['target hidden alpha'],
-                options['target hidden alpha'], # hover
-                False, #options['polystrips handle hover']
-            )
-
-            # draw in front of geometry
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            draw(
-                options['target alpha'],
-                options['target alpha'], # hover
-                False, #options['polystrips handle hover']
-            )
-
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            bgl.glDepthRange(0.0, 1.0)
-            bgl.glDepthMask(bgl.GL_TRUE)
-
-        if False:
-            # draw spline for each strip
-            for strip in self.strips:
-                pp = None
-                for (_,p,_) in strip.curve.tessellation:
-                    p = self.rfcontext.Point_to_Point2D(p)
-                    if p and pp:
-                        self.rfcontext.drawing.draw2D_line(
-                            pp, p,
-                            (1,1,1,0.5),
-                            width=2, stipple=[2,2],
-                        )
-                    pp = p
-        if False and hasattr(self, 'count_data'):
-            # draw strip segment count change data (splines for edges)
-            splines = self.count_data['splines']
-            for spline in splines:
-                for cb in spline.tessellation:
-                    pp = None
-                    for (_,p,_) in cb:
-                        p = self.rfcontext.Point_to_Point2D(p)
-                        if p and pp:
-                            self.rfcontext.drawing.draw2D_line(
-                                pp, p,
-                                (1,1,0.2,0.5),
-                                width=2, stipple=[2,2],
-                            )
-                        pp = p
-            # self.rfcontext.drawing.draw2D_points([self.rfcontext.Point_to_Point2D(p) for p in self.count_data['points']], (1, 0.5, 0.5, 1.0), radius=5)
+        gpu.state.blend_set('ALPHA')
+        gpu.state.depth_test_set('NONE')
+        gpu.state.depth_mask_set(False)
+        draw(1.0, 1.0, False)
+        gpu.state.depth_mask_set(True)
+        gpu.state.depth_test_set('LESS_EQUAL')
 
     @DrawCallbacks.on_draw('post2d')
     def draw_post2d(self):

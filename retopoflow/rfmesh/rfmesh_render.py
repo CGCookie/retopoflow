@@ -31,31 +31,34 @@ from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
+import gpu
 import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
-
-from mathutils import Matrix, Vector
 from mathutils.geometry import normal as compute_normal, intersect_point_tri
-from ...addon_common.common.globals import Globals
-from ...addon_common.common.debug import dprint, Debugger
-from ...addon_common.common.profiler import profiler
-from ...addon_common.common.maths import Point, Direction, Normal, Frame
-from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
-from ...addon_common.common.maths import Ray, XForm, BBox, Plane
-from ...addon_common.common.utils import min_index
-from ...addon_common.common.hasher import hash_object, hash_bmesh
-from ...addon_common.common.decorators import stats_wrapper
+
+from ...addon_common.common import gpustate
 from ...addon_common.common import bmesh_render as bmegl
-from ...addon_common.common.bmesh_render import triangulateFace, BufferedRender_Batch
 from ...addon_common.common.blender import tag_redraw_all
+from ...addon_common.common.bmesh_render import triangulateFace, BufferedRender_Batch
+from ...addon_common.common.debug import dprint, Debugger
+from ...addon_common.common.decorators import stats_wrapper
+from ...addon_common.common.globals import Globals
+from ...addon_common.common.hasher import hash_object, hash_bmesh
+from ...addon_common.common.profiler import profiler
+from ...addon_common.common.maths import (
+    Point, Direction, Normal, Frame,
+    Point2D, Vec2D, Direction2D,
+    Ray, XForm, BBox, Plane,
+)
+from ...addon_common.common.utils import min_index
 
 from ...config.options import options
 
 from .rfmesh_wrapper import (
-    BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
+    BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence,
 )
 
 
@@ -467,9 +470,8 @@ class RFMeshRender():
         if not self.buffered_renders_static and not self.buffered_renders_dynamic: return
 
         try:
-            bgl.glEnable(bgl.GL_DEPTH_TEST)
-            bgl.glDepthMask(bgl.GL_FALSE)       # do not overwrite the depth buffer
-            bgl.glDepthRange(0, 1)
+            gpustate.depth_test('LESS_EQUAL')
+            gpustate.depth_mask(False)  # do not overwrite the depth buffer
 
             opts = dict(self.opts)
 
@@ -504,7 +506,8 @@ class RFMeshRender():
             if not opts.get('no below', False):
                 # draw geometry hidden behind
                 # geometry below
-                bgl.glDepthFunc(bgl.GL_GREATER)
+                opts['depth test']          = 'GREATER'
+                opts['depth mask']          = False
                 opts['poly hidden']         = 1 - alpha_below
                 opts['poly mirror hidden']  = 1 - alpha_below
                 opts['line hidden']         = 1 - alpha_below
@@ -515,7 +518,8 @@ class RFMeshRender():
                     buffered_render.draw(opts)
 
             # geometry above
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
+            opts['depth test']          = 'LESS_EQUAL'
+            opts['depth mask']          = False
             opts['poly hidden']         = 1 - alpha_above
             opts['poly mirror hidden']  = 1 - alpha_above
             opts['line hidden']         = 1 - alpha_above
@@ -525,9 +529,8 @@ class RFMeshRender():
             for buffered_render in chain(self.buffered_renders_static, self.buffered_renders_dynamic):
                 buffered_render.draw(opts)
 
-            bgl.glDepthFunc(bgl.GL_LEQUAL)
-            bgl.glDepthMask(bgl.GL_TRUE)
-            bgl.glDepthRange(0, 1)
+            gpustate.depth_test('LESS_EQUAL')
+            gpustate.depth_mask(True)
         except:
             Debugger.print_exception()
             pass

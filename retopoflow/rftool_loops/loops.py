@@ -19,8 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bgl
 import bpy
+import gpu
 import math
 import random
 import itertools
@@ -30,6 +30,7 @@ from ..rfmesh.rfmesh import RFVert, RFEdge, RFFace
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 
+from ...addon_common.common import gpustate
 from ...addon_common.common.maths import (
     Point, Vec, Normal, Direction,
     Point2D, Vec2D, Direction2D,
@@ -44,7 +45,7 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
 
-from ...config.options import options
+from ...config.options import options, themes
 
 
 class Loops(RFTool):
@@ -546,8 +547,7 @@ class Loops(RFTool):
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate('slide')
     def draw_postview_slide(self):
-        bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        gpustate.blend('ALPHA')
         Globals.drawing.draw2D_line(
             self.slide_point + self.slide_vector * 1000,
             self.slide_point - self.slide_vector * 1000,
@@ -587,26 +587,8 @@ class Loops(RFTool):
         CC_DRAW.point_size(5)
         CC_DRAW.line_width(2)
 
-        #self.drawing.point_size(5.0)
-        #self.drawing.line_width(2.0)
-        # bgl.glDisable(bgl.GL_CULL_FACE)
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glEnable(bgl.GL_DEPTH_TEST)
-        bgl.glDepthRange(0, 0.9990)     # squeeze depth just a bit
-
-        # draw below
-        # NOTE: THERE IS NO "BELOW" WHEN DRAWING IN POST2D!
-        # need to implement 3D line drawing first
-        # bgl.glDepthFunc(bgl.GL_GREATER)
-        # draw(Color((0.15, 1.00, 0.15, 0.25)))
-
-        # draw above
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        draw(Color((0.15, 1.00, 0.15, 1.00)))
-
-        # bgl.glEnable(bgl.GL_CULL_FACE)
-        bgl.glDepthMask(bgl.GL_TRUE)
-        bgl.glDepthFunc(bgl.GL_LEQUAL)
-        bgl.glDepthRange(0, 1)
+        gpustate.blend('ALPHA')
+        gpu.state.depth_mask_set(True)
+        gpustate.depth_test('LESS_EQUAL')
+        draw(themes['new'])
 

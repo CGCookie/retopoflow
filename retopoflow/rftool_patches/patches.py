@@ -23,8 +23,6 @@ import os
 import math
 from itertools import chain
 
-import bgl
-
 from ..rftool import RFTool
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_hidden import RFWidget_Hidden_Factory
@@ -41,6 +39,7 @@ from ...addon_common.common.maths import (
     Point2D, Vec2D,
     mid,
 )
+from ...addon_common.common import gpustate
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.utils import iter_pairs
@@ -379,15 +378,15 @@ class Patches(RFTool):
                     s = 'bad C: %d' % len(strip)
                     text_draw2D(s, [strip])
 
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
         CC_DRAW.stipple(pattern=[4,4])
         CC_DRAW.point_size(4)
         CC_DRAW.line_width(2)
 
         for previz in self.previz: self.draw_previz(previz)
 
+        gpustate.blend('ALPHA')
         CC_DRAW.stipple()
-        bgl.glEnable(bgl.GL_BLEND)
         CC_DRAW.point_size(visualization['point size highlight'])
         with Globals.drawing.draw(CC_2D_POINTS) as draw:
             draw.color(visualization['point color highlight'])

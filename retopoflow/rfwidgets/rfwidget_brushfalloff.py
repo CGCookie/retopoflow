@@ -20,17 +20,20 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
-import bgl
 import random
+
+import gpu
+
 from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
 from ...addon_common.common.fsm import FSM
-from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all, matrix_vector_mult
-from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
+from ...addon_common.common.drawing import DrawCallbacks
+from ...addon_common.common.globals import Globals
+from ...addon_common.common import gpustate
 from ...addon_common.common.maths import Vec, Point, Point2D, Direction, Color, Vec2D
 from ...config.options import themes, options
 
@@ -42,7 +45,7 @@ class RFWidget_BrushFalloff_Factory:
     '''
 
     @staticmethod
-    def create(action_name, radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.65))):
+    def create(action_name, radius, falloff, strength, fill_color=Color((1,1,1,1)), outer_color=Color((1,1,1,1)), inner_color=Color((1,1,1,0.5)), below_alpha=Color((1,1,1,0.25))):
         class RFWidget_BrushFalloff(RFWidget):
             rfw_name = 'Brush Falloff'
             rfw_cursor = 'CROSSHAIR'
@@ -134,23 +137,21 @@ class RFWidget_BrushFalloff_Factory:
                 fs = (1-ff) * r
 
                 # draw below
-                bgl.glDepthFunc(bgl.GL_GREATER)
-                bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, r,      co * self.color_mult_below, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, r * ff, ci * self.color_mult_below, n=n, width=2*self.scale)
-                bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, r - fs, cc * self.color_mult_below, n=n, width=fs)
+                gpustate.depth_mask(False)
+                gpustate.depth_test('GREATER')
+                Globals.drawing.draw3D_circle(p, r,      co * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, r * ff, ci * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, r - fs, cc * self.color_mult_below, n=n, width=fs,           depth_far=0.99996)
 
                 # draw above
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDepthRange(0.0, 0.99996)
-                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs)
-                bgl.glDepthRange(0.0, 0.99995)
-                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale)
-                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale)
+                gpustate.depth_test('LESS_EQUAL')
+                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs,           depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale, depth_far=0.99995)
 
-                bgl.glDepthFunc(bgl.GL_LEQUAL)
-                bgl.glDepthRange(0.0, 1.0)
+                # reset
+                gpustate.depth_test('LESS_EQUAL')
+                gpustate.depth_mask(True)
 
             @DrawCallbacks.on_draw('post2d')
             @FSM.onlyinstate('change')

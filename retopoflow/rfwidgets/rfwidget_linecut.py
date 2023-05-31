@@ -20,12 +20,12 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import math
-import bgl
 import random
 from mathutils import Matrix, Vector
 
 from ..rfwidget import RFWidget
 
+from ...addon_common.common import gpustate
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.blender import tag_redraw_all
@@ -96,8 +96,7 @@ class RFWidget_LineCut_Factory:
                 if not p0 or not p1: return
                 ctr = p0 + (p1-p0)/2
 
-                bgl.glEnable(bgl.GL_BLEND)
-                bgl.glEnable(bgl.GL_MULTISAMPLE)
+                gpustate.blend('ALPHA')
                 Globals.drawing.draw2D_line(p0, p1, self.line_color or themes['stroke'], width=2, stipple=[2, 2])  # self.line_color)
                 Globals.drawing.draw2D_circle(ctr, 10, self.circle_border_color, width=3) # dark rim
                 Globals.drawing.draw2D_circle(ctr, 10, self.circle_color, width=1) # light center

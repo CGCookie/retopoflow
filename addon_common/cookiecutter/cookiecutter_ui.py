@@ -21,10 +21,10 @@ import math
 import random
 
 import bpy
-import bgl
 from bpy.types import SpaceView3D
 from mathutils import Matrix
 
+from ..common import gpustate
 from ..common.globals import Globals
 from ..common.blender import bversion, tag_redraw_all
 from ..common.decorators import blender_version_wrapper
@@ -108,8 +108,7 @@ class CookieCutter_UI:
                 ScissorStack.end(force=True)
         def postpixel():
             # print('***** postpixel')
-            # bgl.glEnable(bgl.GL_MULTISAMPLE)
-            bgl.glEnable(bgl.GL_BLEND)
+            gpustate.blend('ALPHA')
             try: self.drawcallbacks.post2d()
             except Exception as e:
                 self._handle_exception(e, 'draw post2d')
@@ -148,8 +147,8 @@ class CookieCutter_UI:
     # Region Darkening
 
     def _cc_region_draw_cover(self, a):
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glDisable(bgl.GL_DEPTH_TEST)
+        gpustate.blend('ALPHA')
+        gpustate.depth_test('NONE')
         shader.bind()
         shader.uniform_float("darken", 0.50)
         batch_full.draw(shader)

@@ -24,12 +24,12 @@ import math
 import time
 import random
 
-import bgl
 from mathutils import Matrix
 
 from ..rftool import RFTool
 from ..rfwidget import RFWidget
 
+from ...addon_common.common import gpustate
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.fsm import FSM
@@ -642,8 +642,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate('rotate screen')
     def draw_post2d_rotate_screenspace(self):
-        bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        gpustate.blend('ALPHA')
         Globals.drawing.draw2D_line(
             self.rotate_about,
             self.rfcontext.actions.mouse,
@@ -654,8 +653,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate('rotate plane')
     def draw_post2d_rotate_plane(self):
-        bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        gpustate.blend('ALPHA')
         Globals.drawing.draw2D_line(
             self.shift_about + self.rot_axis2D * 1000,
             self.shift_about - self.rot_axis2D * 1000,
@@ -671,8 +669,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         delta = Vec2D(self.actions.mouse - self.grab_opts['mousedown'])
         c0_good, c1_good = (1.0, 0.1, 1.0, 0.5), (1.0, 0.1, 1.0, 0.0)
         c0_bad,  c1_bad  = (1.0, 0.1, 0.1, 1.0), (1.0, 0.1, 0.1, 0.0)
-        bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glEnable(bgl.GL_MULTISAMPLE)
+        gpustate.blend('ALPHA')
         for o in self.move_origins:
             p0, p1 = project(o), project(o) + delta
             _p,_,_,_ = intersect(p1)
@@ -681,16 +678,6 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
                 (c0_good if _p else c0_bad), color1=(c1_good if _p else c1_bad),
                 width=2, stipple=[2,2],
             )
-
-    # @DrawCallbacks.on_draw('post2d')
-    # def draw_post2d_crawl_viz(self):
-    #     # debug visualization
-    #     project = self.rfcontext.Point_to_Point2D
-    #     bgl.glEnable(bgl.GL_BLEND)
-    #     bgl.glEnable(bgl.GL_MULTISAMPLE)
-    #     for pts in self.crawl_viz:
-    #         pts = [project(pt) for pt in pts]
-    #         Globals.drawing.draw2D_linestrip(pts, (1,1,1,0.5))
 
     @DrawCallbacks.on_draw('post2d')
     def draw_post2d(self):
@@ -720,19 +707,6 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
                 bmv_count_loops[bmv].append(count)
                 bmv_count.add(bmv)
 
-            # draw arrows
-            # if self.show_arrows:
-            #     self.drawing.line_width(2.0)
-            #     p0 = point_to_point2d(plane.o)
-            #     p1 = point_to_point2d(plane.o+plane.n*0.02)
-            #     if p0 and p1:
-            #         bgl.glColor4f(1,1,0,0.5)
-            #         draw2D_arrow(p0, p1)
-            #     p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
-            #     if p0 and p1:
-            #         bgl.glColor4f(1,0,1,0.5)
-            #         draw2D_arrow(p0, p1)
-
         for string_data in self.strings_data:
             string = string_data['string']
             count = string_data['count']
@@ -745,18 +719,6 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
                 if bmv not in bmv_count_strings: bmv_count_strings[bmv] = []
                 bmv_count_strings[bmv].append(count)
                 bmv_count.add(bmv)
-
-            # draw arrows
-            # if self.show_arrows:
-            #     p0 = point_to_point2d(plane.o)
-            #     p1 = point_to_point2d(plane.o+plane.n*0.02)
-            #     if p0 and p1:
-            #         bgl.glColor4f(1,1,0,0.5)
-            #         draw2D_arrow(p0, p1)
-            #     p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
-            #     if p0 and p1:
-            #         bgl.glColor4f(1,0,1,0.5)
-            #         draw2D_arrow(p0, p1)
 
         for bmv in bmv_count:
             counts_loops = sorted(bmv_count_loops.get(bmv, []))
@@ -771,17 +733,3 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             if s_strings:
                 text_draw2D('C ' + s_strings, xy, color=(0,1,1,1), dropshadow=(0,0,0,0.5))
 
-        # # draw new cut info
-        # if self.show_cut:
-        #     for cl in self.cuts:
-        #         plane = cl.plane
-        #         self.drawing.line_width(2.0)
-        #         p0 = point_to_point2d(plane.o)
-        #         p1 = point_to_point2d(plane.o+plane.n*0.02)
-        #         if p0 and p1:
-        #             bgl.glColor4f(1,1,0,0.5)
-        #             draw2D_arrow(p0, p1)
-        #         p1 = point_to_point2d(plane.o+cl.up_dir*0.02)
-        #         if p0 and p1:
-        #             bgl.glColor4f(1,0,1,0.5)
-        #             draw2D_arrow(p0, p1)

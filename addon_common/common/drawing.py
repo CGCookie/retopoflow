@@ -54,7 +54,7 @@ from .maths import Point2D, Vec2D, Point, Ray, Direction, mid, Color, Normal, Fr
 from .profiler import profiler
 from .shaders import Shader
 from .utils import iter_pairs
-
+from . import gpustate
 
 
 class Drawing:
@@ -136,7 +136,7 @@ class Drawing:
         fontsize, fontsize_scaled = int(fontsize), int(int(fontsize) * self._dpi_mult)
         cache_key = (fontid, fontsize_scaled)
         if self.last_font_key == cache_key and not force: return fontsize_prev
-        fm.size(fontsize_scaled, 72, fontid=fontid)
+        fm.size(fontsize_scaled, fontid=fontid)
         if cache_key not in self.line_cache:
             # cache away useful details about font (line height, line base)
             dprint('Caching new scaled font size:', cache_key)
@@ -307,38 +307,8 @@ class Drawing:
         return Hasher(self.r3d.view_matrix, self.space.lens, self.r3d.view_distance)
 
     @staticmethod
-    @only_in_blender_version('< 3.05')
-    def glCheckError(title):
-        if not Drawing._error_check: return
-        import bgl
-        err = bgl.glGetError()
-        if err == bgl.GL_NO_ERROR: return False
-        Drawing._error_count += 1
-        if Drawing._error_count <= Drawing._error_limit:
-            error_map = {
-                getattr(bgl, k): s
-                for (k,s) in [
-                    # https://www.khronos.org/opengl/wiki/OpenGL_Error#Meaning_of_errors
-                    ('GL_INVALID_ENUM', 'invalid enum'),
-                    ('GL_INVALID_VALUE', 'invalid value'),
-                    ('GL_INVALID_OPERATION', 'invalid operation'),
-                    ('GL_STACK_OVERFLOW', 'stack overflow'),    # does not exist in b3d 2.8x for OSX??
-                    ('GL_STACK_UNDERFLOW', 'stack underflow'),  # does not exist in b3d 2.8x for OSX??
-                    ('GL_OUT_OF_MEMORY', 'out of memory'),
-                    ('GL_INVALID_FRAMEBUFFER_OPERATION', 'invalid framebuffer operation'),
-                    ('GL_CONTEXT_LOST', 'context lost'),
-                    ('GL_TABLE_TOO_LARGE', 'table too large'),  # deprecated in OpenGL 3.0, removed in 3.1 core and above
-                ]
-                if hasattr(bgl, k)
-            }
-            print('ERROR %d/%d (%s): %s' % (Drawing._error_count, Drawing._error_limit, title, error_map.get(err, 'code %d' % err)))
-            traceback.print_stack()
-        return True
-
-    @staticmethod
-    @only_in_blender_version('>= 3.05')
-    def glCheckError(title):
-        return False
+    def glCheckError(title, **kwargs):
+        return gpustate.get_glerror(title, **kwargs)
 
     @staticmethod
     @contextlib.contextmanager
@@ -506,19 +476,21 @@ class Drawing:
         batch_2D_circle.draw(shader_2D_circle)
         gpu.shader.unbind()
 
-    def draw3D_circle(self, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None):
+    def draw3D_circle(self, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):
         assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
         f = Frame(o=center, x=x, y=y, z=n)
         radius = self.scale(radius)
         width = self.scale(width)
         shader_3D_circle.bind()
-        shader_3D_circle.uniform_float('center', f.o)
-        shader_3D_circle.uniform_float('radius', radius)
-        shader_3D_circle.uniform_float('color',  color)
-        shader_3D_circle.uniform_float('width',  width)
-        shader_3D_circle.uniform_float('plane_x', f.x)
-        shader_3D_circle.uniform_float('plane_y', f.y)
-        shader_3D_circle.uniform_float('MVPMatrix', self.get_view_matrix())
+        shader_3D_circle.uniform_float('center',     f.o)
+        shader_3D_circle.uniform_float('radius',     radius)
+        shader_3D_circle.uniform_float('color',      color)
+        shader_3D_circle.uniform_float('width',      width)
+        shader_3D_circle.uniform_float('plane_x',    f.x)
+        shader_3D_circle.uniform_float('plane_y',    f.y)
+        shader_3D_circle.uniform_float('depth_near', depth_near)
+        shader_3D_circle.uniform_float('depth_far',  depth_far)
+        shader_3D_circle.uniform_float('MVPMatrix',  self.get_view_matrix())
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
 
@@ -925,23 +897,11 @@ class FrameBuffer:
         self._is_error = False
         self._is_bound = False
 
-    def _copy(self, other):
-        self._width = other._width
-        self._height = other._height
-        self._fbo = other._fbo
-        self._buf_color = other._buf_color
-        self._buf_depth = other._buf_depth
-        self._cur_fbo = other._cur_fbo
-        self._cur_viewport = other._cur_viewport
-        self._cur_projection = other.get_projection_matrix()
-        other._is_freed = True
-
     def _create(self, width, height):
         import bgl
         Drawing.glCheckError('FrameBuffer._create: start')
         self._width = max(1, int(width))
         self._height = max(1, int(height))
-        # print('Creating FrameBuffer of size %dx%d (%d)' % (self._width, self._height, len(FrameBuffer._all_fbs)))
 
         self._fbo = bgl.Buffer(bgl.GL_INT, 1)
         self._buf_color = bgl.Buffer(bgl.GL_INT, 1)
@@ -1103,8 +1063,6 @@ class FrameBufferWrapper:
 
 
 class ScissorStack:
-    import bgl
-    buf = bgl.Buffer(bgl.GL_INT, 4)
     is_started = False
     scissor_test_was_enabled = False
     stack = None                        # stack of (l,t,w,h) in region-coordinates, because viewport is set to region
@@ -1112,7 +1070,6 @@ class ScissorStack:
 
     @staticmethod
     def start(context):
-        import bgl
         assert not ScissorStack.is_started, 'Attempting to start a started ScissorStack'
 
         # region pos and size are window-coordinates
@@ -1121,10 +1078,11 @@ class ScissorStack:
         rt = rb + rh - 1
 
         # remember the current scissor box settings so we can return to them when done
-        ScissorStack.scissor_test_was_enabled = (bgl.glIsEnabled(bgl.GL_SCISSOR_TEST) == bgl.GL_TRUE)
+        ScissorStack.scissor_test_was_enabled = gpustate.get_scissor_test()
+        Globals.drawing.glCheckError('get_scissor_test')
         if ScissorStack.scissor_test_was_enabled:
-            bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, ScissorStack.buf)
-            pl, pb, pw, ph = ScissorStack.buf
+            pl, pb, pw, ph = gpustate.get_scissor() #ScissorStack.buf
+            Globals.drawing.glCheckError('get_scissor')
             pt = pb + ph - 1
             ScissorStack.stack = [(pl, pt, pw, ph)]
             ScissorStack.msg_stack = ['init']
@@ -1133,7 +1091,7 @@ class ScissorStack:
         else:
             ScissorStack.stack = [(0, rh - 1, rw, rh)]
             ScissorStack.msg_stack = ['init']
-            bgl.glEnable(bgl.GL_SCISSOR_TEST)
+            gpustate.scissor_test(True)
 
         # we're ready to go!
         ScissorStack.is_started = True
@@ -1141,24 +1099,21 @@ class ScissorStack:
 
     @staticmethod
     def end(force=False):
-        import bgl
         if not force:
             assert ScissorStack.is_started, 'Attempting to end a non-started ScissorStack'
             assert len(ScissorStack.stack) == 1, 'Attempting to end a non-empty ScissorStack (size: %d)' % (len(ScissorStack.stack)-1)
         else:
             ScissorStack.stack = ScissorStack.stack[:1]
-        if not ScissorStack.scissor_test_was_enabled: bgl.glDisable(bgl.GL_SCISSOR_TEST)
+        gpustate.scissor_test(ScissorStack.scissor_test_was_enabled)
         ScissorStack.is_started = False
 
     @staticmethod
     def _set_scissor():
-        import bgl
         assert ScissorStack.is_started, 'Attempting to set scissor settings with non-started ScissorStack'
         l,t,w,h = ScissorStack.stack[-1]
         b = t - (h - 1)
-        # bgl.glGetIntegerv(bgl.GL_SCISSOR_BOX, ScissorStack.buf)
-        bgl.glScissor(l, b, w, h)
-        # print(f'{ScissorStack.buf} {(l,b,w,h)} {gpu.state.scissor_get()}')
+        gpustate.scissor(l, b, w, h)
+        Globals.drawing.glCheckError('scissor')
 
     @staticmethod
     def push(nl, nt, nw, nh, msg='', clamp=True):

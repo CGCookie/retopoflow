@@ -51,13 +51,12 @@ from mathutils.bvhtree import BVHTree
 
 from . import gpustate
 from .debug import dprint
+from .decorators import blender_version_wrapper, add_cache, only_in_blender_version
 from .drawing import Drawing
+from .maths import (Point, Direction, Frame, XForm, invert_matrix, matrix_normal)
+from .profiler import profiler
 from .shaders import Shader
 from .utils import shorten_floats
-from .maths import Point, Direction, Frame, XForm
-from .maths import invert_matrix, matrix_normal
-from .profiler import profiler
-from .decorators import blender_version_wrapper, add_cache, only_in_blender_version
 
 
 
@@ -153,21 +152,14 @@ class BufferedRender_Batch:
         elif self.shader_type == 'LINES':
             data = {
                 # repeat each value 6 times
-                # 'vert_pos0':   [p0 for (p0,p1) in zip( pos[0::2],  pos[1::2]) for __ in range(6)],
-                # 'vert_pos1':   [p1 for (p0,p1) in zip( pos[0::2],  pos[1::2]) for __ in range(6)],
-                # 'vert_norm':   [n0 for (n0,n1) in zip(norm[0::2], norm[1::2]) for __ in range(6)],
-                # 'selected':    [s0 for (s0,s1) in zip( sel[0::2],  sel[1::2]) for __ in range(6)],
-                # 'warning':     [s0 for (s0,s1) in zip(warn[0::2], warn[1::2]) for __ in range(6)],
-                # 'pinned':      [s0 for (s0,s1) in zip( pin[0::2],  pin[1::2]) for __ in range(6)],
-                # 'seam':        [s0 for (s0,s1) in zip(seam[0::2], seam[1::2]) for __ in range(6)],
-                'vert_pos0':   [p0 for p0 in pos[ 0::2] for __ in range(6)],
-                'vert_pos1':   [p1 for p1 in pos[ 1::2] for __ in range(6)],
+                'vert_pos0':   [p0 for p0 in pos [0::2] for __ in range(6)],
+                'vert_pos1':   [p1 for p1 in pos [1::2] for __ in range(6)],
                 'vert_norm':   [n  for n  in norm[0::2] for __ in range(6)],
-                'selected':    [s  for s  in sel[ 0::2] for __ in range(6)],
+                'selected':    [s  for s  in sel [0::2] for __ in range(6)],
                 'warning':     [w  for w  in warn[0::2] for __ in range(6)],
-                'pinned':      [p  for p  in pin[ 0::2] for __ in range(6)],
+                'pinned':      [p  for p  in pin [0::2] for __ in range(6)],
                 'seam':        [s  for s  in seam[0::2] for __ in range(6)],
-                'vert_offset': [o  for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
+                'vert_offset': [o for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
         }
         elif self.shader_type == 'TRIS':
             data = {
@@ -177,7 +169,7 @@ class BufferedRender_Batch:
                 'pinned':      pin,
                 # 'seam':        seam,
             }
-        else: assert False, 'BufferedRender_Batch.buffer: Unhandled type: ' + self.shader_type
+        else: assert False, f'BufferedRender_Batch.buffer: Unhandled type: {self.shader_type}'
         self.batch = batch_for_shader(self.shader, 'TRIS', data)
         self.count = len(pos)
 
@@ -191,7 +183,7 @@ class BufferedRender_Batch:
             opt = f'{prefix}{opt}'
             if opt not in opts: return
             cb(opts[opt])
-            Drawing.glCheckError('setting %s to %s' % (str(opt), str(opts[opt])))
+            Drawing.glCheckError(f'setting {opt} to {opts[opt]}')
 
         Drawing.glCheckError('BufferedRender_Batch.set_options: start')
         dpi_mult = opts.get('dpi mult', 1.0)
@@ -210,13 +202,14 @@ class BufferedRender_Batch:
 
     def _draw(self, sx, sy, sz):
         self.uniform_float('vert_scale', (sx, sy, sz))
+        # print(f'bmesh._draw', gpustate.get_depth_test(), gpu.state.depth_test_get(), gpustate.get_depth_mask(), gpu.state.depth_mask_get())
         self.batch.draw(self.shader)
         # Drawing.glCheckError('_draw: glDrawArrays (%d)' % self.count)
 
     def is_quarantined(self, k):
         return k in self._quarantine[self.shader]
     def quarantine(self, k):
-        dprint('BufferedRender_Batch: quarantining %s for %s' % (str(k), str(self.shader)))
+        dprint(f'BufferedRender_Batch: quarantining {k} for {self.shader}')
         self._quarantine[self.shader].add(k)
     def uniform_float(self, k, v):
         if self.is_quarantined(k): return
@@ -252,16 +245,15 @@ class BufferedRender_Batch:
         self.uniform_float('vert_scale',     (1, 1, 1))
         self.uniform_float('radius',         1) #random.random()*10)
 
-        nosel  = opts.get('no selection', False)
-        nowarn = opts.get('no warning',   False)
-        nopin  = opts.get('no pinned',    False)
-        noseam = opts.get('no seam',      False)
+        if 'blend'      in opts: gpustate.blend(opts['blend'])
+        if 'depth test' in opts: gpustate.depth_test(opts['depth test'])
+        if 'depth mask' in opts: gpustate.depth_mask(opts['depth mask'])
 
-        self.uniform_bool('use_selection', [not nosel])  # must be a sequence!?
-        self.uniform_bool('use_warning',   [not nowarn]) # must be a sequence!?
-        self.uniform_bool('use_pinned',    [not nopin])  # must be a sequence!?
-        self.uniform_bool('use_seam',      [not noseam])  # must be a sequence!?
-        self.uniform_bool('use_rounding',  [self.drawtype == self.POINTS]) # must be a sequence!?
+        self.uniform_bool('use_selection', (not opts.get('no selection', False)))
+        self.uniform_bool('use_warning',   (not opts.get('no warning',   False)))
+        self.uniform_bool('use_pinned',    (not opts.get('no pinned',    False)))
+        self.uniform_bool('use_seam',      (not opts.get('no seam',      False)))
+        self.uniform_bool('use_rounding',  (self.drawtype == self.POINTS))
 
         self.uniform_float('matrix_m',    opts['matrix model'])
         self.uniform_float('matrix_mn',   opts['matrix normal'])
@@ -292,21 +284,21 @@ class BufferedRender_Batch:
         self.uniform_float('mirror_effect', symmetry_effect)
         self.uniform_bool('mirroring', mirroring)
 
-        self.uniform_float('normal_offset',    opts.get('normal offset', 0.0))
-        self.uniform_bool('constrain_offset', [opts.get('constrain offset', True)]) # must be a sequence!?
+        self.uniform_float('normal_offset',   opts.get('normal offset', 0.0))
+        self.uniform_bool('constrain_offset', opts.get('constrain offset', True))
 
         ctx = bpy.context
         area, spc, r3d = ctx.area, ctx.space_data, ctx.space_data.region_3d
-        self.uniform_bool('perspective', [r3d.view_perspective != 'ORTHO']) # must be a sequence!?
+        self.uniform_bool('perspective', (r3d.view_perspective != 'ORTHO'))
         self.uniform_float('clip_start', spc.clip_start)
         self.uniform_float('clip_end', spc.clip_end)
         self.uniform_float('view_distance', r3d.view_distance)
         self.uniform_float('screen_size', Vector((area.width, area.height)))
 
         focus = opts.get('focus mult', 1.0)
-        self.uniform_float('focus_mult',       focus)
-        self.uniform_bool('cull_backfaces',   [opts.get('cull backfaces', False)])
-        self.uniform_float('alpha_backface',   opts.get('alpha backface', 0.5))
+        self.uniform_float('focus_mult',      focus)
+        self.uniform_bool('cull_backfaces',   opts.get('cull backfaces', False))
+        self.uniform_float('alpha_backface',  opts.get('alpha backface', 0.5))
 
         self.set_options(self.options_prefix, opts)
         self._draw(1, 1, 1)

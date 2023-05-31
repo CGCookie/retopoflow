@@ -21,7 +21,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import math
 import time
-import bgl
 import bpy
 from math import isnan
 
@@ -36,7 +35,7 @@ from ..rfwidgets.rfwidget_default     import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_brushstroke import RFWidget_BrushStroke_Factory
 from ..rfwidgets.rfwidget_hidden      import RFWidget_Hidden_Factory
 
-
+from ...addon_common.common import gpustate
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
@@ -1079,7 +1078,7 @@ class Strokes(RFTool):
     @DrawCallbacks.on_draw('post2d')
     def draw_postpixel(self):
         if self._fsm.state == 'move': return
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
         point_to_point2d = self.rfcontext.Point_to_Point2D
         up = self.rfcontext.Vec_up()
         size_to_size2D = self.rfcontext.size_to_size2D

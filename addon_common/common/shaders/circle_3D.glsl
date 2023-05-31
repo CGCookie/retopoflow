@@ -8,6 +8,8 @@ uniform vec3  plane_x;          // x direction in plane the circle lies in
 uniform vec3  plane_y;          // y direction in plane the circle lies in
 uniform float radius;           // radius of circle
 uniform float width;            // line width, perpendicular to line (in plane)
+uniform float depth_near;       // depth range near, to ensure drawover
+uniform float depth_far;        // depth range far, to to ensure drawover
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -32,5 +34,6 @@ void main() {
     outColor = color;
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
+    gl_FragDepth = mix(depth_near, depth_far, gl_FragCoord.z);
 }
 

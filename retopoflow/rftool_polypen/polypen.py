@@ -21,7 +21,6 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 import random
 
-import bgl
 from mathutils.geometry import intersect_line_line_2d as intersect2d_segment_segment
 
 from ..rftool import RFTool
@@ -29,6 +28,7 @@ from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
+from ...addon_common.common import gpustate
 from ...addon_common.common.drawing import (
     CC_DRAW,
     CC_2D_POINTS,
@@ -768,7 +768,7 @@ class PolyPen(RFTool):
         if self.next_state == 'unset': return
         #self.set_next_state()
 
-        bgl.glEnable(bgl.GL_BLEND)
+        gpustate.blend('ALPHA')
         CC_DRAW.stipple(pattern=[4,4])
         CC_DRAW.point_size(8)
         CC_DRAW.line_width(2)

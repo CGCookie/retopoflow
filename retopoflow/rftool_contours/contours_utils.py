@@ -55,7 +55,6 @@ from itertools import chain
 from mathutils import Vector, Quaternion
 
 import bpy
-import bgl
 
 from ..rfmesh.rfmesh import RFVert
 from ...addon_common.common.blender import quat_vector_mult
@@ -68,20 +67,6 @@ from ...addon_common.common.maths import (
 )
 from ...addon_common.common.profiler import profiler
 
-
-def draw2D_arrow(p0:Point2D, p1:Point2D):
-    d = (p0 - p1) * 0.25
-    c = Vec2D((d.y,-d.x))
-    p2 = p1 + d + c
-    p3 = p1 + d - c
-
-    bgl.glBegin(bgl.GL_LINE_STRIP)
-    bgl.glVertex2f(*p0)
-    bgl.glVertex2f(*p1)
-    bgl.glVertex2f(*p2)
-    bgl.glVertex2f(*p1)
-    bgl.glVertex2f(*p3)
-    bgl.glEnd()
 
 def to_point(item):
     t = type(item)
