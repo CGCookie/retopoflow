@@ -426,7 +426,7 @@ class Strokes(RFTool):
                         # XXX: I-shaped extrusions?
                         self.replay = self.extrude_u
                 else:
-                    # print(f'Extrude Strip')
+                    # print(f'Extrude Equals')
                     self.replay = self.extrude_equals
         else:
             if cyclic:
@@ -520,7 +520,10 @@ class Strokes(RFTool):
 
         if self.strip_crosses is None:
             stroke_len = sum((s1 - s0).length for (s0, s1) in iter_pairs(stroke, wrap=False))
-            self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
+            if options['strokes span insert mode'] == 'Brush Size':
+                self.strip_crosses = max(1, math.ceil(stroke_len / (2 * self.rfwidgets['brush'].radius)))
+            else:
+                self.strip_crosses = options['strokes span count']
         crosses = self.strip_crosses
         percentages = [i / crosses for i in range(crosses+1)]
         nstroke = restroke(stroke, percentages)
