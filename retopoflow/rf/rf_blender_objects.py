@@ -63,12 +63,12 @@ class RetopoFlow_Blender_Objects:
         return True
 
     @staticmethod
-    def is_valid_target(o):
+    def is_valid_target(o, *, ignore_edit_mode=False):
         if not o: return False
         mark = RetopoFlow_Blender_Objects.get_sources_target_mark(o)
         if mark is not None: return mark == 'target'
         # if o != get_active_object(): return False
-        if o != bpy.context.edit_object: return False
+        if not ignore_edit_mode and o != bpy.context.edit_object: return False
         if not o.visible_get(): return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
@@ -114,9 +114,11 @@ class RetopoFlow_Blender_Objects:
         return obj['RetopoFlow']
 
     @staticmethod
-    def get_sources():
+    def get_sources(*, ignore_active=False):
         is_valid = RetopoFlow_Blender_Objects.is_valid_source
-        return [ o for o in bpy.data.objects if is_valid(o) ]
+        active = bpy.context.active_object
+        is_ignored = lambda o: (ignore_active and o == active)
+        return [ o for o in bpy.data.objects if is_valid(o) and not is_ignored(o) ]
 
     @staticmethod
     def get_target():

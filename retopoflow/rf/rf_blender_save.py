@@ -223,6 +223,10 @@ class RetopoFlow_Blender_Save:
         return filepath and os.path.exists(filepath)
 
     @staticmethod
+    def get_auto_save_filename():
+        return options['last auto save path']
+
+    @staticmethod
     def recover_auto_save():
         filepath = options['last auto save path']
         print(f'backup recover: {filepath}')

@@ -165,7 +165,7 @@ class RetopoFlow(
             'ui_div':    win.getElementById('loadingdiv'),
             'i_stage':   0,
             'i_step':    0,
-            'time':      0,         # will be updated to current time
+            'time':      None,   # will be updated
             'delay':     0.001,
             'stages': [
                 ('Pausing help image preloading',       ImagePreloader.pause),
@@ -190,13 +190,16 @@ class RetopoFlow(
     def setup_next_stage(self):
         d = self._setup_data
         if d['working']: return
-        if time.time() < d['time'] + d['delay']: return
+        elapsed = time.time() - d['time'] if d['time'] else None
+        if elapsed is not None and elapsed < d['delay']: return
 
         d['working'] = True
+        d['time'] = time.time()         # record current time
         try:
             stage_name, stage_fn = d['stages'][d['i_stage']]
             if d['i_step'] == 0:
-                print(f'RetopoFlow: {stage_name} ({time.time()-d["time"]})')
+                if elapsed is not None: print(f'  elapsed: {elapsed:0.2f} secs')
+                print(f'RetopoFlow: {stage_name}')
                 d['ui_div'].set_markdown(mdown=stage_name)
             else:
                 stage_fn()
@@ -216,7 +219,6 @@ class RetopoFlow(
             assert False
         d['i_step'] = (d['i_step'] + 1) % 2
         if d['i_step'] == 0: d['i_stage'] += 1
-        d['time'] = time.time()         # record current time
         if d['i_stage'] == len(d['stages']):
             print('RetopoFlow: done with start')
             self.loading_done = True

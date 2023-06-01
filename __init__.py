@@ -330,6 +330,36 @@ if import_succeeded:
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
 
+    class VIEW3D_OT_RetopoFlow_Continue_Active(Operator):
+        """Continue with active target object+mesh and start RetopoFlow"""
+        bl_idname = "cgcookie.retopoflow_continue_active"
+        bl_label = "RF: Continue with Active Target"
+        bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nContinue editing with active target"
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
+
+        @classmethod
+        def poll(cls, context):
+            if not context.region or context.region.type != 'WINDOW': return False
+            if not context.space_data or context.space_data.type != 'VIEW_3D': return False
+            # check we are not in mesh editmode
+            if context.mode != 'OBJECT': return False
+            # make sure we have source meshes
+            if not retopoflow.RetopoFlow.get_sources(ignore_active=True): return False
+            o = get_active_object()
+            if not o: return False
+            if not retopoflow.RetopoFlow.is_valid_target(o, ignore_edit_mode=True): return False
+            # all seems good!
+            return True
+
+        def invoke(self, context, event):
+            bpy.ops.object.mode_set(mode='EDIT')
+            # o = get_active_object()
+            # retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
+            return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
+    RF_classes += [VIEW3D_OT_RetopoFlow_Continue_Active]
+
     # class VIEW3D_OT_RetopoFlow_Initialize(retopoflow.RetopoFlow_BlenderUI, Operator):
     #     """Create new target object+mesh at the active source and start RetopoFlow"""
     #     bl_idname = "cgcookie.retopoflow_initialize"
@@ -427,9 +457,30 @@ if import_succeeded:
             return {'FINISHED'}
     RF_classes += [VIEW3D_OT_RetopoFlow_RecoverOpen]
 
+    class VIEW3D_OT_RetopoFlow_RecoverFolder(Operator):
+        bl_idname = 'cgcookie.retopoflow_recover_folder'
+        bl_label = 'Recover: Open Folder With Last Auto Save'
+        bl_description = 'Open folder containing last file automatically saved by RetopoFlow'
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'TOOLS'
+        bl_options = set()
+        rf_icon = 'rf_recover_icon'
+        # FILE_FOLDER
+
+        @classmethod
+        def poll(cls, context):
+            return retopoflow.RetopoFlow.has_auto_save()
+        def invoke(self, context, event):
+            return self.execute(context)
+        def execute(self, context):
+            filename = retopoflow.RetopoFlow.get_auto_save_filename()
+            bpy.ops.wm.path_open(filepath=os.path.dirname(filename))
+            return {'FINISHED'}
+    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverFolder]
+
     class VIEW3D_OT_RetopoFlow_RecoverDelete(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_delete'
-        bl_label = 'Recover: Delete Last Auto Save'
+        bl_label = 'Permanently Delete Last Auto Save'
         bl_description = 'Delete last file automatically saved by RetopoFlow'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'TOOLS'
@@ -440,6 +491,7 @@ if import_succeeded:
         def poll(cls, context):
             return retopoflow.RetopoFlow.has_auto_save()
         def invoke(self, context, event):
+            return context.window_manager.invoke_confirm(self, event)
             return self.execute(context)
         def execute(self, context):
             retopoflow.RetopoFlow.delete_auto_save()
@@ -700,19 +752,30 @@ if import_succeeded:
                 )
             if 'save: has auto save' in warnings:
                 box = get_warning_subbox('Auto Save / Save')
-                box.label(text=f'Auto Save file found', icon='DOT')
+                box.label(text=f'Found RetopoFlow auto save', icon='DOT')
+
                 tab = box.row(align=True)
                 tab.label(icon='BLANK1')
-                tab.operator(
+                tab.label(text=retopoflow.RetopoFlow.get_auto_save_filename())
+
+                tab = box.row(align=True)
+                tab.label(icon='BLANK1')
+                row = tab.row(align=True)
+                row.operator(
                     'cgcookie.retopoflow_recover_open',
-                    text='Open Last Auto Save',
+                    text='Open',
                     icon='RECOVER_LAST',
                 )
-                # box.operator(
-                #     'cgcookie.retopoflow_recover_delete',
-                #     text='Delete Last Auto Save',
-                #     icon='X',
-                # )
+                row.operator(
+                    'cgcookie.retopoflow_recover_folder',
+                    text='Folder',
+                    icon='FILE_FOLDER',
+                )
+                row.operator(
+                    'cgcookie.retopoflow_recover_delete',
+                    text='Delete',
+                    icon='X',
+                )
 
             # show button for more warning details
             row = layout.row(align=True)
@@ -750,11 +813,11 @@ if import_succeeded:
                 for c in RF_tool_classes:
                     buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
 
-    class VIEW3D_PT_RetopoFlow_CreateNew(Panel):
+    class VIEW3D_PT_ReteopoFlow_ObjectMode(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Create New Target'
+        bl_label = 'Start RetopoFlow'
 
         @classmethod
         def poll(cls, context):
@@ -762,9 +825,16 @@ if import_succeeded:
 
         def draw(self, context):
             layout = self.layout
-            row = layout.row()
-            row.operator('cgcookie.retopoflow_newtarget_cursor', text='at Cursor', icon='ADD') #'ORIENTATION_CURSOR')
-            row.operator('cgcookie.retopoflow_newtarget_active', text='at Active', icon='ADD') #'OBJECT_ORIGIN')
+
+
+            row = layout.row(align=True)
+            row.label(text='Continue')
+            row.operator('cgcookie.retopoflow_continue_active', text='Edit Active', icon='MOD_DATA_TRANSFER') # icon='EDITMODE_HLT')
+
+            row = layout.row(align=True)
+            row.label(text='New')
+            row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
+            row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
 
     class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
         bl_space_type = 'VIEW_3D'
@@ -862,7 +932,8 @@ if import_succeeded:
     RF_classes += [
         VIEW3D_PT_RetopoFlow,
         VIEW3D_PT_RetopoFlow_Warnings,
-        VIEW3D_PT_RetopoFlow_CreateNew,
+        VIEW3D_PT_ReteopoFlow_ObjectMode,
+        # VIEW3D_PT_RetopoFlow_CreateNew,
         VIEW3D_PT_RetopoFlow_EditMesh,
         VIEW3D_PT_RetopoFlow_HelpAndSupport,
         VIEW3D_PT_RetopoFlow_Config,
