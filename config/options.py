@@ -891,7 +891,8 @@ class SessionOptions:
     @classmethod
     def has_active_session_data(cls):
         if not cls.has_session_data(): return False
-        if bpy.data.texts[cls.textblockname]['data']['disabled']: return False
+        data = bpy.data.texts[cls.textblockname]['data']
+        return data['disabled'] if 'disabled' in data else True
 
     @classmethod
     def has_session_data(cls):
