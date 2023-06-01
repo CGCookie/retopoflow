@@ -17,6 +17,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed NDOF inputs
 - Fixed bug when cancelling Contours cut
 - Improved indication of warnings
+- Strokes strip can now have fixed span (segment) count
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
