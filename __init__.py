@@ -529,7 +529,8 @@ if import_succeeded:
                 self.layout.separator()
                 if is_editing_target(context):
                     if VIEW3D_PT_RetopoFlow_Warnings.get_warnings(context):
-                        self.layout.operator('cgcookie.retopoflow_warnings', text="", icon='ERROR')
+                        # self.layout.operator('cgcookie.retopoflow_warnings', text="", icon='ERROR')
+                        pass
                     else:
                         self.layout.operator('cgcookie.retopoflow', text="", icon='MOD_DATA_TRANSFER')
                 if cookiecutter.is_broken:
@@ -552,52 +553,53 @@ if import_succeeded:
         @classmethod
         def get_warnings(cls, context):
             warnings = set()
+            debug_all = False
 
             # install checks
-            if not is_addon_folder_valid(context):
+            if not is_addon_folder_valid(context) or debug_all:
                 warnings.add('install: invalid add-on folder')
-            if cookiecutter.is_broken:
+            if cookiecutter.is_broken or debug_all:
                 warnings.add('install: unexpected runtime error occurred')
-            if bpy.app.version < bl_info['blender']:
+            if bpy.app.version < bl_info['blender'] or debug_all:
                 warnings.add('install: invalid version')
 
             # source setup checks
-            if not retopoflow.RetopoFlow.get_sources():
+            if not retopoflow.RetopoFlow.get_sources() or debug_all:
                 warnings.add('setup: no sources')
-            elif not all(has_inverse(source.matrix_local) for source in retopoflow.RetopoFlow.get_sources()):
+            elif not all(has_inverse(source.matrix_local) for source in retopoflow.RetopoFlow.get_sources()) or debug_all:
                 warnings.add('setup: source has non-invertible matrix')
 
             # target setup checks
-            if is_editing_target(context) and not retopoflow.RetopoFlow.get_target():
+            if is_editing_target(context) and not retopoflow.RetopoFlow.get_target() or debug_all:
                 warnings.add('setup: no target')
-            elif retopoflow.RetopoFlow.get_target() and not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local):
+            elif retopoflow.RetopoFlow.get_target() and not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local) or debug_all:
                 warnings.add('setup: target has non-invertible matrix')
 
             # performance checks
-            if is_target_too_big(context):
+            if is_target_too_big(context) or debug_all:
                 warnings.add('performance: target too big')
-            if are_sources_too_big(context):
+            if are_sources_too_big(context) or debug_all:
                 warnings.add('performance: source too big')
 
             # layout checks
-            if multiple_3dviews(context):
+            if multiple_3dviews(context) or debug_all:
                 warnings.add('layout: multiple 3d views')
-            if in_quadview(context):
+            if in_quadview(context) or debug_all:
                 warnings.add('layout: in quad view')
-            if any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D'):
+            if any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D') or debug_all:
                 warnings.add('layout: view is locked to cursor')
-            if any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D'):
+            if any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D') or debug_all:
                 warnings.add('layout: view is locked to object')
 
             # auto save / unsaved checks
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save']:
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save'] or debug_all:
                 warnings.add('save: auto save is disabled')
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved']:
+            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved'] or debug_all:
                 warnings.add('save: unsaved blender file')
-            if retopoflow.RetopoFlow.can_recover():
+            if retopoflow.RetopoFlow.can_recover() or debug_all:
                 # user directly opened an auto save file
                 warnings.add('save: can recover auto save')
-            if retopoflow.RetopoFlow.has_auto_save():
+            if retopoflow.RetopoFlow.has_auto_save() or debug_all:
                 # auto save file detected
                 warnings.add('save: has auto save')
 
@@ -638,7 +640,10 @@ if import_succeeded:
             if 'install: invalid version' in warnings:
                 box = get_warning_subbox('Installation')
                 def neatver(v): return f'{v[0]}.{v[1]}'
-                box.label(text=f'Incorrect versions ({neatver(bpy.app.version)} < {neatver(bl_info["blender"])})', icon='DOT')
+                box.label(text=f'Incorrect versions', icon='DOT')
+                tab = box.row(align=True)
+                tab.label(icon='BLANK1')
+                tab.label(text=f'Require Blender {neatver(bl_info["blender"])}+', icon='BLENDER')
 
             # SETUP CHECKS
             if 'setup: no sources' in warnings:
@@ -686,7 +691,9 @@ if import_succeeded:
             if 'save: can recover auto save' in warnings:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text=f'Auto Save file opened', icon='DOT')
-                box.operator(
+                tab = box.row(align=True)
+                tab.label(icon='BLANK1')
+                tab.operator(
                     'cgcookie.retopoflow_recover_finish',
                     text='Finish Auto Save Recovery',
                     icon='RECOVER_LAST',
@@ -694,7 +701,9 @@ if import_succeeded:
             if 'save: has auto save' in warnings:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text=f'Auto Save file found', icon='DOT')
-                box.operator(
+                tab = box.row(align=True)
+                tab.label(icon='BLANK1')
+                tab.operator(
                     'cgcookie.retopoflow_recover_open',
                     text='Open Last Auto Save',
                     icon='RECOVER_LAST',
