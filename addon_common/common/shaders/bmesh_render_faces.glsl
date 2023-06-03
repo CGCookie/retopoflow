@@ -16,7 +16,7 @@ uniform mat4  matrix_p;         // projection matrix
 
 uniform int   mirror_view;      // 0=none; 1=draw edge at plane; 2=color faces on far side of plane
 uniform float mirror_effect;    // strength of effect: 0=none, 1=full
-uniform bvec3 mirroring;        // mirror along axis: 0=false, 1=true
+uniform vec3  mirroring;        // mirror along axis: 0=false, 1=true
 uniform vec3  mirror_o;         // mirroring origin wrt world
 uniform vec3  mirror_x;         // mirroring x-axis wrt world
 uniform vec3  mirror_y;         // mirroring y-axis wrt world
@@ -189,30 +189,30 @@ vec4 coloring(vec4 orig) {
         vec3 aspect = vec3(1.0, screen_size.y / screen_size.x, 0.0);
 
         float s = 0.0;
-        if(mirroring.x && length(diffp_x * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_x)), 10.0))) {
+        if(mirroring.x > 0.5 && length(diffp_x * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_x)), 10.0))) {
             mixer.r = 1.0;
             s = max(s, (vTPosition.x < 0.0) ? 1.0 : 0.1);
         }
-        if(mirroring.y && length(diffp_y * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_y)), 10.0))) {
+        if(mirroring.y > 0.5 && length(diffp_y * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_y)), 10.0))) {
             mixer.g = 1.0;
             s = max(s, (vTPosition.y > 0.0) ? 1.0 : 0.1);
         }
-        if(mirroring.z && length(diffp_z * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_z)), 10.0))) {
+        if(mirroring.z > 0.5 && length(diffp_z * aspect) < edge_width * (1.0 - pow(abs(dot(viewdir,dirc_z)), 10.0))) {
             mixer.b = 1.0;
             s = max(s, (vTPosition.z < 0.0) ? 1.0 : 0.1);
         }
         mixer.a = mirror_effect * s + mixer.a * (1.0 - s);
     } else if(mirror_view == 2) {
         // FACE VIEW
-        if(mirroring.x && vTPosition.x < 0.0) {
+        if(mirroring.x > 0.5 && vTPosition.x < 0.0) {
             mixer.r = 1.0;
             mixer.a = mirror_effect;
         }
-        if(mirroring.y && vTPosition.y > 0.0) {
+        if(mirroring.y > 0.5 && vTPosition.y > 0.0) {
             mixer.g = 1.0;
             mixer.a = mirror_effect;
         }
-        if(mirroring.z && vTPosition.z < 0.0) {
+        if(mirroring.z > 0.5 && vTPosition.z < 0.0) {
             mixer.b = 1.0;
             mixer.a = mirror_effect;
         }

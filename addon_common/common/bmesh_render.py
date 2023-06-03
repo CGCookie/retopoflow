@@ -271,12 +271,13 @@ class BufferedRender_Batch:
         symmetry_frame = opts.get('symmetry frame', None)
         symmetry_view = opts.get('symmetry view', None)
         symmetry_effect = opts.get('symmetry effect', 0.0)
-        mirroring = (False, False, False)
+        mirroring = (0, 0, 0)
         if symmetry and symmetry_frame:
-            mx = 'x' in symmetry
-            my = 'y' in symmetry
-            mz = 'z' in symmetry
-            mirroring = (mx, my, mz)
+            mirroring = (
+                1 if 'x' in symmetry else 0,
+                1 if 'y' in symmetry else 0,
+                1 if 'z' in symmetry else 0,
+            )
             self.uniform_float('mirror_o', symmetry_frame.o)
             self.uniform_float('mirror_x', symmetry_frame.x)
             self.uniform_float('mirror_y', symmetry_frame.y)
