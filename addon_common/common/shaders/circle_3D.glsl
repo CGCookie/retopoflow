@@ -1,6 +1,3 @@
-#define PI    3.14159265359
-#define TAU   6.28318530718
-
 uniform mat4  MVPMatrix;        // pixel matrix
 uniform vec3  center;           // center of circle
 uniform vec4  color;            // color of circle
@@ -17,6 +14,8 @@ uniform float depth_far;        // depth range far, to to ensure drawover
 
 in vec2 pos;                    // x: [0,1], ratio of circumference.  y: [0,1], inner/outer radius (width)
 
+const float TAU = 6.28318530718;
+
 void main() {
     float ang = TAU * pos.x;
     float r = radius + pos.y * width;
@@ -29,6 +28,18 @@ void main() {
 // fragment shader
 
 out vec4 outColor;
+
+const bool srgbTarget = true;
+vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
+{
+  if (srgbTarget) {
+    vec3 c = max(in_color.rgb, vec3(0.0));
+    vec3 c1 = c * (1.0 / 12.92);
+    vec3 c2 = pow((c + 0.055) * (1.0 / 1.055), vec3(2.4));
+    in_color.rgb = mix(c1, c2, step(vec3(0.04045), c));
+  }
+  return in_color;
+}
 
 void main() {
     outColor = color;

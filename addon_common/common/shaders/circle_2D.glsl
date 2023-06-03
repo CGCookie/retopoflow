@@ -4,9 +4,6 @@ ex: stipple [3,2]  color0 '='  color1 '-'
     produces  '===--===--===--===-'  (just wrapped as a circle!)
 */
 
-#define PI    3.14159265359
-#define TAU   6.28318530718
-
 uniform vec2  screensize;       // width,height of screen (for antialiasing)
 uniform mat4  MVPMatrix;        // pixel matrix
 uniform vec2  center;           // center of circle
@@ -18,6 +15,9 @@ uniform vec4  color1;           // color of off stipple
 uniform float width;            // line width, perpendicular to line
 
 
+const bool srgbTarget = true;
+
+
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
 
@@ -26,6 +26,8 @@ in vec2 pos;                    // x: [0,1], ratio of circumference.  y: [0,1], 
 noperspective out vec2 vpos;    // position scaled by screensize
 noperspective out vec2 cpos;    // center of line, scaled by screensize
 noperspective out float offset; // stipple offset of individual fragment
+
+const float TAU = 6.28318530718;
 
 void main() {
     float circumference = TAU * radius;
@@ -50,6 +52,17 @@ noperspective in vec2 cpos;
 noperspective in float offset;
 
 out vec4 outColor;
+
+vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
+{
+  if (srgbTarget) {
+    vec3 c = max(in_color.rgb, vec3(0.0));
+    vec3 c1 = c * (1.0 / 12.92);
+    vec3 c2 = pow((c + 0.055) * (1.0 / 1.055), vec3(2.4));
+    in_color.rgb = mix(c1, c2, step(vec3(0.04045), c));
+  }
+  return in_color;
+}
 
 void main() {
     // stipple

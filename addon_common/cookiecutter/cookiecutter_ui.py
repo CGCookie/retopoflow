@@ -58,7 +58,7 @@ if bversion() >= "2.80":
         }
     '''
     Drawing.glCheckError(f'Pre-compile check: cover shader')
-    shader = gpu.types.GPUShader(cover_vshader, cover_fshader)
+    shader = gpustate.gpu_shader(cover_vshader, cover_fshader)
     Drawing.glCheckError(f'Post-compile check: cover shader')
 
     # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)

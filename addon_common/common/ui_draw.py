@@ -28,6 +28,7 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from . import gpustate
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
@@ -55,7 +56,7 @@ class UI_Draw:
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
         print(f'Addon Common: compiling UI shader')
         with Drawing.glCheckError_wrap('compiling UI shader and batching'):
-            shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+            shader = gpustate.gpu_shader(vertex_shader, fragment_shader)
             assert shader
             batch = batch_for_shader(shader, 'TRIS', {"pos": vertex_positions})
             assert batch

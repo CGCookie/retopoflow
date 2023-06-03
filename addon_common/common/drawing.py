@@ -343,7 +343,7 @@ class Drawing:
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
         shader_2D_point.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_point.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        shader_2D_point.uniform_float('mvpmatrix', self.get_pixel_matrix())
         shader_2D_point.uniform_float('radius', radius)
         shader_2D_point.uniform_float('border', border)
         shader_2D_point.uniform_float('border', border)
@@ -360,7 +360,7 @@ class Drawing:
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
         shader_2D_point.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_point.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        shader_2D_point.uniform_float('mvpmatrix', self.get_pixel_matrix())
         shader_2D_point.uniform_float('radius', radius)
         shader_2D_point.uniform_float('border', border)
         shader_2D_point.uniform_float('border', border)
@@ -538,7 +538,6 @@ if not bpy.app.background:
 
 if not bpy.app.background:
     import gpu
-    from gpu.types import GPUShader
     from gpu_extras.batch import batch_for_shader
 
     # https://docs.blender.org/api/blender2.8/gpu.html#triangle-with-custom-shader
@@ -549,7 +548,8 @@ if not bpy.app.background:
         vert_source, frag_source = Shader.parse_string(txt)
         try:
             Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
-            ret = GPUShader(vert_source, frag_source)
+            print(f'creating shader for {fn_glsl}')
+            ret = gpustate.gpu_shader(vert_source, frag_source)
             Drawing.glCheckError(f'post-compile check: {fn_glsl}')
             return ret
         except Exception as e:
@@ -686,7 +686,7 @@ class CC_2D_POINTS(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_2D_point.bind()
-        shader_2D_point.uniform_float('MVPMatrix', Drawing._instance.get_pixel_matrix())
+        shader_2D_point.uniform_float('mvpmatrix', Drawing._instance.get_pixel_matrix())
         shader_2D_point.uniform_float('screensize', (Drawing._instance.area.width, Drawing._instance.area.height))
         shader_2D_point.uniform_float('color', cls._default_color)
         cls.update()

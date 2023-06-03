@@ -27,8 +27,10 @@ Created by Jonathan Denning, Jonathan Williamson
 #######################################################################
 
 
+import re
 import traceback
 from inspect import isroutine
+from itertools import chain
 from contextlib import contextmanager
 
 import bpy
@@ -205,6 +207,112 @@ def get_glerror(title, *, use_bgl=use_bgl_default):
     print(f'ERROR {get_glerror._error_count}/{get_glerror._error_limit} ({title}): {error_map.get(err, f"code {err}")}')
     traceback.print_stack()
     return True
+
+
+
+#######################################
+# shader
+
+def clean_shader_source(source):
+    source = source + '\n'
+    source = re.sub(r'/[*](\n|.)*?[*]/', '', source)
+    source = re.sub(r'//.*?\n', '\n', source)
+    source = re.sub(r'\n+', '\n', source)
+    # source = '\n'.join(l.strip() for l in source.splitlines())
+    return source
+
+re_shader_var = re.compile(r'^[ \n]*((?P<qualifier>noperspective|flat|smooth)[ \n]+)?(?P<uio>uniform|in|out)[ \n]+(?P<type>mat4|mat3|mat2|vec4|vec3|vec2|float|sampler2D|int|bool)[ \n]+(?P<var>[a-zA-Z0-9_]+)(?P<defval>=.*)?[ \n]*$')
+def split_shader_vars(source):
+    shader_vars = {}
+    parts = []
+    for part in source.split(';'):
+        m = re_shader_var.match(part)
+        if m:
+            shader_vars[m['var']] = {
+                'uio':       m['uio'],
+                'qualifier': m['qualifier'],
+                'type':      m['type'].upper(),
+                'var':       m['var'],
+                'defval':    m['defval'],
+            }
+        else:
+            parts.append(part)
+    return shader_vars, ';'.join(parts)
+
+def gpu_shader(vert_source, frag_source):
+    vert_source = clean_shader_source(vert_source)
+    frag_source = clean_shader_source(frag_source)
+    vert_shader_vars, vert_source = split_shader_vars(vert_source)
+    frag_shader_vars, frag_source = split_shader_vars(frag_source)
+    shader_vars = vert_shader_vars | frag_shader_vars
+
+    if True:
+        print('GPUShader')
+        print('_'*100)
+        print(vert_source)
+        print('~'*100)
+        print(frag_source)
+        print('='*100)
+        for vn in shader_vars:
+            print(f'{vn}:{shader_vars[vn]}')
+        print('^'*100)
+        print()
+
+    shader_info = gpu.types.GPUShaderCreateInfo()
+
+    # UNIFORMS
+    slot = 0
+    for shader_var in shader_vars.values():
+        if shader_var['uio'] != 'uniform': continue
+        if shader_var['type'] == 'SAMPLER2D':
+            shader_info.sampler(slot, 'FLOAT_2D', shader_var['var'])
+            slot += 1
+        else:
+            shader_info.push_constant(shader_var['type'], shader_var['var'])
+
+    # INPUTS
+    slot = 0
+    for shader_var in vert_shader_vars.values():
+        if shader_var['uio'] == 'in':
+            shader_info.vertex_in(slot, shader_var['type'], shader_var['var'])
+            slot += 1
+
+    # INTERFACE
+    shader_interface = gpu.types.GPUStageInterfaceInfo('foobar') # NOTE: DO NOT CALL IT interface
+    needs_interface = False
+    for shader_var in vert_shader_vars.values():
+        if shader_var['uio'] != 'out': continue
+        if shader_var['qualifier'] == 'noperspective':
+            shader_interface.no_perspective(shader_var['type'], shader_var['var'])
+            needs_interface = True
+        elif shader_var['qualifier'] == 'flat':
+            shader_interface.flat(shader_var['type'], shader_var['var'])
+            needs_interface = True
+        elif shader_var['qualifier'] == 'smooth':
+            shader_interface.smooth(shader_var['type'], shader_var['var'])
+            needs_interface = True
+        else:
+            shader_interface.smooth(shader_var['type'], shader_var['var'])
+            needs_interface = True
+    if needs_interface:
+        shader_info.vertex_out(shader_interface)
+
+    # OUTPUTS
+    slot = 0
+    for shader_var in frag_shader_vars.values():
+        if shader_var['uio'] == 'out':
+            shader_info.fragment_out(slot, shader_var['type'], shader_var['var'])
+            slot += 1
+
+    shader_info.vertex_source(vert_source)
+    shader_info.fragment_source(frag_source)
+
+    shader = gpu.shader.create_from_info(shader_info)
+    del shader_interface
+    del shader_info
+    return shader
+
+    # return gpu.types.GPUShader(vert_source, frag_source)
 
 
 

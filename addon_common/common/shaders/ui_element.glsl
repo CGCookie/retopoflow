@@ -38,6 +38,8 @@ uniform int       using_image;
 uniform int       image_fit;    // see IMAGE_SCALE_XXX values below
 uniform sampler2D image;
 
+const bool srgbTarget = true;
+
 
 // debugging options
 const bool DEBUG_COLOR_MARGINS = false;     // colors pixels in margin (top, left, bottom, right)
@@ -105,7 +107,7 @@ const int IMAGE_SCALE_NONE     = 4;
 ////////////////////////////////////////
 // vertex shader
 
-layout(location = 0) in vec2 pos;
+in vec2 pos;
 
 out vec2 screen_pos;
 
@@ -367,6 +369,17 @@ vec4 mix_image(vec4 bg) {
             );
     }
     return c;
+}
+
+vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
+{
+  if (srgbTarget) {
+    vec3 c = max(in_color.rgb, vec3(0.0));
+    vec3 c1 = c * (1.0 / 12.92);
+    vec3 c2 = pow((c + 0.055) * (1.0 / 1.055), vec3(2.4));
+    in_color.rgb = mix(c1, c2, step(vec3(0.04045), c));
+  }
+  return in_color;
 }
 
 void main() {

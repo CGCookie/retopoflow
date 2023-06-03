@@ -1,11 +1,9 @@
 uniform vec4  color;            // color of geometry if not selected
 uniform vec4  color_selected;   // color of geometry if selected
 uniform vec4  color_pinned;     // color of geometry if pinned
-uniform vec4  color_seam;       // color of geometry if seam
 
 uniform bool  use_selection;    // false: ignore selected, true: consider selected
 uniform bool  use_pinned;       // false: ignore pinned, true: consider pinned
-uniform bool  use_seam;         // false: ignore seam, true: consider seam
 uniform bool  use_rounding;
 
 uniform mat4  matrix_m;         // model xform matrix
@@ -48,26 +46,8 @@ uniform float alpha_backface;
 uniform float radius;
 
 
-attribute vec3  vert_pos;       // position wrt model
-attribute vec3  vert_norm;      // normal wrt model
-attribute float selected;       // is face selected?  0=no; 1=yes
-attribute float pinned;         // is face pinned?  0=no; 1=yes
-attribute float seam;           // is face on seam?  0=no; 1=yes
 
-
-varying vec4 vPPosition;        // final position (projected)
-varying vec4 vCPosition;        // position wrt camera
-varying vec4 vTPosition;        // position wrt target
-varying vec4 vCTPosition_x;     // position wrt target camera
-varying vec4 vCTPosition_y;     // position wrt target camera
-varying vec4 vCTPosition_z;     // position wrt target camera
-varying vec4 vPTPosition_x;     // position wrt target projected
-varying vec4 vPTPosition_y;     // position wrt target projected
-varying vec4 vPTPosition_z;     // position wrt target projected
-varying vec3 vCNormal;          // normal wrt camera
-varying vec4 vColor;            // color of geometry (considers selection)
-
-
+const bool srgbTarget = false;
 const bool debug_invert_backfacing = false;
 
 // const vec3 [] face_colors = {
@@ -79,6 +59,23 @@ const bool debug_invert_backfacing = false;
 
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
+
+in vec3  vert_pos;       // position wrt model
+in vec3  vert_norm;      // normal wrt model
+in float selected;       // is face selected?  0=no; 1=yes
+in float pinned;         // is face pinned?  0=no; 1=yes
+
+out vec4 vPPosition;        // final position (projected)
+out vec4 vCPosition;        // position wrt camera
+out vec4 vTPosition;        // position wrt target
+out vec4 vCTPosition_x;     // position wrt target camera
+out vec4 vCTPosition_y;     // position wrt target camera
+out vec4 vCTPosition_z;     // position wrt target camera
+out vec4 vPTPosition_x;     // position wrt target projected
+out vec4 vPTPosition_y;     // position wrt target projected
+out vec4 vPTPosition_z;     // position wrt target projected
+out vec3 vCNormal;          // normal wrt camera
+out vec4 vColor;            // color of geometry (considers selection)
 
 vec4 get_pos(vec3 p) {
     float mult = 1.0;
@@ -133,16 +130,10 @@ void main() {
 
     vColor = color;
 
-    // if(use_warning   && warning  > 0.5) vColor = mix(vColor, color_warning,  0.75);
     if(use_pinned    && pinned   > 0.5) vColor = mix(vColor, color_pinned,   0.75);
-    // if(use_seam      && seam   > 0.5) vColor = mix(vColor, color_seam,   0.75);
     if(use_selection && selected > 0.5) vColor = mix(vColor, color_selected, 0.75);
 
     vColor.a *= 1.0 - hidden;
-    // vColor.a *= 1.0 - hidden;
-
-    // vColor = (!use_selection || selected < 0.5) ? color : color_selected;
-    // vColor.a *= (selected > 0.5) ? 1.0 : 1.0 - hidden;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
         vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);
@@ -154,7 +145,19 @@ void main() {
 /////////////////////////////////////////////////////////////////////////
 // fragment shader
 
-layout(location = 0) out vec4 outColor;
+in vec4 vPPosition;        // final position (projected)
+in vec4 vCPosition;        // position wrt camera
+in vec4 vTPosition;        // position wrt target
+in vec4 vCTPosition_x;     // position wrt target camera
+in vec4 vCTPosition_y;     // position wrt target camera
+in vec4 vCTPosition_z;     // position wrt target camera
+in vec4 vPTPosition_x;     // position wrt target projected
+in vec4 vPTPosition_y;     // position wrt target projected
+in vec4 vPTPosition_z;     // position wrt target projected
+in vec3 vCNormal;          // normal wrt camera
+in vec4 vColor;            // color of geometry (considers selection)
+
+out vec4 outColor;
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 
@@ -219,6 +222,17 @@ vec4 coloring(vec4 orig) {
     //mixer.a *= clamp(m, 0.0, 1.0);
     float m0 = mixer.a, m1 = 1.0 - mixer.a;
     return vec4(mixer.rgb * m0 + orig.rgb * orig.a * m1, m0 + orig.a * m1);
+}
+
+vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
+{
+  if (srgbTarget) {
+    vec3 c = max(in_color.rgb, vec3(0.0));
+    vec3 c1 = c * (1.0 / 12.92);
+    vec3 c2 = pow((c + 0.055) * (1.0 / 1.055), vec3(2.4));
+    in_color.rgb = mix(c1, c2, step(vec3(0.04045), c));
+  }
+  return in_color;
 }
 
 void main() {
