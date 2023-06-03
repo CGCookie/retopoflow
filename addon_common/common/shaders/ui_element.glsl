@@ -49,18 +49,18 @@ const bool DEBUG_IMAGE_OUTSIDE = false;     // shifts colors if texcoord is outs
 const bool DEBUG_IGNORE_ALPHA  = false;     // snaps alpha to 0 or 1 based on 0.25 threshold
 const bool DEBUG_DONT_DISCARD  = false;
 
-// labeled magic numbers (enum), only used to identify which region a fragment is in relative to UI element properties
-const int REGION_MARGIN_LEFT   = 0;
-const int REGION_MARGIN_BOTTOM = 1;
-const int REGION_MARGIN_RIGHT  = 2;
-const int REGION_MARGIN_TOP    = 3;
-const int REGION_BORDER_TOP    = 4;
-const int REGION_BORDER_RIGHT  = 5;
-const int REGION_BORDER_BOTTOM = 6;
-const int REGION_BORDER_LEFT   = 7;
-const int REGION_BACKGROUND    = 8;
-const int REGION_OUTSIDE       = 9;
-const int REGION_ERROR         = 10;
+// // labeled magic numbers (enum), only used to identify which region a fragment is in relative to UI element properties
+// const int REGION_MARGIN_LEFT   = 0;
+// const int REGION_MARGIN_BOTTOM = 1;
+// const int REGION_MARGIN_RIGHT  = 2;
+// const int REGION_MARGIN_TOP    = 3;
+// const int REGION_BORDER_TOP    = 4;
+// const int REGION_BORDER_RIGHT  = 5;
+// const int REGION_BORDER_BOTTOM = 6;
+// const int REGION_BORDER_LEFT   = 7;
+// const int REGION_BACKGROUND    = 8;
+// const int REGION_OUTSIDE       = 9;
+// const int REGION_ERROR         = 10;
 
 // colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
 const vec4 COLOR_MARGIN_LEFT   = vec4(1.0, 0.0, 0.0, 0.25);
