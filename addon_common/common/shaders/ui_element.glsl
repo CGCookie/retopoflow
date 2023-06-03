@@ -1,8 +1,8 @@
 #version 330
 
-// the following two lines are an attempt to solve issues #1025, #879, #753
-precision highp float;
-precision lowp  int;   // only used to represent enum or bool
+// // the following two lines are an attempt to solve issues #1025, #879, #753
+// precision highp float;
+// precision lowp  int;   // only used to represent enum or bool
 
 uniform mat4 uMVPMatrix;
 
