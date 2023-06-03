@@ -14,10 +14,13 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed bug when using knife where no source geometry exists
 - Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
 - Fixed and improved recovery of auto saves
+- Improved reporting and operations with auto saves
 - Fixed NDOF inputs
 - Fixed bug when cancelling Contours cut
 - Improved indication of warnings
 - Strokes strip can now have fixed span (segment) count
+- Added button to continue editing with active mesh as target
+- Improved start up feedback
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
