@@ -50,12 +50,13 @@ from ...addon_common.common.debug import dprint
 
 class RetopoFlow_Blender_Objects:
     @staticmethod
-    def is_valid_source(o, test_poly_count=True):
+    def is_valid_source(o, *, test_poly_count=True, context=None):
         if not o: return False
+        context = context or bpy.context
         mark = RetopoFlow_Blender_Objects.get_sources_target_mark(o)
         if mark is not None: return mark == 'source'
         # if o == get_active_object(): return False
-        if o == bpy.context.edit_object: return False
+        if o == context.edit_object: return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False
         if not o.visible_get(): return False
@@ -63,12 +64,13 @@ class RetopoFlow_Blender_Objects:
         return True
 
     @staticmethod
-    def is_valid_target(o, *, ignore_edit_mode=False):
+    def is_valid_target(o, *, ignore_edit_mode=False, context=None):
         if not o: return False
+        context = context or bpy.context
         mark = RetopoFlow_Blender_Objects.get_sources_target_mark(o)
         if mark is not None: return mark == 'target'
         # if o != get_active_object(): return False
-        if not ignore_edit_mode and o != bpy.context.edit_object: return False
+        if not ignore_edit_mode and o != context.edit_object: return False
         if not o.visible_get(): return False
         if type(o) is not bpy.types.Object: return False
         if type(o.data) is not bpy.types.Mesh: return False

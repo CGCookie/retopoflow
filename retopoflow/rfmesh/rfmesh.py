@@ -287,9 +287,10 @@ class RFMesh():
 
     @profiler.function
     def triangulate(self):
-        faces = [face for face in self.bme.faces if len(face.verts) != 3]
+        # faces = [face for face in self.bme.faces if len(face.verts) != 3]
         # print('RFMesh.triangulate: found %d non-triangles' % len(faces))
-        bmesh.ops.triangulate(self.bme, faces=faces)
+        # bmesh.ops.triangulate(self.bme, faces=faces)
+        bmesh.ops.triangulate(self.bme, faces=self.bme.faces)
 
     @profiler.function
     def plane_split(self, plane: Plane):
@@ -1410,7 +1411,7 @@ class RFTarget(RFMesh):
     @staticmethod
     @profiler.function
     def new(obj:bpy.types.Object, unit_scaling_factor):
-        assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, 'obj must be mesh object'
+        assert type(obj) is bpy.types.Object and type(obj.data) is bpy.types.Mesh, f'{obj} must be mesh object'
 
         RFTarget.creating = True
         rftarget = RFTarget()

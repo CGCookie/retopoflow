@@ -49,8 +49,10 @@ from ..addon_common.common.blender import (
     show_error_message, BlenderPopupOperator, BlenderIcon,
     scene_duplicate,
 )
+from ..addon_common.common import ui_core
 from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
+from ..addon_common.common.drawing import Drawing, DrawCallbacks
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.image_preloader import ImagePreloader
@@ -58,7 +60,6 @@ from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec, abspath
 from ..addon_common.common.ui_styling import load_defaultstylings
 from ..addon_common.common.ui_core import preload_image, set_image_cache, UI_Element
-from ..addon_common.common import ui_core
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -159,14 +160,13 @@ class RetopoFlow(
         self.document.body.append_child(win)
 
         self._setup_data = {
-            'working':   False,
-            'timer':     self.actions.start_timer(120),
-            'ui_window': win,
-            'ui_div':    win.getElementById('loadingdiv'),
-            'i_stage':   0,
-            'i_step':    0,
-            'time':      None,   # will be updated
-            'delay':     0.001,
+            'timer':      self.actions.start_timer(120),
+            'ui_window':  win,
+            'ui_div':     win.getElementById('loadingdiv'),
+            'broken':     False,    # indicates if a setup stage broke
+            'ui_drawn':   False,    # used to know when UI has been drawn
+            'i_stage':    -1,       # which stage are we currently on?
+            'stage_data': None,     # which stage is to be run
             'stages': [
                 ('Pausing help image preloading',       ImagePreloader.pause),
                 ('Setting up target mesh',              self.setup_target),
@@ -186,25 +186,18 @@ class RetopoFlow(
             ],
         }
 
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('loading')
+    def setup_next_stage_drawn(self):
+        self._setup_data['ui_drawn'] = True
+        tag_redraw_all('allow startup dialog to render')
+
     @FSM.on_state('loading')
     def setup_next_stage(self):
+        tag_redraw_all('allow startup dialog to render')
         d = self._setup_data
-        if d['working']: return
-        elapsed = time.time() - d['time'] if d['time'] else None
-        if elapsed is not None and elapsed < d['delay']: return
 
-        d['working'] = True
-        d['time'] = time.time()         # record current time
-        try:
-            stage_name, stage_fn = d['stages'][d['i_stage']]
-            if d['i_step'] == 0:
-                if elapsed is not None: print(f'  elapsed: {elapsed:0.2f} secs')
-                print(f'RetopoFlow: {stage_name}')
-                d['ui_div'].set_markdown(mdown=stage_name)
-            else:
-                stage_fn()
-        except Exception as e:
-            debugger.print_exception()
+        if d['broken']:
             self.done(cancel=True, emergency_bail=True)
             show_error_message(
                 [
@@ -216,16 +209,40 @@ class RetopoFlow(
                 title='RetopoFlow Error',
             )
             return
-            assert False
-        d['i_step'] = (d['i_step'] + 1) % 2
-        if d['i_step'] == 0: d['i_stage'] += 1
+
+        if d['stage_data']:
+            if not d['ui_drawn']:
+                # UI has not been updated yet
+                return
+            stage_name, stage_fn = d['stage_data']
+            d['stage_data'] = None
+            start_time = time.time()
+            try:
+                print(f'RetopoFlow: {stage_name}')
+                stage_fn()
+                print(f'  elapsed: {(time.time() - start_time):0.2f} secs')
+            except Exception as e:
+                print(f'RetopoFlow Exception: {e}')
+                debugger.print_exception()
+                d['broken'] = True
+            return
+
+        d['i_stage'] += 1
         if d['i_stage'] == len(d['stages']):
+            # done with all stages!
             print('RetopoFlow: done with start')
             self.loading_done = True
             self.fsm.force_set_state('main')
             self.document.body.delete_child(d['ui_window'])
             d['timer'].done()
-        d['working'] = False
+            return
+
+        # start next stage
+        stage_name, stage_fn = d['stages'][d['i_stage']]
+        d['ui_drawn'] = False
+        d['stage_data'] = (stage_name, stage_fn)
+        d['ui_div'].set_markdown(mdown=stage_name)
+
 
 RetopoFlow.cc_debug_print_to = 'RetopoFlow_Debug'
 
