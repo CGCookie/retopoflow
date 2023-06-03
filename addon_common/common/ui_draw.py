@@ -59,22 +59,23 @@ class UI_Draw:
             shader = gpustate.gpu_shader(
                 vertex_shader, fragment_shader,
                 defines={
-                    'IMAGE_SCALE_FILL': 0,
-                    'IMAGE_SCALE_CONTAIN': 1,
-                    'IMAGE_SCALE_COVER': 2,
-                    'IMAGE_SCALE_DOWN': 3,
-                    'IMAGE_SCALE_NONE': 4,
-                    'REGION_MARGIN_LEFT': 0,
+                    'IMAGE_SCALE_FILL':     0,
+                    'IMAGE_SCALE_CONTAIN':  1,
+                    'IMAGE_SCALE_COVER':    2,
+                    'IMAGE_SCALE_DOWN':     3,
+                    'IMAGE_SCALE_NONE':     4,
+
+                    'REGION_MARGIN_LEFT':   0,
                     'REGION_MARGIN_BOTTOM': 1,
-                    'REGION_MARGIN_RIGHT': 2,
-                    'REGION_MARGIN_TOP': 3,
-                    'REGION_BORDER_TOP': 4,
-                    'REGION_BORDER_RIGHT': 5,
+                    'REGION_MARGIN_RIGHT':  2,
+                    'REGION_MARGIN_TOP':    3,
+                    'REGION_BORDER_TOP':    4,
+                    'REGION_BORDER_RIGHT':  5,
                     'REGION_BORDER_BOTTOM': 6,
-                    'REGION_BORDER_LEFT': 7,
-                    'REGION_BACKGROUND': 8,
-                    'REGION_OUTSIDE': 9,
-                    'REGION_ERROR': 10,
+                    'REGION_BORDER_LEFT':   7,
+                    'REGION_BACKGROUND':    8,
+                    'REGION_OUTSIDE':       9,
+                    'REGION_ERROR':        10,
                 }
             )
             assert shader

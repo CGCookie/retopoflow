@@ -50,7 +50,7 @@ if bversion() >= "2.80":
         out vec4 outColor;
         void main() {
             // float r = length(gl_FragCoord.xy - vec2(0.5, 0.5));
-            if(mod(floor(gl_FragCoord.x+gl_FragCoord.y), 2) == 0) {
+            if(mod(floor(gl_FragCoord.x+gl_FragCoord.y), 2.0) == 0) {
                 outColor = vec4(0.0,0.0,0.0,1.0);
             } else {
                 outColor = vec4(0.0f, 0.0f, 0.0f, darken);
