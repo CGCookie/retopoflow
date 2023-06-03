@@ -56,7 +56,16 @@ class UI_Draw:
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
         print(f'Addon Common: compiling UI shader')
         with Drawing.glCheckError_wrap('compiling UI shader and batching'):
-            shader = gpustate.gpu_shader(vertex_shader, fragment_shader)
+            shader = gpustate.gpu_shader(
+                vertex_shader, fragment_shader,
+                defines={
+                    'IMAGE_SCALE_FILL': 0,
+                    'IMAGE_SCALE_CONTAIN': 1,
+                    'IMAGE_SCALE_COVER': 2,
+                    'IMAGE_SCALE_DOWN': 3,
+                    'IMAGE_SCALE_NONE': 4,
+                }
+            )
             assert shader
             batch = batch_for_shader(shader, 'TRIS', {"pos": vertex_positions})
             assert batch

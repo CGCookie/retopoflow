@@ -239,7 +239,7 @@ def split_shader_vars(source):
             parts.append(part)
     return shader_vars, ';'.join(parts)
 
-def gpu_shader(vert_source, frag_source):
+def gpu_shader(vert_source, frag_source, *, defines=None):
     vert_source = clean_shader_source(vert_source)
     frag_source = clean_shader_source(frag_source)
     vert_shader_vars, vert_source = split_shader_vars(vert_source)
@@ -269,6 +269,11 @@ def gpu_shader(vert_source, frag_source):
             slot += 1
         else:
             shader_info.push_constant(shader_var['type'], shader_var['var'])
+
+    # PREPROCESSING DEFINE DIRECTIVES
+    if defines:
+        for k,v in defines.items():
+            shader_info.define(str(k), str(v))
 
     # INPUTS
     slot = 0

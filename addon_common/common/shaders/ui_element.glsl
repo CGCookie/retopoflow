@@ -95,12 +95,12 @@ const vec4 COLOR_CHECKER_14    = vec4(1.0, 1.0, 0.0, 1.00);
 const vec4 COLOR_CHECKER_15    = vec4(1.0, 1.0, 1.0, 1.00);
 
 
-// labeled magic numbers (enum), needs to correspond with `UI_Draw.texture_fit_map`
-const int IMAGE_SCALE_FILL     = 0;
-const int IMAGE_SCALE_CONTAIN  = 1;
-const int IMAGE_SCALE_COVER    = 2;
-const int IMAGE_SCALE_DOWN     = 3;
-const int IMAGE_SCALE_NONE     = 4;
+// // labeled magic numbers (enum), needs to correspond with `UI_Draw.texture_fit_map`
+// const int IMAGE_SCALE_FILL     = 0;
+// const int IMAGE_SCALE_CONTAIN  = 1;
+// const int IMAGE_SCALE_COVER    = 2;
+// const int IMAGE_SCALE_DOWN     = 3;
+// const int IMAGE_SCALE_NONE     = 4;
 
 
 
@@ -260,7 +260,7 @@ vec4 mix_image(vec4 bg) {
     float dsx = (dx + 0.5) / dw;
     float dsy = (dy + 0.5) / dh;
     // texture
-    vec2 tsz = textureSize(image, 0);
+    vec2 tsz = vec2(textureSize(image, 0));
     float tw = tsz.x, th = tsz.y;
     float tx, ty;
 
