@@ -25,7 +25,8 @@ import bmesh
 from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import (
     edge_split, vert_splice, face_split,
-    vert_collapse_edge, vert_dissolve, face_join
+    vert_collapse_edge, vert_dissolve, face_join,
+    face_vert_separate,
 )
 from bmesh.ops import dissolve_verts, dissolve_edges, dissolve_faces
 from mathutils import Vector
@@ -256,6 +257,13 @@ class RFVert(BMElemWrapper):
         bmv1 = BMElemWrapper._unwrap(other)
         return [RFFace(bmf) for bmf in bmv0.link_faces if bmf.is_valid and bmv1 in bmf.verts]
 
+    def face_separate(self, f):
+        if not (self.is_valid and f.is_valid): return None
+        bmv = BMElemWrapper._unwrap(self)
+        bmf = BMElemWrapper._unwrap(f)
+        new_bmv = face_vert_separate(bmf, bmv)
+        return RFVert(new_bmv)
+
     def merge(self, other):
         if not (self.is_valid and other.is_valid):
             if self.is_valid: return self
@@ -466,16 +474,16 @@ class RFEdge(BMElemWrapper):
     #############################################
 
     def get_next_edge_in_strip(self, rfvert):
-        '''
+        r'''
         given self=A and bmv=B, return C
 
-        O-----O-----O...     O-----O-----O...
+        o-----o-----o...     o-----o-----o...
         |     |     |        |     |     |
-        O--A--B--C--O...     O--A--B--C--O...
+        o--A--B--C--o...     o--A--B--C--o...
         |     |     |        |     |\
-        O-----O-----O...     O-----O O...
+        o-----o-----o...     o-----o o...
                                     \|
-                                     O...
+                                     o...
                crawl dir: ======>
 
         left : "normal" case, where B is part of 4 touching quads
@@ -532,6 +540,17 @@ class RFEdge(BMElemWrapper):
             self.rftarget.bme.faces.remove(bmf)
         bmesh.ops.collapse(self.rftarget.bme, edges=[bme], uvs=True)
         return RFVert(bmv0 if bmv0.is_valid else bmv1)
+
+    # # not working
+    # def separate(self, face):
+    #     bme = BMElemWrapper._unwrap(self)
+    #     bmf = BMElemWrapper._unwrap(face)
+    #     loops = list(bme.link_loops)
+    #     floops = [loop for loop in loops if loop.face == bmf]
+    #     print(f'{bmf=} {loops=} {floops=}')
+    #     loop = next(iter(floops))
+    #     bmv0 = bmesh.utils.loop_separate(loop)
+    #     return RFVert(bmv0)
 
 
 class RFFace(BMElemWrapper):

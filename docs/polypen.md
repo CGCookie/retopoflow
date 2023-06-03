@@ -36,7 +36,9 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }} | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
 
 
 ## Insertion Modes

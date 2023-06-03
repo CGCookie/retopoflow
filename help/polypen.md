@@ -36,7 +36,9 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}} | : | delete/dissolve/collapse selected |
+| {{delete}}   | : | delete/dissolve/collapse selected |
+| {{rip}}      | : | rip selected edge |
+| {{rip fill}} | : | rip and fill selected edge |
 
 
 ## Insertion Modes

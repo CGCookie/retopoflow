@@ -224,7 +224,7 @@ class RetopoFlow_Target:
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.Point_to_Point2D, verts=verts, max_dist=max_dist)
 
     @profiler.function
-    def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
+    def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None,None
@@ -237,11 +237,13 @@ class RetopoFlow_Target:
 
         if selected_only is not None:
             edges = { bme for bme in edges if bme.select == selected_only }
+        if edges_only is not None:
+            edges = { bme for bme in edges if bme in edges_only }
 
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.Point_to_Point2D, edges=edges, max_dist=max_dist)
 
     @profiler.function
-    def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
+    def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel: vis_accel = self.get_vis_accel()
         if not vis_accel: return None
@@ -254,6 +256,8 @@ class RetopoFlow_Target:
 
         if selected_only is not None:
             faces = { bmf for bmf in faces if bmf.select == selected_only }
+        if faces_only is not None:
+            faces = { bmf for bmf in faces if bmf in faces_only }
 
         return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.Point_to_Point2D, faces=faces) #, max_dist=max_dist)
 

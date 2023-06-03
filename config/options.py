@@ -228,6 +228,7 @@ class Options:
 
         'select dist':              10,         # pixels away to select
         'action dist':              20,         # pixels away to allow action
+        'move dist':                10,         # pixels away until mousedrag grabs
         'remove doubles dist':      0.001,
         'push and snap distance':   0.1,        # distance to push vertices out along normal before snapping back to source surface
 

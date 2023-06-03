@@ -117,6 +117,10 @@ default_rf_keymaps = {
     # knife
     'knife reset': ['E'],
 
+    # polypen
+    'rip': ['V'],
+    'rip fill': ['ALT+V'],
+
     # grease pencil
     'grease clear': ['C'],
 

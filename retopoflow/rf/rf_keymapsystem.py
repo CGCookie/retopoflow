@@ -328,6 +328,8 @@ keymap_details = [
         ('slide', 'Loops: slide loop'),
         ('fill', 'Patches: fill'),
         ('knife reset', 'Knife: reset'),
+        ('rip', 'PolyPen: rip'),
+        ('rip fill', 'PolyPen: rip fill'),
     ]),
     ('Selection', [
         ('select all', 'Select all'),
