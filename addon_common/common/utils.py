@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import glob
+import time
 import inspect
 import operator
 import itertools
@@ -501,3 +502,12 @@ def deduplicate_list(l):
         nl.append(i)
     return nl
 
+class StopWatch:
+    def __init__(self):
+        self._start = time.time()
+        self._last = time.time()
+    def elapsed(self):
+        self._last, prev = time.time(), self._last
+        return self._last - prev
+    def total_elapsed(self):
+        return time.time() - self._start

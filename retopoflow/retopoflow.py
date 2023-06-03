@@ -57,7 +57,7 @@ from ..addon_common.common.fsm import FSM
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.image_preloader import ImagePreloader
 from ..addon_common.common.profiler import profiler
-from ..addon_common.common.utils import delay_exec, abspath
+from ..addon_common.common.utils import delay_exec, abspath, StopWatch
 from ..addon_common.common.ui_styling import load_defaultstylings
 from ..addon_common.common.ui_core import preload_image, set_image_cache, UI_Element
 from ..addon_common.common.useractions import ActionHandler
@@ -111,10 +111,14 @@ class RetopoFlow(
     #     self.scene = scene_duplicate(name='RetopoFlow')
 
     def start(self):
+        sw = StopWatch()
+
         RetopoFlow.instance = self
 
         keymaps = get_keymaps()
         self.actions = ActionHandler(self.context, keymaps)
+
+        print(f'RetopoFlow: Starting... keymaps and actions {sw.elapsed():0.2f}')
 
         # start loading
         self.statusbar_text_set('RetopoFlow is loading...')
@@ -123,19 +127,29 @@ class RetopoFlow(
         # we need to store which objects are sources and which is target
         self.mark_sources_target()
 
+        print(f'RetopoFlow: Starting... statusbar and marking {sw.elapsed():0.2f}')
+
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
         self.loading_done = False
         self.init_undo()   # hack to work around issue #949
+
+        print(f'RetopoFlow: Starting... undo {sw.elapsed():0.2f}')
 
         # self.store_window_state(self.actions.r3d, self.actions.space)
 
         bpy.ops.object.mode_set(mode='OBJECT')
         self.init_normalize()       # get scaling factor to fit all sources into unit box
+
+        print(f'RetopoFlow: Starting... normalizing {sw.elapsed():0.2f}')
+
         self.setup_ui_blender()
+        print(f'RetopoFlow: Starting... Blender UI {sw.elapsed():0.2f}')
         self.reload_stylings()
+        print(f'RetopoFlow: Starting... stylings {sw.elapsed():0.2f}')
 
         # the rest of setup is handled in `loading` state
         self.fsm.force_set_state('loading')
+        print(f'RetopoFlow: Starting Total: {sw.total_elapsed():0.2f}')
 
 
     def end(self):
