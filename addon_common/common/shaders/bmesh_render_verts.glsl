@@ -50,7 +50,7 @@ uniform float alpha_backface;
 uniform float radius;
 
 
-const bool srgbTarget = false;
+const bool srgbTarget = true;
 const bool debug_invert_backfacing = false;
 
 /////////////////////////////////////////////////////////////////////////
@@ -163,6 +163,7 @@ in vec4 vColor;            // color of geometry (considers selection)
 in vec2 vPCPosition;
 
 out vec4 outColor;
+out float outDepth;
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 
@@ -272,7 +273,7 @@ void main() {
         float dist_push = pow(view_distance, 3.0) * 0.000001;
 
         // MAGIC!
-        gl_FragDepth =
+        outDepth =
             gl_FragCoord.z
             - offset    * l_clip * 200.0
             - dotoffset * l_clip * 0.0001 * (1.0 - d)
@@ -295,7 +296,7 @@ void main() {
         }
 
         // MAGIC!
-        gl_FragDepth =
+        outDepth =
             gl_FragCoord.z
             - offset    * l_clip * 1.0
             + dotoffset * l_clip * 0.000001 * (1.0 - d)

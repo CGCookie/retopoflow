@@ -28,6 +28,7 @@ void main() {
 // fragment shader
 
 out vec4 outColor;
+out float outDepth;
 
 const bool srgbTarget = true;
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
@@ -45,6 +46,6 @@ void main() {
     outColor = color;
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
-    gl_FragDepth = mix(depth_near, depth_far, gl_FragCoord.z);
+    outDepth = mix(depth_near, depth_far, gl_FragCoord.z);
 }
 

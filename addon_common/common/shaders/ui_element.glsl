@@ -132,7 +132,8 @@ void main() {
 
 in vec2 screen_pos;
 
-layout(location = 0) out vec4 fragColor;
+out vec4 outColor;
+out float outDepth;
 
 float sqr(float s) { return s * s; }
 float sumsqr(float a, float b) { return sqr(a) + sqr(b); }
@@ -439,7 +440,7 @@ void main() {
         else c.a = 1.0;
     }
 
-    fragColor = c;
+    outColor = c;
     //gl_FragDepth = gl_FragDepth * 0.999999;
-    gl_FragDepth = gl_FragCoord.z * 0.999999; // fix for issue #915?
+    outDepth = gl_FragCoord.z * 0.999999; // fix for issue #915?
 }
