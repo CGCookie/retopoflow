@@ -360,36 +360,6 @@ if import_succeeded:
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
     RF_classes += [VIEW3D_OT_RetopoFlow_Continue_Active]
 
-    # class VIEW3D_OT_RetopoFlow_Initialize(retopoflow.RetopoFlow_BlenderUI, Operator):
-    #     """Create new target object+mesh at the active source and start RetopoFlow"""
-    #     bl_idname = "cgcookie.retopoflow_initialize"
-    #     bl_label = "RF: Initialize"
-    #     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nInitialize Blender for a RetopoFlow session"
-    #     bl_space_type = "VIEW_3D"
-    #     bl_region_type = "TOOLS"
-    #     bl_options = {'INTERNAL'}
-
-    #     retopoflow_operator = None
-
-    #     @classmethod
-    #     def poll(cls, context):
-    #         if not context.region or context.region.type != 'WINDOW': return False
-    #         if not context.space_data or context.space_data.type != 'VIEW_3D': return False
-    #         # check we are not in mesh editmode
-    #         if context.mode == 'EDIT_MESH': return False
-    #         # make sure we have source meshes
-    #         if not retopoflow.RetopoFlow.get_sources(): return False
-    #         o = get_active_object()
-    #         if not o: return False
-    #         if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False): return False
-    #         # all seems good!
-    #         return True
-
-    #     def invoke(self, context, event):
-    #         self.initialize(context, event)
-    #         return self.retopoflow_operator('INVOKE_DEFAULT')
-    # RF_classes += [VIEW3D_OT_RetopoFlow_Initialize]
-
     class VIEW3D_OT_RetopoFlow_LastTool(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow"
@@ -492,7 +462,7 @@ if import_succeeded:
             return retopoflow.RetopoFlow.has_auto_save()
         def invoke(self, context, event):
             return context.window_manager.invoke_confirm(self, event)
-            return self.execute(context)
+            # return self.execute(context)
         def execute(self, context):
             retopoflow.RetopoFlow.delete_auto_save()
             return {'FINISHED'}
