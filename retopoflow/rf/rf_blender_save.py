@@ -113,12 +113,19 @@ class RetopoFlow_Blender_Save:
             prev_factor = normalize_opts['mesh scaling factor']
             M = (Matrix.Identity(3) * (1.0 / prev_factor)).to_4x4()
             sources = RetopoFlow_Blender_Objects.get_sources()
-            targets = [RetopoFlow_Blender_Objects.get_target()]
-            for obj in chain(sources, targets):
+            target = RetopoFlow_Blender_Objects.get_target()
+            for obj in chain(sources, [target]):
                 if not obj: continue
                 obj.matrix_world = M @ obj.matrix_world
 
-            bpy.ops.object.mode_set(mode='EDIT')
+            if target:
+                try:
+                    # try to select object
+                    target.select_set(True)
+                    bpy.context.view_layer.objects.active = target
+                    bpy.ops.object.mode_set(mode='EDIT')
+                except:
+                    pass
 
             sessionoptions.clear()
 
