@@ -18,7 +18,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Fixed NDOF inputs
 - Fixed bug when cancelling Contours cut
 - Improved indication of warnings
-- Strokes strip can now have fixed span (segment) count
+- Consistent fixed span/segment count for all insertions with Strokes
 - Added button to continue editing with active mesh as target
 - Improved start up feedback
 - Added simple rip and rip fill to PolyPen
