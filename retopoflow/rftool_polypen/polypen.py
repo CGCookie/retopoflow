@@ -358,7 +358,6 @@ class PolyPen(RFTool):
             bmv0, bmv1 = bme.verts
             nearest_face, _ = self.rfcontext.accel_nearest2D_face(faces_only=adj_faces)
             other_face = next(iter({bmf for bmf in bme.link_faces if bmf != nearest_face}), None)
-            print(f'{nearest_face=} {other_face=}')
 
             self.rfcontext.undo_push('rip edge')
             if True:
