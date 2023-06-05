@@ -1,13 +1,14 @@
-uniform mat4  MVPMatrix;        // view matrix
+struct Options {
+  mat4 MVPMatrix;        // view matrix
+  vec4 pos0;
+  vec4 color0;
+  vec4 pos1;
+  vec4 color1;
+  vec4 pos2;
+  vec4 color2;
+};
 
-uniform vec3 pos0;
-uniform vec4 color0;
-
-uniform vec3 pos1;
-uniform vec4 color1;
-
-uniform vec3 pos2;
-uniform vec4 color2;
+uniform Options options;
 
 const bool srgbTarget = true;
 
@@ -23,9 +24,9 @@ void main() {
     float a = clamp(pos.x, 0.0, 1.0);
     float b = clamp(pos.y, 0.0, 1.0);
     float c = 1.0 - a - b;
-    vec3 p = pos0 * a + pos1 * b + pos2 * c;
-    gl_Position = MVPMatrix * vec4(p, 1.0);
-    color = color0 * a + color1 * b + color2 * c;
+    vec3 p = vec3(options.pos0) * a + vec3(options.pos1) * b + vec3(options.pos2) * c;
+    gl_Position = options.MVPMatrix * vec4(p, 1.0);
+    color = options.color0 * a + options.color1 * b + options.color2 * c;
 }
 
 

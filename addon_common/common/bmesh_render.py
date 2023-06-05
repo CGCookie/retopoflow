@@ -98,7 +98,6 @@ def triangulateFace(verts):
         v1, v2 = v2, v3
         yield (v0, v1, v2)
 
-
 #############################################################################################################
 #############################################################################################################
 #############################################################################################################
@@ -107,14 +106,15 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from .shaders import Shader
 
-Drawing.glCheckError(f'Pre-compile check: bmesh render shader')
-verts_vs, verts_fs = Shader.parse_file('bmesh_render_verts.glsl', includeVersion=False)
-verts_shader = gpustate.gpu_shader(verts_vs, verts_fs)
-edges_vs, edges_fs = Shader.parse_file('bmesh_render_edges.glsl', includeVersion=False)
-edges_shader = gpustate.gpu_shader(edges_vs, edges_fs)
-faces_vs, faces_fs = Shader.parse_file('bmesh_render_faces.glsl', includeVersion=False)
-faces_shader = gpustate.gpu_shader(faces_vs, faces_fs)
-Drawing.glCheckError(f'Compiled bmesh render shader')
+if not bpy.app.background:
+    Drawing.glCheckError(f'Pre-compile check: bmesh render shader')
+    verts_vs, verts_fs = Shader.parse_file('bmesh_render_verts.glsl', includeVersion=False)
+    verts_shader, verts_ubos = gpustate.gpu_shader('bmesh render: verts', verts_vs, verts_fs)
+    edges_vs, edges_fs = Shader.parse_file('bmesh_render_edges.glsl', includeVersion=False)
+    edges_shader, edges_ubos = gpustate.gpu_shader('bmesh render: edges', edges_vs, edges_fs)
+    faces_vs, faces_fs = Shader.parse_file('bmesh_render_faces.glsl', includeVersion=False)
+    faces_shader, faces_ubos = gpustate.gpu_shader('bmesh render: faces', faces_vs, faces_fs)
+    Drawing.glCheckError(f'Compiled bmesh render shader')
 
 
 class BufferedRender_Batch:
@@ -128,10 +128,10 @@ class BufferedRender_Batch:
         global faces_shader, edges_shader, verts_shader
         self.count = 0
         self.drawtype = drawtype
-        self.shader, self.shader_type, self.drawtype_name, self.gl_count, self.options_prefix = {
-            self.POINTS:    (verts_shader, 'POINTS', 'points',    1, 'point'),
-            self.LINES:     (edges_shader, 'LINES',  'lines',     2, 'line'),
-            self.TRIANGLES: (faces_shader, 'TRIS',   'triangles', 3, 'poly'),
+        self.shader, self.shader_ubos, self.shader_type, self.drawtype_name, self.gl_count, self.options_prefix = {
+            self.POINTS:    (verts_shader, verts_ubos, 'POINTS', 'points',    1, 'point'),
+            self.LINES:     (edges_shader, edges_ubos, 'LINES',  'lines',     2, 'line'),
+            self.TRIANGLES: (faces_shader, faces_ubos, 'TRIS',   'triangles', 3, 'poly'),
         }[self.drawtype]
         self.batch = None
         self._quarantine.setdefault(self.shader, set())
@@ -175,7 +175,6 @@ class BufferedRender_Batch:
 
     def set_options(self, prefix, opts):
         if not opts: return
-        shader = self.shader
 
         prefix = f'{prefix} ' if prefix else ''
 
@@ -187,41 +186,32 @@ class BufferedRender_Batch:
 
         Drawing.glCheckError('BufferedRender_Batch.set_options: start')
         dpi_mult = opts.get('dpi mult', 1.0)
-        set_if_set('color',          lambda v: self.uniform_float('color', v))
-        set_if_set('color selected', lambda v: self.uniform_float('color_selected', v))
-        set_if_set('color warning',  lambda v: self.uniform_float('color_warning', v))
-        set_if_set('color pinned',   lambda v: self.uniform_float('color_pinned', v))
-        set_if_set('color seam',     lambda v: self.uniform_float('color_seam', v))
-        set_if_set('hidden',         lambda v: self.uniform_float('hidden', v))
-        set_if_set('offset',         lambda v: self.uniform_float('offset', v))
-        set_if_set('dotoffset',      lambda v: self.uniform_float('dotoffset', v))
+        set_if_set('color',          lambda v: self.set_shader_option('color_normal', v))
+        set_if_set('color selected', lambda v: self.set_shader_option('color_selected', v))
+        set_if_set('color warning',  lambda v: self.set_shader_option('color_warning', v))
+        set_if_set('color pinned',   lambda v: self.set_shader_option('color_pinned', v))
+        set_if_set('color seam',     lambda v: self.set_shader_option('color_seam', v))
+        set_if_set('hidden',         lambda v: self.set_shader_option('hidden', v))
+        set_if_set('offset',         lambda v: self.set_shader_option('offset', v))
+        set_if_set('dotoffset',      lambda v: self.set_shader_option('dotoffset', v))
         if self.shader_type == 'POINTS':
-            set_if_set('size',       lambda v: self.uniform_float('radius', v*dpi_mult))
+            set_if_set('size',       lambda v: self.set_shader_option('radius', v*dpi_mult))
         elif self.shader_type == 'LINES':
-            set_if_set('width',      lambda v: self.uniform_float('radius', v*dpi_mult))
+            set_if_set('width',      lambda v: self.set_shader_option('radius', v*dpi_mult))
 
     def _draw(self, sx, sy, sz):
-        self.uniform_float('vert_scale', (sx, sy, sz))
-        # print(f'bmesh._draw', gpustate.get_depth_test(), gpu.state.depth_test_get(), gpustate.get_depth_mask(), gpu.state.depth_mask_get())
+        self.set_shader_option('vert_scale', (sx, sy, sz, 0))
+        self.shader_ubos.update_shader()
         self.batch.draw(self.shader)
-        # Drawing.glCheckError('_draw: glDrawArrays (%d)' % self.count)
 
     def is_quarantined(self, k):
         return k in self._quarantine[self.shader]
     def quarantine(self, k):
         dprint(f'BufferedRender_Batch: quarantining {k} for {self.shader}')
         self._quarantine[self.shader].add(k)
-    def uniform_float(self, k, v):
+    def set_shader_option(self, k, v):
         if self.is_quarantined(k): return
-        try: self.shader.uniform_float(k, v)
-        except Exception as e: self.quarantine(k)
-    def uniform_int(self, k, v):
-        if self.is_quarantined(k): return
-        try: self.shader.uniform_int(k, v)
-        except Exception as e: self.quarantine(k)
-    def uniform_bool(self, k, v):
-        if self.is_quarantined(k): return
-        try: self.shader.uniform_bool(k, v)
+        try: self.shader_ubos.options.assign(k, v)
         except Exception as e: self.quarantine(k)
 
     def draw(self, opts):
@@ -239,66 +229,82 @@ class BufferedRender_Batch:
         self.shader.bind()
 
         # set defaults
-        self.uniform_float('color',          (1.0, 1.0, 1.0, 0.5))
-        self.uniform_float('color_selected', (0.5, 1.0, 0.5, 0.5))
-        self.uniform_float('color_warning',  (1.0, 0.5, 0.0, 0.5))
-        self.uniform_float('color_pinned',   (1.0, 0.0, 0.5, 0.5))
-        self.uniform_float('color_seam',     (1.0, 0.0, 0.5, 0.5))
-        self.uniform_float('hidden',         0.9)
-        self.uniform_float('offset',         0.0)
-        self.uniform_float('dotoffset',      0.0)
-        self.uniform_float('vert_scale',     (1.0, 1.0, 1.0))
-        self.uniform_float('radius',         1.0)
+        self.set_shader_option('color_normal',   (1.0, 1.0, 1.0, 0.5))
+        self.set_shader_option('color_selected', (0.5, 1.0, 0.5, 0.5))
+        self.set_shader_option('color_warning',  (1.0, 0.5, 0.0, 0.5))
+        self.set_shader_option('color_pinned',   (1.0, 0.0, 0.5, 0.5))
+        self.set_shader_option('color_seam',     (1.0, 0.0, 0.5, 0.5))
+        self.set_shader_option('hidden',         0.9)
+        self.set_shader_option('offset',         0.0)
+        self.set_shader_option('dotoffset',      0.0)
+        self.set_shader_option('vert_scale',     (1.0, 1.0, 1.0))
+        self.set_shader_option('radius',         1.0)
 
-        self.uniform_bool('use_selection', (not opts.get('no selection', False)))
-        self.uniform_bool('use_warning',   (not opts.get('no warning',   False)))
-        self.uniform_bool('use_pinned',    (not opts.get('no pinned',    False)))
-        self.uniform_bool('use_seam',      (not opts.get('no seam',      False)))
-        self.uniform_bool('use_rounding',  (self.drawtype == self.POINTS))
+        use0 = [
+            1.0 if (not opts.get('no selection', False)) else 0.0,
+            1.0 if (not opts.get('no warning',   False)) else 0.0,
+            1.0 if (not opts.get('no pinned',    False)) else 0.0,
+            1.0 if (not opts.get('no seam',      False)) else 0.0,
+        ]
+        use1 = [
+            1.0 if (self.drawtype == self.POINTS) else 0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+        self.set_shader_option('use_settings0', use0)
+        self.set_shader_option('use_settings1', use1)
 
-        self.uniform_float('matrix_m',    opts['matrix model'])
-        self.uniform_float('matrix_mn',   opts['matrix normal'])
-        self.uniform_float('matrix_t',    opts['matrix target'])
-        self.uniform_float('matrix_ti',   opts['matrix target inverse'])
-        self.uniform_float('matrix_v',    opts['matrix view'])
-        self.uniform_float('matrix_vn',   opts['matrix view normal'])
-        self.uniform_float('matrix_p',    opts['matrix projection'])
-        self.uniform_float('dir_forward', opts['forward direction'])
-        self.uniform_float('unit_scaling_factor', opts['unit scaling factor'])
+        self.set_shader_option('matrix_m',    opts['matrix model'])
+        self.set_shader_option('matrix_mn',   opts['matrix normal'])
+        self.set_shader_option('matrix_t',    opts['matrix target'])
+        self.set_shader_option('matrix_ti',   opts['matrix target inverse'])
+        self.set_shader_option('matrix_v',    opts['matrix view'])
+        self.set_shader_option('matrix_vn',   opts['matrix view normal'])
+        self.set_shader_option('matrix_p',    opts['matrix projection'])
 
         mx, my, mz = opts.get('mirror x', False), opts.get('mirror y', False), opts.get('mirror z', False)
         symmetry = opts.get('symmetry', None)
         symmetry_frame = opts.get('symmetry frame', None)
         symmetry_view = opts.get('symmetry view', None)
         symmetry_effect = opts.get('symmetry effect', 0.0)
-        mirroring = (0, 0, 0)
+        mirroring = (0, 0, 0, 0)
         if symmetry and symmetry_frame:
             mirroring = (
                 1 if 'x' in symmetry else 0,
                 1 if 'y' in symmetry else 0,
                 1 if 'z' in symmetry else 0,
             )
-            self.uniform_float('mirror_o', symmetry_frame.o)
-            self.uniform_float('mirror_x', symmetry_frame.x)
-            self.uniform_float('mirror_y', symmetry_frame.y)
-            self.uniform_float('mirror_z', symmetry_frame.z)
-        self.uniform_int('mirror_view', [{'Edge': 1, 'Face': 2}.get(symmetry_view, 0)])
-        self.uniform_float('mirror_effect', symmetry_effect)
-        self.uniform_bool('mirroring', mirroring)
+            self.set_shader_option('mirror_o', symmetry_frame.o)
+            self.set_shader_option('mirror_x', symmetry_frame.x)
+            self.set_shader_option('mirror_y', symmetry_frame.y)
+            self.set_shader_option('mirror_z', symmetry_frame.z)
+        mirror_settings = [
+            {'Edge': 1.0, 'Face': 2.0}.get(symmetry_view, 0.0),
+            symmetry_effect,
+            0.0,
+            0.0,
+        ]
+        self.set_shader_option('mirror_settings', mirror_settings)
+        self.set_shader_option('mirroring', mirroring)
 
-        self.uniform_float('normal_offset',   opts.get('normal offset', 0.0))
-        self.uniform_bool('constrain_offset', opts.get('constrain offset', True))
+        view_settings0 = [
+            r3d.view_distance,
+            0.0 if (r3d.view_perspective == 'ORTHO') else 1.0,
+            opts.get('focus mult', 1.0),
+            opts.get('alpha backface', 0.5),
+        ]
+        view_settings1 = [
+            1.0 if opts.get('cull backfaces', False) else 0.0,
+            opts['unit scaling factor'],
+            opts.get('normal offset', 0.0),
+            1.0 if opts.get('constrain offset', True) else 0.0,
+        ]
+        self.set_shader_option('view_settings0', view_settings0)
+        self.set_shader_option('view_settings1', view_settings1)
 
-        self.uniform_bool('perspective', (r3d.view_perspective != 'ORTHO'))
-        self.uniform_float('clip_start', spc.clip_start)
-        self.uniform_float('clip_end', spc.clip_end)
-        self.uniform_float('view_distance', r3d.view_distance)
-        self.uniform_float('screen_size', Vector((area.width, area.height)))
-
-        focus = opts.get('focus mult', 1.0)
-        self.uniform_float('focus_mult',      focus)
-        self.uniform_bool('cull_backfaces',   opts.get('cull backfaces', False))
-        self.uniform_float('alpha_backface',  opts.get('alpha backface', 0.5))
+        self.set_shader_option('clip',        (spc.clip_start, spc.clip_end, 0.0, 0.0))
+        self.set_shader_option('screen_size', (area.width, area.height, 0.0, 0.0))
 
         self.set_options(self.options_prefix, opts)
         self._draw(1, 1, 1)

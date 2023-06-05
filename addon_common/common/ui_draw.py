@@ -56,7 +56,8 @@ class UI_Draw:
         vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
         print(f'Addon Common: compiling UI shader')
         with Drawing.glCheckError_wrap('compiling UI shader and batching'):
-            shader = gpustate.gpu_shader(
+            shader, ubos = gpustate.gpu_shader(
+                f'UI_Draw',
                 vertex_shader, fragment_shader,
                 defines={
                     'IMAGE_SCALE_FILL':     0,
@@ -103,37 +104,28 @@ class UI_Draw:
             shader.bind()
             # uMVPMatrix needs to be set every draw call, because it could be different
             # when rendering to FrameBuffers with their own (l,b,w,h)
-            shader.uniform_float("uMVPMatrix",          get_MVP_matrix())
-            shader.uniform_float('left',                left)
-            shader.uniform_float('top',                 top)
-            shader.uniform_float('right',               left + (width - 1))
-            shader.uniform_float('bottom',              top - (height - 1))
-            shader.uniform_float('width',               width)
-            shader.uniform_float('height',              height)
-            shader.uniform_float('depth',               depth)
-            shader.uniform_float('margin_left',         get_v('margin-left',    0))
-            shader.uniform_float('margin_right',        get_v('margin-right',   0))
-            shader.uniform_float('margin_top',          get_v('margin-top',     0))
-            shader.uniform_float('margin_bottom',       get_v('margin-bottom',  0))
-            shader.uniform_float('padding_left',        get_v('padding-left',   0))
-            shader.uniform_float('padding_right',       get_v('padding-right',  0))
-            shader.uniform_float('padding_top',         get_v('padding-top',    0))
-            shader.uniform_float('padding_bottom',      get_v('padding-bottom', 0))
-            shader.uniform_float('border_width',        get_v('border-width',   0))
-            shader.uniform_float('border_radius',       get_v('border-radius',  0))
-            shader.uniform_float('border_left_color',   Color.as_vec4(get_v('border-left-color',   self._def_color)))
-            shader.uniform_float('border_right_color',  Color.as_vec4(get_v('border-right-color',  self._def_color)))
-            shader.uniform_float('border_top_color',    Color.as_vec4(get_v('border-top-color',    self._def_color)))
-            shader.uniform_float('border_bottom_color', Color.as_vec4(get_v('border-bottom-color', self._def_color)))
-            shader.uniform_float('background_color',    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color)))
-            shader.uniform_int(  'image_fit',           texture_fit_map.get(texture_fit, 0))
-            shader.uniform_int(  'using_image',         1 if texture_id is not None else 0)
-            shader.uniform_int(  'image',               atex - bgl.GL_TEXTURE0)
+            ubos.options.uMVPMatrix          = get_MVP_matrix()
+            ubos.options.lrtb                = (float(left), float(left + (width - 1)), float(top), float(top - (height - 1)))
+            ubos.options.wh                  = (float(width), float(height))
+            ubos.options.depth               = depth
+            ubos.options.margin_lrtb         = [get_v(f'margin-{p}',  0) for p in ['left', 'right', 'top', 'bottom']]
+            ubos.options.padding_lrtb        = [get_v(f'padding-{p}', 0) for p in ['left', 'right', 'top', 'bottom']]
+            ubos.options.border_width =        get_v('border-width',   0)
+            ubos.options.border_radius =       get_v('border-radius',  0)
+            ubos.options.border_left_color =   Color.as_vec4(get_v('border-left-color',   self._def_color))
+            ubos.options.border_right_color =  Color.as_vec4(get_v('border-right-color',  self._def_color))
+            ubos.options.border_top_color =    Color.as_vec4(get_v('border-top-color',    self._def_color))
+            ubos.options.border_bottom_color = Color.as_vec4(get_v('border-bottom-color', self._def_color))
+            ubos.options.background_color =    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color))
+            ubos.options.image_fit =           texture_fit_map.get(texture_fit, 0)
+            ubos.options.using_image =         1 if texture_id is not None else 0
             if texture_id is not None:
                 bgl.glActiveTexture(atex)
                 bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
+                shader.uniform_int('image', atex - bgl.GL_TEXTURE0)
             # if gputexture: shader.uniform_sampler('image', gputexture)
             # Drawing.glCheckError(f'checking gl errors after binding shader and setting uniforms')
+            ubos.update_shader()
             batch.draw(shader)
 
         UI_Draw._draw = _draw

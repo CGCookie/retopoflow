@@ -1,26 +1,29 @@
-uniform mat4 uMVPMatrix;
-uniform float uInOut;
+struct Options {
+    mat4 uMVPMatrix;
+    float uInOut;
+}
 
-attribute vec4 vPos;
-attribute vec4 vFrom;
-attribute vec4 vInColor;
-attribute vec4 vOutColor;
+uniform Options options;
 
-varying float aRot;
-varying vec4 aInColor;
-varying vec4 aOutColor;
-
+in vec4 vPos;
+in vec4 vFrom;
+in vec4 vInColor;
+in vec4 vOutColor;
 
 /////////////////////////////////////////////////////////////////////////
 // vertex shader
 
 #version 330
 
+out float aRot;
+out vec4 aInColor;
+out vec4 aOutColor;
+
 float angle(vec2 d) { return atan(d.y, d.x); }
 
 void main() {
-    vec4 p0 = uMVPMatrix * vFrom;
-    vec4 p1 = uMVPMatrix * vPos;
+    vec4 p0 = options.uMVPMatrix * vFrom;
+    vec4 p1 = options.uMVPMatrix * vPos;
     gl_Position = p1;
     aRot = angle((p1.xy / p1.w) - (p0.xy / p0.w));
     aInColor = vInColor;
@@ -32,6 +35,10 @@ void main() {
 // fragment shader
 
 #version 330
+
+in float aRot;
+in vec4 aInColor;
+in vec4 aOutColor;
 
 out vec4 outColor;
 
@@ -48,9 +55,9 @@ float alpha(vec2 dir) {
     // if(dv0 > 1.0) return -1.0;
     if(dv1 < 1.3) return -1.0;
 
-    if(d0v - 1.0 < (1.0 - uInOut) || d1v - 1.0 < (1.0 - uInOut)) return 0.0;
-    //if(dv0 > uInOut) return 0.0;
-    if(dv1 - 1.3 < (1.0 - uInOut)) return 0.0;
+    if(d0v - 1.0 < (1.0 - options.uInOut) || d1v - 1.0 < (1.0 - options.uInOut)) return 0.0;
+    //if(dv0 > options.uInOut) return 0.0;
+    if(dv1 - 1.3 < (1.0 - options.uInOut)) return 0.0;
     return 1.0;
 }
 

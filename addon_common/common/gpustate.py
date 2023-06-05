@@ -36,8 +36,10 @@ from contextlib import contextmanager
 import bpy
 import gpu
 
-from .decorators import only_in_blender_version, warn_once, add_cache
+from mathutils import Matrix, Vector
 
+from .decorators import only_in_blender_version, warn_once, add_cache
+from .utils import Dict
 
 
 # note: not all supported by user system, but we don't need full functionality
@@ -221,54 +223,211 @@ def clean_shader_source(source):
     # source = '\n'.join(l.strip() for l in source.splitlines())
     return source
 
-re_shader_var = re.compile(r'^[ \n]*((?P<qualifier>noperspective|flat|smooth)[ \n]+)?(?P<uio>uniform|in|out)[ \n]+(?P<type>mat4|mat3|mat2|vec4|vec3|vec2|float|sampler2D|int|bool)[ \n]+(?P<var>[a-zA-Z0-9_]+)(?P<defval>=.*)?[ \n]*$')
+re_shader_var = re.compile(r'((?P<qualifier>noperspective|flat|smooth)[ \n]+)?(?P<uio>uniform|in|out)[ \n]+(?P<type>[a-zA-Z0-9_]+)[ \n]+(?P<var>[a-zA-Z0-9_]+)([ \n]*=[ \n]*(?P<defval>[^;]+))?[ \n]*;')
+re_shader_var_parts = ['qualifier', 'uio', 'type', 'var', 'defval']
 def split_shader_vars(source):
-    shader_vars = {}
-    parts = []
-    for part in source.split(';'):
-        m = re_shader_var.match(part)
-        if m:
-            shader_vars[m['var']] = {
-                'uio':       m['uio'],
-                'qualifier': m['qualifier'],
-                'type':      m['type'].upper(),
-                'var':       m['var'],
-                'defval':    m['defval'],
-            }
-        else:
-            parts.append(part)
-    return shader_vars, ';'.join(parts)
+    shader_vars = {
+        m['var']: { part: m[part] for part in re_shader_var_parts }
+        for m in re_shader_var.finditer(source)
+    }
+    source = re_shader_var.sub('', source)
+    source = '\n'.join(l for l in source.splitlines() if l.strip())
+    return (shader_vars, source)
 
-def gpu_shader(vert_source, frag_source, *, defines=None):
-    vert_source = clean_shader_source(vert_source)
-    frag_source = clean_shader_source(frag_source)
+re_struct = re.compile(r'struct[ \n]+(?P<name>[a-zA-Z0-9_]+)[ \n]+[{](?P<attribs>[^}]+)[}][ \n]*;')
+re_attrib = re.compile(r'(?P<type>[a-zA-Z0-9_]+)[ \n]+(?P<name>[a-zA-Z0-9_]+)[ \n]*;')
+def split_shader_structs(source):
+    structs = {
+        m['name']: {
+            'name': m['name'],
+            'full': m.group(0),
+            'attribs': [(ma['type'], ma['name']) for ma in re_attrib.finditer(m['attribs'])],
+            'type': {ma['name']: ma['type'] for ma in re_attrib.finditer(m['attribs'])},
+        }
+        for m in re_struct.finditer(source)
+    }
+    source = re_struct.sub('', source)
+    source = '\n'.join(l for l in source.splitlines() if l.strip())
+    return (structs, source)
+
+def shader_var_to_ctype(shader_type, shader_varname):
+    return (shader_varname, shader_type_to_ctype(shader_type))
+
+def shader_type_to_ctype(shader_type):
+    import ctypes
+    match shader_type:
+        case 'mat4':  return (ctypes.c_float * 4) * 4
+        case 'mat3':  return (ctypes.c_float * 3) * 3
+        case 'vec4':  return ctypes.c_float * 4
+        case 'vec3':  return ctypes.c_float * 3
+        case 'vec2':  return ctypes.c_float * 2
+        case 'float': return ctypes.c_float
+        case 'ivec4': return ctypes.c_int * 4
+        case 'ivec3': return ctypes.c_int * 3
+        case 'ivec2': return ctypes.c_int * 2
+        case 'int':   return ctypes.c_int
+        case 'bool':  return ctypes.c_bool
+        case _:       assert False, f'Unhandled shader type {shader_type}'
+
+def shader_struct_to_UBO(shadername, struct, varname):
+    import ctypes
+    # copied+modified from mesh_snap_utitilies_line/drawing_utilities.py
+    class GPU_UBO(ctypes.Structure):
+        _pack_ = 16
+        _fields_ = [ shader_var_to_ctype(t, n) for (t, n) in struct['attribs'] ]
+    ubo_data = GPU_UBO()
+    ubo_data_size = ctypes.sizeof(ubo_data)
+    if ubo_data_size % 16 != 0:
+        print(f'AddonCommon: WARNING')
+        print(f'Shader {shadername}')
+        print(f'Struct {struct["name"]} for variable {varname}')
+        print(f'Size={ubo_data_size}, which is not a multiple of 16 (mod16={ubo_data_size%16})')
+        print(f'Need {16 - (ubo_data_size%16)} more bytes')
+    ubo = gpu.types.GPUUniformBuf(gpu.types.Buffer('UBYTE', ubo_data_size, ubo_data))
+    def setter(name, value):
+        # print(f'UBO_Wrapper.set {name} = {value} ({type(value)})')
+        shader_type = struct['type'][name]
+        match shader_type:
+            case 'mat4':
+                a = getattr(ubo_data, name)
+                CType = shader_type_to_ctype('vec4')
+                if len(value) == 3: value = value.to_4x4()
+                a[0] = CType(value[0][0], value[1][0], value[2][0], value[3][0])
+                a[1] = CType(value[0][1], value[1][1], value[2][1], value[3][1])
+                a[2] = CType(value[0][2], value[1][2], value[2][2], value[3][2])
+                a[3] = CType(value[0][3], value[1][3], value[2][3], value[3][3])
+            case 'mat3':
+                a = getattr(ubo_data, name)
+                CType = shader_type_to_ctype('vec3')
+                a[0] = CType(value[0][0], value[1][0], value[2][0])
+                a[1] = CType(value[0][1], value[1][1], value[2][1])
+                a[2] = CType(value[0][2], value[1][2], value[2][2])
+            case 'vec4'|'vec3'|'vec2'|'ivec4'|'ivec3'|'ivec2':
+                CType = shader_type_to_ctype(shader_type)
+                setattr(ubo_data, name, CType(*value))
+            case 'float'|'int'|'bool':
+                CType = shader_type_to_ctype(shader_type)
+                setattr(ubo_data, name, CType(value))
+    class UBO_Wrapper:
+        def __init__(self):
+            pass
+        def set_shader(self, shader):
+            self.__dict__['_shader'] = shader
+        def __setattr__(self, name, value):
+            self.assign(name, value)
+        def assign(self, name, value):
+            try:
+                setter(name, value)
+            except Exception as e:
+                print(f'Caught Exception while trying to set {name} = {value}')
+                print(f'  Shader:    {shadername}')
+                print(f'  Exception: {e}')
+        def update_shader(self, *, debug_print=False):
+            try:
+                if debug_print:
+                    print(f'UPDATING SHADER: {shadername} {varname}')
+                shader = self.__dict__['_shader']
+                buf = gpu.types.Buffer('UBYTE', ubo_data_size, ubo_data)
+                if debug_print:
+                    print(buf)
+                ubo.update(buf)
+                shader.uniform_block(varname, ubo)
+                del buf
+            except Exception as e:
+                print(f'Caught Exception while trying to update shader')
+                print(f'  Shader:    {shadername}')
+                print(f'  Struct:    {struct["name"]}')
+                print(f'  Variable:  {varname}')
+                print(f'  Exception: {e}')
+    return UBO_Wrapper()
+
+gpu_type_size = {
+    'bool',
+    'uint',  'uvec2', 'uvec3', 'uvec4',
+    'int',   'ivec2', 'ivec3', 'ivec4',
+    'float', 'vec2',  'vec3',  'vec4',
+                      'mat3',  'mat4',
+}
+def glsl_to_gpu_type(t):
+    if t in gpu_type_size:
+        return t.upper()
+    return t
+
+def gpu_shader(name, vert_source, frag_source, *, defines=None):
+    vert_source, frag_source = map(clean_shader_source, (vert_source, frag_source))
+    vert_shader_structs, vert_source = split_shader_structs(vert_source)
+    frag_shader_structs, frag_source = split_shader_structs(frag_source)
+    shader_structs = vert_shader_structs | frag_shader_structs
     vert_shader_vars, vert_source = split_shader_vars(vert_source)
     frag_shader_vars, frag_source = split_shader_vars(frag_source)
     shader_vars = vert_shader_vars | frag_shader_vars
 
-    if True:
-        print('GPUShader')
-        print('_'*100)
+    if False:
+        print(f'')
+        print(f'GPUShader {name}')
+        print(f'v'*100)
         print(vert_source)
-        print('~'*100)
+        print(f'~'*100)
         print(frag_source)
-        print('='*100)
-        for vn in shader_vars:
-            print(f'{vn}:{shader_vars[vn]}')
-        print('^'*100)
+        print(f'='*100)
+        for ss in vert_shader_structs.values():
+            print(ss['full'])
+        print(f'='*100)
+        def nonetoempty(s): return s if s else ''
+        print(f'{"Qualifier":13s} {"UIO":7s} {"Type":10s} {"Var Name":20s} {"Def Val"}')
+        for sv in shader_vars.values():
+            print(
+                f'{nonetoempty(sv["qualifier"]):13s} '  # noperspective
+                f'{nonetoempty(sv["uio"]):7s} '         # uniform
+                f'{nonetoempty(sv["type"]):10s} '
+                f'{nonetoempty(sv["var"]):20s} '
+                f'{nonetoempty(sv["defval"])}'
+            )
+        print(f'^'*100)
         print()
 
     shader_info = gpu.types.GPUShaderCreateInfo()
 
+    # STRUCTS
+    # Note: as of 2023.06.04, multiple structs caused compiler errors that were difficult to debug.
+    #       I believe it is due to how Blender constructs the platform-specific shader from the GPU shader.
+    assert len(shader_structs) <= 1, f'Cannot support shaders with more than one struct, found {len(shader_structs)} in {name}'
+    for struct in shader_structs.values():
+        # print(f'typedef_source("{struct["full"]}")')
+        shader_info.typedef_source(struct['full'])
+    UBOs = Dict()
+    def update_shader(*, debug_print=False):
+        for n in UBOs:
+            if n in ['update_shader', 'set_shader']: continue
+            UBOs[n].update_shader(debug_print=debug_print)
+    UBOs.update_shader = update_shader
+    def set_shader(shader):
+        for n in UBOs:
+            if n in ['update_shader', 'set_shader']: continue
+            UBOs[n].set_shader(shader)
+    UBOs.set_shader = set_shader
+
+    slot_buffer = 0
+    slot_image = 0
+    slot_input = 0
+    slot_output = 0
+
     # UNIFORMS
-    slot = 0
     for shader_var in shader_vars.values():
         if shader_var['uio'] != 'uniform': continue
-        if shader_var['type'] == 'SAMPLER2D':
-            shader_info.sampler(slot, 'FLOAT_2D', shader_var['var'])
-            slot += 1
-        else:
-            shader_info.push_constant(shader_var['type'], shader_var['var'])
+        match shader_var['type']:
+            case 'sampler2D':
+                shader_info.sampler(slot_image, 'FLOAT_2D', shader_var['var'])
+                slot_image += 1
+            case t if t in gpu_type_size:
+                shader_info.push_constant(glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+            case _:
+                shader_info.uniform_buf(slot_buffer, shader_var['type'], shader_var['var'])
+                ubo_wrapper = shader_struct_to_UBO(name, shader_structs[shader_var['type']], shader_var['var'])
+                UBOs[shader_var['var']] = ubo_wrapper
+                slot_buffer += 1
+    if False:
+        print(UBOs)
 
     # PREPROCESSING DEFINE DIRECTIVES
     if defines:
@@ -276,46 +435,43 @@ def gpu_shader(vert_source, frag_source, *, defines=None):
             shader_info.define(str(k), str(v))
 
     # INPUTS
-    slot = 0
     for shader_var in vert_shader_vars.values():
         if shader_var['uio'] == 'in':
-            shader_info.vertex_in(slot, shader_var['type'], shader_var['var'])
-            slot += 1
+            shader_info.vertex_in(slot_input, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+            slot_input += 1
 
     # INTERFACE
-    shader_interface = gpu.types.GPUStageInterfaceInfo('foobar') # NOTE: DO NOT CALL IT interface
+    shader_interface = gpu.types.GPUStageInterfaceInfo('shader_interface') # NOTE: DO NOT CALL IT `interface`
+    qualified_fns = {
+        'noperspective': shader_interface.no_perspective,
+        'flat':          shader_interface.flat,
+        'smooth':        shader_interface.smooth,
+        None:            shader_interface.smooth,
+    }
     needs_interface = False
     for shader_var in vert_shader_vars.values():
         if shader_var['uio'] != 'out': continue
-        if shader_var['qualifier'] == 'noperspective':
-            shader_interface.no_perspective(shader_var['type'], shader_var['var'])
-            needs_interface = True
-        elif shader_var['qualifier'] == 'flat':
-            shader_interface.flat(shader_var['type'], shader_var['var'])
-            needs_interface = True
-        elif shader_var['qualifier'] == 'smooth':
-            shader_interface.smooth(shader_var['type'], shader_var['var'])
-            needs_interface = True
-        else:
-            shader_interface.smooth(shader_var['type'], shader_var['var'])
-            needs_interface = True
+        needs_interface = True
+        qualified_fn = qualified_fns[shader_var['qualifier']]
+        qualified_fn(glsl_to_gpu_type(shader_var['type']), shader_var['var'])
     if needs_interface:
         shader_info.vertex_out(shader_interface)
 
     # OUTPUTS
-    slot = 0
     for shader_var in frag_shader_vars.values():
-        if shader_var['uio'] == 'out':
-            shader_info.fragment_out(slot, shader_var['type'], shader_var['var'])
-            slot += 1
+        if shader_var['uio'] != 'out': continue
+        # if shader_var['var'] == 'gl_FragDepth': continue
+        shader_info.fragment_out(slot_output, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+        slot_output += 1
 
     shader_info.vertex_source(vert_source)
     shader_info.fragment_source(frag_source)
 
     shader = gpu.shader.create_from_info(shader_info)
+    UBOs.set_shader(shader)
     del shader_interface
     del shader_info
-    return shader
+    return shader, UBOs
 
     # return gpu.types.GPUShader(vert_source, frag_source)
 

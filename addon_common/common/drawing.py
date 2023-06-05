@@ -342,14 +342,15 @@ class Drawing:
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
-        shader_2D_point.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_point.uniform_float('mvpmatrix', self.get_pixel_matrix())
-        shader_2D_point.uniform_float('radius', radius)
-        shader_2D_point.uniform_float('border', border)
-        shader_2D_point.uniform_float('border', border)
-        shader_2D_point.uniform_float('color', color)
-        shader_2D_point.uniform_float('colorBorder', borderColor)
-        shader_2D_point.uniform_float('center', pt)
+        ubos_2D_point.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
+        ubos_2D_point.options.radius = radius
+        ubos_2D_point.options.border = border
+        ubos_2D_point.options.border = border
+        ubos_2D_point.options.color = color
+        ubos_2D_point.options.colorBorder = borderColor
+        ubos_2D_point.options.center = pt
+        ubos_2D_point.update_shader()
         batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
 
@@ -359,15 +360,16 @@ class Drawing:
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
-        shader_2D_point.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_point.uniform_float('mvpmatrix', self.get_pixel_matrix())
-        shader_2D_point.uniform_float('radius', radius)
-        shader_2D_point.uniform_float('border', border)
-        shader_2D_point.uniform_float('border', border)
-        shader_2D_point.uniform_float('color', color)
-        shader_2D_point.uniform_float('colorBorder', borderColor)
+        ubos_2D_point.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
+        ubos_2D_point.options.radius = radius
+        ubos_2D_point.options.border = border
+        ubos_2D_point.options.border = border
+        ubos_2D_point.options.color = color
+        ubos_2D_point.options.colorBorder = borderColor
         for pt in pts:
-            shader_2D_point.uniform_float('center', pt)
+            ubos_2D_point.options.center = pt
+            ubos_2D_point.update_shader()
             batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
 
@@ -378,15 +380,16 @@ class Drawing:
         stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
-        shader_2D_lineseg.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_lineseg.uniform_float('pos0', p0)
-        shader_2D_lineseg.uniform_float('pos1', p1)
-        shader_2D_lineseg.uniform_float('color0', color0)
-        shader_2D_lineseg.uniform_float('color1', color1)
-        shader_2D_lineseg.uniform_float('width', width)
-        shader_2D_lineseg.uniform_float('stipple', stipple)
-        shader_2D_lineseg.uniform_float('stippleOffset', offset)
-        shader_2D_lineseg.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_lineseg.options.pos0 = p0
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.pos1 = p1
+        ubos_2D_lineseg.options.color1 = color1
+        ubos_2D_lineseg.options.width = width
+        ubos_2D_lineseg.options.stipple = stipple
+        ubos_2D_lineseg.options.stippleOffset = offset
+        ubos_2D_lineseg.update_shader()
         batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
 
@@ -397,18 +400,19 @@ class Drawing:
         stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
-        shader_2D_lineseg.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_lineseg.uniform_float('color0', color0)
-        shader_2D_lineseg.uniform_float('color1', color1)
-        shader_2D_lineseg.uniform_float('width', width)
-        shader_2D_lineseg.uniform_float('stipple', stipple)
-        shader_2D_lineseg.uniform_float('stippleOffset', offset)    # TODO: should offset be a list?
-        shader_2D_lineseg.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        ubos_2D_lineseg.options.width = width
+        ubos_2D_lineseg.options.stipple = stipple
+        ubos_2D_lineseg.options.stippleOffset = offset    # TODO: should offset be a list?
         for i in range(len(points)//2):
             p0,p1 = points[i*2:i*2+2]
             if p0 is None or p1 is None: continue
-            shader_2D_lineseg.uniform_float('pos0', p0)
-            shader_2D_lineseg.uniform_float('pos1', p1)
+            ubos_2D_lineseg.options.pos0 = p0
+            ubos_2D_lineseg.options.pos1 = p1
+            ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
         self.glCheckError('done with draw2D_lines')
@@ -420,18 +424,19 @@ class Drawing:
         stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
-        shader_2D_lineseg.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_lineseg.uniform_float('color0', color0)
-        shader_2D_lineseg.uniform_float('color1', color1)
-        shader_2D_lineseg.uniform_float('width', width)
-        shader_2D_lineseg.uniform_float('stipple', stipple)
-        shader_2D_lineseg.uniform_float('stippleOffset', offset)    # TODO: should offset be a list?
-        shader_2D_lineseg.uniform_float('MVPMatrix', self.get_view_matrix())
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        ubos_2D_lineseg.options.width = width
+        ubos_2D_lineseg.options.stipple = stipple
+        ubos_2D_lineseg.options.stippleOffset = offset    # TODO: should offset be a list?
+        ubos_2D_lineseg.options.MVPMatrix = self.get_view_matrix()
         for i in range(len(points)//2):
             p0,p1 = points[i*2:i*2+2]
             if p0 is None or p1 is None: continue
-            shader_2D_lineseg.uniform_float('pos0', p0)
-            shader_2D_lineseg.uniform_float('pos1', p1)
+            ubos_2D_lineseg.options.pos0 = p0
+            ubos_2D_lineseg.options.pos1 = p1
+            ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
         self.glCheckError('done with draw3D_lines')
@@ -442,18 +447,19 @@ class Drawing:
         stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
-        shader_2D_lineseg.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_lineseg.uniform_float('color0', color0)
-        shader_2D_lineseg.uniform_float('color1', color1)
-        shader_2D_lineseg.uniform_float('width', width)
-        shader_2D_lineseg.uniform_float('stipple', stipple)
-        shader_2D_lineseg.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        ubos_2D_lineseg.options.width = width
+        ubos_2D_lineseg.options.stipple = stipple
         for p0,p1 in iter_pairs(points, False):
-            shader_2D_lineseg.uniform_float('pos0', p0)
-            shader_2D_lineseg.uniform_float('pos1', p1)
-            shader_2D_lineseg.uniform_float('stippleOffset', offset)
-            offset += (p1 - p0).length
+            ubos_2D_lineseg.options.pos0 = p0
+            ubos_2D_lineseg.options.pos1 = p1
+            ubos_2D_lineseg.options.stippleOffset = offset
+            ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
+            offset += (p1 - p0).length
         gpu.shader.unbind()
 
     # draw circle in screen space
@@ -464,15 +470,14 @@ class Drawing:
         stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
         offset = self.scale(offset)
         shader_2D_circle.bind()
-        shader_2D_circle.uniform_float('screensize', (self.area.width, self.area.height))
-        shader_2D_circle.uniform_float('center', center)
-        shader_2D_circle.uniform_float('radius', radius)
-        shader_2D_circle.uniform_float('color0', color0)
-        shader_2D_circle.uniform_float('color1', color1)
-        shader_2D_circle.uniform_float('width', width)
-        shader_2D_circle.uniform_float('stipple', stipple)
-        shader_2D_circle.uniform_float('stippleOffset', offset)
-        shader_2D_circle.uniform_float('MVPMatrix', self.get_pixel_matrix())
+        ubos_2D_circle.options.MVPMatrix = self.get_pixel_matrix()
+        ubos_2D_circle.options.screensize = (self.area.width, self.area.height, 0.0, 0.0)
+        ubos_2D_circle.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_2D_circle.options.color0 = color0
+        ubos_2D_circle.options.color1 = color1
+        ubos_2D_circle.options.radius_width = (radius, width, 0.0, 0.0)
+        ubos_2D_circle.options.stipple_data = (*stipple, offset, 0.0)
+        ubos_2D_circle.update_shader()
         batch_2D_circle.draw(shader_2D_circle)
         gpu.shader.unbind()
 
@@ -482,33 +487,32 @@ class Drawing:
         radius = self.scale(radius)
         width = self.scale(width)
         shader_3D_circle.bind()
-        shader_3D_circle.uniform_float('center',     f.o)
-        shader_3D_circle.uniform_float('radius',     radius)
-        shader_3D_circle.uniform_float('color',      color)
-        shader_3D_circle.uniform_float('width',      width)
-        shader_3D_circle.uniform_float('plane_x',    f.x)
-        shader_3D_circle.uniform_float('plane_y',    f.y)
-        shader_3D_circle.uniform_float('depth_near', depth_near)
-        shader_3D_circle.uniform_float('depth_far',  depth_far)
-        shader_3D_circle.uniform_float('MVPMatrix',  self.get_view_matrix())
+        ubos_3D_circle.options.MVPMatrix = self.get_view_matrix()
+        ubos_3D_circle.options.center    = f.o
+        ubos_3D_circle.options.color     = color
+        ubos_3D_circle.options.plane_x   = f.x
+        ubos_3D_circle.options.plane_y   = f.y
+        ubos_3D_circle.options.settings  = (radius, width, depth_near, depth_far)
+        ubos_3D_circle.update_shader()
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
 
     def draw3D_triangles(self, points:[Point], colors:[Color]):
         self.glCheckError('starting draw3D_triangles')
         shader_3D_triangle.bind()
-        shader_3D_triangle.uniform_float('MVPMatrix', self.get_view_matrix())
+        ubos_3D_triangle.options.MVPMatrix = self.get_view_matrix()
         for i in range(0, len(points), 3):
             p0,p1,p2 = points[i:i+3]
             c0,c1,c2 = colors[i:i+3]
             if p0 is None or p1 is None or p2 is None: continue
             if c0 is None or c1 is None or c2 is None: continue
-            shader_3D_triangle.uniform_float('pos0', p0)
-            shader_3D_triangle.uniform_float('color0', c0)
-            shader_3D_triangle.uniform_float('pos1', p1)
-            shader_3D_triangle.uniform_float('color1', c1)
-            shader_3D_triangle.uniform_float('pos2', p2)
-            shader_3D_triangle.uniform_float('color2', c2)
+            ubos_3D_triangle.options.pos0   = p0
+            ubos_3D_triangle.options.color0 = c0
+            ubos_3D_triangle.options.pos1   = p1
+            ubos_3D_triangle.options.color1 = c1
+            ubos_3D_triangle.options.pos2   = p2
+            ubos_3D_triangle.options.color2 = c2
+            ubos_3D_triangle.update_shader()
             batch_3D_triangle.draw(shader_3D_triangle)
         gpu.shader.unbind()
         self.glCheckError('done with draw3D_triangles')
@@ -548,8 +552,7 @@ if not bpy.app.background:
         vert_source, frag_source = Shader.parse_string(txt)
         try:
             Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
-            print(f'creating shader for {fn_glsl}')
-            ret = gpustate.gpu_shader(vert_source, frag_source)
+            ret = gpustate.gpu_shader(f'drawing {fn_glsl}', vert_source, frag_source)
             Drawing.glCheckError(f'post-compile check: {fn_glsl}')
             return ret
         except Exception as e:
@@ -559,15 +562,15 @@ if not bpy.app.background:
     Drawing.glCheckError(f'Pre-compile check: point, lineseg, circle, triangle shaders')
 
     # 2D point
-    shader_2D_point = create_shader('point_2D.glsl')
+    shader_2D_point, ubos_2D_point = create_shader('point_2D.glsl')
     batch_2D_point = batch_for_shader(shader_2D_point, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
 
     # 2D line segment
-    shader_2D_lineseg = create_shader('lineseg_2D.glsl')
+    shader_2D_lineseg, ubos_2D_lineseg = create_shader('lineseg_2D.glsl')
     batch_2D_lineseg = batch_for_shader(shader_2D_lineseg, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
 
     # 2D circle
-    shader_2D_circle = create_shader('circle_2D.glsl')
+    shader_2D_circle, ubos_2D_circle = create_shader('circle_2D.glsl')
     # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
     cnt = 100
     pts = [
@@ -580,7 +583,7 @@ if not bpy.app.background:
     batch_2D_circle = batch_for_shader(shader_2D_circle, 'TRIS', {"pos": pts})
 
     # 3D circle
-    shader_3D_circle = create_shader('circle_3D.glsl')
+    shader_3D_circle, ubos_3D_circle = create_shader('circle_3D.glsl')
     # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)
     cnt = 100
     pts = [
@@ -593,11 +596,11 @@ if not bpy.app.background:
     batch_3D_circle = batch_for_shader(shader_3D_circle, 'TRIS', {"pos": pts})
 
     # 3D triangle
-    shader_3D_triangle = create_shader('triangle_3D.glsl')
+    shader_3D_triangle, ubos_3D_triangle = create_shader('triangle_3D.glsl')
     batch_3D_triangle = batch_for_shader(shader_3D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
     # 3D triangle
-    shader_2D_triangle = create_shader('triangle_2D.glsl')
+    shader_2D_triangle, ubos_2D_triangle = create_shader('triangle_2D.glsl')
     batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
 
     Drawing.glCheckError(f'Compiled point, lineseg, circle shaders')
@@ -686,25 +689,26 @@ class CC_2D_POINTS(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_2D_point.bind()
-        shader_2D_point.uniform_float('mvpmatrix', Drawing._instance.get_pixel_matrix())
-        shader_2D_point.uniform_float('screensize', (Drawing._instance.area.width, Drawing._instance.area.height))
-        shader_2D_point.uniform_float('color', cls._default_color)
+        ubos_2D_point.options.mvpmatrix = Drawing._instance.get_pixel_matrix()
+        ubos_2D_point.options.screensize = Drawing._instance.area.width, Drawing._instance.area.height
+        ubos_2D_point.options.color = cls._default_color
         cls.update()
 
     @classmethod
     def update(cls):
-        shader_2D_point.uniform_float('radius', cls._point_size)
-        shader_2D_point.uniform_float('border', cls._border_width)
-        shader_2D_point.uniform_float('colorBorder', cls._border_color)
+        ubos_2D_point.options.radius = cls._point_size
+        ubos_2D_point.options.border = cls._border_width
+        ubos_2D_point.options.colorBorder = cls._border_color
 
     @classmethod
     def color(cls, c:Color):
-        shader_2D_point.uniform_float('color', c)
+        ubos_2D_point.options.color = c
 
     @classmethod
     def vertex(cls, p:Point2D):
         if p:
-            shader_2D_point.uniform_float('center', p)
+            ubos_2D_point.options.center = p
+            ubos_2D_point.options.update_shader()
             batch_2D_point.draw(shader_2D_point)
 
 
@@ -712,29 +716,32 @@ class CC_2D_LINES(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_2D_lineseg.bind()
-        shader_2D_lineseg.uniform_float('MVPMatrix', Drawing._instance.get_pixel_matrix())
-        shader_2D_lineseg.uniform_float('screensize', (Drawing._instance.area.width, Drawing._instance.area.height))
-        shader_2D_lineseg.uniform_float('color0', cls._default_color)
+        mvpmatrix = Drawing._instance.get_pixel_matrix()
+        ubos_2D_lineseg.options.MVPMatrix = mvpmatrix
+        ubos_2D_lineseg.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height)
+        ubos_2D_lineseg.options.color0 = cls._default_color
         cls.stipple(offset=0)
         cls._c = 0
         cls._last_p = None
 
     @classmethod
     def update(cls):
-        shader_2D_lineseg.uniform_float('color1', cls._stipple_color)
-        shader_2D_lineseg.uniform_float('width', cls._line_width)
-        shader_2D_lineseg.uniform_float('stipple', cls._stipple_pattern)
-        shader_2D_lineseg.uniform_float('stippleOffset', cls._stipple_offset)
+        ubos_2D_lineseg.options.color1 = cls._stipple_color
+        ubos_2D_lineseg.options.width = cls._line_width
+        ubos_2D_lineseg.options.stipple = cls._stipple_pattern
+        ubos_2D_lineseg.options.stippleOffset = cls._stipple_offset
 
     @classmethod
     def color(cls, c:Color):
-        shader_2D_lineseg.uniform_float('color0', c)
+        ubos_2D_lineseg.options.color0 = c
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: shader_2D_lineseg.uniform_float('pos%d' % cls._c, p)
+        if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', p)
         cls._c = (cls._c + 1) % 2
-        if cls._c == 0 and cls._last_p and p: batch_2D_lineseg.draw(shader_2D_lineseg)
+        if cls._c == 0 and cls._last_p and p:
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
         cls._last_p = p
 
 class CC_2D_LINE_STRIP(CC_2D_LINES):
@@ -749,8 +756,9 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
             cls._last_p = p
         else:
             if cls._last_p and p:
-                shader_2D_lineseg.uniform_float('pos0', cls._last_p)
-                shader_2D_lineseg.uniform_float('pos1', p)
+                ubos_2D_lineseg.options.pos0 = cls._last_p
+                ubos_2D_lineseg.options.pos1 = p
+                ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
 
@@ -767,16 +775,18 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
             cls._first_p = cls._last_p = p
         else:
             if cls._last_p and p:
-                shader_2D_lineseg.uniform_float('pos0', cls._last_p)
-                shader_2D_lineseg.uniform_float('pos1', p)
+                ubos_2D_lineseg.options.pos0 = cls._last_p
+                ubos_2D_lineseg.options.pos1 = p
+                ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
 
     @classmethod
     def end(cls):
         if cls._last_p and cls._first_p:
-            shader_2D_lineseg.uniform_float('pos0', cls._last_p)
-            shader_2D_lineseg.uniform_float('pos1', cls._first_p)
+            ubos_2D_lineseg.options.pos0 = cls._last_p
+            ubos_2D_lineseg.options.pos1 = cls._first_p
+            ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         super().end()
 
@@ -786,7 +796,7 @@ class CC_2D_TRIANGLES(CC_DRAW):
     def begin(cls):
         shader_2D_triangle.bind()
         #shader_2D_triangle.uniform_float('screensize', (Drawing._instance.area.width, Drawing._instance.area.height))
-        shader_2D_triangle.uniform_float('MVPMatrix', Drawing._instance.get_pixel_matrix())
+        ubos_2D_triangle.options.MVPMatrix = Drawing._instance.get_pixel_matrix()
         cls._c = 0
         cls._last_color = None
         cls._last_p0 = None
@@ -795,14 +805,16 @@ class CC_2D_TRIANGLES(CC_DRAW):
     @classmethod
     def color(cls, c:Color):
         if c is None: return
-        shader_2D_triangle.uniform_float('color%d' % cls._c, c)
+        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: shader_2D_triangle.uniform_float('pos%d' % cls._c, p)
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', p)
         cls._c = (cls._c + 1) % 3
-        if cls._c == 0 and p and cls._last_p0 and cls._last_p1: batch_2D_triangle.draw(shader_2D_triangle)
+        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
+            ubos_2D_triangle.update_shader()
+            batch_2D_triangle.draw(shader_2D_triangle)
         cls.color(cls._last_color)
         cls._last_p1 = cls._last_p0
         cls._last_p0 = p
@@ -811,7 +823,7 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_2D_triangle.bind()
-        shader_2D_triangle.uniform_float('MVPMatrix', Drawing._instance.get_pixel_matrix())
+        ubos_2D_triangle.options.MVPMatrix = Drawing._instance.get_pixel_matrix()
         cls._c = 0
         cls._last_color = None
         cls._first_p = None
@@ -821,15 +833,17 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
     @classmethod
     def color(cls, c:Color):
         if c is None: return
-        shader_2D_triangle.uniform_float('color%d' % cls._c, c)
+        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: shader_2D_triangle.uniform_float('pos%d' % cls._c, p)
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', p)
         cls._c += 1
         if cls._c == 3:
-            if p and cls._first_p and cls._last_p: batch_2D_triangle.draw(shader_2D_triangle)
+            if p and cls._first_p and cls._last_p:
+                ubos_2D_triangle.update_shader()
+                batch_2D_triangle.draw(shader_2D_triangle)
             cls._c = 1
         cls.color(cls._last_color)
         if cls._is_first:
@@ -841,7 +855,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_3D_triangle.bind()
-        shader_3D_triangle.uniform_float('MVPMatrix', Drawing._instance.get_view_matrix())
+        ubos_3D_triangle.options.MVPMatrix = Drawing._instance.get_view_matrix()
         cls._c = 0
         cls._last_color = None
         cls._last_p0 = None
@@ -850,14 +864,16 @@ class CC_3D_TRIANGLES(CC_DRAW):
     @classmethod
     def color(cls, c:Color):
         if c is None: return
-        shader_3D_triangle.uniform_float('color%d' % cls._c, c)
+        ubos_3D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
     def vertex(cls, p:Point):
-        if p: shader_3D_triangle.uniform_float('pos%d' % cls._c, p)
+        if p: ubos_3D_triangle.options.assign(f'pos{cls._c}', p)
         cls._c = (cls._c + 1) % 3
-        if cls._c == 0 and p and cls._last_p0 and cls._last_p1: batch_3D_triangle.draw(shader_3D_triangle)
+        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
+            ubos_3D_triangle.update_shader()
+            batch_3D_triangle.draw(shader_3D_triangle)
         cls.color(cls._last_color)
         cls._last_p1 = cls._last_p0
         cls._last_p0 = p

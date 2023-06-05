@@ -4,39 +4,39 @@
 // precision highp float;
 // precision lowp  int;   // only used to represent enum or bool
 
-uniform mat4 uMVPMatrix;
+struct Options {
+    mat4 uMVPMatrix;
 
-uniform float left;
-uniform float right;
-uniform float top;
-uniform float bottom;
-uniform float width;
-uniform float height;
+    vec4 lrtb;
+    vec2 _wh;
+    vec2 wh;
 
-uniform float depth;
+    vec3 _depth;
+    float depth;
 
-uniform float margin_left;
-uniform float margin_right;
-uniform float margin_top;
-uniform float margin_bottom;
+    vec4 margin_lrtb;
+    vec4 padding_lrtb;
 
-uniform float padding_left;
-uniform float padding_right;
-uniform float padding_top;
-uniform float padding_bottom;
+    vec3 _border_width;
+    float border_width;
+    vec3 _border_radius;
+    float border_radius;
+    vec4  border_left_color;
+    vec4  border_right_color;
+    vec4  border_top_color;
+    vec4  border_bottom_color;
 
-uniform float border_width;
-uniform float border_radius;
-uniform vec4  border_left_color;
-uniform vec4  border_right_color;
-uniform vec4  border_top_color;
-uniform vec4  border_bottom_color;
+    vec4  background_color;
 
-uniform vec4  background_color;
+    vec3 _using_image;
+    int   using_image;
+    vec3 _image_fit;
+    int   image_fit;    // see IMAGE_SCALE_XXX values below
+};
 
-uniform int       using_image;
-uniform int       image_fit;    // see IMAGE_SCALE_XXX values below
+uniform Options options;
 uniform sampler2D image;
+
 
 const bool srgbTarget = true;
 
@@ -114,15 +114,15 @@ out vec2 screen_pos;
 void main() {
     // set vertex to bottom-left, top-left, top-right, or bottom-right location, depending on pos
     vec2 p = vec2(
-        (pos.x < 0.5) ? (left   - 1.0) : (right + 1.0),
-        (pos.y < 0.5) ? (bottom - 1.0) : (top   + 1.0)
+        (pos.x < 0.5) ? (options.lrtb[0] - 1.0) : (options.lrtb[1] + 1.0),
+        (pos.y < 0.5) ? (options.lrtb[3] - 1.0) : (options.lrtb[2] + 1.0)
     );
 
     // convert depth to z-order
-    float zorder = 1.0 - depth / 1000.0;
+    float zorder = 1.0 - options.depth / 1000.0;
 
     screen_pos  = p;
-    gl_Position = uMVPMatrix * vec4(p, zorder, 1);
+    gl_Position = options.uMVPMatrix * vec4(p, zorder, 1);
 }
 
 
@@ -185,12 +185,12 @@ int get_region() {
         - ERROR region _should_ never happen, but can be returned from this fn if something goes wrong
     */
 
-    float dist_left   = screen_pos.x - (left + margin_left);
-    float dist_right  = (right - margin_right + 1.0) - screen_pos.x;
-    float dist_bottom = screen_pos.y - (bottom + margin_bottom - 1.0);
-    float dist_top    = (top - margin_top) - screen_pos.y;
-    float radwid  = max(border_radius, border_width);
-    float rad     = max(0.0, border_radius - border_width);
+    float dist_left   = screen_pos.x - (options.lrtb[0] + options.margin_lrtb[0]);
+    float dist_right  = (options.lrtb[1] - options.margin_lrtb[1] + 1.0) - screen_pos.x;
+    float dist_bottom = screen_pos.y - (options.lrtb[3] + options.margin_lrtb[3] - 1.0);
+    float dist_top    = (options.lrtb[2] - options.margin_lrtb[2]) - screen_pos.y;
+    float radwid  = max(options.border_radius, options.border_width);
+    float rad     = max(0.0, options.border_radius - options.border_width);
     float radwid2 = sqr(radwid);
     float rad2    = sqr(rad);
 
@@ -201,14 +201,14 @@ int get_region() {
 
     // within top and bottom, might be left or right side
     if(dist_bottom > radwid && dist_top > radwid) {
-        if(dist_left > border_width && dist_right > border_width) return REGION_BACKGROUND;
+        if(dist_left > options.border_width && dist_right > options.border_width) return REGION_BACKGROUND;
         if(dist_left < dist_right) return REGION_BORDER_LEFT;
         return REGION_BORDER_RIGHT;
     }
 
     // within left and right, might be bottom or top
     if(dist_left > radwid && dist_right > radwid) {
-        if(dist_bottom > border_width && dist_top > border_width) return REGION_BACKGROUND;
+        if(dist_bottom > options.border_width && dist_top > options.border_width) return REGION_BACKGROUND;
         if(dist_bottom < dist_top) return REGION_BORDER_BOTTOM;
         return REGION_BORDER_TOP;
     }
@@ -253,10 +253,10 @@ int get_region() {
 vec4 mix_image(vec4 bg) {
     vec4 c = bg;
     // drawing space
-    float dw = width  - (margin_left + border_width + padding_left + padding_right  + border_width + margin_right);
-    float dh = height - (margin_top  + border_width + padding_top  + padding_bottom + border_width + margin_bottom);
-    float dx = screen_pos.x - (left + (margin_left + border_width + padding_left));
-    float dy = -(screen_pos.y - (top  - (margin_top  + border_width + padding_top)));
+    float dw = options.wh[0] - (options.margin_lrtb[0] + options.border_width + options.padding_lrtb[0] + options.padding_lrtb[1]  + options.border_width + options.margin_lrtb[1]);
+    float dh = options.wh[1] - (options.margin_lrtb[2]  + options.border_width + options.padding_lrtb[2] + options.padding_lrtb[3] + options.border_width + options.margin_lrtb[3]);
+    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + options.border_width + options.padding_lrtb[0]));
+    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + options.border_width + options.padding_lrtb[2])));
     float dsx = (dx + 0.5) / dw;
     float dsy = (dy + 0.5) / dh;
     // texture
@@ -264,7 +264,7 @@ vec4 mix_image(vec4 bg) {
     float tw = tsz.x, th = tsz.y;
     float tx, ty;
 
-    switch(image_fit) {
+    switch(options.image_fit) {
         case IMAGE_SCALE_FILL:
             // object-fit: fill = stretch / squash to fill entire drawing space (non-uniform scale)
             // do nothing here
@@ -398,11 +398,11 @@ void main() {
     }
 
     switch(region) {
-        case REGION_BORDER_TOP:    c = border_top_color;    break;
-        case REGION_BORDER_RIGHT:  c = border_right_color;  break;
-        case REGION_BORDER_BOTTOM: c = border_bottom_color; break;
-        case REGION_BORDER_LEFT:   c = border_left_color;   break;
-        case REGION_BACKGROUND:    c = background_color;    break;
+        case REGION_BORDER_TOP:    c = options.border_top_color;    break;
+        case REGION_BORDER_RIGHT:  c = options.border_right_color;  break;
+        case REGION_BORDER_BOTTOM: c = options.border_bottom_color; break;
+        case REGION_BORDER_LEFT:   c = options.border_left_color;   break;
+        case REGION_BACKGROUND:    c = options.background_color;    break;
         // following colors show only if DEBUG settings allow or something really unexpected happens
         case REGION_MARGIN_TOP:    c = COLOR_MARGIN_TOP;    break;
         case REGION_MARGIN_RIGHT:  c = COLOR_MARGIN_RIGHT;  break;
@@ -425,7 +425,7 @@ void main() {
     }
 
     // apply image if used
-    if(bool(using_image)) c = mix_image(c);
+    if(bool(options.using_image)) c = mix_image(c);
 
     c = vec4(c.rgb * c.a, c.a);
 

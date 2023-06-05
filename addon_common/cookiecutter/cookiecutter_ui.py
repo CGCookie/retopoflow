@@ -34,7 +34,7 @@ from ..common.ui_core import preload_image
 from ..common.ui_document import UI_Document
 
 
-if bversion() >= "2.80":
+if not bpy.app.background:
     import gpu
     from gpu_extras.batch import batch_for_shader
 
@@ -58,7 +58,7 @@ if bversion() >= "2.80":
         }
     '''
     Drawing.glCheckError(f'Pre-compile check: cover shader')
-    shader = gpustate.gpu_shader(cover_vshader, cover_fshader)
+    shader, _ = gpustate.gpu_shader(f'blender ui cover', cover_vshader, cover_fshader)
     Drawing.glCheckError(f'Post-compile check: cover shader')
 
     # create batch to draw large triangle that covers entire clip space (-1,-1)--(+1,+1)

@@ -468,14 +468,13 @@ class Dict():
         return v
     def __delattr__(self, k):
         del self.__dict__['__d'][k]
-    def set(self, d=None, **kwargs):
-        if d:
-            for k,v in d.items():
-                self[k] = v
-        for k,v in kwargs.items():
-            self[k] = v
-    def __str__(self): return str(self.__dict__['__d'])
+    def set(self, kvs=None, **kwargs):
+        kvs = kvs or {}
+        for k,v in itertools.chain(kvs.items(), kwargs.items()): self[k] = v
+    def __str__(self):  return str(self.__dict__['__d'])
     def __repr__(self): return repr(self.__dict__['__d'])
+    def values(self):   return self.__dict__['__d'].values()
+    def __iter__(self): return iter(self.__dict__['__d'])
 
 def has_duplicates(lst):
     l = len(lst)

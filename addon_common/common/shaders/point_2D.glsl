@@ -1,10 +1,18 @@
-uniform mat4  mvpmatrix;        // pixel matrix
-uniform vec2  screensize;       // width,height of screen (for antialiasing)
-uniform vec2  center;           // center of point
-uniform float radius;           // radius of circle
-uniform float border;           // width of border
-uniform vec4  color;            // color point
-uniform vec4  colorBorder;      // color of border
+struct Options {
+    mat4  mvpmatrix;        // pixel matrix
+    vec2 _screensize;
+    vec2  screensize;       // width,height of screen (for antialiasing)
+    vec2 _center;
+    vec2  center;           // center of point
+    vec3 _radius;
+    float radius;           // radius of circle
+    vec3 _border;
+    float border;           // width of border
+    vec4  color;            // color point
+    vec4  colorBorder;      // color of border
+};
+
+uniform Options options;
 
 const bool srgbTarget = true;
 
@@ -16,9 +24,10 @@ in vec2 pos;                    // four corners of point ([0,0], [0,1], [1,1], [
 noperspective out vec2 vpos;    // position scaled by screensize
 
 void main() {
-    vec2 p = center + vec2((pos.x - 0.5) * (radius+border), (pos.y - 0.5) * (radius+border));
-    gl_Position = mvpmatrix * vec4(p, 0.0, 1.0);
-    vpos = vec2(gl_Position.x * screensize.x, gl_Position.y * screensize.y);  // just p?
+    float radius_border = options.radius + options.border;
+    vec2 p = options.center + (pos - vec2(0.5, 0.5)) * radius_border;
+    gl_Position = options.mvpmatrix * vec4(p, 0.0, 1.0);
+    vpos = gl_Position.xy * options.screensize.xy;  // just p?
 }
 
 
@@ -41,17 +50,18 @@ vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 }
 
 void main() {
-    vec4 colorb = colorBorder;
-    if(colorb.a < (1.0/255.0)) colorb.rgb = color.rgb;
-    vec2 ctr = (mvpmatrix * vec4(center, 0.0, 1.0)).xy;
-    float d = distance(vpos, vec2(ctr.x * screensize.x, ctr.y * screensize.y));
-    if(d > radius + border) discard;
-    if(d <= radius) {
-        float d2 = radius - d;
-        outColor = mix(colorb, color, clamp(d2 - border/2, 0.0, 1.0));
+    float radius_border = options.radius + options.border;
+    vec4 colorb = options.colorBorder;
+    if(colorb.a < (1.0/255.0)) colorb.rgb = options.color.rgb;
+    vec2 ctr = (options.mvpmatrix * vec4(options.center, 0.0, 1.0)).xy;
+    float d = distance(vpos, ctr.xy * options.screensize.xy);
+    if(d > radius_border) discard;
+    if(d <= options.radius) {
+        float d2 = options.radius - d;
+        outColor = mix(colorb, options.color, clamp(d2 - options.border/2.0, 0.0, 1.0));
     } else {
-        float d2 = d - radius;
-        outColor = mix(colorb, vec4(colorb.rgb,0), clamp(d2 - border/2, 0.0, 1.0));
+        float d2 = d - options.radius;
+        outColor = mix(colorb, vec4(colorb.rgb,0), clamp(d2 - options.border/2.0, 0.0, 1.0));
     }
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);

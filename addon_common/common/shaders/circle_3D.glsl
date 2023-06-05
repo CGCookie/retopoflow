@@ -1,12 +1,18 @@
-uniform mat4  MVPMatrix;        // pixel matrix
-uniform vec3  center;           // center of circle
-uniform vec4  color;            // color of circle
-uniform vec3  plane_x;          // x direction in plane the circle lies in
-uniform vec3  plane_y;          // y direction in plane the circle lies in
-uniform float radius;           // radius of circle
-uniform float width;            // line width, perpendicular to line (in plane)
-uniform float depth_near;       // depth range near, to ensure drawover
-uniform float depth_far;        // depth range far, to to ensure drawover
+struct Options {
+  mat4  MVPMatrix;  // pixel matrix
+  vec4  center;     // center of circle
+  vec4  color;      // color of circle
+  vec4  plane_x;    // x direction in plane the circle lies in
+  vec4  plane_y;    // y direction in plane the circle lies in
+  vec4  settings;   // radius, line width (perp to line in plane), depth range near for drawover, depth range far
+};
+
+uniform Options options;
+
+float radius()      { return options.settings[0]; }
+float width()       { return options.settings[1]; }
+float depth_near()  { return options.settings[2]; }
+float depth_far()   { return options.settings[3]; }
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -18,9 +24,9 @@ const float TAU = 6.28318530718;
 
 void main() {
     float ang = TAU * pos.x;
-    float r = radius + pos.y * width;
-    vec3 p = center + r * (plane_x * cos(ang) + plane_y * sin(ang));
-    gl_Position = MVPMatrix * vec4(p, 1.0);
+    float r = radius() + pos.y * width();
+    vec3 p = vec3(options.center) + r * (vec3(options.plane_x) * cos(ang) + vec3(options.plane_y) * sin(ang));
+    gl_Position = options.MVPMatrix * vec4(p, 1.0);
 }
 
 
@@ -28,7 +34,7 @@ void main() {
 // fragment shader
 
 out vec4 outColor;
-out float outDepth;
+// out float gl_FragDepth;
 
 const bool srgbTarget = true;
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
@@ -43,9 +49,9 @@ vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 }
 
 void main() {
-    outColor = color;
+    outColor = options.color;
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
-    outDepth = mix(depth_near, depth_far, gl_FragCoord.z);
+    gl_FragDepth = mix(depth_near(), depth_far(), gl_FragCoord.z);
 }
 

@@ -81,11 +81,6 @@ class Shader():
     # https://developer.blender.org/rB21c658b718b9
     # https://developer.blender.org/T74139
     @staticmethod
-    @blender_version_wrapper('<', '2.83')
-    def get_srgb_shim(force=False):
-        return 'vec4 blender_srgb_to_framebuffer_space(vec4 c) { return c; }'
-    @staticmethod
-    @blender_version_wrapper('>=', '2.83')
     def get_srgb_shim(force=False):
         if not force: return ''
         return 'vec4 blender_srgb_to_framebuffer_space(vec4 c) { return pow(c, vec4(1.0/2.2, 1.0/2.2, 1.0/2.2, 1.0)); }'
@@ -423,16 +418,5 @@ class Shader():
         self.checkErrors(f'disable program ({self.name}, {self.shaderProg}) post')
 
 
-
-# brushStrokeShader = Shader.load_from_file('brushStrokeShader', 'brushstroke.glsl', checkErrors=False, bindTo0='vPos', force_shim=True)
-# edgeShortenShader = Shader.load_from_file('edgeShortenShader', 'edgeshorten.glsl', checkErrors=False, bindTo0='vPos', force_shim=True)
-# arrowShader = Shader.load_from_file('arrowShader', 'arrow.glsl', checkErrors=False, force_shim=True)
-
-# def circleShaderStart(shader):
-#     bgl.glDisable(bgl.GL_POINT_SMOOTH)
-#     bgl.glEnable(bgl.GL_POINT_SPRITE)
-# def circleShaderEnd(shader):
-#     bgl.glDisable(bgl.GL_POINT_SPRITE)
-# circleShader = Shader.load_from_file('circleShader', 'circle.glsl', checkErrors=False, funcStart=circleShaderStart, funcEnd=circleShaderEnd, force_shim=True)
 
 
