@@ -34,7 +34,7 @@ void main() {
 // fragment shader
 
 out vec4 outColor;
-// out float gl_FragDepth;
+out float gl_FragDepth;
 
 const bool srgbTarget = true;
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)

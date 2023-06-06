@@ -460,7 +460,8 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
     # OUTPUTS
     for shader_var in frag_shader_vars.values():
         if shader_var['uio'] != 'out': continue
-        # if shader_var['var'] == 'gl_FragDepth': continue
+        # https://wiki.blender.org/wiki/Style_Guide/GLSL#Shared_Shader_Files:~:text=If%20fragment%20shader%20is%20writing%20to%20gl_FragDepth%2C%20usage%20must%20be%20correctly%20defined%20in%20the%20shader%27s%20create%20info%20using%20.depth_write(DepthWrite).
+        if shader_var['var'] == 'gl_FragDepth' and gpu.platform.backend_type_get() != 'METAL': continue
         shader_info.fragment_out(slot_output, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
         slot_output += 1
 

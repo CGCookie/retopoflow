@@ -133,7 +133,7 @@ void main() {
 in vec2 screen_pos;
 
 out vec4 outColor;
-out float outDepth;
+out float gl_FragDepth;
 
 float sqr(float s) { return s * s; }
 float sumsqr(float a, float b) { return sqr(a) + sqr(b); }
@@ -390,11 +390,11 @@ void main() {
 
     // workaround switched-discard (issue #1042)
     if(!DEBUG_DONT_DISCARD) {
-        if(region == REGION_MARGIN_TOP    && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-        if(region == REGION_MARGIN_RIGHT  && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-        if(region == REGION_MARGIN_BOTTOM && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-        if(region == REGION_MARGIN_LEFT   && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) discard;
-        if(region == REGION_OUTSIDE       && !(DEBUG_COLOR_REGIONS)) discard;
+        if(region == REGION_MARGIN_TOP    && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
+        if(region == REGION_MARGIN_RIGHT  && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
+        if(region == REGION_MARGIN_BOTTOM && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
+        if(region == REGION_MARGIN_LEFT   && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
+        if(region == REGION_OUTSIDE       && !(DEBUG_COLOR_REGIONS)) { discard; return; }
     }
 
     switch(region) {
@@ -435,12 +435,12 @@ void main() {
     if(DEBUG_IGNORE_ALPHA) {
         if(c.a < 0.25) {
             c.a = 0.0;
-            if(!DEBUG_DONT_DISCARD) discard;
+            if(!DEBUG_DONT_DISCARD) { discard; return; }
         }
         else c.a = 1.0;
     }
 
     outColor = c;
     //gl_FragDepth = gl_FragDepth * 0.999999;
-    outDepth = gl_FragCoord.z * 0.999999; // fix for issue #915?
+    gl_FragDepth = gl_FragCoord.z * 0.999999; // fix for issue #915?
 }

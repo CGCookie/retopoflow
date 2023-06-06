@@ -180,6 +180,7 @@ in vec3 vCNormal;          // normal wrt camera
 in vec4 vColor;            // color of geometry (considers selection)
 
 out vec4 outColor;
+out float gl_FragDepth;
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 

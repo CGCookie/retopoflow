@@ -183,6 +183,7 @@ in vec4 vColor;            // color of geometry (considers selection)
 in vec2 vPCPosition;
 
 out vec4 outColor;
+out float gl_FragDepth;
 
 vec3 xyz(vec4 v) { return v.xyz / v.w; }
 

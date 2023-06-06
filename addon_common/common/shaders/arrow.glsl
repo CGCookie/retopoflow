@@ -65,7 +65,7 @@ void main() {
     vec2 d = 2.0 * (gl_PointCoord - vec2(0.5, 0.5));
     vec2 dr = vec2(cos(aRot)*d.x - sin(aRot)*d.y, sin(aRot)*d.x + cos(aRot)*d.y);
     float a = alpha(dr);
-    if(a < 0.0) discard;
+    if(a < 0.0) { discard; return; }
     outColor = mix(aOutColor, aInColor, a);
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);

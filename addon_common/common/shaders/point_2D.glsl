@@ -55,7 +55,7 @@ void main() {
     if(colorb.a < (1.0/255.0)) colorb.rgb = options.color.rgb;
     vec2 ctr = (options.mvpmatrix * vec4(options.center, 0.0, 1.0)).xy;
     float d = distance(vpos, ctr.xy * options.screensize.xy);
-    if(d > radius_border) discard;
+    if(d > radius_border) { discard; return; }
     if(d <= options.radius) {
         float d2 = options.radius - d;
         outColor = mix(colorb, options.color, clamp(d2 - options.border/2.0, 0.0, 1.0));
