@@ -257,7 +257,7 @@ class Options:
         'shading matcap dark':          'basic_dark.exr',
         'shading colortype':            'SINGLE',
         'shading color light':          [0.5, 0.5, 0.5],
-        'shading color dark':           [0.9, 0.9, 0.9],
+        'shading color dark':           [0.2, 0.2, 0.2],
         'shading backface culling':     True,
         'shading xray':                 False,
         'shading shadows':              False,

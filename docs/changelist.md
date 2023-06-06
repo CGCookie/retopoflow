@@ -22,6 +22,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Added button to continue editing with active mesh as target
 - Improved start up feedback
 - Added simple rip and rip fill to PolyPen
+- Fixed visual bug when matcaps are not installed
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
