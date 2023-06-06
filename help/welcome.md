@@ -10,7 +10,7 @@ The tools work because of our custom "Retopology Mode", which gets more informat
 
 ## Getting Started
 
-Check out our [quick start guide](quick_start.md) to learn the basics of using RetopoFlow.
+Check out our [quick start guide](quick_start.md) or our [video tutorials](https://cgcookie.com/courses/retopology-with-retopoflow-3) to learn the basics of using RetopoFlow.
 
 RetopoFlow also has a full documentation and help system within the app.
 
