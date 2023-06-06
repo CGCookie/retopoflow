@@ -43,7 +43,6 @@ from .ui_styling import UI_Styling
 from .blender import get_path_from_addon_root, get_path_from_addon_common
 from .boundvar import BoundVar, BoundFloat, BoundInt, BoundString, BoundStringToBool, BoundBool
 from .decorators import blender_version_wrapper
-from .drawing import Drawing, ScissorStack
 from .fontmanager import FontManager
 from .globals import Globals
 from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit

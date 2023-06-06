@@ -45,7 +45,6 @@ from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
 from .blender import tag_redraw_all
-from .drawing import ScissorStack
 from .fsm import FSM
 
 from .useractions import ActionHandler

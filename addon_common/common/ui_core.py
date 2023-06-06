@@ -53,10 +53,10 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from .gpustate import FrameBuffer, ScissorStack
 from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
-from .drawing import ScissorStack, FrameBuffer
 from .fsm import FSM
 
 from .useractions import ActionHandler

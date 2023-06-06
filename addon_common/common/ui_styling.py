@@ -48,7 +48,6 @@ from .blender import get_path_from_addon_common
 from .decorators import blender_version_wrapper, debug_test_call, add_cache
 from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
 from .profiler import profiler
-from .drawing import Drawing, ScissorStack
 from .utils import iter_head, UniqueCounter, join
 from .shaders import Shader
 from .fontmanager import FontManager

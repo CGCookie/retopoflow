@@ -46,7 +46,6 @@ import gpu
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
-from .drawing import ScissorStack
 from .fsm import FSM
 
 from .useractions import ActionHandler

@@ -39,17 +39,16 @@ from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from . import gpustate
+from .gpustate import ScissorStack
 from .ui_linefitter import LineFitter
 from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
-from .drawing import ScissorStack
 from .fsm import FSM
 
 from .useractions import ActionHandler
-
-from . import gpustate
 
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
