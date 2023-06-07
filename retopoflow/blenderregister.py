@@ -61,6 +61,12 @@ except Exception as e:
 
 # the classes to register/unregister
 RF_classes = []
+def add_to_registry(cls_or_list):
+    if isinstance(cls_or_list, list):
+        RF_classes.extend(cls_or_list)
+    else:
+        RF_classes.append(cls_or_list)
+        return cls_or_list
 
 
 # point BlenderIcon to correct icon path
@@ -105,9 +111,9 @@ if import_succeeded:
         VIEW3D_OT_RetopoFlow_Online.__name__ = f'VIEW3D_OT_RetopoFlow_Online_{idname}'
         return VIEW3D_OT_RetopoFlow_Online
 
-    RF_help_classes = [
+    add_to_registry([
         cls
-        for args in [
+        for (label, filename) in [
             ('Quick Start Guide', 'quick_start'),
             ('Welcome Message',   'welcome'),
             ('Table of Contents', 'table_of_contents'),
@@ -117,12 +123,12 @@ if import_succeeded:
             ('Warning Details',   'warnings'),
         ]
         for cls in [
-            VIEW3D_OT_RetopoFlow_Help_Factory(*args),
-            VIEW3D_OT_RetopoFlow_Online_Factory(*args),
+            VIEW3D_OT_RetopoFlow_Help_Factory(label, filename),
+            VIEW3D_OT_RetopoFlow_Online_Factory(label, filename),
         ]
-    ]
-    RF_classes += RF_help_classes
+    ])
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_UpdaterSystem(updatersystem.RetopoFlow_OpenUpdaterSystem):
         """Open RetopoFlow Updater System"""
         bl_idname = "cgcookie.retopoflow_updater"
@@ -131,8 +137,8 @@ if import_succeeded:
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()
-    RF_classes += [VIEW3D_OT_RetopoFlow_UpdaterSystem]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_KeymapEditor(keymapsystem.RetopoFlow_OpenKeymapSystem):
         """Open RetopoFlow Keymap Editor"""
         bl_idname = "cgcookie.retopoflow_keymapeditor"
@@ -141,7 +147,6 @@ if import_succeeded:
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()
-    RF_classes += [VIEW3D_OT_RetopoFlow_KeymapEditor]
 
     if options['preload help images']:
         ImagePreloader.start([
@@ -151,7 +156,7 @@ if import_succeeded:
         ])
 
 
-
+@add_to_registry
 class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     bl_idname = 'cgcookie.retopoflow_blendermarket'
     bl_label = 'Visit Blender Market'
@@ -165,8 +170,8 @@ class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
     def execute(self, context):
         bpy.ops.wm.url_open(url=rfurls['blender market'])
         return {'FINISHED'}
-RF_classes += [VIEW3D_OT_RetopoFlow_BlenderMarket]
 
+@add_to_registry
 class VIEW3D_OT_RetopoFlow_GitHub_NewIssue(Operator):
     bl_idname = 'cgcookie.retopoflow_github_newissue'
     bl_label = 'Create a new issue on GitHub'
@@ -180,8 +185,8 @@ class VIEW3D_OT_RetopoFlow_GitHub_NewIssue(Operator):
     def execute(self, context):
         bpy.ops.wm.url_open(url=rfurls['new github issue'])
         return {'FINISHED'}
-RF_classes += [VIEW3D_OT_RetopoFlow_GitHub_NewIssue]
 
+@add_to_registry
 class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
     bl_idname = 'cgcookie.retopoflow_online_main'
     bl_label = 'Online Documentation'
@@ -195,7 +200,6 @@ class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
     def execute(self, context):
         bpy.ops.wm.url_open(url=rfurls['help docs'])
         return {'FINISHED'}
-RF_classes += [VIEW3D_OT_RetopoFlow_Online_Main]
 
 
 
@@ -204,6 +208,7 @@ if import_succeeded:
     create operators to start RetopoFlow
     '''
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_NewTarget_Cursor(Operator):
         """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow_newtarget_cursor"
@@ -227,8 +232,8 @@ if import_succeeded:
         def invoke(self, context, event):
             retopoflow.RetopoFlow.create_new_target(context)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Cursor]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_NewTarget_Active(Operator):
         """Create new target object+mesh at the active source and start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow_newtarget_active"
@@ -256,8 +261,8 @@ if import_succeeded:
             o = get_active_object()
             retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-    RF_classes += [VIEW3D_OT_RetopoFlow_NewTarget_Active]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_Continue_Active(Operator):
         """Continue with active target object+mesh and start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow_continue_active"
@@ -286,8 +291,8 @@ if import_succeeded:
             # o = get_active_object()
             # retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
             return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-    RF_classes += [VIEW3D_OT_RetopoFlow_Continue_Active]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_LastTool(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow"
@@ -296,8 +301,8 @@ if import_succeeded:
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_LastTool]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_Warnings(retopoflow.RetopoFlow):
         """Start RetopoFlow"""
         bl_idname = "cgcookie.retopoflow_warnings"
@@ -306,7 +311,6 @@ if import_succeeded:
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_Warnings]
 
     def VIEW3D_OT_RetopoFlow_Tool_Factory(rftool):
         name = rftool.name
@@ -328,7 +332,7 @@ if import_succeeded:
         VIEW3D_OT_RetopoFlow_Tool_Factory(rftool)
         for rftool in RFTool.registry
     ]
-    RF_classes += RF_tool_classes
+    add_to_registry(RF_tool_classes)
 
 
 if import_succeeded:
@@ -336,6 +340,7 @@ if import_succeeded:
     create operator for recovering auto save
     '''
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_RecoverOpen(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_open'
         bl_label = 'Recover: Open Last Auto Save'
@@ -353,8 +358,8 @@ if import_succeeded:
         def execute(self, context):
             retopoflow.RetopoFlow.recover_auto_save()
             return {'FINISHED'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverOpen]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_RecoverFolder(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_folder'
         bl_label = 'Recover: Open Folder With Last Auto Save'
@@ -374,8 +379,8 @@ if import_succeeded:
             filename = retopoflow.RetopoFlow.get_auto_save_filename()
             bpy.ops.wm.path_open(filepath=os.path.dirname(filename))
             return {'FINISHED'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverFolder]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_RecoverDelete(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_delete'
         bl_label = 'Permanently Delete Last Auto Save'
@@ -394,8 +399,8 @@ if import_succeeded:
         def execute(self, context):
             retopoflow.RetopoFlow.delete_auto_save()
             return {'FINISHED'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverDelete]
 
+    @add_to_registry
     class VIEW3D_OT_RetopoFlow_RecoverRevert(Operator):
         bl_idname = 'cgcookie.retopoflow_recover_finish'
         bl_label = 'Recover: Finish Auto Save Recovery'
@@ -413,7 +418,6 @@ if import_succeeded:
         def execute(self, context):
             retopoflow.RetopoFlow.recovery_revert()
             return {'FINISHED'}
-    RF_classes += [VIEW3D_OT_RetopoFlow_RecoverRevert]
 
 
 if import_succeeded:
@@ -468,6 +472,7 @@ if import_succeeded:
     elif     configoptions.retopoflow_product['github']:          rf_label_extra = " (github)"
     elif     configoptions.retopoflow_product['blender market']:  rf_label_extra = ""
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
         bl_label = 'RetopoFlow'
@@ -496,6 +501,7 @@ if import_succeeded:
             if cookiecutter.is_broken:
                 layout.label(text=f'BROKEN')
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
@@ -691,6 +697,7 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_online_warningdetails', text='', icon='URL')
 
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow_EditMesh(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
@@ -720,6 +727,7 @@ if import_succeeded:
                 for c in RF_tool_classes:
                     buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
 
+    @add_to_registry
     class VIEW3D_PT_ReteopoFlow_ObjectMode(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
@@ -743,6 +751,7 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
             row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
@@ -780,6 +789,7 @@ if import_succeeded:
             col.separator()
             col.operator('cgcookie.retopoflow_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow_Config(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
@@ -795,58 +805,49 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
 
 
-    class VIEW3D_PT_RetopoFlow_AutoSave(Panel):
-        bl_space_type = 'VIEW_3D'
-        bl_region_type = 'HEADER'
-        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Auto Save'
+    # @add_to_registry
+    # class VIEW3D_PT_RetopoFlow_AutoSave(Panel):
+    #     bl_space_type = 'VIEW_3D'
+    #     bl_region_type = 'HEADER'
+    #     bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+    #     bl_label = 'Auto Save'
 
-        def draw(self, context):
-            layout = self.layout
-            layout.operator(
-                'cgcookie.retopoflow_recover_open',
-                text='Open Last Auto Save',
-                icon='RECOVER_LAST',
-            )
-            # if retopoflow.RetopoFlow.has_backup():
-            #     box.label(text=options['last auto save path'])
+    #     def draw(self, context):
+    #         layout = self.layout
+    #         layout.operator(
+    #             'cgcookie.retopoflow_recover_open',
+    #             text='Open Last Auto Save',
+    #             icon='RECOVER_LAST',
+    #         )
+    #         # if retopoflow.RetopoFlow.has_backup():
+    #         #     box.label(text=options['last auto save path'])
 
 
-    class VIEW3D_PT_RetopoFlow_Updater(Panel):
-        bl_space_type = 'VIEW_3D'
-        bl_region_type = 'HEADER'
-        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Updater'
+    # @add_to_registry
+    # class VIEW3D_PT_RetopoFlow_Updater(Panel):
+    #     bl_space_type = 'VIEW_3D'
+    #     bl_region_type = 'HEADER'
+    #     bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+    #     bl_label = 'Updater'
 
-        def draw(self, context):
-            layout = self.layout
-            if configoptions.retopoflow_product['git version']:
-                box = layout.box().column(align=True)
-                box.label(text='RetopoFlow under Git control') #, icon='DOT')
-                box.label(text='Use Git to Pull latest updates') #, icon='DOT')
-                # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-            else:
-                col = layout.column(align=True)
-                col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
-                col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
+    #     def draw(self, context):
+    #         layout = self.layout
+    #         if configoptions.retopoflow_product['git version']:
+    #             box = layout.box().column(align=True)
+    #             box.label(text='RetopoFlow under Git control') #, icon='DOT')
+    #             box.label(text='Use Git to Pull latest updates') #, icon='DOT')
+    #             # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+    #         else:
+    #             col = layout.column(align=True)
+    #             col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+    #             col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
 
-                col.separator()
-                row = col.row(align=True)
-                row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-                row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
-                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
+    #             col.separator()
+    #             row = col.row(align=True)
+    #             row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+    #             row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
+    #             row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
 
-    RF_classes += [
-        VIEW3D_PT_RetopoFlow,
-        VIEW3D_PT_RetopoFlow_Warnings,
-        VIEW3D_PT_ReteopoFlow_ObjectMode,
-        # VIEW3D_PT_RetopoFlow_CreateNew,
-        VIEW3D_PT_RetopoFlow_EditMesh,
-        VIEW3D_PT_RetopoFlow_HelpAndSupport,
-        VIEW3D_PT_RetopoFlow_Config,
-        # VIEW3D_PT_RetopoFlow_AutoSave,
-        # VIEW3D_PT_RetopoFlow_Updater,
-    ]
 
 
 if not import_succeeded:
@@ -856,6 +857,7 @@ if not import_succeeded:
 
     from .addon_common.common.utils import normalize_triplequote
 
+    @add_to_registry
     class VIEW3D_PT_RetopoFlow(Panel):
         """RetopoFlow Blender Menu"""
         bl_label = "RetopoFlow (broken)"
@@ -911,8 +913,6 @@ if not import_succeeded:
 
             box = layout.box()
             box.operator('cgcookie.retopoflow_blendermarket', icon='URL')
-
-    RF_classes += [VIEW3D_PT_RetopoFlow]
 
 
 def register(bl_info):
