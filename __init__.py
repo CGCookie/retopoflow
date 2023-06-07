@@ -24,21 +24,20 @@ import bpy
 from .addon_common.hive.hive import Hive
 from .addon_common.common import term_printer
 
+#################################################################################################################################
+# NOTE: the following lines are automatically updated based on hive.json
+#       if "warning" is present (not commented out), a warning icon will show in add-ons list
 bl_info = {
-    #################################################################################################################################
-    # NOTE: the following lines are automatically updated based on hive.json                                                        #
-    "name":        "RetopoFlow",                                                                                                    # @hive.name
-    "description": "A suite of retopology tools for Blender through a unified retopology mode",                                     # @hive.description
-    "author":      "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart", # @hive.author
-    "blender":     (3, 4, 1),                                                                                                       # @hive.blender_min_ver
-    "version":     (3, 4, 0),                                                                                                       # @hive.version
-    "warning":     "Alpha",                                                                                                         # @hive.release
-    "doc_url":     "https://docs.retopoflow.com",                                                                                   # @hive.doc_url
-    "tracker_url": "https://github.com/CGCookie/retopoflow/issues",                                                                 # @hive.issue_url
-    # if "warning" is present (not commented out), a warning icon will show in add-ons list                                         #
-    #################################################################################################################################
-    "location":    "View 3D > Header",
-    "category":    "3D View",
+    "name":         "RetopoFlow",
+    "description":  "A suite of retopology tools for Blender through a unified retopology mode",
+    "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
+    "blender":      (3, 4, 1),
+    "version":      (3, 4, 0),
+    "doc_url":      "https://docs.retopoflow.com",
+    "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
+    "location":     "View 3D > Header",
+    "category":     "3D View",
+    "warning":      "Alpha",
 }
 
 # update bl_info above based on hive data
