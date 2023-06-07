@@ -13,6 +13,7 @@ from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
 from ..addon_common.hive.hive import Hive
+from ..addon_common.common.decorators import add_cache
 
 
 import_succeeded = False
@@ -69,17 +70,26 @@ def add_to_registry(cls_or_list):
         return cls_or_list
 
 
-# point BlenderIcon to correct icon path
 if import_succeeded:
+    # point BlenderIcon to correct icon path
     BlenderIcon.path_icons = get_path_from_addon_root('icons')
 
+    if options['preload help images']:
+        # start preloading images
+        ImagePreloader.start([
+            ('help'),
+            ('icons'),
+            ('addon_common', 'common', 'images'),
+        ])
 
-if import_succeeded:
-    '''
-    create operators for viewing RetopoFlow help documents
-    '''
 
-    def VIEW3D_OT_RetopoFlow_Help_Factory(label, filename):
+##################################################################################
+# Blender Operator Factories
+
+@add_cache('_cache', {})
+def create_help_builtin_operator(label, filename):
+    key = (label, filename)
+    if key not in create_help_builtin_operator._cache:
         idname = label.replace(' ', '')
         class VIEW3D_OT_RetopoFlow_Help(helpsystem.RetopoFlow_OpenHelpSystem):
             """Open RetopoFlow Help System"""
@@ -91,9 +101,14 @@ if import_succeeded:
             bl_options = set()
             rf_startdoc = f'{filename}.md'
         VIEW3D_OT_RetopoFlow_Help.__name__ = f'VIEW3D_OT_RetopoFlow_Help_{idname}'
-        return VIEW3D_OT_RetopoFlow_Help
+        add_to_registry(VIEW3D_OT_RetopoFlow_Help)
+        create_help_builtin_operator._cache[key] = VIEW3D_OT_RetopoFlow_Help
+    return create_help_builtin_operator._cache[key]
 
-    def VIEW3D_OT_RetopoFlow_Online_Factory(label, filename):
+@add_cache('_cache', {})
+def create_help_online_operator(label, filename):
+    key = (label, filename)
+    if key not in create_help_online_operator._cache:
         idname = label.replace(' ', '')
         class VIEW3D_OT_RetopoFlow_Online(Operator):
             """Open RetopoFlow Help Online"""
@@ -109,24 +124,72 @@ if import_succeeded:
                 bpy.ops.wm.url_open(url=rfurls['help doc'](filename))
                 return {'FINISHED'}
         VIEW3D_OT_RetopoFlow_Online.__name__ = f'VIEW3D_OT_RetopoFlow_Online_{idname}'
-        return VIEW3D_OT_RetopoFlow_Online
+        add_to_registry(VIEW3D_OT_RetopoFlow_Online)
+        create_help_online_operator._cache[key] = VIEW3D_OT_RetopoFlow_Online
+    return create_help_online_operator._cache[key]
 
-    add_to_registry([
-        cls
-        for (label, filename) in [
-            ('Quick Start Guide', 'quick_start'),
-            ('Welcome Message',   'welcome'),
-            ('Table of Contents', 'table_of_contents'),
-            ('FAQ',               'faq'),
-            ('Keymap Editor',     'keymap_editor'),
-            ('Updater System',    'addon_updater'),
-            ('Warning Details',   'warnings'),
-        ]
-        for cls in [
-            VIEW3D_OT_RetopoFlow_Help_Factory(label, filename),
-            VIEW3D_OT_RetopoFlow_Online_Factory(label, filename),
-        ]
-    ])
+@add_cache('_cache', {})
+def create_webpage_operator(name, label, description, url):
+    key = (name, label, description, url)
+    if key not in create_webpage_operator._cache:
+        idname = name.lower()
+        class VIEW3D_OT_RetopoFlow_Web(Operator):
+            bl_idname = f'cgcookie.retopoflow_web_{idname}'
+            bl_label = f'{label}'
+            bl_description = f'Open {description} in the default browser'
+            bl_space_type = 'VIEW_3D'
+            bl_region_type = 'TOOLS'
+            bl_options = set()
+            def invoke(self, context, event):
+                return self.execute(context)
+            def execute(self, context):
+                bpy.ops.wm.url_open(url=url)
+                return {'FINISHED'}
+        VIEW3D_OT_RetopoFlow_Web.__name__ = f'VIEW3D_OT_RetopoFlow_Web_{name}'
+        add_to_registry(VIEW3D_OT_RetopoFlow_Web)
+        create_webpage_operator._cache[key] = VIEW3D_OT_RetopoFlow_Web
+    return create_webpage_operator._cache[key]
+
+
+
+##################################################################################
+
+create_webpage_operator(
+    'BlenderMarket',
+    'Visit Blender Market',
+    'Blender Market RetopoFlow',
+    rfurls['blender market'],
+)
+
+create_webpage_operator(
+    'GitHub_NewIssue',
+    'Create a new issue on GitHub',
+    'RetopoFlow GitHub New Issue Page',
+    rfurls['new github issue'],
+)
+
+create_webpage_operator(
+    'Online_Main',
+    'Online documentation',
+    'RetopoFlow Online Documentation',
+    rfurls['help docs'],
+)
+
+
+
+if import_succeeded:
+    # create operators for viewing RetopoFlow help documents
+    for (label, filename) in [
+        ('Quick Start Guide', 'quick_start'),
+        ('Welcome Message',   'welcome'),
+        ('Table of Contents', 'table_of_contents'),
+        ('FAQ',               'faq'),
+        ('Keymap Editor',     'keymap_editor'),
+        ('Updater System',    'addon_updater'),
+        ('Warning Details',   'warnings'),
+    ]:
+        create_help_builtin_operator(label, filename),
+        create_help_online_operator(label, filename),
 
     @add_to_registry
     class VIEW3D_OT_RetopoFlow_UpdaterSystem(updatersystem.RetopoFlow_OpenUpdaterSystem):
@@ -148,58 +211,6 @@ if import_succeeded:
         bl_region_type = "TOOLS"
         bl_options = set()
 
-    if options['preload help images']:
-        ImagePreloader.start([
-            ('help'),
-            ('icons'),
-            ('addon_common', 'common', 'images'),
-        ])
-
-
-@add_to_registry
-class VIEW3D_OT_RetopoFlow_BlenderMarket(Operator):
-    bl_idname = 'cgcookie.retopoflow_blendermarket'
-    bl_label = 'Visit Blender Market'
-    bl_description = 'Open the Blender Market RetopoFlow page'
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_options = set()
-
-    def invoke(self, context, event):
-        return self.execute(context)
-    def execute(self, context):
-        bpy.ops.wm.url_open(url=rfurls['blender market'])
-        return {'FINISHED'}
-
-@add_to_registry
-class VIEW3D_OT_RetopoFlow_GitHub_NewIssue(Operator):
-    bl_idname = 'cgcookie.retopoflow_github_newissue'
-    bl_label = 'Create a new issue on GitHub'
-    bl_description = 'Open the RetopoFlow GitHub new issue page'
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_options = set()
-
-    def invoke(self, context, event):
-        return self.execute(context)
-    def execute(self, context):
-        bpy.ops.wm.url_open(url=rfurls['new github issue'])
-        return {'FINISHED'}
-
-@add_to_registry
-class VIEW3D_OT_RetopoFlow_Online_Main(Operator):
-    bl_idname = 'cgcookie.retopoflow_online_main'
-    bl_label = 'Online Documentation'
-    bl_description = 'Open RetopoFlow Online Documentation'
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_options = set()
-
-    def invoke(self, context, event):
-        return self.execute(context)
-    def execute(self, context):
-        bpy.ops.wm.url_open(url=rfurls['help docs'])
-        return {'FINISHED'}
 
 
 
@@ -784,10 +795,10 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_online_faq', text='', icon='URL')
 
             # col.separator()
-            # col.operator('cgcookie.retopoflow_online_main', icon='HELP')
+            # col.operator('cgcookie.retopoflow_web_online_main', icon='HELP')
 
             col.separator()
-            col.operator('cgcookie.retopoflow_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
+            col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Config(Panel):
@@ -912,7 +923,7 @@ if not import_succeeded:
                         col.label(text=l, icon=icons[0 if i==0 else 1])
 
             box = layout.box()
-            box.operator('cgcookie.retopoflow_blendermarket', icon='URL')
+            box.operator('cgcookie.retopoflow_web_blendermarket', icon='URL')
 
 
 def register(bl_info):

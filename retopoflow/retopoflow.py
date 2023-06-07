@@ -217,8 +217,8 @@ class RetopoFlow(
                 [
                     'An unexpected error occurred while trying to start RetopoFlow.',
                     'Please consider reporting this issue so that we can fix it.',
-                    BlenderPopupOperator('cgcookie.retopoflow_blendermarket', icon='URL'),
-                    BlenderPopupOperator('cgcookie.retopoflow_github_newissue', icon='URL'),
+                    BlenderPopupOperator('cgcookie.retopoflow_web_blendermarket', icon='URL'),
+                    BlenderPopupOperator('cgcookie.retopoflow_web_github_newissue', icon='URL'),
                 ],
                 title='RetopoFlow Error',
             )
