@@ -253,11 +253,11 @@ class Options:
         'override shading':             'dark',    # light, dark, or off. Sets optimal values for backface culling, xray, shadows, cavity, outline, and matcap
         'shading view':                 'SOLID',
         'shading light':                'MATCAP',
-        'shading matcap light':         'basic_1.exr',
-        'shading matcap dark':          'basic_dark.exr',
+        'shading matcap light':         'retopoflow_light.exr', # found under matcaps/
+        'shading matcap dark':          'retopoflow_dark.exr',  # found under matcaps/
         'shading colortype':            'SINGLE',
-        'shading color light':          [0.5, 0.5, 0.5],
-        'shading color dark':           [0.2, 0.2, 0.2],
+        'shading color light':          [1.0, 1.0, 1.0],
+        'shading color dark':           [1.0, 1.0, 1.0],
         'shading backface culling':     True,
         'shading xray':                 False,
         'shading shadows':              False,

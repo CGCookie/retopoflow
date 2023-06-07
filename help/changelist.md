@@ -28,6 +28,7 @@ This version of RetopoFlow requires Blender 3.4 or later.
 - Improved handling of when Blender version is outside requirements
 - Restructured and cleaned code base
 - Improved Hive integration
+- Light and Dark themes now use built-in matcaps
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

@@ -24,6 +24,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import inspect
 from datetime import datetime
 import contextlib
@@ -137,9 +138,10 @@ class RetopoFlow_UI:
             self.shading_colortype_set(options['shading colortype'])
             matcap = options['shading matcap dark']
             self.shading_color_set(options['shading color dark'])
-        if matcap and matcap not in bpy.context.preferences.studio_lights:
-            matcap = None
         if matcap:
+            if matcap not in bpy.context.preferences.studio_lights:
+                path_rf_matcap = os.path.join(get_path_from_addon_root('matcaps'), matcap)
+                bpy.context.preferences.studio_lights.load(path_rf_matcap, 'MATCAP')
             self.shading_light_set(options['shading light'])
             self.shading_matcap_set(matcap)
 
