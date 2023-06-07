@@ -52,9 +52,12 @@ __all__ = [
     'xmesh',
 ]
 
-# import the following only to populate the globals
-from . import debug as _
-from . import drawing as _
-from . import logger as _
-from . import profiler as _
-from . import ui_core as _
+
+import bpy
+if bpy.app.version >= (3, 2, 0):
+    # import the following only to populate the globals
+    from . import debug as _
+    from . import drawing as _
+    from . import logger as _
+    from . import profiler as _
+    from . import ui_core as _

@@ -540,7 +540,7 @@ if not bpy.app.background:
 
 
 
-if not bpy.app.background:
+if not bpy.app.background and bpy.app.version >= (3, 2, 0):
     import gpu
     from gpu_extras.batch import batch_for_shader
 

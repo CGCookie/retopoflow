@@ -19,6 +19,7 @@ HIVE_VAL          = $(shell pwd)/scripts/get_hive_value.py
 DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
+BLENDER           = ~/software/blender/blender
 
 # name, version, and release are pulled from hive.json file
 NAME    = "$(shell $(HIVE_VAL) name)"
@@ -53,12 +54,12 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 info:
 	@echo "Information:"
 	@echo "  "$(NAME)" "$(ZIP_VERSION)
-	@echo "  Build Path: "$(BUILD_DIR)
+	@echo "  Build Path:   "$(BUILD_DIR)
 	@echo "  Install Path: "$(INSTALL_DIR)
 	@echo "Targets:"
 	@echo "  documentation: docs, docs-serve, docs-clean, thumbnails"
-	@echo "  development: clean, check, gittag, install"
-	@echo "  build: build-github, build-blendermarket"
+	@echo "  development:   clean, check, gittag, install"
+	@echo "  build:         build-github, build-blendermarket"
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -70,6 +71,9 @@ gittag:
 	git tag -a $(VVERSION) -m $(GIT_TAG_MESSAGE)
 	git push origin $(VVERSION)
 
+blinfo:
+	@echo "Updating bl_info in __init__.py by running Blender with --background"
+	$(BLENDER) --background
 
 docs:
 	# rebuild online docs
@@ -90,7 +94,10 @@ thumbnails:
 	# create thumbnails
 	cd help && python3 $(CREATE_THUMBNAILS)
 
-build-github: check
+build: build-github build-blendermarket
+	@echo
+
+build-github: check blinfo thumbnails docs
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 
@@ -109,7 +116,7 @@ build-github: check
 	@echo
 	@echo $(NAME)" "$(VVERSION)" is ready"
 
-build-blendermarket: check
+build-blendermarket: check blinfo thumbnails docs
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)/$(NAME)
 

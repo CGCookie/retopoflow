@@ -4,11 +4,14 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.3.0&rarr;3.4.0
 
+This version of RetopoFlow requires Blender 3.4 or later.
+
+- Continued removing code that relies on deprecated `bgl` module
+- Continued working toward supporting Metal
 - Added `view_roll` keymap
-- Fixed compatibility with Blender 2.93--3.2
 - Improved performance when navigating
-- Improved error handling during startup
-- Continued removing code that uses `bgl` module
+- Improved error handling during startup process
+- Improved general feedback during startup process
 - Added keymap to select all linked
 - Fixed crashing bug when cutting across non-manifold edge using Contours
 - Fixed bug when using knife where no source geometry exists
@@ -17,12 +20,14 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved reporting and operations with auto saves
 - Fixed NDOF inputs
 - Fixed bug when cancelling Contours cut
-- Improved indication of warnings
+- Improved indication of warnings in Blender menu
 - Consistent fixed span/segment count for all insertions with Strokes
 - Added button to continue editing with active mesh as target
-- Improved start up feedback
 - Added simple rip and rip fill to PolyPen
 - Fixed visual bug when matcaps are not installed
+- Improved handling of when Blender version is outside requirements
+- Restructured and cleaned code base
+- Improved Hive integration
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

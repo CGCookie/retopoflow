@@ -472,7 +472,7 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
         if shader_var['var'] == 'gl_FragDepth':
             if bpy.app.version > (3, 6, 0):
                 shader_info.depth_write('ANY')
-            if gpu.platform.backend_type_get() == 'OPENGL':
+            if bpy.app.version < (3, 4, 0) or gpu.platform.backend_type_get() == 'OPENGL':
                 continue
         shader_info.fragment_out(slot_output, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
         slot_output += 1

@@ -1,9 +1,13 @@
 {
     "name": "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
+    "author": "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "version": "3.4.0",
     "release": "alpha",
     "source": "Blender Market",
+    "blender hard minimum version": "3.2.0",
+    "blender minimum version": "3.4.1",
+    "blender maximum version": "",
     "product url": "https://blendermarket.com/products/retopoflow",
     "documentation url": "https://docs.retopoflow.com",
     "issue url": "https://github.com/CGCookie/retopoflow/issues"
