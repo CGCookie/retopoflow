@@ -139,7 +139,7 @@ The Theme option changes the color of selected geometry.
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.
-Vertex Size and Edge Size control how large the vertices and how think the edges are.
+Vertex Size and Edge Size control how large the vertices and how thick the edges are.
 
 
 
