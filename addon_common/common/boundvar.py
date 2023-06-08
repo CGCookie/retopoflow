@@ -198,12 +198,16 @@ class BoundInt(BoundVar):
 
 
 class BoundFloat(BoundVar):
-    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, frame_depth=2, **kwargs):
+    def __init__(self, value_str, *, min_value=None, max_value=None, step_size=None, frame_depth=2, format_str=None, **kwargs):
         super().__init__(value_str, frame_depth=frame_depth, **kwargs)
         self._min_value = min_value
         self._max_value = max_value
         self._step_size = step_size or 0
         self.add_validator(self.float_validator)
+        self._format_str = '%0.5f' if format_str is None else format_str
+
+    def __str__(self):
+        return self._format_str % self.value
 
     @property
     def min_value(self): return self._min_value

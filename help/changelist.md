@@ -30,6 +30,7 @@ This version of RetopoFlow requires Blender 3.4 or later.
 - Improved Hive integration
 - Light and Dark themes now use built-in matcaps
 - Ray casts ignores source geometry that is clipped (near clip only) or culled (backface)
+- Preliminary work to mirror actions to "correct" side of symmetry plane(s)
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

@@ -596,7 +596,7 @@ def mirror_changed(self):
                     <div class="contents">
                         <div class="labeled-input-text">
                             <label for="merge-apply-threshold">Threshold</label>
-                            <input id="merge-apply-threshold" type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.001)" title='Distance within which mirrored vertices will be merged'> <!-- scrub -->
+                            <input id="merge-apply-threshold" type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.00001)" title='Distance within which mirrored vertices will be merged'> <!-- scrub -->
                         </div>
                         <button title="Apply mirror symmetry to target mesh" on_mouseclick="self.apply_mirror_symmetry()">Apply Mirror</button>
                     </div>
