@@ -70,6 +70,7 @@ class RetopoFlow_Target:
         self._last_visible_dist_offset = None
         self._last_selection_occlusion_test = None
         self._last_selection_backface_test = None
+        self._last_ray_ignore_backface_sources = None
         self._last_draw_count = -1
         self._draw_count = 0
 
@@ -158,6 +159,7 @@ class RetopoFlow_Target:
         recompute |= options['visible dist offset'] != self._last_visible_dist_offset
         recompute |= options['selection occlusion test'] != self._last_selection_occlusion_test
         recompute |= options['selection backface test'] != self._last_selection_backface_test
+        recompute |= self.ray_ignore_backface_sources() != self._last_ray_ignore_backface_sources
         recompute &= not self.accel_defer_recomputing
         recompute &= (not self._nav) and (time.time() - self._nav_time) > 0.125
         recompute &= self._draw_count != self._last_draw_count
@@ -183,6 +185,7 @@ class RetopoFlow_Target:
             self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
             self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
             self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D)
+            self._last_ray_ignore_backface_sources = self.ray_ignore_backface_sources()
             self._last_visible_bbox_factor = options['visible bbox factor']
             self._last_visible_dist_offset = options['visible dist offset']
             self._last_selection_occlusion_test = options['selection occlusion test']
@@ -478,12 +481,20 @@ class RetopoFlow_Target:
         if mm.z and abs(point.z) <= th: planes.add('z')
         return planes
 
-    def mirror_point(self, point):
+    def mirror_point(self, point, normal=None):
         p = self.rftarget.xform.w2l_point(point)
-        if self.rftarget.mirror_mod.x: p.x = abs(p.x)
-        if self.rftarget.mirror_mod.y: p.y = abs(p.y)
-        if self.rftarget.mirror_mod.z: p.z = abs(p.z)
+        if self.rftarget.mirror_mod.x and p.x < 0: p.x = -p.x
+        if self.rftarget.mirror_mod.y and p.y > 0: p.y = -p.y
+        if self.rftarget.mirror_mod.z and p.z < 0: p.z = -p.z
         return self.rftarget.xform.l2w_point(p)
+
+    def mirror_point_normal(self, point, normal):
+        p = self.rftarget.xform.w2l_point(point)
+        n = self.rftarget.xform.w2l_normal(normal)
+        if self.rftarget.mirror_mod.x and p.x < 0: p.x, n.x = -p.x, -n.x
+        if self.rftarget.mirror_mod.y and p.y > 0: p.y, n.y = -p.y, -n.y
+        if self.rftarget.mirror_mod.z and p.z < 0: p.z, n.z = -p.z, -n.z
+        return (self.rftarget.xform.l2w_point(p), self.rftarget.xform.l2w_normal(n))
 
     def get_point_symmetry(self, point):
         return self.rftarget.get_point_symmetry(point)
@@ -601,28 +612,28 @@ class RetopoFlow_Target:
         vert.normal = n
 
 
-    def new_vert_point(self, xyz:Point):
+    def new_vert_point(self, xyz:Point, *, ignore_backface=None):
         if not xyz: return None
         xyz, norm, _, _ = self.nearest_sources_Point(xyz)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
         d = self.Point_to_Direction(xyz)
-        _, n, _, _ = self.raycast_sources_Point(xyz)
+        _, n, _, _ = self.raycast_sources_Point(xyz, ignore_backface=ignore_backface)
         if d and n and n.dot(d) > 0.5: self._detected_bad_normals = True
         # if (d is None or norm.dot(d) > 0.5) and self.is_visible(rfvert.co, bbox_factor_override=0, dist_offset_override=0):
         #     self._detected_bad_normals = True
         return rfvert
 
-    def new2D_vert_point(self, xy:Point2D):
-        xyz, norm, _, _ = self.raycast_sources_Point2D(xy)
+    def new2D_vert_point(self, xy:Point2D, *, ignore_backface=None):
+        xyz, norm, _, _ = self.raycast_sources_Point2D(xy, ignore_backface=ignore_backface)
         if not xyz or not norm: return None
         rfvert = self.rftarget.new_vert(xyz, norm)
         if rfvert.normal.dot(self.Point2D_to_Direction(xy)) >= 0 and self.is_visible(rfvert.co):
             self._detected_bad_normals = True
         return rfvert
 
-    def new2D_vert_mouse(self):
-        return self.new2D_vert_point(self.actions.mouse)
+    def new2D_vert_mouse(self, *, ignore_backface=None):
+        return self.new2D_vert_point(self.actions.mouse, ignore_backface=ignore_backface)
 
     def new_edge(self, verts):
         return self.rftarget.new_edge(verts)

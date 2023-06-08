@@ -654,12 +654,16 @@ class RFMesh():
 
     ##########################################################
 
-    def raycast(self, ray:Ray):
+    def raycast(self, ray:Ray, *, ignore_backface=False, backface_push=0.00001, max_backface_pushes=20):
         ray_local = self.xform.w2l_ray(ray)
-        p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
-        if p is None: return (None, None, None, None)
-        #if not self.get_bbox().Point_within(p, margin=1):
-        #    return (None,None,None,None)
+        for _ in range(max_backface_pushes):
+            p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
+            if not p: return (None, None, None, None)
+            if not (ignore_backface and n.dot(ray_local.d) > 0): break
+            ray_local.max -= (p - ray_local.o).length
+            ray_local.o = p + ray_local.d * backface_push
+        else:
+            return (None, None, None, None)
         p_w,n_w = self.xform.l2w_point(p), self.xform.l2w_normal(n)
         d_w = (ray.o - p_w).length
         if math.isinf(d_w) or math.isnan(d_w): return (None, None, None, None)
@@ -683,10 +687,17 @@ class RFMesh():
         return hits
 
     @profiler.function
-    def raycast_hit(self, ray:Ray):
+    def raycast_hit(self, ray:Ray, *, ignore_backface=False, backface_push=0.00001, max_backface_pushes=20):
         ray_local = self.xform.w2l_ray(ray)
-        p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
-        return p is not None
+        for _ in range(max_backface_pushes):
+            p,n,i,d = self.get_bvh().ray_cast(ray_local.o, ray_local.d, ray_local.max)
+            if not p: return False
+            if not (ignore_backface and n.dot(ray_local.d) > 0): break
+            ray_local.max -= (p - ray_local.o).length
+            ray_local.o = p + ray_local.d * backface_push
+        else:
+            return False
+        return True
 
     def nearest(self, point:Point, max_dist=float('inf')): #sys.float_info.max):
         point_local = self.xform.w2l_point(point)

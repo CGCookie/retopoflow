@@ -101,16 +101,18 @@ class RetopoFlow_Sources:
     ###################################################
     # ray casting functions
 
-    def raycast_sources_Ray(self, ray:Ray):
+    def raycast_sources_Ray(self, ray:Ray, *, correct_mirror=True, ignore_backface=None):
+        ignore_backface = self.ray_ignore_backface_sources() if ignore_backface is None else ignore_backface
         bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
             if not self.get_rfsource_snap(rfsource): continue
-            hp,hn,hi,hd = rfsource.raycast(ray)
+            hp,hn,hi,hd = rfsource.raycast(ray, ignore_backface=ignore_backface)
             if hp is None:     continue     # did we miss?
             if isinf(hd):      continue     # is distance infinitely far away?
             if isnan(hd):      continue     # is distance NaN?  (issue #1062)
             if bp and bd < hd: continue     # have we seen a closer hit already?
             bp,bn,bi,bd,bo = hp,hn,hi,hd,rfsource
+        if correct_mirror and bp and bn: bp, bn = self.mirror_point_normal(bp, bn)
         return (bp,bn,bi,bd)
 
     def raycast_sources_Ray_all(self, ray:Ray):
@@ -121,21 +123,21 @@ class RetopoFlow_Sources:
             if self.get_rfsource_snap(rfsource)
         ]
 
-    def raycast_sources_Point2D(self, xy:Point2D):
+    def raycast_sources_Point2D(self, xy:Point2D, *, correct_mirror=True, ignore_backface=None):
         if xy is None: return None,None,None,None
-        return self.raycast_sources_Ray(self.Point2D_to_Ray(xy))
+        return self.raycast_sources_Ray(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start), correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
     def raycast_sources_Point2D_all(self, xy:Point2D):
         if xy is None: return None,None,None,None
-        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy))
+        return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start))
 
-    def raycast_sources_mouse(self):
-        return self.raycast_sources_Point2D(self.actions.mouse)
+    def raycast_sources_mouse(self, *, correct_mirror=True, ignore_backface=None):
+        return self.raycast_sources_Point2D(self.actions.mouse, correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
-    def raycast_sources_Point(self, xyz:Point):
+    def raycast_sources_Point(self, xyz:Point, *, correct_mirror=True, ignore_backface=None):
         if xyz is None: return None,None,None,None
         xy = self.Point_to_Point2D(xyz)
-        return self.raycast_sources_Point2D(xy)
+        return self.raycast_sources_Point2D(xy, correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
 
     ###################################################
@@ -171,6 +173,9 @@ class RetopoFlow_Sources:
     ###################################################
     # visibility testing
 
+    def ray_ignore_backface_sources(self):
+        return self.shading_backface_get()
+
     @profiler.function
     def is_visible(self, point:Point, normal:Normal=None, bbox_factor_override=None, dist_offset_override=None, occlusion_test_override=None, backface_test_override=None):
         p2D = self.Point_to_Point2D(point)
@@ -180,12 +185,15 @@ class RetopoFlow_Sources:
         bbox_factor = options['visible bbox factor'] if bbox_factor_override is None else bbox_factor_override
         dist_offset = options['visible dist offset'] if dist_offset_override is None else dist_offset_override
         max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
-        ray = self.Point_to_Ray(point, max_dist_offset=-max_dist_offset)
+        ray = self.Point_to_Ray(point, min_dist=self.drawing.space.clip_start, max_dist_offset=-max_dist_offset)
         if not ray: return False
         if backface_test_override or (backface_test_override is None and options['selection backface test']):
             if normal and normal.dot(ray.d) >= 0: return False
         if occlusion_test_override or (occlusion_test_override is None and options['selection occlusion test']):
-            if any(rfsource.raycast_hit(ray) for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)): return False
+            return not any(
+                rfsource.raycast_hit(ray, ignore_backface=self.ray_ignore_backface_sources())
+                for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)
+            )
         return True
 
     def is_nonvisible(self, *args, **kwargs):

@@ -22,8 +22,12 @@ Created by Jonathan Denning, Jonathan Williamson
 import bpy
 
 from mathutils import Matrix, Vector
-from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_vector_3d
-from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_origin_3d
+from bpy_extras.view3d_utils import (
+    location_3d_to_region_2d,
+    region_2d_to_vector_3d,
+    region_2d_to_location_3d,
+    region_2d_to_origin_3d,
+)
 
 from ...config.options import options
 from ...addon_common.common.blender import quat_vector_mult
@@ -110,11 +114,11 @@ class RetopoFlow_Spaces:
         if o is None: return None
         return Point(o)
 
-    def Point2D_to_Ray(self, xy:Point2D):
+    def Point2D_to_Ray(self, xy:Point2D, *, min_dist=0.0):
         if xy is None: return None
         o, d = self.Point2D_to_Origin(xy), self.Point2D_to_Direction(xy)
         if o is None or d is None: return None
-        return Ray(o, d)
+        return Ray(o, d, min_dist=min_dist)
 
     def Point2D_to_Point(self, xy:Point2D, depth:float):
         r = self.Point2D_to_Ray(xy)
