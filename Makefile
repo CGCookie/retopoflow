@@ -43,7 +43,7 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 
 .DEFAULT_GOAL 	:= info
 
-.PHONY: docs
+# .PHONY: _build-pre _build-post
 
 
 # /./././././././././././././././././././././././././././././././
@@ -57,9 +57,9 @@ info:
 	@echo "  Build Path:   "$(BUILD_DIR)
 	@echo "  Install Path: "$(INSTALL_DIR)
 	@echo "Targets:"
-	@echo "  documentation: docs, docs-serve, docs-clean, thumbnails"
 	@echo "  development:   clean, check, gittag, install"
-	@echo "  build:         build-github, build-blendermarket"
+	@echo "  documentation: build-docs, serve-docs, clean-docs, build-thumbnails"
+	@echo "  build zips:    build-github, build-blendermarket"
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -75,65 +75,61 @@ blinfo:
 	@echo "Updating bl_info in __init__.py by running Blender with --background"
 	$(BLENDER) --background
 
-docs:
+
+build-docs:
 	# rebuild online docs
 	python3 $(DOCS_REBUILD)
 
-docs-serve:
+serve-docs:
 	cd docs && bundle exec jekyll serve
 
-docs-clean:
+clean-docs:
 	cd docs && bundle exec jekyll clean
+
 
 check:
 	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
 	# most Windows setups have issues with these
 	./scripts/detect_filename_case_conflicts.py
 
-thumbnails:
+build-thumbnails:
 	# create thumbnails
 	cd help && python3 $(CREATE_THUMBNAILS)
 
-build: build-github build-blendermarket
-	@echo
+build:
+	make build-github
+	make build-blendermarket
 
-build-github: check blinfo thumbnails docs
-	mkdir -p $(BUILD_DIR)
+
+_build-pre: check
+	make blinfo build-thumbnails build-docs
 	mkdir -p $(BUILD_DIR)/$(NAME)
-
 	# copy files over to build folder
 	# note: rsync flag -a == archive (same as -rlptgoD)
 	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+
+_build-post:
+	# run debug cleanup
+	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
+
+
+build-github:
+	make _build-pre
 	# touch file so that we know it was packaged by us
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow for release on GitHub." > $(CGCOOKIE_BUILT)
-	# run debug cleanup
-	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
-	# create thumbnails
-	cd $(BUILD_DIR)/$(NAME)/help && python3 $(CREATE_THUMBNAILS)
+	make _build-post
 	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_GH) $(NAME)
+	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
-	@echo
-	@echo $(NAME)" "$(VVERSION)" is ready"
-
-build-blendermarket: check blinfo thumbnails docs
-	mkdir -p $(BUILD_DIR)
-	mkdir -p $(BUILD_DIR)/$(NAME)
-
-	# copy files over to build folder
-	# note: rsync flag -a == archive (same as -rlptgoD)
-	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
+build-blendermarket:
+	make _build-pre
 	# touch file so that we know it was packaged by us
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow for release on Blender Market." > $(CGCOOKIE_BUILT)
-	# run debug cleanup
-	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
-	# create thumbnails
-	cd $(BUILD_DIR)/$(NAME)/help && python3 $(CREATE_THUMBNAILS)
+	make _build-post
 	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_BM) $(NAME)
-
-	@echo
-	@echo $(NAME)" "$(VVERSION)" is ready"
+	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
 
 install:
