@@ -181,7 +181,7 @@ right_rf_keymaps = {
     'select path add': ['CTRL+SHIFT+RIGHTMOUSE+CLICK'],
 }
 
-def get_keymaps(force_reload=False):
+def get_keymaps(*, force_reload=False):
     if not get_keymaps.keymap or force_reload:
         keymap = copy.deepcopy(default_rf_keymaps)
         keymap_lr = left_rf_keymaps if mouse_select() == 'LEFT' else right_rf_keymaps
@@ -231,12 +231,12 @@ get_keymaps.keymap = None
 get_keymaps.orig = None
 
 def reset_all_keymaps():
-    get_keymaps()
+    get_keymaps(force_reload=True)
     keymap, orig = get_keymaps.keymap, get_keymaps.orig
     for a in keymap.keys(): keymap[a] = list(orig[a])
 
 def reset_keymap(action):
-    get_keymaps()
+    get_keymaps(force_reload=True)
     get_keymaps.keymap[action] = list(get_keymaps.orig[action])
 
 def save_custom_keymaps():

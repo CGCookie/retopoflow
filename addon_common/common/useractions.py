@@ -766,8 +766,8 @@ class Actions:
         self.alt_right   = False
 
         if all_state:
-            self.mouse_select     = bprefs.mouse_select()
-            self.mouse            = None    # current mouse position
+            self.mouse_select = bprefs.mouse_select()
+            self.mouse        = None    # current mouse position
         self.mouse_prev       = None    # previous mouse position
         self.mouse_lastb      = None    # last button pressed on mouse
         self.mousemove        = False   # is the current action a mouse move?

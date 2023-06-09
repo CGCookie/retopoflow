@@ -41,17 +41,21 @@ def mouse_move():
 
 def mouse_select():
     # returns 'LEFT' if LMB is used for selection or 'RIGHT' if RMB is used for selection
+
+    user_keyconfigs = bpy.context.window_manager.keyconfigs.user
+    map_select_type = {'LEFTMOUSE': 'LEFT', 'RIGHTMOUSE': 'RIGHT'}
+
     try:
-        return bpy.context.window_manager.keyconfigs.active.preferences.select_mouse
-    except:
-        pass
-    try:
-        m = {'LEFTMOUSE': 'LEFT', 'RIGHTMOUSE': 'RIGHT'}
-        return m[bpy.context.window_manager.keyconfigs.active.keymaps['3D View'].keymap_items['view3d.select'].type]
+        select_type = user_keyconfigs.keymaps['3D View'].keymap_items['view3d.select'].type
+        return map_select_type[select_type]
     except Exception as e:
-        if not hasattr(mouse_select, 'reported'):
-            print('mouse_select: Exception caught')
-            print(e)
-            mouse_select.reported = True
+        if hasattr(mouse_select, 'reported'): return  # already reported
+        mouse_select.reported = True
+        print('Addon Common: Exception caught in mouse_select')
+        print('NOTE: only reporting this once')
+        print(f'Exception: {e}')
+
+    return 'LEFT'  # fallback to 'LEFT'
+
 
 

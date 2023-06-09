@@ -115,7 +115,7 @@ class RetopoFlow(
 
         RetopoFlow.instance = self
 
-        keymaps = get_keymaps()
+        keymaps = get_keymaps(force_reload=True)
         self.actions = ActionHandler(self.context, keymaps)
 
         print(f'RetopoFlow: Starting... keymaps and actions {sw.elapsed():0.2f}')

@@ -56,7 +56,7 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
 
         # preload_help_images.paused = True
-        keymaps = get_keymaps()
+        keymaps = get_keymaps(force_reload=True)
         self.actions = ActionHandler(self.context, keymaps)
         self.reload_stylings()
         self.blender_ui_set()
