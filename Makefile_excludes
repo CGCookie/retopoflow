@@ -1,5 +1,7 @@
 __pycache__
 
+/debug.txt
+
 test-models
 test_models
 /tools/

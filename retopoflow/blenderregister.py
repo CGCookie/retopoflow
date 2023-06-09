@@ -42,7 +42,7 @@ try:
         from . import rftool
         from ..addon_common.cookiecutter import cookiecutter
         from ..addon_common.common.maths import convert_numstr_num, has_inverse
-        from ..addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root
+        from ..addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root, show_blender_popup, show_blender_text
         from ..addon_common.common.image_preloader import ImagePreloader
     options = configoptions.options
     rfurls = configoptions.retopoflow_urls
@@ -174,6 +174,72 @@ create_webpage_operator(
     'RetopoFlow Online Documentation',
     rfurls['help docs'],
 )
+
+
+fn_debug = os.path.join(os.path.dirname(__file__), '..', 'debug.txt')
+def get_debug_textblock():
+    for t in bpy.data.texts:
+        if t.filepath == fn_debug:
+            return t
+    return None
+
+@add_to_registry
+class VIEW3D_OT_RetopoFlow_EnableDebugging(Operator):
+    bl_idname = "cgcookie.retopoflow_enabledebugging"
+    bl_label = "RetopoFlow: Enable Debugging"
+    bl_description = "Enables deep debugging (requires restarting Blender)"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_options = set()
+    @classmethod
+    def poll(cls, context):
+        return not os.path.exists(fn_debug)
+    def invoke(self, context, event):
+        return self.execute(context)
+    def execute(self, context):
+        open(fn_debug, 'w')
+        show_blender_popup('You must restart Blender to finish enabling debugging', title='Restart Blender')
+        return {'FINISHED'}
+@add_to_registry
+class VIEW3D_OT_RetopoFlow_DisableDebugging(Operator):
+    bl_idname = "cgcookie.retopoflow_disabledebugging"
+    bl_label = "RetopoFlow: Disable Debugging"
+    bl_description = "Disables deep debugging (requires restarting Blender)"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_options = set()
+    @classmethod
+    def poll(cls, context):
+        return os.path.exists(fn_debug)
+    def invoke(self, context, event):
+        return self.execute(context)
+    def execute(self, context):
+        os.remove(fn_debug)
+        show_blender_popup('You must restart Blender to finish disabling debugging', title='Restart Blender')
+        return {'FINISHED'}
+@add_to_registry
+class VIEW3D_OT_RetopoFlow_OpenDebugging(Operator):
+    bl_idname = "cgcookie.retopoflow_opendebugging"
+    bl_label = "RetopoFlow: Open Debugging Info"
+    bl_description = "Opens deep debugging info in a text editor"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_options = set()
+    @classmethod
+    def poll(cls, context):
+        return os.path.exists(fn_debug)
+    def invoke(self, context, event):
+        return self.execute(context)
+    def execute(self, context):
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        t = get_debug_textblock()
+        if t: bpy.data.texts.remove(t)
+        bpy.ops.text.open(filepath=fn_debug)
+        t = get_debug_textblock()
+        show_blender_text(t.name)
+        return {'FINISHED'}
 
 
 

@@ -19,6 +19,19 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+# DEEP DEBUGGING
+import os, sys
+fn_debug = os.path.join(os.path.dirname(__file__), 'debug.txt')
+if os.path.exists(fn_debug):
+    print(f'REDIRECTING ALL STDOUT AND STDERR TEXT TO {fn_debug}')
+    sys.stdout.flush()
+    os.remove(fn_debug)
+    # if debug.txt file exists, redirect ALL stdout and stderr to that file!
+    # https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/11632982#11632982
+    os.close(1)
+    os.open(fn_debug, os.O_WRONLY | os.O_CREAT)
+
+
 import bpy
 
 from .addon_common.hive.hive import Hive
