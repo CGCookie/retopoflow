@@ -725,7 +725,7 @@ if import_succeeded:
 
             # AUTO SAVE / UNSAVED
             if 'save: auto save is disabled' in warnings:
-                box = get_warning_subbox('Auto Save / Save')
+                box = get_warning_subbox('Save')
                 box.label(text='Auto Save is disabled', icon='DOT')
             if 'save: unsaved blender file' in warnings:
                 box = get_warning_subbox('Auto Save / Save')
@@ -746,22 +746,22 @@ if import_succeeded:
 
                 tab = box.row(align=True)
                 tab.label(icon='BLANK1')
-                tab.label(text=retopoflow.RetopoFlow.get_auto_save_filename())
+                tab.label(text=bpy.path.basename(retopoflow.RetopoFlow.get_auto_save_filename()))
 
                 tab = box.row(align=True)
                 tab.label(icon='BLANK1')
-                row = tab.row(align=True)
-                row.operator(
+                col = tab.column(align=True)
+                col.operator(
                     'cgcookie.retopoflow_recover_open',
                     text='Open',
                     icon='RECOVER_LAST',
                 )
-                row.operator(
+                col.operator(
                     'cgcookie.retopoflow_recover_folder',
-                    text='Folder',
+                    text='Open Folder',
                     icon='FILE_FOLDER',
                 )
-                row.operator(
+                col.operator(
                     'cgcookie.retopoflow_recover_delete',
                     text='Delete',
                     icon='X',
