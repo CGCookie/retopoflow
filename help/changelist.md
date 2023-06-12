@@ -4,9 +4,9 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.3.0&rarr;3.4.0
 
-This version of RetopoFlow requires Blender 3.4 or later.
+This version of RetopoFlow requires Blender 3.6 or later.
 
-- Continued removing code that relies on deprecated `bgl` module
+- Removed dependence on deprecated `bgl` module
 - Continued working toward supporting Metal
 - Added `view_roll` keymap
 - Improved performance when navigating

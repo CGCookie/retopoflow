@@ -24,7 +24,6 @@ import bgl
 
 from .ui_styling import UI_Styling, ui_defaultstylings
 
-from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
@@ -105,26 +104,34 @@ class UI_Draw:
             # uMVPMatrix needs to be set every draw call, because it could be different
             # when rendering to FrameBuffers with their own (l,b,w,h)
             ubos.options.uMVPMatrix          = get_MVP_matrix()
+
             ubos.options.lrtb                = (float(left), float(left + (width - 1)), float(top), float(top - (height - 1)))
             ubos.options.wh                  = (float(width), float(height))
+
             ubos.options.depth               = depth
+
             ubos.options.margin_lrtb         = [get_v(f'margin-{p}',  0) for p in ['left', 'right', 'top', 'bottom']]
             ubos.options.padding_lrtb        = [get_v(f'padding-{p}', 0) for p in ['left', 'right', 'top', 'bottom']]
+
             ubos.options.border_width =        get_v('border-width',   0)
             ubos.options.border_radius =       get_v('border-radius',  0)
             ubos.options.border_left_color =   Color.as_vec4(get_v('border-left-color',   self._def_color))
             ubos.options.border_right_color =  Color.as_vec4(get_v('border-right-color',  self._def_color))
             ubos.options.border_top_color =    Color.as_vec4(get_v('border-top-color',    self._def_color))
             ubos.options.border_bottom_color = Color.as_vec4(get_v('border-bottom-color', self._def_color))
+
             ubos.options.background_color =    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color))
+
             ubos.options.image_fit =           texture_fit_map.get(texture_fit, 0)
-            ubos.options.using_image =         1 if texture_id is not None else 0
-            if texture_id is not None:
-                bgl.glActiveTexture(atex)
-                bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
-                shader.uniform_int('image', atex - bgl.GL_TEXTURE0)
-            # if gputexture: shader.uniform_sampler('image', gputexture)
-            # Drawing.glCheckError(f'checking gl errors after binding shader and setting uniforms')
+            ubos.options.using_image =         1 if gputexture is not None else 0
+            if gputexture: shader.uniform_sampler('image', gputexture)
+
+            # if texture_id is not None:
+            #     bgl.glActiveTexture(atex)
+            #     bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
+            #     shader.uniform_int('image', atex - bgl.GL_TEXTURE0)
+            # # if gputexture: shader.uniform_sampler('image', gputexture)
+            # # Drawing.glCheckError(f'checking gl errors after binding shader and setting uniforms')
             ubos.update_shader()
             batch.draw(shader)
 

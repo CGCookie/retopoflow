@@ -39,39 +39,34 @@ import bgl
 import blf
 import gpu
 
-from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
-from .ui_layout import UI_Layout
-from .ui_markdown import UI_Markdown
-from .ui_properties import UI_Element_Properties
-from .ui_utilities import UI_Element_Utils
-from .ui_settings import DEBUG_COLOR_CLEAN, DEBUG_PROPERTY, DEBUG_COLOR, DEBUG_DIRTY, DEBUG_LIST, CACHE_METHOD, ASYNC_IMAGE_LOADING
-
-from .ui_draw import ui_draw
-from .ui_event import UI_Event
-
-from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
-from .gpustate import FrameBuffer, ScissorStack
-from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
+from . import ui_settings  # needs to be first
+from .ui_draw import ui_draw
+from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
+from .ui_event import UI_Event
+from .ui_layout import UI_Layout
+from .ui_markdown import UI_Markdown
+from .ui_properties import UI_Element_Properties
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
-from .fsm import FSM
+from .ui_utilities import UI_Element_Utils, helper_wraptext, convert_token_to_cursor
 
-from .useractions import ActionHandler
-
+from . import gpustate
+from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
 from .drawing import Drawing
 from .fontmanager import FontManager
+from .fsm import FSM
 from .globals import Globals
 from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .shaders import Shader
+from .useractions import ActionHandler
 from .utils import iter_head, any_args, join
 
 from ..ext import png
@@ -292,22 +287,12 @@ def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, 
         image_flat = [d for r in image for c in r for d in c]
         buffer = gpu.types.Buffer('FLOAT', (width * height * 4), [v / 255.0 for v in image_flat])
         gputexture = gpu.types.GPUTexture((width, height), format='RGBA16F', data=buffer)
-        with temp_bglbuffer(bgl.GL_INT, [1]) as buf:
-            bgl.glGenTextures(1, buf)
-            texid = buf[0]
-        bgl.glBindTexture(bgl.GL_TEXTURE_2D, texid)
-        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, mag_filter)
-        bgl.glTexParameterf(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, min_filter)
-        bgl.glTexParameteri(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_WRAP_S, bgl.GL_CLAMP_TO_EDGE)
-        bgl.glTexParameteri(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_WRAP_T, bgl.GL_CLAMP_TO_EDGE)
-        with temp_bglbuffer(bgl.GL_BYTE, [len(image_flat)], image_flat) as texbuffer:
-            bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, width, height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, texbuffer)
-        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
+
         load_texture._cache[fn_image] = {
             'width':  width,
             'height': height,
             'depth':  depth,
-            'texid':  texid,
+            'texid':  None, #texid,
             'gputexture': gputexture,
         }
     return load_texture._cache[fn_image]
@@ -390,7 +375,7 @@ class UI_Element_Dirtiness:
         if not properties: return               # no new dirtiness
         # if getattr(self, '_cleaning', False): print(f'{self} was dirtied ({properties}) while cleaning')
         self._dirty_properties |= properties
-        if DEBUG_DIRTY: self._dirty_causes.append(cause)
+        if ui_settings.DEBUG_DIRTY: self._dirty_causes.append(cause)
         if self._do_not_dirty_parent: parent = False
         if parent:   self._dirty_propagation['parent']          |= properties   # dirty parent also (ex: size of self changes, so parent needs to layout)
         else:        self._dirty_propagation['parent callback'] |= properties   # let parent know self is dirty (ex: background color changes, so we need to update style of self but not parent)
@@ -465,7 +450,7 @@ class UI_Element_Dirtiness:
         if self._dirty_propagation['parent']:
             if self._parent and not self._do_not_dirty_parent:
                 cause = ''
-                if DEBUG_DIRTY:
+                if ui_settings.DEBUG_DIRTY:
                     cause = ' -> '.join(f'{cause}' for cause in (self._dirty_causes+[
                         f"\"propagating dirtiness ({self._dirty_propagation['parent']} from {self} to parent {self._parent}\""
                     ]))
@@ -559,7 +544,7 @@ class UI_Element_Dirtiness:
         self._cleaning = True
 
         profiler.add_note(f'pre: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean started defer={self.defer_clean}')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean started defer={self.defer_clean}')
 
         # propagate dirtiness one level down
         self.propagate_dirtiness_down()
@@ -579,7 +564,7 @@ class UI_Element_Dirtiness:
                child.clean(depth=depth+1)
 
         profiler.add_note(f'post: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean done')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean done')
 
         # self._debug_list.clear()
 
@@ -1083,7 +1068,7 @@ class UI_Element(
             return False
         styling_trimmed = UI_Styling.trim_styling(selector, ui_defaultstylings, ui_draw.stylesheet)
 
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} selector: {" ".join(selector)}')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} selector: {" ".join(selector)}')
 
         self._last_selector = selector
         self._selector = selector
@@ -1154,7 +1139,7 @@ class UI_Element(
             self.defer_clean = False
             return
 
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} style')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} style')
 
         was_visible = self.is_visible
         self._draw_dirty_style += 1
@@ -1281,7 +1266,7 @@ class UI_Element(
                 # self.dirty(cause='style change might have changed content (::before / ::after)', properties='content')
                 # self.dirty(cause='style change might have changed content (::before / ::after)', properties='renderbuf')
                 self.dirty_flow(children=False)
-                if DEBUG_LIST: self._debug_list.append(f'    possible content change')
+                if ui_settings.DEBUG_LIST: self._debug_list.append(f'    possible content change')
                 # self._innerTextWrapped = None
                 self._style_content_hash = style_content_hash
 
@@ -1300,7 +1285,7 @@ class UI_Element(
                 self.dirty_size(cause='style change might have changed size')
                 self.dirty_renderbuf(cause='style change might have changed size')
                 self.dirty_flow(children=False)
-                if DEBUG_LIST: self._debug_list.append(f'    possible size change')
+                if ui_settings.DEBUG_LIST: self._debug_list.append(f'    possible size change')
                 # self._innerTextWrapped = None
                 self._style_size_hash = style_size_hash
 
@@ -1341,7 +1326,7 @@ class UI_Element(
             return
 
         self._clean_debugging['content'] = time.time()
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} content')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} content')
 
         # self.defer_dirty_propagation = True
         self._children_gen = []
@@ -1454,7 +1439,7 @@ class UI_Element(
                 self._new_content = True
 
         elif self.src: # and not self._src:
-            if ASYNC_IMAGE_LOADING and not self._pseudoelement and not is_image_cached(self.src):
+            if ui_settings.ASYNC_IMAGE_LOADING and not self._pseudoelement and not is_image_cached(self.src):
                 # print(f'LOADING {self.src} ASYNC')
                 if self._src == 'image':
                     self._new_content = True
@@ -1525,7 +1510,7 @@ class UI_Element(
             self.dirty_blocks(cause='content changes might have affected blocks')
             self.dirty_renderbuf(cause='content changes might have affected blocks')
             self.dirty_flow()
-            if DEBUG_LIST: self._debug_list.append(f'    possible new content')
+            if ui_settings.DEBUG_LIST: self._debug_list.append(f'    possible new content')
             self._new_content = False
         self._dirty_properties.discard('content')
         self._dirty_callbacks['content'].clear()
@@ -1553,7 +1538,7 @@ class UI_Element(
             return
 
         self._clean_debugging['blocks'] = time.time()
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} blocks')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} blocks')
 
         # self.defer_dirty_propagation = True
 
@@ -1614,7 +1599,7 @@ class UI_Element(
             self.dirty_size(cause='block changes might have changed size')
             self.dirty_renderbuf(cause='block changes might have changed size')
             self.dirty_flow()
-            if DEBUG_LIST: self._debug_list.append(f'    reflowing')
+            if ui_settings.DEBUG_LIST: self._debug_list.append(f'    reflowing')
 
         self._dirty_properties.discard('blocks')
         self._dirty_callbacks['blocks'].clear()
@@ -1642,7 +1627,7 @@ class UI_Element(
         # if self.record_multicall('_compute_static_content_size'): return
 
         self._clean_debugging['size'] = time.time()
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} static content size')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} static content size')
 
         # self.defer_dirty_propagation = True
 
@@ -1690,7 +1675,7 @@ class UI_Element(
             self._static_content_size = static_content_size
             self.dirty_renderbuf(cause='static content changes might change render')
             self.dirty_flow()
-            if DEBUG_LIST: self._debug_list.append(f'    reflowing')
+            if ui_settings.DEBUG_LIST: self._debug_list.append(f'    reflowing')
         # self.defer_dirty_propagation = False
         self._dirty_properties.discard('size')
         self._dirty_callbacks['size'].clear()
@@ -1793,13 +1778,13 @@ class UI_Element(
         dpi_mult = Globals.drawing.get_dpi_mult()
         ox,oy = offset
 
-        if DEBUG_COLOR_CLEAN:
-            if DEBUG_COLOR == 0:
+        if ui_settings.DEBUG_COLOR_CLEAN:
+            if ui_settings.DEBUG_COLOR == 0:
                 t_max = 2
-                t = max(0, t_max - (time.time() - self._clean_debugging.get(DEBUG_PROPERTY, 0))) / t_max
+                t = max(0, t_max - (time.time() - self._clean_debugging.get(ui_settings.DEBUG_PROPERTY, 0))) / t_max
                 background_override = Color( ( t, t/2, 0, 0.75 ) )
-            elif DEBUG_COLOR == 1:
-                t = self._clean_debugging.get(DEBUG_PROPERTY, 0)
+            elif ui_settings.DEBUG_COLOR == 1:
+                t = self._clean_debugging.get(ui_settings.DEBUG_PROPERTY, 0)
                 d = time.time() - t
                 h = (t / 2) % 1
                 s = 1.0
@@ -1808,8 +1793,7 @@ class UI_Element(
         else:
             background_override = None
 
-        bgl.glEnable(bgl.GL_BLEND)
-        # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
+        gpustate.blend('ALPHA_PREMULT', only='enable')
 
         sc = self._style_cache
         margin_top,  margin_right,  margin_bottom,  margin_left  = sc['margin-top'],  sc['margin-right'],  sc['margin-bottom'],  sc['margin-left']
@@ -1835,7 +1819,7 @@ class UI_Element(
             ih = round(self._h - ((mt + bw + pt) + (pb + bw + mb)))
             noclip = self._computed_styles.get('overflow-x', 'visible') == 'visible' and self._computed_styles.get('overflow-y', 'visible') == 'visible'
 
-            with ScissorStack.wrap(il, it, iw, ih, msg=f'{self} mbp', disabled=noclip):
+            with gpustate.ScissorStack.wrap(il, it, iw, ih, msg=f'{self} mbp', disabled=noclip):
                 if self._innerText is not None:
                     size_prev = Globals.drawing.set_font_size(self._fontsize, fontid=self._fontid)
                     if self._textshadow is not None:
@@ -1849,36 +1833,17 @@ class UI_Element(
                         child._draw(offset)
                     Globals.drawing.set_font_size(size_prev, fontid=self._fontid)
                 elif self._innerTextAsIs is not None:
-                    # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
                     Globals.drawing.text_draw2D_simple(self._innerTextAsIs, (ol, ot))
                 else:
                     for child in self._children_all_sorted:
-                        bgl.glEnable(bgl.GL_BLEND)
-                        # bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
+                        gpustate.blend('ALPHA_PREMULT', only='enable')
                         child._draw(offset)
 
-    dfactors = [
-        bgl.GL_ZERO,
-        bgl.GL_ONE,
-        bgl.GL_SRC_COLOR,
-        bgl.GL_ONE_MINUS_SRC_COLOR,
-        bgl.GL_DST_COLOR,
-        bgl.GL_ONE_MINUS_DST_COLOR,
-        bgl.GL_SRC_ALPHA,
-        bgl.GL_ONE_MINUS_SRC_ALPHA,
-        bgl.GL_DST_ALPHA,
-        bgl.GL_ONE_MINUS_DST_ALPHA,
-        bgl.GL_CONSTANT_COLOR,
-        bgl.GL_ONE_MINUS_CONSTANT_COLOR,
-        bgl.GL_CONSTANT_ALPHA,
-        bgl.GL_ONE_MINUS_CONSTANT_ALPHA,
-    ]
     def _draw_cache(self, offset):
         ox,oy = offset
-        with ScissorStack.wrap(self._l+ox, self._t+oy, self._w, self._h):
+        with gpustate.ScissorStack.wrap(self._l+ox, self._t+oy, self._w, self._h):
             if self._cacheRenderBuf:
-                bgl.glEnable(bgl.GL_BLEND)
-                bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
+                gpustate.blend('ALPHA_PREMULT')
                 texture_id = self._cacheRenderBuf.color_texture
                 if True:
                     draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
@@ -1899,7 +1864,7 @@ class UI_Element(
                         'border-width': 0,
                         }, texture_id, texture_fit, background_override=background_override)
             else:
-                bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
+                gpustate.blend('ALPHA_PREMULT', only='function')
                 self._draw_real(offset)
 
     def _cache_create(self):
@@ -1910,7 +1875,7 @@ class UI_Element(
             self._cacheRenderBuf.resize(self._w, self._h)
         else:
             # do not already have a render buffer, so create one
-            self._cacheRenderBuf = FrameBuffer.new(self._w, self._h)
+            self._cacheRenderBuf = gpustate.FrameBuffer.new(self._w, self._h)
 
     def _cache_hierarchical(self, depth):
         if self._innerTextAsIs is not None: return   # do not cache this low level!
@@ -1924,9 +1889,9 @@ class UI_Element(
 
         sl, st, sw, sh = 0, self._h - 1, self._w, self._h
         bgl.glClearColor(0,0,0,0)
-        with self._cacheRenderBuf.bind_unbind():
+        with self._cacheRenderBuf.bind():
             self._draw_real((-self._l, -self._b))
-            # with ScissorStack.wrap(sl, st, sw, sh, clamp=False):
+            # with gpustate.ScissorStack.wrap(sl, st, sw, sh, clamp=False):
             #     self._draw_real((-self._l, -self._b))
 
     def _cache_textleaves(self, depth):
@@ -1939,14 +1904,14 @@ class UI_Element(
             return
         self._cache_create()
         sl, st, sw, sh = 0, self._h - 1, self._w, self._h
-        with self._cacheRenderBuf.bind_unbind():
+        with self._cacheRenderBuf.bind():
             self._draw_real((-self._l, -self._b))
-            # with ScissorStack.wrap(sl, st, sw, sh, clamp=False):
+            # with gpustate.ScissorStack.wrap(sl, st, sw, sh, clamp=False):
             #     self._draw_real((-self._l, -self._b))
 
     def _cache_onlyroot(self, depth):
         self._cache_create()
-        with self._cacheRenderBuf.bind_unbind():
+        with self._cacheRenderBuf.bind():
             self._draw_real((0,0))
 
     @profiler.function
@@ -1957,10 +1922,10 @@ class UI_Element(
         if not self._dirty_renderbuf: return   # no need to cache
         # print('caching %s' % str(self))
 
-        if   CACHE_METHOD == 0: pass # do not cache
-        elif CACHE_METHOD == 1: self._cache_onlyroot(depth)
-        elif CACHE_METHOD == 2: self._cache_hierarchical(depth)
-        elif CACHE_METHOD == 3: self._cache_textleaves(depth)
+        if   ui_settings.CACHE_METHOD == 0: pass # do not cache
+        elif ui_settings.CACHE_METHOD == 1: self._cache_onlyroot(depth)
+        elif ui_settings.CACHE_METHOD == 2: self._cache_hierarchical(depth)
+        elif ui_settings.CACHE_METHOD == 3: self._cache_textleaves(depth)
 
         self._dirty_renderbuf = False
 
@@ -1970,31 +1935,26 @@ class UI_Element(
         if self._w <= 0 or self._h <= 0: return
         # if self._draw_dirty_style > 1: print(self, self._draw_dirty_style)
         ox,oy = offset
-        if not ScissorStack.is_box_visible(self._l+ox, self._t+oy, self._w, self._h): return
+        if not gpustate.ScissorStack.is_box_visible(self._l+ox, self._t+oy, self._w, self._h): return
         # print('drawing %s' % str(self))
         self._draw_cache(offset)
         self._draw_dirty_style = 0
 
     def draw(self):
-        # Globals.drawing.glCheckError('UI_Element.draw: start')
-        bgl.glBlendFunc(bgl.GL_ONE, bgl.GL_ONE_MINUS_SRC_ALPHA)
-        # Globals.drawing.glCheckError('UI_Element.draw: setup ltwh')
+        gpustate.blend('ALPHA_PREMULT', only='function')
         self._setup_ltwh()
-        # Globals.drawing.glCheckError('UI_Element.draw: cache')
         self._cache()
-        # Globals.drawing.glCheckError('UI_Element.draw: draw')
         self._draw()
-        # Globals.drawing.glCheckError('UI_Element.draw: done')
 
     def _draw_vscroll(self, depth=0):
         if not self.is_visible: return
-        if not ScissorStack.is_box_visible(self._l, self._t, self._w, self._h): return
+        if not gpustate.ScissorStack.is_box_visible(self._l, self._t, self._w, self._h): return
         if self._w <= 0 or self._h <= 0: return
         vscroll = max(0, self._dynamic_full_size.height - self._h)
         if vscroll < 1: return
-        with ScissorStack.wrap(self._l, self._t, self._w, self._h, msg=str(self)):
+        with gpustate.ScissorStack.wrap(self._l, self._t, self._w, self._h, msg=str(self)):
             with profiler.code('drawing scrollbar'):
-                bgl.glEnable(bgl.GL_BLEND)
+                gpustate.blend('ALPHA_PREMULT', only='enable')
                 w = 3
                 h = self._h - (mt+bw+pt) - (mb+bw+pb) - 6
                 px = self._l + self._w - (mr+bw+pr) - w/2 - 5

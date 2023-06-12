@@ -131,19 +131,23 @@ class RetopoFlow_UI:
         # theme-based optimizations
         matcap = None
         if options['override shading'] == 'light':
+            self.shading_color_set(options['shading color light'])
             self.shading_colortype_set(options['shading colortype'])
             matcap = options['shading matcap light']
-            self.shading_color_set(options['shading color light'])
         elif options['override shading'] == 'dark':
+            self.shading_color_set(options['shading color dark'])
             self.shading_colortype_set(options['shading colortype'])
             matcap = options['shading matcap dark']
-            self.shading_color_set(options['shading color dark'])
         if matcap:
             if matcap not in bpy.context.preferences.studio_lights:
                 path_rf_matcap = os.path.join(get_path_from_addon_root('matcaps'), matcap)
-                bpy.context.preferences.studio_lights.load(path_rf_matcap, 'MATCAP')
-            self.shading_light_set(options['shading light'])
-            self.shading_matcap_set(matcap)
+                print(f'RetopoFlow: Loading maptcap {matcap} {path_rf_matcap}')
+                ret = bpy.context.preferences.studio_lights.load(path_rf_matcap, 'MATCAP')
+                print(f'  {ret}')
+                if not ret: matcap = None
+            if matcap:
+                self.shading_light_set(options['shading light'])
+                self.shading_matcap_set(matcap)
 
     def blender_ui_reset(self, *, ignore_panels=False):
         # IMPORTANT: changes here should also go in rf_blender_save.backup_recover()

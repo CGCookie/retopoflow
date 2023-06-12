@@ -40,7 +40,6 @@ import blf
 import gpu
 
 
-from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 

@@ -28,6 +28,7 @@ if os.path.exists(fn_debug):
     os.remove(fn_debug)
     # if debug.txt file exists, redirect ALL stdout and stderr to that file!
     # https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/11632982#11632982
+    # in C++, see https://stackoverflow.com/a/13888242 and https://cplusplus.com/reference/cstdio/freopen/
     os.close(1)
     os.open(fn_debug, os.O_WRONLY | os.O_CREAT)
 
@@ -44,7 +45,7 @@ bl_info = {
     "name":         "RetopoFlow",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "blender":      (3, 4, 1),
+    "blender":      (3, 6, 0),
     "version":      (3, 4, 0),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",

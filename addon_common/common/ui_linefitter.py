@@ -36,8 +36,6 @@ from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 from .ui_utilities import UI_Element_Utils
-from .ui_settings import DEBUG_COLOR_CLEAN, DEBUG_PROPERTY, DEBUG_COLOR, DEBUG_DIRTY, DEBUG_LIST, CACHE_METHOD, ASYNC_IMAGE_LOADING
-
 
 import bpy
 import blf

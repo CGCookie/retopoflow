@@ -35,14 +35,15 @@ import bpy
 import blf
 import gpu
 
-from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
 from . import gpustate
+
+from . import ui_settings
 from .gpustate import ScissorStack
 from .ui_linefitter import LineFitter
-from .ui_core import UI_Element, UI_Element_PreventMultiCalls, DEBUG_COLOR_CLEAN
+from .ui_core import UI_Element, UI_Element_PreventMultiCalls
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
@@ -224,7 +225,7 @@ class UI_Document:
             self._body.dirty_flow()
             tag_redraw_all("UI_Element update: w,h change")
 
-        if DEBUG_COLOR_CLEAN: tag_redraw_all("UI_Element DEBUG_COLOR_CLEAN")
+        if ui_settings.DEBUG_COLOR_CLEAN: tag_redraw_all("UI_Element DEBUG_COLOR_CLEAN")
 
         #self.actions.update(context, event, self._timer, print_actions=False)
         # self.actions.update(context, event, print_actions=False)

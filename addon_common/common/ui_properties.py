@@ -39,12 +39,11 @@ import blf
 import gpu
 
 from .ui_utilities import UI_Element_Utils
-from .ui_settings import DEBUG_COLOR_CLEAN, DEBUG_PROPERTY, DEBUG_COLOR, DEBUG_DIRTY, DEBUG_LIST, CACHE_METHOD, ASYNC_IMAGE_LOADING
 
-from gpu.types import GPUOffScreen
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
+from . import ui_settings
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_utilities import helper_wraptext, convert_token_to_cursor
@@ -593,7 +592,7 @@ class UI_Element_Properties:
             # tag_redraw_all("UI_Element reposition")
             self.dirty_renderbuf(cause='repositioning', parent=True)
             self.dirty_flow()
-            if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} repositioned')
+            if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} repositioned')
 
     @property
     def left(self):

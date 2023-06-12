@@ -36,8 +36,7 @@ from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 from .ui_utilities import UI_Element_Utils
-from .ui_settings import DEBUG_COLOR_CLEAN, DEBUG_PROPERTY, DEBUG_COLOR, DEBUG_DIRTY, DEBUG_LIST, CACHE_METHOD, ASYNC_IMAGE_LOADING
-
+from . import ui_settings
 
 import bpy
 import blf
@@ -158,13 +157,13 @@ class UI_Layout:
         if not self._dirtying_flow and not self._dirtying_children_flow and not tabled:
             return
 
-        if DEBUG_LIST:
+        if ui_settings.DEBUG_LIST:
             self._debug_list.append(f'{time.ctime()} layout self={self._dirtying_flow} children={self._dirtying_children_flow} fitting_size={fitting_size}')
 
         if self._dirtying_children_flow:
             for child in self._children_all:
                 child.dirty_flow(parent=False)
-            if DEBUG_LIST: self._debug_list.append(f'    reflowing children')
+            if ui_settings.DEBUG_LIST: self._debug_list.append(f'    reflowing children')
             self._dirtying_children_flow = False
 
         self._all_lines = None
@@ -514,7 +513,7 @@ class UI_Layout:
         self.scrollLeft = self.scrollLeft
         self.scrollTop = self.scrollTop
 
-        if DEBUG_LIST: self._debug_list.append(f'{time.ctime()} set_view_size({size})')
+        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} set_view_size({size})')
 
         if self._all_lines:
             w = size.width - self._mbp_width

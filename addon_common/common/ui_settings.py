@@ -28,7 +28,7 @@ DEBUG_DIRTY     = False
 
 DEBUG_LIST      = False
 
-CACHE_METHOD = 2                # 0:none, 1:only root, 2:hierarchical, 3:text leaves
+CACHE_METHOD = 0                # 0:none, 1:only root, 2:hierarchical, 3:text leaves, 4:hierarchical but random
 
 ASYNC_IMAGE_LOADING = True
 
