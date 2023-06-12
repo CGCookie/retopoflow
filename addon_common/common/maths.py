@@ -19,10 +19,11 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
-import random
 import re
+import random
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 from typing import List
+from itertools import chain
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
@@ -1599,79 +1600,65 @@ class Accel2D:
             return self.p0 + self.d01 * mid(d, 0, self.l)
 
     @staticmethod
-    def simple_verts(verts, Point_to_Point2D):
+    def simple_verts(verts, Point_to_Point2Ds):
         verts = [Accel2D.SimpleVert(v) for v in verts]
-        return Accel2D(verts, [], [], Point_to_Point2D)
+        return Accel2D(verts, [], [], Point_to_Point2Ds)
 
     @staticmethod
-    def simple_edges(edges, Point_to_Point2D):
+    def simple_edges(edges, Point_to_Point2Ds):
         edges = [Accel2D.SimpleEdge((Accel2D.SimpleVert(v0), Accel2D.SimpleVert(v1))) for (v0, v1) in edges]
         verts = [v for e in edges for v in e.verts]
-        return Accel2D(verts, edges, [], Point_to_Point2D)
+        return Accel2D(verts, edges, [], Point_to_Point2Ds)
 
     @profiler.function
-    def __init__(self, verts, edges, faces, Point_to_Point2D):
+    def __init__(self, verts, edges, faces, Point_to_Point2Ds):
         self.verts = list(verts) if verts else []
         self.edges = list(edges) if edges else []
         self.faces = list(faces) if faces else []
-        self.Point_to_Point2D = Point_to_Point2D
-        self.vert_type = type(self.verts[0]) if self.verts else None
-        self.edge_type = type(self.edges[0]) if self.edges else None
-        self.face_type = type(self.faces[0]) if self.faces else None
+        self.Point_to_Point2Ds = Point_to_Point2Ds
+        self._is_vert = (lambda elem: type(elem) == type(self.verts[0])) if self.verts else lambda _: False
+        self._is_edge = (lambda elem: type(elem) == type(self.edges[0])) if self.edges else lambda _: False
+        self._is_face = (lambda elem: type(elem) == type(self.faces[0])) if self.faces else lambda _: False
         self.bins = {}
 
-        v2Ds = [Point_to_Point2D(v.co) for v in verts]
-        self.map_v_v2D = {v: v2d for (v, v2d) in zip(verts, v2Ds)}
-        v2Ds = [p for p in v2Ds if p]
-        if v2Ds:
-            self.min = Point2D((
-                min(x - 0.001 for (x, _) in v2Ds),
-                min(y - 0.001 for (_, y) in v2Ds)
-            ))
-            self.max = Point2D((
-                max(x + 0.001 for (x, _) in v2Ds),
-                max(y + 0.001 for (_, y) in v2Ds)
-            ))
+        epsilon = 0.001
+        total_pts = 0
+        mx, my, Mx, My = float('inf'), float('inf'), float('-inf'), float('-inf')
+        for v in verts:
+            for pt in Point_to_Point2Ds(v.co):
+                if not pt: continue
+                mx, my, Mx, My = min(mx, pt.x), min(my, pt.y), max(mx, pt.x), max(my, pt.y)
+                total_pts += 1
+
+        if total_pts:
+            self.min = Point2D((mx - epsilon, my - epsilon))
+            self.max = Point2D((Mx + epsilon, My + epsilon))
         else:
             self.min = Point2D((0, 0))
             self.max = Point2D((1, 1))
         self.size = self.max - self.min
-
-        self.bin_cols = ceil(sqrt(len(v2Ds)))
-        self.bin_rows = ceil(sqrt(len(v2Ds)))
+        sz = ceil(sqrt(total_pts))
+        self.bin_cols, self.bin_rows = sz, sz
 
         # inserting verts
-        for (v, v2d) in zip(verts, v2Ds):
-            if not v2d: continue
-            i, j = self.compute_ij(v2d)
-            self._put(i, j, v)
+        for v in verts:
+            for pt in Point_to_Point2Ds(v.co):
+                if not pt: continue
+                i, j = self.compute_ij(pt)
+                self._put((i, j), v)
 
-        # inserting edges
-        for e in edges:
-            v0, v1 = self.map_v_v2D[e.verts[0]], self.map_v_v2D[e.verts[1]]
-            if not v0 or not v1: continue
-            ij0, ij1 = self.compute_ij(v0), self.compute_ij(v1)
-            mini, minj = min(ij0[0], ij1[0]), min(ij0[1], ij1[1])
-            maxi, maxj = max(ij0[0], ij1[0]), max(ij0[1], ij1[1])
-            for i in range(mini, maxi + 1):
-                for j in range(minj, maxj + 1):
-                    self._put(i, j, e)
-            # v0,v1 = e.verts
-            # self._put_edge(e, self.map_v_v2D[v0], self.map_v_v2D[v1])
-
-        # inserting faces
-        for f in faces:
-            v2ds = [self.map_v_v2D[v] for v in f.verts]
-            if not all(v2ds): continue
-            ijs = list(map(self.compute_ij, v2ds))
-            mini, minj = min(i for (i, j) in ijs), min(j for (i, j) in ijs)
-            maxi, maxj = max(i for (i, j) in ijs), max(j for (i, j) in ijs)
-            for i in range(mini, maxi + 1):
-                for j in range(minj, maxj + 1):
-                    self._put(i, j, f)
-            # v0 = v2ds[0]
-            # for v1,v2 in zip(v2ds[1:-1],v2ds[2:]):
-            #    self._put_face(f, v0, v1, v2)
+        # inserting edges and faces
+        for ef in chain(edges, faces):
+            ptsets = [Point_to_Point2Ds(v.co) for v in ef.verts]
+            ptsets = list(zip(*ptsets))
+            for pts in ptsets:
+                if not all(pts): continue
+                ijs = list(map(self.compute_ij, pts))
+                mini, minj = min(i for (i, j) in ijs), min(j for (i, j) in ijs)
+                maxi, maxj = max(i for (i, j) in ijs), max(j for (i, j) in ijs)
+                for i in range(mini, maxi + 1):
+                    for j in range(minj, maxj + 1):
+                        self._put((i, j), ef)
 
     @profiler.function
     def compute_ij(self, v2d):
@@ -1682,14 +1669,12 @@ class Accel2D:
         j = max(0, min(self.bin_rows - 1, j))
         return (i, j)
 
-    def _put(self, i, j, o):
-        t = (i, j)
-        if t not in self.bins: self.bins[t] = set()
-        self.bins[t].add(o)
+    def _put(self, ij, o):
+        if ij not in self.bins: self.bins[ij] = set()
+        self.bins[ij].add(o)
 
-    def _get(self, i, j):
-        t = (i, j)
-        return self.bins.get(t, set())
+    def _get(self, ij):
+        return self.bins[ij] if ij in self.bins else set()
 
     @profiler.function
     def clean_invalid(self):
@@ -1698,135 +1683,33 @@ class Accel2D:
             for (t, objs) in self.bins.items()
         }
 
-    def _put_edge(self, e, v0, v1, depth=0):
-        i0, j0 = self.compute_ij(v0)
-        i1, j1 = self.compute_ij(v1)
-        if i0 == i1 and j0 == j1:
-            self._put(i0, j0, e)
-        elif i0 == i1:
-            i = i0
-            for j in range(min(j0, j1), max(j0, j1) + 1):
-                self._put(i, j, e)
-        elif j0 == j1:
-            j = j0
-            for i in range(min(i0, i1), max(i0, i1) + 1):
-                self._put(i, j, e)
-        elif depth == 6:
-            self._put(i0, j0, e)
-            self._put(i1, j1, e)
-        else:
-            vm = v0 + (v1 - v0) / 2
-            self._put_edge(e, v0, vm, depth=depth + 1)
-            self._put_edge(e, vm, v1, depth=depth + 1)
-
-    def _put_face(self, f, v0, v1, v2, depth=0):
-        i0, j0 = self.compute_ij(v0)
-        i1, j1 = self.compute_ij(v1)
-        i2, j2 = self.compute_ij(v2)
-        if i0 == i1 and i0 == i2 and j0 == j1 and j0 == j2:
-            self._put(i0, j0, f)
-        elif i0 == i1 and j0 == j1:
-            self._put_edge(f, v0, v2, depth=depth)
-        elif i0 == i2 and j0 == j2:
-            self._put_edge(f, v0, v1, depth=depth)
-        elif i1 == i2 and j1 == j2:
-            self._put_edge(f, v1, v2, depth=depth)
-        elif depth == 6:
-            self._put(i0, j0, f)
-            self._put(i1, j1, f)
-            self._put(i2, j2, f)
-        else:
-            v01 = v0 + (v1 - v0) / 2
-            v12 = v1 + (v2 - v1) / 2
-            v20 = v2 + (v0 - v2) / 2
-            self._put_face(f, v0, v01, v20, depth=depth + 1)
-            self._put_face(f, v1, v12, v01, depth=depth + 1)
-            self._put_face(f, v2, v20, v12, depth=depth + 1)
-
     @profiler.function
-    def get(self, v2d, within):
+    def get(self, v2d, within, *, fn_filter=None):
+        if isinf(v2d.x) or isinf(v2d.y) or isnan(v2d.x) or isnan(v2d.y): return set()
         delta = Vec2D((within, within))
         p0, p1 = v2d - delta, v2d + delta
-        if isinf(p0.x) or isinf(p0.y) or isinf(p1.x) or isinf(p1.y): return set()
-        if isnan(p0.x) or isnan(p0.y) or isnan(p1.x) or isnan(p1.y): return set()
         i0, j0 = self.compute_ij(p0)
         i1, j1 = self.compute_ij(p1)
-        l = set()
-        for i in range(i0, i1 + 1):
-            for j in range(j0, j1 + 1):
-                l |= self._get(i, j)
-        return {v for v in l if v.is_valid}
+        ret = {
+            elem
+            for i in range(i0, i1+1)
+            for j in range(j0, j1+1)
+            for elem in self._get((i, j))
+            if elem.is_valid and (fn_filter is None or fn_filter(elem))
+        }
+        return ret
 
     @profiler.function
     def get_verts(self, v2d, within):
-        vert_type = self.vert_type
-        return {g for g in self.get(v2d, within) if type(g) is vert_type}
+        return self.get(v2d, within, fn_filter=self._is_vert)
 
     @profiler.function
     def get_edges(self, v2d, within):
-        edge_type = self.edge_type
-        return {g for g in self.get(v2d, within) if type(g) is edge_type}
+        return self.get(v2d, within, fn_filter=self._is_edge)
 
     @profiler.function
     def get_faces(self, v2d, within):
-        face_type = self.face_type
-        return {g for g in self.get(v2d, within) if type(g) is face_type}
-
-    def nearest_vert(self, v2d):
-        Point_to_Point2D = self.Point_to_Point2D
-        vert_type = self.vert_type
-        x,y = v2d
-        i, j = self.compute_ij(v2d)
-        working = {(i,j)}
-        touched = set()
-        bv,bd = None,0
-        while working:
-            binij = working.pop()
-            if binij in touched: continue
-            touched.add(binij)
-            i,j = binij
-            if i < 0 or j < 0 or i >= self.bin_cols or j >= self.bin_rows: continue
-            mx,my = self.min + Vec2D((self.size.x * i / self.bin_cols, self.size.y * j / self.bin_rows))
-            Mx,My = self.min + Vec2D((self.size.x * (i+1) / self.bin_cols, self.size.y * (j+1) / self.bin_rows))
-            closest = Point2D((mid(x, mx, Mx), mid(y, my, My)))
-            d = (v2d - closest).length
-            if bv and d > bd:
-                # we have seen a vert that is closer than anything in this bin
-                continue
-            for v in self._get(i, j):
-                if type(v) is not vert_type: continue
-                d = (Point_to_Point2D(v.co) - v2d).length
-                if bv and d > bd: continue
-                bv,bd = v,d
-            working |= {(i-1,j-1), (i,j-1), (i+1,j-1), (i-1,j), (i+1,j), (i-1,j+1), (i,j+1), (i+1,j+1)}
-        return Point_to_Point2D(bv.co)
-
-    @profiler.function
-    def nearest_face(self, v2d):
-        ########################################
-        # XXXX: ONLY FINDING FACE UNDER V2D!!! #
-        ########################################
-
-        @profiler.function
-        def intersect_face(bmf):
-            pts = [Point_to_Point2D(bmv.co) for bmv in bmf.verts]
-            pts = [pt for pt in pts if pt]
-            pt0 = pts[0]
-            for pt1, pt2 in zip(pts[1:-1], pts[2:]):
-                if intersect_point_tri(v2d, pt0, pt1, pt2):
-                    return True
-            return False
-
-        Point_to_Point2D = self.Point_to_Point2D
-        face_type = self.face_type
-        i, j = self.compute_ij(v2d)
-        faces = [bmf for bmf in self._get(i, j) if type(bmf) is face_type]
-        for bmf in faces:
-            if not bmf.is_valid:
-                continue
-            if intersect_face(bmf):
-                return bmf
-        return None
+        return self.get(v2d, within, fn_filter=self._is_face)
 
 
 class NumberUnit:
