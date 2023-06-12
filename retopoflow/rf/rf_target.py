@@ -269,6 +269,7 @@ class RetopoFlow_Target:
     # find target entities in screen space
 
     def get_point2D(self, point):
+        if not point: return None
         if point.is_2D(): return point
         return self.Point_to_Point2D(point)
 
