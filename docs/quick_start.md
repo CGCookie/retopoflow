@@ -1,9 +1,9 @@
 # RetopoFlow Quick Start Guide
 
-This guide will help you get started with RetopoFlow {{ site.data.options.rf_version }}.
+This guide will help you get started with RetopoFlow {{ site.data.options.rf_version }}. More detailed help is available by pressing {{ site.data.keymaps.general_help }} after you start RetopoFlow. 
 
-More detailed help is available by pressing {{ site.data.keymaps.general_help }} after you start RetopoFlow.
-
+You can also watch the full RetopoFlow 3 course for free on CG Cookie: 
+[cgcookie.com/courses/retopology-with-retopoflow-3](https://cgcookie.com/courses/retopology-with-retopoflow-3)
 
 ## The Short, Short Version
 

@@ -143,6 +143,9 @@ class RFTool:
         elif self.actions.mousemove_prev: self._callback('mouse stop')
         return self._fsm.update()
 
+    def _fsm_in_main(self):
+        return self._fsm.state in {'main'}
+
     @staticmethod
     def dirty_when_done(fn):
         @wraps(fn)

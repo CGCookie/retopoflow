@@ -219,10 +219,11 @@ class RetopoFlow_Blender_Save:
             # record the next time to save
             self.time_to_save = time.time() + auto_save_time
         elif time.time() > self.time_to_save:
-            # it is time to save, but only if changes were made!
-            self.save_backup()
-            # record the next time to save
-            self.time_to_save = time.time() + auto_save_time
+            # it is time to save, but only if current tool is in main and changes were made!
+            if self.rftool._fsm_in_main():
+                self.save_backup()
+                # record the next time to save
+                self.time_to_save = time.time() + auto_save_time
 
     @staticmethod
     def has_auto_save():
