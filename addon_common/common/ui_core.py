@@ -204,13 +204,6 @@ def get_image_path(fn, ext=None, subfolders=None):
 
 
 
-@contextlib.contextmanager
-def temp_bglbuffer(*args):
-    import bgl
-    buf = bgl.Buffer(*args)
-    yield buf
-    del buf
-
 
 def load_image_png(path):
     # note: assuming 4 channels (rgba) per pixel!
@@ -1883,8 +1876,6 @@ class UI_Element(
         self._cache_create()
 
         sl, st, sw, sh = 0, self._h - 1, self._w, self._h
-        import bgl
-        bgl.glClearColor(0,0,0,0)
         with self._cacheRenderBuf.bind():
             self._draw_real((-self._l, -self._b))
             # with gpustate.ScissorStack.wrap(sl, st, sw, sh, clamp=False):

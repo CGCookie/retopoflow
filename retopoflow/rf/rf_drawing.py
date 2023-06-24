@@ -145,9 +145,9 @@ class RetopoFlow_Drawing:
         # if not self.actions.r3d: return
         # # THE FOLLOWING CODE NEEDS UPDATED TO NOT USE GLBEGIN!
         # # grease marks
-        # bgl.glBegin(bgl.GL_QUADS)
+        # b_g_l.glBegin(b_g_l.GL_QUADS)
         # for stroke_data in self.grease_marks:
-        #     bgl.glColor4f(*stroke_data['color'])
+        #     b_g_l.glColor4f(*stroke_data['color'])
         #     t = stroke_data['thickness']
         #     s0,p0,n0,d0,d1 = None,None,None,None,None
         #     for s1 in stroke_data['marks']:
@@ -156,12 +156,12 @@ class RetopoFlow_Drawing:
         #             v01 = p1 - p0
         #             if d0 is None: d0 = Direction(v01.cross(n0))
         #             d1 = Direction(v01.cross(n1))
-        #             bgl.glVertex3f(*(p0-d0*t+n0*0.001))
-        #             bgl.glVertex3f(*(p0+d0*t+n0*0.001))
-        #             bgl.glVertex3f(*(p1+d1*t+n1*0.001))
-        #             bgl.glVertex3f(*(p1-d1*t+n1*0.001))
+        #             b_g_l.glVertex3f(*(p0-d0*t+n0*0.001))
+        #             b_g_l.glVertex3f(*(p0+d0*t+n0*0.001))
+        #             b_g_l.glVertex3f(*(p1+d1*t+n1*0.001))
+        #             b_g_l.glVertex3f(*(p1-d1*t+n1*0.001))
         #         s0,p0,n0,d0 = s1,p1,n1,d1
-        # bgl.glEnd()
+        # b_g_l.glEnd()
 
 
     ##################################
