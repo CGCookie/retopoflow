@@ -7,7 +7,7 @@ This document contains details about what has changed in RetopoFlow since versio
 This version of RetopoFlow requires Blender 3.6 or later.
 
 - Removed dependence on deprecated `bgl` module
-- Continued working toward supporting Metal
+- Added support for Metal
 - Added `view_roll` keymap
 - Improved performance when navigating
 - Improved error handling during startup process
