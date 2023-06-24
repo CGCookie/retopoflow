@@ -35,7 +35,6 @@ from itertools import dropwhile, zip_longest
 from concurrent.futures import ThreadPoolExecutor
 
 import bpy
-import bgl
 import blf
 import gpu
 
@@ -65,7 +64,6 @@ from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
-from .shaders import Shader
 from .useractions import ActionHandler
 from .utils import iter_head, any_args, join
 
@@ -208,6 +206,7 @@ def get_image_path(fn, ext=None, subfolders=None):
 
 @contextlib.contextmanager
 def temp_bglbuffer(*args):
+    import bgl
     buf = bgl.Buffer(*args)
     yield buf
     del buf
@@ -277,7 +276,7 @@ def preload_image(*fns):
     return [ (fn, load_image(fn)) for fn in fns ]
 
 @add_cache('_cache', {})
-def load_texture(fn_image, mag_filter=bgl.GL_NEAREST, min_filter=bgl.GL_LINEAR, image=None):
+def load_texture(fn_image, image=None):
     if fn_image not in load_texture._cache:
         if image is None: image = load_image(fn_image)
         # print(f'UI: Buffering texture "{fn_image}"')
@@ -1457,11 +1456,7 @@ class UI_Element(
                     self.dirty(parent=True, children=True)
                 else:
                     self._src = 'image loading'
-                    self._image_data = load_texture(
-                        f'image loading {self.src}',
-                        image=get_loading_image(self.src),
-                        mag_filter=bgl.GL_LINEAR,
-                    )
+                    self._image_data = load_texture(f'image loading {self.src}', image=get_loading_image(self.src))
                     self._new_content = True
                     def callback(image):
                         self._src = 'image loaded'
@@ -1888,6 +1883,7 @@ class UI_Element(
         self._cache_create()
 
         sl, st, sw, sh = 0, self._h - 1, self._w, self._h
+        import bgl
         bgl.glClearColor(0,0,0,0)
         with self._cacheRenderBuf.bind():
             self._draw_real((-self._l, -self._b))

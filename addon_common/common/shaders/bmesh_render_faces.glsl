@@ -30,15 +30,11 @@ struct Options {
 
     vec4 vert_scale;        // used for mirroring
 
-    vec3 _hidden;
-    float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
-    vec3 _offset;
-    float offset;
-    vec3 _dotoffset;
-    float dotoffset;
+    vec4 hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
+    vec4 offset;
+    vec4 dotoffset;
 
-    vec3 _radius;
-    float radius;
+    vec4 radius;
 };
 uniform Options options;
 
@@ -67,6 +63,9 @@ bool use_warning()   { return options.use_settings0[1] > 0.5; }
 bool use_pinned()    { return options.use_settings0[2] > 0.5; }
 bool use_seam()      { return options.use_settings0[3] > 0.5; }
 bool use_rounding()  { return options.use_settings1[0] > 0.5; }
+
+float magic_offset()    { return options.offset.x; }
+float magic_dotoffset() { return options.dotoffset.x; }
 
 
 const bool srgbTarget = true;
@@ -155,7 +154,7 @@ void main() {
     if(use_pinned()    && pinned   > 0.5) vColor = mix(vColor, options.color_pinned,   0.75);
     if(use_selection() && selected > 0.5) vColor = mix(vColor, options.color_selected, 0.75);
 
-    vColor.a *= 1.0 - options.hidden;
+    vColor.a *= 1.0 - options.hidden.x;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
         vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);
@@ -286,8 +285,8 @@ void main() {
         // MAGIC!
         gl_FragDepth =
             gl_FragCoord.z
-            - options.offset    * l_clip * 200.0
-            - options.dotoffset * l_clip * 0.0001 * (1.0 - d)
+            - magic_offset()    * l_clip * 200.0
+            - magic_dotoffset() * l_clip * 0.0001 * (1.0 - d)
             - focus_push
             ;
     } else {
@@ -309,8 +308,8 @@ void main() {
         // MAGIC!
         gl_FragDepth =
             gl_FragCoord.z
-            - options.offset    * l_clip * 75.0
-            - options.dotoffset * l_clip * 0.01 * (1.0 - d)
+            - magic_offset()    * l_clip * 75.0
+            - magic_dotoffset() * l_clip * 0.01 * (1.0 - d)
             ;
     }
 

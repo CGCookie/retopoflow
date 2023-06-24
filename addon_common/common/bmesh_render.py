@@ -55,7 +55,6 @@ from .decorators import blender_version_wrapper, add_cache, only_in_blender_vers
 from .drawing import Drawing
 from .maths import (Point, Direction, Frame, XForm, invert_matrix, matrix_normal)
 from .profiler import profiler
-from .shaders import Shader
 from .utils import shorten_floats
 
 
@@ -104,15 +103,14 @@ def triangulateFace(verts):
 
 import gpu
 from gpu_extras.batch import batch_for_shader
-from .shaders import Shader
 
 if not bpy.app.background:
     Drawing.glCheckError(f'Pre-compile check: bmesh render shader')
-    verts_vs, verts_fs = Shader.parse_file('bmesh_render_verts.glsl', includeVersion=False)
+    verts_vs, verts_fs = gpustate.shader_parse_file('bmesh_render_verts.glsl', includeVersion=False)
     verts_shader, verts_ubos = gpustate.gpu_shader('bmesh render: verts', verts_vs, verts_fs)
-    edges_vs, edges_fs = Shader.parse_file('bmesh_render_edges.glsl', includeVersion=False)
+    edges_vs, edges_fs = gpustate.shader_parse_file('bmesh_render_edges.glsl', includeVersion=False)
     edges_shader, edges_ubos = gpustate.gpu_shader('bmesh render: edges', edges_vs, edges_fs)
-    faces_vs, faces_fs = Shader.parse_file('bmesh_render_faces.glsl', includeVersion=False)
+    faces_vs, faces_fs = gpustate.shader_parse_file('bmesh_render_faces.glsl', includeVersion=False)
     faces_shader, faces_ubos = gpustate.gpu_shader('bmesh render: faces', faces_vs, faces_fs)
     Drawing.glCheckError(f'Compiled bmesh render shader')
 
@@ -191,13 +189,13 @@ class BufferedRender_Batch:
         set_if_set('color warning',  lambda v: self.set_shader_option('color_warning', v))
         set_if_set('color pinned',   lambda v: self.set_shader_option('color_pinned', v))
         set_if_set('color seam',     lambda v: self.set_shader_option('color_seam', v))
-        set_if_set('hidden',         lambda v: self.set_shader_option('hidden', v))
-        set_if_set('offset',         lambda v: self.set_shader_option('offset', v))
-        set_if_set('dotoffset',      lambda v: self.set_shader_option('dotoffset', v))
+        set_if_set('hidden',         lambda v: self.set_shader_option('hidden', (v, 0, 0, 0)))
+        set_if_set('offset',         lambda v: self.set_shader_option('offset', (v, 0, 0, 0)))
+        set_if_set('dotoffset',      lambda v: self.set_shader_option('dotoffset', (v, 0, 0, 0)))
         if self.shader_type == 'POINTS':
-            set_if_set('size',       lambda v: self.set_shader_option('radius', v*dpi_mult))
+            set_if_set('size',       lambda v: self.set_shader_option('radius', (v*dpi_mult, 0, 0, 0)))
         elif self.shader_type == 'LINES':
-            set_if_set('width',      lambda v: self.set_shader_option('radius', v*dpi_mult))
+            set_if_set('width',      lambda v: self.set_shader_option('radius', (v*dpi_mult, 0, 0, 0)))
 
     def _draw(self, sx, sy, sz):
         self.set_shader_option('vert_scale', (sx, sy, sz, 0))
@@ -234,11 +232,11 @@ class BufferedRender_Batch:
         self.set_shader_option('color_warning',  (1.0, 0.5, 0.0, 0.5))
         self.set_shader_option('color_pinned',   (1.0, 0.0, 0.5, 0.5))
         self.set_shader_option('color_seam',     (1.0, 0.0, 0.5, 0.5))
-        self.set_shader_option('hidden',         0.9)
-        self.set_shader_option('offset',         0.0)
-        self.set_shader_option('dotoffset',      0.0)
+        self.set_shader_option('hidden',         (0.9, 0, 0, 0))
+        self.set_shader_option('offset',         (0.0, 0, 0, 0))
+        self.set_shader_option('dotoffset',      (0.0, 0, 0, 0))
         self.set_shader_option('vert_scale',     (1.0, 1.0, 1.0))
-        self.set_shader_option('radius',         1.0)
+        self.set_shader_option('radius',         (1.0, 0, 0, 0))
 
         use0 = [
             1.0 if (not opts.get('no selection', False)) else 0.0,

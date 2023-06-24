@@ -7,22 +7,13 @@ ex: stipple [3,2]  color0 '='  color1 '-'
 */
 
 struct Options {
-    mat4 MVPMatrix;        // pixel matrix
-    vec2 _screensize;
-    vec2 screensize;       // width,height of screen (for antialiasing)
-
-    vec2 pos0;             // front end of line
-    vec2 pos1;             // back end of line
-    vec4 color0;           // color of on stipple
-    vec4 color1;           // color of off stipple
-
-    vec3  _width;
-    float width;            // line width, perpendicular to line
-
-    vec2  _stipple;
-    vec2  stipple;          // lengths of on/off stipple
-    vec3  _stippleOffset;
-    float stippleOffset;    // length to shift initial stipple of front
+    mat4 MVPMatrix;     // pixel matrix
+    vec4 screensize;    // width,height of screen (for antialiasing)
+    vec4 pos0;          // front end of line
+    vec4 pos1;          // back end of line
+    vec4 color0;        // color of on stipple
+    vec4 color1;        // color of off stipple
+    vec4 stipple_width; // lengths for stipple (x: color0, y: color1, z: initial shift) and line width (perp to line)
 };
 uniform Options options;
 
@@ -38,14 +29,14 @@ noperspective out vec2  cpos;   // center of line, scaled by screensize
 noperspective out float offset; // stipple offset of individual fragment
 
 void main() {
-    vec2 v01 = options.pos1 - options.pos0;
+    vec2 v01 = options.pos1.xy - options.pos0.xy;
     vec2 d01 = normalize(v01);
     vec2 perp = vec2(-d01.y, d01.x);
-    vec2 cp = options.pos0 + vec2(0.5,0.5) + (pos.x * v01);
-    vec2 p = cp + ((options.width+2.0) * (pos.y - 0.5) * perp);
+    vec2 cp = options.pos0.xy + vec2(0.5,0.5) + (pos.x * v01);
+    vec2 p = cp + ((options.stipple_width.w + 2.0) * (pos.y - 0.5) * perp);
     vec4 pcp = options.MVPMatrix * vec4(cp, 0.0, 1.0);
     gl_Position = options.MVPMatrix * vec4(p, 0.0, 1.0);
-    offset = length(v01) * pos.x + options.stippleOffset;
+    offset = length(v01) * pos.x + options.stipple_width.z;
     vpos = vec2(gl_Position.x * options.screensize.x, gl_Position.y * options.screensize.y);
     cpos = vec2(pcp.x * options.screensize.x, pcp.y * options.screensize.y);
 }
@@ -74,19 +65,19 @@ vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 
 void main() {
     // stipple
-    if(options.stipple.y <= 0) {        // stipple disabled
+    if(options.stipple_width.y <= 0) {        // stipple disabled
         outColor = options.color0;
     } else {
-        float t = options.stipple.x + options.stipple.y;
+        float t = options.stipple_width.x + options.stipple_width.y;
         float s = mod(offset, t);
-        float sd = s - options.stipple.x;
+        float sd = s - options.stipple_width.x;
         vec4 colors = options.color1;
         if(colors.a < (1.0/255.0)) colors.rgb = options.color0.rgb;
         if(s <= 0.5 || s >= t - 0.5) {
             outColor = mix(colors, options.color0, mod(s + 0.5, t));
-        } else if(s >= options.stipple.x - 0.5 && s <= options.stipple.x + 0.5) {
-            outColor = mix(options.color0, colors, s - (options.stipple.x - 0.5));
-        } else if(s < options.stipple.x) {
+        } else if(s >= options.stipple_width.x - 0.5 && s <= options.stipple_width.x + 0.5) {
+            outColor = mix(options.color0, colors, s - (options.stipple_width.x - 0.5));
+        } else if(s < options.stipple_width.x) {
             outColor = options.color0;
         } else {
             outColor = colors;
@@ -94,8 +85,8 @@ void main() {
     }
     // antialias along edge of line
     float cdist = length(cpos - vpos);
-    if(cdist > options.width) {
-        outColor.a *= clamp(1.0 - (cdist - options.width), 0.0, 1.0);
+    if(cdist > options.stipple_width.w) {
+        outColor.a *= clamp(1.0 - (cdist - options.stipple_width.w), 0.0, 1.0);
     }
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);

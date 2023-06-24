@@ -52,7 +52,6 @@ from .globals import Globals
 from .hasher import Hasher
 from .maths import Point2D, Vec2D, Point, Ray, Direction, mid, Color, Normal, Frame
 from .profiler import profiler
-from .shaders import Shader
 from .utils import iter_pairs
 from . import gpustate
 
@@ -342,14 +341,12 @@ class Drawing:
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
-        ubos_2D_point.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_point.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
-        ubos_2D_point.options.radius = radius
-        ubos_2D_point.options.border = border
-        ubos_2D_point.options.border = border
+        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
         ubos_2D_point.options.color = color
         ubos_2D_point.options.colorBorder = borderColor
-        ubos_2D_point.options.center = pt
+        ubos_2D_point.options.center = (*pt, 0, 1)
         ubos_2D_point.update_shader()
         batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
@@ -360,15 +357,13 @@ class Drawing:
         border = self.scale(border)
         if borderColor is None: borderColor = (0,0,0,0)
         shader_2D_point.bind()
-        ubos_2D_point.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_point.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_point.options.mvpmatrix = self.get_pixel_matrix()
-        ubos_2D_point.options.radius = radius
-        ubos_2D_point.options.border = border
-        ubos_2D_point.options.border = border
+        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
         ubos_2D_point.options.color = color
         ubos_2D_point.options.colorBorder = borderColor
         for pt in pts:
-            ubos_2D_point.options.center = pt
+            ubos_2D_point.options.center = (*pt, 0, 1)
             ubos_2D_point.update_shader()
             batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
@@ -377,18 +372,16 @@ class Drawing:
     def draw2D_line(self, p0:Point2D, p1:Point2D, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
+        stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
         ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
-        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
-        ubos_2D_lineseg.options.pos0 = p0
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height, 0, 0)
+        ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
         ubos_2D_lineseg.options.color0 = color0
-        ubos_2D_lineseg.options.pos1 = p1
+        ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
         ubos_2D_lineseg.options.color1 = color1
-        ubos_2D_lineseg.options.width = width
-        ubos_2D_lineseg.options.stipple = stipple
-        ubos_2D_lineseg.options.stippleOffset = offset
+        ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
         ubos_2D_lineseg.update_shader()
         batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
@@ -397,21 +390,19 @@ class Drawing:
         self.glCheckError('starting draw2D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
+        stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
         ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
-        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
+        ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height, 0, 0)
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1
-        ubos_2D_lineseg.options.width = width
-        ubos_2D_lineseg.options.stipple = stipple
-        ubos_2D_lineseg.options.stippleOffset = offset    # TODO: should offset be a list?
+        ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
         for i in range(len(points)//2):
             p0,p1 = points[i*2:i*2+2]
             if p0 is None or p1 is None: continue
-            ubos_2D_lineseg.options.pos0 = p0
-            ubos_2D_lineseg.options.pos1 = p1
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
@@ -421,21 +412,19 @@ class Drawing:
         self.glCheckError('starting draw3D_lines')
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
+        stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
         ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1
-        ubos_2D_lineseg.options.width = width
-        ubos_2D_lineseg.options.stipple = stipple
-        ubos_2D_lineseg.options.stippleOffset = offset    # TODO: should offset be a list?
+        ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
         ubos_2D_lineseg.options.MVPMatrix = self.get_view_matrix()
         for i in range(len(points)//2):
             p0,p1 = points[i*2:i*2+2]
             if p0 is None or p1 is None: continue
-            ubos_2D_lineseg.options.pos0 = p0
-            ubos_2D_lineseg.options.pos1 = p1
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         gpu.shader.unbind()
@@ -444,19 +433,17 @@ class Drawing:
     def draw2D_linestrip(self, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         width = self.scale(width)
-        stipple = [self.scale(v) for v in stipple] if stipple else [1,0]
+        stipple = [self.scale(v) for v in stipple] if stipple else [1.0, 0.0]
         offset = self.scale(offset)
         shader_2D_lineseg.bind()
         ubos_2D_lineseg.options.MVPMatrix = self.get_pixel_matrix()
         ubos_2D_lineseg.options.screensize = (self.area.width, self.area.height)
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1
-        ubos_2D_lineseg.options.width = width
-        ubos_2D_lineseg.options.stipple = stipple
         for p0,p1 in iter_pairs(points, False):
-            ubos_2D_lineseg.options.pos0 = p0
-            ubos_2D_lineseg.options.pos1 = p1
-            ubos_2D_lineseg.options.stippleOffset = offset
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
+            ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
             offset += (p1 - p0).length
@@ -549,7 +536,7 @@ if not bpy.app.background and bpy.app.version >= (3, 2, 0):
     def create_shader(fn_glsl):
         path_glsl = get_path_from_addon_common('common', 'shaders', fn_glsl)
         txt = open(path_glsl, 'rt').read()
-        vert_source, frag_source = Shader.parse_string(txt)
+        vert_source, frag_source = gpustate.shader_parse_string(txt)
         try:
             Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
             ret = gpustate.gpu_shader(f'drawing {fn_glsl}', vert_source, frag_source)
@@ -690,14 +677,13 @@ class CC_2D_POINTS(CC_DRAW):
     def begin(cls):
         shader_2D_point.bind()
         ubos_2D_point.options.mvpmatrix = Drawing._instance.get_pixel_matrix()
-        ubos_2D_point.options.screensize = Drawing._instance.area.width, Drawing._instance.area.height
+        ubos_2D_point.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height, 0, 0)
         ubos_2D_point.options.color = cls._default_color
         cls.update()
 
     @classmethod
     def update(cls):
-        ubos_2D_point.options.radius = cls._point_size
-        ubos_2D_point.options.border = cls._border_width
+        ubos_2D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
         ubos_2D_point.options.colorBorder = cls._border_color
 
     @classmethod
@@ -707,7 +693,7 @@ class CC_2D_POINTS(CC_DRAW):
     @classmethod
     def vertex(cls, p:Point2D):
         if p:
-            ubos_2D_point.options.center = p
+            ubos_2D_point.options.center = (*p, 0, 1)
             ubos_2D_point.options.update_shader()
             batch_2D_point.draw(shader_2D_point)
 
@@ -718,7 +704,7 @@ class CC_2D_LINES(CC_DRAW):
         shader_2D_lineseg.bind()
         mvpmatrix = Drawing._instance.get_pixel_matrix()
         ubos_2D_lineseg.options.MVPMatrix = mvpmatrix
-        ubos_2D_lineseg.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height)
+        ubos_2D_lineseg.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height, 0, 0)
         ubos_2D_lineseg.options.color0 = cls._default_color
         cls.stipple(offset=0)
         cls._c = 0
@@ -727,9 +713,7 @@ class CC_2D_LINES(CC_DRAW):
     @classmethod
     def update(cls):
         ubos_2D_lineseg.options.color1 = cls._stipple_color
-        ubos_2D_lineseg.options.width = cls._line_width
-        ubos_2D_lineseg.options.stipple = cls._stipple_pattern
-        ubos_2D_lineseg.options.stippleOffset = cls._stipple_offset
+        ubos_2D_lineseg.options.stipple_width = (cls._stipple_pattern[0], cls._stipple_pattern[1], cls._stipple_offset, cls._line_width)
 
     @classmethod
     def color(cls, c:Color):
@@ -737,7 +721,7 @@ class CC_2D_LINES(CC_DRAW):
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', p)
+        if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c = (cls._c + 1) % 2
         if cls._c == 0 and cls._last_p and p:
             ubos_2D_lineseg.update_shader()
@@ -756,8 +740,8 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
             cls._last_p = p
         else:
             if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = cls._last_p
-                ubos_2D_lineseg.options.pos1 = p
+                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
@@ -775,8 +759,8 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
             cls._first_p = cls._last_p = p
         else:
             if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = cls._last_p
-                ubos_2D_lineseg.options.pos1 = p
+                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
@@ -784,8 +768,8 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
     @classmethod
     def end(cls):
         if cls._last_p and cls._first_p:
-            ubos_2D_lineseg.options.pos0 = cls._last_p
-            ubos_2D_lineseg.options.pos1 = cls._first_p
+            ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*cls._first_p, 0, 1)
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
         super().end()
@@ -810,7 +794,7 @@ class CC_2D_TRIANGLES(CC_DRAW):
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', p)
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c = (cls._c + 1) % 3
         if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
             ubos_2D_triangle.update_shader()
@@ -838,7 +822,7 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
 
     @classmethod
     def vertex(cls, p:Point2D):
-        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', p)
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c += 1
         if cls._c == 3:
             if p and cls._first_p and cls._last_p:

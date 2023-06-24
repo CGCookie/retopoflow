@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Williamson
 '''
 
 import bpy
-import bgl
 
 from .ui_styling import UI_Styling, ui_defaultstylings
 
@@ -38,7 +37,6 @@ from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
-from .shaders import Shader
 from .utils import iter_head, any_args, join
 
 
@@ -52,7 +50,7 @@ class UI_Draw:
         from gpu_extras.batch import batch_for_shader
 
         vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
-        vertex_shader, fragment_shader = Shader.parse_file('ui_element.glsl', includeVersion=False)
+        vertex_shader, fragment_shader = gpustate.shader_parse_file('ui_element.glsl', includeVersion=False)
         print(f'Addon Common: compiling UI shader')
         with Drawing.glCheckError_wrap('compiling UI shader and batching'):
             shader, ubos = gpustate.gpu_shader(
@@ -76,6 +74,46 @@ class UI_Draw:
                     'REGION_BACKGROUND':    8,
                     'REGION_OUTSIDE':       9,
                     'REGION_ERROR':        10,
+
+                    #####################################################
+                    # debugging options
+                    'DEBUG_COLOR_MARGINS': 'false',     # colors pixels in margin (top, left, bottom, right)
+                    'DEBUG_COLOR_REGIONS': 'false',     # colors pixels based on region
+                    'DEBUG_IMAGE_CHECKER': 'false',     # replaces images with checker pattern to test scaling
+                    'DEBUG_IMAGE_OUTSIDE': 'false',     # shifts colors if texcoord is outside [0,1] (in padding region)
+                    'DEBUG_IGNORE_ALPHA':  'false',     # snaps alpha to 0 or 1 based on 0.25 threshold
+                    'DEBUG_DONT_DISCARD':  'false',
+                    # colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
+                    'COLOR_MARGIN_LEFT':    'vec4(1.0, 0.0, 0.0, 0.25)',
+                    'COLOR_MARGIN_BOTTOM':  'vec4(0.0, 1.0, 0.0, 0.25)',
+                    'COLOR_MARGIN_RIGHT':   'vec4(0.0, 0.0, 1.0, 0.25)',
+                    'COLOR_MARGIN_TOP':     'vec4(0.0, 1.0, 1.0, 0.25)',
+                    'COLOR_BORDER_TOP':     'vec4(0.5, 0.0, 0.0, 0.25)',
+                    'COLOR_BORDER_RIGHT':   'vec4(0.0, 0.5, 0.5, 0.25)',
+                    'COLOR_BORDER_BOTTOM':  'vec4(0.0, 0.5, 0.5, 0.25)',
+                    'COLOR_BORDER_LEFT':    'vec4(0.0, 0.5, 0.5, 0.25)',
+                    'COLOR_BACKGROUND':     'vec4(0.5, 0.5, 0.0, 0.25)',
+                    'COLOR_OUTSIDE':        'vec4(0.5, 0.5, 0.5, 0.25)',
+                    'COLOR_ERROR':          'vec4(1.0, 0.0, 0.0, 1.00)',
+                    'COLOR_ERROR_NEVER':    'vec4(1.0, 0.0, 1.0, 1.00)',
+                    'COLOR_DEBUG_IMAGE':    'vec4(0.0, 0.0, 0.0, 0.00)',
+                    'COLOR_CHECKER_00':     'vec4(0.0, 0.0, 0.0, 1.00)',
+                    'COLOR_CHECKER_01':     'vec4(0.0, 0.0, 0.5, 1.00)',
+                    'COLOR_CHECKER_02':     'vec4(0.0, 0.5, 0.0, 1.00)',
+                    'COLOR_CHECKER_03':     'vec4(0.0, 0.5, 0.5, 1.00)',
+                    'COLOR_CHECKER_04':     'vec4(0.5, 0.0, 0.0, 1.00)',
+                    'COLOR_CHECKER_05':     'vec4(0.5, 0.0, 0.5, 1.00)',
+                    'COLOR_CHECKER_06':     'vec4(0.5, 0.5, 0.0, 1.00)',
+                    'COLOR_CHECKER_07':     'vec4(0.5, 0.5, 0.5, 1.00)',
+                    'COLOR_CHECKER_08':     'vec4(0.3, 0.3, 0.3, 1.00)',
+                    'COLOR_CHECKER_09':     'vec4(0.0, 0.0, 1.0, 1.00)',
+                    'COLOR_CHECKER_10':     'vec4(0.0, 1.0, 0.0, 1.00)',
+                    'COLOR_CHECKER_11':     'vec4(0.0, 1.0, 1.0, 1.00)',
+                    'COLOR_CHECKER_12':     'vec4(1.0, 0.0, 0.0, 1.00)',
+                    'COLOR_CHECKER_13':     'vec4(1.0, 0.0, 1.0, 1.00)',
+                    'COLOR_CHECKER_14':     'vec4(1.0, 1.0, 0.0, 1.00)',
+                    'COLOR_CHECKER_15':     'vec4(1.0, 1.0, 1.0, 1.00)',
+
                 }
             )
             assert shader
@@ -94,7 +132,7 @@ class UI_Draw:
             'none':       4, # not resized
         }
 
-        def _draw(left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None, atex=bgl.GL_TEXTURE0):
+        def _draw(left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None):
             nonlocal shader, batch, get_MVP_matrix, texture_fit_map
             def get_v(style_key, def_val):
                 v = style.get(style_key, def_val)
@@ -106,15 +144,14 @@ class UI_Draw:
             ubos.options.uMVPMatrix          = get_MVP_matrix()
 
             ubos.options.lrtb                = (float(left), float(left + (width - 1)), float(top), float(top - (height - 1)))
-            ubos.options.wh                  = (float(width), float(height))
+            ubos.options.wh                  = (float(width), float(height), 0, 0)
 
-            ubos.options.depth               = depth
+            ubos.options.depth               = (depth, 0, 0, 0)
 
             ubos.options.margin_lrtb         = [get_v(f'margin-{p}',  0) for p in ['left', 'right', 'top', 'bottom']]
             ubos.options.padding_lrtb        = [get_v(f'padding-{p}', 0) for p in ['left', 'right', 'top', 'bottom']]
 
-            ubos.options.border_width =        get_v('border-width',   0)
-            ubos.options.border_radius =       get_v('border-radius',  0)
+            ubos.options.border_width_radius = [get_v('border-width',   0), get_v('border-radius',  0), 0, 0]
             ubos.options.border_left_color =   Color.as_vec4(get_v('border-left-color',   self._def_color))
             ubos.options.border_right_color =  Color.as_vec4(get_v('border-right-color',  self._def_color))
             ubos.options.border_top_color =    Color.as_vec4(get_v('border-top-color',    self._def_color))
@@ -122,16 +159,9 @@ class UI_Draw:
 
             ubos.options.background_color =    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color))
 
-            ubos.options.image_fit =           texture_fit_map.get(texture_fit, 0)
-            ubos.options.using_image =         1 if gputexture is not None else 0
+            ubos.options.image_use_fit = [(1 if gputexture is not None else 0), texture_fit_map.get(texture_fit, 0), 0, 0]
             if gputexture: shader.uniform_sampler('image', gputexture)
 
-            # if texture_id is not None:
-            #     bgl.glActiveTexture(atex)
-            #     bgl.glBindTexture(bgl.GL_TEXTURE_2D, texture_id)
-            #     shader.uniform_int('image', atex - bgl.GL_TEXTURE0)
-            # # if gputexture: shader.uniform_sampler('image', gputexture)
-            # # Drawing.glCheckError(f'checking gl errors after binding shader and setting uniforms')
             ubos.update_shader()
             batch.draw(shader)
 

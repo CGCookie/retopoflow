@@ -1,15 +1,10 @@
 struct Options {
   mat4 MVPMatrix;     // pixel matrix
-  vec2 _screensize;
-  vec2 screensize;    // width,height of screen (for antialiasing)
-  vec2 _pos0;
-  vec2 pos0;
+  vec4 pos0;
   vec4 color0;
-  vec2 _pos1;
-  vec2 pos1;
+  vec4 pos1;
   vec4 color1;
-  vec2 _pos2;
-  vec2 pos2;
+  vec4 pos2;
   vec4 color2;
 };
 
@@ -29,7 +24,7 @@ void main() {
     float a = clamp(pos.x, 0.0, 1.0);
     float b = clamp(pos.y, 0.0, 1.0);
     float c = 1.0 - a - b;
-    vec2 p = options.pos0 * a + options.pos1 * b + options.pos2 * c;
+    vec2 p = (options.pos0 * a + options.pos1 * b + options.pos2 * c).xy;
     gl_Position = options.MVPMatrix * vec4(p, 0.0, 1.0);
     color = options.color0 * a + options.color1 * b + options.color2 * c;
 }

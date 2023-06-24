@@ -30,15 +30,11 @@ struct Options {
 
     vec4 vert_scale;        // used for mirroring
 
-    vec3 _hidden;
-    float hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
-    vec3 _offset;
-    float offset;
-    vec3 _dotoffset;
-    float dotoffset;
+    vec4 hidden;           // affects alpha for geometry below surface. 0=opaque, 1=transparent
+    vec4 offset;
+    vec4 dotoffset;
 
-    vec3 _radius;
-    float radius;
+    vec4 radius;
 };
 uniform Options options;
 
@@ -67,6 +63,9 @@ bool use_warning()   { return options.use_settings0[1] > 0.5; }
 bool use_pinned()    { return options.use_settings0[2] > 0.5; }
 bool use_seam()      { return options.use_settings0[3] > 0.5; }
 bool use_rounding()  { return options.use_settings1[0] > 0.5; }
+
+float magic_offset()    { return options.offset.x; }
+float magic_dotoffset() { return options.dotoffset.x; }
 
 
 const bool srgbTarget = true;
@@ -133,7 +132,7 @@ void main() {
     vec2 ppos1 = xyz(options.matrix_p * options.matrix_v * options.matrix_m * pos1).xy;
     vec2 pdir0 = normalize(ppos1 - ppos0);
     vec2 pdir1 = vec2(-pdir0.y, pdir0.x);
-    vec4 off = vec4((options.radius + 2.0) * pdir1 * 2.0 * (vert_offset.y-0.5) / options.screen_size.xy, 0, 0);
+    vec4 off = vec4((options.radius.x + 2.0) * pdir1 * 2.0 * (vert_offset.y-0.5) / options.screen_size.xy, 0, 0);
 
     vec4 pos = pos0 + vert_offset.x * (pos1 - pos0);
     vec3 norm = normalize(vec3(vert_norm) * vec3(options.vert_scale));
@@ -178,7 +177,7 @@ void main() {
     if(use_seam()      && seam     > 0.5) vColor = mix(vColor, options.color_seam,     0.75);
     if(use_selection() && selected > 0.5) vColor = mix(vColor, options.color_selected, 0.75);
 
-    vColor.a *= 1.0 - options.hidden;
+    vColor.a *= 1.0 - options.hidden.x;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
         vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);
@@ -293,7 +292,7 @@ void main() {
     float alpha = vColor.a;
 
     float dist_from_center = length(options.screen_size.xy * (vPCPosition - vPPosition.xy));
-    float alpha_mult = 1.0 - (dist_from_center - options.radius);
+    float alpha_mult = 1.0 - (dist_from_center - options.radius.x);
     if(alpha_mult <= 0) {
         discard;
         return;
@@ -322,8 +321,8 @@ void main() {
         // MAGIC!
         gl_FragDepth =
             gl_FragCoord.z
-            - options.offset    * l_clip * 200.0
-            - options.dotoffset * l_clip * 0.0001 * (1.0 - d)
+            - magic_offset()    * l_clip * 200.0
+            - magic_dotoffset() * l_clip * 0.0001 * (1.0 - d)
             - focus_push
             ;
     } else {
@@ -345,8 +344,8 @@ void main() {
         // MAGIC!
         gl_FragDepth =
             gl_FragCoord.z
-            - options.offset    * l_clip * 75.0
-            - options.dotoffset * l_clip * 0.01 * (1.0 - d)
+            - magic_offset()    * l_clip * 75.0
+            - magic_dotoffset() * l_clip * 0.01 * (1.0 - d)
             ;
     }
 

@@ -26,7 +26,7 @@ Created by Jonathan Denning, Jonathan Williamson
 # AROUND JUNE 2023 AS BLENDER 2.93 HAS GPU MODULE                     #
 #######################################################################
 
-
+import os
 import re
 import traceback
 from inspect import isroutine
@@ -38,6 +38,7 @@ import gpu
 
 from mathutils import Matrix, Vector
 
+from .blender import get_path_from_addon_common
 from .globals import Globals
 from .decorators import only_in_blender_version, warn_once, add_cache
 from .maths import mid
@@ -68,6 +69,8 @@ else:
     use_bgl_default = False # gpu.platform.backend_type_get() in {'OPENGL',}
     use_gpu_default = True  # not use_bgl_default
     use_gpu_scissor = True
+
+print(f'Addon Common: {use_bgl_default=} {use_gpu_default=} {use_gpu_scissor=}')
 
 def blend(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default, only=None):
     assert use_gpu or use_bgl
@@ -233,6 +236,106 @@ def get_glerror(title, *, use_bgl=use_bgl_default):
 
 #######################################
 # shader
+
+# https://developer.blender.org/rB21c658b718b9
+# https://developer.blender.org/T74139
+def get_srgb_shim(force=False):
+    if not force: return ''
+    return 'vec4 blender_srgb_to_framebuffer_space(vec4 c) { return pow(c, vec4(1.0/2.2, 1.0/2.2, 1.0/2.2, 1.0)); }'
+
+def shader_parse_string(string, *, includeVersion=True, constant_overrides=None, define_overrides=None, force_shim=False):
+    # NOTE: GEOMETRY SHADER NOT FULLY SUPPORTED, YET
+    #       need to find a way to handle in/out
+    constant_overrides = constant_overrides or {}
+    define_overrides = define_overrides or {}
+    uniforms, varyings, attributes, consts = [],[],[],[]
+    vertSource, geoSource, fragSource, commonSource = [],[],[],[]
+    vertVersion, geoVersion, fragVersion = '','',''
+    mode = None
+    lines = string.splitlines()
+    for i_line,line in enumerate(lines):
+        sline = line.lstrip()
+        if re.match(r'uniform ', sline):
+            uniforms.append(line)
+        elif re.match(r'attribute ', sline):
+            attributes.append(line)
+        elif re.match(r'varying ', sline):
+            varyings.append(line)
+        elif re.match(r'const ', sline):
+            m = re.match(r'const +(?P<type>bool|int|float|vec\d) +(?P<var>[a-zA-Z0-9_]+) *= *(?P<val>[^;]+);', sline)
+            if m is None:
+                print(f'Shader could not match const line ({i_line}): {line}')
+            elif m.group('var') in constant_overrides:
+                line = 'const %s %s = %s' % (m.group('type'), m.group('var'), constant_overrides[m.group('var')])
+            consts.append(line)
+        elif re.match(r'#define ', sline):
+            m0 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+)$', sline)
+            m1 = re.match(r'#define +(?P<var>[a-zA-Z0-9_]+) +(?P<val>.+)$', sline)
+            if m0 and m0.group('var') in define_overrides:
+                if not define_overrides[m0.group('var')]:
+                    line = ''
+            if m1 and m1.group('var') in define_overrides:
+                line = '#define %s %s' % (m1.group('var'), define_overrides[m1.group('var')])
+            if not m0 and not m1:
+                print(f'Shader could not match #define line ({i_line}): {line}')
+            consts.append(line)
+        elif re.match(r'#version ', sline):
+            if   mode == 'vert': vertVersion = line
+            elif mode == 'geo':  geoVersion  = line
+            elif mode == 'frag': fragVersion = line
+            else: vertVersion = geoVersion = fragVersion = line
+        elif mode not in {'vert', 'geo', 'frag'} and re.match(r'precision ', sline):
+            commonSource.append(line)
+        elif re.match(r'//+ +vert(ex)? shader', sline.lower()):
+            mode = 'vert'
+        elif re.match(r'//+ +geo(m(etry)?)? shader', sline.lower()):
+            mode = 'geo'
+        elif re.match(r'//+ +frag(ment)? shader', sline.lower()):
+            mode = 'frag'
+        else:
+            if not line.strip(): continue
+            if   mode == 'vert': vertSource.append(line)
+            elif mode == 'geo':  geoSource.append(line)
+            elif mode == 'frag': fragSource.append(line)
+            else:                commonSource.append(line)
+    assert vertSource, f'could not detect vertex shader'
+    assert fragSource, f'could not detect fragment shader'
+    v_attributes = [a.replace('attribute ', 'in ') for a in attributes]
+    v_varyings = [v.replace('varying ', 'out ') for v in varyings]
+    f_varyings = [v.replace('varying ', 'in ') for v in varyings]
+    srcVertex = '\n'.join(chain(
+        ([vertVersion] if includeVersion else []),
+        uniforms,
+        v_attributes,
+        v_varyings,
+        consts,
+        commonSource,
+        vertSource,
+    ))
+    srcFragment = '\n'.join(chain(
+        ([fragVersion] if includeVersion else []),
+        uniforms,
+        f_varyings,
+        consts,
+        [get_srgb_shim(force=force_shim)],
+        ['/////////////////////'],
+        commonSource,
+        fragSource,
+    ))
+    return (srcVertex, srcFragment)
+
+def shader_parse_file(filename, **kwargs):
+    filename_guess = get_path_from_addon_common('common', 'shaders', filename)
+    if os.path.exists(filename):
+        pass
+    elif os.path.exists(filename_guess):
+        filename = filename_guess
+    else:
+        assert False, "Shader file could not be found: %s" % filename
+
+    string = open(filename, 'rt').read()
+    return shader_parse_string(string, **kwargs)
+
 
 def clean_shader_source(source):
     source = source + '\n'

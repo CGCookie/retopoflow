@@ -8,30 +8,23 @@ struct Options {
     mat4 uMVPMatrix;
 
     vec4 lrtb;
-    vec2 _wh;
-    vec2 wh;
+    vec4 wh;
 
-    vec3 _depth;
-    float depth;
+    vec4 depth;
 
     vec4 margin_lrtb;
     vec4 padding_lrtb;
 
-    vec3 _border_width;
-    float border_width;
-    vec3 _border_radius;
-    float border_radius;
-    vec4  border_left_color;
-    vec4  border_right_color;
-    vec4  border_top_color;
-    vec4  border_bottom_color;
+    vec4 border_width_radius;
+    vec4 border_left_color;
+    vec4 border_right_color;
+    vec4 border_top_color;
+    vec4 border_bottom_color;
 
-    vec4  background_color;
+    vec4 background_color;
 
-    vec3 _using_image;
-    int   using_image;
-    vec3 _image_fit;
-    int   image_fit;    // see IMAGE_SCALE_XXX values below
+    // see IMAGE_SCALE_XXX values below
+    ivec4 image_use_fit;
 };
 
 uniform Options options;
@@ -39,68 +32,6 @@ uniform sampler2D image;
 
 
 const bool srgbTarget = true;
-
-
-// debugging options
-const bool DEBUG_COLOR_MARGINS = false;     // colors pixels in margin (top, left, bottom, right)
-const bool DEBUG_COLOR_REGIONS = false;     // colors pixels based on region
-const bool DEBUG_IMAGE_CHECKER = false;     // replaces images with checker pattern to test scaling
-const bool DEBUG_IMAGE_OUTSIDE = false;     // shifts colors if texcoord is outside [0,1] (in padding region)
-const bool DEBUG_IGNORE_ALPHA  = false;     // snaps alpha to 0 or 1 based on 0.25 threshold
-const bool DEBUG_DONT_DISCARD  = false;
-
-// // labeled magic numbers (enum), only used to identify which region a fragment is in relative to UI element properties
-// const int REGION_MARGIN_LEFT   = 0;
-// const int REGION_MARGIN_BOTTOM = 1;
-// const int REGION_MARGIN_RIGHT  = 2;
-// const int REGION_MARGIN_TOP    = 3;
-// const int REGION_BORDER_TOP    = 4;
-// const int REGION_BORDER_RIGHT  = 5;
-// const int REGION_BORDER_BOTTOM = 6;
-// const int REGION_BORDER_LEFT   = 7;
-// const int REGION_BACKGROUND    = 8;
-// const int REGION_OUTSIDE       = 9;
-// const int REGION_ERROR         = 10;
-
-// colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
-const vec4 COLOR_MARGIN_LEFT   = vec4(1.0, 0.0, 0.0, 0.25);
-const vec4 COLOR_MARGIN_BOTTOM = vec4(0.0, 1.0, 0.0, 0.25);
-const vec4 COLOR_MARGIN_RIGHT  = vec4(0.0, 0.0, 1.0, 0.25);
-const vec4 COLOR_MARGIN_TOP    = vec4(0.0, 1.0, 1.0, 0.25);
-const vec4 COLOR_BORDER_TOP    = vec4(0.5, 0.0, 0.0, 0.25);
-const vec4 COLOR_BORDER_RIGHT  = vec4(0.0, 0.5, 0.5, 0.25);
-const vec4 COLOR_BORDER_BOTTOM = vec4(0.0, 0.5, 0.5, 0.25);
-const vec4 COLOR_BORDER_LEFT   = vec4(0.0, 0.5, 0.5, 0.25);
-const vec4 COLOR_BACKGROUND    = vec4(0.5, 0.5, 0.0, 0.25);
-const vec4 COLOR_OUTSIDE       = vec4(0.5, 0.5, 0.5, 0.25);
-const vec4 COLOR_ERROR         = vec4(1.0, 0.0, 0.0, 1.00);
-const vec4 COLOR_ERROR_NEVER   = vec4(1.0, 0.0, 1.0, 1.00);
-
-const vec4 COLOR_DEBUG_IMAGE   = vec4(0.0, 0.0, 0.0, 0.00);
-const vec4 COLOR_CHECKER_00    = vec4(0.0, 0.0, 0.0, 1.00);
-const vec4 COLOR_CHECKER_01    = vec4(0.0, 0.0, 0.5, 1.00);
-const vec4 COLOR_CHECKER_02    = vec4(0.0, 0.5, 0.0, 1.00);
-const vec4 COLOR_CHECKER_03    = vec4(0.0, 0.5, 0.5, 1.00);
-const vec4 COLOR_CHECKER_04    = vec4(0.5, 0.0, 0.0, 1.00);
-const vec4 COLOR_CHECKER_05    = vec4(0.5, 0.0, 0.5, 1.00);
-const vec4 COLOR_CHECKER_06    = vec4(0.5, 0.5, 0.0, 1.00);
-const vec4 COLOR_CHECKER_07    = vec4(0.5, 0.5, 0.5, 1.00);
-const vec4 COLOR_CHECKER_08    = vec4(0.3, 0.3, 0.3, 1.00);
-const vec4 COLOR_CHECKER_09    = vec4(0.0, 0.0, 1.0, 1.00);
-const vec4 COLOR_CHECKER_10    = vec4(0.0, 1.0, 0.0, 1.00);
-const vec4 COLOR_CHECKER_11    = vec4(0.0, 1.0, 1.0, 1.00);
-const vec4 COLOR_CHECKER_12    = vec4(1.0, 0.0, 0.0, 1.00);
-const vec4 COLOR_CHECKER_13    = vec4(1.0, 0.0, 1.0, 1.00);
-const vec4 COLOR_CHECKER_14    = vec4(1.0, 1.0, 0.0, 1.00);
-const vec4 COLOR_CHECKER_15    = vec4(1.0, 1.0, 1.0, 1.00);
-
-
-// // labeled magic numbers (enum), needs to correspond with `UI_Draw.texture_fit_map`
-// const int IMAGE_SCALE_FILL     = 0;
-// const int IMAGE_SCALE_CONTAIN  = 1;
-// const int IMAGE_SCALE_COVER    = 2;
-// const int IMAGE_SCALE_DOWN     = 3;
-// const int IMAGE_SCALE_NONE     = 4;
 
 
 
@@ -119,7 +50,7 @@ void main() {
     );
 
     // convert depth to z-order
-    float zorder = 1.0 - options.depth / 1000.0;
+    float zorder = 1.0 - options.depth.x / 1000.0;
 
     screen_pos  = p;
     gl_Position = options.uMVPMatrix * vec4(p, zorder, 1);
@@ -189,8 +120,8 @@ int get_region() {
     float dist_right  = (options.lrtb[1] - options.margin_lrtb[1] + 1.0) - screen_pos.x;
     float dist_bottom = screen_pos.y - (options.lrtb[3] + options.margin_lrtb[3] - 1.0);
     float dist_top    = (options.lrtb[2] - options.margin_lrtb[2]) - screen_pos.y;
-    float radwid  = max(options.border_radius, options.border_width);
-    float rad     = max(0.0, options.border_radius - options.border_width);
+    float radwid  = max(options.border_width_radius.y, options.border_width_radius.x);
+    float rad     = max(0.0, options.border_width_radius.y - options.border_width_radius.x);
     float radwid2 = sqr(radwid);
     float rad2    = sqr(rad);
 
@@ -201,14 +132,14 @@ int get_region() {
 
     // within top and bottom, might be left or right side
     if(dist_bottom > radwid && dist_top > radwid) {
-        if(dist_left > options.border_width && dist_right > options.border_width) return REGION_BACKGROUND;
+        if(dist_left > options.border_width_radius.x && dist_right > options.border_width_radius.x) return REGION_BACKGROUND;
         if(dist_left < dist_right) return REGION_BORDER_LEFT;
         return REGION_BORDER_RIGHT;
     }
 
     // within left and right, might be bottom or top
     if(dist_left > radwid && dist_right > radwid) {
-        if(dist_bottom > options.border_width && dist_top > options.border_width) return REGION_BACKGROUND;
+        if(dist_bottom > options.border_width_radius.x && dist_top > options.border_width_radius.x) return REGION_BACKGROUND;
         if(dist_bottom < dist_top) return REGION_BORDER_BOTTOM;
         return REGION_BORDER_TOP;
     }
@@ -253,10 +184,10 @@ int get_region() {
 vec4 mix_image(vec4 bg) {
     vec4 c = bg;
     // drawing space
-    float dw = options.wh[0] - (options.margin_lrtb[0] + options.border_width + options.padding_lrtb[0] + options.padding_lrtb[1]  + options.border_width + options.margin_lrtb[1]);
-    float dh = options.wh[1] - (options.margin_lrtb[2]  + options.border_width + options.padding_lrtb[2] + options.padding_lrtb[3] + options.border_width + options.margin_lrtb[3]);
-    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + options.border_width + options.padding_lrtb[0]));
-    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + options.border_width + options.padding_lrtb[2])));
+    float dw = options.wh.x - (options.margin_lrtb[0] + options.border_width_radius.x + options.padding_lrtb[0] + options.padding_lrtb[1] + options.border_width_radius.x + options.margin_lrtb[1]);
+    float dh = options.wh.y - (options.margin_lrtb[2] + options.border_width_radius.x + options.padding_lrtb[2] + options.padding_lrtb[3] + options.border_width_radius.x + options.margin_lrtb[3]);
+    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + options.border_width_radius.x + options.padding_lrtb[0]));
+    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + options.border_width_radius.x + options.padding_lrtb[2])));
     float dsx = (dx + 0.5) / dw;
     float dsy = (dy + 0.5) / dh;
     // texture
@@ -264,7 +195,7 @@ vec4 mix_image(vec4 bg) {
     float tw = tsz.x, th = tsz.y;
     float tx, ty;
 
-    switch(options.image_fit) {
+    switch(options.image_use_fit.y) {
         case IMAGE_SCALE_FILL:
             // object-fit: fill = stretch / squash to fill entire drawing space (non-uniform scale)
             // do nothing here
@@ -425,7 +356,7 @@ void main() {
     }
 
     // apply image if used
-    if(bool(options.using_image)) c = mix_image(c);
+    if(bool(options.image_use_fit.x)) c = mix_image(c);
 
     c = vec4(c.rgb * c.a, c.a);
 

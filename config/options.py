@@ -266,7 +266,7 @@ class Options:
         'color theme':                  'Green',
         'symmetry view':                'Edge',
         'symmetry effect':              0.5,
-        'normal offset multiplier':     0.1,
+        'normal offset multiplier':     1.0,
         'constrain offset':             True,
         'ui scale':                     1.0,
         'clip auto adjust':             True,       # True: clip settings are automatically adjusted based on view distance and source bbox
