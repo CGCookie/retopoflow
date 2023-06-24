@@ -41,7 +41,37 @@ from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join
 
-UI_Debug_Options = {
+UI_Draw_Defines = {
+    'IMAGE_SCALE_FILL':     0,
+    'IMAGE_SCALE_CONTAIN':  1,
+    'IMAGE_SCALE_COVER':    2,
+    'IMAGE_SCALE_DOWN':     3,
+    'IMAGE_SCALE_NONE':     4,
+
+    'REGION_MARGIN_LEFT':   0,
+    'REGION_MARGIN_BOTTOM': 1,
+    'REGION_MARGIN_RIGHT':  2,
+    'REGION_MARGIN_TOP':    3,
+    'REGION_BORDER_TOP':    4,
+    'REGION_BORDER_RIGHT':  5,
+    'REGION_BORDER_BOTTOM': 6,
+    'REGION_BORDER_LEFT':   7,
+    'REGION_BACKGROUND':    8,
+    'REGION_OUTSIDE':       9,
+    'REGION_ERROR':        10,
+}
+
+# note: these must correspond correctly with labeled magic numbers in `ui_element.glsl`
+UI_Draw_Texture_Fit = {
+    'fill':       0, # default.  stretch/squash to fill entire container
+    'contain':    1, # scaled to maintain aspect ratio, fit within container
+    'cover':      2, # scaled to maintain aspect ratio, fill entire container
+    'scale-down': 3, # same as none or contain, whichever is smaller
+    'none':       4, # not resized
+}
+
+
+UI_Draw_Debug_Options = {
     'DEBUG_COLOR_MARGINS': 'false',     # colors pixels in margin (top, left, bottom, right)
     'DEBUG_COLOR_REGIONS': 'false',     # colors pixels based on region
     'DEBUG_IMAGE_CHECKER': 'false',     # replaces images with checker pattern to test scaling
@@ -89,47 +119,9 @@ UI_Debug_Options = {
 if not bpy.app.background:
     vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
     vertex_shader, fragment_shader = gpustate.shader_parse_file('ui_element.glsl', includeVersion=False)
-    print(f'Addon Common: compiling UI shader')
-    with Drawing.glCheckError_wrap('compiling UI shader and batching'):
-        ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader(
-            f'UI_Draw',
-            vertex_shader, fragment_shader,
-            defines={
-                'IMAGE_SCALE_FILL':     0,
-                'IMAGE_SCALE_CONTAIN':  1,
-                'IMAGE_SCALE_COVER':    2,
-                'IMAGE_SCALE_DOWN':     3,
-                'IMAGE_SCALE_NONE':     4,
+    ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader('UI_Draw', vertex_shader, fragment_shader, defines=UI_Draw_Defines | UI_Draw_Debug_Options)
+    ui_draw_batch = batch_for_shader(ui_draw_shader, 'TRIS', {"pos": vertex_positions})
 
-                'REGION_MARGIN_LEFT':   0,
-                'REGION_MARGIN_BOTTOM': 1,
-                'REGION_MARGIN_RIGHT':  2,
-                'REGION_MARGIN_TOP':    3,
-                'REGION_BORDER_TOP':    4,
-                'REGION_BORDER_RIGHT':  5,
-                'REGION_BORDER_BOTTOM': 6,
-                'REGION_BORDER_LEFT':   7,
-                'REGION_BACKGROUND':    8,
-                'REGION_OUTSIDE':       9,
-                'REGION_ERROR':        10,
-            } | UI_Debug_Options,
-        )
-        assert ui_draw_shader
-        ui_draw_batch = batch_for_shader(ui_draw_shader, 'TRIS', {"pos": vertex_positions})
-        assert ui_draw_batch
-
-    get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
-
-    # note: these must correspond correctly with labeled magic numbers in `ui_element.glsl`
-    texture_fit_map = {
-        'fill':       0, # default.  stretch/squash to fill entire container
-        'contain':    1, # scaled to maintain aspect ratio, fit within container
-        'cover':      2, # scaled to maintain aspect ratio, fill entire container
-        'scale-down': 3, # same as none or contain, whichever is smaller
-        'none':       4, # not resized
-    }
-
-    print(f'Addon Common: UI shader initialized')
 
 class UI_Draw:
     _initialized = False
@@ -137,7 +129,7 @@ class UI_Draw:
     _def_color = (0,0,0,0)
 
     def init_draw(self):
-        import gpu
+        get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
 
         def _draw(left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None):
             def get_v(style_key, def_val):
@@ -165,7 +157,7 @@ class UI_Draw:
 
             ui_draw_ubos.options.background_color =    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color))
 
-            ui_draw_ubos.options.image_use_fit = [(1 if gputexture is not None else 0), texture_fit_map.get(texture_fit, 0), 0, 0]
+            ui_draw_ubos.options.image_use_fit = [(1 if gputexture is not None else 0), UI_Draw_Texture_Fit.get(texture_fit, 0), 0, 0]
             if gputexture: ui_draw_shader.uniform_sampler('image', gputexture)
 
             ui_draw_ubos.update_shader()
