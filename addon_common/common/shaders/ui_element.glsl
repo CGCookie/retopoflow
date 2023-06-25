@@ -264,11 +264,14 @@ vec4 mix_image(vec4 bg) {
     }
 
     vec2 texcoord = vec2(tx / tw, 1 - ty / th);
-    if(0.0 <= texcoord.x && texcoord.x <= 1.0 && 0.0 <= texcoord.y && texcoord.y <= 1.0) {
+    bool inside = 0.0 <= texcoord.x && texcoord.x <= 1.0 && 0.0 <= texcoord.y && texcoord.y <= 1.0;
+    if(inside) {
         vec4 t = texture(image, texcoord) + COLOR_DEBUG_IMAGE;
         c = mix_over(t, c);
+    }
 
-        if(DEBUG_IMAGE_CHECKER) {
+    #ifdef DEBUG_IMAGE_CHECKER
+        if(inside) {
             // generate checker pattern to test scaling
             switch((int(32.0 * texcoord.x) + 4 * int(32.0 * texcoord.y)) % 16) {
                 case  0: c = COLOR_CHECKER_00; break;
@@ -289,17 +292,19 @@ vec4 mix_image(vec4 bg) {
                 case 15: c = COLOR_CHECKER_15; break;
             }
         }
-    } else if(DEBUG_IMAGE_OUTSIDE) {
-        // vec4 t = vec4(0,1,1,0.50);
-        // float a = t.a + c.a * (1.0 - t.a);
-        // c = vec4((t.rgb * t.a + c.rgb * c.a * (1.0 - t.a)) / a, a);
-        c = vec4(
-            1.0 - (1.0 - c.r) * 0.5,
-            1.0 - (1.0 - c.g) * 0.5,
-            1.0 - (1.0 - c.b) * 0.5,
-            c.a
-            );
-    }
+    #endif
+
+    #ifdef DEBUG_IMAGE_OUTSIDE
+        if(!inside) {
+            c = vec4(
+                1.0 - (1.0 - c.r) * 0.5,
+                1.0 - (1.0 - c.g) * 0.5,
+                1.0 - (1.0 - c.b) * 0.5,
+                c.a
+                );
+        }
+    #endif
+
     return c;
 }
 
@@ -320,13 +325,17 @@ void main() {
     int region = get_region();
 
     // workaround switched-discard (issue #1042)
-    if(!DEBUG_DONT_DISCARD) {
-        if(region == REGION_MARGIN_TOP    && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
-        if(region == REGION_MARGIN_RIGHT  && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
-        if(region == REGION_MARGIN_BOTTOM && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
-        if(region == REGION_MARGIN_LEFT   && !(DEBUG_COLOR_MARGINS || DEBUG_COLOR_REGIONS)) { discard; return; }
-        if(region == REGION_OUTSIDE       && !(DEBUG_COLOR_REGIONS)) { discard; return; }
-    }
+    #ifndef DEBUG_DONT_DISCARD
+        #ifndef DEBUG_COLOR_REGIONS
+            #ifndef DEBUG_COLOR_MARGINS
+                if(region == REGION_MARGIN_TOP)    { discard; return; }
+                if(region == REGION_MARGIN_RIGHT)  { discard; return; }
+                if(region == REGION_MARGIN_BOTTOM) { discard; return; }
+                if(region == REGION_MARGIN_LEFT)   { discard; return; }
+            #endif
+            if(region == REGION_OUTSIDE)           { discard; return; }
+        #endif
+    #endif
 
     switch(region) {
         case REGION_BORDER_TOP:    c = options.border_top_color;    break;
@@ -334,6 +343,7 @@ void main() {
         case REGION_BORDER_BOTTOM: c = options.border_bottom_color; break;
         case REGION_BORDER_LEFT:   c = options.border_left_color;   break;
         case REGION_BACKGROUND:    c = options.background_color;    break;
+
         // following colors show only if DEBUG settings allow or something really unexpected happens
         case REGION_MARGIN_TOP:    c = COLOR_MARGIN_TOP;    break;
         case REGION_MARGIN_RIGHT:  c = COLOR_MARGIN_RIGHT;  break;
@@ -345,7 +355,7 @@ void main() {
     }
 
     // DEBUG_COLOR_REGIONS will mix over other colors
-    if(DEBUG_COLOR_REGIONS) {
+    #ifdef DEBUG_COLOR_REGIONS
         switch(region) {
             case REGION_BORDER_TOP:    c = mix_over(COLOR_BORDER_TOP,    c); break;
             case REGION_BORDER_RIGHT:  c = mix_over(COLOR_BORDER_RIGHT,  c); break;
@@ -353,7 +363,7 @@ void main() {
             case REGION_BORDER_LEFT:   c = mix_over(COLOR_BORDER_LEFT,   c); break;
             case REGION_BACKGROUND:    c = mix_over(COLOR_BACKGROUND,    c); break;
         }
-    }
+    #endif
 
     // apply image if used
     if(bool(options.image_use_fit.x)) c = mix_image(c);
@@ -363,13 +373,15 @@ void main() {
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     c = blender_srgb_to_framebuffer_space(c);
 
-    if(DEBUG_IGNORE_ALPHA) {
+    #ifdef DEBUG_SNAP_ALPHA
         if(c.a < 0.25) {
             c.a = 0.0;
-            if(!DEBUG_DONT_DISCARD) { discard; return; }
+            #ifndef DEBUG_DONT_DISCARD
+                discard; return;
+            #endif
         }
         else c.a = 1.0;
-    }
+    #endif
 
     outColor = c;
     //gl_FragDepth = gl_FragDepth * 0.999999;

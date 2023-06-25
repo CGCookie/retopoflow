@@ -72,12 +72,13 @@ UI_Draw_Texture_Fit = {
 
 
 UI_Draw_Debug_Options = {
-    'DEBUG_COLOR_MARGINS': 'false',     # colors pixels in margin (top, left, bottom, right)
-    'DEBUG_COLOR_REGIONS': 'false',     # colors pixels based on region
-    'DEBUG_IMAGE_CHECKER': 'false',     # replaces images with checker pattern to test scaling
-    'DEBUG_IMAGE_OUTSIDE': 'false',     # shifts colors if texcoord is outside [0,1] (in padding region)
-    'DEBUG_IGNORE_ALPHA':  'false',     # snaps alpha to 0 or 1 based on 0.25 threshold
-    'DEBUG_DONT_DISCARD':  'false',
+    # uncomment the following DEBUG options to enable them. note: the values below don't matter; only their existence
+    # 'DEBUG_COLOR_MARGINS': 'true',     # colors pixels in margin (top, left, bottom, right)
+    # 'DEBUG_COLOR_REGIONS': 'true',     # colors pixels based on region
+    # 'DEBUG_IMAGE_CHECKER': 'true',     # replaces images with checker pattern to test scaling
+    # 'DEBUG_IMAGE_OUTSIDE': 'true',     # shifts colors if texcoord is outside [0,1] (in padding region)
+    # 'DEBUG_SNAP_ALPHA':    'true',     # snaps alpha to 0 or 1 based on 0.25 threshold
+    # 'DEBUG_DONT_DISCARD':  'true',
 
     # colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
     'COLOR_MARGIN_LEFT':    'vec4(1.0, 0.0, 0.0, 0.25)',
