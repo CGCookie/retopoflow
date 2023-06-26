@@ -128,7 +128,13 @@ class RetopoFlow_Normalize:
                 targets = [rf_target]
                 for obj in chain(sources, targets):
                     if not obj: continue
-                    obj.matrix_world = M @ obj.matrix_world
+                    armature = next((mod.object for mod in obj.modifiers if mod.type == 'ARMATURE'), None)
+                    if not armature:
+                        obj.matrix_world = M @ obj.matrix_world
+                    else:
+                        print(f'  {obj.name} has an armature modifier with object {armature.name}')
+                        # armature.matrix_world = M @ armature.matrix_world
+                        obj.matrix_world = M @ obj.matrix_world
                 normalize_opts['mesh scaling factor'] = fac
         elif mesh == 'IGNORE':
             pass

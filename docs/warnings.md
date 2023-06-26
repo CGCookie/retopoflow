@@ -54,6 +54,18 @@ RetopoFlow will warn if a source object or the target object has a transformatio
 While RetopoFlow will still start and operate when an object has a non-invertible matrix, the results and behaviors are undefined.
 
 
+## Setup: Source Has Armature
+
+Sources can sometimes warp in unexpected ways when they use an armature modifier.
+This is a known limitation, and we plan to fix this in future versions.
+Keep an eye on this [issue](https://github.com/CGCookie/retopoflow/issues/1236) for updates.
+
+Until we fix this, use one of the following to workaround this limitation:
+
+- Disable the armature from showing in the viewport.
+- Apply the armature to a duplicate of the source mesh, and then hide the original.
+
+
 ## Performance: Target/Sources Too Large
 
 RetopoFlow is designed to perform well on _typical_ production retopology scenarios.

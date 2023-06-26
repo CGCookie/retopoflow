@@ -586,60 +586,43 @@ if import_succeeded:
         bl_label = 'WARNINGS!'
 
         @classmethod
-        def get_warnings(cls, context):
-            warnings = set()
-            debug_all = False
-
-            # install checks
-            if not is_addon_folder_valid(context) or debug_all:
-                warnings.add('install: invalid add-on folder')
-            if cookiecutter.is_broken or debug_all:
-                warnings.add('install: unexpected runtime error occurred')
+        def get_warnings(cls, context, *, debug_all=False):
             minv, maxv = Hive.get_version('blender minimum version'), Hive.get_version('blender maximum version')
-            if bpy.app.version < minv or debug_all:
-                warnings.add('install: invalid version')
-            if (maxv and bpy.app.version > maxv) or debug_all:
-                warnings.add('install: invalid version')
+            sources = retopoflow.RetopoFlow.get_sources()
+            target = retopoflow.RetopoFlow.get_target()
 
-            # source setup checks
-            if not retopoflow.RetopoFlow.get_sources() or debug_all:
-                warnings.add('setup: no sources')
-            elif not all(has_inverse(source.matrix_local) for source in retopoflow.RetopoFlow.get_sources()) or debug_all:
-                warnings.add('setup: source has non-invertible matrix')
+            warnings = {
+                # install checks
+                'install: invalid add-on folder':             not is_addon_folder_valid(context),
+                'install: unexpected runtime error occurred': cookiecutter.is_broken,
+                'install: invalid version':                   bpy.app.version < minv or (maxv and bpy.app.version > maxv),
 
-            # target setup checks
-            if is_editing_target(context) and not retopoflow.RetopoFlow.get_target() or debug_all:
-                warnings.add('setup: no target')
-            elif retopoflow.RetopoFlow.get_target() and not has_inverse(retopoflow.RetopoFlow.get_target().matrix_local) or debug_all:
-                warnings.add('setup: target has non-invertible matrix')
+                # setup checks
+                'setup: no sources':                       not sources,
+                'setup: source has non-invertible matrix': not all(has_inverse(source.matrix_local) for source in sources),
+                'setup: source has armature':              any(mod.type == 'ARMATURE' and mod.object and mod.show_viewport for source in sources for mod in source.modifiers),
+                'setup: no target':                        is_editing_target(context) and not target,
+                'setup: target has non-invertible matrix': target and not has_inverse(target.matrix_local),
 
-            # performance checks
-            if is_target_too_big(context) or debug_all:
-                warnings.add('performance: target too big')
-            if are_sources_too_big(context) or debug_all:
-                warnings.add('performance: source too big')
+                # performance checks
+                'performance: target too big': is_target_too_big(context),
+                'performance: source too big': are_sources_too_big(context),
 
-            # layout checks
-            if multiple_3dviews(context) or debug_all:
-                warnings.add('layout: multiple 3d views')
-            if in_quadview(context) or debug_all:
-                warnings.add('layout: in quad view')
-            if any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D') or debug_all:
-                warnings.add('layout: view is locked to cursor')
-            if any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D') or debug_all:
-                warnings.add('layout: view is locked to object')
+                # layout checks
+                'layout: multiple 3d views':        multiple_3dviews(context),
+                'layout: in quad view':             in_quadview(context),
+                'layout: view is locked to cursor': any(space.lock_cursor for space in context.area.spaces if space.type == 'VIEW_3D'),
+                'layout: view is locked to object': any(space.lock_object for space in context.area.spaces if space.type == 'VIEW_3D'),
 
-            # auto save / unsaved checks
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save'] or debug_all:
-                warnings.add('save: auto save is disabled')
-            if not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved'] or debug_all:
-                warnings.add('save: unsaved blender file')
-            if retopoflow.RetopoFlow.can_recover() or debug_all:
-                # user directly opened an auto save file
-                warnings.add('save: can recover auto save')
-            if retopoflow.RetopoFlow.has_auto_save() or debug_all:
-                # auto save file detected
-                warnings.add('save: has auto save')
+                # auto save / unsaved checks
+                'save: auto save is disabled': not retopoflow.RetopoFlow.get_auto_save_settings(context)['auto save'],
+                'save: unsaved blender file':  not retopoflow.RetopoFlow.get_auto_save_settings(context)['saved'],
+                'save: can recover auto save': retopoflow.RetopoFlow.can_recover(),                                         # user directly opened an auto save file
+                'save: has auto save':         retopoflow.RetopoFlow.has_auto_save(),                                       # auto save file detected
+            }
+
+            if debug_all:
+                return { k: True for k in warnings }
 
             return warnings
 
@@ -669,13 +652,13 @@ if import_succeeded:
             warnings = self.get_warnings(context)
 
             # INSTALL
-            if 'install: invalid add-on folder' in warnings:
+            if warnings['install: invalid add-on folder']:
                 box = get_warning_subbox('Installation')
                 box.label(text=f'Invalid add-on folder name', icon='DOT')
-            if 'install: unexpected runtime error occurred' in warnings:
+            if warnings['install: unexpected runtime error occurred']:
                 box = get_warning_subbox('Installation')
                 box.label(text=f'Unexpected runtime error', icon='DOT')
-            if 'install: invalid version' in warnings:
+            if warnings['install: invalid version']:
                 box = get_warning_subbox('Installation')
                 def neatver(v): return f'{v[0]}.{v[1]}'
                 box.label(text=f'Incorrect versions', icon='DOT')
@@ -688,49 +671,52 @@ if import_succeeded:
                     tab.label(text=f'Require Blender {neatver(minv)}--{neatver(maxv)}', icon='BLENDER')
 
             # SETUP CHECKS
-            if 'setup: no sources' in warnings:
+            if warnings['setup: no sources']:
                 box = get_warning_subbox('Setup Issue')
                 box.label(text=f'No sources detected', icon='DOT')
-            if 'setup: source has non-invertible matrix' in warnings:
+            if warnings['setup: source has non-invertible matrix']:
                 box = get_warning_subbox('Setup Issue')
                 box.label(text=f'A source has non-invertible matrix', icon='DOT')
-            if 'setup: no target' in warnings:
+            if warnings['setup: source has armature']:
+                box = get_warning_subbox('Setup Issue')
+                box.label(text=f'A source has an armature', icon='DOT')
+            if warnings['setup: no target']:
                 box = get_warning_subbox('Setup Issue')
                 box.label(text=f'No target detected', icon='DOT')
-            if 'setup: target has non-invertible matrix' in warnings:
+            if warnings['setup: target has non-invertible matrix']:
                 box = get_warning_subbox('Setup Issue')
                 box.label(text=f'Target has non-invertible matrix', icon='DOT')
 
             # PERFORMANCE CHECKS
-            if 'performance: target too big' in warnings:
+            if warnings['performance: target too big']:
                 box = get_warning_subbox('Performance Issue')
                 box.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
-            if 'performance: source too big' in warnings:
+            if warnings['performance: source too big']:
                 box = get_warning_subbox('Performance Issue')
                 box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
 
             # LAYOUT
-            if 'layout: multiple 3d views' in warnings:
+            if warnings['layout: multiple 3d views']:
                 box = get_warning_subbox('Layout Issue')
                 box.label(text='Multiple 3D Views', icon='DOT')
-            if 'layout: in quad view' in warnings:
+            if warnings['layout: in quad view']:
                 box = get_warning_subbox('Layout Issue')
                 box.label(text='Quad View will be disabled', icon='DOT')
-            if 'layout: view is locked to cursor' in warnings:
+            if warnings['layout: view is locked to cursor']:
                 box = get_warning_subbox('Layout Issue')
                 box.label(text='View is locked to cursor', icon='DOT')
-            if 'layout: view is locked to object' in warnings:
+            if warnings['layout: view is locked to object']:
                 box = get_warning_subbox('Layout Issue')
                 box.label(text='View is locked to object', icon='DOT')
 
             # AUTO SAVE / UNSAVED
-            if 'save: auto save is disabled' in warnings:
+            if warnings['save: auto save is disabled']:
                 box = get_warning_subbox('Save')
                 box.label(text='Auto Save is disabled', icon='DOT')
-            if 'save: unsaved blender file' in warnings:
+            if warnings['save: unsaved blender file']:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text='Unsaved Blender file', icon='DOT')
-            if 'save: can recover auto save' in warnings:
+            if warnings['save: can recover auto save']:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text=f'Auto Save file opened', icon='DOT')
                 tab = box.row(align=True)
@@ -740,7 +726,7 @@ if import_succeeded:
                     text='Finish Auto Save Recovery',
                     icon='RECOVER_LAST',
                 )
-            if 'save: has auto save' in warnings:
+            if warnings['save: has auto save']:
                 box = get_warning_subbox('Auto Save / Save')
                 box.label(text=f'Found RetopoFlow auto save', icon='DOT')
 
