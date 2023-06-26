@@ -32,7 +32,8 @@ This version of RetopoFlow requires Blender 3.6 or later.
 - Preliminary work to mirror actions to "correct" side of symmetry plane(s)
 - Deep debugging for capturing terminal output to a file
 - Autosave delays until action is finished
-- Fixed many smaller bugs.
+- Brush size (PolyStrips, Strokes, Relax, Smooth) is more consistent across screen
+- Fixed many smaller bugs
 - Restructured and cleaned code base
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
