@@ -580,11 +580,13 @@ class RetopoFlow_Target:
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     def snap_vert(self, vert:RFVert):
+        if not vert or  not vert.is_valid: return
         xyz,norm,_,_ = self.nearest_sources_Point(vert.co)
         vert.co = xyz
         vert.normal = norm
 
     def snap2D_vert(self, vert:RFVert):
+        if not vert or  not vert.is_valid: return
         xy = self.Point_to_Point2D(vert.co)
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
@@ -592,6 +594,7 @@ class RetopoFlow_Target:
         vert.normal = norm
 
     def offset2D_vert(self, vert:RFVert, delta_xy:Vec2D):
+        if not vert or  not vert.is_valid: return
         xy = self.Point_to_Point2D(vert.co) + delta_xy
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
@@ -599,7 +602,7 @@ class RetopoFlow_Target:
         vert.normal = norm
 
     def set2D_vert(self, vert:RFVert, xy:Point2D, snap_to_symmetry=None):
-        if not vert: return
+        if not vert or  not vert.is_valid: return
         xyz,norm,_,_ = self.raycast_sources_Point2D(xy)
         if xyz is None: return
         if snap_to_symmetry:
@@ -609,6 +612,7 @@ class RetopoFlow_Target:
         return xyz
 
     def set2D_crawl_vert(self, vert:RFVert, xy:Point2D):
+        if not vert or  not vert.is_valid: return
         hits = self.raycast_sources_Point2D_all(xy)
         if not hits: return
         # find closest
