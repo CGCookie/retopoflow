@@ -628,7 +628,7 @@ if import_succeeded:
 
         @classmethod
         def poll(cls, context):
-            return bool(cls.get_warnings(context))
+            return any(v for v in cls.get_warnings(context).values())
 
         def draw(self, context):
             layout = self.layout
