@@ -562,7 +562,7 @@ if import_succeeded:
             if context.mode == 'EDIT_MESH' or context.mode == 'OBJECT':
                 self.layout.separator()
                 if is_editing_target(context):
-                    if VIEW3D_PT_RetopoFlow_Warnings.get_warnings(context):
+                    if VIEW3D_PT_RetopoFlow_Warnings.has_warnings(context):
                         # self.layout.operator('cgcookie.retopoflow_warnings', text="", icon='ERROR')
                         pass
                     else:
@@ -585,8 +585,14 @@ if import_succeeded:
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
         bl_label = 'WARNINGS!'
 
+        debug_all_warnings = False
+
         @classmethod
-        def get_warnings(cls, context, *, debug_all=False):
+        def has_warnings(cls, context):
+            return any(v for v in cls.get_warnings(context).values())
+
+        @classmethod
+        def get_warnings(cls, context):
             minv, maxv = Hive.get_version('blender minimum version'), Hive.get_version('blender maximum version')
             sources = retopoflow.RetopoFlow.get_sources()
             target = retopoflow.RetopoFlow.get_target()
@@ -621,137 +627,107 @@ if import_succeeded:
                 'save: has auto save':         retopoflow.RetopoFlow.has_auto_save(),                                       # auto save file detected
             }
 
-            if debug_all:
-                return { k: True for k in warnings }
-
-            return warnings
+            return warnings if not cls.debug_all_warnings else { k: True for k in warnings }
 
         @classmethod
         def poll(cls, context):
-            return any(v for v in cls.get_warnings(context).values())
+            return cls.has_warnings(context)
 
         def draw(self, context):
             layout = self.layout
 
-            warningbox = None
-            warningsubboxes = {}
-            def add_warning():
-                nonlocal warningbox, layout
-                if not warningbox:
-                    warningbox = layout.box()
-                    warningbox.label(text='Warnings', icon='ERROR')
-                return warningbox.box()
-            def get_warning_subbox(label):
-                nonlocal warningsubboxes
-                if label not in warningsubboxes:
-                    box = layout.box().column(align=True) # add_warning().column()
-                    box.label(text=label, icon='ERROR')
-                    warningsubboxes[label] = box
-                return warningsubboxes[label]
+            class WarningSection:
+                _boxes = {}
+                ''' creates exactly one warning subbox per label _only_ when needed '''
+                def __init__(self, label):
+                    self._label = label
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    pass
+                def subbox(self):
+                    if self._label not in WarningSection._boxes:
+                        box = layout.box().column(align=True)
+                        box.label(text=self._label, icon='ERROR')
+                        WarningSection._boxes[self._label] = box
+                    return WarningSection._boxes[self._label]
+                def label(self, *args, **kwargs):
+                    box = self.subbox()
+                    box.label(*args, **kwargs)
+                    return box
 
             warnings = self.get_warnings(context)
 
-            # INSTALL
-            if warnings['install: invalid add-on folder']:
-                box = get_warning_subbox('Installation')
-                box.label(text=f'Invalid add-on folder name', icon='DOT')
-            if warnings['install: unexpected runtime error occurred']:
-                box = get_warning_subbox('Installation')
-                box.label(text=f'Unexpected runtime error', icon='DOT')
-            if warnings['install: invalid version']:
-                box = get_warning_subbox('Installation')
-                def neatver(v): return f'{v[0]}.{v[1]}'
-                box.label(text=f'Incorrect versions', icon='DOT')
-                tab = box.row(align=True)
-                tab.label(icon='BLANK1')
-                minv, maxv = Hive.get_version('blender minimum version'), Hive.get_version('blender maximum version')
-                if not maxv:
-                    tab.label(text=f'Require Blender {neatver(minv)}+', icon='BLENDER')
-                else:
-                    tab.label(text=f'Require Blender {neatver(minv)}--{neatver(maxv)}', icon='BLENDER')
+            with WarningSection('Installation') as section:
+                if warnings['install: invalid add-on folder']:
+                    section.label(text=f'Invalid add-on folder name', icon='DOT')
+                if warnings['install: unexpected runtime error occurred']:
+                    section.label(text=f'Unexpected runtime error', icon='DOT')
+                if warnings['install: invalid version']:
+                    box = section.subbox()
+                    def neatver(v): return f'{v[0]}.{v[1]}'
+                    box.label(text=f'Incorrect versions', icon='DOT')
+                    tab = box.row(align=True)
+                    tab.label(icon='BLANK1')
+                    minv, maxv = Hive.get_version('blender minimum version'), Hive.get_version('blender maximum version')
+                    if not maxv:
+                        tab.label(text=f'Require Blender {neatver(minv)}+', icon='BLENDER')
+                    else:
+                        tab.label(text=f'Require Blender {neatver(minv)}--{neatver(maxv)}', icon='BLENDER')
 
-            # SETUP CHECKS
-            if warnings['setup: no sources']:
-                box = get_warning_subbox('Setup Issue')
-                box.label(text=f'No sources detected', icon='DOT')
-            if warnings['setup: source has non-invertible matrix']:
-                box = get_warning_subbox('Setup Issue')
-                box.label(text=f'A source has non-invertible matrix', icon='DOT')
-            if warnings['setup: source has armature']:
-                box = get_warning_subbox('Setup Issue')
-                box.label(text=f'A source has an armature', icon='DOT')
-            if warnings['setup: no target']:
-                box = get_warning_subbox('Setup Issue')
-                box.label(text=f'No target detected', icon='DOT')
-            if warnings['setup: target has non-invertible matrix']:
-                box = get_warning_subbox('Setup Issue')
-                box.label(text=f'Target has non-invertible matrix', icon='DOT')
+            with WarningSection('Setup Issue') as section:
+                if warnings['setup: no sources']:
+                    section.label(text=f'No sources detected', icon='DOT')
+                if warnings['setup: source has non-invertible matrix']:
+                    section.label(text=f'A source has non-invertible matrix', icon='DOT')
+                if warnings['setup: source has armature']:
+                    section.label(text=f'A source has an armature', icon='DOT')
+                if warnings['setup: no target']:
+                    section.label(text=f'No target detected', icon='DOT')
+                if warnings['setup: target has non-invertible matrix']:
+                    section.label(text=f'Target has non-invertible matrix', icon='DOT')
 
-            # PERFORMANCE CHECKS
-            if warnings['performance: target too big']:
-                box = get_warning_subbox('Performance Issue')
-                box.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
-            if warnings['performance: source too big']:
-                box = get_warning_subbox('Performance Issue')
-                box.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
+            with WarningSection('Performance Issue') as section:
+                if warnings['performance: target too big']:
+                    section.label(text=f'Target is too large (>{options["warning max target"]})', icon='DOT')
+                if warnings['performance: source too big']:
+                    section.label(text=f'Sources are too large (>{options["warning max sources"]})', icon='DOT')
 
-            # LAYOUT
-            if warnings['layout: multiple 3d views']:
-                box = get_warning_subbox('Layout Issue')
-                box.label(text='Multiple 3D Views', icon='DOT')
-            if warnings['layout: in quad view']:
-                box = get_warning_subbox('Layout Issue')
-                box.label(text='Quad View will be disabled', icon='DOT')
-            if warnings['layout: view is locked to cursor']:
-                box = get_warning_subbox('Layout Issue')
-                box.label(text='View is locked to cursor', icon='DOT')
-            if warnings['layout: view is locked to object']:
-                box = get_warning_subbox('Layout Issue')
-                box.label(text='View is locked to object', icon='DOT')
+            with WarningSection('Layout Issue') as section:
+                if warnings['layout: multiple 3d views']:
+                    section.label(text='Multiple 3D Views', icon='DOT')
+                if warnings['layout: in quad view']:
+                    section.label(text='Quad View will be disabled', icon='DOT')
+                if warnings['layout: view is locked to cursor']:
+                    section.label(text='View is locked to cursor', icon='DOT')
+                if warnings['layout: view is locked to object']:
+                    section.label(text='View is locked to object', icon='DOT')
 
-            # AUTO SAVE / UNSAVED
-            if warnings['save: auto save is disabled']:
-                box = get_warning_subbox('Save')
-                box.label(text='Auto Save is disabled', icon='DOT')
-            if warnings['save: unsaved blender file']:
-                box = get_warning_subbox('Auto Save / Save')
-                box.label(text='Unsaved Blender file', icon='DOT')
-            if warnings['save: can recover auto save']:
-                box = get_warning_subbox('Auto Save / Save')
-                box.label(text=f'Auto Save file opened', icon='DOT')
-                tab = box.row(align=True)
-                tab.label(icon='BLANK1')
-                tab.operator(
-                    'cgcookie.retopoflow_recover_finish',
-                    text='Finish Auto Save Recovery',
-                    icon='RECOVER_LAST',
-                )
-            if warnings['save: has auto save']:
-                box = get_warning_subbox('Auto Save / Save')
-                box.label(text=f'Found RetopoFlow auto save', icon='DOT')
+            with WarningSection('Auto Save / Save') as section:
+                if warnings['save: auto save is disabled']:
+                    section.label(text='Auto Save is disabled', icon='DOT')
+                if warnings['save: unsaved blender file']:
+                    section.label(text='Unsaved Blender file', icon='DOT')
+                if warnings['save: can recover auto save']:
+                    box = section.subbox()
+                    box.label(text=f'Auto Save file opened', icon='DOT')
+                    tab = box.row(align=True)
+                    tab.label(icon='BLANK1')
+                    tab.operator('cgcookie.retopoflow_recover_finish', text='Finish Auto Save Recovery', icon='RECOVER_LAST')
+                if warnings['save: has auto save']:
+                    box = section.subbox()
+                    box.label(text=f'Found RetopoFlow auto save', icon='DOT')
 
-                tab = box.row(align=True)
-                tab.label(icon='BLANK1')
-                tab.label(text=bpy.path.basename(retopoflow.RetopoFlow.get_auto_save_filename()))
+                    tab = box.row(align=True)
+                    tab.label(icon='BLANK1')
+                    tab.label(text=bpy.path.basename(retopoflow.RetopoFlow.get_auto_save_filename()))
 
-                tab = box.row(align=True)
-                tab.label(icon='BLANK1')
-                col = tab.column(align=True)
-                col.operator(
-                    'cgcookie.retopoflow_recover_open',
-                    text='Open',
-                    icon='RECOVER_LAST',
-                )
-                col.operator(
-                    'cgcookie.retopoflow_recover_folder',
-                    text='Open Folder',
-                    icon='FILE_FOLDER',
-                )
-                col.operator(
-                    'cgcookie.retopoflow_recover_delete',
-                    text='Delete',
-                    icon='X',
-                )
+                    tab = box.row(align=True)
+                    tab.label(icon='BLANK1')
+                    col = tab.column(align=True)
+                    col.operator('cgcookie.retopoflow_recover_open',   text='Open',        icon='RECOVER_LAST')
+                    col.operator('cgcookie.retopoflow_recover_folder', text='Open Folder', icon='FILE_FOLDER')
+                    col.operator('cgcookie.retopoflow_recover_delete', text='Delete',      icon='X')
 
             # show button for more warning details
             row = layout.row(align=True)
