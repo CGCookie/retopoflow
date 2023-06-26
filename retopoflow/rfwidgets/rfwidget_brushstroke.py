@@ -58,6 +58,10 @@ class RFWidget_BrushStroke_Factory:
                 self.outer_color = outer_color
                 self.inner_color = inner_color
                 self.color_mult_below = below_alpha
+                self.last_mouse = None
+                self.last_view = None
+                self.hit = False
+                self.hit_scale = 1.0
 
             @FSM.on_state('main', 'enter')
             def modal_main_enter(self):
@@ -66,6 +70,8 @@ class RFWidget_BrushStroke_Factory:
 
             @FSM.on_state('main')
             def modal_main(self):
+                self.update_mouse()
+
                 if self.actions.pressed('insert'):
                     return 'stroking'
 
@@ -93,6 +99,8 @@ class RFWidget_BrushStroke_Factory:
 
             @FSM.on_state('stroking')
             def modal_line(self):
+                self.update_mouse()
+
                 if self.actions.released('insert'):
                     # TODO: tessellate the last steps?
                     self.stroke2D.append(self.actions.mouse)
@@ -151,27 +159,26 @@ class RFWidget_BrushStroke_Factory:
             @DrawCallbacks.on_draw('post3d')
             @FSM.onlyinstate({'main','stroking'})
             def draw_brush(self):
-                xy = self.rfcontext.actions.mouse
-                p,n,_,_ = self.rfcontext.raycast_sources_mouse()
-                if not p: return
-                depth = self.rfcontext.Point_to_depth(p)
-                if not depth: return
-                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
-                if scale is None: return
-                self.scale = scale
+                if not self.hit: return
+
+                p, n = self.hit_p, self.hit_n
+                ro = self.radius * self.hit_scale
+                rh = ro * 0.5
+                co, ci, cb = self.outer_color, self.inner_color, self.outer_border_color
+
+                gpustate.depth_mask(False)
 
                 # draw below
-                gpustate.depth_test('GREATER')
-                gpustate.depth_mask(False)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color * self.color_mult_below, n=n, width=8*self.scale, depth_far=0.99996)
+                gpustate.depth_test('GREATER_EQUAL')
+                Globals.drawing.draw3D_circle(p, ro, cb * self.color_mult_below, n=n, width=8*self.hit_scale, depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, rh, ci * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
 
                 # draw above
                 gpustate.depth_test('LESS_EQUAL')
-                Globals.drawing.draw3D_circle(p, (self.radius-3)*self.scale*1.0, self.outer_border_color, n=n, width=8*self.scale, depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*1.0, self.outer_color, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, self.radius*self.scale*0.5, self.inner_color, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, ro, cb, n=n, width=8*self.hit_scale, depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, ro, co, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, rh, ci, n=n, width=2*self.hit_scale, depth_far=0.99995)
 
                 # reset
                 gpustate.depth_test('LESS_EQUAL')
@@ -195,5 +202,31 @@ class RFWidget_BrushStroke_Factory:
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_border_color, width=7)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_color, width=1)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*0.5, self.inner_color, width=1)
+
+            ##################
+            # mouse
+
+            def update_mouse(self):
+                recompute = False
+                recompute |= (self.last_mouse != self.actions.mouse)
+                recompute |= (self.last_view  != self.rfcontext.get_view_version())
+                if not recompute: return
+                self.last_mouse = self.actions.mouse
+                self.last_view  = self.rfcontext.get_view_version()
+
+                self.hit = False
+
+                xy = self.rfcontext.actions.mouse
+                p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+                if not p: return
+                depth = self.rfcontext.Point_to_depth(p)
+                if not depth: return
+                scale = self.rfcontext.size2D_to_size(1.0, depth)
+                if scale is None: return
+
+                self.hit = True
+                self.hit_scale = scale
+                self.hit_p = p
+                self.hit_n = n
 
         return RFWidget_BrushStroke

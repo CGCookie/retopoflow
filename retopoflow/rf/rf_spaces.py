@@ -170,14 +170,16 @@ class RetopoFlow_Spaces:
         dist = (o - xyz).length
         return Ray(o, d, min_dist=min_dist, max_dist=dist+max_dist_offset)
 
-    def size2D_to_size(self, size2D:float, xy:Point2D, depth:float):
+    def size2D_to_size(self, size2D:float, depth:float):
         # computes size of 3D object at distance (depth) as it projects to 2D size
         # TODO: there are more efficient methods of computing this!
+
+        # find center of screen
+        xy = Vec2D((self.actions.region.width, self.actions.region.height)) * 0.5
         # note: scaling then unscaling helps with numerical instability when clip_start is small
-        scale = 1000.0 # 1.0 / self.actions.space.clip_start
-        if not xy: return None
+        scale = 1000.0
         p3d0 = self.Point2D_to_Point(xy, depth)
-        p3d1 = self.Point2D_to_Point(xy + Vec2D((scale * size2D, 0)), depth)
+        p3d1 = self.Point2D_to_Point(xy + Vec2D((0, scale * size2D)), depth)
         if not p3d0 or not p3d1: return None
         return (p3d0 - p3d1).length / scale
 
@@ -193,29 +195,14 @@ class RetopoFlow_Spaces:
     #############################################
     # return camera up and right vectors
 
-    @blender_version_wrapper('<', '2.80')
-    def Vec_up(self):
-        # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((0,1,0))
-    @blender_version_wrapper('>=', '2.80')
     def Vec_up(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,1,0))
 
-    @blender_version_wrapper('<', '2.80')
-    def Vec_right(self):
-        # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((1,0,0))
-    @blender_version_wrapper('>=', '2.80')
     def Vec_right(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((1,0,0))
 
-    @blender_version_wrapper('<', '2.80')
-    def Vec_forward(self):
-        # TODO: remove invert!
-        return self.actions.r3d.view_matrix.to_3x3().inverted_safe() * Vector((0,0,-1))
-    @blender_version_wrapper('>=', '2.80')
     def Vec_forward(self):
         # TODO: remove invert!
         return self.actions.r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))

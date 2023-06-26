@@ -44,9 +44,9 @@ void main() {
     vec2 cp = options.center.xy + vec2(0.5,0.5) + radius() * v;
     vec4 pcp = options.MVPMatrix * vec4(cp, 0.0, 1.0);
     gl_Position = options.MVPMatrix * vec4(p, 0.0, 1.0);
-    offset = circumference * pos.x + stipple_offset();
     vpos = vec2(gl_Position.x * options.screensize.x, gl_Position.y * options.screensize.y);
     cpos = vec2(pcp.x * options.screensize.x, pcp.y * options.screensize.y);
+    offset = circumference * pos.x + stipple_offset();
 }
 
 

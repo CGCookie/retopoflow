@@ -57,9 +57,11 @@ class RFWidget_BrushFalloff_Factory:
                 self.inner_color = inner_color
                 self.fill_color = fill_color
                 self.color_mult_below = below_alpha
-                self.last_mouse = None
-                self.scale = 1.0
                 self.redraw_on_mouse = True
+                self.last_mouse = None
+                self.last_view = None
+                self.hit = False
+                self.hit_scale = 1.0
 
             @FSM.on_state('main')
             def main(self):
@@ -120,34 +122,27 @@ class RFWidget_BrushFalloff_Factory:
             @DrawCallbacks.on_draw('post3d')
             @FSM.onlyinstate('main')
             def draw_brush(self):
-                xy = self.rfcontext.actions.mouse
-                p,n,_,_ = self.rfcontext.raycast_sources_mouse()
-                if not p: return
-                depth = self.rfcontext.Point_to_depth(p)
-                if not depth: return
-                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
-                if scale is None: return
-                self.scale = scale
+                if not self.hit: return
 
-                r = self.radius * self.scale
-                co = self.outer_color
-                ci = self.inner_color
-                cc = self.fill_color * self.fill_color_scale
                 ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
-                fs = (1-ff) * r
+                p, n = self.hit_p, self.hit_n
+                ro = self.radius * self.hit_scale
+                ri = ro * ff
+                rm = (ro + ri) / 2.0
+                co, ci, cc = self.outer_color, self.inner_color, self.fill_color * self.fill_color_scale
 
                 # draw below
                 gpustate.depth_mask(False)
                 gpustate.depth_test('GREATER')
-                Globals.drawing.draw3D_circle(p, r,      co * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, r * ff, ci * self.color_mult_below, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, r - fs, cc * self.color_mult_below, n=n, width=fs,           depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, rm, cc * self.color_mult_below, n=n, width=ro - ri,          depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, ri, ci * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
 
                 # draw above
                 gpustate.depth_test('LESS_EQUAL')
-                Globals.drawing.draw3D_circle(p, r - fs, cc, n=n, width=fs,           depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, r,      co, n=n, width=2*self.scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, r * ff, ci, n=n, width=2*self.scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, rm, cc, n=n, width=ro - ri,          depth_far=0.99996)
+                Globals.drawing.draw3D_circle(p, ro, co, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p, ri, ci, n=n, width=2*self.hit_scale, depth_far=0.99995)
 
                 # reset
                 gpustate.depth_test('LESS_EQUAL')
@@ -172,10 +167,10 @@ class RFWidget_BrushFalloff_Factory:
             # getters
 
             def get_scaled_radius(self):
-                return self.scale * self.radius
+                return self.hit_scale * self.radius
 
             def get_scaled_size(self):
-                return self.scale * self.size
+                return self.hit_scale * self.size
 
             def get_strength_dist(self, dist:float):
                 return max(0.0, min(1.0, (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)))) * self.strength
@@ -277,30 +272,30 @@ class RFWidget_BrushFalloff_Factory:
             # mouse
 
             def update_mouse(self):
-                if self.actions.mouse == self.last_mouse: return
+                recompute = False
+                recompute |= (self.last_mouse != self.actions.mouse)
+                recompute |= (self.last_view  != self.rfcontext.get_view_version())
+                if not recompute: return
                 self.last_mouse = self.actions.mouse
+                self.last_view  = self.rfcontext.get_view_version()
 
+                self.hit = False
+
+                # figure out how much to scale so that the brush drawn in 3D appears the same size on screen
                 xy = self.actions.mouse
                 p,n,_,_ = self.rfcontext.raycast_sources_mouse()
                 if not p: return
                 depth = self.rfcontext.Point_to_depth(p)
                 if not depth: return
-                scale = self.rfcontext.size2D_to_size(1.0, xy, depth)
+                scale = self.rfcontext.size2D_to_size(1.0, depth)
                 if scale is None: return
-                self.scale = scale
 
-                # p,n = self.actions.hit_pos,self.actions.hit_norm
-                # if p is None or n is None:
-                #     self.clear()
-                #     return
-                # depth = self.rfcontext.Point_to_depth(p)
-                # if depth is None:
-                #     self.clear()
-                #     return
-                # xy = self.rfcontext.actions.mouse
                 rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+
                 self.hit = True
+                self.hit_scale = scale
                 self.hit_p = p
+                self.hit_n = n
                 self.hit_x = Vec(matrix_vector_mult(rmat, Direction.X))
                 self.hit_y = Vec(matrix_vector_mult(rmat, Direction.Y))
                 self.hit_z = Vec(matrix_vector_mult(rmat, Direction.Z))

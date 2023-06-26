@@ -475,6 +475,7 @@ class Drawing:
         width = self.scale(width)
         shader_3D_circle.bind()
         ubos_3D_circle.options.MVPMatrix = self.get_view_matrix()
+        ubos_3D_circle.options.screensize = (self.area.width, self.area.height, 0.0, 0.0)
         ubos_3D_circle.options.center    = f.o
         ubos_3D_circle.options.color     = color
         ubos_3D_circle.options.plane_x   = f.x

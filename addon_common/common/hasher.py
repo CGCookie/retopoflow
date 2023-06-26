@@ -123,7 +123,7 @@ def hash_object(obj:bpy.types.Object):
     if obj is None: return None
     assert type(obj) is bpy.types.Object, "Only call hash_object on mesh objects!"
     assert type(obj.data) is bpy.types.Mesh, "Only call hash_object on mesh objects!"
-    #print(f'hashing object {obj.name}')
+    # print(f'RetopoFlow: Hashing object {obj.name}...')
     t = time.time()
     # get object data to act as a hash
     me = obj.data
@@ -144,8 +144,8 @@ def hash_object(obj:bpy.types.Object):
         else:
             mods += [(mod.type)]
     hashed = (counts, bbox, vsum, xform, hash(obj), str(mods))      # ob.name???
-    #print(f'hash_object({obj.name}): {hashed}')
-    #print(f'  {time.time() - t}')
+    # print(f'  hash: {hashed}')
+    # print(f'  time: {time.time() - t}')
     return hashed
 
 def hash_bmesh(bme:BMesh):
