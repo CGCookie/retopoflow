@@ -31,7 +31,6 @@ import contextlib
 
 
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 

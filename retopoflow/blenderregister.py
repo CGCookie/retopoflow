@@ -4,7 +4,6 @@ import json
 import time
 import textwrap
 import importlib
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 

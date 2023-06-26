@@ -32,7 +32,6 @@ import traceback
 import functools
 import urllib.request
 from itertools import chain
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 

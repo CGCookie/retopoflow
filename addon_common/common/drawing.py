@@ -32,7 +32,6 @@ import contextlib
 import urllib.request
 from functools import wraps
 from itertools import chain
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import gpu

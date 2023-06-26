@@ -31,7 +31,6 @@ import contextlib
 from math import floor, ceil
 from inspect import signature
 from itertools import dropwhile
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import blf

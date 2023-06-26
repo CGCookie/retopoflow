@@ -25,14 +25,12 @@ import sys
 import math
 import time
 import random
-import asyncio
 import inspect
 import traceback
 import contextlib
 from math import floor, ceil
 from inspect import signature
 from itertools import dropwhile, zip_longest
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import blf

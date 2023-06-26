@@ -25,7 +25,6 @@ import sys
 import math
 import time
 import random
-import asyncio
 import inspect
 import traceback
 import contextlib
@@ -33,7 +32,6 @@ from math import floor, ceil
 from inspect import signature
 from functools import lru_cache
 from itertools import dropwhile, zip_longest
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 import blf
@@ -89,8 +87,6 @@ Links to useful resources
 
 
 class UI_Element_Utils:
-    executor = ThreadPoolExecutor()
-
     @staticmethod
     def defer_dirty_wrapper(cause, properties=None, parent=True, children=False):
         ''' prevents dirty propagation until the wrapped fn has finished '''

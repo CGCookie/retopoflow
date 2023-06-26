@@ -30,7 +30,6 @@ import traceback
 import functools
 import urllib.request
 from itertools import chain, zip_longest
-from concurrent.futures import ThreadPoolExecutor
 
 import bpy
 from bpy.types import BoolProperty
