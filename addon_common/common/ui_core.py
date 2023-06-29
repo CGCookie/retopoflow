@@ -1057,7 +1057,7 @@ class UI_Element(
         # if selector hasn't changed, don't recompute trimmed styling
         if selector == self._selector and selector_before == self._selector_before and selector_after == self._selector_after:
             return False
-        styling_trimmed = UI_Styling.trim_styling(selector, ui_defaultstylings, ui_draw.stylesheet)
+        styling_trimmed = UI_Styling.trim_styling(selector, ui_defaultstylings, ui_draw.default_stylesheet)
 
         if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} selector: {" ".join(selector)}')
 
@@ -1790,7 +1790,7 @@ class UI_Element(
         ol, ot = int(self._l + ox), int(self._t + oy)
 
         with profiler.code('drawing mbp'):
-            texture_id = self._image_data['texid'] if self._src in {'image', 'image loading'} else None
+            texture_id = self._image_data['texid']      if self._src in {'image', 'image loading'} else None
             gputexture = self._image_data['gputexture'] if self._src in {'image', 'image loading'} else None
             texture_fit = self._computed_styles.get('object-fit', 'fill')
             ui_draw.draw(ol, ot, self._w, self._h, dpi_mult, self._style_cache, texture_id, gputexture, texture_fit, background_override=background_override, depth=len(self._selector))

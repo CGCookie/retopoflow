@@ -41,13 +41,23 @@ from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join
 
-UI_Draw_Defines = {
-    'IMAGE_SCALE_FILL':     0,
-    'IMAGE_SCALE_CONTAIN':  1,
-    'IMAGE_SCALE_COVER':    2,
-    'IMAGE_SCALE_DOWN':     3,
-    'IMAGE_SCALE_NONE':     4,
+style_to_image_scale = {
+    'fill':       0, # default.  stretch/squash to fill entire container
+    'contain':    1, # scaled to maintain aspect ratio, fit within container
+    'cover':      2, # scaled to maintain aspect ratio, fill entire container
+    'scale-down': 3, # same as none or contain, whichever is smaller
+    'none':       4, # not resized
+}
 
+image_scale_defines = {
+    'IMAGE_SCALE_FILL':     style_to_image_scale['fill'],
+    'IMAGE_SCALE_CONTAIN':  style_to_image_scale['contain'],
+    'IMAGE_SCALE_COVER':    style_to_image_scale['cover'],
+    'IMAGE_SCALE_DOWN':     style_to_image_scale['scale-down'],
+    'IMAGE_SCALE_NONE':     style_to_image_scale['none'],
+}
+
+region_defines = {
     'REGION_MARGIN_LEFT':   0,
     'REGION_MARGIN_BOTTOM': 1,
     'REGION_MARGIN_RIGHT':  2,
@@ -61,25 +71,17 @@ UI_Draw_Defines = {
     'REGION_ERROR':        10,
 }
 
-# note: these must correspond correctly with labeled magic numbers in `ui_element.glsl`
-UI_Draw_Texture_Fit = {
-    'fill':       0, # default.  stretch/squash to fill entire container
-    'contain':    1, # scaled to maintain aspect ratio, fit within container
-    'cover':      2, # scaled to maintain aspect ratio, fill entire container
-    'scale-down': 3, # same as none or contain, whichever is smaller
-    'none':       4, # not resized
-}
+# uncomment the following debug options to enable them
+enabled_debug_options = [
+    # 'DEBUG_COLOR_MARGINS',     # color fragments in margin (top, left, bottom, right)
+    # 'DEBUG_COLOR_REGIONS',     # color fragments based on region
+    # 'DEBUG_IMAGE_CHECKER',     # replace image with checker pattern to test scaling
+    # 'DEBUG_IMAGE_OUTSIDE',     # shift color if texcoord is outside [0,1] (in padding region)
+    # 'DEBUG_SNAP_ALPHA',        # snap alpha to 0 or 1 based on 0.25 threshold
+    # 'DEBUG_DONT_DISCARD',      # keep all fragments (do not discard any fragment)
+]
 
-
-UI_Draw_Debug_Options = {
-    # uncomment the following DEBUG options to enable them. note: the values below don't matter; only their existence
-    # 'DEBUG_COLOR_MARGINS': 'true',     # colors pixels in margin (top, left, bottom, right)
-    # 'DEBUG_COLOR_REGIONS': 'true',     # colors pixels based on region
-    # 'DEBUG_IMAGE_CHECKER': 'true',     # replaces images with checker pattern to test scaling
-    # 'DEBUG_IMAGE_OUTSIDE': 'true',     # shifts colors if texcoord is outside [0,1] (in padding region)
-    # 'DEBUG_SNAP_ALPHA':    'true',     # snaps alpha to 0 or 1 based on 0.25 threshold
-    # 'DEBUG_DONT_DISCARD':  'true',
-
+debug_defines = {
     # colors used if DEBUG_COLOR_MARGINS or DEBUG_COLOR_REGIONS are set to true
     'COLOR_MARGIN_LEFT':    'vec4(1.0, 0.0, 0.0, 0.25)',
     'COLOR_MARGIN_BOTTOM':  'vec4(0.0, 1.0, 0.0, 0.25)',
@@ -118,74 +120,45 @@ UI_Draw_Debug_Options = {
 }
 
 if not bpy.app.background:
-    vertex_positions = [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)]
+    draw_data = ( 'TRIS', { 'pos': [(0,0),(1,0),(1,1),  (1,1),(0,1),(0,0)] } )
+    defines = image_scale_defines | region_defines | debug_defines | { k:True for k in enabled_debug_options }
     vertex_shader, fragment_shader = gpustate.shader_parse_file('ui_element.glsl', includeVersion=False)
-    ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader('UI_Draw', vertex_shader, fragment_shader, defines=UI_Draw_Defines | UI_Draw_Debug_Options)
-    ui_draw_batch = batch_for_shader(ui_draw_shader, 'TRIS', {"pos": vertex_positions})
+    ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader('UI_Draw', vertex_shader, fragment_shader, defines=defines)
+    ui_draw_batch = batch_for_shader(ui_draw_shader, *draw_data)
 
 
 class UI_Draw:
-    _initialized = False
-    _stylesheet = None
-    _def_color = (0,0,0,0)
-
-    def init_draw(self):
-        get_MVP_matrix = lambda: gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
-
-        def _draw(left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None):
-            def get_v(style_key, def_val):
-                v = style.get(style_key, def_val)
-                if type(v) is NumberUnit: v = v.val() * dpi_mult
-                return v
-            ui_draw_shader.bind()
-            # uMVPMatrix needs to be set every draw call, because it could be different
-            # when rendering to FrameBuffers with their own (l,b,w,h)
-            ui_draw_ubos.options.uMVPMatrix          = get_MVP_matrix()
-
-            ui_draw_ubos.options.lrtb                = (float(left), float(left + (width - 1)), float(top), float(top - (height - 1)))
-            ui_draw_ubos.options.wh                  = (float(width), float(height), 0, 0)
-
-            ui_draw_ubos.options.depth               = (depth, 0, 0, 0)
-
-            ui_draw_ubos.options.margin_lrtb         = [get_v(f'margin-{p}',  0) for p in ['left', 'right', 'top', 'bottom']]
-            ui_draw_ubos.options.padding_lrtb        = [get_v(f'padding-{p}', 0) for p in ['left', 'right', 'top', 'bottom']]
-
-            ui_draw_ubos.options.border_width_radius = [get_v('border-width',   0), get_v('border-radius',  0), 0, 0]
-            ui_draw_ubos.options.border_left_color =   Color.as_vec4(get_v('border-left-color',   self._def_color))
-            ui_draw_ubos.options.border_right_color =  Color.as_vec4(get_v('border-right-color',  self._def_color))
-            ui_draw_ubos.options.border_top_color =    Color.as_vec4(get_v('border-top-color',    self._def_color))
-            ui_draw_ubos.options.border_bottom_color = Color.as_vec4(get_v('border-bottom-color', self._def_color))
-
-            ui_draw_ubos.options.background_color =    Color.as_vec4(background_override if background_override else get_v('background-color', self._def_color))
-
-            ui_draw_ubos.options.image_use_fit = [(1 if gputexture is not None else 0), UI_Draw_Texture_Fit.get(texture_fit, 0), 0, 0]
-            if gputexture: ui_draw_shader.uniform_sampler('image', gputexture)
-
-            ui_draw_ubos.update_shader()
-            ui_draw_batch.draw(ui_draw_shader)
-
-        UI_Draw._draw = _draw
-
-    def __init__(self):
-        if bpy.app.background: return
-        if not UI_Draw._initialized:
-            self.init_draw()
-            UI_Draw._initialized = True
+    default_stylesheet = None
 
     @staticmethod
     def load_stylesheet(path):
-        UI_Draw._stylesheet = UI_Styling.from_file(path)
-    @property
-    def stylesheet(self):
-        return self._stylesheet
+        UI_Draw.default_stylesheet = UI_Styling.from_file(path)
 
-    def update(self):
-        ''' only need to call once every redraw '''
-        pass
+    def update(self): pass
 
     def draw(self, left, top, width, height, dpi_mult, style, texture_id=None, gputexture=None, texture_fit='fill', background_override=None, depth=None):
-        #if texture_id != -1: print('texture_fit', texture_fit)
-        UI_Draw._draw(left, top, width, height, dpi_mult, style, texture_id, gputexture, texture_fit, background_override, depth)
+        def_color = (0,0,0,0)
+        def get_v(style_key, def_val):
+            v = style.get(style_key, def_val)
+            return v if not isinstance(v, NumberUnit) else (v.val() * dpi_mult)
+
+        ui_draw_shader.bind()
+        ui_draw_ubos.options.uMVPMatrix          = gpu.matrix.get_projection_matrix() @ gpu.matrix.get_model_view_matrix()
+        ui_draw_ubos.options.lrtb                = (float(left), float(left + (width - 1)), float(top), float(top - (height - 1)))
+        ui_draw_ubos.options.wh                  = (float(width), float(height), 0, 0)
+        ui_draw_ubos.options.depth               = (depth, 0, 0, 0)
+        ui_draw_ubos.options.margin_lrtb         = [ get_v(f'margin-{p}',  0) for p in ['left', 'right', 'top', 'bottom'] ]
+        ui_draw_ubos.options.padding_lrtb        = [ get_v(f'padding-{p}', 0) for p in ['left', 'right', 'top', 'bottom'] ]
+        ui_draw_ubos.options.border_width_radius = [ get_v('border-width', 0), get_v('border-radius', 0), 0, 0 ]
+        ui_draw_ubos.options.border_left_color   = Color.as_vec4(get_v('border-left-color',   def_color))
+        ui_draw_ubos.options.border_right_color  = Color.as_vec4(get_v('border-right-color',  def_color))
+        ui_draw_ubos.options.border_top_color    = Color.as_vec4(get_v('border-top-color',    def_color))
+        ui_draw_ubos.options.border_bottom_color = Color.as_vec4(get_v('border-bottom-color', def_color))
+        ui_draw_ubos.options.background_color    = Color.as_vec4(background_override if background_override else get_v('background-color', def_color))
+        ui_draw_ubos.options.image_settings      = [ (1 if gputexture is not None else 0), style_to_image_scale.get(texture_fit, 0), 0, 0 ]
+        if gputexture: ui_draw_shader.uniform_sampler('image', gputexture)
+        ui_draw_ubos.update_shader()
+        ui_draw_batch.draw(ui_draw_shader)
 
 
 ui_draw = Globals.set(UI_Draw())

@@ -24,7 +24,7 @@ struct Options {
     vec4 background_color;
 
     // see IMAGE_SCALE_XXX values below
-    ivec4 image_use_fit;
+    ivec4 image_settings;
 };
 
 uniform Options options;
@@ -33,6 +33,8 @@ uniform sampler2D image;
 
 const bool srgbTarget = true;
 
+bool image_use() { return options.image_settings[0] != 0; }
+int  image_fit() { return options.image_settings[1]; }
 
 
 ////////////////////////////////////////
@@ -195,7 +197,7 @@ vec4 mix_image(vec4 bg) {
     float tw = tsz.x, th = tsz.y;
     float tx, ty;
 
-    switch(options.image_use_fit.y) {
+    switch(image_fit()) {
         case IMAGE_SCALE_FILL:
             // object-fit: fill = stretch / squash to fill entire drawing space (non-uniform scale)
             // do nothing here
@@ -366,7 +368,7 @@ void main() {
     #endif
 
     // apply image if used
-    if(bool(options.image_use_fit.x)) c = mix_image(c);
+    if(image_use()) c = mix_image(c);
 
     c = vec4(c.rgb * c.a, c.a);
 
