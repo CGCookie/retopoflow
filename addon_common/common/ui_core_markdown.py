@@ -35,7 +35,7 @@ from itertools import chain
 
 import bpy
 
-from .ui_core_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
+from .ui_core_utilities import UIRender_Block, UIRender_Inline
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head
 from .ui_styling import UI_Styling
 
@@ -48,9 +48,7 @@ from .maths import Point2D, Vec2D, clamp, mid, Color, Box2D, Size2D, NumberUnit
 from .markdown import Markdown
 from .profiler import profiler, time_it
 from .utils import Dict, delay_exec, get_and_discard, strshort
-
-
-from ..ext import png
+from . import html_to_unicode
 
 
 '''
@@ -79,8 +77,6 @@ Implementation details
 
 See top comment in `ui_core_utilities.py` for links to useful resources.
 '''
-
-
 
 
 def get_mdown_path(fn, ext=None, subfolders=None):
@@ -171,38 +167,31 @@ class UI_Core_Markdown:
                 para = para.lstrip()
                 while para:
                     t,m = Markdown.match_inline(para)
-                    if t is None:
-                        build = ''
-                        while t is None and para:
-                            word,para = Markdown.split_word(para)
-                            build += word
-                            t,m = Markdown.match_inline(para)
-                        container.append_new_child(tagName='text', innerText=build, pseudoelement='text')
-                    else:
-                        if t == 'br':
+                    match t:
+                        case None:
+                            build = ''
+                            while t is None and para:
+                                word,para = Markdown.split_word(para)
+                                build += word
+                                t,m = Markdown.match_inline(para)
+                            container.append_new_child(tagName='text', innerText=build, pseudoelement='text')
+                            continue
+
+                        case 'br':
                             container.append_new_child(tagName='BR')
-                        elif t == 'arrow':
-                            d = {   # https://www.toptal.com/designers/htmlarrows/arrows/
-                                'uarr': '↑',
-                                'darr': '↓',
-                                'larr': '←',
-                                'rarr': '→',
-                                'harr': '↔',
-                                'varr': '↕',
-                                'uArr': '⇑',
-                                'dArr': '⇓',
-                                'lArr': '⇐',
-                                'rArr': '⇒',
-                                'hArr': '⇔',
-                                'vArr': '⇕',
-                            }[m.group('dir')]
+
+                        case 'arrow':
+                            d = html_to_unicode.arrows[f"&{m.group('dir')};"]
                             container.append_new_child(tagName='span', classes='html-arrow', innerText=f'{d}')
-                        elif t == 'img':
+
+                        case 'img':
                             style = m.group('style').strip() or None
                             container.append_new_child(tagName='img', classes='inline', style=style, src=m.group('filename'), title=m.group('caption'))
-                        elif t == 'code':
+
+                        case 'code':
                             container.append_new_child(tagName='code', innerText=m.group('text'))
-                        elif t == 'link':
+
+                        case 'link':
                             link = m.group('link')
                             title = 'Click to open URL in default web browser' if Markdown.is_url(link) else 'Click to open help'
                             def mouseclick():
@@ -211,13 +200,22 @@ class UI_Core_Markdown:
                                 else:
                                     self.set_markdown(mdown_path=link, preprocess_fns=preprocess_fns, f_globals=f_globals, f_locals=f_locals)
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='a', innerText=word, href=link, title=title, on_mouseclick=mouseclick))
-                        elif t == 'bold':
+
+                        case 'bold':
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='b', innerText=word))
-                        elif t == 'italic':
+
+                        case 'italic':
                             process_words(m.group('text'), lambda word: container.append_new_child(tagName='i', innerText=word))
-                        elif t == 'html':
+
+                        case 'html':
                             ui = container.append_new_children_fromHTML(m.group(), f_globals=f_globals, f_locals=f_locals)
-                        # elif t == 'checkbox':
+
+                        case _:
+                            assert False, f'Unhandled inline markdown type "{t}" ("{m}") with "{line}"'
+
+                    para = para[m.end():]
+
+                        # case 'checkbox':
                         #     params = m.group('params')
                         #     innertext = m.group('innertext')
                         #     value = None
@@ -235,15 +233,12 @@ class UI_Core_Markdown:
                         #     ui_label = container.append_new_child(tagName='label')
                         #     ui_label.append_new_child(tagName='input', type='checkbox', checked=BoundVar(value, f_globals=f_globals, f_locals=f_locals))
                         #     ui_label.append_new_child(tagName='text', innerText=innertext, pseudoelement='text')
-                        # elif t == 'button':
+                        # case 'button':
                         #     ui_element = self.fromHTML(m.group(0), f_globals=f_globals, f_locals=f_locals)[0]
                         #     container.append_child(ui_element)
-                        # elif t == 'progress':
+                        # case 'progress':
                         #     ui_element = self.fromHTML(m.group(0), f_globals=f_globals, f_locals=f_locals)[0]
                         #     container.append_child(ui_element)
-                        else:
-                            assert False, 'Unhandled inline markdown type "%s" ("%s") with "%s"' % (str(t), str(m), line)
-                        para = para[m.end():]
 
         def process_mdown(ui_container, mdown):
             #paras = mdown.split('\n\n')         # split into paragraphs
@@ -251,82 +246,83 @@ class UI_Core_Markdown:
             for para in paras:
                 t,m = Markdown.match_line(para)
 
-                if t is None:
-                    p_element = ui_container.append_new_child(tagName='p')
-                    process_para(p_element, para)
+                match t:
+                    case None:
+                        p_element = ui_container.append_new_child(tagName='p')
+                        process_para(p_element, para)
 
-                elif t in ['h1','h2','h3']:
-                    ui_hn = ui_container.append_new_child(tagName=t)
-                    process_para(ui_hn, m.group('text'))
+                    case 'h1' | 'h2' | 'h3':
+                        ui_hn = ui_container.append_new_child(tagName=t)
+                        process_para(ui_hn, m.group('text'))
 
-                elif t == 'ul':
-                    ui_ul = ui_container.append_new_child(tagName='ul')
-                    with ui_ul.defer_dirty('creating ul children'):
-                        # add newline at beginning so that we can skip the first item (before "- ")
-                        skip_first = True
-                        para = f'\n{para}'
-                        for litext in re.split(r'\n- ', para):
-                            if skip_first:
-                                skip_first = False
-                                continue
-                            ui_li = ui_ul.append_new_child(tagName='li')
-                            if '\n' in litext:
-                                # remove leading spaces
-                                litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
-                                process_mdown(ui_li, litext)
-                            else:
-                                process_para(ui_li, litext)
+                    case 'ul':
+                        ui_ul = ui_container.append_new_child(tagName='ul')
+                        with ui_ul.defer_dirty('creating ul children'):
+                            # add newline at beginning so that we can skip the first item (before "- ")
+                            skip_first = True
+                            para = f'\n{para}'
+                            for litext in re.split(r'\n- ', para):
+                                if skip_first:
+                                    skip_first = False
+                                    continue
+                                ui_li = ui_ul.append_new_child(tagName='li')
+                                if '\n' in litext:
+                                    # remove leading spaces
+                                    litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
+                                    process_mdown(ui_li, litext)
+                                else:
+                                    process_para(ui_li, litext)
 
-                elif t == 'ol':
-                    ui_ol = ui_container.append_new_child(tagName='ol')
-                    with ui_ol.defer_dirty('creating ol children'):
-                        # add newline at beginning so that we can skip the first item (before "- ")
-                        skip_first = True
-                        para = f'\n{para}'
-                        for ili,litext in enumerate(re.split(r'\n\d+\. ', para)):
-                            if skip_first:
-                                skip_first = False
-                                continue
-                            ui_li = ui_ol.append_new_child(tagName='li')
-                            #ui_li.append_new_child(tagName='span', classes='number', innerText=f'{ili}.')
-                            #span_element = ui_li.append_new_child(tagName='span', classes='text')
-                            if '\n' in litext:
-                                # remove leading spaces
-                                litext = '\n'.join(l.strip() for l in litext.split('\n'))
-                                process_mdown(ui_li, litext)
-                            else:
-                                process_para(ui_li, litext)
+                    case 'ol':
+                        ui_ol = ui_container.append_new_child(tagName='ol')
+                        with ui_ol.defer_dirty('creating ol children'):
+                            # add newline at beginning so that we can skip the first item (before "- ")
+                            skip_first = True
+                            para = f'\n{para}'
+                            for ili,litext in enumerate(re.split(r'\n\d+\. ', para)):
+                                if skip_first:
+                                    skip_first = False
+                                    continue
+                                ui_li = ui_ol.append_new_child(tagName='li')
+                                #ui_li.append_new_child(tagName='span', classes='number', innerText=f'{ili}.')
+                                #span_element = ui_li.append_new_child(tagName='span', classes='text')
+                                if '\n' in litext:
+                                    # remove leading spaces
+                                    litext = '\n'.join(l.strip() for l in litext.split('\n'))
+                                    process_mdown(ui_li, litext)
+                                else:
+                                    process_para(ui_li, litext)
 
-                elif t == 'img':
-                    style = m.group('style').strip() or None
-                    ui_container.append_new_child(tagName='img', style=style, src=m.group('filename'), title=m.group('caption'))
+                    case 'img':
+                        style = m.group('style').strip() or None
+                        ui_container.append_new_child(tagName='img', style=style, src=m.group('filename'), title=m.group('caption'))
 
-                elif t == 'table':
-                    # table!
-                    def split_row(row):
-                        row = re.sub(r'^\| ', r'', row)
-                        row = re.sub(r' \|$', r'', row)
-                        return [col.strip() for col in row.split(' | ')]
-                    data = [l for l in para.split('\n')]
-                    header = split_row(data[0])
-                    add_header = any(header)
-                    align = data[1]
-                    data = [split_row(row) for row in data[2:]]
-                    rows,cols = len(data),len(data[0])
-                    table_element = ui_container.append_new_child(tagName='table')
-                    with table_element.defer_dirty('creating table children'):
-                        if add_header:
-                            tr_element = table_element.append_new_child(tagName='tr')
-                            for c in range(cols):
-                                tr_element.append_new_child(tagName='th', innerText=header[c])
-                        for r in range(rows):
-                            tr_element = table_element.append_new_child(tagName='tr')
-                            for c in range(cols):
-                                td_element = tr_element.append_new_child(tagName='td')
-                                process_para(td_element, data[r][c])
+                    case 'table':
+                        # table!
+                        def split_row(row):
+                            row = re.sub(r'^\| ', r'', row)
+                            row = re.sub(r' \|$', r'', row)
+                            return [col.strip() for col in row.split(' | ')]
+                        data = [l for l in para.split('\n')]
+                        header = split_row(data[0])
+                        add_header = any(header)
+                        align = data[1]
+                        data = [split_row(row) for row in data[2:]]
+                        rows,cols = len(data),len(data[0])
+                        table_element = ui_container.append_new_child(tagName='table')
+                        with table_element.defer_dirty('creating table children'):
+                            if add_header:
+                                tr_element = table_element.append_new_child(tagName='tr')
+                                for c in range(cols):
+                                    tr_element.append_new_child(tagName='th', innerText=header[c])
+                            for r in range(rows):
+                                tr_element = table_element.append_new_child(tagName='tr')
+                                for c in range(cols):
+                                    td_element = tr_element.append_new_child(tagName='td')
+                                    process_para(td_element, data[r][c])
 
-                else:
-                    assert False, 'Unhandled markdown line type "%s" ("%s") with "%s"' % (str(t), str(m), para)
+                    case _:
+                        assert False, f'Unhandled markdown line type "{t}" ("{m}") with "{para}"'
 
         if self._document: self._document.defer_cleaning = True
 

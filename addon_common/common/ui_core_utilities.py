@@ -343,5 +343,5 @@ def helper_wraptext(text='', width=float('inf'), fontid=0, fontsize=12, preserve
 @add_cache('guid', 0)
 def get_unique_ui_id(prefix='', postfix=''):
     get_unique_ui_id.guid += 1
-    return '%s%d%s' % (prefix, get_unique_ui_id.guid, postfix)
+    return f'{prefix}{get_unique_ui_id.guid}{postfix}'
 

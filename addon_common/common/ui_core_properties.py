@@ -44,7 +44,7 @@ from mathutils import Vector, Matrix
 from . import ui_settings
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor, get_unique_ui_id
 from .fsm import FSM
 
 from .useractions import ActionHandler
@@ -65,6 +65,112 @@ from ..ext.apng import APNG
 
 
 class UI_Core_Properties:
+    def _init_properties(self):
+        # attributes of UI_Element that are settable
+        # set to blank defaults, will be set again later in __init__()
+        self._tagName       = ''        # determines type of UI element
+        self._id            = ''        # unique identifier
+        self._classes_str   = ''        # list of classes (space delimited string)
+        self._style_str     = ''        # custom style string
+        self._innerText     = None      # text to display (converted to UI_Elements)
+        self._src_str       = None      # path to resource, such as image
+        self._can_focus     = None      # None/True:self can take focus if focusable element (ex: <input type="text">)
+        self._can_hover     = True      # True:self can take hover
+        self._title         = None      # tooltip
+        self._forId         = None      # used for labels
+        self._uid           = get_unique_ui_id()
+        self._document      = None
+
+        # attribs
+        self._type            = None
+        self._value           = None
+        self._value_bound     = False
+        self._maxlength       = None
+        self._valueMax        = None
+        self._valueMin        = None
+        self._valueStep       = None
+        self._checked         = None
+        self._checked_bound   = False
+        self._name            = None
+        self._href            = None
+        self._clamp_to_parent = False
+        self._open            = False
+
+        self._was_dirty     = False
+        self._preclean      = None      # fn that's called back right before clean is started
+        self._postclean     = None      # fn that's called back right after clean is done
+        self._postflow      = None      # fn that's called back right after layout is done
+
+        # read-only attributes of UI_Element
+        self._atomic        = False     # True:all children under self should be considered as part of self (ex: don't pass on events)
+        self._parent        = None      # read-only property; set in parent.append_child(child)
+        self._parent_size   = None
+        self._children      = []        # read-only list of all children; append_child, delete_child, clear_children
+        self._pseudoclasses = set()     # TODO: should order matter here? (make list)
+                                        # updated by main ui system (hover, active, focus)
+        self._pseudoelement = ''        # set only if element is a pseudoelement ('::before', '::after', '::marker')
+
+        self._style_left    = None
+        self._style_top     = None
+        self._style_right   = None
+        self._style_bottom  = None
+        self._style_width   = None
+        self._style_height  = None
+        self._style_z_index = None
+
+        self._nonstatic_elem = None
+
+        # properties for text input
+        self._selectionStart       = None
+        self._selectionEnd         = None
+        self._ui_marker            = None       # cursor element, checkbox, radio button, etc.
+
+        # cached properties
+        # TODO: go back through these to make sure we've caught everything
+        self._classes          = []                     # classes applied to element, set by self.classes property, based on self._classes_str
+        self._computed_styles  = {}                     # computed style UI_Style after applying all styling
+        self._computed_styles_before = {}
+        self._computed_styles_after = {}
+        self._is_visible       = None                   # indicates if self is visible, set in compute_style(), based on self._computed_styles
+        self._is_scrollable_x  = False                  # indicates is self is scrollable along x, set in compute_style(), based on self._computed_styles
+        self._is_scrollable_y  = False                  # indicates is self is scrollable along y, set in compute_style(), based on self._computed_styles
+        self._static_content_size     = None            # min and max size of content, determined from children and style
+        self._children_text    = []                     # innerText as children
+        self._children_gen     = []                     # generated children (pseudoelements)
+        self._child_before     = None                   # ::before child
+        self._child_after      = None                   # ::after child
+        self._children_all     = []                     # all children in order
+        self._children_all_sorted = []                  # all children sorted by z-index
+        self._innerTextWrapped = None                   # <--- no longer needed?
+        self._selector         = None                   # full selector of self, built in compute_style()
+        self._selector_last    = None                   # last full selector of self, updated in compute_style()
+        self._selector_before  = None                   # full selector of ::before pseudoelement for self
+        self._selector_after   = None                   # full selector of ::after pseudoelement for self
+        self._styling_trimmed  = None
+        self._styling_custom   = None
+        self._styling_parent   = None
+        self._styling_list     = []
+        self._innerTextAsIs    = None                   # text to display as-is (no wrapping)
+        self._src              = None
+        self._textwrap_opts    = {}
+        self._l, self._t, self._w, self._h = (0,0,0,0)  # scissor position
+        self._fontid           = 0
+        self._fontsize         = 12
+        self._fontcolor        = (0,0,0,1)
+        self._textshadow       = None
+        self._whitespace       = 'normal'
+        self._cacheRenderBuf   = None   # GPUOffScreen buffer
+        self._dirty_renderbuf  = True
+        self._style_trbl_cache = {}
+
+        # overrides
+        self._left_override = None
+        self._top_override = None
+        self._width_override = None
+        self._height_override = None
+
+
+
     @property
     def tagName(self):
         return self._tagName

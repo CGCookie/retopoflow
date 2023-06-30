@@ -28,6 +28,33 @@ from .ui_core_utilities import UI_Core_Utils
 
 
 class UI_Core_Dirtiness:
+    def _init_dirtiness(self):
+        # dirty properties
+        # used to inform parent and children to recompute
+        self._dirty_properties = {              # set of dirty properties, add through self.dirty to force propagation of dirtiness
+            'style',                            # force recalculations of style
+            'style parent',                     # force recalculations of style if parent selector changes
+            'content',                          # content of self has changed
+            'blocks',                           # children are grouped into blocks
+            'size',                             # force recalculations of size
+            'renderbuf',                        # force re-rendering buffer (if applicable)
+        }
+        self._new_content = True
+        self._dirtying_flow = True
+        self._dirtying_children_flow = True
+        self._dirty_causes = []
+        self._dirty_callbacks = { k:set() for k in UI_Core_Utils._cleaning_graph_nodes }
+        self._dirty_propagation = {             # contains deferred dirty propagation for parent and children; parent will be dirtied later
+            'defer':           False,           # set to True to defer dirty propagation (useful when many changes are occurring)
+            'parent':          set(),           # set of properties to dirty for parent
+            'parent callback': set(),           # set of dirty properties to inform parent
+            'children':        set(),           # set of properties to dirty for children
+        }
+        self._defer_clean = False               # set to True to defer cleaning (useful when many changes are occurring)
+        self._clean_debugging = {}
+        self._do_not_dirty_parent = False       # special situation where self._parent attrib was set specifically in __init__ (ex: UI_Elements from innerText)
+        self._draw_dirty_style = 0              # keeping track of times style is dirtied since last draw
+
     @profiler.function
     def dirty(self, **kwargs):
         self._dirty(**kwargs)

@@ -626,7 +626,7 @@ class UI_Styling:
         # print('UI_Styling.load_from_text: Loaded %d rules' % len(self._rules))
 
     def clear_cache(self):
-        # print('UI_Styling%d.clear_cache' % self._uid)
+        # print(f'UI_Styling{self._uid}.clear_cache')
         self._decllist_cache = {}
         UI_Styling.trim_styling._cache = {}
         UI_Styling.strip_selector_parts._cache = {}
@@ -906,8 +906,9 @@ class UI_Styling:
         self.dirty_optimization()
 
     def __str__(self):
-        if not self._rules: return '<UI_Styling%d>' % self._uid
-        return '<UI_Styling%d\n%s\n>' % (self._uid, '\n'.join('  '+l for r in self._rules for l in str(r).splitlines()))
+        if not self._rules: return f'<UI_Styling{self._uid}>'
+        s = '\n'.join('  '+l for r in self._rules for l in str(r).splitlines())
+        return f'<UI_Styling{self._uid}\n{s}\n>'
 
     def __repr__(self): return self.__str__()
 
@@ -925,7 +926,7 @@ class UI_Styling:
         self._trie_stripped = None
 
     @property
-    def simple_str(self): return '<UI_Styling%d>' % self._uid
+    def simple_str(self): return f'<UI_Styling{self._uid}>'
 
     @profiler.function
     def get_decllist(self, selector):

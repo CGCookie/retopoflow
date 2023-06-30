@@ -27,6 +27,38 @@ from .profiler import profiler, time_it
 
 
 class UI_Core_Events:
+    def _init_events(self):
+        # all events with their respective callbacks
+        # NOTE: values of self._events are list of tuples, where:
+        #       - first item is bool indicating type of callback, where True=capturing and False=bubbling
+        #       - second item is the callback function, possibly wrapped with lambda
+        #       - third item is the original callback function
+        self._events = {
+            'on_load':          [],     # called when document is set
+            'on_focus':         [],     # focus is gained (:foces is added)
+            'on_blur':          [],     # focus is lost (:focus is removed)
+            'on_focusin':       [],     # focus is gained to self or a child
+            'on_focusout':      [],     # focus is lost from self or a child
+            'on_keydown':       [],     # key is pressed down
+            'on_keyup':         [],     # key is released
+            'on_keypress':      [],     # key is entered (down+up)
+            'on_paste':         [],     # user is pasting from clipboard
+            'on_mouseenter':    [],     # mouse enters self (:hover is added)
+            'on_mousemove':     [],     # mouse moves over self
+            'on_mousedown':     [],     # mouse button is pressed down
+            'on_mouseup':       [],     # mouse button is released
+            'on_mouseclick':    [],     # mouse button is clicked (down+up while remaining on self)
+            'on_mousedblclick': [],     # mouse button is pressed twice in quick succession
+            'on_mouseleave':    [],     # mouse leaves self (:hover is removed)
+            'on_scroll':        [],     # self is being scrolled
+            'on_input':         [],     # occurs immediately after value has changed
+            'on_change':        [],     # occurs after blur if value has changed
+            'on_toggle':        [],     # occurs when open attribute is toggled
+            'on_close':         [],     # dialog is closed
+            'on_visibilitychange': [],  # element became visible or hidden
+        }
+
+
     def add_eventListener(self, event, callback, useCapture=False):
         ovent = event
         event = event if event.startswith('on_') else f'on_{event}'

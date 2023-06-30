@@ -21,6 +21,9 @@ Created by Jonathan Denning, Jonathan Williamson
 
 
 class UI_Core_Debug:
+    def _init_debug(self):
+        self._debug_list       = []
+
     def debug_print(self, d, already_printed):
         sp = '    '*d
         tag = self.as_html
