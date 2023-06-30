@@ -216,16 +216,16 @@ class UI_Element(
                 self.innerText = kwargs['innerText']
 
             # second pass: handling parent...
-            if 'parent' in kwargs:
+            if kwargs.get('parent', None) is not None:
                 # note: parent.append_child(self) will set self._parent
                 kwargs['parent'].append_child(self)
-            if '_parent' in kwargs:
+            if kwargs.get('_parent', None) is not None:
                 self._parent = kwargs['_parent']
-                if self._parent: self._document = self._parent.document
+                self._document = self._parent.document
                 self._do_not_dirty_parent = True
 
             # third pass: handling children...
-            if 'children' in kwargs:
+            if kwargs.get('children', None):
                 for child in kwargs['children']:
                     self.append_child(child)
 
