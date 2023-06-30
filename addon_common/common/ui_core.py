@@ -75,7 +75,7 @@ from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D
 from .maths import floor_if_finite, ceil_if_finite
 from .profiler import profiler, time_it
 from .useractions import ActionHandler
-from .utils import iter_head, any_args, join
+from .utils import iter_head, any_args, join, kwargs_splitter
 
 
 '''
@@ -172,16 +172,13 @@ class UI_Element(
         with self.defer_dirty('setting initial properties'):
             # NOTE: handle attribs in multiple passes, so that debug prints are more informative
 
-            # first pass: handling events, value, checked, attribs...
-            working_keys, unhandled_keys = kwargs.keys(), set()
-            for k in working_keys:
-                v = kwargs[k]
+            kwargs_events    = kwargs_splitter(kwargs, keys=self._events.keys())
+            kwargs_special0  = kwargs_splitter(kwargs, keys={'atomic', 'max', 'min', 'value', 'checked'})
+            kwargs_special1  = kwargs_splitter(kwargs, keys={'innerText', 'parent', '_parent', 'children'})
+            kwargs_unhandled = kwargs_splitter(kwargs, fn=(lambda k,_: not hasattr(self, k)))
 
-                if k in self._events:
-                    # key is an event; set callback
-                    self.add_eventListener(k, v)
-                    continue
-
+            # handle special properties
+            for k, v in kwargs_special0.items():
                 match k:
                     case 'atomic':
                         self._atomic = v
@@ -189,51 +186,50 @@ class UI_Element(
                         self.valueMax = v
                     case 'min':
                         self.valueMin = v
-                    case 'value' if isinstance(v, BoundVar):
-                        self.value_bind(v)
-                    case 'checked' if isinstance(v, BoundVar):
-                        self.checked_bind(v)
-                    case 'innerText' | 'parent' | '_parent' | 'children':
-                        pass  # special cases handled later
-                    case _:
-                        if not hasattr(self, k):
-                            # special cases handled later
-                            unhandled_keys.add(k)
-                            continue
-                        # need to test that a setter exists for the property
-                        class_attr = getattr(type(self), k, None)
-                        if type(class_attr) is property:
-                            # k is a property
-                            assert class_attr.fset is not None, f'Attempting to set a read-only property {k} to "{v}"'
-                            setattr(self, k, v)
-                        else:
-                            # k is an attribute
-                            print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
-                            setattr(self, k, v)
+                    case 'value':
+                        if isinstance(v, BoundVar): self.value_bind(v)
+                        else: self.value = v
+                    case 'checked':
+                        if isinstance(v, BoundVar): self.checked_bind(v)
+                        else: self.checked = v
 
-            # handle innerText
-            if kwargs.get('innerText', None) is not None:
-                self.innerText = kwargs['innerText']
+            # handle other properties
+            cls = type(self)
+            for k, v in kwargs.items():
+                # need to test that a setter exists for the property
+                class_attr = getattr(cls, k, None)
+                if type(class_attr) is property:
+                    # k is a property
+                    assert class_attr.fset is not None, f'Attempting to set a read-only property {k} to "{v}"'
+                    setattr(self, k, v)
+                else:
+                    # k is an attribute
+                    print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
+                    setattr(self, k, v)
 
-            # second pass: handling parent...
-            if kwargs.get('parent', None) is not None:
+            # handle special connections
+            if kwargs_special1.get('innerText', None) is not None:
+                self.innerText = kwargs_special1['innerText']
+            if kwargs_special1.get('parent', None) is not None:
                 # note: parent.append_child(self) will set self._parent
-                kwargs['parent'].append_child(self)
-            if kwargs.get('_parent', None) is not None:
-                self._parent = kwargs['_parent']
+                kwargs_special1['parent'].append_child(self)
+            if kwargs_special1.get('_parent', None) is not None:
+                self._parent = kwargs_special1['_parent']
                 self._document = self._parent.document
                 self._do_not_dirty_parent = True
-
-            # third pass: handling children...
-            if kwargs.get('children', None):
-                for child in kwargs['children']:
+            if kwargs_special1.get('children', None):
+                for child in kwargs_special1['children']:
                     self.append_child(child)
 
+            # handle events
+            for k, v in kwargs_events.items():
+                # key is an event name, v is callback
+                self.add_eventListener(k, v)
+
             # report unhandled attribs
-            if unhandled_keys:
+            if kwargs_unhandled:
                 print(f'>> COOKIECUTTER UI WARNING: When creating new UI_Element, found unhandled attribute value pairs:')
-                for k in unhandled_keys:
-                    print(f'  {k}={kwargs[k]}')
+                print(f'    {kwargs_unhandled}')
 
         self._setup_element()    # NOTE: this must be done _after_ tag and type are set
 

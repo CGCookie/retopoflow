@@ -287,11 +287,16 @@ def kwargs_translate(key_from, key_to, kwargs):
         kwargs[key_to] = kwargs[key_from]
         del kwargs[key_from]
 
-def kwargs_splitter(keys, kwargs):
-    if type(keys) is str: keys = [keys]
-    kw = {k:v for (k,v) in kwargs.items() if k in keys}
-    for k in keys:
-        if k in kwargs: del kwargs[k]
+def kwargs_splitter(kwargs, *, keys=None, fn=None):
+    if keys is not None:
+        if type(keys) is str: keys = [keys]
+        kw = {k:v for (k,v) in kwargs.items() if k in keys}
+    elif fn is not None:
+        kw = {k:v for (k,v) in kwargs.items() if fn(k, v)}
+    else:
+        assert False, f'Must specify either keys or fn'
+    for k in kw.keys():
+        del kwargs[k]
     return kw
 
 

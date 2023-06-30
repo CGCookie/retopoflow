@@ -369,7 +369,7 @@ class BlenderSettings:
     def overlays_show(): BlenderSettings.overlays_set(True)
 
     @staticmethod
-    def overlays_restore(self): BlenderSettings._storerestore.restore('overlays')
+    def overlays_restore(): BlenderSettings._storerestore.restore('overlays')
 
 
     #########################################
