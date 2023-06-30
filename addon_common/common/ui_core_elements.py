@@ -50,14 +50,6 @@ from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .utils import iter_head, any_args, join, delay_exec, Dict
 
 
-HTML_CHAR_MAP = [
-    ('&nbsp;', ' '),
-    ('&#96;',  '`'),
-    # ('&rarr;', '→'),
-    ('&lt;', '<'),
-    ('&gt;', '>'),
-]
-
 
 def setup_scrub(ui_element, value):
     '''

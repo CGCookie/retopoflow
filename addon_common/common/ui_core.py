@@ -45,7 +45,7 @@ from . import ui_settings  # needs to be first
 from .ui_core_debug             import UI_Core_Debug
 from .ui_core_dirtiness         import UI_Core_Dirtiness
 from .ui_core_draw              import UI_Core_Draw
-from .ui_core_elements          import UI_Core_Elements, HTML_CHAR_MAP, tags_known
+from .ui_core_elements          import UI_Core_Elements, tags_known
 from .ui_core_events            import UI_Core_Events
 from .ui_core_fonts             import get_font
 from .ui_core_images            import get_loading_image, is_image_cached, load_texture, async_load_image, load_image
@@ -560,6 +560,15 @@ class UI_Element(
                 'collapse_spaces':   self._whitespace in {'normal', 'nowrap',   'pre-line'},
                 'wrap_text':         self._whitespace in {'normal', 'pre-wrap', 'pre-line'},
             }
+
+            HTML_CHAR_MAP = {
+                '&nbsp;': ' ',
+                '&#96;':  '`',
+                # '&rarr;': '→',
+                '&lt;': '<',
+                '&gt;': '>',
+            }
+
             # TODO: if whitespace:pre, then make self NOT wrap
             innerTextWrapped = helper_wraptext(**textwrap_opts)
             # print('"%s"' % innerTextWrapped)
@@ -591,7 +600,7 @@ class UI_Element(
                         words = re.split(r'([^ \n]* +)', l)
                     for word in words:
                         if not word: continue
-                        for f,t in HTML_CHAR_MAP: word = word.replace(f, t)
+                        for f,t in HTML_CHAR_MAP.items(): word = word.replace(f, t)
                         ui_word = self._generate_new_ui_elem(innerTextAsIs=word, text_child=True)
                         #tagName=self._tagName, pseudoelement='text',
                         for i in range(len(word)):
