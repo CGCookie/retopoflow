@@ -186,6 +186,10 @@ class UI_Core_Properties:
         self.dirty(cause='changing tagName can affect children styles', children=True)
 
     @property
+    def tagType(self):
+        return self._tagName if not self._type else f'{self._tagName} {self._type}'
+
+    @property
     def innerText(self):
         if self._pseudoelement == 'text': return self._innerText
         t = [child._innerText for child in self._children if child._pseudoelement == 'text' and child._innerText is not None]

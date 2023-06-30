@@ -176,32 +176,40 @@ class UI_Element(
             working_keys, unhandled_keys = kwargs.keys(), set()
             for k in working_keys:
                 v = kwargs[k]
+
                 if k in self._events:
                     # key is an event; set callback
                     self.add_eventListener(k, v)
-                elif k == 'atomic':
-                    self._atomic = v
-                elif k == 'value' and isinstance(v, BoundVar):
-                    self.value_bind(v)
-                elif k == 'checked' and isinstance(v, BoundVar):
-                    self.checked_bind(v)
-                elif hasattr(self, k) and k not in {'parent', '_parent', 'children', 'innerText'}:
-                    # need to test that a setter exists for the property
-                    class_attr = getattr(type(self), k, None)
-                    if type(class_attr) is property:
-                        # k is a property
-                        assert class_attr.fset is not None, f'Attempting to set a read-only property {k} to "{v}"'
-                        setattr(self, k, v)
-                    else:
-                        # k is an attribute
-                        print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
-                        setattr(self, k, v)
-                elif k == 'max':
-                    self.valueMax = v
-                elif k == 'min':
-                    self.valueMin = v
-                else:
-                    unhandled_keys.add(k)
+                    continue
+
+                match k:
+                    case 'atomic':
+                        self._atomic = v
+                    case 'max':
+                        self.valueMax = v
+                    case 'min':
+                        self.valueMin = v
+                    case 'value' if isinstance(v, BoundVar):
+                        self.value_bind(v)
+                    case 'checked' if isinstance(v, BoundVar):
+                        self.checked_bind(v)
+                    case 'innerText' | 'parent' | '_parent' | 'children':
+                        pass  # special cases handled later
+                    case _:
+                        if not hasattr(self, k):
+                            # special cases handled later
+                            unhandled_keys.add(k)
+                            continue
+                        # need to test that a setter exists for the property
+                        class_attr = getattr(type(self), k, None)
+                        if type(class_attr) is property:
+                            # k is a property
+                            assert class_attr.fset is not None, f'Attempting to set a read-only property {k} to "{v}"'
+                            setattr(self, k, v)
+                        else:
+                            # k is an attribute
+                            print(f'>> COOKIECUTTER UI WARNING: Setting non-property attribute {k} to "{v}"')
+                            setattr(self, k, v)
 
             # handle innerText
             if 'innerText' in kwargs:
@@ -209,31 +217,18 @@ class UI_Element(
                     self.innerText = kwargs['innerText']
 
             # second pass: handling parent...
-            working_keys, unhandled_keys = unhandled_keys, set()
-            for k in working_keys:
-                v = kwargs[k]
-                if k == 'parent':
-                    # note: parent.append_child(self) will set self._parent
-                    v.append_child(self)
-                elif k == '_parent':
-                    self._parent = v
-                    if v: self._document = v.document
-                    self._do_not_dirty_parent = True
-                else:
-                    unhandled_keys.add(k)
+            if 'parent' in kwargs:
+                # note: parent.append_child(self) will set self._parent
+                kwargs['parent'].append_child(self)
+            if '_parent' in kwargs:
+                self._parent = kwargs['_parent']
+                if self._parent: self._document = self._parent.document
+                self._do_not_dirty_parent = True
 
             # third pass: handling children...
-            working_keys, unhandled_keys = unhandled_keys, set()
-            for k in working_keys:
-                v = kwargs[k]
-                if k == 'children':
-                    # append each child
-                    for child in kwargs['children']:
-                        self.append_child(child)
-                elif k == 'innerText':
-                    pass
-                else:
-                    unhandled_keys.add(k)
+            if 'children' in kwargs:
+                for child in kwargs['children']:
+                    self.append_child(child)
 
             # report unhandled attribs
             if unhandled_keys:
@@ -241,7 +236,7 @@ class UI_Element(
                 for k in unhandled_keys:
                     print(f'  {k}={kwargs[k]}')
 
-        self._init_element()    # NOTE: this must be done _after_ everything above
+        self._setup_element()    # NOTE: this must be done _after_ tag and type are set
 
         self.dirty(cause='initially dirty')
 

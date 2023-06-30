@@ -429,24 +429,25 @@ class UI_Core_Elements():
 
     def _init_input_box(self, input_type):
         allowed = None  # allow any character
-        if input_type == 'text':
-            # could set
-            #     allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
-            # but that would exclude any non-US-keyboard inputs
-            pass
-        elif input_type == 'number':
-            if type(self._value) is BoundInt:
-                if self._value.min_value is not None and self._value.min_value >= 0:
-                    # only non-negative ints
-                    allowed = '''0123456789'''
+        match input_type:
+            case 'text':
+                # could set
+                #     allowed = '''abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 `~!@#$%^&*()[{]}\'"\\|-_;:,<.>'''
+                # but that would exclude any non-US-keyboard inputs
+                pass
+            case 'number':
+                if type(self._value) is BoundInt:
+                    if self._value.min_value is not None and self._value.min_value >= 0:
+                        # only non-negative ints
+                        allowed = '''0123456789'''
+                    else:
+                        # can be negative
+                        allowed = '''-0123456789'''
                 else:
-                    # can be negative
-                    allowed = '''-0123456789'''
-            else:
-                # can be float
-                allowed = '''0123456789.-'''
-        else:
-            assert False, f'UI_Element.process_input_box: unhandled type {input_type}'
+                    # can be float
+                    allowed = '''0123456789.-'''
+            case _:
+                assert False, f'UI_Element.process_input_box: unhandled type {input_type}'
 
         data = {'orig':None, 'text':None, 'idx':0, 'pos':None}
 
@@ -916,21 +917,19 @@ class UI_Core_Elements():
 
         return self._children
 
-    def _init_element(self):
-        tagtype = f'{self._tagName}{f" {self._type}" if self._type else ""}'
+    def _setup_element(self):
         processors = {
             'input text':     lambda: self._init_input_box('text'),
             'input number':   lambda: self._init_input_box('number'),
             'input radio':    self._init_input_radio,
         }
-        if tagtype not in processors: return
-        processors[tagtype]()
+        processor = processors.get(self.tagType, None)
+        return processor() if processor else None
 
     def _process_children(self):
         if self._innerTextAsIs is not None: return []
         if self._pseudoelement == 'marker': return self._children
 
-        tagtype = f'{self._tagName}{f" {self._type}" if self._type else ""}'
         processors = {
             'input radio':    self._process_input_radio,
             'input checkbox': self._process_input_checkbox,
@@ -945,6 +944,6 @@ class UI_Core_Elements():
             'li':             self._process_li,
             'progress':       self._process_progress,
         }
-        processor = processors.get(tagtype, None)
+        processor = processors.get(self.tagType, None)
 
         return processor() if processor else self._children
