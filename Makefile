@@ -7,9 +7,8 @@
 
 
 
-# /./././././././././././././././././././././././././././././././
-# SETTINGS
-# /./././././././././././././././././././././././././././././././
+#########################################################
+# settings
 
 # TODO: warn if profiling is enabled!
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
@@ -46,10 +45,8 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 # .PHONY: _build-pre _build-post
 
 
-# /./././././././././././././././././././././././././././././././
-# TARGETS
-# /./././././././././././././././././././././././././././././././
-
+#########################################################
+# information
 
 info:
 	@echo "Information:"
@@ -59,22 +56,24 @@ info:
 	@echo "Targets:"
 	@echo "  development:   clean, check, gittag, install"
 	@echo "  documentation: build-docs, serve-docs, clean-docs, build-thumbnails"
-	@echo "  build zips:    build-github, build-blendermarket"
+	@echo "  build zips:    build, build-github, build-blendermarket"
+
+
+#########################################################
+# utilities
 
 clean:
 	rm -rf $(BUILD_DIR)
 	@echo "Release folder deleted"
-
 
 gittag:
 	# create a new annotated (-a) tag and push to GitHub
 	git tag -a $(VVERSION) -m $(GIT_TAG_MESSAGE)
 	git push origin $(VVERSION)
 
-blinfo:
-	@echo "Updating bl_info in __init__.py by running Blender with --background"
-	$(BLENDER) --background
 
+#########################################################
+# documentation targets
 
 build-docs:
 	# rebuild online docs
@@ -87,6 +86,13 @@ clean-docs:
 	cd docs && bundle exec jekyll clean
 
 
+#########################################################
+# build targets
+
+blinfo:
+	@echo "Updating bl_info in __init__.py by running Blender with --background"
+	$(BLENDER) --background
+
 check:
 	# check that we don't have case-conflicting filenames (ex: utils.py Utils.py)
 	# most Windows setups have issues with these
@@ -97,40 +103,41 @@ build-thumbnails:
 	cd help && python3 $(CREATE_THUMBNAILS)
 
 build:
-	make build-github
-	make build-blendermarket
+	make _build-common _build-github _build-blendermarket
+	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
+build-github:
+	make _build-common _build-github
+	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
-_build-pre: check
-	make blinfo build-thumbnails build-docs
+build-blendermarket:
+	make _build-common _build-blendermarket
+	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
+
+# helper targets
+
+_build-common:
+	make check blinfo build-thumbnails build-docs
 	mkdir -p $(BUILD_DIR)/$(NAME)
 	# copy files over to build folder
 	# note: rsync flag -a == archive (same as -rlptgoD)
 	rsync -av --progress . $(BUILD_DIR)/$(NAME) --exclude-from="Makefile_excludes"
-
-_build-post:
 	# run debug cleanup
 	cd $(BUILD_DIR) && python3 $(DEBUG_CLEANUP) "YES!"
 
-
-build-github:
-	make _build-pre
-	# touch file so that we know it was packaged by us
+_build-github:
+	# touch file so that we know it was packaged by us and zip it!
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow for release on GitHub." > $(CGCOOKIE_BUILT)
-	make _build-post
-	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_GH) $(NAME)
-	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
-build-blendermarket:
-	make _build-pre
-	# touch file so that we know it was packaged by us
+_build-blendermarket:
+	# touch file so that we know it was packaged by us and zip it!
 	cd $(BUILD_DIR) && echo "This file indicates that CG Cookie built this version of RetopoFlow for release on Blender Market." > $(CGCOOKIE_BUILT)
-	make _build-post
-	# zip it!
 	cd $(BUILD_DIR) && zip -r $(ZIP_BM) $(NAME)
-	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
+
+#########################################################
+# installing target
 
 install:
 	rm -r $(INSTALL_DIR)/$(NAME)
