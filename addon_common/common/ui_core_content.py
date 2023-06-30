@@ -119,8 +119,7 @@ class UI_Core_Content:
         content_before = self._computed_styles_before.get('content', None) if self._computed_styles_before else None
         if content_before is not None:
             # TODO: cache this!!
-            ui_element_cls = type(self)
-            self._child_before = ui_element_cls(tagName=self._tagName, innerText=content_before, pseudoelement='before', _parent=self)
+            self._child_before = self.new_element(tagName=self._tagName, innerText=content_before, pseudoelement='before', _parent=self)
             self._child_before.clean()
             self._new_content = True
             self._children_gen += [self._child_before]
@@ -132,8 +131,7 @@ class UI_Core_Content:
         content_after  = self._computed_styles_after.get('content', None)  if self._computed_styles_after  else None
         if content_after is not None:
             # TODO: cache this!!
-            ui_element_cls = type(self)
-            self._child_after = ui_element_cls(tagName=self._tagName, innerText=content_after, pseudoelement='after', _parent=self)
+            self._child_after = self.new_element(tagName=self._tagName, innerText=content_after, pseudoelement='after', _parent=self)
             self._child_after.clean()
             self._new_content = True
             self._children_gen += [self._child_after]
