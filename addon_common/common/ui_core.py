@@ -212,9 +212,8 @@ class UI_Element(
                             setattr(self, k, v)
 
             # handle innerText
-            if 'innerText' in kwargs:
-                if kwargs['innerText'] is not None:
-                    self.innerText = kwargs['innerText']
+            if kwargs.get('innerText', None) is not None:
+                self.innerText = kwargs['innerText']
 
             # second pass: handling parent...
             if 'parent' in kwargs:
