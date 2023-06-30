@@ -204,7 +204,7 @@ events_known = {
 }
 
 
-class UI_Element_Elements():
+class UI_Core_Elements():
     @classmethod
     def fromHTMLFile(cls, path_html, *, frame_depth=1, frames_deep=1, f_globals=None, f_locals=None, **kwargs):
         if not path_html: return []

@@ -64,7 +64,7 @@ from ..ext import png
 from ..ext.apng import APNG
 
 
-class UI_Element_Properties:
+class UI_Core_Properties:
     @property
     def tagName(self):
         return self._tagName
