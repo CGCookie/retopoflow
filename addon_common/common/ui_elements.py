@@ -46,7 +46,7 @@ from .fontmanager import FontManager
 from .globals import Globals
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .utils import iter_head, any_args, join, delay_exec, Dict
 
 

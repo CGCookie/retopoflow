@@ -44,7 +44,7 @@ __all__ = [
     'ui_core',
     'ui_document',
     'ui_styling',
-    'ui_utilities',
+    'ui_core_utilities',
     'updater_core',
     'updater_ops',
     'useractions',

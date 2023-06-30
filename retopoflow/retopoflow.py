@@ -59,7 +59,7 @@ from ..addon_common.common.image_preloader import ImagePreloader
 from ..addon_common.common.profiler import profiler
 from ..addon_common.common.utils import delay_exec, abspath, StopWatch
 from ..addon_common.common.ui_styling import load_defaultstylings
-from ..addon_common.common.ui_core import preload_image, set_image_cache, UI_Element
+from ..addon_common.common.ui_core import UI_Element
 from ..addon_common.common.useractions import ActionHandler
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 

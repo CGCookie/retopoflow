@@ -43,10 +43,11 @@ from . import gpustate
 from . import ui_settings
 from .gpustate import ScissorStack
 from .ui_linefitter import LineFitter
-from .ui_core import UI_Element, UI_Element_PreventMultiCalls
+from .ui_core import UI_Element
+from .ui_core_preventmulticalls import UI_Core_PreventMultiCalls
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .fsm import FSM
 
 from .useractions import ActionHandler
@@ -214,7 +215,7 @@ class UI_Document:
         if context.area != self._area: return
         # self._ui_scale = Globals.drawing.get_dpi_mult()
 
-        UI_Element_PreventMultiCalls.reset_multicalls()
+        UI_Core_PreventMultiCalls.reset_multicalls()
 
         w,h = context.region.width, context.region.height
         if self._last_w != w or self._last_h != h:
@@ -637,7 +638,7 @@ class UI_Document:
         w,h = context.region.width, context.region.height
         sz = Size2D(width=w, max_width=w, height=h, max_height=h)
 
-        UI_Element_PreventMultiCalls.reset_multicalls()
+        UI_Core_PreventMultiCalls.reset_multicalls()
 
         Globals.ui_draw.update()
         if Globals.drawing.get_dpi_mult() != self._ui_scale:
@@ -651,7 +652,7 @@ class UI_Document:
             self._body.dirty_flow()
             # self._body.dirty('region size changed', 'style', children=True)
 
-        # UI_Element_PreventMultiCalls.reset_multicalls()
+        # UI_Core_PreventMultiCalls.reset_multicalls()
         for o in self._callbacks['preclean']: o._call_preclean()
         self._body.clean()
         for o in self._callbacks['postclean']: o._call_postclean()
@@ -668,7 +669,7 @@ class UI_Document:
         for fn in self._callbacks['postflow once']: fn()
         self._callbacks['postflow once'].clear()
 
-        # UI_Element_PreventMultiCalls.reset_multicalls()
+        # UI_Core_PreventMultiCalls.reset_multicalls()
         self._body._layout(
             # linefitter=LineFitter(left=0, top=h-1, width=w, height=h),
             fitting_size=sz,

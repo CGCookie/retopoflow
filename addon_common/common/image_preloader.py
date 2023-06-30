@@ -26,7 +26,7 @@ import atexit
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from .blender import get_path_from_addon_root
-from .ui_core import preload_image, set_image_cache
+from .ui_core_images import preload_image, set_image_cache
 
 
 # preload images to view faster

@@ -41,14 +41,21 @@ from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
 
 from . import ui_settings  # needs to be first
+
+from .ui_core_debug import UI_Core_Debug
+from .ui_core_dirtiness import UI_Core_Dirtiness
+from .ui_core_fonts import get_font
+from .ui_core_images import get_loading_image, is_image_cached, load_texture, async_load_image, load_image
+from .ui_core_layout import UI_Core_Layout
+from .ui_core_markdown import UI_Core_Markdown
+from .ui_core_preventmulticalls import UI_Core_PreventMultiCalls
+from .ui_core_utilities import UI_Core_Utils, helper_wraptext, convert_token_to_cursor
+
 from .ui_draw import ui_draw
 from .ui_elements import UI_Element_Elements, HTML_CHAR_MAP, tags_known
 from .ui_event import UI_Event
-from .ui_layout import UI_Layout
-from .ui_markdown import UI_Markdown
 from .ui_properties import UI_Element_Properties
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import UI_Element_Utils, helper_wraptext, convert_token_to_cursor
 
 from . import gpustate
 from .blender import tag_redraw_all, get_path_from_addon_common, get_path_from_addon_root
@@ -88,213 +95,6 @@ dirty_flow
 - _layout() returns early if _dirtying_flow is False
 
 
-'''
-
-
-class UI_Element_Defaults:
-    font_family = 'sans-serif'
-    font_style  = 'normal'
-    font_weight = 'normal'
-    font_size   = NumberUnit(12, 'pt')
-    font_color  = Color((0, 0, 0, 1))
-    whitespace  = 'normal'
-
-
-@add_cache('_cache', {})
-@add_cache('_paths', [
-    get_path_from_addon_common('common', 'fonts'),
-    get_path_from_addon_common('common'),
-    get_path_from_addon_root('fonts'),
-])
-def get_font_path(fn, ext=None):
-    cache = get_font_path._cache
-    if ext: fn = '%s.%s' % (fn,ext)
-    if fn not in cache:
-        cache[fn] = None
-        for path in get_font_path._paths:
-            p = os.path.join(path, fn)
-            if os.path.exists(p):
-                cache[fn] = p
-                break
-    return get_font_path._cache[fn]
-
-fontmap = {
-    'serif': {
-        'normal': {
-            'normal': 'DroidSerif-Regular.ttf',
-            'bold':   'DroidSerif-Bold.ttf',
-        },
-        'italic': {
-            'normal': 'DroidSerif-Italic.ttf',
-            'bold':   'DroidSerif-BoldItalic.ttf',
-        },
-    },
-    'sans-serif': {
-        'normal': {
-            'normal': 'DroidSans-Blender.ttf',
-            'bold':   'OpenSans-Bold.ttf',
-        },
-        'italic': {
-            'normal': 'OpenSans-Italic.ttf',
-            'bold':   'OpenSans-BoldItalic.ttf',
-        },
-    },
-    'monospace': {
-        'normal': {
-            'normal': 'DejaVuSansMono.ttf',
-            'bold':   'DejaVuSansMono.ttf',
-        },
-        'italic': {
-            'normal': 'DejaVuSansMono.ttf',
-            'bold':   'DejaVuSansMono.ttf',
-        },
-    },
-}
-def setup_font(fontid):
-    FontManager.aspect(1, fontid)
-    FontManager.enable_kerning_default(fontid)
-
-@profiler.function
-def get_font(fontfamily, fontstyle=None, fontweight=None):
-    if fontfamily in fontmap:
-        # translate fontfamily, fontstyle, fontweight into a .ttf
-        fontfamily = fontmap[fontfamily][fontstyle or 'normal'][fontweight or 'normal']
-    path = get_font_path(fontfamily)
-    assert path, f'could not find font "{fontfamily}"'
-    fontid = FontManager.load(path, setup_font)
-    return fontid
-
-
-def get_image_path(fn, ext=None, subfolders=None):
-    '''
-    If subfolders is not given, this function will look in folders shown below
-        <addon_root>
-            addon_common/
-                common/
-                    ui_core.py      <- this file
-                    images/         <- will look here
-                    <...>
-                <...>
-            icons/                  <- and here (if exists)
-                <...>
-            images/                 <- and here (if exists)
-                <...>
-            help/                   <- and here (if exists)
-                <...>
-            <...>
-    returns first path where fn is found
-    order of search: <addon_root>/icons, <addon_root>/images, <addon_root>/help, <addon_root>/addon_common/common/images
-    '''
-    assert not subfolders, f'Subfolders arg for get_image_path not implemented, yet'
-    if ext: fn = f'{fn}.{ext}'
-    return iter_head(
-        [
-            path
-            for path in [
-                get_path_from_addon_root('icons', fn),
-                get_path_from_addon_root('images', fn),
-                get_path_from_addon_root('help', fn),
-                get_path_from_addon_common('common', 'images', fn),
-            ]
-            if os.path.exists(path)
-        ],
-        default=None,
-    )
-
-
-
-
-def load_image_png(path):
-    # note: assuming 4 channels (rgba) per pixel!
-    width, height, data, m = png.Reader(path).asRGBA()
-    img = [[row[i:i+4] for i in range(0, width*4, 4)] for row in data]
-    return img
-
-def load_image_apng(path):
-    im_apng = APNG.open(path)
-    print('load_image_apng', path, im_apng, im_apng.frames, im_apng.num_plays)
-    im,control = im_apng.frames[0]
-    w,h = control.width,control.height
-    img = [[r[i:i+4] for i in range(0,w*4,4)] for r in d]
-    return img
-
-@add_cache('_cache', {})
-def load_image(fn):
-    # important: assuming all images have distinct names!
-    if fn not in load_image._cache:
-        # have not seen this image before
-        path = get_image_path(fn)
-        _,ext = os.path.splitext(fn)
-        # print(f'UI: Loading image "{fn}" (path={path})')
-        if   ext == '.png':  img = load_image_png(path)
-        elif ext == '.apng': img = load_image_apng(path)
-        else: assert False, f'load_image: unhandled type ({ext}) for {fn}'
-        load_image._cache[fn] = img
-    return load_image._cache[fn]
-
-@add_cache('_image', None)
-def get_unfound_image():
-    if not get_unfound_image._image:
-        c0, c1 = [128,128,128,0], [128,128,128,128]
-        w, h = 10, 10
-        image = []
-        for y in range(h):
-            row = []
-            for x in range(w):
-                c = c0 if (x+y)%2 == 0 else c1
-                row.append(c)
-            image.append(row)
-        get_unfound_image._image = image
-    return get_unfound_image._image
-
-@add_cache('_image', None)
-def get_loading_image(fn):
-    base, _ = os.path.splitext(fn)
-    nfn = f'{base}.thumb.png'
-    return load_image(nfn) if get_image_path(nfn) else get_unfound_image()
-
-def is_image_cached(fn):
-    return fn in load_image._cache
-
-def has_thumbnail(fn):
-    nfn = f'{os.path.splitext(fn)[0]}.thumb.png'
-    return get_image_path(nfn) is not None
-
-def set_image_cache(fn, img):
-    if fn in load_image._cache: return
-    load_image._cache[fn] = img
-
-def preload_image(*fns):
-    return [ (fn, load_image(fn)) for fn in fns ]
-
-@add_cache('_cache', {})
-def load_texture(fn_image, image=None):
-    if fn_image not in load_texture._cache:
-        if image is None: image = load_image(fn_image)
-        # print(f'UI: Buffering texture "{fn_image}"')
-        height,width,depth = len(image),len(image[0]),len(image[0][0])
-        assert depth == 4, 'Expected texture %s to have 4 channels per pixel (RGBA), not %d' % (fn_image, depth)
-        image = reversed(image) # flip image
-        image_flat = [d for r in image for c in r for d in c]
-        buffer = gpu.types.Buffer('FLOAT', (width * height * 4), [v / 255.0 for v in image_flat])
-        gputexture = gpu.types.GPUTexture((width, height), format='RGBA16F', data=buffer)
-
-        load_texture._cache[fn_image] = {
-            'width':  width,
-            'height': height,
-            'depth':  depth,
-            'texid':  None, #texid,
-            'gputexture': gputexture,
-        }
-    return load_texture._cache[fn_image]
-
-def async_load_image(fn_image, callback):
-    img = load_image(fn_image)
-    callback(img)
-
-
-
-'''
 UI_Document manages UI_Body
 
 example hierarchy of UI
@@ -324,330 +124,31 @@ clean call order
 - compute_preferred_size (only if size or content are dirty)
     - determines min, max, preferred size for element (override in subclass)
     - for containers that resize based on children, whether wrapped (inline), list (block), or table, ...
-        - 
+        - ...
 
 '''
 
 
+class UI_Element_Defaults:
+    font_family = 'sans-serif'
+    font_style  = 'normal'
+    font_weight = 'normal'
+    font_size   = NumberUnit(12, 'pt')
+    font_color  = Color((0, 0, 0, 1))
+    whitespace  = 'normal'
 
-class UI_Element_Dirtiness:
-    @profiler.function
-    def dirty(self, **kwargs):
-        self._dirty(**kwargs)
-    @profiler.function
-    def dirty_selector(self, **kwargs):
-        self._dirty(properties={'selector'}, **kwargs)
-    @profiler.function
-    def dirty_style_parent(self, **kwargs):
-        self._dirty(properties={'style parent'}, **kwargs)
-    @profiler.function
-    def dirty_style(self, **kwargs):
-        self._dirty(properties={'style'}, **kwargs)
-    @profiler.function
-    def dirty_content(self, **kwargs):
-        self._dirty(properties={'content'}, **kwargs)
-    @profiler.function
-    def dirty_blocks(self, **kwargs):
-        self._dirty(properties={'blocks'}, **kwargs)
-    @profiler.function
-    def dirty_size(self, **kwargs):
-        self._dirty(properties={'size'}, **kwargs)
-    @profiler.function
-    def dirty_renderbuf(self, **kwargs):
-        self._dirty(properties={'renderbuf'}, **kwargs)
-
-    def _dirty(self, *, cause=None, properties=None, parent=False, children=False, propagate_up=True):
-        # assert cause
-        if cause is None: cause = 'Unspecified cause'
-        if properties is None: properties = set(UI_Element_Utils._cleaning_graph_nodes)
-        elif type(properties) is str:  properties = {properties}
-        elif type(properties) is list: properties = set(properties)
-        properties -= self._dirty_properties    # ignore dirtying properties that are already dirty
-        if not properties: return               # no new dirtiness
-        # if getattr(self, '_cleaning', False): print(f'{self} was dirtied ({properties}) while cleaning')
-        self._dirty_properties |= properties
-        if ui_settings.DEBUG_DIRTY: self._dirty_causes.append(cause)
-        if self._do_not_dirty_parent: parent = False
-        if parent:   self._dirty_propagation['parent']          |= properties   # dirty parent also (ex: size of self changes, so parent needs to layout)
-        else:        self._dirty_propagation['parent callback'] |= properties   # let parent know self is dirty (ex: background color changes, so we need to update style of self but not parent)
-        if children: self._dirty_propagation['children']        |= properties   # dirty all children also (ex: :hover pseudoclass added, so children might be affected)
-
-        # any dirtiness _ALWAYS_ dirties renderbuf of self and parent
-        self._dirty_properties.add('renderbuf')
-        self._dirty_propagation['parent'].add('renderbuf')
-
-        if propagate_up: self.propagate_dirtiness_up()
-        self.dirty_flow(children=False)
-        # print(f'{self} had {properties} dirtied, because {cause}')
-        tag_redraw_all("UI_Element dirty")
-
-    def add_dirty_callback(self, child, properties):
-        if type(properties) is str: properties = [properties]
-        if not properties: return
-        propagate_props = {
-            p for p in properties
-            if p not in self._dirty_properties
-                and child not in self._dirty_callbacks[p]
-        }
-        if not propagate_props: return
-        for p in propagate_props: self._dirty_callbacks[p].add(child)
-        self.add_dirty_callback_to_parent(propagate_props)
-
-    def add_dirty_callback_to_parent(self, properties):
-        if not self._parent: return
-        if self._do_not_dirty_parent: return
-        if not properties: return
-        self._parent.add_dirty_callback(self, properties)
-
-
-    @profiler.function
-    def dirty_styling(self):
-        '''
-        NOTE: this function clears style cache for self and all descendants
-        '''
-        self._computed_styles = {}
-        self._styling_parent = None
-        # self._styling_custom = None
-        self._style_content_hash = None
-        self._style_size_hash = None
-        for child in self._children_all: child.dirty_styling()
-        self.dirty_style(cause='Dirtying style cache')
-
-
-
-    @profiler.function
-    def dirty_flow(self, parent=True, children=True):
-        if self._dirtying_flow and self._dirtying_children_flow: return
-        if not self._dirtying_flow:
-            if parent and self._parent and not self._do_not_dirty_parent:
-                self._parent.dirty_flow(children=False)
-            self._dirtying_flow = True
-        self._dirtying_children_flow |= self._computed_styles.get('display', 'block') == 'table'
-        tag_redraw_all("UI_Element dirty_flow")
-
-    @property
-    def is_dirty(self):
-        return any_args(
-            self._dirty_properties,
-            self._dirty_propagation['parent'],
-            self._dirty_propagation['parent callback'],
-            self._dirty_propagation['children'],
-        )
-
-    @profiler.function
-    def propagate_dirtiness_up(self):
-        if self._dirty_propagation['defer']: return
-
-        if self._dirty_propagation['parent']:
-            if self._parent and not self._do_not_dirty_parent:
-                cause = ''
-                if ui_settings.DEBUG_DIRTY:
-                    cause = ' -> '.join(f'{cause}' for cause in (self._dirty_causes+[
-                        f"\"propagating dirtiness ({self._dirty_propagation['parent']} from {self} to parent {self._parent}\""
-                    ]))
-                self._parent.dirty(
-                    cause=cause,
-                    properties=self._dirty_propagation['parent'],
-                    parent=True,
-                    children=False,
-                )
-            self._dirty_propagation['parent'].clear()
-
-        if not self._do_not_dirty_parent:
-            self.add_dirty_callback_to_parent(self._dirty_propagation['parent callback'])
-        self._dirty_propagation['parent callback'].clear()
-
-        self._dirty_causes = []
-
-    @profiler.function
-    def propagate_dirtiness_down(self):
-        if self._dirty_propagation['defer']: return
-
-        if not self._dirty_propagation['children']: return
-
-        # no need to dirty ::before, ::after, or text, because they will be reconstructed
-        for child in self._children:
-            child.dirty(
-                cause=f'propagating {self._dirty_propagation["children"]}',
-                properties=self._dirty_propagation['children'],
-                parent=False,
-                children=True,
-            )
-        for child in self._children_gen:
-            child.dirty(
-                cause=f'propagating {self._dirty_propagation["children"]}',
-                properties=self._dirty_propagation['children'],
-                parent=False,
-                children=True
-            )
-        self._dirty_propagation['children'].clear()
-
-
-
-    @property
-    def defer_dirty_propagation(self):
-        return self._dirty_propagation['defer']
-    @defer_dirty_propagation.setter
-    def defer_dirty_propagation(self, v):
-        self._dirty_propagation['defer'] = bool(v)
-        self.propagate_dirtiness_up()
-
-    def _call_preclean(self):
-        if not self.is_dirty:  return
-        if not self._preclean: return
-        self._preclean()
-    def _call_postclean(self):
-        if not self._was_dirty: return
-        self._was_dirty = False
-        if not self._postclean: return
-        self._postclean()
-    def _call_postflow(self):
-        if not self._postflow: return
-        if not self.is_visible: return
-        self._postflow()
-
-    @property
-    def defer_clean(self):
-        if not self._document: return True
-        if self._document.defer_cleaning: return True
-        if self._defer_clean: return True
-        # if not self.is_dirty: return True
-        return False
-    @defer_clean.setter
-    def defer_clean(self, value):
-        self._defer_clean = value
-
-    @profiler.function
-    def clean(self, depth=0):
-        '''
-        No need to clean if
-        - already clean,
-        - possibly more dirtiness to propagate,
-        - if deferring cleaning.
-        '''
-
-        if self._dirty_propagation['defer']: return
-        if self.defer_clean: return
-        if not self.is_dirty: return
-
-        self._was_dirty = True   # used to know if postclean should get called
-
-        self._cleaning = True
-
-        profiler.add_note(f'pre: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
-        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean started defer={self.defer_clean}')
-
-        # propagate dirtiness one level down
-        self.propagate_dirtiness_down()
-
-        # self.call_cleaning_callbacks()
-        self._compute_selector()
-        self._compute_style()
-        if self.is_visible:
-            self._compute_content()
-            self._compute_blocks()
-            self._compute_static_content_size()
-            self._renderbuf()
-
-            profiler.add_note(f'mid: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
-
-            for child in self._children_all:
-               child.clean(depth=depth+1)
-
-        profiler.add_note(f'post: {self._dirty_properties}, {self._dirty_causes} {self._dirty_propagation}')
-        if ui_settings.DEBUG_LIST: self._debug_list.append(f'{time.ctime()} clean done')
-
-        # self._debug_list.clear()
-
-        self._cleaning = False
-
-
-    @profiler.function
-    def call_cleaning_callbacks(self):
-        g = UI_Element_Utils._cleaning_graph
-        working = set(UI_Element_Utils._cleaning_graph_roots)
-        done = set()
-        restarts = []
-        while working:
-            current = working.pop()
-            curnode = g[current]
-            assert current not in done, f'cycle detected in cleaning callbacks ({current})'
-            if not all(p in done for p in curnode['parents']): continue
-            do_cleaning = False
-            do_cleaning |= current in self._dirty_properties
-            do_cleaning |= bool(self._dirty_callbacks.get(current, False))
-            if do_cleaning:
-                curnode['fn'](self)
-            redirtied = [d for d in self._dirty_properties if d in done]
-            if redirtied:
-                # print('UI_Core.call_cleaning_callbacks:', self, current, 'dirtied', redirtied)
-                if len(restarts) < 50:
-                    profiler.add_note('restarting')
-                    working = set(UI_Element_Utils._cleaning_graph_roots)
-                    done = set()
-                    restarts.append((curnode, self._dirty_properties))
-                else:
-                    return
-            else:
-                working.update(curnode['children'])
-                done.add(current)
-
-
-
-
-class UI_Element_Debug:
-    def debug_print(self, d, already_printed):
-        sp = '    '*d
-        tag = self.as_html
-        tagc = f'</{self._tagName}>'
-        tagsc = f'{tag[:-1]} />'
-        if self in already_printed:
-            print(f'{sp}{tag}...{tagc}')
-            return
-        already_printed.add(self)
-        if self._pseudoelement == 'text':
-            innerText = self._innerText.replace('\n', '\\n') if self._innerText else ''
-            print(f'{sp}"{innerText}"')
-        elif self._children_all:
-            print(f'{sp}{tag}')
-            for c in self._children_all:
-                c.debug_print(d+1, already_printed)
-            print(f'{sp}{tagc}')
-        else:
-            print(f'{sp}{tagsc}')
-
-    def structure(self, depth=0, all_children=False):
-        l = self._children if not all_children else self._children_all
-        return '\n'.join([('  '*depth) + str(self)] + [child.structure(depth+1) for child in l])
-
-
-class UI_Element_PreventMultiCalls:
-    multicalls = {}
-
-    @staticmethod
-    def reset_multicalls():
-        # print(UI_Element_PreventMultiCalls.multicalls)
-        UI_Element_PreventMultiCalls.multicalls = {}
-
-    def record_multicall(self, label):
-        # returns True if already called!
-        d = UI_Element_PreventMultiCalls.multicalls
-        if label not in d: d[label] = { self._uid }
-        elif self._uid not in d[label]: d[label].add(self._uid)
-        else: return True
-        return False
 
 
 
 class UI_Element(
-        UI_Element_Utils,
+        UI_Core_Utils,
         UI_Element_Properties,
-        UI_Element_Dirtiness,
-        UI_Element_Debug,
-        UI_Element_PreventMultiCalls,
+        UI_Core_Dirtiness,
+        UI_Core_Debug,
+        UI_Core_PreventMultiCalls,
         UI_Element_Elements,
-        UI_Markdown,
-        UI_Layout,
+        UI_Core_Markdown,
+        UI_Core_Layout,
 ):
     @staticmethod
     @add_cache('uid', 0)
@@ -845,7 +346,7 @@ class UI_Element(
         self._dirtying_flow = True
         self._dirtying_children_flow = True
         self._dirty_causes = []
-        self._dirty_callbacks = { k:set() for k in UI_Element_Utils._cleaning_graph_nodes }
+        self._dirty_callbacks = { k:set() for k in UI_Core_Utils._cleaning_graph_nodes }
         self._dirty_propagation = {             # contains deferred dirty propagation for parent and children; parent will be dirtied later
             'defer':           False,           # set to True to defer dirty propagation (useful when many changes are occurring)
             'parent':          set(),           # set of properties to dirty for parent
@@ -1074,7 +575,7 @@ class UI_Element(
         return True
 
 
-    @UI_Element_Utils.add_cleaning_callback('selector', {'style', 'style parent'})
+    @UI_Core_Utils.add_cleaning_callback('selector', {'style', 'style parent'})
     @profiler.function
     def _compute_selector(self):
         if self.defer_clean: return
@@ -1103,8 +604,8 @@ class UI_Element(
         self._dirty_callbacks['selector'].clear()
 
 
-    @UI_Element_Utils.add_cleaning_callback('style', {'size', 'content', 'renderbuf'})
-    @UI_Element_Utils.add_cleaning_callback('style parent', {'size', 'content', 'renderbuf'})
+    @UI_Core_Utils.add_cleaning_callback('style', {'size', 'content', 'renderbuf'})
+    @UI_Core_Utils.add_cleaning_callback('style parent', {'size', 'content', 'renderbuf'})
     @profiler.function
     def _compute_style(self):
         '''
@@ -1300,7 +801,7 @@ class UI_Element(
 
         # self.defer_dirty_propagation = False
 
-    @UI_Element_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf', 'style'})
+    @UI_Core_Utils.add_cleaning_callback('content', {'blocks', 'renderbuf', 'style'})
     @profiler.function
     def _compute_content(self):
         if self.defer_clean:
@@ -1504,7 +1005,7 @@ class UI_Element(
 
         # self.defer_dirty_propagation = False
 
-    @UI_Element_Utils.add_cleaning_callback('blocks', {'size', 'renderbuf'})
+    @UI_Core_Utils.add_cleaning_callback('blocks', {'size', 'renderbuf'})
     @profiler.function
     def _compute_blocks(self):
         '''
@@ -1596,7 +1097,7 @@ class UI_Element(
     ################################################################################################
     # NOTE: COMPUTE STATIC CONTENT SIZE (TEXT, IMAGE, ETC.), NOT INCLUDING MARGIN, BORDER, PADDING
     #       WE MIGHT NOT NEED TO COMPUTE MIN AND MAX??
-    @UI_Element_Utils.add_cleaning_callback('size', {'renderbuf'})
+    @UI_Core_Utils.add_cleaning_callback('size', {'renderbuf'})
     @profiler.function
     def _compute_static_content_size(self):
         if self.defer_clean:
@@ -1667,7 +1168,7 @@ class UI_Element(
         self._dirty_properties.discard('size')
         self._dirty_callbacks['size'].clear()
 
-    @UI_Element_Utils.add_cleaning_callback('renderbuf')
+    @UI_Core_Utils.add_cleaning_callback('renderbuf')
     def _renderbuf(self):
         self._dirty_renderbuf = True
         self._dirty_properties.discard('renderbuf')
@@ -1675,16 +1176,16 @@ class UI_Element(
 
 
 
-    # @UI_Element_Utils.add_option_callback('position:flexbox')
+    # @UI_Core_Utils.add_option_callback('position:flexbox')
     # def position_flexbox(self, left, top, width, height):
     #     pass
-    # @UI_Element_Utils.add_option_callback('position:block')
+    # @UI_Core_Utils.add_option_callback('position:block')
     # def position_flexbox(self, left, top, width, height):
     #     pass
-    # @UI_Element_Utils.add_option_callback('position:inline')
+    # @UI_Core_Utils.add_option_callback('position:inline')
     # def position_flexbox(self, left, top, width, height):
     #     pass
-    # @UI_Element_Utils.add_option_callback('position:none')
+    # @UI_Core_Utils.add_option_callback('position:none')
     # def position_flexbox(self, left, top, width, height):
     #     pass
 

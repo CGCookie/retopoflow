@@ -86,7 +86,7 @@ Links to useful resources
 
 
 
-class UI_Element_Utils:
+class UI_Core_Utils:
     @staticmethod
     def defer_dirty_wrapper(cause, properties=None, parent=True, children=False):
         ''' prevents dirty propagation until the wrapped fn has finished '''
@@ -117,13 +117,13 @@ class UI_Element_Utils:
             def wrapped(self, *args, **kwargs):
                 ret = fn(self, *args, **kwargs)
                 return ret
-            UI_Element_Utils._option_callbacks[option] = wrapped
+            UI_Core_Utils._option_callbacks[option] = wrapped
             return wrapped
         return wrapper
 
     def call_option_callback(self, option, default, *args, **kwargs):
-        option = option if option not in UI_Element_Utils._option_callbacks else default
-        UI_Element_Utils._option_callbacks[option](self, *args, **kwargs)
+        option = option if option not in UI_Core_Utils._option_callbacks else default
+        UI_Core_Utils._option_callbacks[option](self, *args, **kwargs)
 
     _cleaning_graph = {}
     _cleaning_graph_roots = set()
@@ -131,8 +131,8 @@ class UI_Element_Utils:
     @staticmethod
     def add_cleaning_callback(label, labels_dirtied=None):
         # NOTE: this function decorator does NOT call self.dirty!
-        UI_Element_Utils._cleaning_graph_nodes.add(label)
-        g = UI_Element_Utils._cleaning_graph
+        UI_Core_Utils._cleaning_graph_nodes.add(label)
+        g = UI_Core_Utils._cleaning_graph
         labels_dirtied = list(labels_dirtied) if labels_dirtied else []
         for l in [label]+labels_dirtied: g.setdefault(l, {'fn':None, 'children':[], 'parents':[]})
         def wrapper(fn):
@@ -142,8 +142,8 @@ class UI_Element_Utils:
             for l in labels_dirtied: g[l]['parents'].append(label)
 
             # find roots of graph (any label that is not dirtied by another cleaning callback)
-            UI_Element_Utils._cleaning_graph_roots = set(k for (k,v) in g.items() if not v['parents'])
-            assert UI_Element_Utils._cleaning_graph_roots, 'cycle detected in cleaning callbacks'
+            UI_Core_Utils._cleaning_graph_roots = set(k for (k,v) in g.items() if not v['parents'])
+            assert UI_Core_Utils._cleaning_graph_roots, 'cycle detected in cleaning callbacks'
             # TODO: also detect cycles such as: a->b->c->d->b->...
             #       done in call_cleaning_callbacks, but could be done here instead?
 

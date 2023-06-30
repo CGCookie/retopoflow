@@ -36,7 +36,7 @@ import bpy
 import blf
 import gpu
 
-from .ui_utilities import UI_Element_Utils
+from .ui_core_utilities import UI_Core_Utils
 
 from gpu_extras.presets import draw_texture_2d
 from mathutils import Vector, Matrix
@@ -44,7 +44,7 @@ from mathutils import Vector, Matrix
 from . import ui_settings
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .fsm import FSM
 
 from .useractions import ActionHandler
@@ -285,7 +285,7 @@ class UI_Element_Properties:
         self._new_content = True
     def delete_child(self, child): self._delete_child(child)
 
-    @UI_Element_Utils.defer_dirty_wrapper('clearing children')
+    @UI_Core_Utils.defer_dirty_wrapper('clearing children')
     def _clear_children(self):
         for child in list(self._children):
             self._delete_child(child)

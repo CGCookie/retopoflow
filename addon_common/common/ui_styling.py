@@ -36,7 +36,7 @@ from bpy.types import BoolProperty
 from mathutils import Matrix
 
 from .parse import Parse_CharStream, Parse_Lexer
-from .ui_utilities import (
+from .ui_core_utilities import (
     convert_token_to_string, convert_token_to_cursor,
     convert_token_to_color, convert_token_to_numberunit,
     get_converter_to_string,

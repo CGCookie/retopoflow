@@ -33,15 +33,13 @@ from math import floor, ceil
 from inspect import signature
 from itertools import dropwhile, zip_longest
 
-from .ui_utilities import UI_Element_Utils
-
 import bpy
 import blf
 import gpu
 
 from .blender import tag_redraw_all
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .fsm import FSM
 
 from .useractions import ActionHandler

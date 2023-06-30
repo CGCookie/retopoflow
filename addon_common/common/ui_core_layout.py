@@ -33,7 +33,7 @@ from math import floor, ceil
 from inspect import signature
 from itertools import dropwhile, zip_longest
 
-from .ui_utilities import UI_Element_Utils
+from .ui_core_utilities import UI_Core_Utils
 from . import ui_settings
 
 import bpy
@@ -43,7 +43,7 @@ import gpu
 from .blender import tag_redraw_all
 from .ui_linefitter import LineFitter
 from .ui_styling import UI_Styling, ui_defaultstylings
-from .ui_utilities import helper_wraptext, convert_token_to_cursor
+from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .fsm import FSM
 
 from .useractions import ActionHandler
@@ -61,7 +61,7 @@ from .profiler import profiler, time_it
 from .utils import iter_head, any_args, join
 
 
-class UI_Layout:
+class UI_Core_Layout:
     '''
     layout each block into lines.  if a content box of child element is too wide to fit in line and the child
     is not the only element on the current line, then end current line, start a new line, relayout the child.
@@ -535,7 +535,7 @@ class UI_Layout:
         #if self._src_str:
         #    print(self._src_str, self._dynamic_full_size, self._dynamic_content_size, self._absolute_size)
 
-    # @UI_Element_Utils.add_option_callback('layout:flexbox')
+    # @UI_Core_Utils.add_option_callback('layout:flexbox')
     # def layout_flexbox(self):
     #     style = self._computed_styles
     #     direction = style.get('flex-direction', 'row')
@@ -544,15 +544,15 @@ class UI_Layout:
     #     align_items = style.get('align-items', 'flex-start')
     #     align_content = style.get('align-content', 'flex-start')
 
-    # @UI_Element_Utils.add_option_callback('layout:block')
+    # @UI_Core_Utils.add_option_callback('layout:block')
     # def layout_block(self):
     #     pass
 
-    # @UI_Element_Utils.add_option_callback('layout:inline')
+    # @UI_Core_Utils.add_option_callback('layout:inline')
     # def layout_inline(self):
     #     pass
 
-    # @UI_Element_Utils.add_option_callback('layout:none')
+    # @UI_Core_Utils.add_option_callback('layout:none')
     # def layout_none(self):
     #     pass
 

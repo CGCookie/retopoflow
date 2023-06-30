@@ -35,7 +35,7 @@ from itertools import chain
 
 import bpy
 
-from .ui_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
+from .ui_core_utilities import UIRender_Block, UIRender_Inline, get_unique_ui_id
 from .utils import kwargopts, kwargs_translate, kwargs_splitter, iter_head
 from .ui_styling import UI_Styling
 
@@ -77,7 +77,7 @@ Implementation details
     - dictates size and position of its children
     - must submit to the sizing and position given by the parent
 
-See top comment in `ui_utilities.py` for links to useful resources.
+See top comment in `ui_core_utilities.py` for links to useful resources.
 '''
 
 
@@ -106,7 +106,7 @@ def load_text_file(path):
         assert False
 
 
-class UI_Markdown:
+class UI_Core_Markdown:
     @profiler.function
     def set_markdown(self, mdown=None, *, mdown_path=None, preprocess_fns=None, f_globals=None, f_locals=None, frame_depth=1, frames_deep=1, remove_indentation=True, **kwargs):
         if f_globals and f_locals:
