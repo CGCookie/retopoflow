@@ -16,6 +16,7 @@
 # scripts
 HIVE_VAL          = $(shell pwd)/scripts/get_hive_value.py
 DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
+UPDATE_COPYRIGHT  = $(shell pwd)/addon_common/scripts/update_copyright_date.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
 BLENDER           = ~/software/blender/blender
@@ -66,11 +67,8 @@ clean:
 	rm -rf $(BUILD_DIR)
 	@echo "Release folder deleted"
 
-gittag:
-	# create a new annotated (-a) tag and push to GitHub
-	git tag -a $(VVERSION) -m $(GIT_TAG_MESSAGE)
-	git push origin $(VVERSION)
-
+update-copyright:
+	python3 $(UPDATE_COPYRIGHT)
 
 #########################################################
 # documentation targets
@@ -143,3 +141,7 @@ install:
 	rm -r $(INSTALL_DIR)/$(NAME)
 	cp -r $(BUILD_DIR)/$(NAME) $(INSTALL_DIR)/$(NAME)
 
+gittag:
+	# create a new annotated (-a) tag and push to GitHub
+	git tag -a $(VVERSION) -m $(GIT_TAG_MESSAGE)
+	git push origin $(VVERSION)
