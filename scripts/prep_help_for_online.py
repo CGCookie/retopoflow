@@ -232,8 +232,9 @@ except Exception as e:
     raise e
 
 # load and process default keymaps (assuming LMB Select)
+# NOTE: only reading default_rf_keymaps and left_rf_keymaps
 keymaps = read_file(path_keys)
-keymaps = '\n'.join(l for l in keymaps.splitlines() if not re.match(r'(from|import) ', l))
+keymaps = keymaps[keymaps.index('# start keymaps'):keymaps.index('# end keymaps')]
 exec(keymaps, globals(), locals())
 keymaps = dict(default_rf_keymaps)
 keymaps.update(left_rf_keymaps)

@@ -43,6 +43,11 @@ Standard US 101 QWERTY Keyboard
 '''
 
 
+################################################################
+# start keymaps
+# the marker above is used for prep_help_for_online.py
+# DO NOT change
+
 default_rf_keymaps = {
     # always pass these actions on to Blender (set in keymap editor only)
     'blender passthrough': [],
@@ -181,6 +186,12 @@ right_rf_keymaps = {
     'select paint add': ['SHIFT+RIGHTMOUSE+DRAG'],
     'select path add': ['CTRL+SHIFT+RIGHTMOUSE+CLICK'],
 }
+
+# end keymaps
+# the marker above used for prep_help_for_online.py
+# DO NOT CHANGE
+################################################################
+
 
 @add_cache('keymap', None)
 @add_cache('orig', None)
