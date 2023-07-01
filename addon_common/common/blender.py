@@ -34,6 +34,23 @@ from .functools import find_fns, self_wrapper
 from .blender_cursors import Cursors
 
 
+def get_view3d_area(context=None):
+    # assuming: context.screen is correct, and a SINGLE VIEW_3D area!
+    if not context: context = bpy.context
+    if context.area: return context.area
+    return next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
+
+def get_view3d_region(context=None):
+    if not context: context = bpy.context
+    if context.region: return context.region
+    area = get_view3d_area(context=context)
+    return next((r for r in area.regions if r.type == 'WINDOW'),  None) if area else None
+
+def get_view3d_space(context=None):
+    if not context: context = bpy.context
+    if context.space_data: return context.space_data
+    area = get_view3d_area(context=context)
+    return next((s for s in area.spaces  if s.type == 'VIEW_3D'), None) if area else None
 
 
 class StoreRestore:
@@ -216,7 +233,7 @@ class BlenderSettings:
     # Header, Status Bar, Cursor
 
     @staticmethod
-    def header_text_set(s=None): bpy.context.area.header_text_set(text=s)
+    def header_text_set(s=None): get_view3d_area().header_text_set(text=s)
     @staticmethod
     def header_text_restore(): BlenderSettings.header_text_set()
 
@@ -240,7 +257,8 @@ class BlenderSettings:
     @staticmethod
     def _get_region(*, label=None, type=None):
         if label: type = region_label_to_data[label].type
-        return next((r for r in bpy.context.area.regions if r.type == type), None)
+        area = get_view3d_area()
+        return next((r for r in area.regions if r.type == type), None)
     @staticmethod
     def _get_regions():
         return { label: BlenderSettings._get_region(label=label) for label in region_label_to_data }
@@ -273,56 +291,56 @@ class BlenderSettings:
     # Viewport Shading and Settings
 
     @staticmethod
-    def shading_type_get(): return bpy.context.space_data.shading.type
+    def shading_type_get(): return get_view3d_space().shading.type
     @staticmethod
-    def shading_type_set(v): bpy.context.space_data.shading.type = v
+    def shading_type_set(v): get_view3d_space().shading.type = v
 
     @staticmethod
-    def shading_light_get(): return bpy.context.space_data.shading.light
+    def shading_light_get(): return get_view3d_space().shading.light
     @staticmethod
-    def shading_light_set(v): bpy.context.space_data.shading.light = v
+    def shading_light_set(v): get_view3d_space().shading.light = v
 
     @staticmethod
-    def shading_matcap_get(): return bpy.context.space_data.shading.studio_light
+    def shading_matcap_get(): return get_view3d_space().shading.studio_light
     @staticmethod
     @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
-    def shading_matcap_set(v): bpy.context.space_data.shading.studio_light = v
+    def shading_matcap_set(v): get_view3d_space().shading.studio_light = v
 
     @staticmethod
-    def shading_colortype_get(): return bpy.context.space_data.shading.color_type
+    def shading_colortype_get(): return get_view3d_space().shading.color_type
     @staticmethod
     @ignore_exceptions(TypeError)  # ignore type error (enum value doesn't exist in this context)
-    def shading_colortype_set(v): bpy.context.space_data.shading.color_type = v
+    def shading_colortype_set(v): get_view3d_space().shading.color_type = v
 
     @staticmethod
-    def shading_color_get(): return bpy.context.space_data.shading.single_color
+    def shading_color_get(): return get_view3d_space().shading.single_color
     @staticmethod
-    def shading_color_set(v): bpy.context.space_data.shading.single_color = v
+    def shading_color_set(v): get_view3d_space().shading.single_color = v
 
     @staticmethod
-    def shading_backface_get(): return bpy.context.space_data.shading.show_backface_culling
+    def shading_backface_get(): return get_view3d_space().shading.show_backface_culling
     @staticmethod
-    def shading_backface_set(v): bpy.context.space_data.shading.show_backface_culling = v
+    def shading_backface_set(v): get_view3d_space().shading.show_backface_culling = v
 
     @staticmethod
-    def shading_shadows_get(): return bpy.context.space_data.shading.show_shadows
+    def shading_shadows_get(): return get_view3d_space().shading.show_shadows
     @staticmethod
-    def shading_shadows_set(v): bpy.context.space_data.shading.show_shadows = v
+    def shading_shadows_set(v): get_view3d_space().shading.show_shadows = v
 
     @staticmethod
-    def shading_xray_get(): return bpy.context.space_data.shading.show_xray
+    def shading_xray_get(): return get_view3d_space().shading.show_xray
     @staticmethod
-    def shading_xray_set(v): bpy.context.space_data.shading.show_xray = v
+    def shading_xray_set(v): get_view3d_space().shading.show_xray = v
 
     @staticmethod
-    def shading_cavity_get(): return bpy.context.space_data.shading.show_cavity
+    def shading_cavity_get(): return get_view3d_space().shading.show_cavity
     @staticmethod
-    def shading_cavity_set(v): bpy.context.space_data.shading.show_cavity = v
+    def shading_cavity_set(v): get_view3d_space().shading.show_cavity = v
 
     @staticmethod
-    def shading_outline_get(): return bpy.context.space_data.shading.show_object_outline
+    def shading_outline_get(): return get_view3d_space().shading.show_object_outline
     @staticmethod
-    def shading_outline_set(v): bpy.context.space_data.shading.show_object_outline = v
+    def shading_outline_set(v): get_view3d_space().shading.show_object_outline = v
 
     @staticmethod
     def shading_restore():
@@ -330,10 +348,10 @@ class BlenderSettings:
             BlenderSettings._storerestore.restore(f'shading {k}')
 
     @staticmethod
-    def quadview_get(): return bool(bpy.context.space_data.region_quadviews)
+    def quadview_get(): return bool(get_view3d_space().region_quadviews)
     @staticmethod
     def quadview_toggle():
-        bpy.ops.screen.region_quadview({'area': bpy.context.area, 'region': BlenderSettings._get_region(label='window')})
+        bpy.ops.screen.region_quadview({'area': get_view3d_area(), 'region': BlenderSettings._get_region(label='window')})
     @staticmethod
     def quadview_set(v):
         if BlenderSettings.quadview_get() != v: BlenderSettings.quadview_toggle()
@@ -351,18 +369,22 @@ class BlenderSettings:
         BlenderSettings.viewaa_set('FXAA' if BlenderSettings.viewaa_get() != 'OFF' else 'OFF')
 
     @staticmethod
-    def clip_distances_get(): return (bpy.context.space_data.clip_start, bpy.context.space_data.clip_end)
+    def clip_distances_get():
+        spc = get_view3d_space()
+        return (spc.clip_start, spc.clip_end)
     @staticmethod
-    def clip_distances_set(v): (bpy.context.space_data.clip_start, bpy.context.space_data.clip_end) = v
+    def clip_distances_set(v):
+        spc = get_view3d_space()
+        spc.clip_start, spc.clip_end = v
 
 
     #########################################
     # Overlays
 
     @staticmethod
-    def overlays_get(): return bpy.context.space_data.overlay.show_overlays
+    def overlays_get(): return get_view3d_space().overlay.show_overlays
     @staticmethod
-    def overlays_set(v): bpy.context.space_data.overlay.show_overlays = v
+    def overlays_set(v): get_view3d_space().overlay.show_overlays = v
     @staticmethod
     def overlays_hide(): BlenderSettings.overlays_set(False)
     @staticmethod
@@ -378,14 +400,14 @@ class BlenderSettings:
     @staticmethod
     def gizmo_get():
         # return bpy.context.space_data.show_gizmo
-        spc = bpy.context.space_data
+        spc = get_view3d_space()
         settings = { k:getattr(spc, k) for k in dir(spc) if k.startswith('show_gizmo') }
         # print('manipulator_settings:', settings)
         return settings
     @staticmethod
     def gizmo_set(v):
         # bpy.context.space_data.show_gizmo = v
-        spc = bpy.context.space_data
+        spc = get_view3d_space()
         if type(v) is bool:
             for k in dir(spc):
                 # DO NOT CHANGE `show_gizmo` VALUE
@@ -929,38 +951,10 @@ class ModifierWrapper_Mirror:
 
 
 #############################################################
-
-@blender_version_wrapper('<', '2.80')
-def matrix_vector_mult(mat, vec): return mat * vec
-@blender_version_wrapper('>=', '2.80')
-def matrix_vector_mult(mat, vec): return mat @ vec
-
-@blender_version_wrapper('<', '2.80')
-def quat_vector_mult(quat, vec): return quat * vec
-@blender_version_wrapper('>=', '2.80')
-def quat_vector_mult(quat, vec): return quat @ vec
-
-#############################################################
 # TODO: generalize these functions to be add_object, etc.
 
-@blender_version_wrapper('<=','2.79')
-def set_object_layers(o): o.layers = list(bpy.context.scene.layers)
-@blender_version_wrapper('>=','2.80')
-def set_object_layers(o): print('unhandled: set_object_layers')
-
-@blender_version_wrapper('<=','2.79')
-def set_object_selection(o, sel): o.select = sel
-@blender_version_wrapper('>=','2.80')
 def set_object_selection(o, sel): o.select_set(sel)
-
-@blender_version_wrapper('<=','2.79')
-def link_object(o): bpy.context.scene.objects.link(o)
-@blender_version_wrapper('>=','2.80')
-def link_object(o): bpy.context.scene.collection.objects.link(o)
-
-@blender_version_wrapper('<=','2.79')
-def set_active_object(o): bpy.context.scene.objects.active = o
-@blender_version_wrapper('>=','2.80')
+def link_object(o):       bpy.context.scene.collection.objects.link(o)
 def set_active_object(o): bpy.context.view_layer.objects.active = o
 
 # use this, because bpy.context might not Screen context!
@@ -970,41 +964,27 @@ def get_active_object(): return bpy.context.view_layer.objects.active
 def get_from_dict_or_object(o, k): return o[k] if type(o) is dict else getattr(o, k)
 def toggle_property(o, k): setattr(o, k, not getattr(o, k))
 
-@only_in_blender_version('<= 2.79')
-def toggle_screen_header(ctx): bpy.ops.screen.header(ctx)
-@only_in_blender_version('>= 2.80')
 def toggle_screen_header(ctx):
     # print(f'Addon Common Warning: Cannot toggle header visibility (addon_common/common/blender.py: toggle_screen_header)')
     # print(f'  Skipping while bug exists in Blender 3.0+, see: https://developer.blender.org/T93410')
-    toggle_property(get_from_dict_or_object(ctx, 'space_data'), 'show_region_header')
+    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
+    toggle_property(space, 'show_region_header')
 
-@only_in_blender_version('< 3.00')
-def toggle_screen_tool_header(ctx): pass
-@only_in_blender_version('>= 3.00')
 def toggle_screen_tool_header(ctx):
-    toggle_property(get_from_dict_or_object(ctx, 'space_data'), 'show_region_tool_header')
+    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
+    toggle_property(space, 'show_region_tool_header')
 
-@blender_version_wrapper('<=', '2.79')
 def toggle_screen_toolbar(ctx):
-    bpy.ops.view3d.toolshelf(ctx)
-@blender_version_wrapper('>=', '2.80')
-def toggle_screen_toolbar(ctx):
-    toggle_property(get_from_dict_or_object(ctx, 'space_data'), 'show_region_toolbar')
+    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
+    toggle_property(space, 'show_region_toolbar')
 
-@blender_version_wrapper('<=', '2.79')
 def toggle_screen_properties(ctx):
-    bpy.ops.view3d.properties(ctx)
-@blender_version_wrapper('>=', '2.80')
-def toggle_screen_properties(ctx):
-    toggle_property(get_from_dict_or_object(ctx, 'space_data'), 'show_region_ui')
+    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
+    toggle_property(space, 'show_region_ui')
 
-@blender_version_wrapper('<=', '2.79')
 def toggle_screen_lastop(ctx):
-    # Blender 2.79 does not have a last operation region
-    pass
-@blender_version_wrapper('>=', '2.80')
-def toggle_screen_lastop(ctx):
-    toggle_property(get_from_dict_or_object(ctx, 'space_data'), 'show_region_hud')
+    space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
+    toggle_property(space, 'show_region_hud')
 
 
 

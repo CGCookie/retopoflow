@@ -30,7 +30,6 @@ import bpy
 
 from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
-from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs
@@ -946,7 +945,7 @@ class RetopoFlow_Target:
             #bbox = BBox.merge(src.get_bbox() for src in self.rfsources)
             bboxes = []
             for s in self.rfsources:
-                verts = [matrix_vector_mult(s.obj.matrix_world, Vector((v[0], v[1], v[2], 1))) for v in s.obj.bound_box]
+                verts = [(s.obj.matrix_world @ Vector((v[0], v[1], v[2], 1))) for v in s.obj.bound_box]
                 verts = [(v[0]/v[3], v[1]/v[3], v[2]/v[3]) for v in verts]
                 bboxes.append(BBox(from_coords=verts))
             bbox = BBox.merge(bboxes)

@@ -29,7 +29,7 @@ from mathutils import Matrix, Vector
 from ..rfwidget import RFWidget
 
 from ...addon_common.common.fsm import FSM
-from ...addon_common.common.blender import tag_redraw_all, matrix_vector_mult
+from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.globals import Globals
@@ -296,9 +296,9 @@ class RFWidget_BrushFalloff_Factory:
                 self.hit_scale = scale
                 self.hit_p = p
                 self.hit_n = n
-                self.hit_x = Vec(matrix_vector_mult(rmat, Direction.X))
-                self.hit_y = Vec(matrix_vector_mult(rmat, Direction.Y))
-                self.hit_z = Vec(matrix_vector_mult(rmat, Direction.Z))
+                self.hit_x = Vec(rmat @ Direction.X)
+                self.hit_y = Vec(rmat @ Direction.Y)
+                self.hit_z = Vec(rmat @ Direction.Z)
                 self.hit_rmat = rmat
 
         return RFWidget_BrushFalloff

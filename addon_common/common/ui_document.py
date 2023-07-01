@@ -53,6 +53,7 @@ from .fsm import FSM
 from .useractions import ActionHandler
 
 from .boundvar import BoundVar
+from .blender import get_view3d_area, get_view3d_region
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
 from .fontmanager import FontManager
@@ -124,7 +125,7 @@ class UI_Document:
         self.defer_cleaning = False
 
         self._context = context
-        self._area = context.area
+        self._area = get_view3d_area(context)
         self.actions = ActionHandler(context, UI_Document.default_keymap)
         self._body = UI_Element(tagName='body', document=self)  # root level element
         self._tooltip = UI_Element(tagName='dialog', classes='tooltip', can_hover=False, parent=self._body)
@@ -212,12 +213,15 @@ class UI_Document:
 
     @profiler.function
     def update(self, context, event):
-        if context.area != self._area: return
+        self._context = context
+        self._area = get_view3d_area(context)
+        # if context.area != self._area: return
         # self._ui_scale = Globals.drawing.get_dpi_mult()
 
         UI_Core_PreventMultiCalls.reset_multicalls()
 
-        w,h = context.region.width, context.region.height
+        region = get_view3d_region(context)
+        w,h = region.width, region.height
         if self._last_w != w or self._last_h != h:
             # print('Document:', (self._last_w, self._last_h), (w,h))
             self._last_w,self._last_h = w,h
@@ -635,7 +639,8 @@ class UI_Document:
 
         time_start = time.time()
 
-        w,h = context.region.width, context.region.height
+        region = get_view3d_region(context)
+        w,h = region.width, region.height
         sz = Size2D(width=w, max_width=w, height=h, max_height=h)
 
         UI_Core_PreventMultiCalls.reset_multicalls()
@@ -685,7 +690,9 @@ class UI_Document:
 
     @profiler.function
     def draw(self, context):
-        if self._area != context.area: return
+        self._context = context
+        self._area = get_view3d_area(context)
+        # if self._area != context.area: return
         Globals.drawing.glCheckError('UI_Document.draw: start')
 
         time_start = time.time()

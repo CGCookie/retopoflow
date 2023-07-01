@@ -36,7 +36,6 @@ from ...addon_common.common.globals import Globals
 from ...addon_common.common.boundvar import BoundBool
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
-    matrix_vector_mult,
     set_object_selection,
     set_active_object,
     toggle_screen_header,
@@ -45,6 +44,7 @@ from ...addon_common.common.blender import (
     toggle_screen_lastop,
     show_error_message,
     BlenderSettings,
+    get_view3d_space,
 )
 from ...addon_common.common.blender_preferences import get_preferences
 from ...addon_common.common.maths import BBox
@@ -98,7 +98,7 @@ class RetopoFlow_Blender_Save:
             bs = BlenderSettings(init_storage=data)
             bs.restore_all()
 
-            space = bpy.context.space_data
+            space = get_view3d_space()
             r3d = space.region_3d
             normalize_opts = sessionoptions['normalize']
             # scale view

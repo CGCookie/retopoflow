@@ -26,6 +26,7 @@ from copy import deepcopy
 
 import bpy
 
+from .blender import get_view3d_area, get_view3d_space, get_view3d_region
 from .debug import dprint
 from .decorators import blender_version_wrapper
 from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
@@ -358,19 +359,24 @@ class Actions:
 
     def update_context(self, context):
         self.context = context
-        self.area    = context.area
         self.screen  = context.screen
-        self.space   = context.space_data
         self.window  = context.window
 
-        if context.region and hasattr(context.space_data, 'region_3d'):
-            self.region = context.region
-            self.size = Vec2D((context.region.width, context.region.height))
-            self.r3d = context.space_data.region_3d
-        else:
+        # try to find area, region, space, region_3d
+        try:
+            self.area   = get_view3d_area(context)
+            self.region = get_view3d_region(context)
+            self.space  = get_view3d_space(context)
+            self.size   = Vec2D((self.region.width, self.region.height))
+            self.r3d    = self.space.region_3d
+        except Exception as e:
+            print(f'******************************************')
+            print(f'Addon Common: Could not find VIEW_3D area!')
+            print(f'Exception: {e}')
+            self.area   = None
             self.region = None
-            self.size = None
-            self.r3d = None
+            self.size   = None
+            self.r3d    = None
 
 
     def reset_state(self, all_state=False):
@@ -416,7 +422,7 @@ class Actions:
         # indicates if currently navigating
         self.is_navigating = False
 
-    def operator_action(self, action, *args, **kwargs):
+    def call_action_operator(self, action, *args, **kwargs):
         ops_props = self.keymaps_blender_operators[action]
         if not ops_props: return
         try:
@@ -424,7 +430,7 @@ class Actions:
             # print(f'Invoking {action} {op} {props}')
             ret = op('INVOKE_DEFAULT', *args, **kwargs, **props)
         except Exception as e:
-            print(f'Actions.operator_action: Caught Exception while calling Blender operator')
+            print(f'Actions.call_action_operator: Caught Exception while calling Blender operator')
             print(f'  {action=}')
             print(f'  {op=}')
             print(f'  {props=}')
@@ -617,13 +623,13 @@ class Actions:
         if actions is None: return False
         strip_mods = lambda p: action_strip_mods(
             p,
-            ctrl=         ignorectrl   or ignoremods,
-            shift=        ignoreshift  or ignoremods,
-            alt=          ignorealt    or ignoremods,
-            oskey=        ignoreoskey  or ignoremods,
-            click=        ignoreclick  or ignoremulti,
-            double_click= ignoredouble or ignoremulti,
-            drag_click=   ignoredrag   or ignoremulti,
+            ctrl         = ignorectrl   or ignoremods,
+            shift        = ignoreshift  or ignoremods,
+            alt          = ignorealt    or ignoremods,
+            oskey        = ignoreoskey  or ignoremods,
+            click        = ignoreclick  or ignoremulti,
+            double_click = ignoredouble or ignoremulti,
+            drag_click   = ignoredrag   or ignoremulti,
         )
         actions = [ strip_mods(p) for p in self.convert(actions) ]
         results = [ strip_mods(p) in actions for p in self.now_pressed.values() ]
@@ -648,16 +654,21 @@ class Actions:
             return ret
         return any(action_good(action) for action in self.convert(actions))
 
-    def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, ignoremouse=False, debug=False):
+    def pressed(self, actions, unpress=True, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False, ignoremouse=False):
         if actions is None: return False
         if not self.just_pressed: return False
-        if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
-        if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
-        if debug: print(f'Actions.pressed 0: {actions=}')
         actions = self.convert(actions)
-        if debug: print(f'Actions.pressed 1: {actions=}')
-        just_pressed = action_strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
-        if debug: print(f'Actions.pressed 2: {just_pressed=}, {self.just_pressed=}, {actions=}')
+        just_pressed = action_strip_mods(
+            self.just_pressed,
+            ctrl         = ignorectrl   or ignoremods,
+            shift        = ignoreshift  or ignoremods,
+            alt          = ignorealt    or ignoremods,
+            oskey        = ignoreoskey  or ignoremods,
+            click        = ignoreclick  or ignoremulti,
+            double_click = ignoredouble or ignoremulti,
+            drag_click   = ignoredrag   or ignoremulti,
+            mouse        = ignoremouse,
+        )
         if not just_pressed: return False
         ret = just_pressed in actions
         if ret and unpress: self.unpress()

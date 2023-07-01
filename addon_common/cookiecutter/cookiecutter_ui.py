@@ -27,7 +27,7 @@ from mathutils import Matrix
 from ..common import gpustate
 from ..common.globals import Globals
 from ..common.gpustate import ScissorStack
-from ..common.blender import bversion, tag_redraw_all
+from ..common.blender import bversion, tag_redraw_all, get_view3d_area, get_view3d_region, get_view3d_space
 from ..common.decorators import blender_version_wrapper
 from ..common.debug import debugger, tprint
 from ..common.drawing import Drawing, DrawCallbacks
@@ -81,7 +81,10 @@ class CookieCutter_UI:
         self.document.init(self.context)
         self.document.add_exception_callback(lambda e: self._handle_exception(e, 'handle exception caught by UI'))
         self.drawing = Globals.drawing
-        self.drawing.set_region(bpy.context.area, bpy.context.space_data, bpy.context.region, bpy.context.space_data.region_3d, bpy.context.window)
+        area = get_view3d_area()
+        space = get_view3d_space()
+        region = get_view3d_region()
+        self.drawing.set_region(area, space, region, space.region_3d, bpy.context.window)
         self.drawcallbacks = DrawCallbacks(self)
         self._cc_blenderui_init()
         self._ignore_ui_events = False

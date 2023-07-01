@@ -36,7 +36,6 @@ from ...config.options import (
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.decorators import blender_version_wrapper
 from ...addon_common.common.blender import (
-    matrix_vector_mult,
     set_object_selection,
     get_active_object, set_active_object,
     toggle_screen_header,

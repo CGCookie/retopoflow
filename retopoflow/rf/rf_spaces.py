@@ -30,7 +30,6 @@ from bpy_extras.view3d_utils import (
 )
 
 from ...config.options import options
-from ...addon_common.common.blender import quat_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import Point, Vec, Direction, Normal
@@ -89,12 +88,12 @@ class RetopoFlow_Spaces:
         view_loc = self.actions.r3d.view_location
         view_dist = self.actions.r3d.view_distance
         view_rot = self.actions.r3d.view_rotation
-        view_cam = Point(view_loc + quat_vector_mult(view_rot, Vector((0,0,view_dist))))
+        view_cam = Point(view_loc + (view_rot @ Vector((0,0,view_dist))))
         return view_cam
 
     def get_view_direction(self):
         view_rot = self.actions.r3d.view_rotation
-        return Direction(quat_vector_mult(view_rot, Vector((0, 0, -1))))
+        return Direction(view_rot @ Vector((0, 0, -1)))
 
     def Point2D_to_Vec(self, xy:Point2D):
         if xy is None: return None

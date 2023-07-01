@@ -26,7 +26,7 @@ import random
 import bpy
 from bpy.types import Operator
 
-from ..common.blender import perform_redraw_all
+from ..common.blender import perform_redraw_all, get_view3d_area
 from ..common.debug import debugger, tprint
 from ..common.profiler import profiler
 
@@ -148,7 +148,7 @@ class CookieCutter_Modal:
             self._cc_fsm_update()
             ret = {'RUNNING_MODAL'}
 
-        perform_redraw_all(only_area=self.context.area)
+        perform_redraw_all(only_area=get_view3d_area(self.context))
         return ret
 
     def modal_maindone(self):

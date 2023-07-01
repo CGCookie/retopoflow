@@ -50,7 +50,6 @@ from .polystrips_utils import (
 )
 
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
-from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors, DrawCallbacks
 from ...addon_common.common.fsm import FSM

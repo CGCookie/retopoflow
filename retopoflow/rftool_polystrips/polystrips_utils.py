@@ -24,7 +24,6 @@ import bpy
 import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
-from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.maths import Point,Point2D,Vec2D,Vec, Normal, clamp
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
@@ -313,7 +312,7 @@ class RFTool_PolyStrips_Strip:
             der = self.curve.eval_derivative(t).normalized()
             cross = der.cross(norm).normalized()
             center = pos + der * off_der + cross * off_cross + norm * off_norm
-            rotcross = matrix_vector_mult(Matrix.Rotation(rot, 3, norm), cross).normalized()
+            rotcross = (Matrix.Rotation(rot, 3, norm) @ cross).normalized()
             p0 = center - rotcross * rad
             p1 = center + rotcross * rad
             bmv0,bmv1 = bme.verts

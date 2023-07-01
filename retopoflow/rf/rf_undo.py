@@ -89,4 +89,4 @@ class RetopoFlow_Undo:
         self._undostack.pop(undo=False, reset_tool=True, instrument_action='redo')
 
     def undo_stack_actions(self):
-        return self._undostack.keys()
+        return self._undostack.keys() if hasattr(self, '_undostack') else []

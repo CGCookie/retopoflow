@@ -33,7 +33,6 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.fsm import FSM
-from ...addon_common.common.blender import matrix_vector_mult
 from ...addon_common.common.drawing import Drawing, DrawCallbacks
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
@@ -590,7 +589,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             origin2D = self.rfcontext.Point_to_Point2D(origin)
             ray = self.rfcontext.Point_to_Ray(origin)
             rmat = Matrix.Rotation(rotate, 4, -ray.d)
-            normal = matrix_vector_mult(rmat, cloop.plane.n)
+            normal = rmat @ cloop.plane.n
             plane = Plane(cloop.plane.o, normal)
             ray = self.rfcontext.Point2D_to_Ray(origin2D)
             crawl = self.rfcontext.plane_intersection_crawl(ray, plane, walk_to_plane=True)
