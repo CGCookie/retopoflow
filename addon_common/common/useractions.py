@@ -195,21 +195,29 @@ class Actions:
     # https://docs.blender.org/api/current/bpy_types_enum_items/event_value_items.html
     ndof_actions = {
         'NDOF_MOTION',
-        'NDOF_BUTTON', 'NDOF_BUTTON_FIT',
-        'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT', 'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK',
+
+        'NDOF_BUTTON',       'NDOF_BUTTON_FIT',
+        'NDOF_BUTTON_TOP',   'NDOF_BUTTON_BOTTOM',
+        'NDOF_BUTTON_LEFT',  'NDOF_BUTTON_RIGHT',
+        'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK',
+
         'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2',
+
         'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
         'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW',
         'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW',
-        'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
+        'NDOF_BUTTON_ROTATE',  'NDOF_BUTTON_PANZOOM',
+
         'NDOF_BUTTON_DOMINANT',
+
         'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS', 'NDOF_BUTTON_ESC',
-        'NDOF_BUTTON_ALT', 'NDOF_BUTTON_SHIFT', 'NDOF_BUTTON_CTRL',
+        'NDOF_BUTTON_ALT',  'NDOF_BUTTON_SHIFT', 'NDOF_BUTTON_CTRL',
+
         'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5',
         'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
-    ndof_nonpress = { 'NDOF_MOTION', 'TRACKPADPAN', 'TRACKPADZOOM', 'MOUSEROTATE', 'MOUSESMARTZOOM' }
+    ndof_nonpress = { 'NDOF_MOTION', }
 
     mousebutton_actions = {
         'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE',
@@ -237,6 +245,10 @@ class Actions:
     }
 
     trackpad_actions = {
+        'TRACKPADPAN', 'TRACKPADZOOM',
+        'MOUSEROTATE', 'MOUSESMARTZOOM',
+    }
+    trackpad_nonpress = {
         'TRACKPADPAN', 'TRACKPADZOOM',
         'MOUSEROTATE', 'MOUSESMARTZOOM',
     }
@@ -323,7 +335,8 @@ class Actions:
         # keymaps
         self.keymaps_universal  = Dict(get_default_fn=set)
         self.keymaps_contextual = Dict(get_default_fn=set)
-        self.keymaps_action     = Dict(get_default_fn=list)
+
+        self.keymaps_blender_operators = Dict(get_default_fn=list)
 
         # fill in universal and action keymaps
         self.keymaps_universal['navigate'] = Actions.trackpad_actions | Actions.ndof_actions
@@ -340,8 +353,7 @@ class Actions:
             for blenderop in blenderops:
                 for kmi in Action.blenderop_to_kmis(blenderop):
                     action, op_props = Action.kmi_to_action(kmi), Action.kmi_to_op_properties(kmi)
-                    # self.keymaps_action.setdefault(action, list())
-                    self.keymaps_action[action] += [op_props]
+                    self.keymaps_blender_operators[action] += [op_props]
 
         # store context
         self.context = context
@@ -407,10 +419,11 @@ class Actions:
         self.navevent = False
 
     def operator_action(self, action, *args, **kwargs):
-        ops_props = self.keymaps_action.get(action, None)
+        ops_props = self.keymaps_blender_operators[action]
         if not ops_props: return
-        op, props = ops_props[0]
         try:
+            op, props = ops_props[0]
+            # print(f'Invoking {action} {op} {props}')
             ret = op('INVOKE_DEFAULT', *args, **kwargs, **props)
         except Exception as e:
             print(f'Actions.operator_action: Caught Exception while calling Blender operator')
@@ -519,27 +532,30 @@ class Actions:
             drag_click=self.mousedown_drag,
         )
 
+        # print(f'{full_event_type=} {full_event_type in self.keymaps_universal["navigate"]}')
         self.navevent = False
-        self.navevent |= (full_event_type in self.keymaps_universal['navigate']) and pressed
-        self.navevent |= (self.event_type in Actions.ndof_nonpress)  # some NDOF events do not have value == PRESSED
+        self.navevent |= (full_event_type in self.keymaps_universal['navigate']) #and pressed
+        #self.navevent |= (self.event_type in Actions.ndof_nonpress)      # some NDOF events do not have value == PRESSED
+        #self.navevent |= (self.event_type in Actions.trackpad_nonpress)  # some trackpad events do not have value == PRESSED
         self.navevent_cause = full_event_type if self.navevent else None
         if self.navevent:
             self.unuse(self.navevent_cause)
 
         mouse_event = event_type in self.mousebutton_actions and not self.navevent
-        if mouse_event and pressed:
-            if self.mouse_lastb != event_type: self.mousedown_drag = False
-            self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
-            if   event_type == 'LEFTMOUSE':   self.mousedown_left   = self.mousedown
-            elif event_type == 'MIDDLEMOUSE': self.mousedown_middle = self.mousedown
-            elif event_type == 'RIGHTMOUSE':  self.mousedown_right  = self.mousedown
-            self.mouse_lastb = event_type
-        if mouse_event and not pressed:
-            self.mousedown = None
-            self.mousedown_left = None
-            self.mousedown_middle = None
-            self.mousedown_right = None
-            self.mousedown_drag = False
+        if mouse_event:
+            if pressed:
+                if self.mouse_lastb != event_type: self.mousedown_drag = False
+                self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+                if   event_type == 'LEFTMOUSE':   self.mousedown_left   = self.mousedown
+                elif event_type == 'MIDDLEMOUSE': self.mousedown_middle = self.mousedown
+                elif event_type == 'RIGHTMOUSE':  self.mousedown_right  = self.mousedown
+                self.mouse_lastb = event_type
+            else:
+                self.mousedown = None
+                self.mousedown_left = None
+                self.mousedown_middle = None
+                self.mousedown_right = None
+                self.mousedown_drag = False
 
         ftype = Action.kmi_to_action(event, event_type=event_type, drag_click=self.mousedown_drag and mouse_event)
         if pressed:

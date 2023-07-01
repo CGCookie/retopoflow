@@ -21,6 +21,7 @@ import sys
 import copy
 import math
 import time
+import random
 
 import bpy
 from bpy.types import Operator
@@ -54,8 +55,8 @@ class CookieCutter_Modal:
         assert fn_modal, f"Unhandled CC stage: '{self._cc_stage}'"
 
         ret = fn_modal()
-        if ret == {'PASS_THROUGH'}:
-            print('passing through')
+        # if ret == {'PASS_THROUGH'}:
+        #     print(f'passing through {random.random()}')
         return ret
 
     def modal_prestart(self):
@@ -137,9 +138,9 @@ class CookieCutter_Modal:
         elif self._cc_actions.navigating() or (self._cc_actions.timer and self._nav):
             self._nav = True
             self._cc_actions.unuse(self._cc_actions.navevent_cause)             # we won't see a release event for navigation actions
-            self._cc_actions.operator_action(self._cc_actions.navevent_cause)
+            # self._cc_actions.operator_action(self._cc_actions.navevent_cause)
             self._cc_actions.navevent_cause = None
-            return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
 
         with self.try_exception('call update'):
             self.update()
