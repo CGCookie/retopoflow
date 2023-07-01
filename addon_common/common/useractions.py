@@ -209,7 +209,7 @@ class Actions:
         'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
         'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
     }
-    ndof_nonpress = { 'NDOF_MOTION' }
+    ndof_nonpress = { 'NDOF_MOTION', 'TRACKPADPAN', 'TRACKPADZOOM', 'MOUSEROTATE', 'MOUSESMARTZOOM' }
 
     mousebutton_actions = {
         'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE',
