@@ -227,14 +227,14 @@ def process_stroke_get_marks(stroke, at_dists):
 
     while len(marks) < len(at_dists):
         # can we go to np without passing next mark?
-        dratio = (at_dists[i_at_dists] - tot_dist) / dist_to_np
-        if dratio > 1:
+        dratio = (at_dists[i_at_dists] - tot_dist) / dist_to_np if dist_to_np > 0 else 1
+        if dratio >= 1:
             tot_dist += dist_to_np
             i_stroke += 1
             if i_stroke == len(stroke): break
             cp,np = np,stroke[i_stroke]
-            dist_to_np = (np-cp).length
-            dir_to_np = (np-cp).normalized()
+            dist_to_np = (np - cp).length
+            dir_to_np = (np - cp).normalized()
             continue
         dist_traveled = dist_to_np * dratio
         cp = cp + dir_to_np * dist_traveled
