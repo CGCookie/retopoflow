@@ -458,9 +458,23 @@ class Dict():
     '''
     def __init__(self, *args, **kwargs):
         self.__dict__['__d'] = {}
+        if 'get_default_fn' in kwargs:
+            self.set_get_default_fn(kwargs.pop('get_default_fn'))
         self.set(*args, **kwargs)
+    def set_get_default_fn(self, fn):
+        self.__dict__['__default_fn'] = fn
     def __getitem__(self, k):
+        d = self.__dict__['__d']
+        if '__default_fn' in self.__dict__:     # get_default_fn set
+            return d[k] if k in d else self.__dict__['__default_fn']()
         return self.__dict__['__d'][k]
+    def get(self, k, *args):
+        d = self.__dict__['__d']
+        if args:                                # default specified
+            return d.get(k, *args)
+        if '__default_fn' in self.__dict__:     # get_default_fn set
+            return d[k] if k in d else self.__dict__['__default_fn']()
+        return d.get(k)
     def __setitem__(self, k, v):
         self.__dict__['__d'][k] = v
         return v

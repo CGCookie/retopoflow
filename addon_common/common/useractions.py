@@ -31,6 +31,7 @@ from .decorators import blender_version_wrapper
 from .human_readable import convert_actions_to_human_readable, convert_human_readable_to_actions
 from .maths import Point2D, Vec2D
 from .timerhandler import TimerHandler
+from .utils import Dict
 from . import blender_preferences as bprefs
 
 
@@ -107,31 +108,19 @@ class Action:
         'TAB':        'Tab',
     }
 
+    translate_action = {
+        'WHEELINMOUSE':  'WHEELUPMOUSE',
+        'WHEELOUTMOUSE': 'WHEELDOWNMOUSE',
+    }
+
     re_blenderop = re.compile(r'(?P<keymap>.+?) *\| *(?P<operator>.+)')
 
-    @classmethod
-    def kmi_to_action(cls, kmi, *, event_type=None, click=False, double_click=False, drag_click=False):
-        kmi_ctrl  = 'CTRL+'  if kmi.ctrl  else ''
-        kmi_shift = 'SHIFT+' if kmi.shift else ''
-        kmi_alt   = 'ALT+'   if kmi.alt   else ''
-        kmi_os    = 'OSKEY+' if kmi.oskey else ''
-        # https://docs.blender.org/api/current/bpy.types.KeyMapItem.html#bpy.types.KeyMapItem.value
-        kmi_click  = '+CLICK'  if kmi.value=='CLICK'        or click        else ''
-        kmi_double = '+DOUBLE' if kmi.value=='DOUBLE_CLICK' or double_click else ''
-        kmi_drag   = '+DRAG'   if kmi.value=='CLICK_DRAG'   or drag_click   else ''
-
-        kmi_type = event_type or kmi.type
-        if kmi_type == 'WHEELINMOUSE':  kmi_type = 'WHEELUPMOUSE'
-        if kmi_type == 'WHEELOUTMOUSE': kmi_type = 'WHEELDOWNMOUSE'
-
-        return kmi_ctrl + kmi_shift + kmi_alt + kmi_os + kmi_type + kmi_click + kmi_double + kmi_drag
-
-    @classmethod
-    def blenderop_to_kmis(cls, blenderop):
+    @staticmethod
+    def blenderop_to_kmis(blenderop):
         keymaps = bpy.context.window_manager.keyconfigs.user.keymaps
         i18n_translate = bpy.app.translations.pgettext                  # bpy.app.translations.pgettext tries to translate the given parameter
 
-        m = cls.re_blenderop.match(blenderop)
+        m = Action.re_blenderop.match(blenderop)
         if not m:
             print(f'Action.blenderop_to_kmis: {blenderop}')
             return set()
@@ -149,22 +138,19 @@ class Action:
             ])
         }
 
-    @classmethod
-    def blenderop_to_actions(cls, blenderop):
-        return {
-            cls.kmi_to_action(kmi)
-            for kmi in cls.blenderop_to_kmis(blenderop)
-        }
+    @staticmethod
+    def blenderop_to_actions(blenderop):
+        return { Action.kmi_to_action(kmi) for kmi in Action.blenderop_to_kmis(blenderop) }
 
-    @classmethod
-    def kmi_to_op_properties(cls, kmi):
+    @staticmethod
+    def kmi_to_op_properties(kmi):
         path = kmi.idname.split('.')
         op = getattr(getattr(bpy.ops, path[0]), path[1])
         props = { k: kmi.path_resolve(f'properties.{k}') for k in kmi.properties.keys() }
         return (op, props)
 
-    @classmethod
-    def strip_mods(cls, action, *, ctrl=True, shift=True, alt=True, oskey=True, click=True, double_click=True, drag_click=True, mouse=False):
+    @staticmethod
+    def strip_mods(action, *, ctrl=True, shift=True, alt=True, oskey=True, click=True, double_click=True, drag_click=True, mouse=False):
         if action is None: return None
         if mouse and 'MOUSE' in action: return ''
         if ctrl:  action = action.replace('CTRL+',  '')
@@ -176,403 +162,40 @@ class Action:
         if drag_click:   action = action.replace('+DRAG',   '')
         return action
 
-    @classmethod
-    def add_mods(cls, action, *, ctrl=False, shift=False, alt=False, oskey=False, click=False, double_click=False, drag_click=False):
+    @staticmethod
+    def add_mods(action, *, ctrl=False, shift=False, alt=False, oskey=False, click=False, double_click=False, drag_click=False):
         if not action: return action
-        ctrl  = 'CTRL+'  if ctrl  else ''
-        shift = 'SHIFT+' if shift else ''
-        alt   = 'ALT+'   if alt   else ''
-        oskey = 'OSKEY+' if oskey else ''
-        click = '+CLICK' if click and not double_click and not drag_click else ''
-        double_click = '+DOUBLE' if double_click and not drag_click else ''
-        drag_click   = '+DRAG'   if drag_click else ''
-        return f'{ctrl}{shift}{alt}{oskey}{action}{click}{double_click}{drag_click}'
+        action = Action.translate_action.get(action, action)
+        return ''.join([
+            ('CTRL+'  if ctrl  else ''),
+            ('SHIFT+' if shift else ''),
+            ('ALT+'   if alt   else ''),
+            ('OSKEY+' if oskey else ''),
+            action,
+            ('+CLICK'  if click and not (double_click or drag_click) else ''),
+            ('+DOUBLE' if double_click and not drag_click else ''),
+            ('+DRAG'   if drag_click else ''),
+        ])
 
-'''
-copied from:
-- https://docs.blender.org/api/current/bpy.types.Event.html
-- https://docs.blender.org/api/current/bpy.types.KeyMapItem.html
-
-direction: { 'ANY', 'NORTH', 'NORTH_EAST', 'EAST', 'SOUTH_EAST', 'SOUTH', 'SOUTH_WEST', 'WEST', 'NORTH_WEST' }
-type: {
-    'NONE',
-
-    # System
-    'WINDOW_DEACTIVATE',  # window lost focus (minimized, switch away from, etc.)
-    'ACTIONZONE_AREA', 'ACTIONZONE_REGION', 'ACTIONZONE_FULLSCREEN',
-
-    # Mouse
-    'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
-    'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE',
-    'MOUSEROTATE', 'MOUSESMARTZOOM', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
-    'PEN', 'ERASER',
-    'TRACKPADPAN', 'TRACKPADZOOM',
-
-    # Keyboard
-    'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT', 'OSKEY',
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
-    'SEMI_COLON', 'PERIOD', 'COMMA', 'QUOTE', 'ACCENT_GRAVE', 'MINUS', 'PLUS', 'SLASH', 'BACK_SLASH', 'EQUAL', 'LEFT_BRACKET', 'RIGHT_BRACKET',
-    'GRLESS',
-    'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9',
-    'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_0', 'NUMPAD_MINUS', 'NUMPAD_ENTER', 'NUMPAD_PLUS',
-    'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'F13', 'F14', 'F15', 'F16', 'F17', 'F18', 'F19', 'F20', 'F21', 'F22', 'F23', 'F24',
-    'PAUSE', 'INSERT',
-    'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
-    'MEDIA_PLAY', 'MEDIA_STOP', 'MEDIA_FIRST', 'MEDIA_LAST',
-    'ESC', 'TAB', 'RET', 'SPACE', 'LINE_FEED', 'BACK_SPACE', 'DEL',
-    'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
-
-    # ???
-    'APP',
-
-    # Text Input
-    'TEXTINPUT',
-
-    # Timer
-    'TIMER', 'TIMER0', 'TIMER1', 'TIMER2', 'TIMER_JOBS', 'TIMER_AUTOSAVE', 'TIMER_REPORT', 'TIMERREGION',
-
-    # NDOF
-    'NDOF_MOTION', 'NDOF_BUTTON_MENU', 'NDOF_BUTTON_FIT', 'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT',
-    'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK', 'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2', 'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
-    'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW', 'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW', 'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
-    'NDOF_BUTTON_DOMINANT', 'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS',
-    'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5', 'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
-    'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
-
-    # ???
-    'XR_ACTION'
-}
-value: { 'ANY', 'PRESS', 'RELEASE', 'CLICK', 'DOUBLE_CLICK', 'CLICK_DRAG', 'NOTHING' }
-
-class bpy.types.Event:
-    alt                 True when the Alt/Option key is held  (unless both alt keys pressed and one is released)
-    ascii               single ASCII character for this event
-    ctrl                True when Ctrl key is held  (unless both ctrl keys pressed and one is released)
-    direction           drag direction  (never used?)
-    is_mouse_absolute   last motion event was an absolute input
-    is_repeat           event is generated by holding a key down
-    is_tablet           event has tablet data
-    mouse_prev_press_x  window relative location of the last press event  (most recent press)
-    mouse_prev_press_y
-    mouse_prev_x        window relative location of mouse (in last event?)
-    mouse_prev_y
-    mouse_region_x      region relative location of mouse
-    mouse_region_y
-    mouse_x             window relative location of mouse
-    mouse_y
-    oskey               True when Cmd key is held
-    pressure            pressure of tablet or 1.0 if no tablet present
-    shift               True when Shift key is held  (unless both shift keys pressed and one is released)
-    tilt                pressure (tilt?) of tablet or zeros if no tablet present ([float, float])
-    type                (Type of event?)
-    type_prev:          (type of last event?)
-    unicode:            single unicode character for this event
-    value:              type of event, only applies to some
-    value_prev:         type of (last?) event, only applies to some
-    xr:                 XR event data
-
-class bpy.types.KeyMapItem:
-    active              True when KMI is active
-    alt                 Alt key pressed (int), -1 for any state
-    alt_ui              (bool)
-    any                 any modifier keys pressed
-    ctrl                Control key pressed (int), -1 for any state
-    ctrl_ui             (bool)
-    direction           drag direction
-    id                  ID of item (int [-32768, 32767], default 0)
-    idname              identifier of operator to call on input event
-    is_user_defined     True if KMI is user defined (doesn't just replace a builtin item)
-    is_user_modified    True if KMI is modified by user
-    key_modifier        Regular key pressed as a modifier (see type above)
-    map_type            type of event mapping, { 'KEYBOARD', 'MOUSE', 'NDOF', 'TEXTINPUT', 'TIMER' }
-    name                name of operator (translated) to call on input event
-    oskey               Operating System Key pressed (int), -1 for any state
-    oskey_ui            (bool)
-    properties          Properties to set when the operator is called
-    propvalue           the value this event translates to in a modal keymap
-    repeat              active on key-repeat events (when key is held)
-    shift               Shift key pressed (int), -1 for any state
-    shift_ui            (bool)
-    show_expanded       Show key map event and property details in the user interface
-    type                type of event
-    value               (value of event?)
-
-bprefs.mouse_doubleclick()
-bprefs.mouse_drag()
-bprefs.mouse_move()
-bprefs.mouse_select()
-
-notes:
-
-* if lshift is pressed, then shift is True. if rshift is pressed, then shift will still be True.
-  if lshift or rshift are released, shift will be False!  but, this isn't an issue, as blender handles it in the same way.
-
-* if modal operator invokes another operator on action, modal operator will only see the release of the action in (type_prev, value_prev)
-
-* mouse_prev_press_* will hold location of mouse at most recent press (keyboard, mouse, anything!)
-
-'''
-
-class EventHandler:
-    keyboard_modifier_types = {
-        'LEFT_CTRL', 'LEFT_ALT', 'LEFT_SHIFT', 'RIGHT_ALT', 'RIGHT_CTRL', 'RIGHT_SHIFT', 'OSKEY',
-    }
-    keyboard_alpha_types = {
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    }
-    keyboard_number_types = {
-        'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
-        'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9', 'NUMPAD_0',
-    }
-    keyboard_numpad_types = {
-        'NUMPAD_2', 'NUMPAD_4', 'NUMPAD_6', 'NUMPAD_8', 'NUMPAD_1', 'NUMPAD_3', 'NUMPAD_5', 'NUMPAD_7', 'NUMPAD_9', 'NUMPAD_0',
-        'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_MINUS', 'NUMPAD_PLUS',
-        'NUMPAD_ENTER',
-    }
-    keyboard_function_types = {
-        'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-        'F13', 'F14', 'F15', 'F16', 'F17', 'F18', 'F19', 'F20', 'F21', 'F22', 'F23', 'F24',
-    }
-    keyboard_symbols_types = {
-        'SEMI_COLON', 'PERIOD', 'COMMA', 'QUOTE', 'ACCENT_GRAVE', 'MINUS', 'PLUS', 'SLASH', 'BACK_SLASH', 'EQUAL', 'LEFT_BRACKET', 'RIGHT_BRACKET',
-        'NUMPAD_PERIOD', 'NUMPAD_SLASH', 'NUMPAD_ASTERIX', 'NUMPAD_MINUS', 'NUMPAD_PLUS',
-        'GRLESS',
-    }
-    keyboard_media_types = {
-        'MEDIA_PLAY', 'MEDIA_STOP', 'MEDIA_FIRST', 'MEDIA_LAST',
-        'PAUSE',  # ???
-    }
-    keyboard_movement_types = {
-        'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
-        'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
-    }
-    keyboard_escape_types = {
-        'ESC',
-        # 'TAB', ???
-    }
-    keyboard_edit_types = {
-        'INSERT', 'TAB', 'RET', 'SPACE', 'LINE_FEED', 'BACK_SPACE', 'DEL',
-    }
-    keyboard_drag_types = {
-        *keyboard_alpha_types,
-        *keyboard_number_types,
-        *keyboard_numpad_types,
-        *keyboard_symbols_types,
-    }
-    keyboard_types = {
-        *keyboard_modifier_types,
-        *keyboard_alpha_types,
-        *keyboard_number_types,
-        *keyboard_numpad_types,
-        *keyboard_function_types,
-        *keyboard_symbols_types,
-        *keyboard_media_types,
-        *keyboard_movement_types,
-        *keyboard_edit_types,
-    }
-
-    mouse_button_types = {
-        'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE', 'BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
-        'MOUSEROTATE', 'MOUSESMARTZOOM', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
-        'PEN', 'ERASER',
-        'TRACKPADPAN', 'TRACKPADZOOM',
-    }
-    mouse_move_types = {
-        'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE',
-    }
-    mouse_types = { *mouse_button_types, *mouse_move_types, }
-
-    ndof_types = {
-        'NDOF_MOTION', 'NDOF_BUTTON_MENU', 'NDOF_BUTTON_FIT', 'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT',
-        'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK', 'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2', 'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
-        'NDOF_BUTTON_SPIN_CW', 'NDOF_BUTTON_SPIN_CCW', 'NDOF_BUTTON_TILT_CW', 'NDOF_BUTTON_TILT_CCW', 'NDOF_BUTTON_ROTATE', 'NDOF_BUTTON_PANZOOM',
-        'NDOF_BUTTON_DOMINANT', 'NDOF_BUTTON_PLUS', 'NDOF_BUTTON_MINUS',
-        'NDOF_BUTTON_1', 'NDOF_BUTTON_2', 'NDOF_BUTTON_3', 'NDOF_BUTTON_4', 'NDOF_BUTTON_5', 'NDOF_BUTTON_6', 'NDOF_BUTTON_7', 'NDOF_BUTTON_8', 'NDOF_BUTTON_9', 'NDOF_BUTTON_10',
-        'NDOF_BUTTON_A', 'NDOF_BUTTON_B', 'NDOF_BUTTON_C',
-    }
-
-    timer_types = {
-        'TIMER', 'TIMER0', 'TIMER1', 'TIMER2', 'TIMER_JOBS', 'TIMER_AUTOSAVE', 'TIMER_REPORT', 'TIMERREGION',
-    }
-
-
-    scrollable_types = {
-        'HOME', 'PAGE_UP', 'PAGE_DOWN', 'END',
-        'LEFT_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'UP_ARROW',
-        'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
-        'TRACKPADPAN',
-    }
-
-    pressable_types = {
-        # pressable also means releasable, clickable, double-clickable
-        *keyboard_types,
-        *mouse_button_types,
-        *ndof_types
-    }
-
-
-    special_types = {
-        'mousemove':  { 'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE' },
-        'timer':      { 'TIMER', 'TIMER_REPORT', 'TIMERREGION' },
-        'deactivate': { 'WINDOW_DEACTIVATE' },
-    }
-
-    def __init__(self, context, *, allow_keyboard_dragging=False):
-        self._allow_keyboard_dragging = allow_keyboard_dragging
-
-        self.reset()
-
-    def reset(self):
-        # current states
-        self.mods = { mod: False for mod in ['alt', 'ctrl', 'shift', 'oskey'] }
-        self.mouse = None
-        self.mouse_prev = None
-        self._held = {}          # types that are currently held.  {event.type: time of first held}
-        self._is_dragging = False
-        self.is_navigating = False # <- need this???
-
-        # memory
-        self._first_held = None  # contains details of when first held action happened (held type, mouse loc, time)
-        self._last_event_type = None
-        self._just_released = None # keep track of last pressed for double click
-
-
-
-    # these properties are for very temporal state changes
-    @property
-    def is_mousemove(self):
-        return self._last_event_type in self.special_types['mousemove']
-    @property
-    def is_timer(self):
-        return self._last_event_type in self.special_types['timer']
-    @property
-    def is_deactivate(self):
-        return self._last_event_type in self.special_types['deactivate']
-
-
-    def is_draggable(self, event):
-        if self._allow_keyboard_dragging and event.type in self.keyboard_drag_types:
-            return True
-        if event.type in self.mouse_button_types:
-            return True
-        return False
-
-    def is_double_click(self, *, event=None):
-        if event and event.type != self.get_just_held('type'):
-            return False
-        delta = self.get_just_held('time') - time.time()
-        return delta < prefs.mouse_doubleclick()
-
-    def is_dragging(self, *, event=None):
-        return get_held(event.type, prop='dragging') if event else self.get_first_held(prop='dragging')
-
-    def holding_non_modifiers(self):
-        return bool(t for t in self._held if t not in self.keyboard_modifier_types)
-
-    def get_held(self, etype, *, prop=None, default=None):
-        if etype not in self._held: return default
-        d = self._held[etype]
-        return d[prop] if prop else d
-
-    def get_first_held(self, *, ignore_mods=True, prop=None, default=None):
-        held = self._held
-        if ignore_mods:
-            held = {htype:held[htype] for htype in held if htype not in self.keyboard_modifier_types}
-        if not held: return default
-        d = min(held, key=lambda htype: held[htype]['time'])
-        return d[prop] if prop else d
-
-    def get_just_held(self, *, prop=None, default=None):
-        return self._first_held[prop] if self._first_held else default
-
-    def _update_press(self, event):
-        # ignore non-pressable events
-        if event.type not in self.pressable_types:
-            return
-
-        # FIRST, if nothing is held (ignoring modifiers), record first held details
-        if not self.holding_non_modifiers():
-            self._first_held = {
-                'type':     event.type,
-                'time':     time.time(),
-                'mouse':    self.mouse,
-                'dragging': False,
-                'can drag': self.is_type_draggable(event),
-                'double':   self.is_double_click(event),
-            }
-
-        self._held[event.type] = {
-            'type':     event.type,
-            'time':     time.time(),
-            'mouse':    self.mouse,
-            'dragging': False,
-            'can drag': self.is_type_draggable(event),
-            'double':   self.is_double_click(event),
-        }
-
-    def _update_release(self, event, *, prev=False):
-        etype = event.type if not prev else event.prev_type
-
-        if etype == self.get_first_held(prop='type'):
-            self._just_released = self._first_held
-            self._first_held = None
-
-        if etype in self.held:
-            del self._held[etype]
-
-    def _update_drag(self, event):
-        first_held = self.get_first_held()
-        if first_held['dragging'] or not first_held['can drag']:
-            return
-
-        # has mouse moved far enough?
-        mouse_travel = (first_held['mouse'] - self.mouse).length
-        if mouse_travel > bprefs.mouse_drag():
-            self._first_held['dragging'] = True
-
-        fhtype = self._first_held['type']
-        if self._allow_keyboard_dragging and fhtype in self.keyboard_drag_types:
-            self._first_held['dragging'] = True
-        elif fhtype in self.mouse_button_types:
-            self._first_held['dragging'] = True
-
-    def update(self, context, event):
-        self._last_event_type = event.type
-
-        if self.is_deactivate:
-            # any time these actions are received, all action states will be flushed
-            self.reset()
-
-        self.mods['alt']   = event.alt
-        self.mods['ctrl']  = event.ctrl
-        self.mods['oskey'] = event.oskey
-        self.mods['shift'] = event.shift
-        self.mouse = Point2D((event.mouse_x, event.mouse_y))
-        self.mouse_prev = Point2D((event.mouse_prev_x, event.mouse_prev_y))
-
-        if event.value_prev == 'RELEASE':
-            self._update_release(event, prev=True)
-
-        if event.value == 'PRESS':
-            self._update_press(event)
-        elif event.value == 'RELEASE':
-            self._update_release(event)
-        elif event.value == 'NOTHING':
-            if event.type == 'MOUSEMOVE':
-                pass
-
-        if event.type not in self.mouse_move_types:
-            self._update_drag(event)
+    @staticmethod
+    def kmi_to_action(kmi, *, event_type=None, click=False, double_click=False, drag_click=False):
+        return Action.add_mods(
+            event_type or kmi.type,
+            ctrl=kmi.ctrl, shift=kmi.shift, alt=kmi.alt, oskey=kmi.oskey,
+            click=(kmi.value=='CLICK' or click),
+            double_click=(kmi.value=='DOUBLE_CLICK' or double_click),
+            drag_click=(kmi.value=='CLICK_DRAG' or drag_click),
+        )
 
 
 
 class Actions:
-    # https://docs.blender.org/api/2.79/bpy.types.KeyMapItems.html
-    # https://docs.blender.org/api/blender2.8/bpy.types.KeyMapItems.html
+    # https://docs.blender.org/api/current/bpy.types.KeyMapItems.html
+    # https://docs.blender.org/api/current/bpy_types_enum_items/event_type_items.html
+    # https://docs.blender.org/api/current/bpy_types_enum_items/event_value_items.html
     ndof_actions = {
-        'NDOF_MOTION', 'NDOF_BUTTON', 'NDOF_BUTTON_FIT',
+        'NDOF_MOTION',
+        'NDOF_BUTTON', 'NDOF_BUTTON_FIT',
         'NDOF_BUTTON_TOP', 'NDOF_BUTTON_BOTTOM', 'NDOF_BUTTON_LEFT', 'NDOF_BUTTON_RIGHT', 'NDOF_BUTTON_FRONT', 'NDOF_BUTTON_BACK',
         'NDOF_BUTTON_ISO1', 'NDOF_BUTTON_ISO2',
         'NDOF_BUTTON_ROLL_CW', 'NDOF_BUTTON_ROLL_CCW',
@@ -614,7 +237,8 @@ class Actions:
     }
 
     trackpad_actions = {
-        'TRACKPADPAN','TRACKPADZOOM',
+        'TRACKPADPAN', 'TRACKPADZOOM',
+        'MOUSEROTATE', 'MOUSESMARTZOOM',
     }
 
     modifier_actions = {
@@ -696,20 +320,18 @@ class Actions:
         assert hasattr(Actions, '_create'), 'Do not create new instance of Actions.  Instead, use Actions.get_instance()'
         assert not hasattr(Actions, '_instance'), 'Only create one instance of Actions!  Then use Actions.get_instance()'
 
-        # set up universal keymaps
-        self.keymap = {}  # universal keymap
-        self.keymap2 = {} # context keymap
-        self.action_keymap = {}
+        # keymaps
+        self.keymaps_universal  = Dict(get_default_fn=set)
+        self.keymaps_contextual = Dict(get_default_fn=set)
+        self.keymaps_action     = Dict(get_default_fn=list)
 
-        self.keymap['navigate'] = set()         # filled in more below
-        self.keymap['navigate'] |= Actions.trackpad_actions
-        self.keymap['navigate'] |= Actions.ndof_actions
-
+        # fill in universal and action keymaps
+        self.keymaps_universal['navigate'] = Actions.trackpad_actions | Actions.ndof_actions
         for group in Actions.blender_keymaps:
             group_name, blenderops = group['name'], group['operators']
 
-            self.keymap.setdefault(group_name, set())
-            self.keymap[group_name] |= {
+            # self.keymaps_universal.setdefault(group_name, set())
+            self.keymaps_universal[group_name] |= {
                 action
                 for blenderop in blenderops
                 for action in Action.blenderop_to_actions(blenderop)
@@ -718,21 +340,22 @@ class Actions:
             for blenderop in blenderops:
                 for kmi in Action.blenderop_to_kmis(blenderop):
                     action, op_props = Action.kmi_to_action(kmi), Action.kmi_to_op_properties(kmi)
-                    self.action_keymap.setdefault(action, list())
-                    self.action_keymap[action] += [op_props]
+                    # self.keymaps_action.setdefault(action, list())
+                    self.keymaps_action[action] += [op_props]
 
+        # store context
         self.context = context
-        self.area = context.area
-        self.screen = context.screen
-        self.space = context.space_data
-        self.region = context.region
-        self.size = Vec2D((context.region.width, context.region.height))
-        self.r3d = context.space_data.region_3d
-        self.window = context.window
+        self.area    = context.area
+        self.screen  = context.screen
+        self.space   = context.space_data
+        self.region  = context.region
+        self.size    = Vec2D((context.region.width, context.region.height))
+        self.r3d     = context.space_data.region_3d
+        self.window  = context.window
 
         self.timer      = False     # is action from timer?
         self.time_delta = 0         # elapsed time since last "step" (units=seconds)
-        self.time_last = time.time()
+        self.time_last  = time.time()
 
         # IMPORTANT: the following properties are updated external to Actions
         self.hit_pos  = None    # position of raytraced mouse to scene (updated externally!)
@@ -741,21 +364,16 @@ class Actions:
         self.reset_state(all_state=True)
 
     def reset_state(self, all_state=False):
-        self.actions_using = set()
-        self.actions_pressed = set()
+        self.actions_using    = set()
+        self.actions_pressed  = set()
         self.actions_prevtime = dict()  # previous time when action was pressed
-        self.now_pressed = {}           # currently pressed keys. key=stripped event type, value=full event type (includes modifiers)
-        self.just_pressed = None
-        self.last_pressed = None
-        self.event_type = None
+        self.now_pressed      = dict()  # currently pressed keys. key=stripped event type, value=full event type (includes modifiers)
+        self.just_pressed     = None
+        self.last_pressed     = None
+        self.event_type       = None
 
-        self.trackpad = False   # is current action from trackpad?
-        self.ndof     = False   # is current action from NDOF?
-        self.scroll   = (0, 0)
-
-        # are any of the following modifier keys currently pressed?
-        # note: ctrl will be true if either ctrl_left or ctrl_right are true
-        self.ctrl        = False
+        # indicates if modifier keys are currently pressed
+        self.ctrl        = False  # note: will be true if either ctrl_left or ctrl_right are true
         self.ctrl_left   = False
         self.ctrl_right  = False
         self.shift       = False
@@ -765,6 +383,12 @@ class Actions:
         self.alt_left    = False
         self.alt_right   = False
 
+        # non-keyboard and non-mouse properties
+        self.trackpad = False   # is current action from trackpad?
+        self.ndof     = False   # is current action from NDOF?
+        self.scroll   = (0, 0)
+
+        # mouse-related properties
         if all_state:
             self.mouse_select = bprefs.mouse_select()
             self.mouse        = None    # current mouse position
@@ -779,11 +403,11 @@ class Actions:
         self.mousedown_right  = None    # mouse position when RMB was pressed
         self.mousedown_drag   = False   # is user dragging?
 
+        # indicates if currently navigating
         self.navevent = False
 
     def operator_action(self, action, *args, **kwargs):
-        if action not in self.action_keymap: return
-        ops_props = self.action_keymap[action]
+        ops_props = self.keymaps_action.get(action, None)
         if not ops_props: return
         op, props = ops_props[0]
         try:
@@ -895,7 +519,8 @@ class Actions:
             drag_click=self.mousedown_drag,
         )
 
-        self.navevent = (full_event_type in self.keymap['navigate']) and pressed
+        self.navevent = False
+        self.navevent |= (full_event_type in self.keymaps_universal['navigate']) and pressed
         self.navevent |= (self.event_type in Actions.ndof_nonpress)  # some NDOF events do not have value == PRESSED
         self.navevent_cause = full_event_type if self.navevent else None
         if self.navevent:
@@ -946,24 +571,22 @@ class Actions:
                 last_pressed=self.last_pressed,
             )
 
+    def _convert(self, action):
+        return (self.keymaps_universal[action] | self.keymaps_contextual[action]) or { action }
     def convert(self, actions):
-        t = type(actions)
-        if   t is set:  pass                    # already a set; no need to do anything
-        elif t is str:  actions = { actions }   # passed only a string
-        elif t is list: actions = set(actions)  # prevent duplicate actions by converting to set
-        else:           actions = { actions }   # catch all (should not happen)
-        ret = set()
-        for action in actions:
-            ret |= (self.keymap.get(action, set()) | self.keymap2.get(action, set())) or { action }
-        return ret
+        match actions:
+            case set():  pass                     # already a set; no need to do anything
+            case str():  actions = { actions }    # passed only a string
+            case list(): actions = set(actions)   # prevent duplicate actions by converting to set
+            case _:      actions = { actions }    # catch all (should not happen)
+        return { a for action in actions for a in self._convert(action) }
 
     def to_human_readable(self, actions, *, sep=',', onlyfirst=None, visible=False):
-        if type(actions) is str: actions = [actions]
+        if type(actions) is str: actions = { actions }
         actions = [ act for action in actions for act in self.convert(action) ]
         return convert_actions_to_human_readable(actions, sep=sep, onlyfirst=onlyfirst, visible=visible)
 
     def from_human_readable(self, actions):
-        if type(actions) is str: actions = [actions]
         return convert_human_readable_to_actions(actions)
 
 
@@ -990,33 +613,36 @@ class Actions:
 
     def using(self, actions, using_all=False, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False):
         if actions is None: return False
-        if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
-        if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
-        actions = [Action.strip_mods(p, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag) for p in self.convert(actions)]
-        quantifier_fn = all if using_all else any
-        return quantifier_fn(
-            Action.strip_mods(p, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag) in actions
-            for p in self.now_pressed.values()
+        strip_mods = lambda p: Action.strip_mods(
+            p,
+            ctrl=         ignorectrl   or ignoremods,
+            shift=        ignoreshift  or ignoremods,
+            alt=          ignorealt    or ignoremods,
+            oskey=        ignoreoskey  or ignoremods,
+            click=        ignoreclick  or ignoremulti,
+            double_click= ignoredouble or ignoremulti,
+            drag_click=   ignoredrag   or ignoremulti,
         )
+        actions = [ strip_mods(p) for p in self.convert(actions) ]
+        results = [ strip_mods(p) in actions for p in self.now_pressed.values() ]
+        return all(results) if using_all else any(results)
 
     def using_onlymods(self, actions, exact=True):
         if actions is None: return False
         def action_good(action):
             nonlocal exact
-            act_c = 'CTRL+' in action
+            act_c = 'CTRL+'  in action
             act_s = 'SHIFT+' in action
-            act_a = 'ALT+' in action
-            # act_o = 'OSKEY+' in action
+            act_a = 'ALT+'   in action
             ret = True
             if exact:
                 ret &= act_c == self.ctrl
                 ret &= act_s == self.shift
                 ret &= act_a == self.alt
             else:
-                ret &= not act_c or self.ctrl
-                ret &= not act_s or self.shift
-                ret &= not act_a or self.alt
-            #print(f'{exact}: {act_c} {act_s} {act_a}  {self.ctrl} {self.shift} {self.alt} = {ret}')
+                ret &= not (act_c and self.ctrl)
+                ret &= not (act_s and self.shift)
+                ret &= not (act_a and self.alt)
             return ret
         return any(action_good(action) for action in self.convert(actions))
 
@@ -1033,11 +659,11 @@ class Actions:
         if not self.just_pressed: return False
         if ignoremods: ignorectrl,ignoreshift,ignorealt,ignoreoskey = True,True,True,True
         if ignoremulti: ignoreclick,ignoredouble,ignoredrag = True,True,True
-        if debug: print(f'Actions.pressed 0: actions={actions}')
+        if debug: print(f'Actions.pressed 0: {actions=}')
         actions = self.convert(actions)
-        if debug: print(f'Actions.pressed 1: actions={actions}')
+        if debug: print(f'Actions.pressed 1: {actions=}')
         just_pressed = Action.strip_mods(self.just_pressed, ctrl=ignorectrl, shift=ignoreshift, alt=ignorealt, oskey=ignoreoskey, click=ignoreclick, double_click=ignoredouble, drag_click=ignoredrag, mouse=ignoremouse)
-        if debug: print(f'Actions.pressed 2: just_pressed={just_pressed}, self.just_pressed={self.just_pressed}, actions={actions}')
+        if debug: print(f'Actions.pressed 2: {just_pressed=}, {self.just_pressed=}, {actions=}')
         if not just_pressed: return False
         ret = just_pressed in actions
         if ret and unpress: self.unpress()
@@ -1067,23 +693,27 @@ class Actions:
 
 class ActionHandler:
     _actions = None
+
     def __init__(self, context, keymap={}):
         if not ActionHandler._actions:
             ActionHandler._actions = Actions.get_instance(context)
-        _keymap = {}
-        for (k, actions) in keymap.items():
-            if type(actions) is list: actions = set(actions)
-            elif type(actions) is not set: actions = { actions }
-            _keymap[k] = actions
-        self.__dict__['_keymap'] = _keymap
+
+        def process(actions):
+            if type(actions) is list:    return set(actions)
+            if type(actions) is not set: return { actions }
+            return actions
+        ActionHandler._actions.keymaps_contextual = Dict({ k:process(actions) for (k, actions) in keymap.items() }, get_default_fn=set)
+
     def __getattr__(self, key):
         if not ActionHandler._actions: return None
-        ActionHandler._actions.keymap2 = self._keymap
+        # ActionHandler._actions.keymaps_contextual = self._keymap
         return getattr(ActionHandler._actions, key)
+
     def __setattr__(self, key, value):
         if not ActionHandler._actions: return
-        ActionHandler._actions.keymap2 = self._keymap
+        # ActionHandler._actions.keymaps_contextual = self._keymap
         return setattr(ActionHandler._actions, key, value)
+
     def done(self):
         if not ActionHandler._actions: return
         ActionHandler._actions.done()

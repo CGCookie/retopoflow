@@ -28,7 +28,6 @@ from bpy.types import Operator
 from ..common.blender import perform_redraw_all
 from ..common.debug import debugger, tprint
 from ..common.profiler import profiler
-from ..common.useractions import Actions, ActionHandler
 
 
 class CookieCutter_Modal:

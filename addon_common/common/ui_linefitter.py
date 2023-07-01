@@ -42,8 +42,6 @@ from .ui_styling import UI_Styling, ui_defaultstylings
 from .ui_core_utilities import helper_wraptext, convert_token_to_cursor
 from .fsm import FSM
 
-from .useractions import ActionHandler
-
 from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache

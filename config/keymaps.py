@@ -27,6 +27,7 @@ import json
 
 from .options import options
 from ..addon_common.common.blender_preferences import mouse_select
+from ..addon_common.common.decorators import add_cache
 
 
 '''
@@ -181,26 +182,26 @@ right_rf_keymaps = {
     'select path add': ['CTRL+SHIFT+RIGHTMOUSE+CLICK'],
 }
 
+@add_cache('keymap', None)
+@add_cache('orig', None)
 def get_keymaps(*, force_reload=False):
-    if not get_keymaps.keymap or force_reload:
+    force_reload |= get_keymaps.keymap is None
+    if force_reload:
         keymap = copy.deepcopy(default_rf_keymaps)
         keymap_lr = left_rf_keymaps if mouse_select() == 'LEFT' else right_rf_keymaps
-        for k,v in keymap_lr.items(): keymap[k] = list(v)
+        keymap |= { k:list(v) for (k, v) in keymap_lr.items() }
         get_keymaps.orig = copy.deepcopy(keymap)
 
         # apply custom keymaps
-        keymap_custom = {}
         path_custom = options.get_path('keymaps filename')
         print(f'RetopoFlow keymaps path: {path_custom}')
         if os.path.exists(path_custom):
             try:
                 keymap_custom = json.load(open(path_custom, 'rt'))
+                keymap |= { k:list(v) for (k, v) in keymap_custom.items() }
             except Exception as e:
                 print('Exception caught while trying to read custom keymaps')
                 print(str(e))
-        for k,v in keymap_custom.items():
-            # print(f'keymap["{k}"] = {v} (was {keymap[k]})')
-            keymap[k] = v
 
         # apply substitution
         re_sub = re.compile(r'\{(?P<name>[^}]+)\}')
@@ -227,8 +228,6 @@ def get_keymaps(*, force_reload=False):
 
         get_keymaps.keymap = keymap
     return get_keymaps.keymap
-get_keymaps.keymap = None
-get_keymaps.orig = None
 
 def reset_all_keymaps():
     get_keymaps(force_reload=True)

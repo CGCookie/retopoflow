@@ -28,7 +28,6 @@ from bpy.types import Operator
 from ..common.blender import perform_redraw_all
 from ..common.debug import debugger, tprint
 from ..common.profiler import profiler
-from ..common.useractions import Actions, ActionHandler
 
 from .cookiecutter_actions    import CookieCutter_Actions
 from .cookiecutter_blender    import CookieCutter_Blender
