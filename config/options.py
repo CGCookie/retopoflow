@@ -136,12 +136,12 @@ def set_build_info():
     global retopoflow_product
     try:
         cgcookie_built_path = get_path_from_addon_root('.cgcookie')
-        cgcookie_built      = (
+        cgcookie_built = (
             open(cgcookie_built_path, 'rt').read()
             if os.path.exists(cgcookie_built_path)
             else ''
         )
-        retopoflow_product['cgcookie built'] = bool(cgcookie_built)
+        retopoflow_product['cgcookie built'] = cgcookie_built != ''
         retopoflow_product['github']         = 'GitHub'         in cgcookie_built
         retopoflow_product['blender market'] = 'Blender Market' in cgcookie_built
     except Exception as e:
