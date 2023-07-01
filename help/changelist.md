@@ -18,7 +18,7 @@ This version of RetopoFlow requires Blender 3.6 or later.
 - Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
 - Fixed and improved recovery of auto saves
 - Improved reporting and operations with auto saves
-- Fixed NDOF inputs
+- Fixed NDOF and trackpad inputs
 - Fixed bug when cancelling Contours cut
 - Improved indication of warnings in Blender menu
 - Consistent fixed span/segment count for all insertions with Strokes
