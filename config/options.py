@@ -135,7 +135,7 @@ def set_git_info():
 def set_build_info():
     global retopoflow_product
     try:
-        cgcookie_built_path = get_path_from_addon_root('cgcookie')
+        cgcookie_built_path = get_path_from_addon_root('.cgcookie')
         cgcookie_built      = (
             open(cgcookie_built_path, 'rt').read()
             if os.path.exists(cgcookie_built_path)
