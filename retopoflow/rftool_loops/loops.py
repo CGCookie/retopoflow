@@ -559,7 +559,7 @@ class Loops(RFTool):
     @FSM.onlyinstate({'main', 'quick'})
     @profiler.function
     def draw_postview(self):
-        if self.actions.navigating(): return
+        if self.actions.is_navigating: return
 
         if self.rfcontext._nav or not self.nearest_edge: return
         if self._fsm.state != 'quick':

@@ -135,11 +135,8 @@ class CookieCutter_Modal:
         elif self._cc_actions.using('blender window action'):
             # allow window actions to pass through to Blender
             ret = {'PASS_THROUGH'}
-        elif self._cc_actions.navigating() or (self._cc_actions.timer and self._nav):
+        elif self._cc_actions.is_navigating or (self._cc_actions.timer and self._nav):
             self._nav = True
-            self._cc_actions.unuse(self._cc_actions.navevent_cause)             # we won't see a release event for navigation actions
-            # self._cc_actions.operator_action(self._cc_actions.navevent_cause)
-            self._cc_actions.navevent_cause = None
             return {'PASS_THROUGH'}
 
         with self.try_exception('call update'):

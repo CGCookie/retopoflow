@@ -627,7 +627,7 @@ class Knife(RFTool):
     def draw_postpixel(self):
         # TODO: put all logic into set_next_state(), such as vertex snapping, edge splitting, etc.
 
-        if self.actions.navigating(): return
+        if self.actions.is_navigating: return
 
         # make sure that all our data structs contain valid data (hasn't been deleted)
         self.ensure_all_valid()
