@@ -698,20 +698,19 @@ class ActionHandler:
         if not ActionHandler._actions:
             ActionHandler._actions = Actions.get_instance(context)
 
-        def process(actions):
-            if type(actions) is list:    return set(actions)
-            if type(actions) is not set: return { actions }
-            return actions
-        ActionHandler._actions.keymaps_contextual = Dict({ k:process(actions) for (k, actions) in keymap.items() }, get_default_fn=set)
+        self.__dict__['_keymap'] = Dict({
+            k: ({actions} if type(actions) is str else set(actions))
+            for (k, actions) in keymap.items()
+        }, get_default_fn=set)
 
     def __getattr__(self, key):
         if not ActionHandler._actions: return None
-        # ActionHandler._actions.keymaps_contextual = self._keymap
+        ActionHandler._actions.keymaps_contextual = self._keymap
         return getattr(ActionHandler._actions, key)
 
     def __setattr__(self, key, value):
         if not ActionHandler._actions: return
-        # ActionHandler._actions.keymaps_contextual = self._keymap
+        ActionHandler._actions.keymaps_contextual = self._keymap
         return setattr(ActionHandler._actions, key, value)
 
     def done(self):
