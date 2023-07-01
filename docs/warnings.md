@@ -35,6 +35,13 @@ RetopoFlow may still work on a previous version of Blender, but we cannot provid
 Different versions of RetopoFlow are available on the [Blender Market](https://blendermarket.com/products/retopoflow) and on [GitHub](https://github.com/CGCookie/retopoflow).
 
 
+
+## Setup: Local View
+
+RetopoFlow is can work fine in Local View, but sometimes it can behave unexpectedly.
+If you notice unexpected behavior, try exiting Local View before starting RetopoFlow.
+
+
 ## Setup: Source / Target Meshes
 
 RetopoFlow requires at least source mesh to start.

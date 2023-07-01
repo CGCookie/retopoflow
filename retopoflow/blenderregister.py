@@ -526,6 +526,8 @@ if import_succeeded:
     def multiple_3dviews(context):
         views = [area for area in context.window.screen.areas if area.type == 'VIEW_3D']
         return len(views) > 1
+    def is_local_view(context):
+        return context.space_data.local_view is not None
     def in_quadview(context):
         for area in context.window.screen.areas:
             if area.type != 'VIEW_3D': continue
@@ -603,6 +605,7 @@ if import_succeeded:
                 'install: invalid version':                   bpy.app.version < minv or (maxv and bpy.app.version > maxv),
 
                 # setup checks
+                'setup: local view':                       is_local_view(context),
                 'setup: no sources':                       not sources,
                 'setup: source has non-invertible matrix': not all(has_inverse(source.matrix_local) for source in sources),
                 'setup: source has armature':              any(mod.type == 'ARMATURE' and mod.object and mod.show_viewport for source in sources for mod in source.modifiers),
@@ -675,6 +678,8 @@ if import_succeeded:
                         tab.label(text=f'Require Blender {neatver(minv)}--{neatver(maxv)}', icon='BLENDER')
 
             with WarningSection('Setup Issue') as section:
+                if warnings['setup: local view']:
+                    section.label(text=f'Currently in local view', icon='DOT')
                 if warnings['setup: no sources']:
                     section.label(text=f'No sources detected', icon='DOT')
                 if warnings['setup: source has non-invertible matrix']:
