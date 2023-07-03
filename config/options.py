@@ -80,6 +80,7 @@ retopoflow_files = {
     'screenshot filename':  'RetopoFlow_screenshot.png',
     'instrument filename':  'RetopoFlow_instrument.txt',
     'log filename':         'RetopoFlow_log.txt',
+    # 'debug filename':       'RetopoFlow_debug.txt',     # hard-coded in __init__.py
     'backup filename':      'RetopoFlow_backup.blend',    # if working on unsaved blend file
     'profiler filename':    'RetopoFlow_profiler.txt',
     'keymaps filename':     'RetopoFlow_keymaps.json',
@@ -148,7 +149,7 @@ def set_build_info():
         print('An exception occurred while getting build info')
         print(e)
 
-#@run(git=None)
+# @run(git=None)
 def override_version_settings(**kwargs):
     # use kwargs defined below to override product info for testing purposes
     global retopoflow_product

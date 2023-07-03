@@ -1,7 +1,7 @@
 import re
 import json
 
-from ..common import term_printer
+from ..terminal import term_printer
 from ..common.blender import get_path_from_addon_root
 
 class Hive:
@@ -24,7 +24,7 @@ class Hive:
     @staticmethod
     def to_bl_info():
         get, ver = Hive.get, Hive.get_version
-        bli_from_hive = {
+        bl_info_from_hive = {
             'name':        get('name'),
             'description': get('description'),
             'author':      get('author'),
@@ -36,22 +36,22 @@ class Hive:
             'category':    get('blender category'),
         }
         if get('release').lower() != 'official':
-            bli_from_hive['warning'] = get('release').title()
-        return bli_from_hive
+            bl_info_from_hive['warning'] = get('release').title()
+        return bl_info_from_hive
 
     @staticmethod
     def update_bl_info(bl_info, init_filepath):
-        bli_from_hive = Hive.to_bl_info()
+        bl_hive = Hive.to_bl_info()
         same = True
-        same &= all(k in bl_info       and bl_info[k] == bli_from_hive[k] for k in bli_from_hive)
-        same &= all(k in bli_from_hive and bli_from_hive[k] == bl_info[k] for k in bl_info)
+        same &= all(k in bl_info and bl_info[k] == bl_hive[k] for k in bl_hive)
+        same &= all(k in bl_hive and bl_hive[k] == bl_info[k] for k in bl_info)
         if same: return
 
         # changes detected!  update!
         term_printer.boxed('RetopoFlow: UPDATING __init__.py!', color='black', highlight='yellow', margin=' ')
         init_file = open(init_filepath, 'rt').read()
-        insert = '\n' + ''.join([
-            f'''{f'    "{k}":':20s}{f'"{v}"' if isinstance(v, str) else f'{v}'},\n'''
+        insert = '\n' + '\n'.join([
+            f'''{f'    "{k}":':20s}{f'"{v}"' if isinstance(v, str) else f'{v}'},'''
             for (k,v) in bli_from_hive.items()
         ])
         init_file = re.sub(

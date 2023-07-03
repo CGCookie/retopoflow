@@ -27,6 +27,7 @@ import time
 import inspect
 from datetime import datetime
 import contextlib
+from itertools import chain
 
 
 import urllib.request
@@ -43,6 +44,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.ui_styling import load_defaultstylings
 from ...addon_common.common.utils import delay_exec
+from ...addon_common.terminal.deepdebug import DeepDebug
 
 from ...config.options import (
     options, themes, visualization,
@@ -57,41 +59,41 @@ def get_environment_details():
     blender_branch = bpy.app.build_branch.decode('utf-8')
     blender_date = bpy.app.build_commit_date.decode('utf-8')
 
-    env_details = []
-    env_details += ['Environment:\n']
-    env_details += [f'- RetopoFlow: {retopoflow_product["version"]}']
-    if retopoflow_product['git version']:
-        env_details += [f'- RF git: {retopoflow_product["git version"]}']
+    if retopoflow_product['git version']:           build_info = f'RF git: {retopoflow_product["git version"]}'
     elif retopoflow_product['cgcookie built']:
-        if retopoflow_product['github']:
-            env_details += ['- CG Cookie built for GitHub']
-        elif retopoflow_product['blender market']:
-            env_details += ['- CG Cookie built for Blender Market']
-        else:
-            env_details += ['- CG Cookie built for ??']
-    else:
-        env_details += ['- Self built']
-    env_details += [f'- Blender: {blender_version} {blender_branch} {blender_date}']
-    env_details += [f'- Platform: {platform_system}, {platform_release}, {platform_version}, {platform_machine}, {platform_processor}']
-    env_details += [f'- GPU: {gpu_info}']
-    env_details += [f'- Timestamp: {datetime.today().isoformat(" ")}']
+        if   retopoflow_product['github']:          build_info = f'CG Cookie built for GitHub'
+        elif retopoflow_product['blender market']:  build_info = f'CG Cookie built for Blender Market'
+        else:                                       build_info = f'CG Cookie built for ??'
+    else:                                           build_info = f'Self built'
 
-    return '\n'.join(env_details)
+    return [
+        f'Environment:',
+        f'',
+        f'- RetopoFlow: {retopoflow_product["version"]}',
+        f'- Build: {build_info}',
+        f'- Blender: {blender_version} {blender_branch} {blender_date}',
+        f'- Platform: {platform_system}, {platform_release}, {platform_version}, {platform_machine}, {platform_processor}',
+        f'- GPU: {gpu_info}',
+        f'- Timestamp: {datetime.today().isoformat(" ")}',
+        f'',
+    ]
 
 
 def get_trace_details(undo_stack, msghash=None, message=None):
-    trace_details = []
+    trace_details = [f'Runtime:', f'']
     trace_details += [f'- Undo: {", ".join(undo_stack[:10])}']
     if msghash:
-        trace_details += ['']
-        trace_details += [f'Error Hash: {msghash}']
+        trace_details += [f'- Error Hash: {msghash}']
     if message:
-        trace_details += ['']
-        trace_details += ['Trace:\n']
+        trace_details += ['', 'Trace:', '']
         trace_details += [message]
-    return '\n'.join(trace_details)
+        trace_details += ['']
+    return trace_details
 
-
+def get_debug_details():
+    debug = DeepDebug.read()
+    if not debug: return []
+    return ['Debug:', ''] + debug.splitlines()
 
 
 
@@ -105,7 +107,7 @@ class RetopoFlow_UI_Alert:
         if False:
             for entry in inspect.stack():
                 print(f'  {entry}')
-        message,h = Globals.debugger.get_exception_info_and_hash()
+        message, h = Globals.debugger.get_exception_info_and_hash()
         message = '\n'.join(f'- {l}' for l in message.splitlines())
         self.alert_user(
             title='Exception caught',
@@ -135,6 +137,7 @@ class RetopoFlow_UI_Alert:
         message_orig = message
         report_details = ''
         msg_report = None
+        issue_body_report = None
 
         if title is None and self.rftool: title = self.rftool.name
 
@@ -155,16 +158,16 @@ class RetopoFlow_UI_Alert:
             url = f'https://github.com/CGCookie/retopoflow/issues?q=is%3Aissue+{msghash}'
             bpy.ops.wm.url_open(url=url)
         def report():
-            nonlocal msg_report
+            nonlocal issue_body_report
             nonlocal report_details
 
             path = get_path_from_addon_root('help', 'issue_template_simple.md')
             issue_template = open(path, 'rt').read()
             data = {
                 'title': f'{self.rftool.name}: {title}',
-                'body': f'{issue_template}\n\n```\n{msg_report}\n```',
+                'body': f'{issue_template}\n\n```\n{issue_body_report}\n```',
             }
-            url =  f'{retopoflow_urls["new github issue"]}?{urllib.parse.urlencode(data)}'
+            url = f'{retopoflow_urls["new github issue"]}?{urllib.parse.urlencode(data)}'
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
@@ -236,6 +239,7 @@ class RetopoFlow_UI_Alert:
             executor.submit(check_github)
 
         msg_report = ''
+        issue_body_report = ''
         if level in {'note'}:
             title = 'Note' + (f': {title}' if title else '')
             message = message or 'a note'
@@ -264,10 +268,15 @@ class RetopoFlow_UI_Alert:
                 ])
 
             undo_stack_actions = self.undo_stack_actions() if hasattr(self, 'undo_stack_actions') else []
-            msg_report = '\n'.join([
+            msg_report = '\n'.join(chain(
                 get_environment_details(),
                 get_trace_details(undo_stack_actions, msghash=msghash, message=message_orig),
-            ])
+                get_debug_details(),
+            ))
+            issue_body_report = '\n'.join(chain(
+                get_environment_details(),
+                get_trace_details(undo_stack_actions, msghash=msghash, message=message_orig),
+            ))
 
             show_quit = True
             darken = True

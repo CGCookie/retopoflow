@@ -24,7 +24,6 @@ Note: not all of the following code was provided by Plasmasolutions
 TODO: split into separate files?
 '''
 
-# System imports
 import os
 import sys
 import time
@@ -37,10 +36,10 @@ from hashlib import md5
 from datetime import datetime
 from functools import wraps
 
-from .globals import Globals
 from .blender import show_blender_popup
-from .hasher import Hasher
 from .functools import find_fns
+from .globals import Globals
+from .hasher import Hasher
 
 
 class Debugger:

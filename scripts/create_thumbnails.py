@@ -4,6 +4,7 @@ import os
 import png
 import sys
 import glob
+import shutil
 import subprocess
 
 w,h = 120,120

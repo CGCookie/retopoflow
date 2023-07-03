@@ -30,6 +30,26 @@ You can access the additional information through the system terminal / console.
 
 Note: There might be a lot of info in there (have to scroll), so be sure to copy _all_ of the text from the terminal / console.
 
+
+### Built-in Deep Debugging
+
+This simplest way to report the terminal output is to enable Deep Debugging.
+
+Note: you will need to restart Blender after enabling.
+
+![](debugging_enable.png)
+
+
+When Deep Debugging is enabled, all terminal output will be redirected to a text file.
+
+- Start Blender, enabled Deep Debugging, restart Blender
+- Start RetopoFlow
+- Once issue occurs, exit RetopoFlow
+- Under the RetopoFlow menu, choose Open Debugging Info
+
+![](debugging_open.png)
+
+
 ### Windows
 
 - Start Blender as usual

@@ -1,9 +1,32 @@
+'''
+Copyright (C) 2023 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 import os
 import re
+import sys
 import json
 import time
 import textwrap
 import importlib
+from pathlib import Path
 
 import bpy
 
@@ -42,6 +65,7 @@ try:
         from ..addon_common.cookiecutter import cookiecutter
         from ..addon_common.common.maths import convert_numstr_num, has_inverse
         from ..addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root, show_blender_popup, show_blender_text
+        from ..addon_common.terminal.deepdebug import DeepDebug
         from ..addon_common.common.image_preloader import ImagePreloader
     options = configoptions.options
     rfurls = configoptions.retopoflow_urls
@@ -65,6 +89,7 @@ def add_to_registry(cls_or_list):
     if isinstance(cls_or_list, list):
         RF_classes.extend(cls_or_list)
     else:
+        # could be used as class decorator, so return class
         RF_classes.append(cls_or_list)
         return cls_or_list
 
@@ -174,14 +199,6 @@ create_webpage_operator(
     rfurls['help docs'],
 )
 
-
-fn_debug = os.path.join(os.path.dirname(__file__), '..', 'debug.txt')
-def get_debug_textblock():
-    for t in bpy.data.texts:
-        if t.filepath == fn_debug:
-            return t
-    return None
-
 @add_to_registry
 class VIEW3D_OT_RetopoFlow_EnableDebugging(Operator):
     bl_idname = "cgcookie.retopoflow_enabledebugging"
@@ -192,12 +209,12 @@ class VIEW3D_OT_RetopoFlow_EnableDebugging(Operator):
     bl_options = set()
     @classmethod
     def poll(cls, context):
-        return not os.path.exists(fn_debug)
+        return not DeepDebug.is_enabled()
     def invoke(self, context, event):
         return self.execute(context)
     def execute(self, context):
-        open(fn_debug, 'w')
-        show_blender_popup('You must restart Blender to finish enabling debugging', title='Restart Blender')
+        DeepDebug.enable()
+        show_blender_popup('You must restart Blender to finish enabling deep debugging', title='Restart Blender')
         return {'FINISHED'}
 @add_to_registry
 class VIEW3D_OT_RetopoFlow_DisableDebugging(Operator):
@@ -209,13 +226,14 @@ class VIEW3D_OT_RetopoFlow_DisableDebugging(Operator):
     bl_options = set()
     @classmethod
     def poll(cls, context):
-        return os.path.exists(fn_debug)
+        return DeepDebug.is_enabled()
     def invoke(self, context, event):
         return self.execute(context)
     def execute(self, context):
-        os.remove(fn_debug)
-        show_blender_popup('You must restart Blender to finish disabling debugging', title='Restart Blender')
+        DeepDebug.disable()
+        show_blender_popup('You must restart Blender to finish disabling deep debugging', title='Restart Blender')
         return {'FINISHED'}
+
 @add_to_registry
 class VIEW3D_OT_RetopoFlow_OpenDebugging(Operator):
     bl_idname = "cgcookie.retopoflow_opendebugging"
@@ -226,16 +244,18 @@ class VIEW3D_OT_RetopoFlow_OpenDebugging(Operator):
     bl_options = set()
     @classmethod
     def poll(cls, context):
-        return os.path.exists(fn_debug)
+        return DeepDebug.is_enabled()
     def invoke(self, context, event):
         return self.execute(context)
     def execute(self, context):
-        import sys
+        path = str(DeepDebug.path_debug())
+        def get_debug_textblock():
+            return next((t for t in bpy.data.texts if t.filepath == path), None)
         sys.stdout.flush()
         sys.stderr.flush()
         t = get_debug_textblock()
         if t: bpy.data.texts.remove(t)
-        bpy.ops.text.open(filepath=fn_debug)
+        bpy.ops.text.open(filepath=path)
         t = get_debug_textblock()
         show_blender_text(t.name)
         return {'FINISHED'}
@@ -252,6 +272,7 @@ if import_succeeded:
         ('Keymap Editor',     'keymap_editor'),
         ('Updater System',    'addon_updater'),
         ('Warning Details',   'warnings'),
+        ('Debugging',         'debugging')
     ]:
         create_help_builtin_operator(label, filename),
         create_help_online_operator(label, filename),
@@ -833,19 +854,49 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
     @add_to_registry
-    class VIEW3D_PT_RetopoFlow_Config(Panel):
+    class VIEW3D_PT_RetopoFlow_Advanced(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Configuration'
+        bl_label = 'Advanced'
 
         def draw(self, context):
             layout = self.layout
 
+            # KEYMAP EDITOR
             row = layout.row(align=True)
-            row.operator('cgcookie.retopoflow_keymapeditor', icon='PREFERENCES')
-            row.operator('cgcookie.retopoflow_help_keymapeditor', text='', icon='HELP')
+            row.label(text='Keymap Editor')
+            row.operator('cgcookie.retopoflow_keymapeditor',        text='', icon='PREFERENCES')
+            row.operator('cgcookie.retopoflow_help_keymapeditor',   text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
+
+            # DEEP DEBUGGER
+            col = layout.column(align=True)
+            row = col.row(align=True)
+            row.label(text='Deep Debugging')
+            if DeepDebug.needs_restart():
+                col.label(text='Restart Blender to finish', icon='BLENDER')
+            elif DeepDebug.is_enabled():
+                row.operator('cgcookie.retopoflow_opendebugging',    text='', icon='TEXT')
+                row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='X')
+            else:
+                row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CONSOLE')
+            row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
+
+            # ADDON UPDATER
+            col = layout.column(align=True)
+            row = col.row(align=True)
+            row.label(text='Updater')
+            if configoptions.retopoflow_product['git version']:
+                col.label(text='Use Git to Pull latest updates', icon='DOT')
+            else:
+                row.operator('cgcookie.retopoflow_updater_check_now',    text='', icon='FILE_REFRESH')
+                row.operator('cgcookie.retopoflow_updater_update_now',   text='', icon="IMPORT")
+                row.operator('cgcookie.retopoflow_updater',              text='', icon='SETTINGS')
+                row.operator('cgcookie.retopoflow_help_updatersystem',   text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
+
 
 
     # @add_to_registry

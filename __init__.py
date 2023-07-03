@@ -19,24 +19,15 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-# DEEP DEBUGGING
-import os, sys
-fn_debug = os.path.join(os.path.dirname(__file__), 'debug.txt')
-if os.path.exists(fn_debug):
-    print(f'REDIRECTING ALL STDOUT AND STDERR TEXT TO {fn_debug}')
-    sys.stdout.flush()
-    os.remove(fn_debug)
-    # if debug.txt file exists, redirect ALL stdout and stderr to that file!
-    # https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/11632982#11632982
-    # in C++, see https://stackoverflow.com/a/13888242 and https://cplusplus.com/reference/cstdio/freopen/
-    os.close(1)
-    os.open(fn_debug, os.O_WRONLY | os.O_CREAT)
+
+# initialize deep debugging as early as possible
+from .addon_common.terminal.deepdebug import DeepDebug
+DeepDebug.init(
+    fn_debug='RetopoFlow_debug.txt',
+    clear=True,                         # clear deep debugging file every Blender session
+)
 
 
-import bpy
-
-from .addon_common.hive.hive import Hive
-from .addon_common.common import term_printer
 
 #################################################################################################################################
 # NOTE: the following lines are automatically updated based on hive.json
@@ -55,26 +46,29 @@ bl_info = {
 }
 
 # update bl_info above based on hive data
+from .addon_common.hive.hive import Hive
 Hive.update_bl_info(bl_info, __file__)
 
 
+import bpy
 def register():   pass
 def unregister(): pass
 
 
+from .addon_common.terminal import term_printer
 if bpy.app.background:
     term_printer.boxed(
-        f'RetopoFlow: Blender is running in background',
+        f'Blender is running in background',
         f'Skipping any further initialization',
-        margin=' ', sides='double', color='black', highlight='blue',
+        title='RetopoFlow', margin=' ', sides='double', color='black', highlight='blue',
     )
 
 elif bpy.app.version < Hive.get_version('blender hard minimum version'):
     term_printer.boxed(
-        f'RetopoFlow: Blender version does not meet hard requirements',
+        f'Blender version does not meet hard requirements',
         f'Minimum Blender Version: {Hive.get("blender hard minimum version")}',
         f'Skipping any further initialization',
-        margin=' ', sides='double', color='black', highlight='red',
+        title='RetopoFlow', margin=' ', sides='double', color='black', highlight='red',
     )
 
 else:

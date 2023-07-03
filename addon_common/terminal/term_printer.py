@@ -1,3 +1,24 @@
+'''
+Copyright (C) 2023 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
 from __future__ import annotations
 from typing import Any, Iterable
 from contextlib import contextmanager
@@ -43,16 +64,24 @@ def cprint(
         **kwargs,
     )
 
-def boxed(*lines, prefix='', margin='', pad=' ', sides='single', color=None, highlight=None, attributes=None):
+def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', color=None, highlight=None, attributes=None):
     # https://www.w3.org/TR/xml-entity-names/025.html
-    tl,tm,tr,lm,rm,bl,bm,br = {
-        'single': '┌─┐││└─┘',
-        'double': '╔═╗║║╚═╝',
+    tl,tm,tr,lm,rm,bl,bm,br,lt,rt = {
+        'single': '┌─┐││└─┘┤├',
+        'double': '╔═╗║║╚═╝╡╞',
     }[sides]
+    if title:
+        title = f'{tm}{lt} {title} {rt}{tm}'
+        title_width = len(title)
+    else:
+        title_width = 0
     pad_width = len(pad) * 2
-    width = max(len(line) for line in lines)
+    width = max(max(len(line) for line in lines), title_width)
     if prefix: print(prefix, end='')
-    cprint(f'{margin}{tl}{tm*(width+pad_width)}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)
+    if title:
+        cprint(f'{margin}{tl}{title}{tm*(width+pad_width-len(title))}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)
+    else:
+        cprint(f'{margin}{tl}{tm*(width+pad_width)}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)
     for line in lines:
         if prefix: print(prefix, end='')
         cprint(f'{margin}{lm}{pad}{line}{" "*(width - len(line))}{pad}{rm}{margin}', color=color, highlight=highlight, attributes=attributes)
