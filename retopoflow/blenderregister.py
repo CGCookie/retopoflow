@@ -833,8 +833,12 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
             row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
 
-    expand_help_boundvar = BoundBool('''options['expand help panel']''')
-    expand_help_op = create_toggle_operator('expand_help', 'Expand Help and Support', 'Expand Help and Support Panel', expand_help_boundvar)
+    expand_help_op = create_toggle_operator(
+        'expand_help',
+        'Expand Help and Support',
+        'Expand Help and Support Panel',
+        BoundBool('''options['expand help panel']'''),
+    )
 
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
@@ -848,9 +852,9 @@ if import_succeeded:
 
             row = layout.row(align=True)
             row.label(text='Expand...')
-            row.operator(expand_help_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=expand_help_boundvar.checked)
+            row.operator(expand_help_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=options['expand help panel'])
 
-            if not expand_help_boundvar.checked: return
+            if not options['expand help panel']: return
             box = layout.box()
 
 
@@ -883,8 +887,12 @@ if import_succeeded:
             col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
 
-    expand_advanced_boundvar = BoundBool('''options['expand advanced panel']''')
-    expand_advanced_op = create_toggle_operator('expand_advanced', 'Expand Advanced', 'Expand Advanced RetopoFlow Panel', expand_advanced_boundvar)
+    expand_advanced_op = create_toggle_operator(
+        'expand_advanced',
+        'Expand Advanced',
+        'Expand Advanced RetopoFlow Panel',
+        BoundBool('''options['expand advanced panel']'''),
+    )
 
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Advanced(Panel):
@@ -898,9 +906,9 @@ if import_succeeded:
 
             row = layout.row(align=True)
             row.label(text='Expand...')
-            row.operator(expand_advanced_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=expand_advanced_boundvar.checked)
+            row.operator(expand_advanced_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=options['expand advanced panel'])
 
-            if not expand_advanced_boundvar.checked: return
+            if not options['expand advanced panel']: return
             box = layout.box()
 
             # KEYMAP EDITOR
