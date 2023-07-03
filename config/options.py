@@ -207,6 +207,10 @@ class Options:
         'welcome':              True,       # show welcome message?
         'starting tool':        'PolyPen',  # which tool to start with when clicking diamond
 
+        # BLENDER PANEL
+        'expand advanced panel': False,
+        'expand help panel':     True,
+
         # BLENDER UI
         'hide panels no overlap':   True,   # hide panels even when region overlap is disabled
         'hide header panel':        True,   # hide header panel (where RF menu shows)
@@ -516,12 +520,13 @@ class Options:
         Options.last_change = time.time()
         self.update_external_vars()
 
-    def clean(self, force=False, raise_exception=True):
+    def clean(self, force=False, raise_exception=True, retry=True):
         if not Options.is_dirty:
             # nothing has changed
             return
         if not force and time.time() < Options.last_change + Options.write_delay:
             # we haven't waited long enough before storing db
+            if retry: bpy.app.timers.register(self.clean, first_interval=Options.write_delay)
             return
         dprint('Writing options:', Options.db)
         try:

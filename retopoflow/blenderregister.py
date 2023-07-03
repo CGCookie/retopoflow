@@ -31,6 +31,7 @@ from pathlib import Path
 import bpy
 
 from bpy.types import Menu, Operator, Panel
+from bpy.props import BoolProperty
 from bpy_extras import object_utils
 from bpy.app.handlers import persistent
 
@@ -65,8 +66,9 @@ try:
         from ..addon_common.cookiecutter import cookiecutter
         from ..addon_common.common.maths import convert_numstr_num, has_inverse
         from ..addon_common.common.blender import get_active_object, BlenderIcon, get_path_from_addon_root, show_blender_popup, show_blender_text
-        from ..addon_common.terminal.deepdebug import DeepDebug
+        from ..addon_common.common.boundvar import BoundBool
         from ..addon_common.common.image_preloader import ImagePreloader
+        from ..addon_common.terminal.deepdebug import DeepDebug
     options = configoptions.options
     rfurls = configoptions.retopoflow_urls
     import_succeeded = True
@@ -174,7 +176,23 @@ def create_webpage_operator(name, label, description, url):
         create_webpage_operator._cache[key] = VIEW3D_OT_RetopoFlow_Web
     return create_webpage_operator._cache[key]
 
-
+def create_toggle_operator(name, label, description, boundbool):
+    idname = label.replace(' ', '')
+    class VIEW3D_OT_RetopoFlow_Toggle(Operator):
+        bl_idname = f'cgcookie.retopoflow_toggle_{idname.lower()}'
+        bl_label = f'RF Toggle: {label}'
+        bl_description = f'Toggle RetopoFlow value: {label}'
+        bl_space_type = "VIEW_3D"
+        bl_region_type = "TOOLS"
+        bl_options = set()
+        def invoke(self, context, event):
+            return self.execute(context)
+        def execute(self, context):
+            boundbool.checked = not boundbool.checked
+            return {'FINISHED'}
+    VIEW3D_OT_RetopoFlow_Toggle.__name__ = f'VIEW3D_OT_RetopoFlow_Toggle_{name}'
+    add_to_registry(VIEW3D_OT_RetopoFlow_Toggle)
+    return VIEW3D_OT_RetopoFlow_Toggle
 
 ##################################################################################
 
@@ -815,6 +833,9 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
             row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
 
+    expand_help_boundvar = BoundBool('''options['expand help panel']''')
+    expand_help_op = create_toggle_operator('expand_help', 'Expand Help and Support', 'Expand Help and Support Panel', expand_help_boundvar)
+
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
         bl_space_type = 'VIEW_3D'
@@ -825,7 +846,15 @@ if import_succeeded:
         def draw(self, context):
             layout = self.layout
 
-            col = layout.column(align=True)
+            row = layout.row(align=True)
+            row.label(text='Expand...')
+            row.operator(expand_help_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=expand_help_boundvar.checked)
+
+            if not expand_help_boundvar.checked: return
+            box = layout.box()
+
+
+            col = box.column(align=True)
 
             row = col.row(align=True)
             row.label(text='Quick Start Guide')
@@ -853,6 +882,10 @@ if import_succeeded:
             col.separator()
             col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
 
+
+    expand_advanced_boundvar = BoundBool('''options['expand advanced panel']''')
+    expand_advanced_op = create_toggle_operator('expand_advanced', 'Expand Advanced', 'Expand Advanced RetopoFlow Panel', expand_advanced_boundvar)
+
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Advanced(Panel):
         bl_space_type = 'VIEW_3D'
@@ -863,29 +896,39 @@ if import_succeeded:
         def draw(self, context):
             layout = self.layout
 
-            # KEYMAP EDITOR
             row = layout.row(align=True)
+            row.label(text='Expand...')
+            row.operator(expand_advanced_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=expand_advanced_boundvar.checked)
+
+            if not expand_advanced_boundvar.checked: return
+            box = layout.box()
+
+            # KEYMAP EDITOR
+            row = box.row(align=True)
             row.label(text='Keymap Editor')
             row.operator('cgcookie.retopoflow_keymapeditor',        text='', icon='PREFERENCES')
             row.operator('cgcookie.retopoflow_help_keymapeditor',   text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
 
             # DEEP DEBUGGER
-            col = layout.column(align=True)
+            col = box.column()
             row = col.row(align=True)
             row.label(text='Deep Debugging')
+            if DeepDebug.is_enabled():
+                row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='CHECKBOX_HLT') #'X')
+            else:
+                row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CHECKBOX_DEHLT') #'X')
+            row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
             if DeepDebug.needs_restart():
                 col.label(text='Restart Blender to finish', icon='BLENDER')
             elif DeepDebug.is_enabled():
-                row.operator('cgcookie.retopoflow_opendebugging',    text='', icon='TEXT')
-                row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='X')
-            else:
-                row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CONSOLE')
-            row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
-            row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
+                row = col.row(align=True)
+                row.label(text='', icon='DOT')
+                row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
 
             # ADDON UPDATER
-            col = layout.column(align=True)
+            col = box.column(align=True)
             row = col.row(align=True)
             row.label(text='Updater')
             if configoptions.retopoflow_product['git version']:
