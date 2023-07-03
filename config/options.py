@@ -149,7 +149,7 @@ def set_build_info():
         print('An exception occurred while getting build info')
         print(e)
 
-# @run(git=None)
+# @run(git=None, cgcookie_built=True, blendermarket=True)
 def override_version_settings(**kwargs):
     # use kwargs defined below to override product info for testing purposes
     global retopoflow_product
@@ -631,6 +631,9 @@ class Themes:
 
         'stroke':     Color.from_ints(255, 255,   0, 255),
         'highlight':  Color.from_ints(255, 255,  25, 255),
+        'set select':  Color.from_ints(255, 255, 255, 192),
+        'add select':  Color.from_ints(128, 255, 128, 192),
+        'del select':  Color.from_ints(255, 128, 128, 192),
 
         # RFTools
         'polystrips': Color.from_ints(  0, 100,  25, 150),

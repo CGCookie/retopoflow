@@ -294,7 +294,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
             # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
 
-            # handle selection
+            # handle general selection (each tool will handle specific selection / selection painting)
             if self.actions.pressed('select all'):
                 # print('modal_main:selecting all toggle')
                 self.undo_push('select all')
@@ -409,11 +409,15 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             if self.actions.pressed('scale'):
                 return 'scale selected'
 
+    @FSM.on_state('quick switch', 'enter')
+    def quick_switch_enter(self):
+        self._quick_switch_wait = 2
 
     @FSM.on_state('quick switch')
     def quick_switch(self):
+        self._quick_switch_wait -= 1
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
-            if self.actions.released(self.rftool.quick_shortcut):
+            if self._quick_switch_wait < 0 and self.actions.released(self.rftool.quick_shortcut):
                 return 'main'
         self.modal_main_rest()
 
@@ -661,7 +665,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             closest = path[closest]
 
 
-    def setup_smart_selection_painting(self, bmelem_types, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
+    def setup_smart_selection_painting(self, bmelem_types, *, use_select_tool=False, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
         kwargs_filter = kwargs_filter or {}
         fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
 
@@ -684,7 +688,14 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             return None
 
         bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
-        if not bmelem: return   # nothing there; leave!
+        if not bmelem:
+            # nothing there; either leave or use select tool
+            if not use_select_tool:
+                return
+            rftool_select = next(rftool for rftool in self.rftools if rftool.name=='Select')
+            self.quick_select_rftool(rftool_select)
+            rftool_select._callback('quickselect start')
+            return 'quick switch'
 
         bmelem_types = { RFVert: {'vert'}, RFEdge: {'edge'}, RFFace: {'face'} }[type(bmelem)]
         selecting |= not bmelem.select              # if not explicitly selecting, start selecting only if elem under mouse is not selected

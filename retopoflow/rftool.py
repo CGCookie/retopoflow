@@ -75,6 +75,8 @@ class RFTool:
     @staticmethod
     def on_init(fn): return rftool_callback_decorator('init', fn)
     @staticmethod
+    def on_quickselect_start(fn): return rftool_callback_decorator('quickselect start', fn)
+    @staticmethod
     def on_ui_setup(fn): return rftool_callback_decorator('ui setup', fn)
     @staticmethod
     def on_reset(fn): return rftool_callback_decorator('reset', fn)
@@ -95,6 +97,7 @@ class RFTool:
             mode: [fn for (modes, fn) in rftool_fns if mode in modes]
             for mode in [
                 'init',          # called when RF starts up
+                'quickselect start', # called when quick select is used and tool should be started
                 'ui setup',      # called when RF is setting up UI
                 'reset',         # called when RF switches into tool or undo/redo
                 'timer',         # called every timer interval

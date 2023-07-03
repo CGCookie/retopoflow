@@ -247,6 +247,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             sel_only = self.actions.pressed('select paint')
             return self.rfcontext.setup_smart_selection_painting(
                 {'face'},
+                use_select_tool=True,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 # fn_filter_bmelem=self.filter_edge_selection,
@@ -259,6 +260,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             sel_only = self.actions.pressed('select single')
             return self.rfcontext.setup_smart_selection_painting(
                 {'face'},
+                use_select_tool=False,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 # fn_filter_bmelem=self.filter_edge_selection,

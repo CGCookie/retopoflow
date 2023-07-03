@@ -286,6 +286,7 @@ class PolyPen(RFTool):
             self.actions.unpress()
             return self.rfcontext.setup_smart_selection_painting(
                 {'vert','edge','face'},
+                use_select_tool=True,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 kwargs_select={'supparts': False},

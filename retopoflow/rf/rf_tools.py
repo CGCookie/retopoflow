@@ -29,6 +29,7 @@ from ..rftool_knife.knife           import Knife
 from ..rftool_loops.loops           import Loops
 from ..rftool_tweak.tweak           import Tweak
 from ..rftool_relax.relax           import Relax
+from ..rftool_select.select         import Select
 
 from ..rftool import RFTool
 

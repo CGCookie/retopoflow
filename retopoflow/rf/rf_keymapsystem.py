@@ -368,6 +368,8 @@ keymap_details = [
         ('tweak quick', 'Quick switch to Tweak'),
         ('relax tool', 'Switch to Relax'),
         ('relax quick', 'Quick switch to Relax'),
+        ('select tool', 'Switch to Select'),
+        ('select quick', 'Quick switch to Select'),
     ]),
     ('Brush Actions', [
         ('brush', 'Brush'),
@@ -396,6 +398,7 @@ ignored_keys = {
     'stretch tool',
     'toggle full area',
     'reload css',
+    'select box',
 }
 
 # check that all keymaps are able to be edited

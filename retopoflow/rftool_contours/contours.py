@@ -212,6 +212,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             sel_only = self.actions.pressed('select paint')
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
+                use_select_tool=True,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
@@ -231,6 +232,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             sel_only = self.actions.pressed('select single')
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
+                use_select_tool=False,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,

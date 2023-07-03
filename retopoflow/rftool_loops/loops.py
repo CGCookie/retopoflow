@@ -132,12 +132,12 @@ class Loops(RFTool):
             self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
             if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
 
-        if self.hovering_edge and self.rfcontext.actions.pressed('quick insert'):
+        if self.hovering_edge and self.actions.pressed('quick insert'):
             return self.insert_edge_loop_strip()
 
     @FSM.on_state('main')
     def main(self):
-        if self.actions.mousemove: return  # ignore mouse moves
+        # if self.actions.mousemove: return  # ignore mouse moves
 
         if not self.actions.using('action', ignoredrag=True):
             # only update while not pressing action, because action includes drag, and
@@ -174,7 +174,7 @@ class Loops(RFTool):
                 self.move_cancelled = 'cancel'
                 return 'slide'
 
-        if self.rfcontext.actions.pressed('slide'):
+        if self.actions.pressed('slide'):
             ''' slide edge loop or strip between neighboring edges '''
             self.rfcontext.undo_push('slide edge loop/strip')
             self.prep_edit()
@@ -186,7 +186,7 @@ class Loops(RFTool):
             self.move_cancelled = 'cancel'
             return 'slide'
 
-        if self.rfcontext.actions.pressed('insert'):
+        if self.actions.pressed('insert'):
             # insert edge loop / strip, select it, prep slide!
             return self.insert_edge_loop_strip()
 
@@ -197,17 +197,22 @@ class Loops(RFTool):
                 kwargs_select={'supparts': False},
             )
 
-        if self.rfcontext.actions.pressed({'select paint'}):
+        if self.actions.pressed({'select paint', 'select paint add'}, unpress=False):
+            sel_only = self.actions.pressed('select paint')
+            self.actions.unpress()
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
+                use_select_tool=True,
+                selecting=not sel_only,
+                deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )
 
-        if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-            sel_only = self.rfcontext.actions.pressed('select smart')
-            self.rfcontext.actions.unpress()
+        if self.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            sel_only = self.actions.pressed('select smart')
+            self.actions.unpress()
             if not sel_only and not self.hovering_edge: return
             self.rfcontext.undo_push('select smart')
             if sel_only: self.rfcontext.deselect_all()
@@ -250,7 +255,7 @@ class Loops(RFTool):
         def compute_percent():
             v0,v1 = self.nearest_edge.verts
             c0,c1 = self.rfcontext.Point_to_Point2D(v0.co),self.rfcontext.Point_to_Point2D(v1.co)
-            a,b = c1 - c0, self.rfcontext.actions.mouse - c0
+            a,b = c1 - c0, self.actions.mouse - c0
             adota = a.dot(a)
             if adota <= 0.0000001: return 0
             return a.dot(b) / adota;
@@ -283,19 +288,19 @@ class Loops(RFTool):
 
     @FSM.on_state('selectadd/deselect')
     def selectadd_deselect(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
+        if not self.actions.using(['select single','select single add']):
             self.rfcontext.undo_push('deselect')
             edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
             if edge and edge.select: self.rfcontext.deselect(edge)
             return 'main'
-        delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
+        delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta.length > self.drawing.scale(5):
             self.rfcontext.undo_push('select add')
             return 'select'
 
     @FSM.on_state('select')
     def select(self):
-        if not self.rfcontext.actions.using(['select single','select single add']):
+        if not self.actions.using(['select single','select single add']):
             return 'main'
         bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
         if not bme or bme.select: return
@@ -346,7 +351,7 @@ class Loops(RFTool):
             self.edges = None
             return
         c0,c1 = self.rfcontext.Point_to_Point2D(c0),self.rfcontext.Point_to_Point2D(c1)
-        a,b = c1 - c0, self.rfcontext.actions.mouse - c0
+        a,b = c1 - c0, self.actions.mouse - c0
         adota = a.dot(a)
         if adota <= 0.0000001:
             self.percent = 0
@@ -496,7 +501,7 @@ class Loops(RFTool):
         # if nearest_vert not in slide_data: return
 
         self.slide_data = slide_data
-        self.mouse_down = self.rfcontext.actions.mouse
+        self.mouse_down = self.actions.mouse
         self.percent_start = 0.0
         self.edit_ok = True
 
@@ -510,21 +515,21 @@ class Loops(RFTool):
     @FSM.on_state('slide')
     @profiler.function
     def slide(self):
-        released = self.rfcontext.actions.released
-        if self.move_done_pressed and self.rfcontext.actions.pressed(self.move_done_pressed):
+        released = self.actions.released
+        if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             return 'main'
-        if self.move_done_released and self.rfcontext.actions.released(self.move_done_released, ignoremods=True):
+        if self.move_done_released and self.actions.released(self.move_done_released, ignoremods=True):
             return 'main'
-        if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
+        if self.move_cancelled and self.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
         if not self.actions.mousemove_stop: return
         # # only update loop on timer events and when mouse has moved
-        # if not self.rfcontext.actions.timer: return
+        # if not self.actions.timer: return
         # if self.actions.mouse_prev == self.actions.mouse: return
 
-        mouse_delta = self.rfcontext.actions.mouse - self.mouse_down
+        mouse_delta = self.actions.mouse - self.mouse_down
         a,b = self.slide_vector, mouse_delta.project(self.slide_direction)
         percent = clamp(self.percent_start + a.dot(b) / a.dot(a), -1, 1)
         for bmv in self.slide_data.keys():
@@ -563,7 +568,7 @@ class Loops(RFTool):
 
         if self.rfcontext._nav or not self.nearest_edge: return
         if self._fsm.state != 'quick':
-            if not (self.rfcontext.actions.ctrl and not self.rfcontext.actions.shift): return
+            if not (self.actions.ctrl and not self.actions.shift): return
 
         # draw new edge strip/loop
         Point_to_Point2D = self.rfcontext.Point_to_Point2D

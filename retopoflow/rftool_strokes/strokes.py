@@ -263,6 +263,7 @@ class Strokes(RFTool):
             self.actions.unpress()
             return self.rfcontext.setup_smart_selection_painting(
                 {'edge'},
+                use_select_tool=True,
                 selecting=not sel_only,
                 deselect_all=sel_only,
                 fn_filter_bmelem=self.filter_edge_selection,

@@ -165,6 +165,10 @@ default_rf_keymaps = {
     'relax quick': ['Z'],
     'stretch tool': ['NINE'],          # not ported from rf279, yet
     'grease pencil tool': ['ZERO'],    # not ported from rf279, yet
+
+    'select tool': ['W'],
+    'select quick': ['B'],
+    'select box': ['LEFTMOUSE+DRAG', 'SHIFT+LEFTMOUSE+DRAG', 'CTRL+LEFTMOUSE+DRAG'],
 }
 
 left_rf_keymaps = {
