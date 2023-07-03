@@ -72,6 +72,21 @@ class Select(RFTool):
     def main(self):
         self.set_widget('selectbox')
 
+        if self.actions.pressed({'select single', 'select single add'}, unpress=False):
+            sel_only = self.actions.pressed('select single')
+            self.actions.unpress()
+            bmv,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['select dist'])
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+            bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
+            sel = bmv or bme or bmf
+            if not sel_only and not sel: return
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            if not sel: return
+            if sel.select: self.rfcontext.deselect(sel, subparts=False)
+            else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
+            return
+
         # if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
         #     self.sel_only = self.rfcontext.actions.using('brush alt')
         #     self.rfcontext.actions.unpress()
