@@ -142,7 +142,6 @@ class RetopoFlow_UI:
                 path_rf_matcap = os.path.join(get_path_from_addon_root('matcaps'), matcap)
                 print(f'RetopoFlow: Loading maptcap {matcap} {path_rf_matcap}')
                 ret = bpy.context.preferences.studio_lights.load(path_rf_matcap, 'MATCAP')
-                print(f'  {ret}')
                 if not ret: matcap = None
             if matcap:
                 self.shading_light_set(options['shading light'])
