@@ -6,35 +6,35 @@ This document contains details about what has changed in RetopoFlow since versio
 
 This version of RetopoFlow requires Blender 3.6 or later.
 
-- Removed dependence on deprecated `bgl` module
-- Added support for Metal
-- Added `view_roll` keymap
-- Improved performance when navigating
-- Improved error handling during startup process
-- Improved general feedback during startup process
-- Added keymap to select all linked
-- Fixed crashing bug when cutting across non-manifold edge using Contours
-- Fixed bug when using knife where no source geometry exists
-- Added `plus` key to default for increasing vertex count (Contours, PolyStrips, etc.)
-- Fixed and improved recovery of auto saves
-- Improved reporting and operations with auto saves
-- Fixed NDOF and trackpad inputs
-- Fixed bug when cancelling Contours cut
-- Improved indication of warnings in Blender menu
-- Consistent fixed span/segment count for all insertions with Strokes
-- Added button to continue editing with active mesh as target
-- Added simple rip and rip fill to PolyPen
-- Fixed visual bug when matcaps are not installed
-- Improved handling of when Blender version is outside requirements
-- Improved Hive integration
-- Light and Dark themes now use built-in matcaps
-- Ray casts ignores source geometry that is clipped (near clip only) or culled (backface)
-- Preliminary work to mirror actions to "correct" side of symmetry plane(s)
-- Deep debugging for capturing terminal output to a file
-- Autosave delays until action is finished
-- Brush size (PolyStrips, Strokes, Relax, Smooth) is more consistent across screen
-- Fixed many smaller bugs
-- Restructured and cleaned code base
+- Blender
+    - Removed dependence on deprecated `bgl` module
+    - Added support for Metal
+    - Improved general feedback and error handling during startup process
+    - Improved indication of warnings in Blender menu
+    - Added button to continue editing with active mesh as target
+    - Improved handling of when Blender version is outside requirements
+- Performance: improved performance when navigating
+- Contours
+    - Fixed crashing bug when cutting across non-manifold edge
+    - Fixed bug when cancelling cut
+- Strokes: consistent fixed span/segment count for all insertions
+- PolyPen: added simple rip and rip fill
+- Knife: fixed bug when using where no source geometry exists
+- Auto Save
+    - Fixed and improved reporting, recovery, and other operations
+    - Auto save is delayed until current action is finished
+- Input
+    - Added keymaps to select all linked, roll view, increase vertex count (Contours, PolyStrips, etc.) with `plus` key
+    - Fixed NDOF and trackpad
+- Mirror: preliminary work to mirror actions to "correct" side of symmetry plane(s)
+- Debug: deep debugging for capturing terminal output to a file
+- Hive: improved integration
+- General
+    - Fixed visual bug when matcaps are not installed. Light and Dark themes now use built-in matcaps
+    - Ray casts ignores source geometry that is clipped (near clip only) or culled (backface)
+    - Brush size (PolyStrips, Strokes, Relax, Smooth) is more consistent across screen
+    - Fixed many smaller bugs
+    - Restructured and cleaned code base
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 

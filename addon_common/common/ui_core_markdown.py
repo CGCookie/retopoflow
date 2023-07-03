@@ -267,6 +267,10 @@ class UI_Core_Markdown:
                                     continue
                                 ui_li = ui_ul.append_new_child(tagName='li')
                                 if '\n' in litext:
+                                    # add extra newline for nested ul
+                                    if '\n    - ' in litext:
+                                        idx = litext.index('\n    - ')
+                                        litext = litext[:idx] + '\n' + litext[idx:]
                                     # remove leading spaces
                                     litext = '\n'.join(l.lstrip() for l in litext.split('\n'))
                                     process_mdown(ui_li, litext)
