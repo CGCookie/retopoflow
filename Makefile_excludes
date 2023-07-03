@@ -33,6 +33,7 @@ RetopoFlow_options.*
 RetopoFlow_keymaps.*
 RetopoFlow_profiler.*
 RetopoFlow_screenshot.*
+RetopoFlow_debug.*
 
 retopoflow.sublime*
 
