@@ -131,18 +131,20 @@ class RFWidget_BrushFalloff_Factory:
                 rm = (ro + ri) / 2.0
                 co, ci, cc = self.outer_color, self.inner_color, self.fill_color * self.fill_color_scale
 
+                fwd = Direction(self.rfcontext.Vec_forward()) * (self.hit_depth * 0.0005)
+
                 # draw below
                 gpustate.depth_mask(False)
                 gpustate.depth_test('GREATER')
-                Globals.drawing.draw3D_circle(p, rm, cc * self.color_mult_below, n=n, width=ro - ri,          depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, ri, ci * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p-fwd*1.0, rm, cc * self.color_mult_below, n=n, width=ro - ri)
+                Globals.drawing.draw3D_circle(p-fwd*2.0, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale)
+                Globals.drawing.draw3D_circle(p-fwd*2.0, ri, ci * self.color_mult_below, n=n, width=2*self.hit_scale)
 
                 # draw above
                 gpustate.depth_test('LESS_EQUAL')
-                Globals.drawing.draw3D_circle(p, rm, cc, n=n, width=ro - ri,          depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, ro, co, n=n, width=2*self.hit_scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, ri, ci, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p-fwd*1.0, rm, cc, n=n, width=ro - ri)
+                Globals.drawing.draw3D_circle(p-fwd*2.0, ro, co, n=n, width=2*self.hit_scale)
+                Globals.drawing.draw3D_circle(p-fwd*2.0, ri, ci, n=n, width=2*self.hit_scale)
 
                 # reset
                 gpustate.depth_test('LESS_EQUAL')
@@ -296,6 +298,7 @@ class RFWidget_BrushFalloff_Factory:
                 self.hit_scale = scale
                 self.hit_p = p
                 self.hit_n = n
+                self.hit_depth = depth
                 self.hit_x = Vec(rmat @ Direction.X)
                 self.hit_y = Vec(rmat @ Direction.Y)
                 self.hit_z = Vec(rmat @ Direction.Z)

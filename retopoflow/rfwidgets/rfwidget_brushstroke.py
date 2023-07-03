@@ -168,17 +168,19 @@ class RFWidget_BrushStroke_Factory:
 
                 gpustate.depth_mask(False)
 
+                fwd = Direction(self.rfcontext.Vec_forward()) * (self.hit_depth * 0.0005)
+
                 # draw below
                 gpustate.depth_test('GREATER_EQUAL')
-                Globals.drawing.draw3D_circle(p, ro, cb * self.color_mult_below, n=n, width=8*self.hit_scale, depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, rh, ci * self.color_mult_below, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p - fwd * 1.0, ro, cb * self.color_mult_below, n=n, width=8*self.hit_scale)
+                Globals.drawing.draw3D_circle(p - fwd * 2.0, ro, co * self.color_mult_below, n=n, width=2*self.hit_scale)
+                Globals.drawing.draw3D_circle(p - fwd * 2.0, rh, ci * self.color_mult_below, n=n, width=2*self.hit_scale)
 
                 # draw above
                 gpustate.depth_test('LESS_EQUAL')
-                Globals.drawing.draw3D_circle(p, ro, cb, n=n, width=8*self.hit_scale, depth_far=0.99996)
-                Globals.drawing.draw3D_circle(p, ro, co, n=n, width=2*self.hit_scale, depth_far=0.99995)
-                Globals.drawing.draw3D_circle(p, rh, ci, n=n, width=2*self.hit_scale, depth_far=0.99995)
+                Globals.drawing.draw3D_circle(p - fwd * 1.0, ro, cb, n=n, width=8*self.hit_scale)
+                Globals.drawing.draw3D_circle(p - fwd * 2.0, ro, co, n=n, width=2*self.hit_scale)
+                Globals.drawing.draw3D_circle(p - fwd * 2.0, rh, ci, n=n, width=2*self.hit_scale)
 
                 # reset
                 gpustate.depth_test('LESS_EQUAL')
@@ -228,5 +230,6 @@ class RFWidget_BrushStroke_Factory:
                 self.hit_scale = scale
                 self.hit_p = p
                 self.hit_n = n
+                self.hit_depth = depth
 
         return RFWidget_BrushStroke
