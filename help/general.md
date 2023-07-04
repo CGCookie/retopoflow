@@ -29,15 +29,16 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 |  |  |  |  |
 | --- | --- | --- | --- |
-| {{contours tool}}   | : | Contours | [help](contours.md) |
+| {{contours tool}}   | : | Contours   | [help](contours.md)   |
 | {{polystrips tool}} | : | PolyStrips | [help](polystrips.md) |
-| {{strokes tool}}    | : | Strokes | [help](strokes.md) |
-| {{patches tool}}    | : | Patches | [help](patches.md) |
-| {{polypen tool}}    | : | PolyPen | [help](polypen.md) |
-| {{knife tool}}      | : | Knife | [help](knife.md) |
-| {{loops tool}}      | : | Loops | [help](loops.md) |
-| {{tweak tool}}      | : | Tweak | [help](tweak.md) |
-| {{relax tool}}      | : | Relax | [help](relax.md) |
+| {{strokes tool}}    | : | Strokes    | [help](strokes.md)    |
+| {{patches tool}}    | : | Patches    | [help](patches.md)    |
+| {{polypen tool}}    | : | PolyPen    | [help](polypen.md)    |
+| {{knife tool}}      | : | Knife      | [help](knife.md)      |
+| {{loops tool}}      | : | Loops      | [help](loops.md)      |
+| {{tweak tool}}      | : | Tweak      | [help](tweak.md)      |
+| {{relax tool}}      | : | Relax      | [help](relax.md)      |
+| {{select tool}}     | : | Select     | [help](select.md)     |
 
 Note: selection and the undo stack is maintained between tools.
 
@@ -53,10 +54,11 @@ RetopoFlow will switch back to the previously selected tool once you are done.
 
 |  |  |  |
 | --- | --- | --- |
-| {{loops quick}} | : | Loops |
-| {{knife quick}} | : | Knife |
-| {{tweak quick}} | : | Tweak |
-| {{relax quick}} | : | Relax |
+| {{loops quick}}  | : | Loops |
+| {{knife quick}}  | : | Knife |
+| {{tweak quick}}  | : | Tweak |
+| {{relax quick}}  | : | Relax |
+| {{select quick}} | : | Select |
 
 
 ## Universal Shortcuts
@@ -68,7 +70,8 @@ For example, pressing `G` in Contours will slide the selected loop.
 | --- | --- | --- |
 | {{insert}}                                     | : | create new geometry with current tool / apply relax or tweak |
 | {{select single, select single add}}           | : | select single |
-| {{select paint, select paint add}}             | : | selection painting |
+| {{select paint, select paint add}}             | : | selection painting when mouse hovers geometry |
+| {{select box}}                                 | : | box select when mouse does not hover geometry |
 | {{select smart, select smart add}}             | : | smart selection |
 | {{select path add}}                            | : | select along shortest path |
 | {{select all}}                                 | : | select / deselect all |
