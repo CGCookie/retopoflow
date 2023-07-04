@@ -49,7 +49,7 @@ class Select(RFTool):
     help        = 'select.md'
     shortcut    = 'select tool'
     quick_shortcut = 'select quick'
-    statusbar   = '{{select box}} Select\tCtrl+: Subtract selection\tShift+: Add selection'
+    statusbar   = '{{select box}} Select\t{{select box del}}: Remove selection\t{{select box add}}: Add selection'
     ui_config   = 'select_options.html'
 
     RFWidget_Default   = RFWidget_Default_Factory.create()

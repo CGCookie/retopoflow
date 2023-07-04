@@ -20,6 +20,7 @@ This version of RetopoFlow requires Blender 3.6 or later.
 - Strokes: consistent fixed span/segment count for all insertions
 - PolyPen: added simple rip and rip fill
 - Knife: fixed bug when using where no source geometry exists
+- Select: added new tool to do box selection
 - Auto Save
     - Fixed and improved reporting, recovery, and other operations
     - Auto save is delayed until current action is finished

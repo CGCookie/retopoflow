@@ -166,9 +166,8 @@ default_rf_keymaps = {
     'stretch tool': ['NINE'],          # not ported from rf279, yet
     'grease pencil tool': ['ZERO'],    # not ported from rf279, yet
 
-    'select tool': ['W'],
-    'select quick': ['B'],
-    'select box': ['LEFTMOUSE+DRAG', 'SHIFT+LEFTMOUSE+DRAG', 'CTRL+LEFTMOUSE+DRAG'],
+    'select tool':    ['W'],
+    'select quick':   ['B'],
 }
 
 left_rf_keymaps = {
@@ -179,6 +178,9 @@ left_rf_keymaps = {
     'select paint': ['LEFTMOUSE+DRAG'],
     'select paint add': ['SHIFT+LEFTMOUSE+DRAG'],
     'select path add': ['CTRL+SHIFT+LEFTMOUSE+CLICK'],
+    'select box':     ['LEFTMOUSE+DRAG'],
+    'select box del': ['CTRL+LEFTMOUSE+DRAG'],
+    'select box add': ['SHIFT+LEFTMOUSE+DRAG'],
 }
 
 right_rf_keymaps = {
@@ -189,6 +191,9 @@ right_rf_keymaps = {
     'select paint': ['RIGHTMOUSE+DRAG'],
     'select paint add': ['SHIFT+RIGHTMOUSE+DRAG'],
     'select path add': ['CTRL+SHIFT+RIGHTMOUSE+CLICK'],
+    'select box':     ['RIGHTMOUSE+DRAG'],
+    'select box del': ['CTRL+RIGHTMOUSE+DRAG'],
+    'select box add': ['SHIFT+RIGHTMOUSE+DRAG'],
 }
 
 # end keymaps

@@ -61,7 +61,7 @@ class RFWidget_SelectBox_Factory:
 
             @FSM.on_state('main')
             def modal_main(self):
-                if self.actions.pressed({'select box'}):
+                if self.actions.pressed({'select box'}, ignoremods=True):
                     return 'box'
 
             def quickselect_start(self):

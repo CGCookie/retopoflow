@@ -336,7 +336,7 @@ keymap_details = [
         ('select invert', 'Select invert'),
         ('select linked', 'Select linked'),
         ('select linked mouse', 'Select linked under mouse'),
-        ('deselect linked mouse', 'Deelect linked under mouse'),
+        ('deselect linked mouse', 'Deselect linked under mouse'),
         ('deselect all', 'Deselect all'),
         ('select single', 'Select single item (default depends on Blender selection setting)'),
         ('select single add', 'Add single item to selection (default depends on Blender selection setting)'),
@@ -398,7 +398,7 @@ ignored_keys = {
     'stretch tool',
     'toggle full area',
     'reload css',
-    'select box',
+    'select box', 'select box del', 'select box add',
 }
 
 # check that all keymaps are able to be edited

@@ -26,6 +26,7 @@ The following documents provide help for specific RetopoFlow tools.
 - ![Loops icon](loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
 - ![Tweak icon](tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
 - ![Relax icon](relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
+- ![Select icon](select-icon.png width:24px;height:24px;padding:0px) [Select](select.md)
 
 ## Additional Information
 
