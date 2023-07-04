@@ -422,7 +422,7 @@ def shader_struct_to_UBO(shadername, struct, varname):
             case 'vec4'|'ivec4':
                 CType = shader_type_to_ctype(shader_type)
                 # assert len(value) == 4
-                if len(value) == 3: value = value.to_4d()
+                if len(value) == 3: value = (*value, 1.0)
                 setattr(ubo_data, name, CType(*value))
     class UBO_Wrapper:
         def __init__(self):
