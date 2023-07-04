@@ -45,11 +45,11 @@ from ...config.options import options, themes
 class Select(RFTool):
     name        = 'Select'
     description = 'Select geometry'
-    icon        = 'relax-icon.png'
+    icon        = 'select-icon.png'
     help        = 'select.md'
     shortcut    = 'select tool'
     quick_shortcut = 'select quick'
-    statusbar   = '{{select box}} Select'
+    statusbar   = '{{select box}} Select\tCtrl+: Subtract selection\tShift+: Add selection'
     ui_config   = 'select_options.html'
 
     RFWidget_Default   = RFWidget_Default_Factory.create()
@@ -87,11 +87,15 @@ class Select(RFTool):
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
             return
 
-        # if self.rfcontext.actions.pressed(['brush', 'brush alt'], unpress=False):
-        #     self.sel_only = self.rfcontext.actions.using('brush alt')
-        #     self.rfcontext.actions.unpress()
-        #     self.rfcontext.undo_push('relax')
-        #     return 'relax'
+    def select_linked(self):
+        self.rfcontext.undo_push('select linked')
+        self.rfcontext.select_linked()
+    def deselect_all(self):
+        self.rfcontext.undo_push('deselect all')
+        self.rfcontext.deselect_all()
+    def select_invert(self):
+        self.rfcontext.undo_push('invert selection')
+        self.rfcontext.select_invert()
 
     @RFWidget.on_action('Select: Box')
     @RFTool.dirty_when_done
@@ -107,8 +111,10 @@ class Select(RFTool):
         def inside(v):
             p = get_point2D(v.co)
             return left <= p.x <= right and bottom <= p.y <= top
-        verts_inside = { v for v in self.rfcontext.visible_verts() if inside(v) }
+        verts_init = self.rfcontext.visible_verts()
+        verts_inside = { v for v in verts_init if inside(v) }
 
+        self.rfcontext.undo_push('select box')
         if box.mods['ctrl']:
             # deselect verts inside
             verts_selected = self.rfcontext.get_selected_verts()

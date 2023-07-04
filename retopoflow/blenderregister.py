@@ -595,7 +595,7 @@ if import_succeeded:
         bl_label = 'RetopoFlow'
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
-        # bl_ui_units_x = 100
+        # bl_ui_units_x = 12
 
         @staticmethod
         def draw_popover(self, context):
@@ -802,8 +802,9 @@ if import_succeeded:
                 col.operator('cgcookie.retopoflow')
 
                 buttons = col.grid_flow(
-                    columns=len(RF_tool_classes),
-                    even_columns=True,
+                    row_major=True,
+                    columns=int(len(RF_tool_classes) / 2),
+                    even_columns=True, even_rows=True,
                     align=True,
                 )
                 for c in RF_tool_classes:
