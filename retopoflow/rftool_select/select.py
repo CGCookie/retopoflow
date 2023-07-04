@@ -37,6 +37,7 @@ from ...addon_common.common.maths import (
 )
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.maths import segment2D_intersection, Point2D, triangle2D_overlap
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...config.options import options, themes
@@ -107,17 +108,63 @@ class Select(RFTool):
         (x0, y0), (x1, y1) = p0, p1
         left, right = min(x0, x1), max(x0, x1)
         bottom, top = min(y0, y1), max(y0, y1)
+        c0, c1, c2, c3 = Point2D((left, top)), Point2D((left, bottom)), Point2D((right, bottom)), Point2D((right, top))
+        tri0, tri1 = (c0, c1, c2), (c0, c2, c3)
         get_point2D = self.rfcontext.get_point2D
-        def inside(v):
-            p = get_point2D(v.co)
+
+        def vert_inside(vert):
+            p = get_point2D(vert.co)
             return left <= p.x <= right and bottom <= p.y <= top
-        verts_init = self.rfcontext.visible_verts()
-        verts_inside = { v for v in verts_init if inside(v) }
+
+        def edge_inside(edge):
+            v0, v1 = edge.verts
+            if vert_inside(v0) or vert_inside(v1): return True
+            p0, p1 = get_point2D(v0.co), get_point2D(v1.co)
+            return any((
+                segment2D_intersection(c0, c1, p0, p1),
+                segment2D_intersection(c1, c2, p0, p1),
+                segment2D_intersection(c1, c3, p0, p1),
+                segment2D_intersection(c3, c0, p0, p1),
+            ))
+
+        def face_inside(face):
+            points = [get_point2D(v.co) for v in face.verts]
+            p0 = points[0]
+            return any((
+                triangle2D_overlap((p0, p1, p2), tri0) or triangle2D_overlap((p0, p1, p2), tri1)
+                for p1, p2 in zip(points[1:-1], points[2:])
+            ))
+
+        match options['select geometry']:
+            case 'Verts':
+                verts = {
+                    vert
+                    for vert in self.rfcontext.visible_verts()
+                    if vert_inside(vert)
+                }
+            case 'Edges':
+                verts = {
+                    vert
+                    for edge in self.rfcontext.visible_edges()
+                    if edge_inside(edge)
+                    for vert in edge.verts
+                }
+            case 'Faces':
+                verts = {
+                    vert
+                    for face in self.rfcontext.visible_faces()
+                    if face_inside(face)
+                    for vert in face.verts
+                }
 
         self.rfcontext.undo_push('select box')
         if box.mods['ctrl']:
-            # deselect verts inside
+            # del verts from selection
             verts_selected = self.rfcontext.get_selected_verts()
-            self.rfcontext.select(verts_selected - verts_inside, only=True)
+            self.rfcontext.select(verts_selected - verts, only=True)
+        elif box.mods['shift']:
+            # add vert to selection
+            self.rfcontext.select(verts, only=False)
         else:
-            self.rfcontext.select(verts_inside, only=not box.mods['shift'])
+            # replace selection
+            self.rfcontext.select(verts, only=True)

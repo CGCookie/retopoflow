@@ -449,6 +449,8 @@ class Options:
         'tweak preset 4 strength':      0.5,
 
         'patches angle':                120,
+
+        'select geometry':              'Verts',
     }
 
     db = None           # current options dict

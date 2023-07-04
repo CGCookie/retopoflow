@@ -12,5 +12,22 @@
             <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
             Block Backface
         </label>
+        <div class="collection">
+            <h1>Selection Geometry</h1>
+            <div class="contents">
+                <label class='third-size'>
+                    <input type="radio" id='select-geo-verts' name='select-geo' value='Verts' checked="BoundString('''options['select geometry']''')" title='If checked, selection will focus on vertices.'>
+                    Verts
+                </label>
+                <label class='third-size'>
+                    <input type="radio" id="select-geo-edges" name="select-geo" value="Edges" checked="BoundString('''options['select geometry']''')" title='If checked, selection will focus on edges.'>
+                    Edges
+                </label>
+                <label class='third-size'>
+                    <input type="radio" id="select-geo-faces" name="select-geo" value="Faces" checked="BoundString('''options['select geometry']''')" title='If checked, selection will focus on faces.'>
+                    Faces
+                </label>
+            </div>
+        </div>
     </div>
 </details>

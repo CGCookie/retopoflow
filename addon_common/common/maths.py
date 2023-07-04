@@ -2026,33 +2026,16 @@ def triangle2D_area(p0, p1, p2):
 
 
 def segment2D_intersection(a0, a1, b0, b1):
-    # get distance from b0 to a0---a1
-    dir_a0a1 = a1 - a0
-    dist_a0a1 = max(zero_threshold, dir_a0a1.length)
-    dir_a0a1 /= dist_a0a1
-    vec_a0b0 = b0 - a0
-    closest_b0_a0a1 = a0 + dir_a0a1 * dir_a0a1.dot(vec_a0b0)
-    pdir_a0a1_b0 = b0 - closest_b0_a0a1
-    dist_a0a1_b0 = pdir_a0a1_b0.length
-    if dist_a0a1_b0 == 0:
-        # b0 is on a0-a1 line
-        return b0
-    pdir_a0a1_b0 /= dist_a0a1_b0
-    dir_b0b1 = b1 - b0
-    dist_b0b1 = max(zero_threshold, dir_b0b1.length)
-    dir_b0b1 /= dist_b0b1
-    dot = dir_b0b1.dot(pdir_a0a1_b0)
-    if abs(dot) <= zero_threshold:
-        # a0-a1 and b0-b1 are nearly parallel
-        return None
-    dist_intersection_b0b1 = dist_a0a1_b0 / dot
-    if dist_intersection_b0b1 < 0 or dist_intersection_b0b1 > dist_b0b1:
-        return None
-    intersection = b0 + dir_b0b1 * dist_intersection_b0b1
-    # dist_intersection_a0a1 = dir_a0a1.dot(intersection - a0)
-    # if dist_intersection_a0a1 < 0 or dist_intersection_a0a1 > dist_a0a1:
-    #     return None
-    return intersection
+    p = intersection2d_line_line(a0, a1, b0, b1)
+    if not p: return None
+    (ax0, ay0), (ax1, ay1) = a0, a1
+    (bx0, by0), (bx1, by1) = b0, b1
+    px, py = p
+    if px < min(ax0, ax1) or px < min(bx0, bx1): return None
+    if px > max(ax0, ax1) or px > max(bx0, bx1): return None
+    if py < min(ay0, ay1) or py < min(by0, by1): return None
+    if py > max(ay0, ay1) or py > max(by0, by1): return None
+    return p
 
 
 def clamp(v, min_v, max_v):
