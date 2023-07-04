@@ -48,7 +48,6 @@ from .decorators import blender_version_wrapper, debug_test_call, add_cache
 from .maths import Point2D, Vec2D, clamp, mid, Color, NumberUnit
 from .profiler import profiler
 from .utils import iter_head, UniqueCounter, join
-from .fontmanager import FontManager
 
 
 '''

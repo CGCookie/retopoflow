@@ -42,7 +42,6 @@ from .boundvar import BoundVar, BoundInt, BoundFloat
 from .blender import tag_redraw_all
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .fontmanager import FontManager
 from .globals import Globals
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
 from .profiler import profiler, time_it

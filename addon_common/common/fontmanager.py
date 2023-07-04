@@ -23,6 +23,7 @@ import bpy
 import blf
 import gpu
 
+from . import gpustate
 from .blender import get_path_from_addon_root, get_path_shortened_from_addon_root
 from .blender_preferences import get_preferences
 from .debug import dprint
@@ -119,18 +120,6 @@ class FontManager:
         return blf.disable(FontManager.load(fontid), blf.SHADOW)
 
     @staticmethod
-    @blender_version_wrapper("<", "3.00")
-    def disable_kerning_default(fontid=None):
-        # note: not a listed option in docs for `blf.disable`, but see `blf.word_wrap`
-        return blf.disable(FontManager.load(fontid), blf.KERNING_DEFAULT)
-
-    @staticmethod
-    @blender_version_wrapper(">=", "3.00")
-    def disable_kerning_default(fontid=None):
-        # blf.KERNING_DEFAULT was removed in 3.0
-        return
-
-    @staticmethod
     def disable_word_wrap(fontid=None):
         return blf.disable(FontManager.load(fontid), blf.WORD_WRAP)
 
@@ -145,9 +134,9 @@ class FontManager:
     def draw_simple(text, xyz):
         fontid = FontManager._last_fontid
         blf.position(fontid, *xyz)
-        blend_eqn = gpu.state.blend_get()   # storing blend settings, because blf.draw used to overwrite them (not sure if still applies)
+        blend_eqn = gpustate.get_blend()   # storing blend settings, because blf.draw used to overwrite them (not sure if still applies)
         ret = blf.draw(fontid, text)
-        gpu.state.blend_set(blend_eqn)      # restore blend settings
+        gpustate.blend(blend_eqn)      # restore blend settings
         return ret
 
     @staticmethod
@@ -165,17 +154,6 @@ class FontManager:
     @staticmethod
     def enable_shadow(fontid=None):
         return blf.enable(FontManager.load(fontid), blf.SHADOW)
-
-    @staticmethod
-    @blender_version_wrapper("<", "3.00")
-    def enable_kerning_default(fontid=None):
-        return blf.enable(FontManager.load(fontid), blf.KERNING_DEFAULT)
-
-    @staticmethod
-    @blender_version_wrapper(">=", "3.00")
-    def enable_kerning_default(fontid=None):
-        # blf.KERNING_DEFAULT was removed in 3.0
-        return
 
     @staticmethod
     def enable_word_wrap(fontid=None):

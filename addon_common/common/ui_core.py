@@ -67,7 +67,6 @@ from .boundvar import BoundVar
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
 from .drawing import Drawing
-from .fontmanager import FontManager
 from .fsm import FSM
 from .globals import Globals
 from .hasher import Hasher

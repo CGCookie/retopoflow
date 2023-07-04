@@ -593,7 +593,7 @@ class Loops(RFTool):
         CC_DRAW.line_width(2)
 
         gpustate.blend('ALPHA')
-        gpu.state.depth_mask_set(True)
+        gpustate.depth_mask(True)
         gpustate.depth_test('LESS_EQUAL')
         draw(themes['new'])
 

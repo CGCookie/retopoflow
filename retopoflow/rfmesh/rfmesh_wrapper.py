@@ -162,6 +162,7 @@ class RFVert(BMElemWrapper):
 
     @co.setter
     def co(self, co):
+        if not self.bmelem.is_valid: return
         if any(math.isnan(v) for v in co): return
         # assert not any(math.isnan(v) for v in co), f'Setting RFVert.co to {co}'
         if options['pin enabled'] and self.pinned: return

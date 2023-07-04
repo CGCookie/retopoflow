@@ -57,6 +57,10 @@ const bool srgbTarget = true;
 bool image_use() { return options.image_settings[0] != 0; }
 int  image_fit() { return options.image_settings[1]; }
 
+float depth() { return options.depth[0]; }
+float border_width() { return options.border_width_radius[0]; }
+float border_radius() { return options.border_width_radius[1]; }
+
 
 ////////////////////////////////////////
 // vertex shader
@@ -73,7 +77,7 @@ void main() {
     );
 
     // convert depth to z-order
-    float zorder = 1.0 - options.depth.x / 1000.0;
+    float zorder = 1.0 - depth() / 1000.0;
 
     screen_pos  = p;
     gl_Position = options.uMVPMatrix * vec4(p, zorder, 1);
@@ -143,8 +147,8 @@ int get_region() {
     float dist_right  = (options.lrtb[1] - options.margin_lrtb[1] + 1.0) - screen_pos.x;
     float dist_bottom = screen_pos.y - (options.lrtb[3] + options.margin_lrtb[3] - 1.0);
     float dist_top    = (options.lrtb[2] - options.margin_lrtb[2]) - screen_pos.y;
-    float radwid  = max(options.border_width_radius.y, options.border_width_radius.x);
-    float rad     = max(0.0, options.border_width_radius.y - options.border_width_radius.x);
+    float radwid  = max(border_radius(), border_width());
+    float rad     = max(0.0, border_radius() - border_width());
     float radwid2 = sqr(radwid);
     float rad2    = sqr(rad);
 
@@ -155,14 +159,14 @@ int get_region() {
 
     // within top and bottom, might be left or right side
     if(dist_bottom > radwid && dist_top > radwid) {
-        if(dist_left > options.border_width_radius.x && dist_right > options.border_width_radius.x) return REGION_BACKGROUND;
+        if(dist_left > border_width() && dist_right > border_width()) return REGION_BACKGROUND;
         if(dist_left < dist_right) return REGION_BORDER_LEFT;
         return REGION_BORDER_RIGHT;
     }
 
     // within left and right, might be bottom or top
     if(dist_left > radwid && dist_right > radwid) {
-        if(dist_bottom > options.border_width_radius.x && dist_top > options.border_width_radius.x) return REGION_BACKGROUND;
+        if(dist_bottom > border_width() && dist_top > border_width()) return REGION_BACKGROUND;
         if(dist_bottom < dist_top) return REGION_BORDER_BOTTOM;
         return REGION_BORDER_TOP;
     }
@@ -207,10 +211,10 @@ int get_region() {
 vec4 mix_image(vec4 bg) {
     vec4 c = bg;
     // drawing space
-    float dw = options.wh.x - (options.margin_lrtb[0] + options.border_width_radius.x + options.padding_lrtb[0] + options.padding_lrtb[1] + options.border_width_radius.x + options.margin_lrtb[1]);
-    float dh = options.wh.y - (options.margin_lrtb[2] + options.border_width_radius.x + options.padding_lrtb[2] + options.padding_lrtb[3] + options.border_width_radius.x + options.margin_lrtb[3]);
-    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + options.border_width_radius.x + options.padding_lrtb[0]));
-    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + options.border_width_radius.x + options.padding_lrtb[2])));
+    float dw = options.wh.x - (options.margin_lrtb[0] + border_width() + options.padding_lrtb[0] + options.padding_lrtb[1] + border_width() + options.margin_lrtb[1]);
+    float dh = options.wh.y - (options.margin_lrtb[2] + border_width() + options.padding_lrtb[2] + options.padding_lrtb[3] + border_width() + options.margin_lrtb[3]);
+    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + border_width() + options.padding_lrtb[0]));
+    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + border_width() + options.padding_lrtb[2])));
     float dsx = (dx + 0.5) / dw;
     float dsy = (dy + 0.5) / dh;
     // texture

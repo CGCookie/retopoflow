@@ -55,6 +55,8 @@ class RetopoFlow_OpenHelpSystem(CookieCutter, RetopoFlow_HelpSystem):
     def start(self):
         ui_core.ASYNC_IMAGE_LOADING = options['async image loading']
 
+        self.statusbar_text_set('Press Esc or Tab to exit')
+
         # preload_help_images.paused = True
         keymaps = get_keymaps(force_reload=True)
         self.actions = ActionHandler(self.context, keymaps)

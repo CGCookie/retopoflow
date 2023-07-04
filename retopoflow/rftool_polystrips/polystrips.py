@@ -31,6 +31,7 @@ from mathutils.geometry import intersect_point_tri_2d, intersect_point_tri_2d
 
 from ..rftool import RFTool
 from ...addon_common.common.decorators import timed_call
+from ...addon_common.common import gpustate
 
 
 ################################################################################################
@@ -601,7 +602,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             border_outer = options['polystrips handle border']
             border_inner = options['polystrips handle border']
 
-            gpu.state.blend_set('ALPHA')
+            gpustate.blend('ALPHA')
 
             # draw outer-inner lines
             pts = [Point_to_Point2D(p) for strip in strips for p in strip.curve.points()]
@@ -626,12 +627,12 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             self.rfcontext.drawing.draw2D_points(pts_outer, (1.00,1.00,1.00,1.0), radius=size_outer, border=border_outer, borderColor=(0.00,0.00,0.00,0.5))
             self.rfcontext.drawing.draw2D_points(pts_inner, (0.25,0.25,0.25,0.8), radius=size_inner, border=border_inner, borderColor=(0.75,0.75,0.75,0.4))
 
-        gpu.state.blend_set('ALPHA')
-        gpu.state.depth_test_set('NONE')
-        gpu.state.depth_mask_set(False)
+        gpustate.blend('ALPHA')
+        gpustate.depth_test('NONE')
+        gpustate.depth_mask(False)
         draw(1.0, 1.0, False)
-        gpu.state.depth_mask_set(True)
-        gpu.state.depth_test_set('LESS_EQUAL')
+        gpustate.depth_mask(True)
+        gpustate.depth_test('LESS_EQUAL')
 
     @DrawCallbacks.on_draw('post2d')
     def draw_post2d(self):

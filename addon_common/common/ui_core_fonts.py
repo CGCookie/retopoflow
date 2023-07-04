@@ -80,7 +80,6 @@ def get_font_path(fn, ext=None):
 
 def setup_font(fontid):
     FontManager.aspect(1, fontid)
-    FontManager.enable_kerning_default(fontid)
 
 def get_font(fontfamily, fontstyle=None, fontweight=None):
     if not fontstyle:  fontstyle = 'normal'

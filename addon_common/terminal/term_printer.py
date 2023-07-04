@@ -64,7 +64,8 @@ def cprint(
         **kwargs,
     )
 
-def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', color=None, highlight=None, attributes=None):
+def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', color=None, highlight=None, attributes=None, wrap=120, indent=4):
+    lines = [line for lines_ in lines for line in lines_.splitlines()]
     # https://www.w3.org/TR/xml-entity-names/025.html
     tl,tm,tr,lm,rm,bl,bm,br,lt,rt = {
         'single': '┌─┐││└─┘┤├',
@@ -77,6 +78,18 @@ def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', col
         title_width = 0
     pad_width = len(pad) * 2
     width = max(max(len(line) for line in lines), title_width)
+    if wrap and width > wrap:
+        width = wrap
+        wrapped_lines = []
+        for line in lines:
+            first = True
+            while True:
+                if not first: line = ' '*indent + line
+                first = False
+                wrapped_lines.append(line[:wrap])
+                line = line[wrap:]
+                if not line: break
+        lines = wrapped_lines
     if prefix: print(prefix, end='')
     if title:
         cprint(f'{margin}{tl}{title}{tm*(width+pad_width-len(title))}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)

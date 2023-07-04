@@ -121,8 +121,8 @@ class Drawing:
     def unscale(self, s): return s / self._dpi_mult if s is not None else None
     def get_dpi_mult(self): return self._dpi_mult
     def get_pixel_size(self): return self._pixel_size
-    def line_width(self, width): gpu.state.line_width_set(max(1, self.scale(width)))
-    def point_size(self, size): gpu.state.point_size_set(max(1, self.scale(size)))
+    def line_width(self, width): gpustate.line_width(max(1, self.scale(width)))
+    def point_size(self, size): gpustate.point_size(max(1, self.scale(size)))
 
     def set_font_color(self, fontid, color):
         fm.color(color, fontid=fontid)
@@ -225,7 +225,7 @@ class Drawing:
         if dropshadow:
             self.text_draw2D(text, (l+1,t-1), color=dropshadow, fontsize=fontsize, fontid=fontid, lineheight=lineheight)
 
-        gpu.state.blend_set('ALPHA')
+        gpustate.blend('ALPHA')
         self.text_color_set(color, fontid)
         for line in lines:
             fm.draw(line, xyz=(l, t - lb, 0), fontid=fontid)

@@ -56,7 +56,6 @@ from .boundvar import BoundVar
 from .blender import get_view3d_area, get_view3d_region
 from .debug import debugger, dprint, tprint
 from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .fontmanager import FontManager
 from .globals import Globals
 from .hasher import Hasher
 from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit

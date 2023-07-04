@@ -43,6 +43,7 @@ from .globals import Globals
 from .decorators import only_in_blender_version, warn_once, add_cache
 from .maths import mid
 from .utils import Dict
+from ..terminal import term_printer
 
 
 # note: not all supported by user system, but we don't need full functionality
@@ -72,6 +73,7 @@ else:
 
 print(f'Addon Common: {use_bgl_default=} {use_gpu_default=} {use_gpu_scissor=}')
 
+def get_blend(): return gpu.state.blend_get()
 def blend(mode, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default, only=None):
     assert use_gpu or use_bgl
     if use_bgl:
@@ -147,6 +149,11 @@ def get_depth_mask(*, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     if use_gpu:
         return gpu.state.depth_mask_get()
 
+def line_width(width): gpu.state.line_width_set(width)
+def get_line_width(): return gpu.state.line_width_get()
+
+def point_size(size): gpu.state.point_size_set(size)
+def get_point_size(): return gpu.state.point_size_get()
 
 def scissor(left, bottom, width, height, *, use_gpu=use_gpu_default, use_bgl=use_bgl_default):
     assert use_gpu or use_bgl
@@ -379,33 +386,26 @@ def shader_type_to_ctype(shader_type):
     import ctypes
     match shader_type:
         case 'mat4':  return (ctypes.c_float * 4) * 4
-        case 'mat3':  return (ctypes.c_float * 3) * 3
         case 'vec4':  return ctypes.c_float * 4
-        case 'vec3':  return ctypes.c_float * 3
-        case 'vec2':  return ctypes.c_float * 2
-        case 'float': return ctypes.c_float
         case 'ivec4': return ctypes.c_int * 4
-        case 'ivec3': return ctypes.c_int * 3
-        case 'ivec2': return ctypes.c_int * 2
-        case 'int':   return ctypes.c_int
-        case 'bool':  return ctypes.c_bool
         case _:       assert False, f'Unhandled shader type {shader_type}'
 
 def shader_struct_to_UBO(shadername, struct, varname):
     import ctypes
-    # copied+modified from mesh_snap_utitilies_line/drawing_utilities.py
+    # copied+modified from scripts/addons/mesh_snap_utitilies_line/drawing_utilities.py
     class GPU_UBO(ctypes.Structure):
         _pack_ = 16
         _fields_ = [ shader_var_to_ctype(t, n) for (t, n) in struct['attribs'] ]
     ubo_data = GPU_UBO()
     ubo_data_size = ctypes.sizeof(ubo_data)
-    if ubo_data_size % 16 != 0:
-        print(f'AddonCommon: WARNING')
-        print(f'Shader {shadername}')
-        print(f'Struct {struct["name"]} for variable {varname}')
-        print(f'Size={ubo_data_size}, which is not a multiple of 16 (mod16={ubo_data_size%16})')
-        print(f'Need {16 - (ubo_data_size%16)} more bytes')
-    ubo = gpu.types.GPUUniformBuf(gpu.types.Buffer('UBYTE', ubo_data_size, ubo_data))
+    if True:
+        term_printer.boxed(
+            f'Struct: "{struct["name"]} {varname}" ({ubo_data_size}bytes)',
+            f'Attribs: ' + ',  '.join(f'{k} {v}' for (k,v) in struct['attribs']),
+            title=f'GPU Shader: {shadername}',
+        )
+    ubo_buffer = gpu.types.Buffer('UBYTE', ubo_data_size, ubo_data)
+    ubo = gpu.types.GPUUniformBuf(ubo_buffer)
     def setter(name, value):
         # print(f'UBO_Wrapper.set {name} = {value} ({type(value)})')
         shader_type = struct['type'][name]
@@ -413,23 +413,16 @@ def shader_struct_to_UBO(shadername, struct, varname):
             case 'mat4':
                 a = getattr(ubo_data, name)
                 CType = shader_type_to_ctype('vec4')
+                assert len(value) == 4
                 if len(value) == 3: value = value.to_4x4()
                 a[0] = CType(value[0][0], value[1][0], value[2][0], value[3][0])
                 a[1] = CType(value[0][1], value[1][1], value[2][1], value[3][1])
                 a[2] = CType(value[0][2], value[1][2], value[2][2], value[3][2])
                 a[3] = CType(value[0][3], value[1][3], value[2][3], value[3][3])
-            case 'mat3':
-                a = getattr(ubo_data, name)
-                CType = shader_type_to_ctype('vec3')
-                a[0] = CType(value[0][0], value[1][0], value[2][0])
-                a[1] = CType(value[0][1], value[1][1], value[2][1])
-                a[2] = CType(value[0][2], value[1][2], value[2][2])
-            case 'vec4'|'vec3'|'vec2'|'ivec4'|'ivec3'|'ivec2':
+            case 'vec4'|'ivec4':
                 CType = shader_type_to_ctype(shader_type)
+                assert len(value) == 4
                 setattr(ubo_data, name, CType(*value))
-            case 'float'|'int'|'bool':
-                CType = shader_type_to_ctype(shader_type)
-                setattr(ubo_data, name, CType(value))
     class UBO_Wrapper:
         def __init__(self):
             pass
