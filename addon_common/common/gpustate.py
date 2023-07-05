@@ -331,7 +331,7 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
     ))
     return (srcVertex, srcFragment)
 
-def shader_parse_file(filename, **kwargs):
+def shader_read_file(filename):
     filename_guess = get_path_from_addon_common('common', 'shaders', filename)
     if os.path.exists(filename):
         pass
@@ -340,20 +340,29 @@ def shader_parse_file(filename, **kwargs):
     else:
         assert False, "Shader file could not be found: %s" % filename
 
-    string = open(filename, 'rt').read()
-    return shader_parse_string(string, **kwargs)
+    return open(filename, 'rt').read()
+
+def shader_parse_file(filename, **kwargs):
+    return shader_parse_string(shader_read_file(filename), **kwargs)
 
 
 def clean_shader_source(source):
-    source = source + '\n'
-    source = re.sub(r'/[*](\n|.)*?[*]/', '', source)
-    source = re.sub(r'//.*?\n', '\n', source)
-    source = re.sub(r'\n+', '\n', source)
-    # source = '\n'.join(l.strip() for l in source.splitlines())
+    source = source + '\n'                              # add newline at end
+    source = re.sub(r'/[*](\n|.)*?[*]/', '',   source)  # remove multi-line comments
+    source = re.sub(r'//.*?\n',          '\n', source)  # remove single line comments
+    source = re.sub(r'\n+',              '\n', source)  # remove multiple newlines
+    source = re.sub(r'[ \t]+\n',         '\n', source)  # trim end of lines
     return source
 
-re_shader_var = re.compile(r'((?P<qualifier>noperspective|flat|smooth)[ \n]+)?(?P<uio>uniform|in|out)[ \n]+(?P<type>[a-zA-Z0-9_]+)[ \n]+(?P<var>[a-zA-Z0-9_]+)([ \n]*=[ \n]*(?P<defval>[^;]+))?[ \n]*;')
-re_shader_var_parts = ['qualifier', 'uio', 'type', 'var', 'defval']
+re_shader_var = re.compile(
+    r'((layout\((?P<layout>[^)]*)\))\s+)?'
+    r'((?P<qualifier>noperspective|flat|smooth)\s+)?'
+    r'(?P<uio>uniform|in|out)\s+'
+    r'(?P<type>[a-zA-Z0-9_]+)\s+'
+    r'(?P<var>[a-zA-Z0-9_]+)'
+    r'(\s*=\s*(?P<defval>[^;]+))?\s*;'
+)
+re_shader_var_parts = ['qualifier', 'uio', 'type', 'var', 'defval', 'layout']
 def split_shader_vars(source):
     shader_vars = {
         m['var']: { part: m[part] for part in re_shader_var_parts }
@@ -363,19 +372,19 @@ def split_shader_vars(source):
     source = '\n'.join(l for l in source.splitlines() if l.strip())
     return (shader_vars, source)
 
-re_struct = re.compile(r'struct[ \n]+(?P<name>[a-zA-Z0-9_]+)[ \n]+[{](?P<attribs>[^}]+)[}][ \n]*;')
-re_attrib = re.compile(r'(?P<type>[a-zA-Z0-9_]+)[ \n]+(?P<name>[a-zA-Z0-9_]+)[ \n]*;')
+re_shader_struct = re.compile(r'struct\s+(?P<name>[a-zA-Z0-9_]+)\s+[{](?P<attribs>[^}]+)[}]\s*;')
+re_shader_struct_attrib = re.compile(r'(?P<type>[a-zA-Z0-9_]+)\s+(?P<name>[a-zA-Z0-9_]+)\n*;')
 def split_shader_structs(source):
     structs = {
         m['name']: {
             'name': m['name'],
             'full': m.group(0),
-            'attribs': [(ma['type'], ma['name']) for ma in re_attrib.finditer(m['attribs'])],
-            'type': {ma['name']: ma['type'] for ma in re_attrib.finditer(m['attribs'])},
+            'attribs': [ (ma['type'], ma['name']) for ma in re_shader_struct_attrib.finditer(m['attribs']) ],
+            'type':    { ma['name']: ma['type']   for ma in re_shader_struct_attrib.finditer(m['attribs']) },
         }
-        for m in re_struct.finditer(source)
+        for m in re_shader_struct.finditer(source)
     }
-    source = re_struct.sub('', source)
+    source = re_shader_struct.sub('', source)
     source = '\n'.join(l for l in source.splitlines() if l.strip())
     return (structs, source)
 
@@ -398,11 +407,12 @@ def shader_struct_to_UBO(shadername, struct, varname):
         _fields_ = [ shader_var_to_ctype(t, n) for (t, n) in struct['attribs'] ]
     ubo_data = GPU_UBO()
     ubo_data_size = ctypes.sizeof(ubo_data)
-    if True:
+    ubo_data_slots = ubo_data_size // ctypes.sizeof(ctypes.c_float)
+    if False:
         term_printer.boxed(
-            f'Struct: "{struct["name"]} {varname}" ({ubo_data_size}bytes)',
-            f'Attribs: ' + ',  '.join(f'{k} {v}' for (k,v) in struct['attribs']),
-            title=f'GPU Shader: {shadername}',
+            f'Struct: "{struct["name"]} {varname}" ({ubo_data_size}bytes, {ubo_data_slots}slots)',
+            f'Attribs: ' + '; '.join(f'{k} {v}' for (k,v) in struct['attribs']),
+            title=f'GPU Shader Struct: {shadername}',
         )
     ubo_buffer = gpu.types.Buffer('UBYTE', ubo_data_size, ubo_data)
     ubo = gpu.types.GPUUniformBuf(ubo_buffer)
@@ -413,16 +423,17 @@ def shader_struct_to_UBO(shadername, struct, varname):
             case 'mat4':
                 a = getattr(ubo_data, name)
                 CType = shader_type_to_ctype('vec4')
-                # assert len(value) == 4
                 if len(value) == 3: value = value.to_4x4()
+                assert len(value) == 4 and len(value[0]) == 4
                 a[0] = CType(value[0][0], value[1][0], value[2][0], value[3][0])
                 a[1] = CType(value[0][1], value[1][1], value[2][1], value[3][1])
                 a[2] = CType(value[0][2], value[1][2], value[2][2], value[3][2])
                 a[3] = CType(value[0][3], value[1][3], value[2][3], value[3][3])
             case 'vec4'|'ivec4':
                 CType = shader_type_to_ctype(shader_type)
-                # assert len(value) == 4
-                if len(value) == 3: value = (*value, 1.0)
+                if   len(value) == 2: value = (*value, 0.0, 0.0)
+                elif len(value) == 3: value = (*value, 0.0)
+                assert len(value) == 4
                 setattr(ubo_data, name, CType(*value))
     class UBO_Wrapper:
         def __init__(self):
@@ -431,6 +442,8 @@ def shader_struct_to_UBO(shadername, struct, varname):
             self.__dict__['_shader'] = shader
         def __setattr__(self, name, value):
             self.assign(name, value)
+        def slots_used(self):
+            return ubo_data_slots
         def assign(self, name, value):
             try:
                 setter(name, value)
@@ -476,31 +489,35 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
     shader_structs = vert_shader_structs | frag_shader_structs
     vert_shader_vars, vert_source = split_shader_vars(vert_source)
     frag_shader_vars, frag_source = split_shader_vars(frag_source)
-    shader_vars = vert_shader_vars | frag_shader_vars
+    shader_vars  = vert_shader_vars | frag_shader_vars
+    uniform_vars = { k:v for (k,v) in shader_vars.items() if v['uio'] == 'uniform' }
+    in_vars      = { k:v for (k,v) in vert_shader_vars.items() if v['uio'] == 'in' }
+    inout_vars   = { k:v for (k,v) in vert_shader_vars.items() if v['uio'] == 'out' }
+    out_vars     = { k:v for (k,v) in frag_shader_vars.items() if v['uio'] == 'out'}
 
-    if False:
-        print(f'')
-        print(f'GPUShader {name}')
-        print(f'v'*100)
-        print(vert_source)
-        print(f'~'*100)
-        print(frag_source)
-        print(f'='*100)
-        for ss in vert_shader_structs.values():
-            print(ss['full'])
-        print(f'='*100)
+    if True:
         def nonetoempty(s): return s if s else ''
-        print(f'{"Qualifier":13s} {"UIO":7s} {"Type":10s} {"Var Name":20s} {"Def Val"}')
-        for sv in shader_vars.values():
-            print(
+        def divider(s): return f'\n{"═"*5}╡ {s} ╞{"═"*(120-(len(s) + 4 + 5))}\n\n'
+        term_printer.boxed(
+            *(ss['full'] for ss in vert_shader_structs.values()),
+            divider('Uniforms, Inputs, InOuts, Outputs'),
+            f'{"Layout":12s} {"Qualifier":13s} {"UIO":7s} {"Type":10s} {"Var Name":20s} {"Def Val"}',
+            f'{"-"*12        } {"-"*13         } {"-"*7   } {"-"*10    } {"-"*20        } {"-"*(120-(12+1+13+1+7+1+10+1+20+1))}',
+            *(
+                f'{nonetoempty(sv["layout"]):12s} '
                 f'{nonetoempty(sv["qualifier"]):13s} '  # noperspective
                 f'{nonetoempty(sv["uio"]):7s} '         # uniform
                 f'{nonetoempty(sv["type"]):10s} '
                 f'{nonetoempty(sv["var"]):20s} '
                 f'{nonetoempty(sv["defval"])}'
-            )
-        print(f'^'*100)
-        print()
+                for sv in chain(uniform_vars.values(), in_vars.values(), inout_vars.values(), out_vars.values())
+            ),
+            divider('Vertex Shader'),
+            vert_source,
+            divider('Fragment Shader'),
+            frag_source,
+            title=f'GPUSader {name}'
+        )
 
     shader_info = gpu.types.GPUShaderCreateInfo()
 
@@ -523,27 +540,38 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
             UBOs[n].set_shader(shader)
     UBOs.set_shader = set_shader
 
-    slot_buffer = 0
-    slot_image = 0
+    slot_samplers = 0
+    slot_structs = 0
     slot_input = 0
     slot_output = 0
 
     # UNIFORMS
-    for shader_var in shader_vars.values():
-        if shader_var['uio'] != 'uniform': continue
-        match shader_var['type']:
+    for uniform_var in uniform_vars.values():
+        slot = None
+        if uniform_var['layout']:
+            m_location = re.search(r'location *= *(?P<location>\d+)', uniform_var['layout'])
+            if m_location:
+                slot = int(m_location['location'])
+
+        match uniform_var['type']:
             case 'sampler2D':
-                shader_info.sampler(slot_image, 'FLOAT_2D', shader_var['var'])
-                slot_image += 1
+                if slot is None: slot = slot_samplers
+                shader_info.sampler(slot, 'FLOAT_2D', uniform_var['var'])
+                slot_samplers = max(slot + 1, slot_samplers)
             case t if t in gpu_type_size:
-                shader_info.push_constant(glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+                shader_info.push_constant(glsl_to_gpu_type(uniform_var['type']), uniform_var['var'])
             case _:
-                shader_info.uniform_buf(slot_buffer, shader_var['type'], shader_var['var'])
-                ubo_wrapper = shader_struct_to_UBO(name, shader_structs[shader_var['type']], shader_var['var'])
-                UBOs[shader_var['var']] = ubo_wrapper
-                slot_buffer += 1
+                if slot is None: slot = slot_structs
+                shader_info.uniform_buf(slot, uniform_var['type'], uniform_var['var'])
+                ubo_wrapper = shader_struct_to_UBO(name, shader_structs[uniform_var['type']], uniform_var['var'])
+                UBOs[uniform_var['var']] = ubo_wrapper
+                print(f'uniform struct {uniform_var["type"]} {uniform_var["var"]} {slot=}')
+                slot_structs = max(slot + ubo_wrapper.slots_used(), slot_structs)
     if False:
-        print(UBOs)
+        term_printer.boxed(
+            str(UBOs),
+            title=f'Uniforms'
+        )
 
     # PREPROCESSING DEFINE DIRECTIVES
     if defines:
@@ -551,10 +579,9 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
             shader_info.define(str(k), str(v))
 
     # INPUTS
-    for shader_var in vert_shader_vars.values():
-        if shader_var['uio'] == 'in':
-            shader_info.vertex_in(slot_input, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
-            slot_input += 1
+    for in_var in in_vars.values():
+        shader_info.vertex_in(slot_input, glsl_to_gpu_type(in_var['type']), in_var['var'])
+        slot_input += 1
 
     # INTERFACE
     safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
@@ -566,26 +593,29 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
         None:            shader_interface.smooth,
     }
     needs_interface = False
-    for shader_var in vert_shader_vars.values():
-        if shader_var['uio'] != 'out': continue
+    for inout_var in inout_vars.values():
         needs_interface = True
-        qualified_fn = qualified_fns[shader_var['qualifier']]
-        qualified_fn(glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+        qualified_fn = qualified_fns[inout_var['qualifier']]
+        qualified_fn(glsl_to_gpu_type(inout_var['type']), inout_var['var'])
     if needs_interface:
         shader_info.vertex_out(shader_interface)
 
     # OUTPUTS
-    for shader_var in frag_shader_vars.values():
-        if shader_var['uio'] != 'out': continue
+    for out_var in out_vars.values():
         # https://wiki.blender.org/wiki/Style_Guide/GLSL#Shared_Shader_Files:~:text=If%20fragment%20shader%20is%20writing%20to%20gl_FragDepth%2C%20usage%20must%20be%20correctly%20defined%20in%20the%20shader%27s%20create%20info%20using%20.depth_write(DepthWrite).
-        if shader_var['var'] == 'gl_FragDepth':
+        if out_var['var'] == 'gl_FragDepth':
             if hasattr(shader_info, 'depth_write'):
                 # SHOULD BE INCLUDED IN 4.0, AND HOPEFULLY IN 3.6
                 shader_info.depth_write('ANY')
             if bpy.app.version < (3, 4, 0) or gpu.platform.backend_type_get() == 'OPENGL':
                 continue
-        shader_info.fragment_out(slot_output, glsl_to_gpu_type(shader_var['type']), shader_var['var'])
+        shader_info.fragment_out(slot_output, glsl_to_gpu_type(out_var['type']), out_var['var'])
         slot_output += 1
+
+    if False:
+        print(shader_vars)
+        print(vert_source)
+        print(frag_source)
 
     shader_info.vertex_source(vert_source)
     shader_info.fragment_source(frag_source)
