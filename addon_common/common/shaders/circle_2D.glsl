@@ -38,12 +38,13 @@ struct Options {
 
 uniform Options options;
 
+const bool srgbTarget = true;
+const float TAU = 6.28318530718;
+
 float radius() { return options.radius_width.x; }
 float width()  { return options.radius_width.y; }
 vec2  stipple_lengths() { return options.stipple_data.xy; }
 float stipple_offset()  { return options.stipple_data.z; }
-
-const bool srgbTarget = true;
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -55,7 +56,6 @@ noperspective out vec2 vpos;    // position scaled by screensize
 noperspective out vec2 cpos;    // center of line, scaled by screensize
 noperspective out float offset; // stipple offset of individual fragment
 
-const float TAU = 6.28318530718;
 
 void main() {
     float circumference = TAU * radius();

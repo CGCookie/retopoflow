@@ -59,6 +59,9 @@ struct Options {
 };
 uniform Options options;
 
+const bool srgbTarget = true;
+const bool debug_invert_backfacing = false;
+
 int mirror_view()   {
     float v = options.mirror_settings[0];
     if(v > 1.5) return 2;
@@ -88,9 +91,6 @@ bool use_rounding()  { return options.use_settings1[0] > 0.5; }
 float magic_offset()    { return options.offset.x; }
 float magic_dotoffset() { return options.dotoffset.x; }
 
-
-const bool srgbTarget = true;
-const bool debug_invert_backfacing = false;
 
 
 /////////////////////////////////////////////////////////////////////////

@@ -21,15 +21,18 @@ Created by Jonathan Denning
 
 struct Options {
     mat4 MVPMatrix;     // pixel matrix
-    vec4 screensize;    // width,height of screen (for antialiasing)
+    vec4 screensize;    // [ width, height, _, _ ] of screen (for antialiasing)
     vec4 center;        // center of circle
     vec4 color;         // color of circle
     vec4 plane_x;       // x direction in plane the circle lies in
     vec4 plane_y;       // y direction in plane the circle lies in
-    vec4 settings;      // radius, line width (perp to line in plane), depth range near for drawover, depth range far
+    vec4 settings;      // [ radius, line width (perp to line in plane), depth range near for drawover, depth range far ]
 };
 
 uniform Options options;
+
+const float TAU = 6.28318530718;
+const bool srgbTarget = true;
 
 float radius()      { return options.settings[0]; }
 float width()       { return options.settings[1]; }
@@ -44,8 +47,6 @@ in vec2 pos;                    // x: [0,1], ratio of circumference.  y: [0,1], 
 
 noperspective out vec2 vpos;    // position scaled by screensize
 noperspective out vec2 cpos;    // center of line, scaled by screensize
-
-const float TAU = 6.28318530718;
 
 void main() {
     float ang = TAU * pos.x;
@@ -69,7 +70,6 @@ noperspective in vec2 cpos;
 out vec4 outColor;
 out float gl_FragDepth;
 
-const bool srgbTarget = true;
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 {
     if (srgbTarget) {

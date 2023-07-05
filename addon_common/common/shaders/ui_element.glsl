@@ -22,7 +22,7 @@ Created by Jonathan Denning
 #version 330
 
 // // the following two lines are an attempt to solve issues #1025, #879, #753
-// precision highp float;
+// precision mediump float;
 // precision lowp  int;   // only used to represent enum or bool
 
 struct Options {
@@ -57,9 +57,33 @@ const bool srgbTarget = true;
 bool image_use() { return options.image_settings[0] != 0; }
 int  image_fit() { return options.image_settings[1]; }
 
+float pos_l() { return options.lrtb[0]; }
+float pos_r() { return options.lrtb[1]; }
+float pos_t() { return options.lrtb[2]; }
+float pos_b() { return options.lrtb[3]; }
+
+float size_w() { return options.wh[0]; }
+float size_h() { return options.wh[1]; }
+
 float depth() { return options.depth[0]; }
-float border_width() { return options.border_width_radius[0]; }
+
+float margin_l() { return options.margin_lrtb[0]; }
+float margin_r() { return options.margin_lrtb[1]; }
+float margin_t() { return options.margin_lrtb[2]; }
+float margin_b() { return options.margin_lrtb[3]; }
+float padding_l() { return options.padding_lrtb[0]; }
+float padding_r() { return options.padding_lrtb[1]; }
+float padding_t() { return options.padding_lrtb[2]; }
+float padding_b() { return options.padding_lrtb[3]; }
+
+float border_width()  { return options.border_width_radius[0]; }
 float border_radius() { return options.border_width_radius[1]; }
+vec4 border_left_color()   { return options.border_left_color; }
+vec4 border_right_color()  { return options.border_right_color; }
+vec4 border_top_color()    { return options.border_top_color; }
+vec4 border_bottom_color() { return options.border_bottom_color; }
+
+vec4 background_color() { return options.background_color; }
 
 
 ////////////////////////////////////////
@@ -72,8 +96,8 @@ out vec2 screen_pos;
 void main() {
     // set vertex to bottom-left, top-left, top-right, or bottom-right location, depending on pos
     vec2 p = vec2(
-        (pos.x < 0.5) ? (options.lrtb[0] - 1.0) : (options.lrtb[1] + 1.0),
-        (pos.y < 0.5) ? (options.lrtb[3] - 1.0) : (options.lrtb[2] + 1.0)
+        (pos.x < 0.5) ? (pos_l() - 1.0) : (pos_r() + 1.0),
+        (pos.y < 0.5) ? (pos_b() - 1.0) : (pos_t() + 1.0)
     );
 
     // convert depth to z-order
@@ -143,10 +167,10 @@ int get_region() {
         - ERROR region _should_ never happen, but can be returned from this fn if something goes wrong
     */
 
-    float dist_left   = screen_pos.x - (options.lrtb[0] + options.margin_lrtb[0]);
-    float dist_right  = (options.lrtb[1] - options.margin_lrtb[1] + 1.0) - screen_pos.x;
-    float dist_bottom = screen_pos.y - (options.lrtb[3] + options.margin_lrtb[3] - 1.0);
-    float dist_top    = (options.lrtb[2] - options.margin_lrtb[2]) - screen_pos.y;
+    float dist_left   = screen_pos.x - (pos_l() + margin_l());
+    float dist_right  = (pos_r() - margin_r() + 1.0) - screen_pos.x;
+    float dist_bottom = screen_pos.y - (pos_b() + margin_b() - 1.0);
+    float dist_top    = (pos_t() - margin_t()) - screen_pos.y;
     float radwid  = max(border_radius(), border_width());
     float rad     = max(0.0, border_radius() - border_width());
     float radwid2 = sqr(radwid);
@@ -211,10 +235,10 @@ int get_region() {
 vec4 mix_image(vec4 bg) {
     vec4 c = bg;
     // drawing space
-    float dw = options.wh.x - (options.margin_lrtb[0] + border_width() + options.padding_lrtb[0] + options.padding_lrtb[1] + border_width() + options.margin_lrtb[1]);
-    float dh = options.wh.y - (options.margin_lrtb[2] + border_width() + options.padding_lrtb[2] + options.padding_lrtb[3] + border_width() + options.margin_lrtb[3]);
-    float dx = screen_pos.x - (options.lrtb[0] + (options.margin_lrtb[0] + border_width() + options.padding_lrtb[0]));
-    float dy = -(screen_pos.y - (options.lrtb[2]  - (options.margin_lrtb[2]  + border_width() + options.padding_lrtb[2])));
+    float dw = size_w() - (margin_l() + border_width() + padding_l() + padding_r() + border_width() + margin_r());
+    float dh = size_h() - (margin_t() + border_width() + padding_t() + padding_b() + border_width() + margin_b());
+    float dx = screen_pos.x - (pos_l() + (margin_l() + border_width() + padding_l()));
+    float dy = -(screen_pos.y - (pos_t()  - (margin_t()  + border_width() + padding_t())));
     float dsx = (dx + 0.5) / dw;
     float dsy = (dy + 0.5) / dh;
     // texture
@@ -365,11 +389,11 @@ void main() {
     #endif
 
     switch(region) {
-        case REGION_BORDER_TOP:    c = options.border_top_color;    break;
-        case REGION_BORDER_RIGHT:  c = options.border_right_color;  break;
-        case REGION_BORDER_BOTTOM: c = options.border_bottom_color; break;
-        case REGION_BORDER_LEFT:   c = options.border_left_color;   break;
-        case REGION_BACKGROUND:    c = options.background_color;    break;
+        case REGION_BORDER_TOP:    c = border_top_color();    break;
+        case REGION_BORDER_RIGHT:  c = border_right_color();  break;
+        case REGION_BORDER_BOTTOM: c = border_bottom_color(); break;
+        case REGION_BORDER_LEFT:   c = border_left_color();   break;
+        case REGION_BACKGROUND:    c = background_color();    break;
 
         // following colors show only if DEBUG settings allow or something really unexpected happens
         case REGION_MARGIN_TOP:    c = COLOR_MARGIN_TOP;    break;
