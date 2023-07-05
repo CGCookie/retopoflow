@@ -495,7 +495,7 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
     inout_vars   = { k:v for (k,v) in vert_shader_vars.items() if v['uio'] == 'out' }
     out_vars     = { k:v for (k,v) in frag_shader_vars.items() if v['uio'] == 'out'}
 
-    if True:
+    if False:
         def nonetoempty(s): return s if s else ''
         def divider(s): return f'\n{"═"*5}╡ {s} ╞{"═"*(120-(len(s) + 4 + 5))}\n\n'
         term_printer.boxed(
@@ -565,7 +565,7 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
                 shader_info.uniform_buf(slot, uniform_var['type'], uniform_var['var'])
                 ubo_wrapper = shader_struct_to_UBO(name, shader_structs[uniform_var['type']], uniform_var['var'])
                 UBOs[uniform_var['var']] = ubo_wrapper
-                print(f'uniform struct {uniform_var["type"]} {uniform_var["var"]} {slot=}')
+                # print(f'uniform struct {uniform_var["type"]} {uniform_var["var"]} {slot=}')
                 slot_structs = max(slot + ubo_wrapper.slots_used(), slot_structs)
     if False:
         term_printer.boxed(
