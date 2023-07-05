@@ -82,10 +82,11 @@ def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', col
         width = wrap
         wrapped_lines = []
         for line in lines:
+            cur_indent = len(line) - len(line.lstrip()) + indent
             first = True
             while True:
-                if not first: line = ' '*indent + line
-                first = False
+                if first: first = False
+                else:     line = (' '*cur_indent) + line
                 wrapped_lines.append(line[:wrap])
                 line = line[wrap:]
                 if not line: break
