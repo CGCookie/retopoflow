@@ -37,18 +37,18 @@ from .blender_cursors import Cursors
 def get_view3d_area(context=None):
     # assuming: context.screen is correct, and a SINGLE VIEW_3D area!
     if not context: context = bpy.context
-    if context.area: return context.area
+    if context.area and context.area.type == 'VIEW_3D': return context.area
     return next((a for a in context.screen.areas if a.type == 'VIEW_3D'), None)
 
 def get_view3d_region(context=None):
     if not context: context = bpy.context
-    if context.region: return context.region
+    if context.region and context.region.type == 'WINDOW': return context.region
     area = get_view3d_area(context=context)
     return next((r for r in area.regions if r.type == 'WINDOW'),  None) if area else None
 
 def get_view3d_space(context=None):
     if not context: context = bpy.context
-    if context.space_data: return context.space_data
+    if context.space_data and context.space_data.type == 'VIEW_3D': return context.space_data
     area = get_view3d_area(context=context)
     return next((s for s in area.spaces  if s.type == 'VIEW_3D'), None) if area else None
 
