@@ -94,16 +94,9 @@ class Knife(RFTool):
     @FSM.onlyinstate({'main', 'quick', 'insert'})
     def update_state_info(self):
         with profiler.code('getting selected geometry'):
-            self.sel_verts = self.rfcontext.rftarget.get_selected_verts()
-            self.sel_edges = self.rfcontext.rftarget.get_selected_edges()
-            self.sel_faces = self.rfcontext.rftarget.get_selected_faces()
-
+            self.sel_verts, self.sel_edges, self.sel_faces = self.rfcontext.get_selected_geom()
         with profiler.code('getting visible geometry'):
-            self.vis_accel = self.rfcontext.get_vis_accel()
-            self.vis_verts = self.rfcontext.accel_vis_verts
-            self.vis_edges = self.rfcontext.accel_vis_edges
-            self.vis_faces = self.rfcontext.accel_vis_faces
-
+            self.vis_verts, self.vis_edges, self.vis_faces = self.rfcontext.get_vis_geom()
         if self.rfcontext.loading_done:
             self.set_next_state(force=True)
 
@@ -492,7 +485,7 @@ class Knife(RFTool):
     def move_enter(self):
         self.move_opts = {
             'timer': self.actions.start_timer(120),
-            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False),
+            'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False, symmetry=False),
         }
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)

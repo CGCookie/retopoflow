@@ -1616,9 +1616,13 @@ class Accel2D:
         self.edges = list(edges) if edges else []
         self.faces = list(faces) if faces else []
         self.Point_to_Point2Ds = Point_to_Point2Ds
-        self._is_vert = (lambda elem: type(elem) == type(self.verts[0])) if self.verts else lambda _: False
-        self._is_edge = (lambda elem: type(elem) == type(self.edges[0])) if self.edges else lambda _: False
-        self._is_face = (lambda elem: type(elem) == type(self.faces[0])) if self.faces else lambda _: False
+
+        vert_type = type(next(iter(self.verts), None))
+        edge_type = type(next(iter(self.edges), None))
+        face_type = type(next(iter(self.faces), None))
+        self._is_vert = lambda elem: isinstance(elem, vert_type)
+        self._is_edge = lambda elem: isinstance(elem, edge_type)
+        self._is_face = lambda elem: isinstance(elem, face_type)
         self.bins = {}
 
         epsilon = 0.001
@@ -1650,8 +1654,7 @@ class Accel2D:
         # inserting edges and faces
         for ef in chain(edges, faces):
             ptsets = [Point_to_Point2Ds(v.co) for v in ef.verts]
-            ptsets = list(zip(*ptsets))
-            for pts in ptsets:
+            for pts in zip(*ptsets):
                 if not all(pts): continue
                 ijs = list(map(self.compute_ij, pts))
                 mini, minj = min(i for (i, j) in ijs), min(j for (i, j) in ijs)

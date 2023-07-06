@@ -482,6 +482,7 @@ def glsl_to_gpu_type(t):
         return t.upper()
     return t
 
+re_shader_location = re.compile(r'location *= *(?P<location>\d+)')
 def gpu_shader(name, vert_source, frag_source, *, defines=None):
     vert_source, frag_source = map(clean_shader_source, (vert_source, frag_source))
     vert_shader_structs, vert_source = split_shader_structs(vert_source)
@@ -548,10 +549,8 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
     # UNIFORMS
     for uniform_var in uniform_vars.values():
         slot = None
-        if uniform_var['layout']:
-            m_location = re.search(r'location *= *(?P<location>\d+)', uniform_var['layout'])
-            if m_location:
-                slot = int(m_location['location'])
+        if uniform_var['layout'] and (m_location := re_shader_location.search(uniform_var['layout'])):
+            slot = int(m_location['location'])
 
         match uniform_var['type']:
             case 'sampler2D':

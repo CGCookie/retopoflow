@@ -25,7 +25,7 @@ from ..rftool import RFTool
 from ..rfwidget import RFWidget
 from ..rfwidgets.rfwidget_default import RFWidget_Default_Factory
 from ..rfwidgets.rfwidget_selectbox import RFWidget_SelectBox_Factory
-
+from ..rfwidgets.rfwidget_hidden  import RFWidget_Hidden_Factory
 
 from ...addon_common.common.maths import (
     Vec, Vec2D,
@@ -39,7 +39,7 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.maths import segment2D_intersection, Point2D, triangle2D_overlap
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.utils import iter_pairs, delay_exec
+from ...addon_common.common.utils import iter_pairs, delay_exec, Dict
 from ...config.options import options, themes
 
 
@@ -55,6 +55,7 @@ class Select(RFTool):
 
     RFWidget_Default   = RFWidget_Default_Factory.create()
     RFWidget_SelectBox = RFWidget_SelectBox_Factory.create('Select: Box')
+    RFWidget_Hidden    = RFWidget_Hidden_Factory.create()
 
     @RFTool.on_init
     def init(self):
@@ -62,6 +63,7 @@ class Select(RFTool):
             'default':   self.RFWidget_Default(self),
             'selectbox': self.RFWidget_SelectBox(self),
             # circle select????
+            'hidden':    self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
 
@@ -88,6 +90,11 @@ class Select(RFTool):
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
             return
 
+        if self.actions.pressed('grab'):
+            self.rfcontext.undo_push('move grabbed')
+            return 'move'
+
+
     def select_linked(self):
         self.rfcontext.undo_push('select linked')
         self.rfcontext.select_linked()
@@ -99,8 +106,9 @@ class Select(RFTool):
         self.rfcontext.select_invert()
 
     @RFWidget.on_action('Select: Box')
-    @RFTool.dirty_when_done
     def selectbox(self):
+        print('start selectbox')
+        start = time.time()
         box = self.rfwidgets['selectbox']
         p0, p1 = box.box2D
         if not p0 or not p1: return
@@ -139,32 +147,117 @@ class Select(RFTool):
             case 'Verts':
                 verts = {
                     vert
-                    for vert in self.rfcontext.visible_verts()
+                    for vert in self.rfcontext.get_vis_verts()
                     if vert_inside(vert)
                 }
             case 'Edges':
                 verts = {
                     vert
-                    for edge in self.rfcontext.visible_edges()
+                    for edge in self.rfcontext.get_vis_edges()
                     if edge_inside(edge)
                     for vert in edge.verts
                 }
             case 'Faces':
                 verts = {
                     vert
-                    for face in self.rfcontext.visible_faces()
+                    for face in self.rfcontext.get_vis_faces()
                     if face_inside(face)
                     for vert in face.verts
                 }
 
         self.rfcontext.undo_push('select box')
-        if box.mods['ctrl']:
-            # del verts from selection
-            verts_selected = self.rfcontext.get_selected_verts()
-            self.rfcontext.select(verts_selected - verts, only=True)
-        elif box.mods['shift']:
-            # add vert to selection
-            self.rfcontext.select(verts, only=False)
-        else:
-            # replace selection
-            self.rfcontext.select(verts, only=True)
+        if   box.mods['ctrl']:  self.rfcontext.select(self.rfcontext.get_selected_verts() - verts, only=True)   # del verts from selection
+        elif box.mods['shift']: self.rfcontext.select(verts, only=False)                                        # add vert to selection
+        else:                   self.rfcontext.select(verts, only=True)                                         # replace selection
+        print(f'time for selectbox: {time.time() - start:0.2f}s')
+
+
+    @FSM.on_state('move', 'enter')
+    def move_enter(self):
+        self.move_data = Dict(
+            bmverts=[ (bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.rfcontext.get_selected_verts() ],
+            mousedown=self.actions.mouse,
+            last_delta=None,
+        )
+        if options['select automerge']:
+            self.move_data.vis_accel = self.rfcontext.get_custom_vis_accel(
+                selection_only=False,
+                include_edges=False,
+                include_faces=False,
+                symmetry=False,
+            )
+        self.rfcontext.split_target_visualization_selected()
+        self.rfcontext.set_accel_defer(True)
+
+        if options['hide cursor on tweak']: self.set_widget('hidden')
+
+    @FSM.on_state('move')
+    def modal_move(self):
+        if self.actions.pressed(['confirm', 'confirm drag']):
+            self.mergeSnapped()
+            return 'main'
+        if self.actions.pressed('cancel'):
+            self.rfcontext.undo_cancel()
+            return 'main'
+
+        if not self.actions.mousemove_stop: return
+        # # only update verts on timer events and when mouse has moved
+        # if not self.actions.timer: return
+        # if self.actions.mouse_prev == self.actions.mouse: return
+
+        delta = Vec2D(self.actions.mouse - self.move_data.mousedown)
+        if delta == self.move_data.last_delta: return
+        self.move_data.last_delta = delta
+        set2D_vert = self.rfcontext.set2D_vert
+        for bmv,xy in self.move_data.bmverts:
+            if not xy: continue
+            xy_updated = xy + delta
+            if options['select automerge']:
+                # snap xy_updated to any visible verts close enough to current xy_updated (in image plane)
+                bmv1, _ = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_data.vis_accel, max_dist=options['select merge dist'])
+                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co) if bmv1 else None
+                if xy1: xy_updated = xy1
+            set2D_vert(bmv, xy_updated)
+        self.rfcontext.update_verts_faces(v for v,_ in self.move_data.bmverts)
+        self.rfcontext.dirty()
+
+    @FSM.on_state('move', 'exit')
+    def move_exit(self):
+        self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
+
+    def mergeSnapped(self):
+        """ Merging colocated visible verts """
+
+        if not options['select automerge']: return
+
+        vis_verts = self.rfcontext.get_vis_verts()
+        sel_verts = self.rfcontext.get_selected_verts()
+        vis_bmverts = [
+            (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
+            for bmv in vis_verts
+            if bmv.is_valid and bmv not in sel_verts
+        ]
+
+        # TODO: remove colocated faces
+        if self.move_data.mousedown is None: return
+        delta = Vec2D(self.actions.mouse - self.move_data.mousedown)
+        set2D_vert = self.rfcontext.set2D_vert
+        update_verts = []
+        merge_dist = self.rfcontext.drawing.scale(options['select merge dist'])
+        for bmv,xy in self.move_data.bmverts:
+            if not xy: continue
+            xy_updated = xy + delta
+            for bmv1,xy1 in vis_bmverts:
+                if not xy1: continue
+                if bmv1 == bmv: continue
+                if not bmv1.is_valid: continue
+                d = (xy_updated - xy1).length
+                if (xy_updated - xy1).length > merge_dist:
+                    continue
+                bmv1.merge_robust(bmv)
+                self.rfcontext.select(bmv1)
+                update_verts += [bmv1]
+                break
+        if update_verts:
+            self.rfcontext.update_verts_faces(update_verts)

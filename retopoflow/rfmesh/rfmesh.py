@@ -22,8 +22,10 @@ Created by Jonathan Denning, Jonathan Williamson
 import math
 import copy
 import heapq
+import numpy as np
 import random
 from dataclasses import dataclass, field
+from itertools import takewhile, filterfalse
 
 import bpy
 import bmesh
@@ -68,10 +70,7 @@ class RFMesh():
     delete_count = 0
 
     def __init__(self):
-        assert False, (
-            'Do not create new RFMesh directly!  '
-            'Use RFSource.new() or RFTarget.new()'
-        )
+        assert False, 'Do not create new RFMesh directly!  Use RFSource.new() or RFTarget.new()'
 
     def __deepcopy__(self, memo):
         assert False, 'Do not copy me'
@@ -638,18 +637,22 @@ class RFMesh():
 
     ##########################################################
 
-    def _wrap(self, bmelem):
-        if bmelem is None: return None
-        t = type(bmelem)
-        if t is BMVert: return RFVert(bmelem)
-        if t is BMEdge: return RFEdge(bmelem)
-        if t is BMFace: return RFFace(bmelem)
-        assert False
-    def _wrap_bmvert(self, bmv): return RFVert(bmv)
-    def _wrap_bmedge(self, bme): return RFEdge(bme)
-    def _wrap_bmface(self, bmf): return RFFace(bmf)
-    def _unwrap(self, elem):
-        return elem if not hasattr(elem, 'bmelem') else elem.bmelem
+    @staticmethod
+    def _wrap(bmelem):
+        match bmelem:
+            case None:     return None
+            case BMVert(): return RFVert(bmelem)
+            case BMEdge(): return RFEdge(bmelem)
+            case BMFace(): return RFFace(bmelem)
+            case _:        assert False
+    @staticmethod
+    def _wrap_bmvert(bmv): return RFVert(bmv)
+    @staticmethod
+    def _wrap_bmedge(bme): return RFEdge(bme)
+    @staticmethod
+    def _wrap_bmface(bmf): return RFFace(bmf)
+    @staticmethod
+    def _unwrap(elem): return elem if not hasattr(elem, 'bmelem') else elem.bmelem
 
 
     ##########################################################
@@ -910,106 +913,84 @@ class RFMesh():
 
     ##########################################################
 
-    def _visible_verts(self, is_visible, bmvs=None):
+    fn_is_valid               = lambda bmelem: bmelem.is_valid
+    fn_is_hidden              = lambda bmelem: bmelem.is_valid and bmelem.hide
+    fn_is_revealed            = lambda bmelem: bmelem.is_valid and not bmelem.hide
+    fn_is_selected            = lambda bmelem: bmelem.is_valid and bmelem.select
+    fn_is_unselected          = lambda bmelem: bmelem.is_valid and not bmelem.select
+    fn_is_selected_revealed   = lambda bmelem: bmelem.is_valid and bmelem.select     and not bmelem.hide
+    fn_is_unselected_revealed = lambda bmelem: bmelem.is_valid and not bmelem.select and not bmelem.hide
+
+    def _iter_visible_verts(self, is_visible, bmvs=None):
         l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
-        #is_vis = lambda bmv: is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal))
         if bmvs is None: bmvs = self.bme.verts
-        is_vis = lambda bmv: (
-            is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal)) or
+        is_vis = lambda bmv: any([
+            is_visible(l2w_point(bmv.co), l2w_normal(bmv.normal)),
             is_visible(l2w_point(bmv.co + 0.002 * options['normal offset multiplier'] * l2w_normal(bmv.normal)), l2w_normal(bmv.normal))
-        )
-        return { bmv for bmv in bmvs if bmv.is_valid and not bmv.hide and is_vis(bmv) }
+        ])
+        return filter(is_vis, filter(RFMesh.fn_is_revealed, bmvs))
 
-    def _visible_edges(self, is_visible, bmvs=None, bmes=None):
-        if bmvs is None: bmvs = self._visible_verts(is_visible)
+    def _iter_visible_edges(self, is_visible, bmvs=None, bmes=None):
+        if bmvs is None: bmvs = set(self._iter_visible_verts(is_visible))
         if bmes is None: bmes = self.bme.edges
-        return { bme for bme in bmes if bme.is_valid and not bme.hide and all(bmv in bmvs for bmv in bme.verts) }
+        has_vis_verts = lambda bme: all(bmv in bmvs for bmv in bme.verts)
+        return filter(has_vis_verts, filter(RFMesh.fn_is_revealed, bmes))
 
-    def _visible_faces(self, is_visible, bmvs=None):
-        if bmvs is None: bmvs = self._visible_verts(is_visible)
-        return { bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide and all(bmv in bmvs for bmv in bmf.verts) }
+    def _iter_visible_faces(self, is_visible, bmvs=None):
+        if bmvs is None: bmvs = set(self._iter_visible_verts(is_visible))
+        has_vis_verts = lambda bmf: all(bmv in bmvs for bmv in bmf.verts)
+        return filter(has_vis_verts, filter(RFMesh.fn_is_revealed, self.bme.faces))
 
     def visible_verts(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
-        return { self._wrap_bmvert(bmv) for bmv in self._visible_verts(is_visible, bmvs=bmvs) if bmv.is_valid and not bmv.hide }
+        if verts: verts = map(self._unwrap, filter(RFMesh.fn_is_valid, verts))
+        verts = self._iter_visible_verts(is_visible, bmvs=verts)
+        return set(map(self._wrap_bmvert, verts))
 
     def visible_edges(self, is_visible, verts=None, edges=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
-        bmes = None if edges is None else { self._unwrap(bme) for bme in edges if bme.is_valid }
-        return { self._wrap_bmedge(bme) for bme in self._visible_edges(is_visible, bmvs=bmvs, bmes=bmes) if bme.is_valid and not bme.hide }
+        if verts: verts = set(map(self._unwrap, filter(RFMesh.fn_is_valid, verts)))  # needs to be set
+        if edges: edges = map(self._unwrap, filter(RFMesh.fn_is_valid, edges))
+        edges = self._iter_visible_edges(is_visible, bmvs=verts, bmes=edges)
+        return set(map(self._wrap_bmedge, edges))
 
     def visible_faces(self, is_visible, verts=None):
-        bmvs = None if verts is None else { self._unwrap(bmv) for bmv in verts if bmv.is_valid }
-        bmfs = { self._wrap_bmface(bmf) for bmf in self._visible_faces(is_visible, bmvs=bmvs) if bmf.is_valid and not bmf.hide }
-        return bmfs
+        if verts: verts = set(map(self._unwrap, filter(RFMesh.fn_is_valid, verts)))  # needs to be set
+        faces = self._iter_visible_faces(is_visible, bmvs=verts)
+        return set(map(self._wrap_bmface, faces))
 
 
     ##########################################################
 
-    def get_verts(self): return [self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid]
-    def get_edges(self): return [self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid]
-    def get_faces(self): return [self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid]
+    def iter_verts(self): yield from map(self._wrap_bmvert, filter(RFMesh.fn_is_valid, self.bme.verts))
+    def iter_edges(self): yield from map(self._wrap_bmedge, filter(RFMesh.fn_is_valid, self.bme.edges))
+    def iter_faces(self): yield from map(self._wrap_bmvert, filter(RFMesh.fn_is_valid, self.bme.faces))
 
-    def iter_verts(self):
-        wrap = self._wrap_bmvert
-        for bmv in self.bme.verts:
-            if not bmv.is_valid: continue
-            yield wrap(bmv)
-    def iter_edges(self):
-        wrap = self._wrap_bmedge
-        for bme in self.bme.edges:
-            if not bme.is_valid: continue
-            yield wrap(bme)
-    def iter_faces(self):
-        wrap = self._wrap_bmface
-        for bmf in self.bme.faces:
-            if not bmf.is_valid: continue
-            yield wrap(bmf)
+    def get_verts(self): return list(self.iter_verts())
+    def get_edges(self): return list(self.iter_edges())
+    def get_faces(self): return list(self.iter_faces())
 
     def get_vert_count(self): return len(self.bme.verts)
     def get_edge_count(self): return len(self.bme.edges)
     def get_face_count(self): return len(self.bme.faces)
 
-    def get_selected_verts(self):
-        # sel_verts = { e for e in self.bme.select_history if type(e) is BMVert and e.is_valid and e.select and not e.hide }
-        sel_verts = { bmv for bmv in self.bme.verts if bmv.is_valid and bmv.select and not bmv.hide }
-        return { self._wrap_bmvert(bmv) for bmv in sel_verts }
-    def get_selected_edges(self):
-        # sel_edges = { e for e in self.bme.select_history if type(e) is BMEdge and e.is_valid and e.select and not e.hide }
-        sel_edges = { bme for bme in self.bme.edges if bme.is_valid and bme.select and not bme.hide }
-        return { self._wrap_bmedge(bme) for bme in sel_edges }
-    def get_selected_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.select and not bmf.hide}
+    # NOTE: self.bme.select_history does _NOT_ work
+    def get_selected_verts(self):   return set(map(self._wrap_bmvert, filter(RFMesh.fn_is_selected_revealed,   self.bme.verts)))
+    def get_selected_edges(self):   return set(map(self._wrap_bmedge, filter(RFMesh.fn_is_selected_revealed,   self.bme.edges)))
+    def get_selected_faces(self):   return set(map(self._wrap_bmface, filter(RFMesh.fn_is_selected_revealed,   self.bme.faces)))
+    def get_unselected_verts(self): return set(map(self._wrap_bmvert, filter(RFMesh.fn_is_unselected_revealed, self.bme.verts)))
+    def get_unselected_edges(self): return set(map(self._wrap_bmedge, filter(RFMesh.fn_is_unselected_revealed, self.bme.edges)))
+    def get_unselected_faces(self): return set(map(self._wrap_bmface, filter(RFMesh.fn_is_unselected_revealed, self.bme.faces)))
 
-    def get_unselected_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and not bmv.select and not bmv.hide}
-    def get_unselected_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and not bme.select and not bme.hide}
-    def get_unselected_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and not bmf.select and not bmf.hide}
+    def get_hidden_verts(self):   return set(map(self._wrap_bmvert, filter(RFMesh.fn_is_hidden,   self.bme.verts)))
+    def get_hidden_edges(self):   return set(map(self._wrap_bmedge, filter(RFMesh.fn_is_hidden,   self.bme.edges)))
+    def get_hidden_faces(self):   return set(map(self._wrap_bmface, filter(RFMesh.fn_is_hidden,   self.bme.faces)))
+    def get_revealed_verts(self): return set(map(self._wrap_bmvert, filter(RFMesh.fn_is_revealed, self.bme.verts)))
+    def get_revealed_edges(self): return set(map(self._wrap_bmedge, filter(RFMesh.fn_is_revealed, self.bme.edges)))
+    def get_revealed_faces(self): return set(map(self._wrap_bmface, filter(RFMesh.fn_is_revealed, self.bme.faces)))
 
-    def get_hidden_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and bmv.hide}
-    def get_hidden_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and bme.hide}
-    def get_hidden_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and bmf.hide}
-
-    def get_revealed_verts(self):
-        return {self._wrap_bmvert(bmv) for bmv in self.bme.verts if bmv.is_valid and not bmv.hide}
-    def get_revealed_edges(self):
-        return {self._wrap_bmedge(bme) for bme in self.bme.edges if bme.is_valid and not bme.hide}
-    def get_revealed_faces(self):
-        return {self._wrap_bmface(bmf) for bmf in self.bme.faces if bmf.is_valid and not bmf.hide}
-
-    def any_verts_selected(self):
-        return any(bmv.select for bmv in self.bme.verts if bmv.is_valid and not bmv.hide)
-    def any_edges_selected(self):
-        return any(bme.select for bme in self.bme.edges if bme.is_valid and not bme.hide)
-    def any_faces_selected(self):
-        return any(bmf.select for bmf in self.bme.faces if bmf.is_valid and not bmf.hide)
-    def any_selected(self):
-        return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
+    def any_verts_selected(self): return any(bmv.select for bmv in self.bme.verts if bmv.is_valid and not bmv.hide)
+    def any_edges_selected(self): return any(bme.select for bme in self.bme.edges if bme.is_valid and not bme.hide)
+    def any_faces_selected(self): return any(bmf.select for bmf in self.bme.faces if bmf.is_valid and not bmf.hide)
+    def any_selected(self):       return self.any_verts_selected() or self.any_edges_selected() or self.any_faces_selected()
 
     def get_selection_center(self):
         v,c = Vector(),0

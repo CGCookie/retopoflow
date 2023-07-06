@@ -77,17 +77,14 @@ class BMElemWrapper:
 
     @staticmethod
     def _unwrap(bmelem):
-        if bmelem is None:
-            return None
-        if isinstance(bmelem, BMElemWrapper):
-            return bmelem.bmelem
-        return bmelem
+        try:    return bmelem.bmelem
+        except: return bmelem
 
     def __init__(self, bmelem):
         self.bmelem = bmelem
 
     def __repr__(self):
-        return '<BMElemWrapper: %s>' % repr(self.bmelem)
+        return f'<{"" if self.bmelem.is_valid else "XXX_"}{type(self).__name__}: {repr(self.bmelem)}>'
 
     def __hash__(self):
         return hash(self.bmelem)
@@ -145,9 +142,6 @@ class BMElemWrapper:
 
 
 class RFVert(BMElemWrapper):
-    def __repr__(self):
-        return f'<RFVert: {self.bmelem}>'
-
     @staticmethod
     def get_link_edges(rfverts):
         return { RFEdge(bme) for bmv in rfverts for bme in bmv.bmelem.link_edges }
@@ -320,9 +314,6 @@ class RFVert(BMElemWrapper):
 
 
 class RFEdge(BMElemWrapper):
-    def __repr__(self):
-        return '<RFEdge: %s>' % repr(self.bmelem)
-
     @staticmethod
     def get_verts(rfedges):
         bmvs = { bmv for bme in rfedges for bmv in bme.bmelem.verts }
@@ -555,9 +546,6 @@ class RFEdge(BMElemWrapper):
 
 
 class RFFace(BMElemWrapper):
-    def __repr__(self):
-        return '<RFFace: %s>' % repr(self.bmelem)
-
     @staticmethod
     def get_verts(rffaces):
         bmvs = { bmv for bmf in rffaces for bmv in bmf.bmelem.verts }
@@ -842,9 +830,7 @@ class RFEdgeSequence:
 
     def __repr__(self):
         e = min(map(repr, self.edges)) if self.edges else None
-        return '<RFEdgeSequence: %d,%s,%s>' % (
-            len(self.verts), str(self.loop), str(e)
-        )
+        return f'<RFEdgeSequence: {len(self.verts)}, {self.loop}, {e}>'
 
     def __len__(self):
         return len(self.edges)

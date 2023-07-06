@@ -32,7 +32,7 @@ from ...config.options import visualization, options
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D, Accel2D
 
@@ -59,18 +59,11 @@ class RetopoFlow_Target:
 
         self.accel_defer_recomputing = False
         self.accel_recompute = True
-        self.accel_target_version = None
-        self.accel_view_version = None
         self.accel_vis_verts = None
         self.accel_vis_edges = None
         self.accel_vis_faces = None
         self.accel_vis_accel = None
-        self._last_visible_bbox_factor = None
-        self._last_visible_dist_offset = None
-        self._last_selection_occlusion_test = None
-        self._last_selection_backface_test = None
-        self._last_ray_ignore_backface_sources = None
-        self._last_draw_count = -1
+        self.accel_last = Dict(get_default=None)
         self._draw_count = 0
 
     def hide_target(self):
@@ -124,16 +117,13 @@ class RetopoFlow_Target:
 
     def split_target_visualization_selected(self):
         # print(f'split_target_visualization_selected')
-        self.rftarget_draw.split_visualization(
-            verts=self.get_selected_verts(),
-            edges=self.get_selected_edges(),
-            faces=self.get_selected_faces(),
-        )
+        verts, edges, faces = self.get_selected_geom()
+        self.rftarget_draw.split_visualization(verts=verts, edges=edges, faces=faces)
 
     def split_target_visualization_visible(self):
         # print(f'split_target_visualization_visible')
         self.rftarget_draw.split_visualization(
-            verts=self.visible_verts(),
+            verts=self.get_vis_verts(),
         )
 
 
@@ -143,70 +133,95 @@ class RetopoFlow_Target:
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
 
     @profiler.function
-    def get_vis_accel(self, force=False):
+    def get_vis_accel(self, *, force=False):
         target_version = self.get_target_version(selection=False)
         view_version = self.get_view_version()
 
-        recompute = self.accel_recompute
-        recompute |= target_version != self.accel_target_version
-        recompute |= view_version != self.accel_view_version
-        recompute |= self.accel_vis_verts is None
-        recompute |= self.accel_vis_edges is None
-        recompute |= self.accel_vis_faces is None
-        recompute |= self.accel_vis_accel is None
-        recompute |= options['visible bbox factor'] != self._last_visible_bbox_factor
-        recompute |= options['visible dist offset'] != self._last_visible_dist_offset
-        recompute |= options['selection occlusion test'] != self._last_selection_occlusion_test
-        recompute |= options['selection backface test'] != self._last_selection_backface_test
-        recompute |= self.ray_ignore_backface_sources() != self._last_ray_ignore_backface_sources
-        recompute &= not self.accel_defer_recomputing
-        recompute &= (not self._nav) and (time.time() - self._nav_time) > 0.125
-        recompute &= self._draw_count != self._last_draw_count
+        # force |= self.accel_recompute
+        needs_recomputed = any([
+            self.accel_recompute,
+            # missing acceleration data?
+            self.accel_vis_verts is None,
+            self.accel_vis_edges is None,
+            self.accel_vis_faces is None,
+            self.accel_vis_accel is None,
+            # did any important thing change since we last generated accel structure?
+            self.accel_last.target_version              != target_version,
+            self.accel_last.view_version                != view_version,
+            self.accel_last.visible_bbox_factor         != options['visible bbox factor'],
+            self.accel_last.visible_dist_offset         != options['visible dist offset'],
+            self.accel_last.selection_occlusion_test    != options['selection occlusion test'],
+            self.accel_last.selection_backface_test     != options['selection backface test'],
+            self.accel_last.ray_ignore_backface_sources != self.ray_ignore_backface_sources(),
+        ])
+
+        delay_recompute = ([
+            self.accel_defer_recomputing,
+            self._nav,                                  # do not recompute while artist is navigating
+            (time.time() - self._nav_time) < options['accel recompute delay'],  # wait just a small amount of time after artist finishes navigating
+            self.accel_last.draw_count == self._draw_count,
+        ])
+
+        recompute = force or (needs_recomputed and not any(delay_recompute))
+        if not recompute:
+            # if needs_recomputed and any(delay_recompute):
+            #     print(f'VIS ACCEL NEEDS RECOMPUTED, BUT DELAYED: {delay_recompute}')
+            if self.accel_vis_verts: self.accel_vis_verts = set(self.filter_is_valid(self.accel_vis_verts))
+            if self.accel_vis_edges: self.accel_vis_edges = set(self.filter_is_valid(self.accel_vis_edges))
+            if self.accel_vis_faces: self.accel_vis_faces = set(self.filter_is_valid(self.accel_vis_faces))
+            return self.accel_vis_accel
 
         self.accel_recompute = False
 
-        if force or recompute:
-            # print(f'RECOMPUTE VIS ACCEL {random.random()} {force=}')
-            # print(f'  accel recompute: {self.accel_recompute}')
-            # print(f'  target change: {target_version != self.accel_target_version}')
-            # print(f'  view change: {view_version != self.accel_view_version}  ({self.accel_view_version.get_hash() if self.accel_view_version else None}, {view_version.get_hash()})')
-            # print(f'  geom change: {self.accel_vis_verts is None} {self.accel_vis_edges is None} {self.accel_vis_faces is None} {self.accel_vis_accel is None}')
-            # print(f'  bbox change: {options["visible bbox factor"] != self._last_visible_bbox_factor}')
-            # print(f'  dist offset change: {options["visible dist offset"] != self._last_visible_dist_offset}')
-            # print(f'  navigating: {self._nav}  {time.time() - self._nav_time > 0.25}')
-            # print(f'  draw change: {self._draw_count != self._last_draw_count}')
-            # print(f'  stack:')
-            # for line in traceback.format_stack():
-            #     print(f'    {line.strip()}')
-            self.accel_target_version = target_version
-            self.accel_view_version = view_version
-            self.accel_vis_verts = self.visible_verts()
-            self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
-            self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
-            self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D_symmetries)
-            self._last_ray_ignore_backface_sources = self.ray_ignore_backface_sources()
-            self._last_visible_bbox_factor = options['visible bbox factor']
-            self._last_visible_dist_offset = options['visible dist offset']
-            self._last_selection_occlusion_test = options['selection occlusion test']
-            self._last_selection_backface_test = options['selection backface test']
-            self._last_draw_count = self._draw_count
-        else:
-            self.accel_vis_verts = { bmv for bmv in self.accel_vis_verts if bmv.is_valid } if self.accel_vis_verts is not None else None
-            self.accel_vis_edges = { bme for bme in self.accel_vis_edges if bme.is_valid } if self.accel_vis_edges is not None else None
-            self.accel_vis_faces = { bmf for bmf in self.accel_vis_faces if bmf.is_valid } if self.accel_vis_faces is not None else None
+        # print(f'RECOMPUTING VIS ACCEL [{" "*random.randrange(20) + "*":20s}]')
+        # print(f'RECOMPUTE VIS ACCEL {random.random()} {force=}')
+        # print(f'  accel recompute: {self.accel_recompute}')
+        # print(f'  target change: {target_version != self.accel_target_version}')
+        # print(f'  view change: {view_version != self.accel_view_version}  ({self.accel_view_version.get_hash() if self.accel_view_version else None}, {view_version.get_hash()})')
+        # print(f'  geom change: {self.accel_vis_verts is None} {self.accel_vis_edges is None} {self.accel_vis_faces is None} {self.accel_vis_accel is None}')
+        # print(f'  bbox change: {options["visible bbox factor"] != self._last_visible_bbox_factor}')
+        # print(f'  dist offset change: {options["visible dist offset"] != self._last_visible_dist_offset}')
+        # print(f'  navigating: {self._nav}  {time.time() - self._nav_time > 0.25}')
+        # print(f'  draw change: {self._draw_count != self._last_draw_count}')
+        # print(f'  stack:')
+        # for line in traceback.format_stack():
+        #     print(f'    {line.strip()}')
+        self.accel_vis_verts = self.visible_verts()
+        self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
+        self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
+        self.accel_vis_accel = Accel2D(self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D_symmetries)
+
+        # remember important things that influence accel structure
+        self.accel_last.target_version              = target_version
+        self.accel_last.view_version                = view_version
+        self.accel_last.visible_bbox_factor         = options['visible bbox factor']
+        self.accel_last.visible_dist_offset         = options['visible dist offset']
+        self.accel_last.selection_occlusion_test    = options['selection occlusion test']
+        self.accel_last.selection_backface_test     = options['selection backface test']
+        self.accel_last.ray_ignore_backface_sources = self.ray_ignore_backface_sources()
+        self.accel_last.draw_count                  = self._draw_count
 
         return self.accel_vis_accel
 
-    def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True):
-        vis_verts = self.visible_verts()
-        verts = vis_verts                           if include_verts else []
-        edges = self.visible_edges(verts=vis_verts) if include_edges else []
-        faces = self.visible_faces(verts=vis_verts) if include_faces else []
+    @staticmethod
+    def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
+
+    def get_vis_verts(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_verts
+    def get_vis_edges(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_edges
+    def get_vis_faces(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_faces
+    def get_vis_geom(self, *, force=False):  self.get_vis_accel(force=force) ; return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
+
+    def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):
+        verts, edges, faces = self.visible_geom()
         if selection_only is not None:
-            verts = [v for v in verts if v.select == selection_only]
-            edges = [e for e in edges if e.select == selection_only]
-            faces = [f for f in faces if f.select == selection_only]
-        return Accel2D(verts, edges, faces, self.get_point2D_symmetries)
+            fn_select = lambda bmelem: bmelem.select == selection_only
+            verts, edges, faces = list(filter(fn_select, verts)), list(filter(fn_select, edges)), list(filter(fn_select, faces))
+        return Accel2D(
+            (verts if include_verts else []),
+            (edges if include_edges else []),
+            (faces if include_faces else []),
+            self.get_point2D_symmetries if symmetry else self.get_point2D_nosymmetry,
+        )
 
     @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
@@ -289,6 +304,9 @@ class RetopoFlow_Target:
     def get_point2D_symmetries(self, point):
         return [ self.Point_to_Point2D(pt) for pt in self.iter_symmetry_points(point) ]
 
+    def get_point2D_nosymmetry(self, point):
+        return [ self.Point_to_Point2D(point) ]
+
     @profiler.function
     def nearest2D_vert(self, point=None, max_dist=None, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
@@ -363,38 +381,19 @@ class RetopoFlow_Target:
     #######################################
     # get visible geometry
 
-    @profiler.function
-    def visible_verts(self, verts=None):
-        return self.rftarget.visible_verts(self.is_visible, verts=verts)
+    def visible_verts(self, verts=None):             return self.rftarget.visible_verts(self.is_visible, verts=verts)
+    def visible_edges(self, verts=None, edges=None): return self.rftarget.visible_edges(self.is_visible, verts=verts, edges=edges)
+    def visible_faces(self, verts=None):             return self.rftarget.visible_faces(self.is_visible, verts=verts)
+    def visible_geom(self): return (verts := self.visible_verts()), self.visible_edges(verts=verts), self.visible_faces(verts=verts)
 
-    @profiler.function
-    def visible_edges(self, verts=None, edges=None):
-        return self.rftarget.visible_edges(self.is_visible, verts=verts, edges=edges)
+    def nonvisible_verts(self):             return self.rftarget.visible_verts(self.is_nonvisible)
+    def nonvisible_edges(self, verts=None): return self.rftarget.visible_edges(self.is_nonvisible, verts=verts)
+    def nonvisible_faces(self, verts=None): return self.rftarget.visible_faces(self.is_nonvisible, verts=verts)
+    def nonvisible_geom(self): return (verts := self.nonvisible_verts()), self.nonvisible_edges(verts=verts), self.nonvisible_faces(verts=verts)
 
-    @profiler.function
-    def visible_faces(self, verts=None):
-        return self.rftarget.visible_faces(self.is_visible, verts=verts)
-
-
-    @profiler.function
-    def nonvisible_verts(self):
-        return self.rftarget.visible_verts(self.is_nonvisible)
-
-    @profiler.function
-    def nonvisible_edges(self, verts=None):
-        return self.rftarget.visible_edges(self.is_nonvisible, verts=verts)
-
-    @profiler.function
-    def nonvisible_faces(self, verts=None):
-        return self.rftarget.visible_faces(self.is_nonvisible, verts=verts)
-
-
-    def iter_verts(self):
-        yield from self.rftarget.iter_verts()
-    def iter_edges(self):
-        yield from self.rftarget.iter_edges()
-    def iter_faces(self):
-        yield from self.rftarget.iter_faces()
+    def iter_verts(self): yield from self.rftarget.iter_verts()
+    def iter_edges(self): yield from self.rftarget.iter_edges()
+    def iter_faces(self): yield from self.rftarget.iter_faces()
 
     ########################################
     # symmetry utils
@@ -680,8 +679,9 @@ class RetopoFlow_Target:
     def ensure_lookup_tables(self):
         self.rftarget.ensure_lookup_tables()
 
-    def dirty(self):
-        self.rftarget.dirty()
+    def dirty(self, *, selectionOnly=False):
+        self.accel_recompute = True
+        self.rftarget.dirty(selectionOnly=selectionOnly)
 
     def dirty_render(self):
         self.rftarget_draw.dirty()
@@ -745,14 +745,17 @@ class RetopoFlow_Target:
     def get_selected_verts(self): return self.rftarget.get_selected_verts()
     def get_selected_edges(self): return self.rftarget.get_selected_edges()
     def get_selected_faces(self): return self.rftarget.get_selected_faces()
+    def get_selected_geom(self): return self.get_selected_verts(), self.get_selected_edges(), self.get_selected_faces()
 
     def get_unselected_verts(self): return self.rftarget.get_unselected_verts()
     def get_unselected_edges(self): return self.rftarget.get_unselected_edges()
     def get_unselected_faces(self): return self.rftarget.get_unselected_faces()
+    def get_unselected_geom(self): return self.get_unselected_verts(), self.get_unselected_edges(), self.get_unselected_faces()
 
     def get_hidden_verts(self): return self.rftarget.get_hidden_verts()
     def get_hidden_edges(self): return self.rftarget.get_hidden_edges()
     def get_hidden_faces(self): return self.rftarget.get_hidden_faces()
+    def get_hidden_geom(self): return self.get_hidden_verts(), self.get_hidden_edges(), self.get_hidden_faces()
 
     def get_revealed_verts(self): return self.rftarget.get_revealed_verts()
     def get_revealed_edges(self): return self.rftarget.get_revealed_edges()
@@ -823,58 +826,46 @@ class RetopoFlow_Target:
 
     def hide_selected(self):
         self.undo_push('hide selected')
-        selected = set()
-        for bmv in self.get_selected_verts():
-            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
-        for bme in self.get_selected_edges():
-            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
-        for bmf in self.get_selected_faces():
-            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
-        for e in selected: e.hide = True
+        verts, edges, faces = self.get_selected_geom()
+        hide_elems = {
+            *verts, *(bmv for bme in edges for bmv in bme.verts),      *(bmv for bmf in faces for bmv in bmf.verts),
+            *edges, *(bme for bmf in faces for bme in bmf.edges),      *(bme for bmv in verts for bme in bmv.link_edges),
+            *faces, *(bmf for bmv in verts for bmf in bmv.link_faces), *(bmf for bme in edges for bmf in bme.link_faces),
+        }
+        for e in hide_elems: e.hide = True
         self.dirty()
 
     def hide_visible(self):
         self.undo_push('hide visible')
-        selected = set()
-        visible_verts = self.visible_verts()
-        visible_edges = self.visible_edges(verts=visible_verts)
-        visible_faces = self.visible_faces(verts=visible_verts)
-        for bmv in visible_verts:
-            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
-        for bme in visible_edges:
-            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
-        for bmf in visible_faces:
-            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
-        for e in selected: e.hide = True
+        verts, edges, faces = self.get_vis_geom()
+        hide_elems = {
+            *verts, *(bmv for bme in edges for bmv in bme.verts),      *(bmv for bmf in faces for bmv in bmf.verts),
+            *edges, *(bme for bmf in faces for bme in bmf.edges),      *(bme for bmv in verts for bme in bmv.link_edges),
+            *faces, *(bmf for bmv in verts for bmf in bmv.link_faces), *(bmf for bme in edges for bmf in bme.link_faces),
+        }
+        for e in hide_elems: e.hide = True
         self.dirty()
 
     def hide_nonvisible(self):
         self.undo_push('hide visible')
-        selected = set()
-        nonvisible_verts = self.nonvisible_verts()
-        nonvisible_edges = self.nonvisible_edges(verts=nonvisible_verts)
-        nonvisible_faces = self.nonvisible_faces(verts=nonvisible_verts)
-        for bmv in nonvisible_verts:
-            selected |= {bmv} | set(bmv.link_edges) | set(bmv.link_faces)
-        for bme in nonvisible_edges:
-            selected |= {bme} | set(bme.link_faces) | set(bme.verts)
-        for bmf in nonvisible_faces:
-            selected |= {bmf} | set(bmf.edges) | set(bmf.verts)
-        for e in selected: e.hide = True
+        verts, edges, faces = self.nonvisible_geom()
+        hide_elems = {
+            *verts, *(bmv for bme in edges for bmv in bme.verts),      *(bmv for bmf in faces for bmv in bmf.verts),
+            *edges, *(bme for bmf in faces for bme in bmf.edges),      *(bme for bmv in verts for bme in bmv.link_edges),
+            *faces, *(bmf for bmv in verts for bmf in bmv.link_faces), *(bmf for bme in edges for bmf in bme.link_faces),
+        }
+        for e in hide_elems: e.hide = True
         self.dirty()
 
     def hide_unselected(self):
         self.undo_push('hide unselected')
-        selected = self.get_unselected_verts() | self.get_unselected_edges() | self.get_unselected_faces()
-        for e in selected: e.hide = True
+        for e in chain(*self.get_unselected_geom()): e.hide = True
         self.dirty()
 
     def reveal_hidden(self):
         self.undo_push('reveal hidden')
-        hidden = self.get_hidden_verts() | self.get_hidden_edges() | self.get_hidden_faces()
-        for e in hidden: e.hide = False
+        for e in chain(*self.get_hidden_geom()): e.hide = False
         self.dirty()
-        return
 
 
     #######################################################

@@ -243,6 +243,9 @@ class Options:
         'selection occlusion test': True,       # True: do not select occluded geometry
         'selection backface test':  True,       # True: do not select geometry that is facing away
 
+        'accel recompute delay':    0.125,      # seconds to wait to prevent recomputing accel structs too quickly after navigation
+        'view change delay':        0.250,      # seconds to wait before calling view change callbacks (> accel recompute delay)
+
         'move rotate object if no selection': True,
 
         ####################################################
@@ -451,6 +454,8 @@ class Options:
         'patches angle':                120,
 
         'select geometry':              'Verts',
+        'select merge dist':           10,         # pixels away to merge
+        'select automerge':            True,
     }
 
     db = None           # current options dict

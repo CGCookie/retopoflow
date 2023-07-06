@@ -57,3 +57,28 @@ class TimerHandler:
         if v: self.start()
         else: self.stop()
 
+
+class StopwatchHandler:
+    def __init__(self, seconds, fn):
+        self.sec = seconds
+        self.fn  = fn
+
+    def _callback(self):
+        self.fn()
+        self.stop()
+
+    @property
+    def is_going(self):
+        return bpy.app.timers.is_registered(self._callback)
+
+    def start(self):
+        if self.is_going: return
+        bpy.app.timers.register(self._callback, first_interval=self.sec)
+
+    def stop(self):
+        if not self.is_going: return
+        bpy.app.timers.unregister(self._callback)
+
+    def reset(self):
+        self.stop()
+        self.start()

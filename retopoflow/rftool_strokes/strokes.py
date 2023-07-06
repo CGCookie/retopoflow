@@ -1020,6 +1020,7 @@ class Strokes(RFTool):
                 selection_only=False,
                 include_edges=False,
                 include_faces=False,
+                symmetry=False,
             ),
         }
 

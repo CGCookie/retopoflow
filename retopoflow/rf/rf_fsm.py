@@ -37,7 +37,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.utils import normalize_triplequote
 from ...config.options import options, retopoflow_files
-
+from ...addon_common.common.timerhandler import StopwatchHandler
 
 class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to override fns
     def setup_states(self):
@@ -93,13 +93,17 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             self.update_view_sessionoptions(self.context)
             self.update_clip_settings(rescale=False)
             self.view_version = view_version
-            self.rftool._callback('view change')
-            if self.rftool.rfwidget:
-                self.rftool.rfwidget._callback_widget('view change')
+            if not hasattr(self, '_stopwatch_view_change'):
+                def callback_view_change():
+                    self.rftool._callback('view change')
+                    if self.rftool.rfwidget:
+                        self.rftool.rfwidget._callback_widget('view change')
+                self._stopwatch_view_change = StopwatchHandler(options['view change delay'], callback_view_change)
+            self._stopwatch_view_change.reset()
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         fpsdiv = self.document.body.getElementById('fpsdiv')
-        if fpsdiv: fpsdiv.innerText = 'UI FPS: %.2f' % self.document._draw_fps
+        if fpsdiv: fpsdiv.innerText = f'UI FPS: {self.document._draw_fps:.2f}'
 
 
     def which_pie_menu_section(self):

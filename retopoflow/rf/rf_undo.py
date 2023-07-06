@@ -37,21 +37,22 @@ class RetopoFlow_Undo:
                 'tool':         self.rftool,
                 'rftarget':     copy.deepcopy(self.rftarget),
                 'grease_marks': copy.deepcopy(self.grease_marks),
-                }
+            }
 
         def restore_state(state, *, set_tool=True, reset_tool=True, instrument_action=None):
             nonlocal self
+
             self.rftarget = state['rftarget']
             self.rftarget.rewrap()
             self.rftarget.dirty()
             self.rftarget_draw.replace_rfmesh(self.rftarget)
             self.grease_marks = state['grease_marks']
-            if set_tool:
-                self.select_rftool(state['tool'], reset=reset_tool)
-            elif reset_tool:
-                self.reset_rftool()
-            if instrument_action:
-                self.instrument_write(instrument_action)
+
+            if   set_tool:   self.select_rftool(state['tool'], reset=reset_tool)
+            elif reset_tool: self.reset_rftool()
+
+            if instrument_action: self.instrument_write(instrument_action)
+
             tag_redraw_all('restoring state')
 
         self._undostack = UndoStack(

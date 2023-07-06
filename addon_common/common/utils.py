@@ -458,6 +458,9 @@ class Dict():
     '''
     def __init__(self, *args, **kwargs):
         self.__dict__['__d'] = {}
+        if 'get_default' in kwargs:
+            v = kwargs.pop('get_default')
+            self.set_get_default_fn(lambda: v)
         if 'get_default_fn' in kwargs:
             self.set_get_default_fn(kwargs.pop('get_default_fn'))
         self.set(*args, **kwargs)
@@ -481,7 +484,8 @@ class Dict():
     def __delitem__(self, k):
         del self.__dict__['__d'][k]
     def __getattr__(self, k):
-        return self.__dict__['__d'][k]
+        return self.get(k)
+        # return self.__dict__['__d'][k]
     def __setattr__(self, k, v):
         self.__dict__['__d'][k] = v
         return v
