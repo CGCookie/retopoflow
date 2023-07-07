@@ -177,13 +177,6 @@ class FontManager:
         return blf.shadow_offset(FontManager.load(fontid), *xy)
 
     @staticmethod
-    @only_in_blender_version('<= 3.3')
-    def size(size, fontid=None):
-        # if not dpi: dpi = FontManager.get_dpi()
-        return blf.size(FontManager.load(fontid), size, 72)
-
-    @staticmethod
-    @only_in_blender_version('> 3.3')
     def size(size, fontid=None):
         return blf.size(FontManager.load(fontid), size)
 

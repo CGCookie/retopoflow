@@ -33,6 +33,7 @@ from .rf.rf_grease          import RetopoFlow_Grease
 from .rf.rf_helpsystem      import RetopoFlow_HelpSystem
 from .rf.rf_instrument      import RetopoFlow_Instrumentation
 from .rf.rf_normalize       import RetopoFlow_Normalize
+from .rf.rf_piemenu         import RetopoFlow_PieMenu
 from .rf.rf_sources         import RetopoFlow_Sources
 from .rf.rf_spaces          import RetopoFlow_Spaces
 from .rf.rf_target          import RetopoFlow_Target
@@ -76,6 +77,7 @@ class RetopoFlow(
     RetopoFlow_HelpSystem,
     RetopoFlow_Instrumentation,
     RetopoFlow_Normalize,
+    RetopoFlow_PieMenu,
     RetopoFlow_Sources,
     RetopoFlow_Spaces,
     RetopoFlow_Target,
