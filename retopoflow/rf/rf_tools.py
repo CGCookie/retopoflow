@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 '''
 
 # the order of these tools dictates the order tools show in UI
+from ..rftool_select.select         import Select
 from ..rftool_contours.contours     import Contours
 from ..rftool_polystrips.polystrips import PolyStrips
 from ..rftool_strokes.strokes       import Strokes
@@ -29,7 +30,6 @@ from ..rftool_knife.knife           import Knife
 from ..rftool_loops.loops           import Loops
 from ..rftool_tweak.tweak           import Tweak
 from ..rftool_relax.relax           import Relax
-from ..rftool_select.select         import Select
 
 from ..rftool import RFTool
 
