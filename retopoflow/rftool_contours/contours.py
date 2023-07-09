@@ -39,6 +39,7 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.timerhandler import CallGovernor, StopwatchHandler
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common import blender_preferences as bprefs
+from ...addon_common.common.blender import tag_redraw_all
 
 from ...config.options import options
 
@@ -327,6 +328,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         self.mousedown = self.rfcontext.actions.mouse
 
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
 
     @FSM.on_state('rotate plane')
@@ -387,7 +389,9 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     @FSM.on_state('rotate plane', 'exit')
     def rotateplane_exit(self):
         self._timer.done()
+        self.rfcontext.clear_split_target_visualization()
         self.rfcontext.set_accel_defer(False)
+        tag_redraw_all('Contours finish rotate')
 
 
     def action_setup(self):
@@ -530,6 +534,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         self.grab_opts['timer'].done()
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
+        tag_redraw_all('Contours finish grab')
 
 
     @FSM.on_state('rotate screen', 'can enter')
@@ -563,6 +568,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         self.rotate_start = math.atan2(self.rotate_about.y - self.mousedown.y, self.rotate_about.x - self.mousedown.x)
 
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.split_target_visualization(verts=[v for vs in self.move_verts for v in vs])
         self.rfcontext.set_accel_defer(True)
 
     @FSM.on_state('rotate screen')
@@ -634,7 +640,9 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
     @FSM.on_state('rotate screen', 'exit')
     def rotatescreen_exit(self):
         self._timer.done()
+        self.rfcontext.clear_split_target_visualization()
         self.rfcontext.set_accel_defer(False)
+        tag_redraw_all('Contours finish rotate')
 
 
     @RFWidget.on_action('Contours line cut')
