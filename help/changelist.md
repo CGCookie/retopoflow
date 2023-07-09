@@ -13,13 +13,16 @@ This version of RetopoFlow requires Blender 3.6 or later.
     - Improved indication of warnings in Blender menu
     - Added button to continue editing with active mesh as target
     - Improved handling of when Blender version is outside requirements
-- Performance: improved performance when navigating
+- Performance
+    - Improved navigating and selecting
+    - Improved tools: PolyPen, Loops, Strokes, Relax, Tweak, ...
 - Contours
     - Fixed crashing bug when cutting across non-manifold edge
     - Fixed bug when cancelling cut
 - Strokes: consistent fixed span/segment count for all insertions
 - PolyPen: added simple rip and rip fill
 - Knife: fixed bug when using where no source geometry exists
+- Tweak: added raycast/snap modes to work in screen or world space
 - Select: added new tool to do box selection
 - Auto Save
     - Fixed and improved reporting, recovery, and other operations

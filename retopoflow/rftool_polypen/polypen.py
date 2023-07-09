@@ -43,6 +43,7 @@ from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.timerhandler import CallGovernor
 from ...addon_common.common.debug import dprint
 
 
@@ -76,12 +77,11 @@ class PolyPen(RFTool):
         self.rfwidget = None
         self.next_state = 'unset'
         self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
+        self.vis_verts, self.vis_edges, self.vis_faces = [], [], []
         self.update_state_info()
-        self.first_time = True
         self._var_merge_dist  = BoundFloat( '''options['polypen merge dist'] ''')
         self._var_automerge   = BoundBool(  '''options['polypen automerge']  ''')
         self._var_insert_mode = BoundString('''options['polypen insert mode']''')
-        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     def update_insert_mode(self):
         mode = options['polypen insert mode']
@@ -97,121 +97,145 @@ class PolyPen(RFTool):
 
     @RFTool.on_reset
     def reset(self):
-        self.previs_timer.stop()
+        self.rfcontext.fast_update_timer.stop()
 
     @RFTool.on_reset
     @RFTool.on_target_change
     @RFTool.on_view_change
     @FSM.onlyinstate('main')
     def update_state_info(self):
-        with profiler.code('getting selected geometry'):
-            self.sel_verts, self.sel_edges, self.sel_faces = self.rfcontext.get_selected_geom()
-        with profiler.code('getting visible geometry'):
-            self.vis_verts, self.vis_edges, self.vis_faces = self.rfcontext.get_vis_geom()
-        if self.rfcontext.loading_done:
-            self.set_next_state(force=True)
+        self.sel_verts, self.sel_edges, self.sel_faces = self.rfcontext.get_selected_geom()
+        self.set_next_state()
 
-    @RFTool.on_mouse_stop
+    @RFTool.on_mouse_move
     @FSM.onlyinstate({'main'})
-    def update_next_state_mouse(self):
-        self.set_next_state(force=True)
-        tag_redraw_all('PolyPen mouse stop')
+    def mouse_move(self):
+        self.set_next_state()
 
-    def set_next_state(self, force=False):
+    def validate_nearest(self):
+        reset = any([
+            self.nearest_vert and not self.nearest_vert.is_valid,
+            self.nearest_edge and not self.nearest_edge.is_valid,
+            self.nearest_face and not self.nearest_face.is_valid,
+            self.nearest_geom and not self.nearest_geom.is_valid,
+        ])
+        if not reset: return
+        self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
+        self.set_next_state()
+
+
+    @RFTool.once_per_frame
+    @FSM.onlyinstate('main')
+    def unpause_set_next_state(self):
+        if not self.actions.is_navigating:
+            self.set_next_state.unpause()
+
+    @CallGovernor.limit(pause_after_call=True)
+    def set_next_state(self):
         '''
         determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
         '''
 
-        # if previously computed nearest geometry is invalid, force a recompute
-        force |= self.nearest_vert is not None and not self.nearest_vert.is_valid
-        force |= self.nearest_edge is not None and not self.nearest_edge.is_valid
-        force |= self.nearest_face is not None and not self.nearest_face.is_valid
-        force |= self.nearest_geom is not None and not self.nearest_geom.is_valid
+        if not self.actions.mouse:
+            self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
+            self.vis_verts, self.vis_edges, self.vis_faces = [], [], []
+            return
 
-        if not self.actions.mouse and not force: return
+        if self.actions.using_onlymods('insert'):
+            with profiler.code('getting nearest geometry'):
+                self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
+                self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
+                self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
+                self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
+                self.vis_verts, self.vis_edges, self.vis_faces = self.rfcontext.get_vis_geom()
 
-        with profiler.code('getting nearest geometry'):
-            self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
-            self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
-            self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
-            self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
+            # determine next state based on current selection, hovered geometry
+            num_verts = len(self.sel_verts)
+            num_edges = len(self.sel_edges)
+            num_faces = len(self.sel_faces)
+            self.insert_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen insert dist'])
 
-        # determine next state based on current selection, hovered geometry
-        num_verts = len(self.sel_verts)
-        num_edges = len(self.sel_edges)
-        num_faces = len(self.sel_faces)
-        self.insert_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen insert dist'])
+            if self.insert_edge and self.insert_edge.select:      # overriding: if hovering over a selected edge, knife it!
+                self.next_state = 'knife selected edge'
 
-        if self.insert_edge and self.insert_edge.select:      # overriding: if hovering over a selected edge, knife it!
-            self.next_state = 'knife selected edge'
-
-        elif options['polypen insert mode'] == 'Tri/Quad':
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
-                self.next_state = 'vert-edge'
-            elif num_edges and num_faces == 0:
-                quad_snap = False
-                if not self.nearest_vert and self.nearest_edge:
-                    quad_snap = True
-                    quad_snap &= len(self.nearest_edge.link_faces) <= 1
-                    quad_snap &= not any(v in self.sel_verts for v in self.nearest_edge.verts)
-                    quad_snap &= not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges)
-                if quad_snap:
-                    self.next_state = 'edge-quad-snap'
-                else:
-                    self.next_state = 'edge-face'
-            elif num_verts == 3 and num_edges == 3 and num_faces == 1:
-                self.next_state = 'tri-quad'
-            else:
-                self.next_state = 'new vertex'
-
-        elif options['polypen insert mode'] == 'Quad-Only':
-            # a Desmos construction of how this works: https://www.desmos.com/geometry/bmmx206thi
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
-                self.next_state = 'vert-edge'
-            elif num_edges:
-                quad_snap = False
-                if not self.nearest_vert and self.nearest_edge:
-                    quad_snap = True
-                    quad_snap &= len(self.nearest_edge.link_faces) <= 1
-                    quad_snap &= not any(v in self.sel_verts for v in self.nearest_edge.verts)
-                    quad_snap &= not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges)
-                if quad_snap:
-                    self.next_state = 'edge-quad-snap'
-                else:
-                    self.next_state = 'edge-quad'
-            else:
-                self.next_state = 'new vertex'
-
-        elif options['polypen insert mode'] == 'Tri-Only':
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
-                self.next_state = 'vert-edge'
-            elif num_edges and num_faces == 0:
-                quad = False
-                if not self.nearest_vert and self.nearest_edge:
-                    quad = True
-                    quad &= len(self.nearest_edge.link_faces) <= 1
-                    quad &= not any(v in self.sel_verts for v in self.nearest_edge.verts)
-                    quad &= not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges)
-                if quad:
-                    self.next_state = 'edge-quad-snap'
-                else:
-                    self.next_state = 'edge-face'
-            elif num_verts == 3 and num_edges == 3 and num_faces == 1:
-                self.next_state = 'edge-face'
-            else:
-                self.next_state = 'new vertex'
-
-        elif options['polypen insert mode'] == 'Edge-Only':
-            if num_verts == 0:
-                self.next_state = 'new vertex'
-            else:
-                if self.insert_edge:
+            elif options['polypen insert mode'] == 'Tri/Quad':
+                if num_verts == 1 and num_edges == 0 and num_faces == 0:
                     self.next_state = 'vert-edge'
+                elif num_edges and num_faces == 0:
+                    quad_snap = (
+                        (not self.nearest_vert and self.nearest_edge) and
+                        (len(self.nearest_edge.link_faces) <= 1) and
+                        (not any(v in self.sel_verts for v in self.nearest_edge.verts)) and
+                        (not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges))
+                    )
+                    if quad_snap:
+                        self.next_state = 'edge-quad-snap'
+                    else:
+                        self.next_state = 'edge-face'
+                elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+                    self.next_state = 'tri-quad'
                 else:
-                    self.next_state = 'vert-edge-vert'
+                    self.next_state = 'new vertex'
+
+            elif options['polypen insert mode'] == 'Quad-Only':
+                # a Desmos construction of how this works: https://www.desmos.com/geometry/bmmx206thi
+                if num_verts == 1 and num_edges == 0 and num_faces == 0:
+                    self.next_state = 'vert-edge'
+                elif num_edges:
+                    quad_snap = (
+                        (not self.nearest_vert and self.nearest_edge) and
+                        (len(self.nearest_edge.link_faces) <= 1) and
+                        (not any(v in self.sel_verts for v in self.nearest_edge.verts)) and
+                        (not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges))
+                    )
+                    if quad_snap:
+                        self.next_state = 'edge-quad-snap'
+                    else:
+                        self.next_state = 'edge-quad'
+                else:
+                    self.next_state = 'new vertex'
+
+            elif options['polypen insert mode'] == 'Tri-Only':
+                if num_verts == 1 and num_edges == 0 and num_faces == 0:
+                    self.next_state = 'vert-edge'
+                elif num_edges and num_faces == 0:
+                    quad = (
+                        (not self.nearest_vert and self.nearest_edge) and
+                        (len(self.nearest_edge.link_faces) <= 1) and
+                        (not any(v in self.sel_verts for v in self.nearest_edge.verts)) and
+                        (not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges))
+                    )
+                    if quad:
+                        self.next_state = 'edge-quad-snap'
+                    else:
+                        self.next_state = 'edge-face'
+                elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+                    self.next_state = 'edge-face'
+                else:
+                    self.next_state = 'new vertex'
+
+            elif options['polypen insert mode'] == 'Edge-Only':
+                if num_verts == 0:
+                    self.next_state = 'new vertex'
+                else:
+                    if self.insert_edge:
+                        self.next_state = 'vert-edge'
+                    else:
+                        self.next_state = 'vert-edge-vert'
+
+            else:
+                assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
 
         else:
-            assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
+            with profiler.code('getting nearest geometry'):
+                sel_accel = self.rfcontext.get_accel_selected()
+                self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
+                self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
+                self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
+                self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
+
+
+        tag_redraw_all('PolyPen next state')
 
     @FSM.on_state('main', 'enter')
     def main_enter(self):
@@ -219,14 +243,9 @@ class PolyPen(RFTool):
 
     @FSM.on_state('main')
     def main(self):
-        if self.first_time:
-            self.set_next_state(force=True)
-            self.first_time = False
-            tag_redraw_all('PolyPen mousemove')
-        elif self.nearest_geom and not self.nearest_geom.is_valid:
-            self.set_next_state(force=True)
+        self.validate_nearest()
 
-        self.previs_timer.enable(self.actions.using_onlymods('insert'))
+        self.rfcontext.fast_update_timer.enable(self.actions.using_onlymods('insert'))
         if self.actions.using_onlymods('insert'):
             if self.next_state == 'knife selected edge':
                 self.set_widget('knife')
@@ -312,8 +331,8 @@ class PolyPen(RFTool):
     def set_vis_bmverts(self):
         self.vis_bmverts = [
             (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
-            for bmv in self.vis_verts
-            if bmv.is_valid and bmv not in self.sel_verts
+            for bmv in self.rfcontext.get_vis_verts()
+            if bmv.is_valid and not bmv.select
         ]
 
     @FSM.on_state('rip')
@@ -734,7 +753,7 @@ class PolyPen(RFTool):
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False, symmetry=False),
         }
         self.rfcontext.split_target_visualization_selected()
-        self.previs_timer.start()
+        self.rfcontext.fast_update_timer.start()
         self.rfcontext.set_accel_defer(True)
 
         if options['hide cursor on tweak']: self.set_widget('hidden')
@@ -786,7 +805,7 @@ class PolyPen(RFTool):
 
     @FSM.on_state('move', 'exit')
     def move_exit(self):
-        self.previs_timer.stop()
+        self.rfcontext.fast_update_timer.stop()
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
 

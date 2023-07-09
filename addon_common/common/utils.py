@@ -35,11 +35,6 @@ from mathutils import Vector, Matrix
 from .blender_preferences import get_preferences
 from .profiler import profiler
 from .debug import dprint, debugger
-from .maths import (
-    Point, Direction, Normal, Frame,
-    Point2D, Vec2D, Direction2D,
-    Ray, XForm, BBox, Plane
-)
 
 
 def normalize_triplequote(
@@ -382,9 +377,10 @@ def blender_version():
     return '%d.%02d' % (major,minor)
 
 
-def iter_head(i, *, default=None):
+def iter_head(iterable, *, default=None):
+    return next(iter(iterable), default)
     try:
-        return next(iter(i))
+        return next(iter(iterable))
     except StopIteration:
         return default
 

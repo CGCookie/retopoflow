@@ -73,7 +73,7 @@ class RetopoFlow_Sources:
         def gen_accel(edges, Point_to_Point2D):
             nonlocal w2l_point
             edges = [(w2l_point(v0), w2l_point(v1)) for (v0, v1) in edges]
-            return Accel2D.simple_edges(edges, Point_to_Point2D)
+            return Accel2D.simple_edges('RFSource edges', edges, Point_to_Point2D)
 
         self.rftarget.set_symmetry_accel(
             gen_accel(rfsources_xyplanes, lambda p:[Point2D((p.x,p.y))]),
@@ -176,24 +176,67 @@ class RetopoFlow_Sources:
     def ray_ignore_backface_sources(self):
         return self.shading_backface_get()
 
-    @profiler.function
+    def _raycast_hit_any(self, ray, ignore_backface):
+        return any(
+            rfsource.raycast_hit(ray, ignore_backface=ignore_backface)
+            for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)
+        )
+
+    def gen_is_visible(self, *, bbox_factor_override=None, dist_offset_override=None, occlusion_test_override=None, backface_test_override=None):
+        backface_test  = options['selection backface test']  if backface_test_override  is None else backface_test_override
+        occlusion_test = options['selection occlusion test'] if occlusion_test_override is None else occlusion_test_override
+        bbox_factor    = options['visible bbox factor']      if bbox_factor_override    is None else bbox_factor_override
+        dist_offset    = options['visible dist offset']      if dist_offset_override    is None else dist_offset_override
+        max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
+        Point_to_Point2D = self.Point_to_Point2D
+        Point_to_Ray = self.Point_to_Ray
+        raycast_hit_any = self._raycast_hit_any
+        ray_ignore_backface_sources = self.ray_ignore_backface_sources()
+        area_x, area_y = self.actions.size.x, self.actions.size.y
+        clip_start = self.drawing.space.clip_start
+        vec_fwd = self.Vec_forward()
+
+        def is_inside_area(point):
+            return (p2D := Point_to_Point2D(point)) and (0 <= p2D.x <= area_x) and (0 <= p2D.y <= area_y)
+        def is_facing_correctly(normal):
+            return not backface_test or (not normal) or vec_fwd.dot(normal) <= 0
+        def is_not_occluded(point):
+            return not occlusion_test or ((ray := Point_to_Ray(point, min_dist=clip_start, max_dist_offset=-max_dist_offset)) and not raycast_hit_any(ray, ray_ignore_backface_sources))
+
+        def is_visible(point:Point, normal:Normal=None):
+            return is_inside_area(point) and is_facing_correctly(normal) and is_not_occluded(point)
+
+        return is_visible
+
+    def gen_is_nonvisible(self, *args, **kwargs):
+        is_visible = self.gen_is_visible(*args, **kwargs)
+        def is_nonvisible(*args, **kwargs):
+            return not is_visible(*args, **kwargs)
+        return is_nonvisible
+
     def is_visible(self, point:Point, normal:Normal=None, bbox_factor_override=None, dist_offset_override=None, occlusion_test_override=None, backface_test_override=None):
+        backface_test  = options['selection backface test']  if backface_test_override  is None else backface_test_override
+        occlusion_test = options['selection occlusion test'] if occlusion_test_override is None else occlusion_test_override
+        bbox_factor    = options['visible bbox factor']      if bbox_factor_override    is None else bbox_factor_override
+        dist_offset    = options['visible dist offset']      if dist_offset_override    is None else dist_offset_override
+        max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
+
+        # find where point projects to screen
         p2D = self.Point_to_Point2D(point)
         if not p2D: return False
-        if p2D.x < 0 or p2D.x > self.actions.size.x: return False
-        if p2D.y < 0 or p2D.y > self.actions.size.y: return False
-        bbox_factor = options['visible bbox factor'] if bbox_factor_override is None else bbox_factor_override
-        dist_offset = options['visible dist offset'] if dist_offset_override is None else dist_offset_override
-        max_dist_offset = self.sources_bbox.get_min_dimension() * bbox_factor + dist_offset
+        if not (0 <= p2D.x <= self.actions.size.x) or not (0 <= p2D.y <= self.actions.size.y): return False
+
+        # compute ray through projection point
         ray = self.Point_to_Ray(point, min_dist=self.drawing.space.clip_start, max_dist_offset=-max_dist_offset)
         if not ray: return False
-        if backface_test_override or (backface_test_override is None and options['selection backface test']):
-            if normal and normal.dot(ray.d) >= 0: return False
-        if occlusion_test_override or (occlusion_test_override is None and options['selection occlusion test']):
-            return not any(
-                rfsource.raycast_hit(ray, ignore_backface=self.ray_ignore_backface_sources())
-                for rfsource in self.rfsources if self.get_rfsource_snap(rfsource)
-            )
+
+        # run backfacing test if applicable
+        if backface_test and normal and normal.dot(ray.d) >= 0: return False
+
+        # run occlusion test if applicable
+        if occlusion_test and self._raycast_hit_any(ray, self.ray_ignore_backface_sources()): return False
+
+        # point is visible!
         return True
 
     def is_nonvisible(self, *args, **kwargs):

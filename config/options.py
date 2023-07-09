@@ -426,6 +426,7 @@ class Options:
         'relax preset 4 falloff':       1.5,
         'relax preset 4 strength':      0.5,
 
+        'tweak mode':                   'raycast',  # mode to move tweaked vert back to surface of source: snap or raycast
         'tweak radius':                 50,
         'tweak falloff':                1.5,
         'tweak strength':               0.5,

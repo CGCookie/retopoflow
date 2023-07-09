@@ -91,20 +91,24 @@ class RFTool:
     @staticmethod
     def on_mouse_stop(fn): return rftool_callback_decorator('mouse stop', fn)
 
+    @staticmethod
+    def once_per_frame(fn): return rftool_callback_decorator('once per frame', fn)
+
     def _gather_callbacks(self):
         rftool_fns = find_fns(self, '_rftool_callback')
         self._callbacks = {
             mode: [fn for (modes, fn) in rftool_fns if mode in modes]
             for mode in [
-                'init',          # called when RF starts up
-                'quickselect start', # called when quick select is used and tool should be started
-                'ui setup',      # called when RF is setting up UI
-                'reset',         # called when RF switches into tool or undo/redo
-                'timer',         # called every timer interval
-                'target change', # called whenever rftarget has changed (selection or edited)
-                'view change',   # called whenever view has changed
-                'mouse move',    # called whenever mouse has moved
-                'mouse stop',    # called whenever mouse has stopped moving
+                'init',                 # called when RF starts up
+                'quickselect start',    # called when quick select is used and tool should be started
+                'ui setup',             # called when RF is setting up UI
+                'reset',                # called when RF switches into tool or undo/redo
+                'timer',                # called every timer interval
+                'target change',        # called whenever rftarget has changed (selection or edited)
+                'view change',          # called whenever view has changed
+                'mouse move',           # called whenever mouse has moved
+                'mouse stop',           # called whenever mouse has stopped moving
+                'once per frame',       # called once per frame
             ]
         }
 
@@ -161,9 +165,11 @@ class RFTool:
     def dirty(self):
         RFTool.rfcontext.dirty()
 
-    def _draw_pre3d(self):  self._draw.pre3d()
-    def _draw_post3d(self): self._draw.post3d()
-    def _draw_post2d(self): self._draw.post2d()
+    def _new_frame(self):
+        self._callback('once per frame')
+    def _draw_pre3d(self):   self._draw.pre3d()
+    def _draw_post3d(self):  self._draw.post3d()
+    def _draw_post2d(self):  self._draw.post2d()
 
     @classmethod
     @property

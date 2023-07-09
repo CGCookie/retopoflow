@@ -190,6 +190,9 @@ class RetopoFlow_Spaces:
         if not pt2D: return None
         return abs(xy.y - pt2D.y)
 
+    def Point2D_in_area(self, p2D):
+        return p2D and (0 <= p2D.x <= self.actions.size.x) and (0 <= p2D.y <= self.actions.size.y)
+
 
     #############################################
     # return camera up and right vectors

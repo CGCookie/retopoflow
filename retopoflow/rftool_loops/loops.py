@@ -43,6 +43,7 @@ from ...addon_common.common.drawing import CC_2D_LINE_STRIP, CC_2D_LINE_LOOP, CC
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.timerhandler import StopwatchHandler
 from ...addon_common.common.utils import iter_pairs
 
 from ...config.options import options, themes
@@ -72,10 +73,19 @@ class Loops(RFTool):
         }
         self.rfwidget = None
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
+        self.stopwatch_update_hover = StopwatchHandler(0.0625, self.update_hover)
 
     @RFTool.on_mouse_move
     def mouse_move(self):
-        tag_redraw_all('Loops mouse_move')
+        self.stopwatch_update_hover.reset()
+
+    @RFTool.on_target_change
+    @RFTool.on_view_change
+    @RFTool.on_mouse_stop
+    @FSM.onlyinstate({'main', 'quick'})
+    def update_next_state(self):
+        self.set_next_state()
+        tag_redraw_all('Loops mouse stop')
 
     @RFTool.on_reset
     def reset(self):
@@ -89,6 +99,7 @@ class Loops(RFTool):
         self.set_next_state()
         self.hovering_edge = None
         self.hovering_sel_edge = None
+        self.update_hover()
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -135,25 +146,32 @@ class Loops(RFTool):
         if self.hovering_edge and self.actions.pressed('quick insert'):
             return self.insert_edge_loop_strip()
 
-    @FSM.on_state('main')
-    def main(self):
-        # if self.actions.mousemove: return  # ignore mouse moves
+    @RFTool.on_mouse_stop
+    def update_hover(self):
+        if self.actions.using('action', ignoredrag=True): return
+        # only update while not pressing action, because action includes drag, and
+        # the artist might move mouse off selected edge before drag kicks in!
+        self.hovering_edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+        self.hovering_sel_edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+        self.update_widget()
 
-        if not self.actions.using('action', ignoredrag=True):
-            # only update while not pressing action, because action includes drag, and
-            # the artist might move mouse off selected edge before drag kicks in!
-            self.hovering_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-            self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
-        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
-        if self.hovering_sel_edge and not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
-
-        self.previs_timer.enable(self.actions.using_onlymods('insert'))
+    def update_widget(self):
         if self.actions.using_onlymods('insert'):
             self.set_widget('cut')
         elif self.hovering_edge:
             self.set_widget('hover')
         else:
             self.set_widget('default')
+
+    @FSM.on_state('main')
+    def main(self):
+        # if self.actions.mousemove: return  # ignore mouse moves
+
+        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
+        if self.hovering_sel_edge and not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
+
+        self.previs_timer.enable(self.actions.using_onlymods('insert'))
+        self.update_widget()
 
         if self.handle_inactive_passthrough(): return
 
@@ -306,20 +324,8 @@ class Loops(RFTool):
         if not bme or bme.select: return
         self.rfcontext.select(bme, supparts=False, only=False)
 
-    @RFTool.on_target_change
-    @RFTool.on_view_change
-    @FSM.onlyinstate({'main', 'quick'})
-    def update_next_state(self):
-        self.set_next_state()
-
-    @RFTool.on_mouse_stop
-    @FSM.onlyinstate({'main', 'quick'})
-    def update_next_state_mouse(self):
-        self.set_next_state()
-        tag_redraw_all('Loops mouse stop')
-
-    @profiler.function
     def set_next_state(self):
+        if self.actions.is_navigating: return
         if self.actions.mouse is None: return
         self.edges_ = None
 
@@ -357,7 +363,7 @@ class Loops(RFTool):
             self.percent = 0
             self.edges = None
             return
-        self.percent = a.dot(b) / adota;
+        self.percent = a.dot(b) / adota
 
 
     def prep_edit(self):
@@ -508,6 +514,7 @@ class Loops(RFTool):
     @FSM.on_state('slide', 'enter')
     def slide_enter(self):
         self.previs_timer.start()
+        self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
         self.set_widget('hidden' if options['hide cursor on tweak'] else 'hover')
         tag_redraw_all('entering slide')
@@ -547,6 +554,7 @@ class Loops(RFTool):
     def slide_exit(self):
         self.previs_timer.stop()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
 
 
     @DrawCallbacks.on_draw('post2d')
@@ -562,7 +570,6 @@ class Loops(RFTool):
 
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate({'main', 'quick'})
-    @profiler.function
     def draw_postview(self):
         if self.actions.is_navigating: return
 

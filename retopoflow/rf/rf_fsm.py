@@ -30,20 +30,21 @@ from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.drawing import Cursors
+from ...addon_common.common.drawing import Cursors, DrawCallbacks
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
 from ...addon_common.common.utils import normalize_triplequote
 from ...config.options import options, retopoflow_files
-from ...addon_common.common.timerhandler import StopwatchHandler
+from ...addon_common.common.timerhandler import StopwatchHandler, CallGovernor
 
 class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to override fns
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
         self._next_normal_check = 0
+        self.fast_update_timer = self.actions.start_timer(120.0, enabled=False)
 
     def update(self, timer=True):
         if not self.loading_done:
@@ -113,7 +114,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def modal_main(self):
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm.state == 'main' and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm.state == 'main'):
-            # exit
+            # handle exit
             if self.actions.pressed('done'):
                 if options['confirm tab quit']:
                     self.show_quit_dialog()
@@ -162,6 +163,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                     self.ui_hide = False
                 return
 
+            # handle pie menu
             if self.actions.pressed('pie menu'):
                 self.show_pie_menu([
                     {'text':rftool.name, 'image':rftool.icon, 'value':rftool}
@@ -170,28 +172,33 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                 return
 
             # debugging
-            # if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
-            # if self.actions.pressed('SHIFT+F6'): assert False
-            # if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
-            # if self.actions.pressed('F7'):
-            #     assert False, 'test exception throwing'
-            #     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
-            #     return
+            if False:
+                if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
+                if self.actions.pressed('SHIFT+F6'): assert False
+                if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
+                if self.actions.pressed('F7'):
+                    assert False, 'test exception throwing'
+                    # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
+                    return
+                if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
 
             # profiler
-            # if self.actions.pressed('SHIFT+F10'):
-            #     profiler.clear()
-            #     return
-            # if self.actions.pressed('SHIFT+F11'):
-            #     profiler.printout()
-            #     self.document.debug_print()
-            #     return
+            if False:
+                if self.actions.pressed('SHIFT+F10'):
+                    profiler.clear()
+                    return
+                if self.actions.pressed('SHIFT+F11'):
+                    profiler.printout()
+                    self.document.debug_print()
+                    return
 
+            # reload CSS
             if self.actions.pressed('reload css'):
                 print('RetopoFlow: Reloading stylings')
                 self.reload_stylings()
                 return
 
+            # handle tool switching
             for rftool in self.rftools:
                 if rftool == self.rftool: continue
                 if self.actions.pressed(rftool.shortcut):
@@ -201,7 +208,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                     self.quick_select_rftool(rftool)
                     return 'quick switch'
 
-            # undo/redo
+            # handle undo/redo
             if self.actions.pressed('blender undo'):
                 self.undo_pop()
                 if self.rftool: self.rftool._reset()
@@ -210,8 +217,6 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                 self.redo_pop()
                 if self.rftool: self.rftool._reset()
                 return
-
-            # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
 
             # handle general selection (each tool will handle specific selection / selection painting)
             if self.actions.pressed('select all'):
@@ -674,20 +679,18 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     @FSM.on_state('smart selection painting', 'enter')
     def smart_selection_painting_enter(self):
-        self._last_mouse = None
+        self.fast_update_timer.start()
         self.set_accel_defer(True)
 
-    @FSM.on_state('smart selection painting')
-    def smart_selection_painting(self):
-        if self.actions.pressed('cancel'):
-            self.undo_cancel()
-            return 'main'
-        if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):
-            return 'main'
 
+    @DrawCallbacks.on_draw('predraw')
+    @FSM.onlyinstate('smart selection painting')
+    def unpause_smart_selection_painting_update(self):
+        self.smart_selection_painting_update.unpause()
+
+    @CallGovernor.limit(pause_after_call=True)
+    def smart_selection_painting_update(self):
         opts = self.selection_painting_opts
-
-        if not self.actions.mousemove_stop: return
 
         bmelem = opts['get']()
         if not bmelem: return
@@ -696,7 +699,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
         opts['lastelem'] = bmelem
 
-        for bme,s in opts['previous']: bme.select = s
+        for (bme, s) in opts['previous']: bme.select = s
         opts['previous'] = []
         while bmelem:
             opts['previous'].append((bmelem, bmelem.select))
@@ -705,8 +708,24 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
         tag_redraw_all('RF selection_painting')
 
+
+    @FSM.on_state('smart selection painting')
+    def smart_selection_painting(self):
+        if self.actions.pressed('cancel'):
+            self.undo_cancel()
+            return 'main'
+
+        if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):
+            return 'main'
+
+        if self.actions.mousemove:
+            self.smart_selection_painting_update()
+            tag_redraw_all('RF selection_painting') # needed to force perform update
+
+
     @FSM.on_state('smart selection painting', 'exit')
     def smart_selection_painting_exit(self):
         self.selection_painting_opts = None
+        self.fast_update_timer.stop()
         self.set_accel_defer(False)
 

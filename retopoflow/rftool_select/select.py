@@ -83,6 +83,7 @@ class Select(RFTool):
             bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
             sel = bmv or bme or bmf
             if not sel_only and not sel: return
+
             self.rfcontext.undo_push('select')
             if sel_only: self.rfcontext.deselect_all()
             if not sel: return
@@ -98,17 +99,17 @@ class Select(RFTool):
     def select_linked(self):
         self.rfcontext.undo_push('select linked')
         self.rfcontext.select_linked()
+
     def deselect_all(self):
         self.rfcontext.undo_push('deselect all')
         self.rfcontext.deselect_all()
+
     def select_invert(self):
         self.rfcontext.undo_push('invert selection')
         self.rfcontext.select_invert()
 
     @RFWidget.on_action('Select: Box')
     def selectbox(self):
-        print('start selectbox')
-        start = time.time()
         box = self.rfwidgets['selectbox']
         p0, p1 = box.box2D
         if not p0 or not p1: return
@@ -169,7 +170,6 @@ class Select(RFTool):
         if   box.mods['ctrl']:  self.rfcontext.select(self.rfcontext.get_selected_verts() - verts, only=True)   # del verts from selection
         elif box.mods['shift']: self.rfcontext.select(verts, only=False)                                        # add vert to selection
         else:                   self.rfcontext.select(verts, only=True)                                         # replace selection
-        print(f'time for selectbox: {time.time() - start:0.2f}s')
 
 
     @FSM.on_state('move', 'enter')

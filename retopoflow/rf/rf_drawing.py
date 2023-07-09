@@ -42,7 +42,7 @@ from ...config.options import options, visualization
 
 class RetopoFlow_Drawing:
     def get_view_version(self):
-        return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens, self.actions.r3d.view_distance)
+        return Hasher(self.actions.r3d.view_matrix, self.actions.space.lens, self.actions.r3d.view_distance, self.actions.area.width, self.actions.area.height)
 
     def setup_drawing(self):
         def callback():
@@ -166,6 +166,12 @@ class RetopoFlow_Drawing:
 
     ##################################
     # RFTool Drawing
+
+    @DrawCallbacks.on_draw('predraw')
+    def tool_new_frame(self):
+        if not self.loading_done: return
+        if self.fsm.state == 'pie menu': return
+        self.rftool._new_frame()
 
     @DrawCallbacks.on_draw('pre3d')
     def draw_tool_pre3d(self):

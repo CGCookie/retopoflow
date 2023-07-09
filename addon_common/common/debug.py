@@ -74,6 +74,11 @@ class Debugger:
             if i > 0:
                 Debugger.dprint('  %s' % str(entry), l=l)
 
+    @staticmethod
+    def call_stack():
+        return traceback.format_stack()
+
+
     # http://stackoverflow.com/questions/14519177/python-exception-handling-line-number
     @staticmethod
     def get_exception_info_and_hash():

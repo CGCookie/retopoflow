@@ -32,6 +32,7 @@ import bpy.utils.previews
 from .decorators import blender_version_wrapper, only_in_blender_version, add_cache, ignore_exceptions
 from .functools import find_fns, self_wrapper
 from .blender_cursors import Cursors
+from ..terminal import term_printer
 
 
 def get_view3d_area(context=None):
@@ -1011,13 +1012,14 @@ tagged_redraw_all = False
 tag_reasons = set()
 def tag_redraw_all(reason, only_tag=True):
     global tagged_redraw_all, tag_reasons
+    if False: term_printer.sprint(f'tagging redraw all: already={1 if tagged_redraw_all else 0} only_tag={1 if only_tag else 0}')
     tagged_redraw_all = True
     tag_reasons.add(reason)
     if not only_tag: perform_redraw_all()
 def perform_redraw_all(only_area=None):
     global tagged_redraw_all, tag_reasons
     if not tagged_redraw_all: return
-    # print('Redrawing:', tag_reasons)
+    if False: term_printer.sprint('Redrawing:', tag_reasons)
     tag_reasons.clear()
     tagged_redraw_all = False
     if only_area:

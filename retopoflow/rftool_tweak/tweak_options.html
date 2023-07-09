@@ -1,6 +1,19 @@
 <details id='tweak-options'>
     <summary>Tweak</summary>
     <div class="contents">
+        <div class="collection" id="tweak-mode">
+            <h1>Mode</h1>
+            <div class="contents">
+                <label class="half-size">
+                    <input type="radio" title="Raycast tweaked vertices to sources (tweak in screen space)" value="raycast" checked="BoundString('''options['tweak mode']''')" name='tweak-mode'>
+                    Raycast
+                </label>
+                <label class="half-size">
+                    <input type="radio" title="Snap tweaked vertices to sources (tweak in world space)" value="snap" checked="BoundString('''options['tweak mode']''')" name='tweak-mode'>
+                    Snap
+                </label>
+            </div>
+        </div>
         <div class='collection' id='tweak-masking'>
             <h1>Masking Options</h1>
             <div class='collection'>

@@ -50,6 +50,8 @@ from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
 from ...addon_common.common.utils import iter_pairs, iter_running_sum, min_index, max_index, has_duplicates
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat
 from ...addon_common.common.drawing import DrawCallbacks
+from ...addon_common.common.timerhandler import StopwatchHandler
+from ...addon_common.terminal.term_printer import sprint
 from ...config.options import options, themes
 
 from .strokes_utils import (
@@ -114,6 +116,8 @@ class Strokes(RFTool):
         self._var_fixed_span_count = BoundInt('''options['strokes span count']''', min_value=1, max_value=128)
         self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
         self._var_loop_count  = BoundInt('''self.loop_count''', min_value=1, max_value=500)
+        self.stopwatch_hover_edge     = StopwatchHandler(0.125, self.update_hover_edge)
+        self.stopwatch_connection_pre = StopwatchHandler(0.125, self.update_connection_pre)
 
     @contextmanager
     def defer_recomputing_while(self):
@@ -142,6 +146,7 @@ class Strokes(RFTool):
 
     @RFTool.on_reset
     def reset(self):
+        sprint(f'Strokes Reset')
         self.replay = None
         self.strip_crosses = None
         self.strip_loops = None
@@ -149,14 +154,16 @@ class Strokes(RFTool):
         self.just_created = False
         self.defer_recomputing = False
         self.hovering_edge = None
-        self.hovering_edge_time = 0
         self.hovering_sel_edge = None
+        self.connection_pre_last_mouse = None
         self.connection_pre = None
-        self.connection_pre_time = 0
         self.connection_post = None
+        self.update_hover_edge()
+        self.update_connection_pre()
         self.update_ui()
 
     def update_ui(self):
+        sprint(f'Strokes Update UI')
         if self.replay is None:
             self._var_cross_count.disabled = True
             self._var_loop_count.disabled = True
@@ -167,6 +174,7 @@ class Strokes(RFTool):
     @RFTool.on_target_change
     def update_target(self):
         if self.defer_recomputing: return
+        sprint(f'Strokes Update Target')
         if not self.just_created: self.reset()
         else: self.just_created = False
 
@@ -174,6 +182,8 @@ class Strokes(RFTool):
     @RFTool.on_view_change
     def update(self):
         if self.defer_recomputing: return
+
+        sprint(f'Strokes Update')
 
         self.update_ui()
 
@@ -198,31 +208,43 @@ class Strokes(RFTool):
     def filter_edge_selection(self, bme):
         return bme.select or len(bme.link_faces) < 2
 
+    def update_hover_edge(self):
+        sprint(f'Strokes Update Hover Edge')
+        self.hovering_edge,_     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
+        self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
+
+    def update_connection_pre(self):
+        sprint(f'Strokes Update Connection Pre')
+        if self.connection_pre and self.connection_pre_last_mouse == self.actions.mouse:
+            return
+        self.connection_pre_last_mouse = self.actions.mouse
+        self.connection_pre = None
+        if not options['strokes snap stroke']: return
+        hovering_sel_vert_snap, _ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
+        if not hovering_sel_vert_snap: return
+        self.connection_pre = (
+            self.rfcontext.Point_to_Point2D(hovering_sel_vert_snap.co),
+            self.actions.mouse,
+        )
+
+    @FSM.on_state('main', 'enter')
+    def modal_main_enter(self):
+        self.connection_post = None
+
     @FSM.on_state('main')
     def modal_main(self):
-        if not self.actions.using('action', ignoredrag=True):
-            # only update while not pressing action, because action includes drag, and
-            # the artist might move mouse off selected edge before drag kicks in!
-            if time.time() - self.hovering_edge_time > 0.125:
-                self.hovering_edge_time = time.time()
-                self.hovering_edge,_     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
-                self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
-            pass
+        sprint(f'Strokes Main')
 
-        self.connection_post = None
-        if self.actions.using_onlymods('insert'):
-            if time.time() - self.connection_pre_time > 0.01:
-                self.connection_pre_time = time.time()
-                hovering_sel_vert_snap,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
-                if options['strokes snap stroke'] and hovering_sel_vert_snap:
-                    self.connection_pre = (
-                        self.rfcontext.Point_to_Point2D(hovering_sel_vert_snap.co),
-                        self.actions.mouse,
-                    )
-                else:
-                    self.connection_pre = None
-        else:
-            self.connection_pre = None
+        if self.actions.mousemove:
+            if not self.actions.using('action', ignoredrag=True):
+                # only update while not pressing action, because action includes drag, and
+                # the artist might move mouse off selected edge before drag kicks in!
+                self.stopwatch_hover_edge.reset()
+
+            if self.actions.using_onlymods('insert'):
+                self.stopwatch_connection_pre.reset()
+            else:
+                self.connection_pre = None
 
         if self.actions.using_onlymods('insert'):
             self.set_widget('brush')

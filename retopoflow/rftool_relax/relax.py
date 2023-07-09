@@ -207,7 +207,6 @@ class Relax(RFTool):
     @FSM.on_state('relax', 'enter')
     def relax_enter(self):
         self._time = time.time()
-        self._timer = self.actions.start_timer(120)
 
         opt_mask_boundary   = options['relax mask boundary']
         opt_mask_symmetry   = options['relax mask symmetry']
@@ -221,7 +220,9 @@ class Relax(RFTool):
         opt_correct_flipped = options['relax correct flipped faces']
         opt_straight_edges  = options['relax straight edges']
         opt_mult            = options['relax force multiplier']
-        is_visible = lambda bmv: self.rfcontext.is_visible(bmv.co, bmv.normal, occlusion_test_override=True)
+
+        is_visible = self.rfcontext.gen_is_visible(occlusion_test_override=True)
+        is_bmvert_hidden = lambda bmv: not is_visible(bmv.co, bmv.normal)
 
         self._bmverts = []
         self._boundary = []
@@ -229,16 +230,19 @@ class Relax(RFTool):
             if self.sel_only and not bmv.select: continue
             if opt_mask_boundary == 'exclude' and bmv.is_on_boundary(): continue
             if opt_mask_symmetry == 'exclude' and bmv.is_on_symmetry_plane(): continue
-            if opt_mask_occluded == 'exclude' and not is_visible(bmv): continue
+            if opt_mask_occluded == 'exclude' and is_bmvert_hidden(bmv): continue
             if opt_mask_selected == 'exclude' and bmv.select: continue
             if opt_mask_selected == 'only' and not bmv.select: continue
             self._bmverts.append(bmv)
+
+        print(f'Relax {len(self._bmverts)} bmverts')
 
         if opt_mask_boundary == 'slide':
             # find all boundary edges
             self._boundary = [(bme.verts[0].co, bme.verts[1].co) for bme in self.rfcontext.iter_edges() if not bme.is_manifold]
 
         # print(f'Relaxing max of {len(self._bmverts)} bmverts')
+        self._timer = self.actions.start_timer(120)
         self.rfcontext.split_target_visualization(verts=self._bmverts)
 
     @FSM.on_state('relax', 'exit')
@@ -249,15 +253,16 @@ class Relax(RFTool):
 
     @FSM.on_state('relax')
     def relax(self):
-        st = time.time()
-
         if self.rfcontext.actions.released(['brush','brush alt']):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if not self.rfcontext.actions.timer: return
+    @RFTool.once_per_frame
+    @FSM.onlyinstate('relax')
+    def relax_doit(self):
+        st = time.time()
 
         hit_pos = self.rfcontext.actions.hit_pos
         if not hit_pos: return

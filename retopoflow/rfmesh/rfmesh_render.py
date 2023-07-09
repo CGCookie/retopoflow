@@ -226,15 +226,10 @@ class RFMeshRender():
                 if mirror_z and g.co.z <=  0.0001: return 0.0
                 return 0.0 if g.is_manifold and not g.is_boundary else 1.0
             def warn_edge(g):
-                if mirror_x:
-                    v0,v1 = g.verts
-                    if v0.co.x <= 0.0001 and v1.co.x <= 0.0001: return 0.0
-                if mirror_y:
-                    v0,v1 = g.verts
-                    if v0.co.y >= -0.0001 and v1.co.y >= -0.0001: return 0.0
-                if mirror_z:
-                    v0,v1 = g.verts
-                    if v0.co.z <= 0.0001 and v1.co.z <= 0.0001: return 0.0
+                v0,v1 = g.verts
+                if mirror_x and v0.co.x <=  0.0001 and v1.co.x <=  0.0001: return 0.0
+                if mirror_y and v0.co.y >= -0.0001 and v1.co.y >= -0.0001: return 0.0
+                if mirror_z and v0.co.z <=  0.0001 and v1.co.z <=  0.0001: return 0.0
                 return 0.0 if g.is_manifold else 1.0
             def warn_face(g):
                 return 1.0
@@ -270,36 +265,12 @@ class RFMeshRender():
                         for i0 in range(0, l, face_count):
                             i1 = min(l, i0 + face_count)
                             face_data = {
-                                'vco': [
-                                    tuple(bmv.co)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
-                                ],
-                                'vno': [
-                                    tuple(bmv.normal)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for bmv in verts
-                                ],
-                                'sel': [
-                                    sel(bmf)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for _ in verts
-                                ],
-                                'warn': [
-                                    warn_face(bmf)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for _ in verts
-                                ],
-                                'pin': [
-                                    pin_face(bmf)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for _ in verts
-                                ],
-                                'seam': [
-                                    seam_face(bmf)
-                                    for bmf, verts in tri_faces[i0:i1]
-                                    for _ in verts
-                                ],
+                                'vco':  [ tuple(bmv.co)     for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
+                                'vno':  [ tuple(bmv.normal) for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
+                                'sel':  [ sel(bmf)          for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                'warn': [ warn_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                'pin':  [ pin_face(bmf)     for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                'seam': [ seam_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
                                 'idx': None,  # list(range(len(tri_faces)*3)),
                             }
                             if self.async_load:
@@ -313,36 +284,12 @@ class RFMeshRender():
                         for i0 in range(0, l, edge_count):
                             i1 = min(l, i0 + edge_count)
                             edge_data = {
-                                'vco': [
-                                    tuple(bmv.co)
-                                    for bme in edges[i0:i1]
-                                    for bmv in bme.verts
-                                ],
-                                'vno': [
-                                    tuple(bmv.normal)
-                                    for bme in edges[i0:i1]
-                                    for bmv in bme.verts
-                                ],
-                                'sel': [
-                                    sel(bme)
-                                    for bme in edges[i0:i1]
-                                    for _ in bme.verts
-                                ],
-                                'warn': [
-                                    warn_edge(bme)
-                                    for bme in edges[i0:i1]
-                                    for _ in bme.verts
-                                ],
-                                'pin': [
-                                    pin_edge(bme)
-                                    for bme in edges[i0:i1]
-                                    for _ in bme.verts
-                                ],
-                                'seam': [
-                                    seam_edge(bme)
-                                    for bme in edges[i0:i1]
-                                    for _ in bme.verts
-                                ],
+                                'vco':  [ tuple(bmv.co)     for bme in edges[i0:i1] for bmv in bme.verts ],
+                                'vno':  [ tuple(bmv.normal) for bme in edges[i0:i1] for bmv in bme.verts ],
+                                'sel':  [ sel(bme)          for bme in edges[i0:i1] for _   in bme.verts ],
+                                'warn': [ warn_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
+                                'pin':  [ pin_edge(bme)     for bme in edges[i0:i1] for _   in bme.verts ],
+                                'seam': [ seam_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
                                 'idx': None,  # list(range(len(self.bmesh.edges)*2)),
                             }
                             if self.async_load:
@@ -356,12 +303,12 @@ class RFMeshRender():
                         for i0 in range(0, l, vert_count):
                             i1 = min(l, i0 + vert_count)
                             vert_data = {
-                                'vco':  [tuple(bmv.co)     for bmv in verts[i0:i1]],
-                                'vno':  [tuple(bmv.normal) for bmv in verts[i0:i1]],
-                                'sel':  [sel(bmv)          for bmv in verts[i0:i1]],
-                                'warn': [warn_vert(bmv)    for bmv in verts[i0:i1]],
-                                'pin':  [pin_vert(bmv)     for bmv in verts[i0:i1]],
-                                'seam': [seam_vert(bmv)    for bmv in verts[i0:i1]],
+                                'vco':  [ tuple(bmv.co)     for bmv in verts[i0:i1] ],
+                                'vno':  [ tuple(bmv.normal) for bmv in verts[i0:i1] ],
+                                'sel':  [ sel(bmv)          for bmv in verts[i0:i1] ],
+                                'warn': [ warn_vert(bmv)    for bmv in verts[i0:i1] ],
+                                'pin':  [ pin_vert(bmv)     for bmv in verts[i0:i1] ],
+                                'seam': [ seam_vert(bmv)    for bmv in verts[i0:i1] ],
                                 'idx':  None,  # list(range(len(self.bmesh.verts))),
                             }
                             if self.async_load:

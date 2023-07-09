@@ -868,7 +868,7 @@ class DrawCallbacks:
     def on_draw(mode):
         def wrapper(fn):
             nonlocal mode
-            assert mode in {'pre3d', 'post3d', 'post2d'}, f'DrawCallbacks: unexpected draw mode {mode} for {fn}'
+            assert mode in {'predraw', 'pre3d', 'post3d', 'post2d'}, f'DrawCallbacks: unexpected draw mode {mode} for {fn}'
             @wraps(fn)
             def wrapped(*args, **kwargs):
                 try:
@@ -878,57 +878,35 @@ class DrawCallbacks:
                     debugger.print_exception()
                     print(e)
                     return
-            wrapped._on_draw = mode
+            setattr(wrapped, f'_on_{mode}', True)
             return wrapped
         return wrapper
 
     @staticmethod
     def on_predraw():
-        # no args at this moment...
-        def wrapper(fn):
-            @wraps(fn)
-            def wrapped(*args, **kwargs):
-                try:
-                    return fn(*args, **kwargs)
-                except Exception as e:
-                    print(f'DrawCallbacks: caught exception in on_predraw with {fn}')
-                    debugger.print_exception()
-                    print(e)
-                    return
-            wrapped._on_predraw = True
-            return wrapped
-        return wrapper
+        return DrawCallbacks.on_draw('predraw')
 
     def __init__(self, obj):
-        self._called_pre = False
         self.obj = obj
         self._fns = {
-            'pre3d':  [],
-            'post3d': [],
-            'post2d': [],
-            'pre':    [],
+            'pre':    [ fn for (_, fn) in find_fns(obj, '_on_predraw') ],
+            'pre3d':  [ fn for (_, fn) in find_fns(obj, '_on_pre3d'  ) ],
+            'post3d': [ fn for (_, fn) in find_fns(obj, '_on_post3d' ) ],
+            'post2d': [ fn for (_, fn) in find_fns(obj, '_on_post2d' ) ],
         }
-        for (m, fn) in find_fns(obj, '_on_draw'):
-            self._fns[m] += [fn]
-        for (m, fn) in find_fns(obj, '_on_predraw'):
-            self._fns['pre'] += [fn]
+        self.reset_pre()
 
-    def _call(self, n):
-        for fn in self._fns[n]: fn(self.obj)
     def reset_pre(self):
         self._called_pre = False
-    def _pre(self):
-        if self._called_pre: return
-        self._call('pre')
-        self._called_pre = True
-    def pre3d(self):
-        self._pre()
-        self._call('pre3d')
-    def post3d(self):
-        self._pre()
-        self._call('post3d')
-    def post2d(self):
-        self._pre()
-        self._call('post2d')
+
+    def _call(self, n, *, call_predraw=True):
+        if not self._called_pre:
+            self._called_pre = True
+            for fn in self._fns['pre']: fn(self.obj)
+        for fn in self._fns[n]: fn(self.obj)
+
+    def pre3d(self):  self._call('pre3d')
+    def post3d(self): self._call('post3d')
+    def post2d(self): self._call('post2d')
 
 

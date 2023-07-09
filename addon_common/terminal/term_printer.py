@@ -23,6 +23,8 @@ from __future__ import annotations
 from typing import Any, Iterable
 from contextlib import contextmanager
 from ..ext import termcolor
+import random
+import time
 
 def colored(
     text: str,
@@ -102,3 +104,16 @@ def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', col
     if prefix: print(prefix, end='')
     cprint(f'{margin}{bl}{bm*(width+pad_width)}{br}{margin}', color=color, highlight=highlight, attributes=attributes)
 
+sprint_data = {
+    'width':  5,
+    'index': -1,
+    'time':  None,
+}
+def sprint(*args):
+    global sprint_data
+    sprint_data['index'] = (sprint_data['index']+1) % sprint_data['width']
+    d = time.time() - sprint_data['time'] if sprint_data['time'] else 0
+    sprint_data['time'] = time.time()
+    m = ' '*sprint_data['index'] + '*' + ' '*(sprint_data['width']-sprint_data['index']-1)
+    s = " ".join(f'{arg}' for arg in args)
+    print(f'[{m}] {d:0.4f}s | {s}')

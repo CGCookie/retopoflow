@@ -207,7 +207,6 @@ class Profiler:
     #         def nowrapper(fn):
     #             return fn
     #         return nowrapper
-        
 
 
     def function(self, fn):
@@ -326,19 +325,20 @@ Globals.set(profiler)
 
 
 @contextlib.contextmanager
-def time_it(*args, **kwargs):
+def time_it(label=None, *, prefix='', infix=' '):
     start = time.time()
 
-    frame = inspect.currentframe()
-    n_backs = 2
-    for _ in range(n_backs): frame = frame.f_back
-    filename = os.path.basename(frame.f_code.co_filename)
-    linenum = frame.f_lineno
-    fnname = frame.f_code.co_name
+    if label is None:
+        frame = inspect.currentframe().f_back.f_back
+        filename = os.path.basename(frame.f_code.co_filename)
+        linenum = frame.f_lineno
+        fnname = frame.f_code.co_name
+        label = f'{filename}.{fnname}:{linenum}'
 
     try:
         yield None
     finally:
-        print('time_it %s:%d fn:%s = %f' % (filename, linenum, fnname, time.time() - start))
+        delta = time.time() - start
+        print(f'{prefix}{delta:0.4f} {label}{infix}')
 
 

@@ -34,6 +34,7 @@ from .colors import colorname_to_color
 from .decorators import stats_wrapper, blender_version_wrapper
 from .profiler import profiler
 
+from ..terminal import term_printer
 
 '''
 The types below wrap the mathutils.Vector class, distinguishing among the
@@ -1186,8 +1187,7 @@ class BBox:
         return self.__str__()
 
     def Point_within(self, point: Point, margin=0):
-        if not self.min or not self.max:
-            return True
+        if not self.min or not self.max: return False
         return all(
             m - margin <= v and v <= M + margin
             for (v, m, M) in zip(point, self.min, self.max)
@@ -1206,6 +1206,72 @@ class BBox:
             self.mx if point.x > cx else self.Mx,
             self.my if point.y > cy else self.My,
             self.mz if point.z > cz else self.Mz,
+        ))
+
+    def get_min_dimension(self):
+        return self.min_dim
+
+    def get_max_dimension(self):
+        return self.max_dim
+
+class BBox2D:
+    def __init__(self, point2Ds):
+        if not point2Ds:
+            nan = float('nan')
+            self.min = None
+            self.max = None
+            self.mx, self.my = nan, nan
+            self.Mx, self.My = nan, nan
+            self.min_dim = nan
+            self.max_dim = nan
+            return
+
+        mx, Mx = min(x for (x,_) in point2Ds), max(x for (x,_) in point2Ds)
+        my, My = min(y for (_,y) in point2Ds), max(y for (_,y) in point2Ds)
+        self.min = Point2D((mx, my))
+        self.max = Point2D((Mx, My))
+        self.mx, self.my = mx, my
+        self.Mx, self.My = Mx, My
+        self.min_dim = min(self.size_x, self.size_y)
+        self.max_dim = max(self.size_x, self.size_y)
+        self._corners = [
+            Point2D((self.mx, self.my)),
+            Point2D((self.mx, self.My)),
+            Point2D((self.Mx, self.My)),
+            Point2D((self.Mx, self.my)),
+        ]
+
+    def __str__(self): return f'<BBox2D ({self.mx}, {self.my}) ({self.Mx}, {self.My})>'
+    def __repr__(self): return self.__str__()
+
+    @property
+    def corners(self): yield from self._corners
+    @property
+    def size_x(self): return self.Mx - self.mx
+    @property
+    def size_y(self): return self.My - self.my
+
+    def Point2D_within(self, point: Point2D, *, margin=0):
+        if not self.min or not self.max: return False
+        x, y = point
+        return (
+            self.mx - margin <= x <= self.Mx + margin and
+            self.my - margin <= y <= self.My + margin
+        )
+
+    def closest_Point(self, point:Point2D):
+        x, y = point
+        return Point2D((
+            clamp(x, self.mx, self.Mx),
+            clamp(y, self.my, self.My),
+        ))
+
+    def farthest_Point(self, point:Point2D):
+        cx, cy = (self.mx + self.Mx) / 2, (self.my + self.My) / 2
+        x, y = point
+        return Point2D((
+            self.mx if x > cx else self.Mx,
+            self.my if y > cy else self.My,
         ))
 
     def get_min_dimension(self):
@@ -1577,8 +1643,7 @@ class Box2D:
 
 
 class Accel2D:
-    bin_cols = 20
-    bin_rows = 20
+    margin = 0.001
 
     class SimpleVert:
         def __init__(self, co):
@@ -1600,81 +1665,107 @@ class Accel2D:
             return self.p0 + self.d01 * mid(d, 0, self.l)
 
     @staticmethod
-    def simple_verts(verts, Point_to_Point2Ds):
+    def simple_verts(label, verts, Point_to_Point2Ds):
         verts = [Accel2D.SimpleVert(v) for v in verts]
-        return Accel2D(verts, [], [], Point_to_Point2Ds)
+        return Accel2D(label, verts, [], [], Point_to_Point2Ds)
 
     @staticmethod
-    def simple_edges(edges, Point_to_Point2Ds):
+    def simple_edges(label, edges, Point_to_Point2Ds):
         edges = [Accel2D.SimpleEdge((Accel2D.SimpleVert(v0), Accel2D.SimpleVert(v1))) for (v0, v1) in edges]
         verts = [v for e in edges for v in e.verts]
-        return Accel2D(verts, edges, [], Point_to_Point2Ds)
+        return Accel2D(label, verts, edges, [], Point_to_Point2Ds)
 
     @profiler.function
-    def __init__(self, verts, edges, faces, Point_to_Point2Ds):
+    def __init__(self, label, verts, edges, faces, Point_to_Point2Ds):
         self.verts = list(verts) if verts else []
         self.edges = list(edges) if edges else []
         self.faces = list(faces) if faces else []
         self.Point_to_Point2Ds = Point_to_Point2Ds
 
-        vert_type = type(next(iter(self.verts), None))
-        edge_type = type(next(iter(self.edges), None))
-        face_type = type(next(iter(self.faces), None))
+        vert_type, edge_type, face_type = ( type(next(iter(elems), None)) for elems in [self.verts, self.edges, self.faces] )
         self._is_vert = lambda elem: isinstance(elem, vert_type)
         self._is_edge = lambda elem: isinstance(elem, edge_type)
         self._is_face = lambda elem: isinstance(elem, face_type)
         self.bins = {}
 
-        epsilon = 0.001
-        total_pts = 0
-        mx, my, Mx, My = float('inf'), float('inf'), float('-inf'), float('-inf')
-        for v in verts:
-            for pt in Point_to_Point2Ds(v.co):
-                if not pt: continue
-                mx, my, Mx, My = min(mx, pt.x), min(my, pt.y), max(mx, pt.x), max(my, pt.y)
-                total_pts += 1
+        pts = [pt for v in verts for pt in Point_to_Point2Ds(v.co) if pt]
+        for ef in chain(edges, faces):
+            ef_pts_list = zip(*[Point_to_Point2Ds(v.co) for v in ef.verts])
+            for ef_pts in ef_pts_list:
+                if not all(ef_pts): continue
+                pts += ef_pts
+        total_pts = len(pts)
 
         if total_pts:
-            self.min = Point2D((mx - epsilon, my - epsilon))
-            self.max = Point2D((Mx + epsilon, My + epsilon))
+            bbox = BBox2D(pts)
+            self.min = Point2D((bbox.mx - self.margin, bbox.my - self.margin))
+            self.max = Point2D((bbox.Mx + self.margin, bbox.My + self.margin))
         else:
             self.min = Point2D((0, 0))
             self.max = Point2D((1, 1))
-        self.size = self.max - self.min
-        sz = ceil(sqrt(total_pts))
+        self.size = self.max - self.min  # includes margin
+        self.sizex, self.sizey = self.size
+        self.minx, self.miny = self.min
+        sz = max(1, ceil(sqrt(total_pts)))
         self.bin_cols, self.bin_rows = sz, sz
+
+        tot_inserted = 0
+        max_spread = 1
 
         # inserting verts
         for v in verts:
             for pt in Point_to_Point2Ds(v.co):
                 if not pt: continue
+                tot_inserted += 1
                 i, j = self.compute_ij(pt)
                 self._put((i, j), v)
 
         # inserting edges and faces
         for ef in chain(edges, faces):
-            ptsets = [Point_to_Point2Ds(v.co) for v in ef.verts]
-            for pts in zip(*ptsets):
+            ef_pts_list = zip(*[Point_to_Point2Ds(v.co) for v in ef.verts])
+            for pts in ef_pts_list:
                 if not all(pts): continue
+                tot_inserted += 1
                 ijs = list(map(self.compute_ij, pts))
                 mini, minj = min(i for (i, j) in ijs), min(j for (i, j) in ijs)
                 maxi, maxj = max(i for (i, j) in ijs), max(j for (i, j) in ijs)
+                max_spread = max(max_spread, (maxi-mini+1)*(maxj-minj+1))
                 for i in range(mini, maxi + 1):
                     for j in range(minj, maxj + 1):
                         self._put((i, j), ef)
 
+        if True:
+            def get_index(s, v, m, M): return clamp(int(len(s) * (v - m) / max(1, M - m)), 0, len(s) - 1)
+            fill_max = max((len(b) for b in self.bins.values()), default=0)
+            fill_min = min((len(b) for b in self.bins.values()), default=0)
+            distribution = [0] * min(100, self.bin_cols * self.bin_rows)
+            for b in self.bins.values():
+                distribution[get_index(distribution, len(b), fill_min, fill_max)] += 1
+            filling_max = max(distribution)
+            chars = '_▁▂▃▄▅▆▇█'  # https://en.wikipedia.org/wiki/Block_Elements
+            def get_char(v): return chars[get_index(chars, v, 0, filling_max)] if v else ' '
+            distribution = ''.join(get_char(v) for v in distribution)
+            term_printer.boxed(
+                f'Counts: v={len(self.verts)} e={len(self.edges)} f={len(self.faces)}  (total pts={total_pts}, ins={tot_inserted})',
+                f'Size: min={self.min}, max={self.max} size={self.size}',
+                f'Bins: {self.bin_cols}x{self.bin_rows} non-zero={len(self.bins)}/{self.bin_cols*self.bin_rows} ({100*len(self.bins)/(self.bin_cols*self.bin_rows):0.0f}%)',
+                f'Inserts: total={tot_inserted}, max spread={max_spread}',
+                f'Fill: {fill_min} [{distribution}] {fill_max}',
+                title=f'Accel2D: {label}', color='black', highlight='green',
+            )
+
     @profiler.function
     def compute_ij(self, v2d):
-        n = v2d - self.min
-        i = int(self.bin_cols * n.x / self.size.x)
-        j = int(self.bin_rows * n.y / self.size.y)
-        i = max(0, min(self.bin_cols - 1, i))
-        j = max(0, min(self.bin_rows - 1, j))
+        i = int(self.bin_cols * (v2d.x - self.minx) / self.sizex)
+        j = int(self.bin_rows * (v2d.y - self.miny) / self.sizey)
+        i = clamp(i, 0, self.bin_cols - 1)
+        j = clamp(j, 0, self.bin_rows - 1)
         return (i, j)
 
     def _put(self, ij, o):
-        if ij not in self.bins: self.bins[ij] = set()
-        self.bins[ij].add(o)
+        # assert 0 <= ij[0] < self.bin_cols and 0 <= ij[1] < self.bin_rows, f'{ij} is outside {self.bin_cols}x{self.bin_rows}'
+        if ij in self.bins: self.bins[ij].add(o)
+        else:               self.bins[ij] = { o }
 
     def _get(self, ij):
         return self.bins[ij] if ij in self.bins else set()
