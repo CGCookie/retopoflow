@@ -116,8 +116,8 @@ class Strokes(RFTool):
         self._var_fixed_span_count = BoundInt('''options['strokes span count']''', min_value=1, max_value=128)
         self._var_cross_count = BoundInt('''self.cross_count''', min_value=1, max_value=500)
         self._var_loop_count  = BoundInt('''self.loop_count''', min_value=1, max_value=500)
-        self.stopwatch_hover_edge     = StopwatchHandler(0.125, self.update_hover_edge)
-        self.stopwatch_connection_pre = StopwatchHandler(0.125, self.update_connection_pre)
+        self.stopwatch_hover_edge     = StopwatchHandler(self.update_hover_edge,     time_delay=0.125)
+        self.stopwatch_connection_pre = StopwatchHandler(self.update_connection_pre, time_delay=0.125)
 
     @contextmanager
     def defer_recomputing_while(self):

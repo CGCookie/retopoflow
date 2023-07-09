@@ -51,6 +51,7 @@ from .polystrips_utils import (
 )
 
 from ...addon_common.common.bezier import CubicBezierSpline, CubicBezier
+from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.drawing import Drawing, Cursors, DrawCallbacks
 from ...addon_common.common.fsm import FSM
@@ -299,9 +300,12 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         self.move_done_released = 'action'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('manipulate bezier')
-        self._timer = self.actions.start_timer(120.0)
-        self.rfcontext.set_accel_defer(True)
         self.set_widget('hidden' if options['hide cursor on tweak'] else 'move')
+
+        self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.split_target_visualization(verts=self.rfcontext.get_selected_verts())
+        self.rfcontext.set_accel_defer(True)
+
 
     @FSM.on_state('move handle')
     def movehandle(self):
@@ -337,8 +341,10 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     @FSM.on_state('move handle', 'exit')
     def movehandle_exit(self):
         self._timer.done()
+        self.rfcontext.clear_split_target_visualization()
         self.rfcontext.set_accel_defer(False)
         self.update_target(force=True)
+        tag_redraw_all('PolyStrips done moving handles')
 
 
     @FSM.on_state('rotate', 'can enter')

@@ -78,7 +78,6 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             'hover':   self.RFWidget_Move(self),
         }
         self.clear_widget()
-        self.select_single = StopwatchHandler(bprefs.mouse_doubleclick(), self._select_single)
 
     @RFTool.on_reset
     def reset(self):
@@ -233,11 +232,11 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             self.sel_only = self.actions.pressed('select single')
             self.actions.unpress()
-            self.select_single.start()
+            self.select_single()
             return
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-            self.select_single.stop()
+            self.select_single.cancel()
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
 
@@ -249,7 +248,8 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             self.rfcontext.select_edge_loop(edge, only=sel_only, supparts=False)
             return
 
-    def _select_single(self):
+    @StopwatchHandler.delayed(time_delay=0.1)
+    def select_single(self):
         bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
         if not bme and not self.sel_only: return
 

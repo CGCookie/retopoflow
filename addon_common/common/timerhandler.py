@@ -63,24 +63,42 @@ class TimerHandler:
 
 
 class StopwatchHandler:
-    def __init__(self, seconds, fn):
-        self.sec = seconds
-        self.fn  = lambda: fn()
+    @staticmethod
+    def delayed(*, time_delay=None, fn_delay=None):
+        def wrap_fn(fn):
+            sw = StopwatchHandler(fn, time_delay=time_delay, fn_delay=fn_delay)
+            @wraps(fn)
+            def wrapper(*args, **kwargs):
+                sw.start(*args, **kwargs)
+            wrapper.is_going = sw.is_going
+            wrapper.cancel = sw.cancel
+            wrapper.reset = sw.reset
+            return wrapper
+        return wrap_fn
+
+    def __init__(self, fn, *, time_delay=None, fn_delay=None):
+        assert time_delay is not None or fn_delay is not None, f'Addon Common: Must specify either time_delay or fn_delay'
+        self.fn  = lambda: fn(*self._args, **self._kwargs)
+        self.time_delay = time_delay
+        self.fn_delay = fn_delay
 
     @property
     def is_going(self):
         return bpy.app.timers.is_registered(self.fn)
 
-    def start(self):
-        bpy.app.timers.register(self.fn, first_interval=self.sec)
+    def start(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
+        time_delay = self.time_delay or self.fn_delay()
+        bpy.app.timers.register(self.fn, first_interval=time_delay)
 
-    def stop(self):
+    def cancel(self):
         if self.is_going:
             bpy.app.timers.unregister(self.fn)
 
-    def reset(self):
-        self.stop()
-        self.start()
+    def reset(self, *args, **kwargs):
+        self.cancel()
+        self.start(*args, **kwargs)
 
 
 class CallGovernor:

@@ -99,7 +99,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                     self.rftool._callback('view change')
                     if self.rftool.rfwidget:
                         self.rftool.rfwidget._callback_widget('view change')
-                self._stopwatch_view_change = StopwatchHandler(options['view change delay'], callback_view_change)
+                self._stopwatch_view_change = StopwatchHandler(callback_view_change, time_delay=options['view change delay'])
             self._stopwatch_view_change.reset()
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()

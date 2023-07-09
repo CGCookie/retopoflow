@@ -73,7 +73,7 @@ class Loops(RFTool):
         }
         self.rfwidget = None
         self.previs_timer = self.actions.start_timer(120.0, enabled=False)
-        self.stopwatch_update_hover = StopwatchHandler(0.0625, self.update_hover)
+        self.stopwatch_update_hover = StopwatchHandler(self.update_hover, time_delay=0.0625)
 
     @RFTool.on_mouse_move
     def mouse_move(self):
