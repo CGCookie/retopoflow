@@ -9,3 +9,4 @@
 
 - predraw Drawing callback only fires if pre3d, post3d, or post2d exists!
 - remove sprint and other debug calls
+- use stopwatch to wrap select single so that smart selection is more dependable

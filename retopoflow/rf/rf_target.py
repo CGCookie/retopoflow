@@ -284,7 +284,8 @@ class RetopoFlow_Target:
     @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        if not vis_accel: vis_accel = self.get_vis_accel()
+        if not vis_accel:
+            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -303,7 +304,8 @@ class RetopoFlow_Target:
     @profiler.function
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        if not vis_accel: vis_accel = self.get_vis_accel()
+        if not vis_accel:
+            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -322,7 +324,8 @@ class RetopoFlow_Target:
     @profiler.function
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
-        if not vis_accel: vis_accel = self.get_vis_accel()
+        if not vis_accel:
+            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
         if not vis_accel: return None
 
         if not max_dist:

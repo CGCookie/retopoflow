@@ -36,7 +36,9 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.drawing import Drawing, DrawCallbacks
 from ...addon_common.common.maths import Point, Normal, Vec2D, Plane, Vec
 from ...addon_common.common.profiler import profiler
+from ...addon_common.common.timerhandler import CallGovernor, StopwatchHandler
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common import blender_preferences as bprefs
 
 from ...config.options import options
 
@@ -75,6 +77,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             'hover':   self.RFWidget_Move(self),
         }
         self.clear_widget()
+        self.select_single = StopwatchHandler(bprefs.mouse_doubleclick(), self._select_single)
 
     @RFTool.on_reset
     def reset(self):
@@ -160,7 +163,6 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             self._var_cut_count_value = self.strings_data[0]['count']
             self._var_cut_count.disabled = False
 
-
     @FSM.on_state('main')
     def main(self):
         if not self.actions.using('action', ignoredrag=True):
@@ -228,19 +230,13 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
-            # TODO: DO NOT PAINT!
-            sel_only = self.actions.pressed('select single')
-            return self.rfcontext.setup_smart_selection_painting(
-                {'edge'},
-                use_select_tool=False,
-                selecting=not sel_only,
-                deselect_all=sel_only,
-                fn_filter_bmelem=self.filter_edge_selection,
-                kwargs_select={'supparts': False},
-                kwargs_deselect={'subparts': False},
-            )
+            self.sel_only = self.actions.pressed('select single')
+            self.actions.unpress()
+            self.select_single.start()
+            return
 
         if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
+            self.select_single.stop()
             sel_only = self.rfcontext.actions.pressed('select smart')
             self.rfcontext.actions.unpress()
 
@@ -252,6 +248,17 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             self.rfcontext.select_edge_loop(edge, only=sel_only, supparts=False)
             return
 
+    def _select_single(self):
+        bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+        if not bme and not self.sel_only: return
+
+        self.rfcontext.undo_push('select')
+        if self.sel_only: self.rfcontext.deselect_all()
+        if not bme: return
+
+        if bme.select: self.rfcontext.deselect(bme, subparts=False)
+        else:          self.rfcontext.select(bme, supparts=False, only=self.sel_only)
+        self.rfcontext.dirty(selectionOnly=True)
 
     @FSM.on_state('rotate plane', 'can enter')
     def rotateplane_can_enter(self):
