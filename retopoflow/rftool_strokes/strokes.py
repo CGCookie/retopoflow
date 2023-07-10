@@ -1077,6 +1077,7 @@ class Strokes(RFTool):
             return 'main'
         if self.actions.pressed('cancel'):
             self.defer_recomputing = False
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             self.rfcontext.undo_cancel()
             return 'main'
 

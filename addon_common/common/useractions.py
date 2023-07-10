@@ -598,9 +598,24 @@ class Actions:
         return convert_human_readable_to_actions(actions)
 
 
-    def unuse(self, actions):
-        actions = self.convert(actions)
-        keys = [k for k,v in self.now_pressed.items() if v in actions]
+    def unuse(self, actions, ignoremods=False, ignorectrl=False, ignoreshift=False, ignorealt=False, ignoreoskey=False, ignoremulti=False, ignoreclick=False, ignoredouble=False, ignoredrag=False):
+        if not actions: return
+        strip_mods = lambda p: action_strip_mods(
+            p,
+            ctrl         = ignorectrl   or ignoremods,
+            shift        = ignoreshift  or ignoremods,
+            alt          = ignorealt    or ignoremods,
+            oskey        = ignoreoskey  or ignoremods,
+            click        = ignoreclick  or ignoremulti,
+            double_click = ignoredouble or ignoremulti,
+            drag_click   = ignoredrag   or ignoremulti,
+        )
+        actions = [ strip_mods(p) for p in self.convert(actions) ]
+        print(f'Unusing')
+        print(f'  actions={actions=}')
+        print(f'  pressed={self.now_pressed.items()}')
+        keys = [k for k,v in self.now_pressed.items() if strip_mods(v) in actions]
+        print(f'  keys   ={keys}')
         for k in keys: del self.now_pressed[k]
         self.mousedown = None
         self.mousedown_left = None

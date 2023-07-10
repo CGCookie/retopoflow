@@ -257,6 +257,8 @@ class Relax(RFTool):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
+            self.actions.unuse('brush', ignoremods=True, ignoremulti=True)
+            self.actions.unuse('brush alt', ignoremods=True, ignoremulti=True)
             return 'main'
 
     @RFTool.once_per_frame

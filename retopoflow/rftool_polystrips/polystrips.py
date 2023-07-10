@@ -307,6 +307,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             return 'main'
         if self.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             return 'main'
 
         if self.actions.mousemove or not self.actions.mousemove_prev: return
@@ -392,6 +393,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             return 'main'
         if self.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             return 'main'
 
         if self.actions.mousemove or not self.actions.mousemove_prev: return
@@ -499,6 +501,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             return 'main'
         if self.actions.pressed(self.move_cancelled):
             self.rfcontext.undo_cancel()
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             return 'main'
 
         if self.actions.mousemove or not self.actions.mousemove_prev: return
@@ -562,6 +565,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             return 'main'
         if self.actions.pressed(opts['move_cancelled']):
             self.rfcontext.undo_cancel()
+            self.actions.unuse(opts['move_done_released'], ignoremods=True, ignoremulti=True)
             return 'main'
 
         if self.actions.mousemove or not self.actions.mousemove_prev: return

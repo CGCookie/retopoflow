@@ -427,6 +427,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             return 'main'
         if self.actions.pressed(opts['move_cancelled']):
             self.undo_cancel()
+            self.actions.unuse(opts['move_done_released'], ignoremods=True, ignoremulti=True)
             return 'main'
 
         if (self.actions.mouse - opts['mouselast']).length == 0: return
@@ -490,6 +491,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             return 'main'
         if self.actions.pressed(opts['move_cancelled']):
             self.undo_cancel()
+            self.actions.unuse(opts['move_done_released'], ignoremods=True, ignoremulti=True)
             return 'main'
 
         if (self.actions.mouse - opts['mouselast']).length == 0: return
@@ -720,6 +722,8 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def smart_selection_painting(self):
         if self.actions.pressed('cancel'):
             self.undo_cancel()
+            self.actions.unuse('select paint', ignoremods=True, ignoremulti=True)
+            self.actions.unuse('select paint add', ignoremods=True, ignoremulti=True)
             return 'main'
 
         if not self.actions.using({'select paint', 'select paint add'}, ignoremods=True):

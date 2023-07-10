@@ -471,6 +471,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
         if self.rfcontext.actions.released(self.move_done_released, ignoredrag=True):
             return 'main'
         if self.rfcontext.actions.pressed('cancel'):
+            self.rfcontext.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             self.rfcontext.undo_cancel()
             return 'main'
 

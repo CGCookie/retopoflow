@@ -255,6 +255,7 @@ class Patches(RFTool):
             return 'main'
         if self.move_cancelled and self.rfcontext.actions.pressed('cancel'):
             self.defer_recomputing = False
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             self.rfcontext.undo_cancel()
             return 'main'
 

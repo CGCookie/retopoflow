@@ -529,6 +529,7 @@ class Loops(RFTool):
             return 'main'
         if self.move_cancelled and self.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
+            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             return 'main'
 
         if not self.actions.mousemove_stop: return

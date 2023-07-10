@@ -109,6 +109,7 @@ class RFWidget_BrushStroke_Factory:
 
                 if self.actions.pressed('cancel'):
                     self.stroke2D = []
+                    self.actions.unuse('insert', ignoremods=True, ignoremulti=True)
                     return 'main'
 
                 lpos, cpos = self.stroke2D[-1], self.actions.mouse

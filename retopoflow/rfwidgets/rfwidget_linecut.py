@@ -77,6 +77,7 @@ class RFWidget_LineCut_Factory:
 
                 if self.actions.pressed('cancel'):
                     self.line2D = [None, None]
+                    self.actions.unuse('insert', ignoremods=True, ignoremulti=True)
                     return 'main'
 
                 if self.line2D[1] != self.actions.mouse:

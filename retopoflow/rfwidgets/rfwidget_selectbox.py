@@ -81,6 +81,7 @@ class RFWidget_SelectBox_Factory:
 
                 if self.actions.pressed('cancel'):
                     self.box2D = [None, None]
+                    self.actions.unuse('select box', ignoremods=True, ignoremulti=True)
                     return 'main'
 
                 new_mods = {
