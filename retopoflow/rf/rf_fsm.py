@@ -518,7 +518,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
 
     def select_path(self, bmelem_types, fn_filter_bmelem=None, kwargs_select=None, kwargs_filter=None, **kwargs):
-        vis_accel = self.get_vis_accel()
+        vis_accel = self.get_accel_visible()
         nearest2D_vert = self.accel_nearest2D_vert
         nearest2D_edge = self.accel_nearest2D_edge
         nearest2D_face = self.accel_nearest2D_face
@@ -595,7 +595,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
 
     def setup_smart_selection_painting(self, bmelem_types, *, use_select_tool=False, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
-        vis_accel = self.get_vis_accel()
+        vis_accel = self.get_accel_visible()
         nearest2D_vert = self.accel_nearest2D_vert
         nearest2D_edge = self.accel_nearest2D_edge
         nearest2D_face = self.accel_nearest2D_face

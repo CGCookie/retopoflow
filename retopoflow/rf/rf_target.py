@@ -58,21 +58,42 @@ class RetopoFlow_Target:
         self.hide_target()
 
         self.accel_defer_recomputing = False
+        self.accel_data_all = Dict(get_default=None)
+        self.accel_data_sel = Dict(get_default=None)
         self.accel_recompute = True
 
-        self.accel_vis_verts = None
-        self.accel_vis_edges = None
-        self.accel_vis_faces = None
-        self.accel_vis_accel = None
-        self.accel_last = Dict(get_default=None)
-
-        self.accel_sel_verts = None
-        self.accel_sel_edges = None
-        self.accel_sel_faces = None
-        self.accel_sel_accel = None
-        self.accel_sel_last = Dict(get_default=None)
-
         self._draw_count = 0
+
+    @property
+    def accel_vis_verts(self): return self.accel_data_all.verts
+    @property
+    def accel_vis_edges(self): return self.accel_data_all.edges
+    @property
+    def accel_vis_faces(self): return self.accel_data_all.faces
+    @property
+    def accel_vis_accel(self): return self.accel_data_all.accel
+    @property
+    def accel_vis_recompute(self): return self.accel_data_all.recompute
+    @accel_vis_recompute.setter
+    def accel_vis_recompute(self, v): self.accel_data_all.recompute = v
+
+    @property
+    def accel_sel_verts(self): return self.accel_data_sel.verts
+    @property
+    def accel_sel_edges(self): return self.accel_data_sel.edges
+    @property
+    def accel_sel_faces(self): return self.accel_data_sel.faces
+    @property
+    def accel_sel_accel(self): return self.accel_data_sel.accel
+    @property
+    def accel_sel_recompute(self): return self.accel_data_sel.recompute
+    @accel_sel_recompute.setter
+    def accel_sel_recompute(self, v): self.accel_data_sel.recompute = v
+
+    @property
+    def accel_recompute(self): return self.accel_data_all.recompute or self.accel_data_sel.recompute
+    @accel_recompute.setter
+    def accel_recompute(self, v): self.accel_data_all.recompute, self.accel_data_sel.recompute = v, v
 
     def hide_target(self):
         self.rftarget.obj_viewport_hide()
@@ -141,133 +162,81 @@ class RetopoFlow_Target:
 
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
 
-    def get_accel_selected(self, *, force=False):
-        target_version = self.get_target_version(selection=True)
+    def get_accel_visible(self, *, selected_only=False, force=False):
+        target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
         mm = self.rftarget.mirror_mod
 
+        accel_data = self.accel_data_all if not selected_only else self.accel_data_sel
+
         # force |= self.accel_recompute
         needs_recomputed = any([
-            self.accel_recompute,
+            accel_data.recompute,
             # missing acceleration data?
-            self.accel_sel_verts is None,
-            self.accel_sel_edges is None,
-            self.accel_sel_faces is None,
-            self.accel_sel_accel is None,
+            accel_data.verts is None,
+            accel_data.edges is None,
+            accel_data.faces is None,
+            accel_data.accel is None,
             # did any important thing change since we last generated accel structure?
-            self.accel_sel_last.target_version              != target_version,
-            self.accel_sel_last.view_version                != view_version,
-            self.accel_sel_last.visible_bbox_factor         != options['visible bbox factor'],
-            self.accel_sel_last.visible_dist_offset         != options['visible dist offset'],
-            self.accel_sel_last.selection_occlusion_test    != options['selection occlusion test'],
-            self.accel_sel_last.selection_backface_test     != options['selection backface test'],
-            self.accel_sel_last.ray_ignore_backface_sources != self.ray_ignore_backface_sources(),
-            self.accel_sel_last.mirror_mod                  != (mm.x, mm.y, mm.z),
+            accel_data.target_version              != target_version,
+            accel_data.view_version                != view_version,
+            accel_data.visible_bbox_factor         != options['visible bbox factor'],
+            accel_data.visible_dist_offset         != options['visible dist offset'],
+            accel_data.selection_occlusion_test    != options['selection occlusion test'],
+            accel_data.selection_backface_test     != options['selection backface test'],
+            accel_data.ray_ignore_backface_sources != self.ray_ignore_backface_sources(),
+            accel_data.mirror_mod                  != (mm.x, mm.y, mm.z),
         ])
 
         delay_recompute = ([
             self.accel_defer_recomputing,
             self._nav,                                  # do not recompute while artist is navigating
             (time.time() - self._nav_time) < options['accel recompute delay'],  # wait just a small amount of time after artist finishes navigating
-            self.accel_sel_last.draw_count == self._draw_count,
+            accel_data.draw_count == self._draw_count,
         ])
 
         recompute = force or (needs_recomputed and not any(delay_recompute))
         if not recompute:
             # if needs_recomputed and any(delay_recompute):
             #     print(f'VIS ACCEL NEEDS RECOMPUTED, BUT DELAYED: {delay_recompute}')
-            if self.accel_sel_verts: self.accel_sel_verts = set(self.filter_is_valid(self.accel_sel_verts))
-            if self.accel_sel_edges: self.accel_sel_edges = set(self.filter_is_valid(self.accel_sel_edges))
-            if self.accel_sel_faces: self.accel_sel_faces = set(self.filter_is_valid(self.accel_sel_faces))
-            return self.accel_sel_accel
+            if accel_data.verts: accel_data.verts = set(self.filter_is_valid(accel_data.verts))
+            if accel_data.edges: accel_data.edges = set(self.filter_is_valid(accel_data.edges))
+            if accel_data.faces: accel_data.faces = set(self.filter_is_valid(accel_data.faces))
+            return accel_data.accel
 
-        self.accel_recompute = False
+        accel_data.recompute = False
 
-        self.accel_sel_verts = self.visible_verts(verts=self.get_selected_verts())
-        self.accel_sel_edges = self.visible_edges(edges=self.get_selected_edges(), verts=self.accel_sel_verts)
-        self.accel_sel_faces = self.visible_faces(faces=self.get_selected_faces(), verts=self.accel_sel_verts)
-        self.accel_sel_accel = Accel2D('RFTarget selected geometry', self.accel_sel_verts, self.accel_sel_edges, self.accel_sel_faces, self.get_point2D_symmetries)
+        verts, edges, faces = None, None, None
+        if selected_only:
+            verts = self.get_selected_verts()
+            edges = self.get_selected_edges()
+            faces = self.get_selected_faces()
 
-        # remember important things that influence accel structure
-        self.accel_sel_last.target_version              = target_version
-        self.accel_sel_last.view_version                = view_version
-        self.accel_sel_last.visible_bbox_factor         = options['visible bbox factor']
-        self.accel_sel_last.visible_dist_offset         = options['visible dist offset']
-        self.accel_sel_last.selection_occlusion_test    = options['selection occlusion test']
-        self.accel_sel_last.selection_backface_test     = options['selection backface test']
-        self.accel_sel_last.ray_ignore_backface_sources = self.ray_ignore_backface_sources()
-        self.accel_sel_last.draw_count                  = self._draw_count
-        self.accel_sel_last.mirror_mod                  = (mm.x, mm.y, mm.z)
-
-        return self.accel_sel_accel
-
-    def get_vis_accel(self, *, force=False):
-        target_version = self.get_target_version(selection=False)
-        view_version = self.get_view_version()
-        mm = self.rftarget.mirror_mod
-
-        # force |= self.accel_recompute
-        needs_recomputed = any([
-            self.accel_recompute,
-            # missing acceleration data?
-            self.accel_vis_verts is None,
-            self.accel_vis_edges is None,
-            self.accel_vis_faces is None,
-            self.accel_vis_accel is None,
-            # did any important thing change since we last generated accel structure?
-            self.accel_last.target_version              != target_version,
-            self.accel_last.view_version                != view_version,
-            self.accel_last.visible_bbox_factor         != options['visible bbox factor'],
-            self.accel_last.visible_dist_offset         != options['visible dist offset'],
-            self.accel_last.selection_occlusion_test    != options['selection occlusion test'],
-            self.accel_last.selection_backface_test     != options['selection backface test'],
-            self.accel_last.ray_ignore_backface_sources != self.ray_ignore_backface_sources(),
-            self.accel_last.mirror_mod                  != (mm.x, mm.y, mm.z),
-        ])
-
-        delay_recompute = ([
-            self.accel_defer_recomputing,
-            self._nav,                                  # do not recompute while artist is navigating
-            (time.time() - self._nav_time) < options['accel recompute delay'],  # wait just a small amount of time after artist finishes navigating
-            self.accel_last.draw_count == self._draw_count,
-        ])
-
-        recompute = force or (needs_recomputed and not any(delay_recompute))
-        if not recompute:
-            # if needs_recomputed and any(delay_recompute):
-            #     print(f'VIS ACCEL NEEDS RECOMPUTED, BUT DELAYED: {delay_recompute}')
-            if self.accel_vis_verts: self.accel_vis_verts = set(self.filter_is_valid(self.accel_vis_verts))
-            if self.accel_vis_edges: self.accel_vis_edges = set(self.filter_is_valid(self.accel_vis_edges))
-            if self.accel_vis_faces: self.accel_vis_faces = set(self.filter_is_valid(self.accel_vis_faces))
-            return self.accel_vis_accel
-
-        self.accel_recompute = False
-
-        self.accel_vis_verts = self.visible_verts()
-        self.accel_vis_edges = self.visible_edges(verts=self.accel_vis_verts)
-        self.accel_vis_faces = self.visible_faces(verts=self.accel_vis_verts)
-        self.accel_vis_accel = Accel2D('RFTarget visible geometry', self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces, self.get_point2D_symmetries)
+        accel_data.verts = self.visible_verts(verts=verts)
+        accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
+        accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
+        accel_data.accel = Accel2D('RFTarget visible geometry', accel_data.verts, accel_data.edges, accel_data.faces, self.get_point2D_symmetries)
 
         # remember important things that influence accel structure
-        self.accel_last.target_version              = target_version
-        self.accel_last.view_version                = view_version
-        self.accel_last.visible_bbox_factor         = options['visible bbox factor']
-        self.accel_last.visible_dist_offset         = options['visible dist offset']
-        self.accel_last.selection_occlusion_test    = options['selection occlusion test']
-        self.accel_last.selection_backface_test     = options['selection backface test']
-        self.accel_last.ray_ignore_backface_sources = self.ray_ignore_backface_sources()
-        self.accel_last.draw_count                  = self._draw_count
-        self.accel_last.mirror_mod                  = (mm.x, mm.y, mm.z)
+        accel_data.target_version              = target_version
+        accel_data.view_version                = view_version
+        accel_data.visible_bbox_factor         = options['visible bbox factor']
+        accel_data.visible_dist_offset         = options['visible dist offset']
+        accel_data.selection_occlusion_test    = options['selection occlusion test']
+        accel_data.selection_backface_test     = options['selection backface test']
+        accel_data.ray_ignore_backface_sources = self.ray_ignore_backface_sources()
+        accel_data.draw_count                  = self._draw_count
+        accel_data.mirror_mod                  = (mm.x, mm.y, mm.z)
 
-        return self.accel_vis_accel
+        return accel_data.accel
 
     @staticmethod
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
 
-    def get_vis_verts(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_verts
-    def get_vis_edges(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_edges
-    def get_vis_faces(self, *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_faces
-    def get_vis_geom(self,  *, force=False): self.get_vis_accel(force=force) ; return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
+    def get_vis_verts(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_verts
+    def get_vis_edges(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_edges
+    def get_vis_faces(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_faces
+    def get_vis_geom(self,  *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
 
     def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):
         verts, edges, faces = self.visible_geom()
@@ -286,7 +255,7 @@ class RetopoFlow_Target:
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
-            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
+            vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -306,7 +275,7 @@ class RetopoFlow_Target:
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
-            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
+            vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return None,None
 
         if not max_dist:
@@ -326,7 +295,7 @@ class RetopoFlow_Target:
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
-            vis_accel = self.get_vis_accel() if not selected_only else self.get_accel_selected()
+            vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return None
 
         if not max_dist:

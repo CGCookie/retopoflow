@@ -542,7 +542,7 @@ class Strokes(RFTool):
         else:
             self.rfcontext.undo_push('create strip')
 
-        self.rfcontext.get_vis_accel(force=True)
+        self.rfcontext.get_accel_visible(force=True)
 
         if self.strip_crosses is None:
             if options['strokes span insert mode'] == 'Brush Size':
@@ -688,7 +688,7 @@ class Strokes(RFTool):
         else:
             self.rfcontext.undo_push('extrude U')
 
-        self.rfcontext.get_vis_accel(force=True)
+        self.rfcontext.get_accel_visible(force=True)
 
         # get selected edges that we can extrude
         edges = self.get_edges_for_extrude()
@@ -782,7 +782,7 @@ class Strokes(RFTool):
         else:
             self.rfcontext.undo_push('extrude L')
 
-        self.rfcontext.get_vis_accel(force=True)
+        self.rfcontext.get_accel_visible(force=True)
 
         new2D_vert_point = self.rfcontext.new2D_vert_point
         new_face = self.rfcontext.new_face
@@ -859,7 +859,7 @@ class Strokes(RFTool):
         edges = self.get_edges_for_extrude()
         sel_verts = { v for e in edges for v in e.verts }
 
-        self.rfcontext.get_vis_accel(force=True)
+        self.rfcontext.get_accel_visible(force=True)
 
         s0, s1 = stroke[0], stroke[-1]
         sd = s1 - s0
@@ -1047,7 +1047,7 @@ class Strokes(RFTool):
         }
 
         sel_verts = self.rfcontext.get_selected_verts()
-        vis_accel = self.rfcontext.get_vis_accel()
+        vis_accel = self.rfcontext.get_accel_visible()
         vis_verts = self.rfcontext.accel_vis_verts
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
 

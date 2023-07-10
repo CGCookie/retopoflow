@@ -6,12 +6,15 @@
 
 - Loops and Strokes
     - remove Stopwatch, and handle this code correctly!
+    - add planar rotation to loops (in addition to screen rotation, similar to contours)
 
-- predraw Drawing callback only fires if pre3d, post3d, or post2d exists!
-- remove sprint and other debug calls
-- use stopwatch to wrap select single so that smart selection is more dependable
-- add planar rotation to loops (in addition to screen rotation, similar to contours)
-- build accel structs async
+- General
+    - predraw Drawing callback only fires if pre3d, post3d, or post2d exists!
+    - general rotate and scale should have viz
+    - build accel structs async
 
-- general rotate and scale should have viz
+- IMPORTANT, BEFORE RELEASE
+    - remove sprint and other debug calls
+    - use stopwatch to wrap select single so that smart selection is more dependable
+
 

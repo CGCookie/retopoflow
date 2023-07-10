@@ -228,10 +228,9 @@ class PolyPen(RFTool):
 
         else:
             with profiler.code('getting nearest geometry'):
-                sel_accel = self.rfcontext.get_accel_selected()
-                self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
-                self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
-                self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], vis_accel=sel_accel)
+                self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
+                self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], selected_only=True)
+                self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], selected_only=True)
                 self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
 

@@ -246,12 +246,12 @@ class RetopoFlow_Sources:
     def visibility_preset_normal(self):
         options['visible bbox factor'] = 0.001
         options['visible dist offset'] = 0.1
-        self.get_vis_accel()
+        self.get_accel_visible()
 
     def visibility_preset_tiny(self):
         options['visible bbox factor'] = 0.0
         options['visible dist offset'] = 0.0004
-        self.get_vis_accel()
+        self.get_accel_visible()
 
 
     ###################################################

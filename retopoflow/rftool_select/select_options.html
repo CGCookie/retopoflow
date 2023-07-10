@@ -5,11 +5,11 @@
         <button title="Invert the current selection" on_mouseclick="self.select_invert()">Invert Selection</button>
         <button title="Deselect all geometry" on_mouseclick="self.deselect_all()">Deselect All</button>
         <label>
-            <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
+            <input type="checkbox" checked="BoundBool('''options['selection occlusion test']''')" title="If enabled, target geometry that is occluded by source(s) are not selectable.  Disable if a vertex is not selectable." on_change="self.get_accel_visible()">
             Block Occluded
         </label>
         <label>
-            <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_vis_accel()">
+            <input type="checkbox" checked="BoundBool('''options['selection backface test']''')" title="If enabled, geometry that is facing away is not selectable.  Disable if a vertex is not selectable." on_change="self.get_accel_visible()">
             Block Backface
         </label>
         <div class="collection">
