@@ -116,22 +116,23 @@ class RetopoFlow_Target:
     # split target visualization
 
     def clear_split_target_visualization(self):
-        # print(f'clear_split_target_visualization')
         self.rftarget_draw.split_visualization()
 
     def split_target_visualization(self, verts=None, edges=None, faces=None):
-        # print(f'split_target_visualization')
         self.rftarget_draw.split_visualization(verts=verts, edges=edges, faces=faces)
 
     def split_target_visualization_selected(self):
-        # print(f'split_target_visualization_selected')
-        verts, edges, faces = self.get_selected_geom()
-        self.rftarget_draw.split_visualization(verts=verts, edges=edges, faces=faces)
+        self.rftarget_draw.split_visualization(
+            verts=self.get_selected_verts(),
+            edges=self.get_selected_edges(),
+            faces=self.get_selected_faces(),
+        )
 
     def split_target_visualization_visible(self):
-        # print(f'split_target_visualization_visible')
         self.rftarget_draw.split_visualization(
-            verts=self.get_vis_verts(),
+            verts=self.accel_vis_verts,
+            edges=self.accel_vis_edges,
+            faces=self.accel_vis_faces,
         )
 
 

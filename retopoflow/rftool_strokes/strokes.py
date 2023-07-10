@@ -288,7 +288,7 @@ class Strokes(RFTool):
                 use_select_tool=True,
                 selecting=not sel_only,
                 deselect_all=sel_only,
-                fn_filter_bmelem=self.filter_edge_selection,
+                # fn_filter_bmelem=self.filter_edge_selection,
                 kwargs_select={'supparts': False},
                 kwargs_deselect={'subparts': False},
             )

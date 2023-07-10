@@ -23,6 +23,7 @@ import math
 import time
 import random
 from itertools import chain
+from functools import partial
 from collections import deque
 
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
@@ -35,7 +36,7 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
-from ...addon_common.common.utils import normalize_triplequote
+from ...addon_common.common.utils import normalize_triplequote, Dict
 from ...config.options import options, retopoflow_files
 from ...addon_common.common.timerhandler import StopwatchHandler, CallGovernor
 
@@ -43,7 +44,6 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def setup_states(self):
         self.view_version = None
         self._last_rfwidget = None
-        self._next_normal_check = 0
         self.fast_update_timer = self.actions.start_timer(120.0, enabled=False)
 
     def update(self, timer=True):
@@ -105,7 +105,6 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = f'UI FPS: {self.document._draw_fps:.2f}'
-
 
     def should_pass_through(self, context, event):
         return self.actions.using('blender passthrough')
@@ -300,16 +299,12 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def modal_main_rest(self):
         self.ignore_ui_events = False
 
-        ct, nt = time.time(), self._next_normal_check
-        if ct > nt:
-            self._next_normal_check = ct + 0.25
-            self.normal_check()
+        self.normal_check()  # this call is governed!
 
         if self.rftool.rfwidget:
             Cursors.set(self.rftool.rfwidget.rfw_cursor)
-            if self.rftool.rfwidget.redraw_on_mouse:
-                if self.actions.mousemove:
-                    tag_redraw_all('RFTool.RFWidget.redraw_on_mouse')
+            if self.rftool.rfwidget.redraw_on_mouse and self.actions.mousemove:
+                tag_redraw_all('RFTool.RFWidget.redraw_on_mouse')
             ret = self.rftool.rfwidget._fsm_update()
             if self.fsm.is_state(ret):
                 return ret
@@ -364,7 +359,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def action_handler_enter(self):
         assert self.action_data
         self.undo_push('action handler')
-        self.action_data['timer'] = self.actions.start_timer(120.0)
+        self.fast_update_timer.start()
         self.action_data['mouse'] = self.actions.mouse
         self.action_data['val start'] = self.action_data['val'](self.actions.mouse)
 
@@ -385,7 +380,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     @FSM.on_state('action handler', 'exit')
     def action_handler_exit(self):
-        self.action_data['timer'].done()
+        self.fast_update_timer.stop()
 
 
 
@@ -405,11 +400,11 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         opts['move_done_pressed'] = 'confirm'
         opts['move_done_released'] = None
         opts['move_cancelled'] = 'cancel'
-        opts['timer'] = self.actions.start_timer(120.0)
         opts['mouselast'] = self.actions.mouse
         opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
+        self.fast_update_timer.start()
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
@@ -447,8 +442,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     @FSM.on_state('rotate selected', 'exit')
     def rotate_selected_exit(self):
-        opts = self.rotate_selected_opts
-        opts['timer'].done()
+        self.fast_update_timer.stop()
         self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
@@ -469,11 +463,11 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         opts['move_done_pressed'] = 'confirm'
         opts['move_done_released'] = None
         opts['move_cancelled'] = 'cancel'
-        opts['timer'] = self.actions.start_timer(120.0)
         opts['mouselast'] = self.actions.mouse
         opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
+        self.fast_update_timer.start()
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
 
@@ -507,32 +501,32 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     @FSM.on_state('scale selected', 'exit')
     def scale_selected_exit(self):
-        opts = self.scale_selected_opts
-        opts['timer'].done()
+        self.fast_update_timer.stop()
         self.clear_split_target_visualization()
         self.set_accel_defer(False)
 
 
     def select_path(self, bmelem_types, fn_filter_bmelem=None, kwargs_select=None, kwargs_filter=None, **kwargs):
-        kwargs_filter = kwargs_filter or {}
-        fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
-
         vis_accel = self.get_vis_accel()
         nearest2D_vert = self.accel_nearest2D_vert
         nearest2D_edge = self.accel_nearest2D_edge
         nearest2D_face = self.accel_nearest2D_face
 
+        kwargs_filter = kwargs_filter or {}
+        def fn_filter(bmelem):
+            if not bmelem: return False
+            if not fn_filter_bmelem: return True
+            return fn_filter_bmelem(bmelem, **kwargs_filter)
         def get_bmelem(*args, **kwargs):
-            nonlocal fn_filter, bmelem_types, vis_accel, nearest2D_vert, nearest2D_edge, nearest2D_face
             if 'vert' in bmelem_types:
                 bmelem, _ = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             if 'edge' in bmelem_types:
                 bmelem, _ = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             if 'face' in bmelem_types:
                 bmelem, _ = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             return None
 
         bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
@@ -590,29 +584,33 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
 
     def setup_smart_selection_painting(self, bmelem_types, *, use_select_tool=False, selecting=True, deselect_all=False, fn_filter_bmelem=None, kwargs_select=None, kwargs_deselect=None, kwargs_filter=None, **kwargs):
-        kwargs_filter = kwargs_filter or {}
-        fn_filter = (lambda e: fn_filter_bmelem(e, **kwargs_filter)) if fn_filter_bmelem else (lambda _: True)
-
         vis_accel = self.get_vis_accel()
         nearest2D_vert = self.accel_nearest2D_vert
         nearest2D_edge = self.accel_nearest2D_edge
         nearest2D_face = self.accel_nearest2D_face
 
+        kwargs_filter   = kwargs_filter   or {}
+        kwargs_select   = kwargs_select   or {}
+        kwargs_deselect = kwargs_deselect or {}
+
+        def fn_filter(bmelem):
+            if not bmelem: return False
+            if not fn_filter_bmelem: return True
+            return fn_filter_bmelem(bmelem, **kwargs_filter)
         def get_bmelem(*args, **kwargs):
-            nonlocal fn_filter, bmelem_types, vis_accel, nearest2D_vert, nearest2D_edge, nearest2D_face
             if 'vert' in bmelem_types:
                 bmelem, _ = nearest2D_vert(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             if 'edge' in bmelem_types:
                 bmelem, _ = nearest2D_edge(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             if 'face' in bmelem_types:
                 bmelem, _ = nearest2D_face(*args, vis_accel=vis_accel, **kwargs)
-                if bmelem and fn_filter(bmelem): return bmelem
+                if fn_filter(bmelem): return bmelem
             return None
 
-        bmelem = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
-        if not bmelem:
+        bmelem_first = get_bmelem(max_dist=options['select dist'])  # find what's under the mouse
+        if not bmelem_first:
             # nothing there; either leave or use select tool
             if not use_select_tool:
                 return
@@ -621,65 +619,63 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             rftool_select._callback('quickselect start')
             return 'quick switch'
 
-        bmelem_types = { RFVert: {'vert'}, RFEdge: {'edge'}, RFFace: {'face'} }[type(bmelem)]
-        selecting |= not bmelem.select              # if not explicitly selecting, start selecting only if elem under mouse is not selected
-        kwargs_select   = kwargs_select   or {}
-        kwargs_deselect = kwargs_deselect or {}
+        bmelem_type, vis_elems = {
+            RFVert: ('vert', self.accel_vis_verts),
+            RFEdge: ('edge', self.accel_vis_edges),
+            RFFace: ('face', self.accel_vis_faces),
+        }[type(bmelem_first)]
+        bmelem_types = { bmelem_type }          # needed so get_bmelem returns correct type
+
+        selecting |= not bmelem_first.select    # if not explicitly selecting, start selecting only if elem under mouse is not selected
         kwargs.update(kwargs_select if selecting else kwargs_deselect)
         if selecting: kwargs['only'] = False
 
-        # find all other visible elements
-        vis_elems = self.accel_vis_verts | self.accel_vis_edges | self.accel_vis_faces
-
-        # walk from bmelem to all other connected visible geometry
-        path = {}
+        # walk from bmelem_first to all other connected visible geometry
+        path_to_first = {}
         working = deque()
-        working.append((bmelem, None))
-        def add(o, bme):
-            nonlocal vis_elems, path, working
-            if o not in vis_elems or o in path: return
-            if not fn_filter(o): return
-            working.append((o, bme))
+        def add_to_working(from_bmelem, to_bmelem):
+            if to_bmelem not in vis_elems or to_bmelem in path_to_first: return
+            if not fn_filter(to_bmelem): return
+            working.append((from_bmelem, to_bmelem))
+        add_to_working(None, bmelem_first)
         while working:
-            bme, from_bme = working.popleft()
-            if bme in path: continue
-            path[bme] = from_bme
-            if 'vert' in bmelem_types:
-                for c in bme.link_edges:
-                    o = c.other_vert(bme)
-                    add(o, bme)
-            if 'edge' in bmelem_types:
-                for c in bme.verts:
-                    for o in c.link_edges:
-                        add(o, bme)
-            if 'face' in bmelem_types:
-                for c in bme.edges:
-                    for o in c.link_faces:
-                        add(o, bme)
+            from_bmelem, bmelem = working.popleft()
+            if bmelem in path_to_first: continue
+            path_to_first[bmelem] = from_bmelem
+            match bmelem_type:
+                case 'vert':
+                    for edge in bmelem.link_edges:
+                        for vert in edge.verts:
+                            add_to_working(bmelem, vert)
+                case 'edge':
+                    for vert in bmelem.verts:
+                        for edge in vert.link_edges:
+                            add_to_working(bmelem, edge)
+                case 'face':
+                    for edge in bmelem.edges:
+                        for face in edge.link_faces:
+                            add_to_working(bmelem, face)
 
-        op = (lambda e: self.select(e, **kwargs)) if selecting else (lambda e: self.deselect(e, **kwargs))
+        fn_select = partial((self.select if selecting else self.deselect), **kwargs)
 
-        self.selection_painting_opts = {
-            'bmelem':    bmelem,
-            'selecting': selecting,
-            'get':       get_bmelem,
-            'kwargs':    kwargs,
-            'path':      path,
-            'op':        op,
-            'deselect':  deselect_all,
-            'previous':  [],
-            'lastelem':  None,
-        }
+        self.selection_painting_opts = Dict(
+            fn_get_bmelem      = get_bmelem,
+            path_to_first      = path_to_first,
+            fn_select          = fn_select,
+            previous_selection = [],
+            last_bmelem        = bmelem_first,
+        )
 
         self.undo_push('smart select' if selecting else 'smart deselect')
         if deselect_all: self.deselect_all()
-        op(bmelem)
+        fn_select(bmelem_first)
 
         return 'smart selection painting'
 
     @FSM.on_state('smart selection painting', 'enter')
     def smart_selection_painting_enter(self):
         self.fast_update_timer.start()
+        self.split_target_visualization_visible()
         self.set_accel_defer(True)
 
 
@@ -692,21 +688,23 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def smart_selection_painting_update(self):
         opts = self.selection_painting_opts
 
-        bmelem = opts['get']()
-        if not bmelem: return
-        if bmelem not in opts['path']: return
-        if bmelem == opts['lastelem']: return
+        bmelem = opts.fn_get_bmelem()
+        if not bmelem or bmelem not in opts.path_to_first: return
 
-        opts['lastelem'] = bmelem
+        # hovering over same bmelem
+        if bmelem == opts.last_bmelem: return
+        opts.last_bmelem = bmelem
 
-        for (bme, s) in opts['previous']: bme.select = s
-        opts['previous'] = []
+        # reset to previous selection
+        for (bme, s) in opts.previous_selection: bme.select = s
+
+        # get bmelems from hovered back to first
+        current_selection = []
         while bmelem:
-            opts['previous'].append((bmelem, bmelem.select))
-            opts['op'](bmelem)
-            bmelem = opts['path'][bmelem]
-
-        tag_redraw_all('RF selection_painting')
+            current_selection.append(bmelem)
+            bmelem = opts.path_to_first[bmelem]
+        opts.previous_selection = [(bmelem, bmelem.select) for bmelem in current_selection]
+        opts.fn_select(current_selection)
 
 
     @FSM.on_state('smart selection painting')
@@ -727,5 +725,6 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
     def smart_selection_painting_exit(self):
         self.selection_painting_opts = None
         self.fast_update_timer.stop()
+        self.clear_split_target_visualization()
         self.set_accel_defer(False)
 

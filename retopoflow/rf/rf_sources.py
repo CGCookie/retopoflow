@@ -29,6 +29,7 @@ from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, Plane
 from ...addon_common.common.maths import Point2D, Accel2D
+from ...addon_common.common.timerhandler import CallGovernor
 
 from ..rfmesh.rfmesh import RFSource
 from ..rfmesh.rfmesh_render import RFMeshRender
@@ -256,6 +257,7 @@ class RetopoFlow_Sources:
     ###################################################
     # normal check
 
+    @CallGovernor.limit(time_limit=0.25)
     def normal_check(self):
         if not options['warning normal check']: return  # user wishes not to do this check :(
         if self._warned_bad_normals: return             # already warned this session
