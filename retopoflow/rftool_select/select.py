@@ -187,6 +187,7 @@ class Select(RFTool):
                 symmetry=False,
             )
         self.rfcontext.split_target_visualization_selected()
+        self.rfcontext.fast_update_timer.start()
         self.rfcontext.set_accel_defer(True)
 
         if options['hide cursor on tweak']: self.set_widget('hidden')
@@ -224,6 +225,7 @@ class Select(RFTool):
     @FSM.on_state('move', 'exit')
     def move_exit(self):
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.fast_update_timer.stop()
         self.rfcontext.clear_split_target_visualization()
 
     def mergeSnapped(self):
