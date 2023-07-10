@@ -585,6 +585,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
 
 
     @DrawCallbacks.on_draw('post3d')
+    @FSM.onlyinstate({'main', 'move handle', 'rotate', 'scale'})
     def draw_post3d_spline(self):
         if not self.strips: return
 
@@ -639,6 +640,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         gpustate.depth_test('LESS_EQUAL')
 
     @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate({'main', 'move handle', 'rotate', 'scale'})
     def draw_post2d(self):
         self.rfcontext.drawing.set_font_size(12)
         Point_to_Point2D = self.rfcontext.Point_to_Point2D

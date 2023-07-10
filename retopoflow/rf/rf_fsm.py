@@ -83,28 +83,37 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         if self.rftarget_version != rftarget_version:
             self.rftarget_version = rftarget_version
             self.update_rot_object()
-            self.rftool._callback('target change')
-            if self.rftool.rfwidget:
-                self.rftool.rfwidget._callback_widget('target change')
-            self.update_ui_geometry()
-            tag_redraw_all('RF_States update')
+            self.callback_target_change()
+            tag_redraw_all('RF_FSM target change')
 
         view_version = self.get_view_version()
         if self.view_version != view_version:
             self.update_view_sessionoptions(self.context)
             self.update_clip_settings(rescale=False)
             self.view_version = view_version
-            if not hasattr(self, '_stopwatch_view_change'):
-                def callback_view_change():
-                    self.rftool._callback('view change')
-                    if self.rftool.rfwidget:
-                        self.rftool.rfwidget._callback_widget('view change')
-                self._stopwatch_view_change = StopwatchHandler(callback_view_change, time_delay=options['view change delay'])
-            self._stopwatch_view_change.reset()
+            self.callback_view_change()
+            tag_redraw_all('RF_FSM view change')
 
         self.actions.hit_pos,self.actions.hit_norm,_,_ = self.raycast_sources_mouse()
         fpsdiv = self.document.body.getElementById('fpsdiv')
         if fpsdiv: fpsdiv.innerText = f'UI FPS: {self.document._draw_fps:.2f}'
+
+    # @CallGovernor.limit(fn_delay=lambda:options['target change delay'])
+    def callback_target_change(self):
+        # throttling this fn will cause target_change and draw callbacks to get out-of-sync
+        # ex: contours depends on data collected in target change callback!
+        self.rftool._callback('target change')
+        if self.rftool.rfwidget:
+            self.rftool.rfwidget._callback_widget('target change')
+        self.update_ui_geometry()
+        tag_redraw_all('RF_FSM target change')
+
+    @CallGovernor.limit(fn_delay=lambda:options['view change delay'])
+    def callback_view_change(self):
+        self.rftool._callback('view change')
+        if self.rftool.rfwidget:
+            self.rftool.rfwidget._callback_widget('view change')
+        tag_redraw_all('RF_FSM view change')
 
     def should_pass_through(self, context, event):
         return self.actions.using('blender passthrough')

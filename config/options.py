@@ -245,6 +245,7 @@ class Options:
 
         'accel recompute delay':    0.125,      # seconds to wait to prevent recomputing accel structs too quickly after navigation
         'view change delay':        0.250,      # seconds to wait before calling view change callbacks (> accel recompute delay)
+        'target change delay':      0.010,      # seconds to wait before calling target change callbacks
 
         'move rotate object if no selection': True,
 

@@ -107,19 +107,24 @@ class CallGovernor:
     #       bpy.app.timers.is_registered(self.fn_call_now) does!
 
     @staticmethod
-    def limit(*, time_limit=None, pause_after_call=None):
+    def limit(**kwargs):
         def wrap_fn(fn):
-            cg = CallGovernor(fn, time_limit=time_limit, pause_after_call=pause_after_call)
+            cg = CallGovernor(fn, **kwargs)
             @wraps(fn)
-            def wrapper(*args, **kwargs):
-                cg(*args, **kwargs)
+            def wrapper(*fn_args, **fn_kwargs):
+                cg(*fn_args, **fn_kwargs)
             wrapper.unpause = cg.unpause
             return wrapper
         return wrap_fn
 
-    def __init__(self, fn, *, time_limit=None, pause_after_call=None):
-        assert time_limit is not None or pause_after_call is not None, 'Addon Common: Must specify either time_limit or pause_after_call'
+    def __init__(self, fn, *, time_limit=None, fn_delay=None, pause_after_call=None):
+        assert not all([
+            time_limit is None,
+            fn_delay is None,
+            pause_after_call is None,
+        ]), 'Addon Common: Must specify at least one option'
         self.time_limit = time_limit
+        self.fn_delay = fn_delay
         self.pause_after_call = pause_after_call
         self.fn = fn
         self._paused = False
@@ -140,21 +145,28 @@ class CallGovernor:
     def _call_now(self):
         if self._calling_later:
             bpy.app.timers.unregister(self._fn_call_now)
+
         if self.time_limit is not None:
             self._next_call = time.time() + self.time_limit
+        elif self.fn_delay is not None:
+            self._next_call = time.time() + self.fn_delay()
+
         if self.pause_after_call:
             self._paused = True
             self._call_when_paused = False
+
         self.fn(*self._args)
 
     def __call__(self, *args, now=False):
         self._args = args
-        if self.time_limit is not None:
+
+        if self.time_limit is not None or self.fn_delay is not None:
             time_to_next_call = self._next_call - time.time()
             if now or time_to_next_call <= 0:
                 self._call_now()
             elif not self._calling_later:
                 bpy.app.timers.register(self._fn_call_now, first_interval=time_to_next_call)
+
         if self.pause_after_call:
             if now or not self._paused:
                 self._call_now()

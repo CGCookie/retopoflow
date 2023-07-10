@@ -34,6 +34,7 @@ from ...addon_common.common.drawing import DrawCallbacks
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.debug import tprint
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.hasher import Hasher
 from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
@@ -170,27 +171,31 @@ class RetopoFlow_Drawing:
     # RFTool Drawing
 
     @DrawCallbacks.on_draw('predraw')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def tool_new_frame(self):
         if not self.loading_done: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool._new_frame()
 
     @DrawCallbacks.on_draw('pre3d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_tool_pre3d(self):
         if not self.loading_done: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool._draw_pre3d()
 
     @DrawCallbacks.on_draw('post3d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_tool_post3d(self):
         if not self.loading_done: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool._draw_post3d()
 
     @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_tool_post2d(self):
         if not self.loading_done: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool._draw_post2d()
 
 
@@ -198,29 +203,32 @@ class RetopoFlow_Drawing:
     # RFWidget Drawing
 
     @DrawCallbacks.on_draw('pre3d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_widget_pre3d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         if self._hover_ui: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool.rfwidget._draw_pre3d()
 
     @DrawCallbacks.on_draw('post3d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_widget_post3d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         if self._hover_ui: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool.rfwidget._draw_post3d()
 
     @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate({'main', 'quick switch'})
     def draw_widget_post2d(self):
         if not self.loading_done: return
         if not self.rftool.rfwidget: return
         if self._nav: return
         if self._hover_ui: return
-        if self.fsm.state == 'pie menu': return
+        # if self.fsm.state == 'pie menu': return
         self.rftool.rfwidget._draw_post2d()
 
