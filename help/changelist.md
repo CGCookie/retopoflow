@@ -39,6 +39,7 @@ This version of RetopoFlow requires Blender 3.6 or later.
     - Brush size (PolyStrips, Strokes, Relax, Smooth) is more consistent across screen
     - Fixed many smaller bugs
     - Restructured and cleaned code base
+    - Auto saves will make a few attempts before alerting of failure
 
 ### RetopoFlow 3.2.9&rarr;3.3.0
 
