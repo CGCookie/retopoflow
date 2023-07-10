@@ -258,7 +258,7 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
     uniforms, varyings, attributes, consts = [],[],[],[]
     vertSource, geoSource, fragSource, commonSource = [],[],[],[]
     vertVersion, geoVersion, fragVersion = '','',''
-    mode = None
+    mode = 'common'
     lines = string.splitlines()
     for i_line,line in enumerate(lines):
         sline = line.lstrip()
@@ -287,24 +287,28 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
                 print(f'Shader could not match #define line ({i_line}): {line}')
             consts.append(line)
         elif re.match(r'#version ', sline):
-            if   mode == 'vert': vertVersion = line
-            elif mode == 'geo':  geoVersion  = line
-            elif mode == 'frag': fragVersion = line
-            else: vertVersion = geoVersion = fragVersion = line
-        elif mode not in {'vert', 'geo', 'frag'} and re.match(r'precision ', sline):
+            match mode:
+                case 'common': vertVersion = geoVersion = fragVersion = line, line, line
+                case 'vert':   vertVersion = line
+                case 'geo':    geoVersion  = line
+                case 'frag':   fragVersion = line
+                case _: assert False, f'Addon Common: Unhandled mode {mode}'
+        elif mode == 'common' and re.match(r'precision ', sline):
             commonSource.append(line)
-        elif re.match(r'//+ +vert(ex)? shader', sline.lower()):
-            mode = 'vert'
-        elif re.match(r'//+ +geo(m(etry)?)? shader', sline.lower()):
-            mode = 'geo'
-        elif re.match(r'//+ +frag(ment)? shader', sline.lower()):
-            mode = 'frag'
+        elif m := re.match(r'//+ +(?P<mode>common|vert(ex)?|geo(m(etry)?)?|frag(ment)?) shader', sline.lower()):
+            match m['mode'][0]:
+                case 'c': mode = 'common'
+                case 'v': mode = 'vert'
+                case 'g': mode = 'geo'
+                case 'f': mode = 'frag'
         else:
             if not line.strip(): continue
-            if   mode == 'vert': vertSource.append(line)
-            elif mode == 'geo':  geoSource.append(line)
-            elif mode == 'frag': fragSource.append(line)
-            else:                commonSource.append(line)
+            match mode:
+                case 'common': commonSource.append(line)
+                case 'vert':   vertSource.append(line)
+                case 'geo':    geoSource.append(line)
+                case 'frag':   fragSource.append(line)
+                case _: assert False, f'Addon Common: Unhandled mode {mode}'
     assert vertSource, f'could not detect vertex shader'
     assert fragSource, f'could not detect fragment shader'
     v_attributes = [a.replace('attribute ', 'in ') for a in attributes]
@@ -333,14 +337,15 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
 
 def shader_read_file(filename):
     filename_guess = get_path_from_addon_common('common', 'shaders', filename)
-    if os.path.exists(filename):
-        pass
-    elif os.path.exists(filename_guess):
-        filename = filename_guess
-    else:
-        assert False, "Shader file could not be found: %s" % filename
+    if   os.path.exists(filename):       pass
+    elif os.path.exists(filename_guess): filename = filename_guess
+    else: assert False, f"Shader file could not be found: {filename} ({filename_guess})"
 
-    return open(filename, 'rt').read()
+    contents = open(filename, 'rt').read()
+    while m_include := re.search(r'\n *#include +"(?P<filename>[^"]+)" *\n', contents):
+        include_contents = shader_read_file(m_include['filename'])
+        contents = contents[:m_include.start()] + f'\n{include_contents}\n' + contents[m_include.end():]
+    return contents
 
 def shader_parse_file(filename, **kwargs):
     return shader_parse_string(shader_read_file(filename), **kwargs)

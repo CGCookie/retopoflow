@@ -86,8 +86,9 @@ class RetopoFlow_Drawing:
                         view_forward, self.unit_scaling_factor,
                         buf_matrix_target, buf_matrix_target_inv,
                         buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                        1.00, 0.05, False, 0.5,
-                        False,
+                        1.00, 0.05,  # alpha above, alpha below
+                        False, 0.5,  # cull backfaces, alpha_backfaces
+                        False,       # draw mirrored
                         symmetry=self.rftarget.mirror_mod.xyz,
                         symmetry_view=options['symmetry view'],
                         symmetry_effect=options['symmetry effect'],
@@ -135,8 +136,9 @@ class RetopoFlow_Drawing:
                 view_forward, self.unit_scaling_factor,
                 buf_matrix_target, buf_matrix_target_inv,
                 buf_matrix_view, buf_matrix_view_invtrans, buf_matrix_proj,
-                alpha_above, alpha_below, cull_backfaces, alpha_backface,
-                True
+                alpha_above, alpha_below,
+                cull_backfaces, alpha_backface,
+                True, # draw_mirrored
             )
 
     @DrawCallbacks.on_draw('post3d')

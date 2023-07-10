@@ -275,6 +275,7 @@ class RFMeshRender():
                             }
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.TRIANGLES, face_data, static))
+                                tag_redraw_all('buffer update')
                             else:
                                 self.add_buffered_render(BufferedRender_Batch.TRIANGLES, face_data, static)
 
@@ -294,6 +295,7 @@ class RFMeshRender():
                             }
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.LINES, edge_data, static))
+                                tag_redraw_all('buffer update')
                             else:
                                 self.add_buffered_render(BufferedRender_Batch.LINES, edge_data, static)
 
@@ -313,6 +315,7 @@ class RFMeshRender():
                             }
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.POINTS, vert_data, static))
+                                tag_redraw_all('buffer update')
                             else:
                                 self.add_buffered_render(BufferedRender_Batch.POINTS, vert_data, static)
 

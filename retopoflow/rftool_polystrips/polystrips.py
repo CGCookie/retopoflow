@@ -175,13 +175,6 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     def update_strip_viz(self):
         self.strip_pts = [[strip.curve.eval(i/10) for i in range(10+1)] for strip in self.strips]
 
-    @RFTool.on_target_change
-    @RFTool.on_view_change
-    @FSM.onlyinstate('main')
-    def update_next_state(self):
-        self.vis_accel = self.rfcontext.get_vis_accel()
-
-
     @FSM.on_state('main')
     def main(self):
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -213,7 +206,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         else:
             self.set_widget('default')
 
-        if self.handle_inactive_passthrough(): return 
+        if self.handle_inactive_passthrough(): return
 
         # handle edits
         if self.hovering_handles:
@@ -258,17 +251,16 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
             )
 
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
-            # TODO: DO NOT PAINT!
             sel_only = self.actions.pressed('select single')
-            return self.rfcontext.setup_smart_selection_painting(
-                {'face'},
-                use_select_tool=False,
-                selecting=not sel_only,
-                deselect_all=sel_only,
-                # fn_filter_bmelem=self.filter_edge_selection,
-                kwargs_select={'supparts': False},
-                kwargs_deselect={'subparts': False},
-            )
+            self.actions.unpress()
+            bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['select dist'])
+            if not sel_only and not bmf: return
+            self.rfcontext.undo_push('select')
+            if sel_only: self.rfcontext.deselect_all()
+            if not bmf: return
+            if bmf.select: self.rfcontext.deselect(bmf, subparts=False)
+            else:          self.rfcontext.select(bmf, supparts=False, only=sel_only)
+            return
 
 
     @FSM.on_state('move handle', 'can enter')
@@ -384,9 +376,11 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
         self.move_done_released = 'action alt0'
         self.move_cancelled = 'cancel'
         self.rfcontext.undo_push('rotate')
-        self._timer = self.actions.start_timer(120.0)
-        self.rfcontext.set_accel_defer(True)
         self.set_widget('hidden' if options['hide cursor on tweak'] else 'move')
+
+        self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.split_target_visualization(verts=self.rfcontext.get_selected_verts())
+        self.rfcontext.set_accel_defer(True)
 
     @FSM.on_state('rotate')
     @profiler.function
@@ -423,6 +417,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     def rotate_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
         self.update_target(force=True)
 
 
@@ -488,10 +483,12 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
                     self.scale_bmv[bmv] = []
                 self.scale_bmv[bmv] += [(c, bmv.co-c, s)]
 
+        self.set_widget('hidden' if options['hide cursor on tweak'] else 'default') # None
+
         self._timer = self.actions.start_timer(120.0)
+        self.rfcontext.split_target_visualization(verts=self.rfcontext.get_selected_verts())
         self.rfcontext.set_accel_defer(True)
 
-        self.set_widget('hidden' if options['hide cursor on tweak'] else 'default') # None
 
     @FSM.on_state('scale')
     @profiler.function
@@ -526,6 +523,7 @@ class PolyStrips(RFTool, PolyStrips_Props, PolyStrips_Ops):
     def scale_exit(self):
         self._timer.done()
         self.rfcontext.set_accel_defer(False)
+        self.rfcontext.clear_split_target_visualization()
         self.update_target(force=True)
 
 

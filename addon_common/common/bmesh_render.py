@@ -40,12 +40,7 @@ import traceback
 
 import gpu
 import bpy
-from bpy_extras.view3d_utils import (
-    location_3d_to_region_2d, region_2d_to_vector_3d
-)
-from bpy_extras.view3d_utils import (
-    region_2d_to_location_3d, region_2d_to_origin_3d
-)
+from bpy_extras.view3d_utils import region_2d_to_origin_3d
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
 
@@ -219,6 +214,7 @@ class BufferedRender_Batch:
 
         ctx = bpy.context
         area, spc, r3d = ctx.area, ctx.space_data, ctx.space_data.region_3d
+        rgn = ctx.region
 
         if 'blend'      in opts: gpustate.blend(opts['blend'])
         if 'depth test' in opts: gpustate.depth_test(opts['depth test'])
@@ -295,11 +291,19 @@ class BufferedRender_Batch:
         view_settings1 = [
             1.0 if opts.get('cull backfaces', False) else 0.0,
             opts['unit scaling factor'],
-            opts.get('normal offset', 0.0),
+            opts.get('normal offset', 0.0) if symmetry_view is None else 0.05,
             1.0 if opts.get('constrain offset', True) else 0.0,
+        ]
+        view_settings2 = [
+            0.99 if symmetry_view is None else 1.0,
+            0.0,
+            0.0,
+            0.0,
         ]
         self.set_shader_option('view_settings0', view_settings0)
         self.set_shader_option('view_settings1', view_settings1)
+        self.set_shader_option('view_settings2', view_settings2)
+        self.set_shader_option('view_position', region_2d_to_origin_3d(rgn, r3d, (area.width/2, area.height/2)))
 
         self.set_shader_option('clip',        (spc.clip_start, spc.clip_end, 0.0, 0.0))
         self.set_shader_option('screen_size', (area.width, area.height, 0.0, 0.0))

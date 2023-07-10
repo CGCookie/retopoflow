@@ -275,7 +275,7 @@ class Options:
         'symmetry view':                'Edge',
         'symmetry effect':              0.5,
         'normal offset multiplier':     1.0,
-        'constrain offset':             True,
+        'constrain offset':             False,      # when False, symmetry viz looks good.  do we still need this???
         'ui scale':                     1.0,
         'clip auto adjust':             True,       # True: clip settings are automatically adjusted based on view distance and source bbox
         'clip auto start mult':         0.0010,     # factor for clip_start
