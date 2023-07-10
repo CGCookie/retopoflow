@@ -126,11 +126,6 @@ class PolyPen(RFTool):
 
     @RFTool.once_per_frame
     @FSM.onlyinstate('main')
-    def unpause_set_next_state(self):
-        if not self.actions.is_navigating:
-            self.set_next_state.unpause()
-
-    @CallGovernor.limit(pause_after_call=True)
     def set_next_state(self):
         '''
         determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
@@ -233,7 +228,6 @@ class PolyPen(RFTool):
                 self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], selected_only=True)
                 self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
-
         tag_redraw_all('PolyPen next state')
 
     @FSM.on_state('main', 'enter')
@@ -244,7 +238,12 @@ class PolyPen(RFTool):
     def main(self):
         self.validate_nearest()
 
-        self.rfcontext.fast_update_timer.enable(self.actions.using_onlymods('insert'))
+        if self.actions.using_onlymods('insert'):
+            self.rfcontext.fast_update_timer.enable(True)
+            tag_redraw_all('PolyPen insert mouse move')
+        else:
+            self.rfcontext.fast_update_timer.enable(False)
+
         if self.actions.using_onlymods('insert'):
             if self.next_state == 'knife selected edge':
                 self.set_widget('knife')
@@ -751,14 +750,12 @@ class PolyPen(RFTool):
         self.move_opts = {
             'vis_accel': self.rfcontext.get_custom_vis_accel(selection_only=False, include_edges=False, include_faces=False, symmetry=False),
         }
+        if not self.move_done_released and options['hide cursor on tweak']: self.set_widget('hidden')
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.fast_update_timer.start()
         self.rfcontext.set_accel_defer(True)
 
-        if options['hide cursor on tweak']: self.set_widget('hidden')
-
     @FSM.on_state('move')
-    @profiler.function
     def modal_move(self):
         if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
             self.defer_recomputing = False
@@ -774,15 +771,18 @@ class PolyPen(RFTool):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if not self.actions.mousemove_stop: return
-        # # only update verts on timer events and when mouse has moved
-        # if not self.actions.timer: return
-        # if self.actions.mouse_prev == self.actions.mouse: return
+        if self.actions.mousedown_drag and options['hide cursor on tweak']: self.set_widget('hidden')
 
+        if self.actions.mousemove: self.modal_move_update()
+
+    @RFTool.once_per_frame
+    @FSM.onlyinstate('move')
+    def modal_move_update(self):
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
+
         for bmv,xy in self.bmverts:
             if not xy: continue
             xy_updated = xy + delta
@@ -800,6 +800,7 @@ class PolyPen(RFTool):
                 set2D_vert(bmv, xy1)
             else:
                 set2D_vert(bmv, xy_updated)
+
         self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
         self.rfcontext.dirty()
 
