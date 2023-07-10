@@ -221,9 +221,14 @@ class RetopoFlow_Blender_Save:
         elif time.time() > self.time_to_save:
             # it is time to save, but only if current tool is in main and changes were made!
             if self.rftool._fsm_in_main():
-                self.save_backup()
-                # record the next time to save
-                self.time_to_save = time.time() + auto_save_time
+                if self.save_backup():
+                    # save was successful!
+                    # record the next time to save
+                    self.time_to_save = time.time() + auto_save_time
+                else:
+                    # save was unsuccessful :(
+                    # try again in 10secs
+                    self.time_to_save = time.time() + 10
 
     @staticmethod
     def has_auto_save():
@@ -255,7 +260,7 @@ class RetopoFlow_Blender_Save:
 
     def save_emergency(self):
         try:
-            filepath = options.get_auto_save_filepath(suffix='EMERGENCY')
+            filepath = options.get_auto_save_filepath(suffix='EMERGENCY', emergency=True)
             bpy.ops.wm.save_as_mainfile(
                 filepath=filepath,
                 compress=True,          # write compressed file
@@ -277,6 +282,8 @@ class RetopoFlow_Blender_Save:
         if self.last_change_count == self.change_count:
             print(f'RetopoFlow: skipping backup save (no changes detected)')
             return
+
+        if not hasattr(self, '_backup_save_attempts'): self._backup_save_attempts = 0
 
         filepath = options.get_auto_save_filepath()
         filepath1 = f'{filepath}1'
@@ -320,7 +327,19 @@ class RetopoFlow_Blender_Save:
             '''
             errors['skipped save'] = 'error while trying to rename prev'
 
-        if errors:
+        if not errors:
+            # all went well!
+            self._backup_save_attempts = 0
+            return True
+
+        print(f'  Something happened')
+        print(f'    {errors=}')
+
+        self._backup_save_attempts += 1
+        if self._backup_save_attempts < 4:
+            print(f'  Trying again soon...')
+        else:
+            print(f'  Alerting user...')
             self._backup_broken = True
             self.alert_user(
                 title='Could not save backup',
@@ -333,6 +352,7 @@ class RetopoFlow_Blender_Save:
                     f'Errors: {errors}\n\n'
                 ),
             )
+        return False
 
     def save_normal(self):
         with self.blender_ui_pause():

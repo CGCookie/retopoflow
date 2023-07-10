@@ -613,13 +613,14 @@ class Options:
     def gettersetter(self, key, getwrap=None, setwrap=None, setcallback=None):
         return (self.getter(key, getwrap=getwrap), self.setter(key, setwrap=setwrap, setcallback=setcallback))
 
-    def get_auto_save_filepath(self, *, suffix=None):
+    def get_auto_save_filepath(self, *, suffix=None, emergency=False):
         suffix = f'_{suffix}' if suffix else ''
 
-        if not getattr(bpy.data, 'filepath', None):
+        if emergency or not getattr(bpy.data, 'filepath', None):
             # not working on a saved .blend file, yet!
-            path = bpy.context.preferences.filepaths.temporary_directory
-            if not path: path = tempfile.gettempdir()
+            path = os.path.expanduser('~')
+            # path = bpy.context.preferences.filepaths.temporary_directory
+            # if not path: path = tempfile.gettempdir()
             filename = retopoflow_files['backup filename']
         else:
             fullpath = os.path.abspath(bpy.data.filepath)
