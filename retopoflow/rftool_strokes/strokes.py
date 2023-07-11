@@ -148,7 +148,6 @@ class Strokes(RFTool, Strokes_Insert):
         self.strip_edges = False
         self.just_created = False
         self.defer_recomputing = False
-        self.hovering_edge = None
         self.hovering_sel_edge = None
         self.connection_pre_last_mouse = None
         self.connection_pre = None
@@ -202,7 +201,6 @@ class Strokes(RFTool, Strokes_Insert):
     @RFTool.once_per_frame
     @FSM.onlyinstate('main')
     def update_hover_edge(self):
-        self.hovering_edge,_     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
         self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
 
@@ -263,12 +261,13 @@ class Strokes(RFTool, Strokes_Insert):
         if self.actions.pressed({'select single', 'select single add'}, unpress=False):
             sel_only = self.actions.pressed('select single')
             self.actions.unpress()
-            if not sel_only and not self.hovering_edge: return
+            bme,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['select dist'])
+            if not sel_only and not bme: return
             self.rfcontext.undo_push('select')
             if sel_only: self.rfcontext.deselect_all()
-            if not self.hovering_edge: return
-            if self.hovering_edge.select: self.rfcontext.deselect(self.hovering_edge)
-            else:                         self.rfcontext.select(self.hovering_edge, supparts=False, only=sel_only)
+            if not bme: return
+            if bme.select: self.rfcontext.deselect(bme, subparts=False)
+            else:          self.rfcontext.select(bme, supparts=False, only=sel_only)
             return
 
 

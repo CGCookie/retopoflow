@@ -1234,6 +1234,24 @@ class RFMesh():
             bme,bmf = bme_next,bmf_next
 
     def get_face_loop(self, edge):
+        r'''
+              +--  this diamond quad causes problems!
+              |
+              V
+        O-----O-----O
+        |    / \    |
+        O---O   O---O
+           / \ / \
+          /   O   \
+         /   / \   \
+        O---O   O---O
+         \   \ /   /
+          \   O   /
+           \  |  /
+            \ | /
+             \|/
+              O
+        '''
         is_looped = self.is_quadstrip_looped(edge)
         edges = list(bme for bme,_ in self.iter_quadstrip(edge))
         return (edges, is_looped)

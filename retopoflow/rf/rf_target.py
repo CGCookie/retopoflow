@@ -271,10 +271,18 @@ class RetopoFlow_Target:
     @staticmethod
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
 
-    def get_vis_verts(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_verts
-    def get_vis_edges(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_edges
-    def get_vis_faces(self, *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_faces
-    def get_vis_geom(self,  *, force=False): self.get_accel_visible(force=force) ; return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
+    def get_vis_verts(self, **kwargs):
+        self.generate_accel_data_struct(**kwargs)
+        return self.accel_vis_verts
+    def get_vis_edges(self, **kwargs):
+        self.generate_accel_data_struct(**kwargs)
+        return self.accel_vis_edges
+    def get_vis_faces(self, **kwargs):
+        self.generate_accel_data_struct(**kwargs)
+        return self.accel_vis_faces
+    def get_vis_geom(self,  **kwargs):
+        self.generate_accel_data_struct(**kwargs)
+        return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
 
     def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):
         verts, edges, faces = self.visible_geom()
