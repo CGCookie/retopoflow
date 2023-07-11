@@ -58,8 +58,9 @@ class RetopoFlow_Target:
         self.hide_target()
 
         self.accel_defer_recomputing = False
-        self.accel_data_all = Dict(get_default=None)
-        self.accel_data_sel = Dict(get_default=None)
+        self.accel_data_all   = Dict(get_default=None)
+        self.accel_data_sel   = Dict(get_default=None)
+        self.accel_data_unsel = Dict(get_default=None)
         self.accel_recompute = True
 
         self._draw_count = 0
@@ -91,9 +92,26 @@ class RetopoFlow_Target:
     def accel_sel_recompute(self, v): self.accel_data_sel.recompute = v
 
     @property
-    def accel_recompute(self): return self.accel_data_all.recompute or self.accel_data_sel.recompute
+    def accel_unsel_verts(self): return self.accel_data_unsel.verts
+    @property
+    def accel_unsel_edges(self): return self.accel_data_unsel.edges
+    @property
+    def accel_unsel_faces(self): return self.accel_data_unsel.faces
+    @property
+    def accel_unsel_accel(self): return self.accel_data_unsel.accel
+    @property
+    def accel_unsel_recompute(self): return self.accel_data_unsel.recompute
+    @accel_unsel_recompute.setter
+    def accel_unsel_recompute(self, v): self.accel_data_unsel.recompute = v
+
+    @property
+    def accel_recompute(self):
+        return any([ self.accel_data_all.recompute, self.accel_data_sel.recompute, self.accel_data_unsel.recompute ])
     @accel_recompute.setter
-    def accel_recompute(self, v): self.accel_data_all.recompute, self.accel_data_sel.recompute = v, v
+    def accel_recompute(self, v):
+        self.accel_data_all.recompute = v
+        self.accel_data_sel.recompute = v
+        self.accel_data_unsel.recompute = v
 
     def hide_target(self):
         self.rftarget.obj_viewport_hide()
@@ -162,12 +180,20 @@ class RetopoFlow_Target:
 
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
 
-    def get_accel_visible(self, *, selected_only=False, force=False):
+    def get_accel_visible(self, **kwargs):
+        accel_data = self.generate_accel_data_struct(**kwargs)
+        return accel_data.accel
+
+    def generate_accel_data_struct(self, *, selected_only=None, force=False):
         target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
         mm = self.rftarget.mirror_mod
 
-        accel_data = self.accel_data_all if not selected_only else self.accel_data_sel
+        accel_data = {
+            None:  self.accel_data_all,
+            True:  self.accel_data_sel,
+            False: self.accel_data_unsel,
+        }[selected_only]
 
         # force |= self.accel_recompute
         needs_recomputed = any([
@@ -202,20 +228,32 @@ class RetopoFlow_Target:
             if accel_data.verts: accel_data.verts = set(self.filter_is_valid(accel_data.verts))
             if accel_data.edges: accel_data.edges = set(self.filter_is_valid(accel_data.edges))
             if accel_data.faces: accel_data.faces = set(self.filter_is_valid(accel_data.faces))
-            return accel_data.accel
+            return accel_data
 
         accel_data.recompute = False
 
-        verts, edges, faces = None, None, None
-        if selected_only:
-            verts = self.get_selected_verts()
-            edges = self.get_selected_edges()
-            faces = self.get_selected_faces()
+        match selected_only:
+            case None:
+                verts, edges, faces = None, None, None
+            case True:
+                verts = self.get_selected_verts()
+                edges = self.get_selected_edges()
+                faces = self.get_selected_faces()
+            case False:
+                verts = self.get_unselected_verts()
+                edges = self.get_unselected_edges()
+                faces = self.get_unselected_faces()
 
         accel_data.verts = self.visible_verts(verts=verts)
         accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
         accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
-        accel_data.accel = Accel2D('RFTarget visible geometry', accel_data.verts, accel_data.edges, accel_data.faces, self.get_point2D_symmetries)
+        accel_data.accel = Accel2D(
+            f'RFTarget visible geometry ({selected_only=})',
+            accel_data.verts,
+            accel_data.edges,
+            accel_data.faces,
+            self.get_point2D_symmetries
+        )
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version
@@ -228,7 +266,7 @@ class RetopoFlow_Target:
         accel_data.draw_count                  = self._draw_count
         accel_data.mirror_mod                  = (mm.x, mm.y, mm.z)
 
-        return accel_data.accel
+        return accel_data
 
     @staticmethod
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)

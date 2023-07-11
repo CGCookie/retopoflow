@@ -611,11 +611,7 @@ class Actions:
             drag_click   = ignoredrag   or ignoremulti,
         )
         actions = [ strip_mods(p) for p in self.convert(actions) ]
-        print(f'Unusing')
-        print(f'  actions={actions=}')
-        print(f'  pressed={self.now_pressed.items()}')
         keys = [k for k,v in self.now_pressed.items() if strip_mods(v) in actions]
-        print(f'  keys   ={keys}')
         for k in keys: del self.now_pressed[k]
         self.mousedown = None
         self.mousedown_left = None

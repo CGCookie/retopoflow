@@ -91,6 +91,9 @@ class RFWidget:
         # self._init_action_callback()
         self._reset()
 
+    def _fsm_in_main(self):
+        return self._fsm.state in {'main'}
+
     def _callback_widget(self, event, *args, **kwargs):
         if event != 'timer':
             #print('callback', self, event, self._widget_callbacks.get(event, []))

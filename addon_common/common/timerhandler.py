@@ -114,6 +114,7 @@ class CallGovernor:
             def wrapper(*fn_args, **fn_kwargs):
                 cg(*fn_args, **fn_kwargs)
             wrapper.unpause = cg.unpause
+            wrapper.stop = cg.stop
             return wrapper
         return wrap_fn
 
@@ -143,8 +144,7 @@ class CallGovernor:
         return bpy.app.timers.is_registered(self._fn_call_now)
 
     def _call_now(self):
-        if self._calling_later:
-            bpy.app.timers.unregister(self._fn_call_now)
+        self.stop()
 
         if self.time_limit is not None:
             self._next_call = time.time() + self.time_limit
@@ -172,3 +172,7 @@ class CallGovernor:
                 self._call_now()
             elif not self._calling_later:
                 self._call_when_paused = True
+
+    def stop(self):
+        if not self._calling_later: return
+        bpy.app.timers.unregister(self._fn_call_now)

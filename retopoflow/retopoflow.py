@@ -155,6 +155,7 @@ class RetopoFlow(
 
 
     def end(self):
+        self.normal_check.stop()
         options.clear_callbacks()
         self.end_normalize(self.context)
         self.blender_ui_reset()
