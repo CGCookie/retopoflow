@@ -51,7 +51,7 @@ class FSM:
         self._fsm_states = {}
         for (data,fn) in find_fns(obj, '_fsm_state'):
             state_substate = data['full']
-            assert state_substate not in self._fsm_states, f'FSM: Duplicate states ({m}, {fn}) registered!'
+            assert state_substate not in self._fsm_states, f'FSM: Duplicate states ({data}, {fn}) registered!'
             self._fsm_states[state_substate] = fn
             data['fsm'] = self
             if False: print(f'FSM: state {data["full"]} {fn}')

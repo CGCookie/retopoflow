@@ -90,12 +90,19 @@ class RFTool:
     def on_mouse_move(fn): return rftool_callback_decorator('mouse move', fn)
     @staticmethod
     def on_mouse_stop(fn): return rftool_callback_decorator('mouse stop', fn)
+    @staticmethod
+    def on_events(*events):
+        def wrapper(fn):
+            for event in events:
+                rftool_callback_decorator(event, fn)
+            return fn
+        return wrapper
 
     @staticmethod
     def once_per_frame(fn): return rftool_callback_decorator('once per frame', fn)
 
     def _gather_callbacks(self):
-        rftool_fns = find_fns(self, '_rftool_callback')
+        rftool_fns = find_fns(self, '_rftool_callback', full_search=True)
         self._callbacks = {
             mode: [fn for (modes, fn) in rftool_fns if mode in modes]
             for mode in [

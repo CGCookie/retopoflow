@@ -62,6 +62,7 @@ class RFWidget_BrushStroke_Factory:
                 self.last_view = None
                 self.hit = False
                 self.hit_scale = 1.0
+                self.inner_radius = 10.0
 
             @FSM.on_state('main', 'enter')
             def modal_main_enter(self):
@@ -164,7 +165,7 @@ class RFWidget_BrushStroke_Factory:
 
                 p, n = self.hit_p, self.hit_n
                 ro = self.radius * self.hit_scale
-                rh = ro * 0.5
+                rh = self.inner_radius * self.hit_scale # ro * 0.5
                 co, ci, cb = self.outer_color, self.inner_color, self.outer_border_color
 
                 gpustate.depth_mask(False)
@@ -200,11 +201,12 @@ class RFWidget_BrushStroke_Factory:
             def draw_brush_sizing(self):
                 gpustate.blend('ALPHA')
                 r = (self.sizing_pos - self.actions.mouse).length
+                rh = self.inner_radius
 
                 # Globals.drawing.draw2D_circle(self.sizing_pos, r*0.75, self.fill_color, width=r*0.5)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_border_color, width=7)
                 Globals.drawing.draw2D_circle(self.sizing_pos, r*1.0, self.outer_color, width=1)
-                Globals.drawing.draw2D_circle(self.sizing_pos, r*0.5, self.inner_color, width=1)
+                Globals.drawing.draw2D_circle(self.sizing_pos, rh, self.inner_color, width=1)
 
             ##################
             # mouse

@@ -27,12 +27,12 @@ from inspect import isfunction, signature
 
 # find functions of object that has key attribute
 # returns list of (attribute value, fn)
-def find_fns(obj, key):
-    cls = type(obj)
-    fn_type = type(find_fns)
-    members = [getattr(cls, k) for k in dir(cls)]
+def find_fns(obj, key, *, full_search=False):
+    classes = type(obj).__mro__ if full_search else [type(obj)]
+    members = [getattr(cls, k) for cls in classes for k in dir(cls) if hasattr(cls, k)]
     # test if type is fn_type rather than isfunction() because bpy has problems!
     # methods = [member for member in members if isfunction(member)]
+    fn_type = type(find_fns)
     methods = [member for member in members if type(member) == fn_type]
     return [
         (getattr(method, key), method)

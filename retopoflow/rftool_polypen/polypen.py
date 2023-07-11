@@ -87,6 +87,7 @@ class PolyPen(RFTool, PolyPen_Insert):
         self._var_insert_mode = BoundString('''options['polypen insert mode']''')
 
     def _fsm_in_main(self):
+        # needed so main actions using Ctrl (ex: undo, redo, save) can still work
         return self._fsm.state in {'main', 'previs insert'}
 
     def update_insert_mode(self):
@@ -112,6 +113,7 @@ class PolyPen(RFTool, PolyPen_Insert):
     @RFTool.on_target_change
     @RFTool.on_view_change
     @RFTool.on_mouse_move
+    @RFTool.once_per_frame
     @FSM.onlyinstate('main')
     def update_nearest(self):
         self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
