@@ -130,61 +130,6 @@ class Tweak(RFTool):
             return
 
 
-        # if self.rfcontext.actions.pressed('select single'):
-        #     self.rfcontext.undo_push('select')
-        #     self.rfcontext.deselect_all()
-        #     return 'select'
-
-        # if self.rfcontext.actions.pressed('select single add'):
-        #     face,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-        #     if not face: return
-        #     if face.select:
-        #         self.mousedown = self.rfcontext.actions.mouse
-        #         return 'selectadd/deselect'
-        #     return 'select'
-
-        # if self.rfcontext.actions.pressed({'select smart', 'select smart add'}, unpress=False):
-        #     if self.rfcontext.actions.pressed('select smart'):
-        #         self.rfcontext.deselect_all()
-        #     self.rfcontext.actions.unpress()
-        #     edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=10)
-        #     if not edge: return
-        #     faces = set()
-        #     walk = {edge}
-        #     touched = set()
-        #     while walk:
-        #         edge = walk.pop()
-        #         if edge in touched: continue
-        #         touched.add(edge)
-        #         nfaces = set(f for f in edge.link_faces if f not in faces and len(f.edges) == 4)
-        #         walk |= {f.opposite_edge(edge) for f in nfaces}
-        #         faces |= nfaces
-        #     self.rfcontext.select(faces, only=False)
-        #     return
-
-    # @FSM.on_state('selectadd/deselect')
-    # @profiler.function
-    # def modal_selectadd_deselect(self):
-    #     if not self.rfcontext.actions.using(['select single','select single add']):
-    #         self.rfcontext.undo_push('deselect')
-    #         face,_ = self.rfcontext.accel_nearest2D_face()
-    #         if face and face.select: self.rfcontext.deselect(face)
-    #         return 'main'
-    #     delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
-    #     if delta.length > self.drawing.scale(5):
-    #         self.rfcontext.undo_push('select add')
-    #         return 'select'
-
-    # @FSM.on_state('select')
-    # @profiler.function
-    # def modal_select(self):
-    #     if not self.rfcontext.actions.using(['select single','select single add']):
-    #         return 'main'
-    #     bmf,_ = self.rfcontext.accel_nearest2D_face(max_dist=10)
-    #     if not bmf or bmf.select: return
-    #     self.rfcontext.select(bmf, supparts=False, only=False)
-
-
     @FSM.on_state('move', 'can enter')
     def move_can_enter(self):
         radius = self.rfwidgets['brushstroke'].get_scaled_radius()
@@ -200,7 +145,9 @@ class Tweak(RFTool):
         opt_mask_selected = options['tweak mask selected']
 
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        get_strength_dist = self.rfwidgets['brushstroke'].get_strength_dist
+        hit_pos = self.rfcontext.get_point3D(self.actions.mouse)
+        def get_strength_dist(bmv):
+            return self.rfwidgets['brushstroke'].get_strength_dist((bmv.co - hit_pos).length)
         is_visible = self.rfcontext.gen_is_visible(occlusion_test_override=True)  # always perform occlusion test
         is_bmvert_visible = lambda bmv: is_visible(bmv.co, bmv.normal)
         def on_planes(bmv):
@@ -209,18 +156,19 @@ class Tweak(RFTool):
         # get all verts under brush
         radius = self.rfwidgets['brushstroke'].get_scaled_radius()
         nearest = self.rfcontext.nearest_verts_mouse(radius)
-        self.bmverts = [
-            (bmv, on_planes(bmv), Point_to_Point2D(bmv.co), Point(bmv.co), get_strength_dist(d3d))
-            for (bmv, d3d) in nearest
-        ]
-
+        self.bmverts = [ bmv for (bmv, _) in nearest ]
         # filter verts based on options
-        if self.sel_only:                  self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if bmv.select]
-        if opt_mask_boundary == 'exclude': self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if not bmv.is_on_boundary()]
-        if opt_mask_symmetry == 'exclude': self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if not bmv.is_on_symmetry_plane()]
-        if opt_mask_occluded == 'exclude': self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if is_bmvert_visible(bmv)]
-        if opt_mask_selected == 'exclude': self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if not bmv.select]
-        if opt_mask_selected == 'only':    self.bmverts = [(bmv,sympl,p2d,p3d,s) for (bmv,sympl,p2d,p3d,s) in self.bmverts if bmv.select]
+        if self.sel_only:                  self.bmverts = [bmv for bmv in self.bmverts if bmv.select]
+        if opt_mask_boundary == 'exclude': self.bmverts = [bmv for bmv in self.bmverts if not bmv.is_on_boundary()]
+        if opt_mask_symmetry == 'exclude': self.bmverts = [bmv for bmv in self.bmverts if not bmv.is_on_symmetry_plane()]
+        if opt_mask_occluded == 'exclude': self.bmverts = [bmv for bmv in self.bmverts if is_bmvert_visible(bmv)]
+        if opt_mask_selected == 'exclude': self.bmverts = [bmv for bmv in self.bmverts if not bmv.select]
+        if opt_mask_selected == 'only':    self.bmverts = [bmv for bmv in self.bmverts if bmv.select]
+
+        self.bmvert_data = [
+            (bmv, on_planes(bmv), Point_to_Point2D(bmv.co), Point(bmv.co), get_strength_dist(bmv))
+            for bmv in self.bmverts
+        ]
 
         if opt_mask_boundary == 'slide':
             self._boundary = [(bme.verts[0].co, bme.verts[1].co) for bme in self.rfcontext.iter_edges() if not bme.is_manifold]
@@ -231,13 +179,14 @@ class Tweak(RFTool):
         self.mousedown = self.rfcontext.actions.mousedown
         self._timer = self.actions.start_timer(120.0)
 
-        self.rfcontext.split_target_visualization(verts=[bmv for (bmv,_,_,_,_) in self.bmverts])
+        self.rfcontext.split_target_visualization(verts=self.bmverts)
         self.rfcontext.undo_push('tweak move')
 
     @FSM.on_state('move')
     def move(self):
         if self.rfcontext.actions.released(['brush','brush alt']):
             return 'main'
+
         if self.rfcontext.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             self.actions.unuse('brush', ignoremods=True, ignoremulti=True)
@@ -250,23 +199,26 @@ class Tweak(RFTool):
     def move_doit(self):
         if self.actions.mouse_prev == self.actions.mouse: return
 
+        opt_mask_boundary = options['tweak mask symmetry']
         opt_mask_boundary = options['tweak mask boundary']
 
         delta = Vec2D(self.rfcontext.actions.mouse - self.mousedown)
         set2D_vert = self.rfcontext.set2D_vert
+        snap_vert = self.rfcontext.snap_vert
         update_face_normal = self.rfcontext.update_face_normal
 
-        for (bmv, sympl, xy, xyz, strength) in self.bmverts:
+        for (bmv, sympl, xy, xyz, strength) in self.bmvert_data:
             co2D = xy + delta * strength
             match options['tweak mode']:
                 case 'snap':
                     dist = self.rfcontext.Point_to_depth(xyz)
                     bmv.co = self.rfcontext.Point2D_to_Point(co2D, dist)
-                    self.rfcontext.snap_vert(bmv)
+                    snap_vert(bmv, snap_to_symmetry=sympl)
                 case 'raycast':
                     set2D_vert(bmv, co2D, sympl)
                 case _:
                     assert False, f'Invalid tweak mode {options["tweak mode"]}'
+
 
             if opt_mask_boundary == 'slide' and bmv.is_on_boundary():
                 co = bmv.co
@@ -278,6 +230,7 @@ class Tweak(RFTool):
                 if p is not None:
                     bmv.co = p
                     self.rfcontext.snap_vert(bmv)
+
         for bmf in self.bmfaces:
             update_face_normal(bmf)
 

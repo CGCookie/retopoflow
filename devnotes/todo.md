@@ -1,5 +1,9 @@
 - Contours
     - move label position code into separate method called on target or view change
+    - new cut into symmetry line sometimes doesn't stick to line of symmetry
+
+- PolyPen
+    - moving verts near symmetry line can be difficult
 
 - Relax
     - Use 3D accel structure.  note: verts change position, but accel struct will see only initial position... probably ok, though!
@@ -12,9 +16,13 @@
     - predraw Drawing callback only fires if pre3d, post3d, or post2d exists!
     - general rotate and scale should have viz
     - build accel structs async
+    - add clamp to symmetry option to prevent verts from moving away from symmetry line??
+
 
 - IMPORTANT, BEFORE RELEASE
     - remove sprint and other debug calls
     - use stopwatch to wrap select single so that smart selection is more dependable
 
 
+- Symmetry
+    - If action (ex: grab) is started on mirrored side, updates should be be mirrored correctly

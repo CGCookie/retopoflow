@@ -649,9 +649,11 @@ class RetopoFlow_Target:
     # note: these do NOT dirty the target!
     # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    def snap_vert(self, vert:RFVert):
+    def snap_vert(self, vert:RFVert, *, snap_to_symmetry=None):
         if not vert or  not vert.is_valid: return
         xyz,norm,_,_ = self.nearest_sources_Point(vert.co)
+        if snap_to_symmetry:
+            xyz = self.snap_to_symmetry(xyz, snap_to_symmetry)
         vert.co = xyz
         vert.normal = norm
 

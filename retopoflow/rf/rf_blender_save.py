@@ -281,7 +281,7 @@ class RetopoFlow_Blender_Save:
         if hasattr(self, '_backup_broken'): return
         if self.last_change_count == self.change_count:
             print(f'RetopoFlow: skipping backup save (no changes detected)')
-            return
+            return True
 
         if not hasattr(self, '_backup_save_attempts'): self._backup_save_attempts = 0
 
