@@ -30,7 +30,7 @@ from mathutils import Matrix, Vector
 from bpy_extras.object_utils import object_data_add
 from bpy.app.handlers import persistent
 
-from ...config.options import options, sessionoptions
+from ...config.options import options, sessionoptions, retopoflow_datablocks
 
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.boundvar import BoundBool
@@ -76,7 +76,7 @@ class RetopoFlow_Blender_Save:
 
     @staticmethod
     def can_recover():
-        if options['rotate object'] in bpy.data.objects: return True
+        if retopoflow_datablocks['rotate object'] in bpy.data.objects: return True
         if sessionoptions.has_active_session_data(): return True
         return False
 
@@ -85,9 +85,9 @@ class RetopoFlow_Blender_Save:
         print('RetopoFlow: recovering from auto save')
 
         # the rotate object should not exist, but just in case
-        if options['rotate object'] in bpy.data.objects:
+        if retopoflow_datablocks['rotate object'] in bpy.data.objects:
             bpy.data.objects.remove(
-                bpy.data.objects[options['rotate object']],
+                bpy.data.objects[retopoflow_datablocks['rotate object']],
                 do_unlink=True,
             )
 

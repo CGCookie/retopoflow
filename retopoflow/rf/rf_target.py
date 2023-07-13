@@ -28,7 +28,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect_segment_segme
 
 import bpy
 
-from ...config.options import visualization, options
+from ...config.options import visualization, options, retopoflow_datablocks
 from ...addon_common.common.debug import dprint, Debugger
 from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler, time_it
@@ -1024,7 +1024,7 @@ class RetopoFlow_Target:
             bbox = BBox.merge(bboxes)
         # print('update_rot_object', bbox)
         diff = bbox.max - bbox.min
-        rot_object = bpy.data.objects[options['rotate object']]
+        rot_object = bpy.data.objects[retopoflow_datablocks['rotate object']]
         rot_object.location = bbox.min + diff / 2
         rot_object.scale = diff / 2
 

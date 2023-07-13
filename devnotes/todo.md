@@ -17,7 +17,7 @@
     - general rotate and scale should have viz
     - build accel structs async
     - add clamp to symmetry option to prevent verts from moving away from symmetry line??
-
+    - new method for finding nearest geometry (use selection framebuffer, see draw_selection_buffer)
 
 - IMPORTANT, BEFORE RELEASE
     - remove sprint and other debug calls

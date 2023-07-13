@@ -86,9 +86,10 @@ retopoflow_files = {
     'keymaps filename':     'RetopoFlow_keymaps.json',
 }
 
+# objects / blender data created by retopoflow
 retopoflow_datablocks = {
     'rotate object': 'RetopoFlow_Rotate',           # name of rotate object used for setting view
-    'session data':  'RetopoFlow_SessionData',      # name of textblock containing session data
+    'blender state': 'RetopoFlow Session Data',     # name of text block that contains data about blender state
 }
 
 
@@ -182,10 +183,6 @@ class Options:
 
         'rf version':           None,   # if versions differ, flush stored options
         'version update':       False,
-
-        # OBJECTS / DATA CREATED BY RETOPOFLOW
-        'blender state':        'RetopoFlow_BlenderState',    # name of text block that contains data about blender state
-        'rotate object':        'RetopoFlow_Rotate',          # name of rotate object used for setting view
 
         # WARNING THRESHOLDS
         'warning max target':   '20k',  # can specify as 20000, 20_000, '20k', '20000', see convert_numstr_num() in addon_common.common.maths
@@ -837,7 +834,7 @@ class SessionOptions:
     data is stored in bpy.data.texts[textblockname]['data'].
     '''
 
-    textblockname = 'RetopoFlow Session Data'
+    textblockname = retopoflow_datablocks['blender state']
 
     userfriendlytext = normalize_triplequote('''
         RetopoFlow customizes several aspects of Blender for optimal retopology

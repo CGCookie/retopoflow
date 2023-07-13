@@ -25,7 +25,9 @@ import math
 import time
 import urllib
 
-from mathutils import Vector
+import gpu
+from mathutils import Vector, Matrix
+from gpu_extras.presets import draw_texture_2d
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -38,6 +40,7 @@ from ...addon_common.common.fsm import FSM
 from ...addon_common.common.hasher import Hasher
 from ...addon_common.common.maths import Point, Point2D, Vec2D, XForm, clamp
 from ...addon_common.common.maths import matrix_normal, Direction
+from ...addon_common.terminal.term_printer import sprint
 from ...config.options import options, visualization
 
 
@@ -61,6 +64,74 @@ class RetopoFlow_Drawing:
         if not self.loading_done: return
         self.update(timer=False)
         self._draw_count += 1
+
+    def get_view_matrix(self):
+        return self.actions.r3d.view_matrix
+
+    def get_projection_matrix(self):
+        return None
+        # r3d = self.actions.r3d
+        # if r3d.view_perspective == 'ORTHO':
+        #     xdelta = right - left
+        #     ydelta = top - bottom
+        #     zdelta = farclip - nearclip
+        #     return Matrix([
+        #         [2 / xdelta, 0,           0,          -(right   + left)     / xdelta],
+        #         [0,          2 / ydelta,  0,          -(top     + bottom)   / ydelta],
+        #         [0,          0,          -2 / zdelta, -(farclip + nearclip) / zdelta],
+        #         [0,          0,           0,           1],
+        #     ])
+        # else:
+        #     return
+
+    # @DrawCallbacks.on_draw('post2d')
+    def draw_selection_buffer(self):
+        return
+        if not self.scene.camera: return
+        sprint(hasattr(self, '_gpuoffscreen'))
+        if not hasattr(self, '_gpuoffscreen'):
+            self._gpuoffscreen = gpu.types.GPUOffScreen(1, 1) #, format='RGBA8')
+            self._gpuoffscreen_draw_count = -1
+            if not hasattr(self, '_draw_count'):
+                # setup not fully complete yet!
+                return
+
+        if self._gpuoffscreen_draw_count == self._draw_count: return
+
+        w, h = int(self.actions.size.x), int(self.actions.size.y)
+        if self._gpuoffscreen.width != w or self._gpuoffscreen.height != h:
+            sprint(f'RESIZING')
+            self._gpuoffscreen.free()
+            self._gpuoffscreen = gpu.types.GPUOffScreen(w, h) #, format='RGBA8')
+
+        sprint(f'DRAWING GPUOFFSCREEN')
+        self._gpuoffscreen_draw_count = self._draw_count
+        print(self.scene.camera)
+        print(self.scene.camera.matrix_world)
+
+        view_mat = self.scene.camera.matrix_world.inverted_safe()
+        depsgraph = self.context.view_layer.depsgraph # self.context.evaluated_depsgraph_get()
+        proj_mat = self.scene.camera.calc_matrix_camera(depsgraph, x=w, y=h)
+        print(view_mat)
+        print(proj_mat)
+        with self._gpuoffscreen.bind():
+            self._gpuoffscreen.draw_view3d(
+                self.scene,                 # scene to draw
+                self.view_layer,            # view layer to draw
+                self.actions.space,         # 3D view to get the drawing settings from
+                self.actions.region,        # Region of the 3D view
+                view_mat,                   # view matrix
+                proj_mat,                   # projection matrix
+                do_color_management=False,
+                draw_background=False,
+            )
+        gpustate.depth_mask(False)
+        gpustate.blend('ALPHA')
+        draw_texture_2d(
+            self._gpuoffscreen.texture_color,
+            (0, 0),
+            w, h,
+        )
 
     @DrawCallbacks.on_draw('post3d')
     def draw_target_and_sources(self):

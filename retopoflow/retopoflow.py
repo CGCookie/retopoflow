@@ -119,6 +119,8 @@ class RetopoFlow(
 
         keymaps = get_keymaps(force_reload=True)
         self.actions = ActionHandler(self.context, keymaps)
+        self.scene = self.context.scene
+        self.view_layer = self.context.view_layer
 
         print(f'RetopoFlow: Starting... keymaps and actions {sw.elapsed():0.2f}')
 
