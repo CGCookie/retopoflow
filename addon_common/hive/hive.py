@@ -52,7 +52,7 @@ class Hive:
         init_file = open(init_filepath, 'rt').read()
         insert = '\n' + '\n'.join([
             f'''{f'    "{k}":':20s}{f'"{v}"' if isinstance(v, str) else f'{v}'},'''
-            for (k,v) in bli_from_hive.items()
+            for (k,v) in Hive.to_bl_info().items()
         ])
         init_file = re.sub(
             r'(?P<start>bl_info *= *\{)(?P<replace>[^}]+)(?P<end>\})',

@@ -60,7 +60,9 @@ class DeepDebug:
 
     @staticmethod
     def init(*, fn_debug=None, clear=True):
-        assert DeepDebug._path_debug is None, f'Addon Common: DeepDebug should be initialized only once'
+        if DeepDebug._path_debug:
+            print(f'Addon Common: DeepDebug should be initialized only once')
+            return
 
         if fn_debug:
             DeepDebug._fn_debug = fn_debug
