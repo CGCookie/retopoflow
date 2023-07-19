@@ -50,33 +50,46 @@ from ...config.options import options, themes
 
 
 class Loops_Insert():
-    @FSM.on_state('quick', 'enter')
+    @RFTool.on_quickswitch_start
+    def quickswitch_start(self):
+        self.quickswitch = True
+        self._fsm.force_set_state('insert')
+
+    @FSM.on_state('insert', 'enter')
     def modal_previs_enter(self):
         self.set_widget('cut')
         self.rfcontext.fast_update_timer.enable(True)
 
+        if not self.quickswitch:
+            self.insert_action = lambda: self.actions.pressed('insert')
+            self.insert_done   = lambda: not self.actions.using_onlymods('insert')
+        else:
+            self.insert_action = lambda: self.actions.pressed('quick insert')
+            self.insert_done   = lambda: self.actions.pressed('cancel')
 
-    @FSM.on_state('quick')
+
+    @FSM.on_state('insert')
     def modal_previs(self):
-        if self.handle_inactive_passthrough(): return
+        if self.handle_inactive_passthrough():
+            return
 
-        if self.actions.pressed('insert') and self.nearest_edge:
+        if self.insert_action() and self.nearest_edge:
             # insert edge loop / strip, select it, prep slide!
             return self.insert_edge_loop_strip()
 
-        if not self.actions.using_onlymods('insert'):
+        if self.insert_done():
             return 'main'
 
-    @FSM.on_state('quick', 'exit')
+    @FSM.on_state('insert', 'exit')
     def modal_previs_exit(self):
         self.rfcontext.fast_update_timer.enable(False)
 
 
-    @RFTool.on_events('mouse move', 'target', 'view change')
+    @RFTool.on_events('mouse move', 'target change', 'view change')
+    @RFTool.not_while_navigating
     @RFTool.once_per_frame
-    @FSM.onlyinstate('quick')
+    @FSM.onlyinstate('insert')
     def set_next_state(self):
-        if self.actions.is_navigating: return
         if self.actions.mouse is None: return
         self.edges_ = None
 
@@ -197,13 +210,10 @@ class Loops_Insert():
 
 
     @DrawCallbacks.on_draw('post2d')
-    @FSM.onlyinstate({'main', 'quick'})
+    @RFTool.not_while_navigating
+    @FSM.onlyinstate('insert')
     def draw_postview(self):
-        if self.actions.is_navigating: return
-
-        if self.rfcontext._nav or not self.nearest_edge: return
-        if self._fsm.state != 'quick':
-            if not (self.actions.ctrl and not self.actions.shift): return
+        if not self.nearest_edge: return
 
         # draw new edge strip/loop
         Point_to_Point2D = self.rfcontext.Point_to_Point2D

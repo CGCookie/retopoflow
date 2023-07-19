@@ -193,6 +193,7 @@ class Tweak(RFTool):
             self.actions.unuse('brush alt', ignoremods=True, ignoremulti=True)
             return 'main'
 
+    @RFTool.on_events('mouse move')
     @RFTool.once_per_frame
     @FSM.onlyinstate('move')
     @RFTool.dirty_when_done
@@ -233,6 +234,8 @@ class Tweak(RFTool):
 
         for bmf in self.bmfaces:
             update_face_normal(bmf)
+
+        tag_redraw_all('Tweak mouse move')
 
     @FSM.on_state('move', 'exit')
     def move_exit(self):

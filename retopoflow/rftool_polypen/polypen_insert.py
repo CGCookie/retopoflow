@@ -134,7 +134,10 @@ class PolyPen_Insert():
         return self._insert()
 
 
+    @RFTool.on_mouse_move
     @RFTool.once_per_frame
+    # @RFTool.on_events('new frame')
+    @RFTool.not_while_navigating
     @FSM.onlyinstate('previs insert')
     def set_next_state(self):
         '''
@@ -448,10 +451,6 @@ class PolyPen_Insert():
 
     @RFTool.dirty_when_done
     def _insert(self):
-        self.last_delta = None
-        self.move_done_pressed = None
-        self.move_done_released = 'insert'
-
         if self.actions.shift and not self.actions.ctrl and not self.next_state in ['new vertex', 'vert-edge']:
             self.next_state = 'vert-edge'
             nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
@@ -477,7 +476,10 @@ class PolyPen_Insert():
                 #print('Could not insert: ' + str(bmv.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv, xy)] if bmv else []
+            self.prep_move(
+                bmverts=[bmv],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
             return 'move'
 
         if self.next_state in {'vert-edge', 'vert-edge-vert'}:
@@ -543,7 +545,10 @@ class PolyPen_Insert():
                 dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)] if bmv1 else []
+            self.prep_move(
+                bmverts=[bmv1],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
             return 'move'
 
         if self.next_state == 'edge-face':
@@ -569,7 +574,10 @@ class PolyPen_Insert():
                 dprint('Could not insert: ' + str(bmv2.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv2, xy)] if bmv2 else []
+            self.prep_move(
+                bmverts=[bmv2],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
             return 'move'
 
         if self.next_state == 'edge-quad':
@@ -593,9 +601,10 @@ class PolyPen_Insert():
             bmes = [bmv1.shared_edge(bmv2), bmv0.shared_edge(bmv3), bmv2.shared_edge(bmv3)]
             self.rfcontext.select(bmes, subparts=False)
             self.mousedown = self.actions.mousedown
-            self.bmverts = []
-            if bmv2: self.bmverts.append((bmv2, self.rfcontext.Point_to_Point2D(bmv2.co)))
-            if bmv3: self.bmverts.append((bmv3, self.rfcontext.Point_to_Point2D(bmv3.co)))
+            self.prep_move(
+                bmverts=[bmv2, bmv3],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
             return 'move'
 
         if self.next_state == 'edge-quad-snap':
@@ -648,7 +657,10 @@ class PolyPen_Insert():
                 dprint('Could not insert: ' + str(bmv1.co))
                 self.rfcontext.undo_cancel()
                 return 'main'
-            self.bmverts = [(bmv1, xy)] if bmv1 else []
+            self.prep_move(
+                bmverts=[bmv1],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
             return 'move'
 
         nearest_edge,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
@@ -666,6 +678,9 @@ class PolyPen_Insert():
             dprint('Could not insert: ' + str(bmv.co))
             self.rfcontext.undo_cancel()
             return 'main'
-        self.bmverts = [(bmv, xy)] if bmv else []
+        self.prep_move(
+                bmverts=[bmv],
+                action_confirm=(lambda: self.actions.released('insert')),
+            )
         return 'move'
 

@@ -310,6 +310,8 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
         self.normal_check()  # this call is governed!
 
+        if not self.actions.is_navigating: self.rftool._done_navigating()
+
         if self.rftool.rfwidget:
             Cursors.set(self.rftool.rfwidget.rfw_cursor)
             if self.rftool.rfwidget.redraw_on_mouse and self.actions.mousemove:

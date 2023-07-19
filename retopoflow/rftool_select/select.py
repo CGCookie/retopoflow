@@ -174,11 +174,19 @@ class Select(RFTool):
 
     @FSM.on_state('move', 'enter')
     def move_enter(self):
-        self.move_data = Dict(
-            bmverts=[ (bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in self.rfcontext.get_selected_verts() ],
-            mousedown=self.actions.mouse,
-            last_delta=None,
-        )
+        self.move_data = Dict()
+
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        self.move_data.bmverts_xys = [
+            (bmv, xy)
+            for bmv in self.rfcontext.get_selected_verts()
+            if bmv and bmv.is_valid and (xy := self.rfcontext.Point_to_Point2D(bmv.co))
+        ]
+        self.move_data.bmverts = [ bmv for (bmv, _) in self.move_data.bmverts_xys ]
+
+        self.move_data.mousedown = self.actions.mouse
+        self.move_data.last_delta = None
+
         if options['select automerge']:
             self.move_data.vis_accel = self.rfcontext.get_custom_vis_accel(
                 selection_only=False,
@@ -186,6 +194,7 @@ class Select(RFTool):
                 include_faces=False,
                 symmetry=False,
             )
+
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.fast_update_timer.start()
         self.rfcontext.set_accel_defer(True)
@@ -195,22 +204,22 @@ class Select(RFTool):
     @FSM.on_state('move')
     def modal_move(self):
         if self.actions.pressed(['confirm', 'confirm drag']):
-            self.mergeSnapped()
+            merge_dist = self.rfcontext.drawing.scale(options['select merge dist'])
+            self.rfcontext.merge_verts_by_dist(self.move_data.bmverts, merge_dist)
             return 'main'
         if self.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if not self.actions.mousemove_stop: return
-        # # only update verts on timer events and when mouse has moved
-        # if not self.actions.timer: return
-        # if self.actions.mouse_prev == self.actions.mouse: return
-
+    @RFTool.on_mouse_move
+    @RFTool.once_per_frame
+    @FSM.onlyinstate('move')
+    def modal_move_update(self):
         delta = Vec2D(self.actions.mouse - self.move_data.mousedown)
         if delta == self.move_data.last_delta: return
         self.move_data.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
-        for bmv,xy in self.move_data.bmverts:
+        for bmv,xy in self.move_data.bmverts_xys:
             if not xy: continue
             xy_updated = xy + delta
             if options['select automerge']:
@@ -219,7 +228,7 @@ class Select(RFTool):
                 xy1 = self.rfcontext.Point_to_Point2D(bmv1.co) if bmv1 else None
                 if xy1: xy_updated = xy1
             set2D_vert(bmv, xy_updated)
-        self.rfcontext.update_verts_faces(v for v,_ in self.move_data.bmverts)
+        self.rfcontext.update_verts_faces(self.move_data.bmverts)
         self.rfcontext.dirty()
 
     @FSM.on_state('move', 'exit')
@@ -228,38 +237,3 @@ class Select(RFTool):
         self.rfcontext.fast_update_timer.stop()
         self.rfcontext.clear_split_target_visualization()
 
-    def mergeSnapped(self):
-        """ Merging colocated visible verts """
-
-        if not options['select automerge']: return
-
-        vis_verts = self.rfcontext.get_vis_verts()
-        sel_verts = self.rfcontext.get_selected_verts()
-        vis_bmverts = [
-            (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
-            for bmv in vis_verts
-            if bmv.is_valid and bmv not in sel_verts
-        ]
-
-        # TODO: remove colocated faces
-        if self.move_data.mousedown is None: return
-        delta = Vec2D(self.actions.mouse - self.move_data.mousedown)
-        set2D_vert = self.rfcontext.set2D_vert
-        update_verts = []
-        merge_dist = self.rfcontext.drawing.scale(options['select merge dist'])
-        for bmv,xy in self.move_data.bmverts:
-            if not xy: continue
-            xy_updated = xy + delta
-            for bmv1,xy1 in vis_bmverts:
-                if not xy1: continue
-                if bmv1 == bmv: continue
-                if not bmv1.is_valid: continue
-                d = (xy_updated - xy1).length
-                if (xy_updated - xy1).length > merge_dist:
-                    continue
-                bmv1.merge_robust(bmv)
-                self.rfcontext.select(bmv1)
-                update_verts += [bmv1]
-                break
-        if update_verts:
-            self.rfcontext.update_verts_faces(update_verts)

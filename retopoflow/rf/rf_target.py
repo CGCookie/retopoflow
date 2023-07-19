@@ -357,6 +357,13 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.get_point2D_symmetries, faces=faces) #, max_dist=max_dist)
 
+    def accel_nearest2D_geom(self, **kwargs):
+        if (vert := self.accel_nearest2D_vert(**kwargs)[0]): return vert
+        if (edge := self.accel_nearest2D_edge(**kwargs)[0]): return edge
+        if (face := self.accel_nearest2D_face(**kwargs)[0]): return face
+        return None
+
+
 
     #########################################
     # find target entities in screen space
@@ -1006,6 +1013,36 @@ class RetopoFlow_Target:
                         self.snap_vert(v1)
 
         self.dirty()
+
+
+    #######################################################
+
+
+    def merge_verts_by_dist(self, bmverts, merge_dist, *, select_merged=True):
+        """ Merging colocated visible verts """
+
+        # TODO: remove colocated faces
+
+        bmverts = set(bmverts)
+        accel_data = self.get_custom_vis_accel(
+            selection_only=False,
+            include_verts=True, include_edges=False, include_faces=False,
+            symmetry=False,
+        )
+        snappable_bmverts = { bmv for bmv in accel_data.verts if bmv not in bmverts }
+        kwargs = { 'max_dist': merge_dist, 'vis_accel': accel_data }
+        update_verts = []
+        for bmv in bmverts:
+            if not (xy := self.Point_to_Point2D(bmv.co)): continue
+            if not (bmv1 := self.accel_nearest2D_vert(point=xy, **kwargs)[0]): continue
+            bmv1.merge_robust(bmv)
+            update_verts.append(bmv1)
+
+        self.update_verts_faces(update_verts)
+        if select_merged:
+            self.select(update_verts, only=False)
+
+        return update_verts
 
 
 

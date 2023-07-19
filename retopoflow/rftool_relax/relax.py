@@ -33,8 +33,9 @@ from ...addon_common.common.maths import (
     Color,
     closest_point_segment,
 )
-from ...addon_common.common.fsm import FSM
+from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
+from ...addon_common.common.fsm import FSM
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.utils import iter_pairs, delay_exec
 from ...config.options import options, themes
@@ -261,7 +262,7 @@ class Relax(RFTool):
             self.actions.unuse('brush alt', ignoremods=True, ignoremulti=True)
             return 'main'
 
-    @RFTool.once_per_frame
+    @RFTool.on_new_frame
     @FSM.onlyinstate('relax')
     def relax_doit(self):
         st = time.time()
@@ -453,3 +454,4 @@ class Relax(RFTool):
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
 
         self.rfcontext.dirty()
+        tag_redraw_all('Relax new frame')

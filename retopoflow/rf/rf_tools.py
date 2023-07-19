@@ -44,7 +44,7 @@ class RetopoFlow_Tools:
     def reset_rftool(self):
         self.rftool._reset()
 
-    def _select_rftool(self, rftool, *, reset=True):
+    def _select_rftool(self, rftool, *, reset=True, quick=False):
         assert rftool in self.rftools
 
         # return if tool already set
@@ -53,9 +53,12 @@ class RetopoFlow_Tools:
             return False
 
         self.rftool = rftool
-        if reset: self.reset_rftool()
+        if reset:
+            self.reset_rftool()
         self._update_rftool_ui(rftool)
         self.update_ui()
+        if quick:
+            self.rftool._callback('quickswitch start')
         return True
 
     def _update_rftool_ui(self, rftool):
@@ -76,7 +79,7 @@ class RetopoFlow_Tools:
 
     def quick_select_rftool(self, rftool, *, reset=True):
         prev_tool = self.rftool
-        if self._select_rftool(rftool, reset=reset):
+        if self._select_rftool(rftool, reset=reset, quick=True):
             self._rftool_return = prev_tool
 
     def quick_restore_rftool(self, *, reset=True):

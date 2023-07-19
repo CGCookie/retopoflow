@@ -12,12 +12,17 @@
     - remove Stopwatch, and handle this code correctly!
     - add planar rotation to loops (in addition to screen rotation, similar to contours)
 
+- Strokes
+    - remove internal mergeSnapped code
+    - improve move selected code (base on PolyPen or Select)
+
 - General
     - predraw Drawing callback only fires if pre3d, post3d, or post2d exists!
     - general rotate and scale should have viz
     - build accel structs async
     - add clamp to symmetry option to prevent verts from moving away from symmetry line??
     - new method for finding nearest geometry (use selection framebuffer, see draw_selection_buffer)
+
 
 - IMPORTANT, BEFORE RELEASE
     - remove sprint and other debug calls

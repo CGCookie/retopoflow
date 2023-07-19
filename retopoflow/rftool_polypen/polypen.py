@@ -109,12 +109,10 @@ class PolyPen(RFTool, PolyPen_Insert):
     def update_selection(self):
         self.sel_verts, self.sel_edges, self.sel_faces = self.rfcontext.get_selected_geom()
 
-    @RFTool.on_reset
-    @RFTool.on_target_change
-    @RFTool.on_view_change
-    @RFTool.on_mouse_move
-    @RFTool.once_per_frame
+    @RFTool.on_events('reset', 'target change', 'view change', 'mouse move')
+    @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
+    @RFTool.once_per_frame
     def update_nearest(self):
         self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
         self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], selected_only=True)
@@ -158,11 +156,19 @@ class PolyPen(RFTool, PolyPen_Insert):
             self._rip_fill = True
             return 'rip'
 
-        if self.nearest_geom and self.nearest_geom.select:
-            if self.actions.pressed('action'):
-                self.rfcontext.undo_push('grab')
-                self.prep_move(defer_recomputing=False)
-                return 'move after select'
+        if self.nearest_geom and self.nearest_geom.select and self.actions.pressed('action'):
+            self.rfcontext.undo_push('grab')
+            self.prep_move(
+                action_confirm=lambda: self.actions.released('action', ignoremods=True),
+            )
+            return 'move after select'
+
+        if self.actions.pressed('grab'):
+            self.rfcontext.undo_push('move grabbed')
+            self.prep_move(
+                action_confirm=lambda: self.actions.pressed({'confirm', 'confirm drag'}),
+            )
+            return 'move'
 
         if self.actions.pressed({'select path add'}):
             return self.rfcontext.select_path(
@@ -196,13 +202,6 @@ class PolyPen(RFTool, PolyPen_Insert):
             if sel.select: self.rfcontext.deselect(sel, subparts=False)
             else:          self.rfcontext.select(sel, supparts=False, only=sel_only)
             return
-
-        if self.actions.pressed('grab'):
-            self.rfcontext.undo_push('move grabbed')
-            self.prep_move()
-            self.move_done_pressed = ['confirm', 'confirm drag']
-            self.move_done_released = None
-            return 'move'
 
 
     @FSM.on_state('rip')
@@ -258,14 +257,10 @@ class PolyPen(RFTool, PolyPen_Insert):
                 self.rfcontext.new_face([bmv0, bmv1, bmv3, bmv2])
 
             # self.rfcontext.undo_push('move ripped edge')
-            self.bmverts = [
-                (bmv, self.rfcontext.Point_to_Point2D(bmv.co))
-                for bmv in move_verts
-            ]
-            self.last_delta = None
-            self.mousedown = self.actions.mouse
-            self.move_done_pressed = ['confirm', 'confirm drag']
-            self.move_done_released = None
+            self.prep_move(
+                bmverts=move_verts,
+                action_confirm=(lambda: self.actions.pressed({'confirm', 'confirm drag'})),
+            )
             return 'move'
 
         return 'main'
@@ -276,101 +271,64 @@ class PolyPen(RFTool, PolyPen_Insert):
         return 'main' # 'move'
 
 
-    def mergeSnapped(self):
-        """ Merging colocated visible verts """
-
-        if not options['polypen automerge']: return
-
-        Point_to_Point2D = self.rfcontext.Point_to_Point2D
-        accel_data = self.rfcontext.generate_accel_data_struct(selected_only=False, force=True)
-        vis_bmverts = [ (bmv, Point_to_Point2D(bmv.co)) for bmv in accel_data.verts ]
-
-        # TODO: remove colocated faces
-        if self.mousedown is None: return
-        delta = Vec2D(self.actions.mouse - self.mousedown)
-        set2D_vert = self.rfcontext.set2D_vert
-        update_verts = []
-        merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
-        for bmv,xy in self.bmverts:
-            if not xy: continue
-            xy_updated = xy + delta
-            for bmv1,xy1 in vis_bmverts:
-                if not xy1: continue
-                if bmv1 == bmv: continue
-                if not bmv1.is_valid: continue
-                d = (xy_updated - xy1).length
-                if (xy_updated - xy1).length > merge_dist:
-                    continue
-                bmv1.merge_robust(bmv)
-                self.rfcontext.select(bmv1)
-                update_verts += [bmv1]
-                break
-        if update_verts:
-            self.rfcontext.update_verts_faces(update_verts)
-
-
-    def prep_move(self, bmverts=None, defer_recomputing=True):
-        if not bmverts: bmverts = self.sel_verts
-        self.bmverts = [(bmv, self.rfcontext.Point_to_Point2D(bmv.co)) for bmv in bmverts if bmv and bmv.is_valid]
-        self.mousedown = self.actions.mouse
-        self.last_delta = None
-        self.defer_recomputing = defer_recomputing
-
     @FSM.on_state('move after select')
-    @profiler.function
     def modal_move_after_select(self):
         if self.actions.released('action'):
             return 'main'
 
-        if (self.actions.mouse - self.mousedown).length < options['move dist']:
-            return
+        if (self.actions.mouse - self.mousedown).length >= self.rfcontext.drawing.scale(options['move dist']):
+            self.rfcontext.undo_push('move after select')
+            return 'move'
 
+    def prep_move(self, *, bmverts=None, action_confirm=None, action_cancel=None, defer_recomputing=True):
+        Point_to_Point2D = self.rfcontext.Point_to_Point2D
+        self.bmverts = [bmv for bmv in bmverts if bmv and bmv.is_valid] if bmverts is not None else self.rfcontext.get_selected_verts()
+        self.bmverts_xys = [
+            (bmv, xy)
+            for bmv in self.bmverts
+            if bmv and bmv.is_valid and (xy := Point_to_Point2D(bmv.co)) is not None
+        ]
+        self.move_actions = {
+            'confirm': action_confirm or (lambda: self.actions.pressed('confirm')),
+            'cancel':  action_cancel  or (lambda: self.actions.pressed('cancel')),
+        }
+        self.mousedown = self.actions.mouse
         self.last_delta = None
-        self.move_done_pressed = None
-        self.move_done_released = 'action'
-        self.rfcontext.undo_push('move after select')
-        return 'move'
+        self.defer_recomputing = defer_recomputing
 
     @FSM.on_state('move', 'enter')
     def move_enter(self):
-        self.move_vis_accel = None
-        if not self.move_done_released and options['hide cursor on tweak']: self.set_widget('hidden')
+        self.move_vis_accel = self.rfcontext.get_accel_visible(selected_only=False)
+        # if not self.move_done_released and options['hide cursor on tweak']: self.set_widget('hidden')
+        if options['hide cursor on tweak']: self.set_widget('hidden')
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.fast_update_timer.start()
         self.rfcontext.set_accel_defer(True)
+        self.last_delta = None
 
     @FSM.on_state('move')
     def modal_move(self):
-        if self.move_done_pressed and self.actions.pressed(self.move_done_pressed):
+        if self.move_actions['confirm']():
             self.defer_recomputing = False
-            self.mergeSnapped()
+            merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
+            self.rfcontext.merge_verts_by_dist(self.bmverts, merge_dist)
             return 'main'
-        if self.move_done_released and self.actions.released(self.move_done_released, ignoremods=True):
+
+        if self.move_actions['cancel']():
             self.defer_recomputing = False
-            self.mergeSnapped()
-            return 'main'
-        if self.actions.pressed('cancel'):
-            self.defer_recomputing = False
-            self.actions.unuse(self.move_done_released, ignoremods=True, ignoremulti=True)
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if self.actions.mousedown_drag and options['hide cursor on tweak']: self.set_widget('hidden')
-
-        if self.actions.mousemove: self.modal_move_update()
-
+    @RFTool.on_mouse_move
     @RFTool.once_per_frame
     @FSM.onlyinstate('move')
     def modal_move_update(self):
-        if self.move_vis_accel is None:
-            self.move_vis_accel = self.rfcontext.get_accel_visible(selected_only=False)
-
         delta = Vec2D(self.actions.mouse - self.mousedown)
         if delta == self.last_delta: return
         self.last_delta = delta
         set2D_vert = self.rfcontext.set2D_vert
 
-        for bmv,xy in self.bmverts:
+        for bmv,xy in self.bmverts_xys:
             if not xy: continue
             xy_updated = xy + delta
             # check if xy_updated is "close" to any visible verts (in image plane)
@@ -388,8 +346,9 @@ class PolyPen(RFTool, PolyPen_Insert):
             else:
                 set2D_vert(bmv, xy_updated)
 
-        self.rfcontext.update_verts_faces(v for v,_ in self.bmverts)
+        self.rfcontext.update_verts_faces(self.bmverts)
         self.rfcontext.dirty()
+        tag_redraw_all('polypen mouse move')
 
     @FSM.on_state('move', 'exit')
     def move_exit(self):

@@ -74,25 +74,19 @@ class Loops(RFTool, Loops_Insert):
             'hidden':  self.RFWidget_Hidden(self),
         }
         self.rfwidget = None
-        self.previs_timer = self.actions.start_timer(120.0, enabled=False)
 
     def _fsm_in_main(self):
         # needed so main actions using Ctrl (ex: undo, redo, save) can still work
-        return self._fsm.state in {'main', 'quick'}
+        return self._fsm.state in {'main', 'insert'}
 
     @RFTool.on_reset
     def reset(self):
-        if self.actions.using('loops quick'):
-            self._fsm.force_set_state('quick')
-            self.previs_timer.start()
-        else:
-            self.previs_timer.stop()
-
         self.nearest_edge = None
         self.set_next_state()
         self.hovering_edge = None
         self.hovering_sel_edge = None
         self.update_hover()
+        self.quickswitch = False
 
     def filter_edge_selection(self, bme, no_verts_select=True, ratio=0.33):
         if bme.select:
@@ -121,21 +115,22 @@ class Loops(RFTool, Loops_Insert):
         dot = d01.dot(p - p0)
         return dot / l01 > ratio
 
-    @RFTool.on_events('mouse move', 'target', 'view change')
-    @RFTool.once_per_frame
+    @RFTool.on_events('mouse move', 'target change', 'view change')
+    @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
     def update_hover(self):
+        self.hovering_edge, _     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
         self.hovering_sel_edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
     @FSM.on_state('main')
     def main(self):
         # if self.actions.mousemove: return  # ignore mouse moves
 
-        if self.hovering_edge and not self.hovering_edge.is_valid: self.hovering_edge = None
+        if self.hovering_edge     and not self.hovering_edge.is_valid:     self.hovering_edge     = None
         if self.hovering_sel_edge and not self.hovering_sel_edge.is_valid: self.hovering_sel_edge = None
 
         if self.actions.using_onlymods('insert'):
-            return 'quick'
+            return 'insert'
 
         if self.hovering_edge:
             self.set_widget('hover')
@@ -147,7 +142,7 @@ class Loops(RFTool, Loops_Insert):
         if self.actions.using('action'):
             self.hovering_edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
             if self.hovering_edge:
-            #print(f'hovering edge {self.actions.using("action")} {self.hovering_edge} {self.hovering_sel_edge}')
+                #print(f'hovering edge {self.actions.using("action")} {self.hovering_edge} {self.hovering_sel_edge}')
                 #print('acting!')
                 self.rfcontext.undo_push('slide edge loop/strip')
                 if not self.hovering_sel_edge:
@@ -384,11 +379,11 @@ class Loops(RFTool, Loops_Insert):
 
     @FSM.on_state('slide', 'enter')
     def slide_enter(self):
-        self.previs_timer.start()
         self.rfcontext.split_target_visualization_selected()
         self.rfcontext.set_accel_defer(True)
         self.set_widget('hidden' if options['hide cursor on tweak'] else 'hover')
         tag_redraw_all('entering slide')
+        self.rfcontext.fast_update_timer.enable(True)
 
     @FSM.on_state('slide')
     @profiler.function
@@ -424,7 +419,7 @@ class Loops(RFTool, Loops_Insert):
 
     @FSM.on_state('slide', 'exit')
     def slide_exit(self):
-        self.previs_timer.stop()
+        self.rfcontext.fast_update_timer.enable(False)
         self.rfcontext.set_accel_defer(False)
         self.rfcontext.clear_split_target_visualization()
 
