@@ -1734,7 +1734,7 @@ class Accel2D:
                     for j in range(minj, maxj + 1):
                         self._put((i, j), ef)
 
-        if True:
+        if False:
             def get_index(s, v, m, M): return clamp(int(len(s) * (v - m) / max(1, M - m)), 0, len(s) - 1)
             fill_max = max((len(b) for b in self.bins.values()), default=0)
             fill_min = min((len(b) for b in self.bins.values()), default=0)

@@ -148,15 +148,14 @@ class RFMesh():
         # setup finishing
         self.selection_center = Point((0, 0, 0))
         self.store_state()
-        # print('RFMesh.__setup__: dirtying')
         self.dirty()
-        # print('RFMesh.__setup__: done')
-        term_printer.boxed(
-            f'{obj.name}',
-            f'Options: {deform=} {triangulate=} {selection=} {keepeme=}',
-            f'Counts: v={len(self.bme.verts)} e={len(self.bme.edges)} f={len(self.bme.faces)}',
-            title=f'RFMesh.setup',
-        )
+        if False:
+            term_printer.boxed(
+                f'{obj.name}',
+                f'Options: {deform=} {triangulate=} {selection=} {keepeme=}',
+                f'Counts: v={len(self.bme.verts)} e={len(self.bme.edges)} f={len(self.bme.faces)}',
+                title=f'RFMesh.setup',
+            )
 
     def __del__(self):
         RFMesh.delete_count += 1

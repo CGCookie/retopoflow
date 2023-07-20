@@ -182,7 +182,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                 return
 
             # debugging
-            if True:
+            if False:
                 if self.actions.pressed('SHIFT+F5'): breakit = 42 / 0
                 if self.actions.pressed('SHIFT+F6'): assert False
                 if self.actions.pressed('SHIFT+F7'): self.alert_user(message='Foo', level='exception', msghash='2ec5e386ae05c1abeb66dce8e1f1cb95')
@@ -190,7 +190,7 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                     assert False, 'test exception throwing'
                     # self.alert_user(title='Test', message='foo bar', level='warning', msghash=None)
                     return
-                if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
+                # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
 
             # profiler
             if False:

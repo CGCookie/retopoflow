@@ -68,9 +68,13 @@ class RetopoFlow_Tools:
         self.ui_main.dirty(cause='changed tools', children=True)
         self.ui_tiny.dirty(cause='changed tools', children=True)
 
-        statusbar = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
-        statusbar = statusbar.replace('\t', '    ')
-        self.context.workspace.status_text_set(f'{rftool.name}: {statusbar}')
+        statusbar_keymap = self.substitute_keymaps(rftool.statusbar, wrap='', pre='', post=':', separator='/', onlyfirst=2)
+        statusbar_keymap = statusbar_keymap.replace('\t', '    ')
+        if self._rftool_return and self._rftool_return != rftool:
+            statusbar = f'{self._rftool_return.name} → {rftool.name}: {statusbar_keymap}'
+        else:
+            statusbar = f'{rftool.name}: {statusbar_keymap}'
+        self.context.workspace.status_text_set(statusbar)
 
     def select_rftool(self, rftool, *, reset=True):
         self.rftool_return = None
@@ -82,9 +86,11 @@ class RetopoFlow_Tools:
         prev_tool = self.rftool
         if self._select_rftool(rftool, reset=reset, quick=True):
             self._rftool_return = prev_tool
+            self._update_rftool_ui()
 
     def quick_restore_rftool(self, *, reset=True):
         if not self._rftool_return: return
         if self.select_rftool(self._rftool_return, reset=reset):
             self._rftool_return = None
+            self._update_rftool_ui()
 
