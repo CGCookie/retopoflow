@@ -28,11 +28,13 @@ from collections import deque
 
 from ..rfmesh.rfmesh_wrapper import RFVert, RFEdge, RFFace
 
+from ...addon_common.common import gpustate
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 from ...addon_common.common.blender import tag_redraw_all
 from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.drawing import Cursors, DrawCallbacks
+from ...addon_common.common.drawing import Cursors, DrawCallbacks, CC_DRAW, CC_2D_LINES
 from ...addon_common.common.fsm import FSM
+from ...addon_common.common.globals import Globals
 from ...addon_common.common.maths import Vec2D, Point2D, RelPoint2D, Direction2D
 from ...addon_common.common.profiler import profiler
 from ...addon_common.common.ui_core import UI_Element
@@ -412,12 +414,19 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         opts['move_done_released'] = None
         opts['move_cancelled'] = 'cancel'
         opts['mouselast'] = self.actions.mouse
+        opts['mousedown'] = self.actions.mouse
         opts['lasttime'] = 0
         self.rotate_selected_opts = opts
         self.undo_push('rotate')
+
+        statusbar = self.substitute_keymaps('{{confirm}} Confirm\t{{cancel}} Cancel', wrap='', pre='', post=':', separator='/', onlyfirst=2)
+        statusbar = statusbar.replace('\t', '    ')
+        self.context.workspace.status_text_set(f'Rotating selected: {statusbar}')
+
         self.fast_update_timer.start()
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
+        tag_redraw_all('rotate init')
 
     @FSM.on_state('rotate selected')
     @profiler.function
@@ -451,12 +460,35 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             set2D_vert(bmv, nxy)
         self.update_verts_faces(v for v,_ in opts['bmverts'])
         self.dirty()
+        tag_redraw_all('rotate mouse move')
+
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('rotate selected')
+    def draw_rotate_post2d(self):
+        opts = self.rotate_selected_opts
+
+        gpustate.blend('ALPHA')
+        Globals.drawing.draw2D_line(
+            opts['mousedown'],
+            opts['center'],
+            (0.1, 1.0, 1.0, 1.0), color1=(0.1, 1.0, 1.0, 0.0),
+            width=2, stipple=[2, 2]
+        )
+        Globals.drawing.draw2D_line(
+            opts['center'],
+            self.actions.mouse,
+            (1.0, 1.0, 0.1, 1.0), color1=(1.0, 1.0, 0.1, 0.0),
+            width=2, stipple=[2, 2]
+        )
+
 
     @FSM.on_state('rotate selected', 'exit')
     def rotate_selected_exit(self):
         self.fast_update_timer.stop()
         self.clear_split_target_visualization()
         self.set_accel_defer(False)
+        self._update_rftool_ui()
+
 
 
 
@@ -476,12 +508,19 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         opts['move_done_released'] = None
         opts['move_cancelled'] = 'cancel'
         opts['mouselast'] = self.actions.mouse
+        opts['mousedown'] = self.actions.mouse
         opts['lasttime'] = 0
         self.scale_selected_opts = opts
         self.undo_push('scale')
+
+        statusbar = self.substitute_keymaps('{{confirm}} Confirm\t{{cancel}} Cancel', wrap='', pre='', post=':', separator='/', onlyfirst=2)
+        statusbar = statusbar.replace('\t', '    ')
+        self.context.workspace.status_text_set(f'Scaling selected: {statusbar}')
+
         self.fast_update_timer.start()
         self.split_target_visualization_selected()
         self.set_accel_defer(True)
+        tag_redraw_all('scale init')
 
     @FSM.on_state('scale selected')
     @profiler.function
@@ -511,12 +550,34 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             set2D_vert(bmv, nxy)
         self.update_verts_faces(v for v,_ in opts['bmverts'])
         self.dirty()
+        tag_redraw_all('scale mouse move')
+
+    @DrawCallbacks.on_draw('post2d')
+    @FSM.onlyinstate('scale selected')
+    def draw_rotate_post2d(self):
+        opts = self.scale_selected_opts
+
+        gpustate.blend('ALPHA')
+        Globals.drawing.draw2D_line(
+            opts['mousedown'],
+            opts['center'],
+            (0.1, 1.0, 1.0, 1.0), color1=(0.1, 1.0, 1.0, 0.0),
+            width=2, stipple=[2, 2]
+        )
+        Globals.drawing.draw2D_line(
+            opts['center'],
+            self.actions.mouse,
+            (1.0, 1.0, 0.1, 1.0), color1=(1.0, 1.0, 0.1, 0.0),
+            width=2, stipple=[2, 2]
+        )
+
 
     @FSM.on_state('scale selected', 'exit')
     def scale_selected_exit(self):
         self.fast_update_timer.stop()
         self.clear_split_target_visualization()
         self.set_accel_defer(False)
+        self._update_rftool_ui()
 
 
     def select_path(self, bmelem_types, fn_filter_bmelem=None, kwargs_select=None, kwargs_filter=None, **kwargs):

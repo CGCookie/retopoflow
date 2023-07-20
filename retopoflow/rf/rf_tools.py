@@ -55,13 +55,14 @@ class RetopoFlow_Tools:
         self.rftool = rftool
         if reset:
             self.reset_rftool()
-        self._update_rftool_ui(rftool)
+        self._update_rftool_ui()
         self.update_ui()
         if quick:
             self.rftool._callback('quickswitch start')
         return True
 
-    def _update_rftool_ui(self, rftool):
+    def _update_rftool_ui(self):
+        rftool = self.rftool
         self.ui_main.getElementById(f'tool-{rftool.name.lower()}').checked = True
         self.ui_tiny.getElementById(f'ttool-{rftool.name.lower()}').checked = True
         self.ui_main.dirty(cause='changed tools', children=True)
