@@ -12,7 +12,8 @@ tmp/
 /scripts/
 /test/
 /test-models/*
-/docs/
+/help/web/
+/help/web_config/
 /devnotes/
 /issues/
 

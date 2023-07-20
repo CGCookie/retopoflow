@@ -17,16 +17,16 @@ The following documents provide help generally across all of RetopoFlow.
 
 The following documents provide help for specific RetopoFlow tools.
 
-- ![Select icon](select-icon.png width:24px;height:24px;padding:0px) [Select](select.md)
-- ![Contours icon](contours-icon.png width:24px;height:24px;padding:0px) [Contours](contours.md)
-- ![PolyStrips icon](polystrips-icon.png width:24px;height:24px;padding:0px) [PolyStrips](polystrips.md)
-- ![Strokes icon](strokes-icon.png width:24px;height:24px;padding:0px) [Strokes](strokes.md)
-- ![Patches icon](patches-icon.png width:24px;height:24px;padding:0px) [Patches](patches.md)
-- ![PolyPen icon](polypen-icon.png width:24px;height:24px;padding:0px) [PolyPen](polypen.md)
-- ![Knife icon](knife-icon.png width:24px;height:24px;padding:0px) [Knife](knife.md)
-- ![Loops icon](loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
-- ![Tweak icon](tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
-- ![Relax icon](relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
+- ![Select icon](images/select-icon.png width:24px;height:24px;padding:0px) [Select](select.md)
+- ![Contours icon](images/contours-icon.png width:24px;height:24px;padding:0px) [Contours](contours.md)
+- ![PolyStrips icon](images/polystrips-icon.png width:24px;height:24px;padding:0px) [PolyStrips](polystrips.md)
+- ![Strokes icon](images/strokes-icon.png width:24px;height:24px;padding:0px) [Strokes](strokes.md)
+- ![Patches icon](images/patches-icon.png width:24px;height:24px;padding:0px) [Patches](patches.md)
+- ![PolyPen icon](images/polypen-icon.png width:24px;height:24px;padding:0px) [PolyPen](polypen.md)
+- ![Knife icon](images/knife-icon.png width:24px;height:24px;padding:0px) [Knife](knife.md)
+- ![Loops icon](images/loops-icon.png width:24px;height:24px;padding:0px) [Loops](loops.md)
+- ![Tweak icon](images/tweak-icon.png width:24px;height:24px;padding:0px) [Tweak](tweak.md)
+- ![Relax icon](images/relax-icon.png width:24px;height:24px;padding:0px) [Relax](relax.md)
 
 ## Additional Information
 

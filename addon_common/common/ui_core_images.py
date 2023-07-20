@@ -60,6 +60,7 @@ def get_image_path(fn, ext=None, subfolders=None):
                 get_path_from_addon_root('icons', fn),
                 get_path_from_addon_root('images', fn),
                 get_path_from_addon_root('help', fn),
+                get_path_from_addon_root('help', 'images', fn),
                 get_path_from_addon_common('common', 'images', fn),
             ]
             if os.path.exists(path)

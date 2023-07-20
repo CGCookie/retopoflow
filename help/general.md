@@ -42,7 +42,7 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 Note: selection and the undo stack is maintained between tools.
 
-![Pie menu](pie_menu.png max-height:240px)
+![Pie menu](images/pie_menu.png max-height:240px)
 
 Press {{pie menu}} at any time to show the tool pie menu.
 
@@ -98,7 +98,7 @@ When `Occlusion Test` is enabled, geometry that is occluded by the source(s) are
 When `Backface Test` is enabled, geometry that is facing away are not selectable.
 Disable these options to make geometry easier to select.
 
-![Selection options](selection_options.png max-height:250px)
+![Selection options](images/selection_options.png max-height:250px)
 
 
 
@@ -107,7 +107,7 @@ Pressing {{delete}} will bring up the Delete/Dissolve/Collapse dialog, allowing 
 Pressing and holding {{delete pie menu}} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
 
-![Delete dialog and pie menu](delete_dialog_pie.png max-height:250px)
+![Delete dialog and pie menu](images/delete_dialog_pie.png max-height:250px)
 
 
 
@@ -138,7 +138,7 @@ The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
-![](help_themes.png max-height:100px)
+![](images/help_themes.png max-height:100px)
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.

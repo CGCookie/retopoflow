@@ -37,7 +37,7 @@ This simplest way to report the terminal output is to enable Deep Debugging.
 
 Note: you will need to restart Blender after enabling.
 
-![](debugging_enable.png max-height:240px)
+![](images/debugging_enable.png max-height:200px)
 
 
 When Deep Debugging is enabled, all terminal output will be redirected to a text file.
@@ -47,7 +47,7 @@ When Deep Debugging is enabled, all terminal output will be redirected to a text
 - Once issue occurs, exit RetopoFlow
 - Under the RetopoFlow menu, choose Open Debugging Info
 
-![](debugging_open.png max-height:120px)
+![](images/debugging_open.png max-height:200px)
 
 
 ### Windows

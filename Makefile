@@ -78,10 +78,10 @@ build-docs:
 	python3 $(DOCS_REBUILD)
 
 serve-docs:
-	cd docs && bundle exec jekyll serve
+	cd help/web && bundle exec jekyll serve
 
 clean-docs:
-	cd docs && bundle exec jekyll clean
+	cd help/web && bundle exec jekyll clean
 
 
 #########################################################
@@ -98,7 +98,7 @@ check:
 
 build-thumbnails:
 	# create thumbnails
-	cd help && python3 $(CREATE_THUMBNAILS)
+	cd help/images && python3 $(CREATE_THUMBNAILS)
 
 build:
 	make _build-common _build-github _build-blendermarket

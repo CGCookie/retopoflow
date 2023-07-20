@@ -1,4 +1,4 @@
-# ![](polystrips-icon.png) PolyStrips Help
+# ![](images/polystrips-icon.png) PolyStrips Help
 
 Shortcut: {{polystrips tool}}
 
@@ -11,7 +11,7 @@ The strokes are instantly converted into spline-based strips of polygons.
 
 Any continuous quad strip may be manipulated with PolyStrips via the auto-generated spline handles.
 
-![](help_polystrips.png)
+![](images/help_polystrips.png)
 
 ## Creating
 

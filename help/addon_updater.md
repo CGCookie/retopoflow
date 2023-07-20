@@ -13,13 +13,13 @@ For those who would like to try the pre-releases or try out latest bug fixes, us
 IMPORTANT: The RetopoFlow Updater System can break your RetopoFlow installation!
 To fix a broken RetopoFlow install, simply download and install the latest version from [Blender Market](https://blendermarket.com/products/retopoflow).
 
-![](addon_updater_button.png max-height:200px)
+![](images/addon_updater_button.png max-height:200px)
 
 The RetopoFlow Updater System will show the last 10 or so releases/pre-releases.
 Choose one of the releases then click the "Load" button to download and install that exact version.
 
-![](addon_updater_system.png max-height:400px)
+![](images/addon_updater_system.png max-height:400px)
 
 If you wish to try a specific branch or commit, specify the branch or commit hash in the "Advanced: Commit / Branch" text box, then click the "Load" button.
 
-![](addon_updater_advanced.png max-height:150px)
+![](images/addon_updater_advanced.png max-height:150px)

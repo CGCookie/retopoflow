@@ -1,3 +1,8 @@
+- IMPORTANT, BEFORE RELEASE
+    - remove sprint and other debug calls
+    - use stopwatch to wrap select single so that smart selection is more dependable
+    - general rotate and scale need updated!  (rf_fsm.py)
+
 - Contours
     - move label position code into separate method called on target or view change
     - new cut into symmetry line sometimes doesn't stick to line of symmetry
@@ -22,11 +27,6 @@
     - build accel structs async
     - add clamp to symmetry option to prevent verts from moving away from symmetry line??
     - new method for finding nearest geometry (use selection framebuffer, see draw_selection_buffer)
-
-
-- IMPORTANT, BEFORE RELEASE
-    - remove sprint and other debug calls
-    - use stopwatch to wrap select single so that smart selection is more dependable
 
 
 - Symmetry

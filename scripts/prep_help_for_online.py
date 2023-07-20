@@ -140,26 +140,30 @@ def delete_all(path):
 path_here  = os.path.dirname(__file__)
 path_root  = os.path.abspath(os.path.join(path_here, '..'))
 
-path_help  = os.path.join(path_root, 'help')
+path_help        = os.path.join(path_root, 'help')
+path_help_images = os.path.join(path_root, 'help', 'images')
+
+path_help_web_config  = os.path.join(path_root, 'help', 'web_config')
+path_help_web         = os.path.join(path_root, 'help', 'web')
+path_help_web_images  = os.path.join(path_root, 'help', 'web', 'images')
+
 path_icons = os.path.join(path_root, 'icons')
 
 path_keys  = os.path.join(path_root, 'config', 'keymaps.py')
 path_opts  = os.path.join(path_root, 'config', 'options.py')
 path_human = os.path.join(path_root, 'addon_common', 'common', 'human_readable.py')
 
-path_docs_config = os.path.join(path_root, 'docs_config')
-path_docs    = os.path.join(path_root, 'docs')
-path_data    = os.path.join(path_docs, '_data')
+path_data    = os.path.join(path_help_web, '_data')
 path_keymaps = os.path.join(path_data, 'keymaps.yml')
 path_options = os.path.join(path_data, 'options.yml')
 
 paths_config = {
-    ('CNAME',        os.path.join(path_docs)),
-    ('Gemfile',      os.path.join(path_docs)),
-    ('Gemfile.lock', os.path.join(path_docs)),
-    ('_config.yml',  os.path.join(path_docs)),
-    ('default.html', os.path.join(path_docs, '_layouts')),
-    ('main.css',     os.path.join(path_docs, 'assets', 'css'))
+    ('CNAME',        os.path.join(path_help_web)),
+    ('Gemfile',      os.path.join(path_help_web)),
+    ('Gemfile.lock', os.path.join(path_help_web)),
+    ('_config.yml',  os.path.join(path_help_web)),
+    ('default.html', os.path.join(path_help_web, '_layouts')),
+    ('main.css',     os.path.join(path_help_web, 'assets', 'css'))
 }
 
 
@@ -167,13 +171,13 @@ os.chdir(path_root)
 
 if CLEAR_OLD_DOCS:
     # get online docs folder ready
-    if os.path.exists(path_docs):
+    if os.path.exists(path_help_web):
         # clear out old online docs
-        delete_all(path_docs)
+        delete_all(path_help_web)
 
-if not os.path.exists(path_docs):
+if not os.path.exists(path_help_web):
     # create folder for online docs
-    os.mkdir(path_docs)
+    os.mkdir(path_help_web)
 if not os.path.exists(path_data):
     # create jekyll _data folder for variables
     os.mkdir(path_data)
@@ -185,23 +189,23 @@ if PROCESS_MARKDOWN:
         print(f'Processing: {fn}')
         mdown = read_file(fn)
         mdown = process_mdown(mdown)
-        write_file(os.path.join(path_docs, fn), mdown)
+        write_file(os.path.join(path_help_web, fn), mdown)
 
 if COPY_IMAGES:
     # copy over PNG files (except for thumbnails)
-    os.chdir(path_help)
+    os.chdir(path_help_images)
     for fn in glob.glob('*.png'):
         if fn.endswith('.thumb.png'): continue
         print(f'Copying: {fn}')
-        shutil.copyfile(fn, os.path.join(path_docs, fn))
+        shutil.copyfile(fn, os.path.join(path_help_web_images, fn))
     os.chdir(path_icons)
     for fn in glob.glob('*.png'):
         if fn.endswith('.thumb.png'): continue
         print(f'Copying: {fn}')
-        shutil.copyfile(fn, os.path.join(path_docs, fn))
+        shutil.copyfile(fn, os.path.join(path_help_web_images, fn))
 
 # copy docs config files
-os.chdir(path_docs_config)
+os.chdir(path_help_web_config)
 for fn, path in paths_config:
     if not os.path.exists(path):
         os.makedirs(path)

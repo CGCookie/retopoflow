@@ -1,4 +1,4 @@
-# ![](knife-icon.png) Knife Help
+# ![](images/knife-icon.png) Knife Help
 
 Shortcut: {{knife tool}}
 
@@ -6,7 +6,7 @@ Quick Shortcut: {{knife quick}}
 
 The Knife tool allows you to cut into the existing geometry similarly to Blender's Knife tool.
 
-![](help_knife.png)
+![](images/help_knife.png)
 
 Note: the Knife tool will only cut into existing geometry; it will not create new vertices, edges, or faces.
 
@@ -23,7 +23,6 @@ Note: an existing face will not be split until there are distinct entrance and e
 Until the face can split, the created vertices and edges will be non-manifold (possibly detached) geometry.
 
 
-<!-- ![](help_polypen.png) -->
 
 ## Creating
 

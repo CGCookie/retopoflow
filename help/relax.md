@@ -1,4 +1,4 @@
-# ![](relax-icon.png) Relax Help
+# ![](images/relax-icon.png) Relax Help
 
 Shortcut: {{relax tool}}
 
@@ -7,7 +7,7 @@ Quick Shortcut: {{relax quick}}
 
 The Relax tool allows you to easily relax the vertex positions using a brush.
 
-![](help_relax.png)
+![](images/help_relax.png)
 
 ## Transforming
 

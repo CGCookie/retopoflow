@@ -1,4 +1,4 @@
-# ![](strokes-icon.png) Strokes Help 
+# ![](images/strokes-icon.png) Strokes Help 
 
 Shortcut: {{strokes tool}}
 
@@ -6,7 +6,7 @@ Shortcut: {{strokes tool}}
 The Strokes tool helps fill in holes in your topology.
 This tool lets you insert edge strips and extruding edges by brushing a stroke on the source.
 
-![](help_strokes.png)
+![](images/help_strokes.png)
 
 ## Creating
 
@@ -53,7 +53,7 @@ This means that a smaller brush will insert more, smaller spans, and a larger br
 
 If the Span Insert Mode is set to Fixed, the number of spans will be exactly equal to the number specified by Fixed spans.
 
-![](help_strokes_modes_options_pie.png max-height:250px)
+![](images/help_strokes_modes_options_pie.png max-height:250px)
 
 
 ## Tips

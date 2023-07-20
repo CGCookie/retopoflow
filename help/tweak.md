@@ -1,4 +1,4 @@
-# ![](tweak-icon.png) Tweak Help
+# ![](images/tweak-icon.png) Tweak Help
 
 Shortcut: {{tweak tool}}
 
@@ -7,7 +7,7 @@ Quick Shortcut: {{tweak quick}}
 
 The Tweak tool allows you to easily adjust vertex positions with a brush.
 
-![](help_tweak.png)
+![](images/help_tweak.png)
 
 ## Transforming
 

@@ -6,7 +6,7 @@ The tools work because of our custom "Retopology Mode", which gets more informat
 
 <label class="not-online"><input type="checkbox" checked="BoundBool('''options['welcome']''')">Show this Welcome note when RetopoFlow starts</label>
 
-![feature](retopoflow_3_feature.png)
+![feature](images/retopoflow_3_feature.png)
 
 ## Getting Started
 

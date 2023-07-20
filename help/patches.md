@@ -1,4 +1,4 @@
-# ![](patches-icon.png) Patches Help
+# ![](images/patches-icon.png) Patches Help
 
 Shortcut: {{patches tool}}
 
@@ -6,7 +6,7 @@ Shortcut: {{patches tool}}
 The Patches tool helps fill in holes in your topology.
 Select the strip of boundary edges that you wish to fill.
 
-![](help_patches.png)
+![](images/help_patches.png)
 
 ## Creating
 

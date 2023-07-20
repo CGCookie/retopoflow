@@ -1,4 +1,4 @@
-# ![](select-icon.png) Select Help
+# ![](images/select-icon.png) Select Help
 
 Shortcut: {{select tool}}
 
@@ -8,7 +8,7 @@ The select tool allows you to box select vertices.
 
 Note: This tool is very basic at the moment.
 
-![](help_select.png)
+![](images/help_select.png)
 
 
 ## Selecting

@@ -5,7 +5,7 @@ This documentation covers the installation and usage of all tools included in th
 
 You can purchase a copy of RetopoFlow [on the Blender Market](https://blendermarket.com/products/retopoflow). 
 
-![Blender Market](blendermarket_screenshot.png)
+![Blender Market](images/blendermarket_screenshot.png)
 
 If you’re brand new to RetopoFlow, check the [Quick Start page](quick_start.md). Otherwise, jump right over to the Tools section.
 
@@ -39,7 +39,7 @@ _If your browser auto-extracted the downloaded zip file, then you will need to r
 Once installed, Blender should automatically filter the list of add-ons to show only RetopoFlow.
 You can then enable the add-on by clicking the checkbox next to `3D View: RetopoFlow`.
 
-![Installing RetopoFlow](install.png)
+![Installing RetopoFlow](images/install.png)
 
 If you have any issues with installing, please try the following steps:
 

@@ -1,0 +1,3 @@
+warning_max_sources: '1m'
+warning_max_target: '20k'
+rf_version: 3.4.0α
