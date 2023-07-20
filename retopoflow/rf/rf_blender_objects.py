@@ -110,6 +110,10 @@ class RetopoFlow_Blender_Objects:
             del obj['RetopoFlow']
 
     @staticmethod
+    def any_marked_sources_target():
+        return any('RetopoFlow' in obj for obj in bpy.data.objects)
+
+    @staticmethod
     def get_sources_target_mark(obj):
         if 'RetopoFlow' not in obj: return None
         return obj['RetopoFlow']

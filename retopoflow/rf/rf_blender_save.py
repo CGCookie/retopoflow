@@ -78,6 +78,7 @@ class RetopoFlow_Blender_Save:
     def can_recover():
         if retopoflow_datablocks['rotate object'] in bpy.data.objects: return True
         if sessionoptions.has_active_session_data(): return True
+        if RetopoFlow_Blender_Objects.any_marked_sources_target(): return True
         return False
 
     @staticmethod
@@ -91,6 +92,7 @@ class RetopoFlow_Blender_Save:
                 do_unlink=True,
             )
 
+        # restore blender settings
         if sessionoptions.has_session_data():
             data = dict(sessionoptions['blender'])
             print(f'RetopoFlow: Restoring Session Data')
@@ -128,6 +130,9 @@ class RetopoFlow_Blender_Save:
                     pass
 
             sessionoptions.clear()
+
+        # unmark all objects
+        RetopoFlow_Blender_Objects.unmark_sources_target()
 
         # # grab previous blender state
         # if options['blender state'] in bpy.data.texts:
