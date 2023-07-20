@@ -11,10 +11,10 @@ To start retopologizing for the first time:
 
 1. Switch to Object mode
 2. Click on the "RetopoFlow" menu
-3. Either click the "RF: New target at Cursor"or "RF: New target at Active" menu item
+3. Either click the "+ Cursor" or "+ Active" buttons next to "New"
 
-    - "RF: New target at Cursor" will create a new target mesh located and oriented by the 3D Cursor.
-    - "RF: New target at Active" will create a new target mesh located and oriented by the active source mesh.
+    - "+ Cursor" will create a new target mesh located and oriented by the 3D Cursor.
+    - "+ Active" will create a new target mesh located and oriented by the active source mesh.
     - Note: RetopoFlow follows Blender's convention where symmetry is based on the origin of the object.
 
 ![](start_rf_create_new_target.png)

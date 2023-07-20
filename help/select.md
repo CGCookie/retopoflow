@@ -8,6 +8,9 @@ The select tool allows you to box select vertices.
 
 Note: This tool is very basic at the moment.
 
+![](help_select.png)
+
+
 ## Selecting
 
 |  |  |  |

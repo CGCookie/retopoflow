@@ -39,6 +39,7 @@ Our small team works hard at making RetopoFlow the best retopology tool you can 
 
 Below is a list of known issues that we are currently working on.
 
+- RF causes Blender to crash on a small number of machines.
 - UI can take about a split second to register hovering or clicking.
 - UI wrapping is not quite correct.
 - Patches supports only basic fills.
@@ -47,7 +48,6 @@ Below is a list of known issues that we are currently working on.
 - RF does not allow execution of other add-ons, pie menus, Blender operators, etc.
 - RF does not work correctly with more than one 3D View.
 - Some non-mesh objects and some modifiers do not work well with RetopoFlow.
-
     - Non-mesh objects appear to scale too big or too small
     - Modifiers cause output to appear incorrect
 

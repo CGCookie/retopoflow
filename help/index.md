@@ -12,11 +12,14 @@ If you’re brand new to RetopoFlow, check the [Quick Start page](quick_start.md
 
 ## Requirements
 
-RetopoFlow 2.0.3 will work on Blender 2.79 or before.
+Below is a table showing which versions of RetopoFlow and Blender are compatible.
 
-RetopoFlow v3.2.4 will work with Blender 2.8x and Blender 2.9x.
-
-RetopoFlow v3.2.5 and later requires Blender 2.93+ and Blender 3.x.
+| RetopoFlow |    Blender     |
+| ---------- | -------------- |
+|   3.4.0    | 3.6 or later   |
+|   3.3.0    | 2.93--3.5      |
+|   3.2.4    | 2.8x--2.9x     |
+|   2.0.3    | 2.79 or before |
 
 All versions of RetopoFlow will work on any operating system the Blender supports.
 
