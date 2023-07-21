@@ -65,6 +65,9 @@ a:hover {
 th, td {
     border: 0px;
 }
+th {
+    color: #888;
+}
 
 
 /* undo theme styling on header and footer */

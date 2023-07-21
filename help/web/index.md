@@ -1,7 +1,6 @@
 # Intro
 
-RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Orange Turbine](https://orangeturbine.com).
-These tools automatically generates geometry which snap to your source objects as you draw on the surface.
+RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Orange Turbine](https://orangeturbine.com) that generate geometry which snap to your high poly objects as you draw on the surface.
 
 This documentation covers the installation and usage of all tools included in the add-on.
 
@@ -75,7 +74,7 @@ If you have any issues with installing, please try the following steps:
 
 RetopoFlow 3 comes with a built-in updater.
 Once you've installed it the first time, simply check for updates using the RetopoFlow menu.
-If you need to update the add-on manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version. 
+If you need to update the add-on manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.
 
 The RetopoFlow updater will keep all of your previous settings intact.
 If you need to update manually for whatever reason, you can also keep your preferences by copying the `RetopoFlow_keymaps.json` and `RetopoFlow_options.json` files from the previous version's folder before installation and pasting them into the new version's folder after installation.
