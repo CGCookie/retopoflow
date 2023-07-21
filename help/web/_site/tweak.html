@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Tweak Help | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.0" />
+<meta property="og:title" content="Tweak Help" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/tweak.html" />
+<meta property="og:url" content="http://localhost:4000/tweak.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Tweak Help" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Tweak Help","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/tweak.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=03503ebdb6f79ec0707c3952a1770ce2bce12fe2">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+
+        <ul>
+          <li><a href="table_of_contents.html">Table of Contents</a></li>
+          <li><a href="welcome.html">Welcome</a></li>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">General</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="select.html">Select</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="patches.html">Patches</a></li>
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="knife.html">Knife</a></li>
+          <li><a href="loops.html">Loops</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="-tweak-help"><img src="/images/tweak-icon.png" alt="" /> Tweak Help</h1>
+
+<p>Shortcut: <code>7</code>, <code>Ctrl+Alt+G</code></p>
+
+<p>Quick Shortcut: <code>C</code></p>
+
+<p>The Tweak tool allows you to easily adjust vertex positions with a brush.</p>
+
+<p><img src="/images/help_tweak.png" alt="" /></p>
+
+<h2 id="transforming">Transforming</h2>
+
+<table>
+  <tbody>
+    <tr>
+      <td><code>LMB</code>, <code>LMB+Double</code>, <code>LMB+Drag</code></td>
+      <td>:</td>
+      <td>tweak all vertices within brush</td>
+    </tr>
+    <tr>
+      <td><code>Shift+LMB</code>, <code>Shift+LMB+Double</code>, <code>Shift+LMB+Drag</code></td>
+      <td>:</td>
+      <td>tweak only selected vertices within brush</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="changing-brush-options">Changing Brush Options</h2>
+
+<table>
+  <tbody>
+    <tr>
+      <td><code>F</code></td>
+      <td>:</td>
+      <td>adjust brush size</td>
+    </tr>
+    <tr>
+      <td><code>Shift+F</code></td>
+      <td>:</td>
+      <td>adjust brush strength</td>
+    </tr>
+    <tr>
+      <td><code>Ctrl+F</code></td>
+      <td>:</td>
+      <td>adjust brush falloff</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>These options can also be stored as presets in the Brush Options panel.</p>
+
+<p>To quickly switch between presets, use the <code>Shift+Q</code>, <code>~</code> pie menu.</p>
+
+<h2 id="masking">Masking</h2>
+
+<p>Tweak has several options to control which vertices are or are not moved.
+Each option is below, along with setting and description.</p>
+
+<h3 id="boundary">Boundary</h3>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Exclude</td>
+      <td>:</td>
+      <td>Tweak vertices not along boundary</td>
+    </tr>
+    <tr>
+      <td>Slide</td>
+      <td>:</td>
+      <td>Tweak vertices along boundary, but move them by sliding along boundary</td>
+    </tr>
+    <tr>
+      <td>Include</td>
+      <td>:</td>
+      <td>Tweak all vertices within brush, regardless of being along boundary</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="symmetry">Symmetry</h3>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Exclude</td>
+      <td>:</td>
+      <td>Tweak vertices not along symmetry plane</td>
+    </tr>
+    <tr>
+      <td>Slide</td>
+      <td>:</td>
+      <td>Tweak vertices along symmetry plane, but move them by sliding along symmetry plane</td>
+    </tr>
+    <tr>
+      <td>Include</td>
+      <td>:</td>
+      <td>Tweak all vertices within brush, regardless of being along symmetry plane</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="hidden">Hidden</h3>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Exclude</td>
+      <td>:</td>
+      <td>Tweak only visible vertices</td>
+    </tr>
+    <tr>
+      <td>Include</td>
+      <td>:</td>
+      <td>Tweak all vertices within brush, regardless of visibility</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="selected">Selected</h3>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Exclude</td>
+      <td>:</td>
+      <td>Tweak only unselected vertices</td>
+    </tr>
+    <tr>
+      <td>Only</td>
+      <td>:</td>
+      <td>Tweak only selected vertices</td>
+    </tr>
+    <tr>
+      <td>All</td>
+      <td>:</td>
+      <td>Tweak all vertices within brush, regardless of selection</td>
+    </tr>
+  </tbody>
+</table>
+
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>

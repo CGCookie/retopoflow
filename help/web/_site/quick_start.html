@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>RetopoFlow Quick Start Guide | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.0" />
+<meta property="og:title" content="RetopoFlow Quick Start Guide" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/quick_start.html" />
+<meta property="og:url" content="http://localhost:4000/quick_start.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="RetopoFlow Quick Start Guide" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"RetopoFlow Quick Start Guide","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/quick_start.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=03503ebdb6f79ec0707c3952a1770ce2bce12fe2">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+
+        <ul>
+          <li><a href="table_of_contents.html">Table of Contents</a></li>
+          <li><a href="welcome.html">Welcome</a></li>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">General</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="select.html">Select</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="patches.html">Patches</a></li>
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="knife.html">Knife</a></li>
+          <li><a href="loops.html">Loops</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="retopoflow-quick-start-guide">RetopoFlow Quick Start Guide</h1>
+
+<p>This guide will help you get started with RetopoFlow 3.4.0α. More detailed help is available by pressing <code>F1</code> after you start RetopoFlow.</p>
+
+<p>You can also watch the full RetopoFlow 3 course for free on CG Cookie: 
+<a href="https://cgcookie.com/courses/retopology-with-retopoflow-3">cgcookie.com/courses/retopology-with-retopoflow-3</a></p>
+
+<h2 id="the-short-short-version">The Short, Short Version</h2>
+
+<p>To start retopologizing for the first time:</p>
+
+<ol>
+  <li>Switch to Object mode</li>
+  <li>Click on the “RetopoFlow” menu</li>
+  <li>
+    <p>Either click the “+ Cursor” or “+ Active” buttons next to “New”</p>
+
+    <ul>
+      <li>”+ Cursor” will create a new target mesh located and oriented by the 3D Cursor.</li>
+      <li>”+ Active” will create a new target mesh located and oriented by the active source mesh.</li>
+      <li>Note: RetopoFlow follows Blender’s convention where symmetry is based on the origin of the object.</li>
+    </ul>
+  </li>
+</ol>
+
+<p><img src="/images/start_rf_create_new_target.png" alt="" /></p>
+
+<p>To continue working on a previous retopology session:</p>
+
+<ol>
+  <li>Select the low-poly retopo target mesh</li>
+  <li>Switch to Edit Mode</li>
+  <li>Either click on the triangle over square button next to the “RetopoFlow” menu or choose one of the tools from the dropdown menu</li>
+</ol>
+
+<p><img src="/images/start_rf_quickstart.png" alt="" /></p>
+
+<p><img src="/images/start_rf_tool.png" alt="" /></p>
+
+<h2 id="other-help">Other Help</h2>
+
+<p>The following documents provide additional help.</p>
+
+<ul>
+  <li><a href="/table_of_contents.html">Table of Contents</a></li>
+  <li><a href="/welcome.html">A Welcome to You from Us</a></li>
+  <li><a href="/general.html">General RetopoFlow Help</a></li>
+</ul>
+
+<h2 id="terminology">Terminology</h2>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Source Object(s)</td>
+      <td>:</td>
+      <td>The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode)</td>
+    </tr>
+    <tr>
+      <td>Target Object</td>
+      <td>:</td>
+      <td>The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="target-and-source-objects">Target and Source Objects</h2>
+
+<ul>
+  <li>In RetopoFlow 1.x you were required to select the source and target objects explicitly.</li>
+  <li>In RetopoFlow 2.x you were required to have the target mesh active, selected, and visible, with all other visible meshes considered as sources.</li>
+  <li>In RetopoFlow 3.x the target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.</li>
+</ul>
+
+<p>Any mesh object that is visible and not the target object is considered a source object.
+This means that you can hide or move objects to different scenes to change which source objects will be retopologized.</p>
+
+<p>Note: only newly created or edited target geometry will snap to the source, but you can snap the target vertices to the nearest surface point in Options &gt; General &gt; Target Cleaning &gt; Snap Verts.</p>
+
+<h2 id="retopoflow-mode">RetopoFlow Mode</h2>
+
+<p>Notes about earlier version: the tools in RetopoFlow 1.x were set of disjointed tools, where you would need to quit one tool in order to start another.
+Also, because we wrote RF 1.x tools separately, the visualizations and settings were not consistent.
+Furthermore, the only indication that a tool was running in RetopoFlow 1.x was a small “Click for Help” button in the top-right corner, which is easily missed.</p>
+
+<p>In RetopoFlow 2.x, we completely rewrote the framework so that RF acts like any other Blender mode (like Edit Mode, Sculpt Mode, Vertex Paint Mode).
+Choosing one of the tools from the RetopoFlow panel will start RetopoFlow Mode with the chosen tool selected.</p>
+
+<p>Although the underlying framework has changed significantly, RetopoFlow 3.x uses a similar workflow to RetopoFlow 2.x.</p>
+
+<p>When RetopoFlow Mode is enabled, all parts of Blender outside the 3D view will be darkened (and disabled) and windows will be added to the 3D view.
+These windows allow you to switch between RF tools, set tool options, and get more information.
+Also, a one-time Welcome message will greet you.</p>
+
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>
