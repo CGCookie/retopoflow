@@ -41,9 +41,7 @@ bl_info = {
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",
-    "category":     "3D View",
-    "warning":      "Alpha",
-}
+    "category":     "3D View",}
 
 # update bl_info above based on hive data
 from .addon_common.hive.hive import Hive
