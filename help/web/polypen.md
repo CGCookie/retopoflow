@@ -31,6 +31,8 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 | {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
 | {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
 | {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
+| {{ site.data.keymaps.rotate }}           | : | rotate selected geometry |
+| {{ site.data.keymaps.scale }}            | : | scale selected geometry |
 
 ## Other
 

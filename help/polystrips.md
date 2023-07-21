@@ -58,4 +58,6 @@ The following actions apply to when the mouse is hovering over control points of
 
 |  |  |  |
 | --- | --- | --- |
-| {{delete}} | : | delete/dissolve/collapse selected |
+| {{delete}}   | : | delete/dissolve/collapse selected |
+| {{rip}}      | : | rip selected edge |
+| {{rip fill}} | : | rip and fill selected edge |

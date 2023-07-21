@@ -36,3 +36,11 @@ The Loops tool also works on any strip of edges.
 | {{slide}}  | : | slide loop |
 | {{action}} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |
 | {{smooth edge flow}} | : | smooths edge flow of selected geometry |
+
+## Other
+
+|  |  |  |
+| --- | --- | --- |
+| {{delete}}   | : | delete/dissolve/collapse selected |
+| {{rip}}      | : | rip selected edge |
+| {{rip fill}} | : | rip and fill selected edge |

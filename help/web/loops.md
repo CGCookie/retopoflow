@@ -37,3 +37,11 @@ The Loops tool also works on any strip of edges.
 | {{ site.data.keymaps.action }} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |
 | {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
 
+## Other
+
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
+

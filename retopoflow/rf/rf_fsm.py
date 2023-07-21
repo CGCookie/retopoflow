@@ -341,6 +341,11 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
             if self.actions.pressed('scale'):
                 return 'scale selected'
 
+            if self.actions.pressed('rip'):
+                return self.rip(fill=False)
+            if self.actions.pressed('rip fill'):
+                return self.rip(fill=True)
+
     @FSM.on_state('quick switch', 'enter')
     def quick_switch_enter(self):
         self._quick_switch_wait = 2
@@ -803,4 +808,138 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
         self.fast_update_timer.stop()
         self.clear_split_target_visualization()
         self.set_accel_defer(False)
+
+
+    def rip(self, *, fill=False):
+        # find highest order geometry selected
+        # - faces: error
+        # - edges: for each selected edge, find nearest adjacent face to mouse cursor and rip edge from other face
+        # - verts: for each selected vert, find nearest adjacent edge to mouse cursor and rip vert from faces not adjacent to that edge
+        sel_verts, sel_edges, sel_faces = self.get_selected_geom()
+
+        if sel_faces:
+            self.alert_user('Can only rip a single edge, but a face is selected')
+            return
+
+        if not sel_edges and not sel_verts:
+            self.alert_user('Can only rip a single edge, but none are selected')
+            return
+
+        if sel_verts and not sel_edges:
+            self.alert_user('Ripping vertices is not supported yet')
+            return
+
+        if sel_edges and len(sel_edges) > 1:
+            # a temporary limitation
+            self.alert_user('Ripping more than one selected edge is not supported yet')
+            return
+
+        if not sel_edges:
+            self.alert_user('Must have exactly one edge selected at the moment')
+            return
+
+
+        # working with first selected edge (current implementation limitation)
+        bme = next(iter(sel_edges))
+
+        adj_faces = set(bme.link_faces)
+        if len(adj_faces) < 2:
+            self.alert_user('Edge must have at least two adjacent faces')
+            return
+
+        bmv0, bmv1 = bme.verts
+        nearest_face, _ = self.accel_nearest2D_face(faces_only=adj_faces)
+        other_face = next(iter({bmf for bmf in bme.link_faces if bmf != nearest_face}), None)
+
+        self.undo_push('rip edge')
+        if True:
+            bmv2 = bmv0.face_separate(nearest_face)
+            bmv3 = bmv1.face_separate(nearest_face)
+            move_verts = [bmv2, bmv3]
+        else:
+            bmv2 = bmv0.face_separate(other_face)
+            bmv3 = bmv1.face_separate(other_face)
+            move_verts = [bmv0, bmv1]
+        self.select(move_verts, only=True)
+
+        if fill:
+            # only implemented simple fill for now
+            self.new_face([bmv0, bmv1, bmv3, bmv2])
+
+        # self.undo_push('move ripped edge')
+        self.prep_move(
+            bmverts=move_verts,
+            action_confirm=(lambda: self.actions.pressed({'confirm', 'confirm drag'})),
+        )
+        return 'move'
+
+
+    def prep_move(self, *, bmverts=None, action_confirm=None, action_cancel=None, defer_recomputing=True):
+        Point_to_Point2D = self.Point_to_Point2D
+        self.move_settings = Dict(
+            bmverts_xys = [
+                (bmv, xy)
+                for bmv in (bmverts if bmverts is not None else self.get_selected_verts())
+                if bmv and bmv.is_valid and (xy := Point_to_Point2D(bmv.co)) is not None
+            ],
+            actions = Dict(
+                confirm=action_confirm or (lambda: self.actions.pressed('confirm')),
+                cancel=action_cancel  or (lambda: self.actions.pressed('cancel')),
+            ),
+            mousedown = self.actions.mouse,
+            last_delta = None,
+            vis_accel = self.get_accel_visible(selected_only=False),
+        )
+        self.move_settings.bmverts = [bmv for (bmv,_) in self.move_settings.bmverts_xys]
+
+    @FSM.on_state('move', 'enter')
+    def move_enter(self):
+        # if not self.move_done_released and options['hide cursor on tweak']: self.set_widget('hidden')
+        if options['hide cursor on tweak']: Cursors.set('NONE')
+        self.split_target_visualization_selected()
+        self.fast_update_timer.start()
+        self.set_accel_defer(True)
+
+    @FSM.on_state('move')
+    def modal_move(self):
+        if self.move_settings.actions['confirm']():
+            if options['automerge']:
+                self.merge_verts_by_dist(self.move_settings.bmverts, options['merge dist'])
+            return 'main'
+
+        if self.move_settings.actions['cancel']():
+            self.undo_cancel()
+            return 'main'
+
+        delta = Vec2D(self.actions.mouse - self.move_settings.mousedown)
+        if delta == self.move_settings.last_delta: return
+        self.move_settings.last_delta = delta
+        set2D_vert = self.set2D_vert
+
+        for bmv,xy in self.move_settings.bmverts_xys:
+            xy_updated = xy + delta
+            # check if xy_updated is "close" to any visible verts (in image plane)
+            # if so, snap xy_updated to vert position (in image plane)
+            if options['automerge']:
+                bmv1,d = self.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_settings.vis_accel, max_dist=options['merge dist'])
+                if bmv1 is None:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                xy1 = self.Point_to_Point2D(bmv1.co)
+                if not xy1:
+                    set2D_vert(bmv, xy_updated)
+                    continue
+                set2D_vert(bmv, xy1)
+            else:
+                set2D_vert(bmv, xy_updated)
+
+        self.update_verts_faces(self.move_settings.bmverts)
+        self.dirty()
+        tag_redraw_all('move update')
+
+    @FSM.on_state('move', 'exit')
+    def move_exit(self):
+        self.fast_update_timer.stop()
+        self.set_accel_defer(False)
+        self.clear_split_target_visualization()
 

@@ -149,13 +149,6 @@ class PolyPen(RFTool, PolyPen_Insert):
             ], callback, highlighted=options['polypen insert mode'])
             return
 
-        if self.actions.pressed('rip'):
-            self._rip_fill = False
-            return 'rip'
-        if self.actions.pressed('rip fill'):
-            self._rip_fill = True
-            return 'rip'
-
         if self.nearest_geom and self.nearest_geom.select and self.actions.pressed('action'):
             self.rfcontext.undo_push('grab')
             self.prep_move(
@@ -204,73 +197,6 @@ class PolyPen(RFTool, PolyPen_Insert):
             return
 
 
-    @FSM.on_state('rip')
-    def rip(self):
-        # find highest order geometry selected
-        # - faces: error
-        # - edges: for each selected edge, find nearest adjacent face to mouse cursor and rip edge from other face
-        # - verts: for each selected vert, find nearest adjacent edge to mouse cursor and rip vert from faces not adjacent to that edge
-
-        if self.sel_faces:
-            self.rfcontext.alert_user('Can only rip a single edge, but a face is selected')
-            return 'main'
-
-        if not self.sel_edges and not self.sel_verts:
-            self.rfcontext.alert_user('Can only rip a single edge, but none are selected')
-            return 'main'
-
-        if self.sel_verts and not self.sel_edges:
-            self.rfcontext.alert_user('Ripping vertices is not supported yet')
-            return 'main'
-
-        if self.sel_edges and len(self.sel_edges) > 1:
-            # a temporary limitation
-            self.rfcontext.alert_user('Ripping more than one selected edge is not supported yet')
-            return 'main'
-
-        if self.sel_edges:
-            # working with first selected edge (current implementation limitation)
-            bme = next(iter(self.sel_edges))
-
-            adj_faces = set(bme.link_faces)
-            if len(adj_faces) < 2:
-                self.rfcontext.alert_user('Edge must have at least two adjacent faces')
-                return 'main'
-
-            bmv0, bmv1 = bme.verts
-            nearest_face, _ = self.rfcontext.accel_nearest2D_face(faces_only=adj_faces)
-            other_face = next(iter({bmf for bmf in bme.link_faces if bmf != nearest_face}), None)
-
-            self.rfcontext.undo_push('rip edge')
-            if True:
-                bmv2 = bmv0.face_separate(nearest_face)
-                bmv3 = bmv1.face_separate(nearest_face)
-                move_verts = [bmv2, bmv3]
-            else:
-                bmv2 = bmv0.face_separate(other_face)
-                bmv3 = bmv1.face_separate(other_face)
-                move_verts = [bmv0, bmv1]
-            self.rfcontext.select(move_verts, only=True)
-
-            if self._rip_fill:
-                # only implemented simple fill for now
-                self.rfcontext.new_face([bmv0, bmv1, bmv3, bmv2])
-
-            # self.rfcontext.undo_push('move ripped edge')
-            self.prep_move(
-                bmverts=move_verts,
-                action_confirm=(lambda: self.actions.pressed({'confirm', 'confirm drag'})),
-            )
-            return 'move'
-
-        return 'main'
-
-    @FSM.on_state('rip fill')
-    def rip_fill(self):
-        self.rfcontext.undo_push('rip fill')
-        return 'main' # 'move'
-
-
     @FSM.on_state('move after select')
     def modal_move_after_select(self):
         if self.actions.released('action'):
@@ -310,8 +236,7 @@ class PolyPen(RFTool, PolyPen_Insert):
     def modal_move(self):
         if self.move_actions['confirm']():
             self.defer_recomputing = False
-            merge_dist = self.rfcontext.drawing.scale(options['polypen merge dist'])
-            self.rfcontext.merge_verts_by_dist(self.bmverts, merge_dist)
+            self.rfcontext.merge_verts_by_dist(self.bmverts, options['polypen merge dist'])
             return 'main'
 
         if self.move_actions['cancel']():

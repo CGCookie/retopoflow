@@ -86,6 +86,8 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{ site.data.keymaps.grab }}                                       | : | grab and move selected geometry |
 | {{ site.data.keymaps.rotate }}                                     | : | rotate selected geometry |
 | {{ site.data.keymaps.scale }}                                      | : | scale selected geometry |
+| {{ site.data.keymaps.rip }}                                        | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }}                                   | : | rip and fill selected edge |
 | {{ site.data.keymaps.smooth_edge_flow }}                           | : | smooths edge flow of selected geometry |
 | {{ site.data.keymaps.delete }}                                     | : | delete / dissolve dialog |
 | {{ site.data.keymaps.delete_pie_menu }}                            | : | delete / dissolve pie menu

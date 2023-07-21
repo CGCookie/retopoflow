@@ -58,5 +58,7 @@ The following actions apply to when the mouse is hovering over control points of
 
 
 | :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }} | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
 

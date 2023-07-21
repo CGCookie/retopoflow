@@ -18,3 +18,15 @@ Note: This tool is very basic at the moment.
 | {{select box}}     | : | box select vertices |
 | {{select box del}} | : | remove vertices from selection |
 | {{select box add}} | : | add vertices to selection |
+
+
+## General
+
+|  |  |  |
+| --- | --- | --- |
+| {{grab}}     | : | grab and move selected geometry |
+| {{rotate}}   | : | rotate selected geometry |
+| {{scale}}    | : | scale selected geometry |
+| {{delete}}   | : | delete/dissolve/collapse selected |
+| {{rip}}      | : | rip selected edge |
+| {{rip fill}} | : | rip and fill selected edge |

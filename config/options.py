@@ -350,7 +350,8 @@ class Options:
         # GENERAL SETTINGS
 
         'smooth edge flow iterations':  10,
-
+        'automerge':                    True,
+        'merge dist':                   10,     # pixels away to merge
 
         #######################################
         # TOOL SETTINGS
@@ -382,9 +383,9 @@ class Options:
         'knife merge dist':             10,         # pixels away to merge
         'knife snap dist':              5,          # pixels away to snap
 
+        'polypen automerge':            True,
         'polypen merge dist':           10,         # pixels away to merge
         'polypen insert dist':          15,         # pixels away for inserting new vertex in existing geo
-        'polypen automerge':            True,
         'polypen insert mode':          'Tri/Quad',
 
         'brush min alpha':              0.10,

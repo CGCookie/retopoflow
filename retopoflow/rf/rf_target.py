@@ -1023,6 +1023,8 @@ class RetopoFlow_Target:
 
         # TODO: remove colocated faces
 
+        if merge_dist is None: return
+
         bmverts = set(bmverts)
         accel_data = self.get_custom_vis_accel(
             selection_only=False,
@@ -1030,7 +1032,7 @@ class RetopoFlow_Target:
             symmetry=False,
         )
         snappable_bmverts = { bmv for bmv in accel_data.verts if bmv not in bmverts }
-        kwargs = { 'max_dist': merge_dist, 'vis_accel': accel_data }
+        kwargs = { 'max_dist': self.drawing.scale(merge_dist), 'vis_accel': accel_data }
         update_verts = []
         for bmv in bmverts:
             if not (xy := self.Point_to_Point2D(bmv.co)): continue

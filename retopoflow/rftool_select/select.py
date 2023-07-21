@@ -204,8 +204,7 @@ class Select(RFTool):
     @FSM.on_state('move')
     def modal_move(self):
         if self.actions.pressed(['confirm', 'confirm drag']):
-            merge_dist = self.rfcontext.drawing.scale(options['select merge dist'])
-            self.rfcontext.merge_verts_by_dist(self.move_data.bmverts, merge_dist)
+            self.rfcontext.merge_verts_by_dist(self.move_data.bmverts, options['select merge dist'])
             return 'main'
         if self.actions.pressed('cancel'):
             self.rfcontext.undo_cancel()
