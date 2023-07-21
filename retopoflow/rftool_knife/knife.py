@@ -78,6 +78,10 @@ class Knife(RFTool, Knife_Insert):
         self.knife_start = None
         self.update_hovered()
 
+    def _fsm_in_main(self):
+        # needed so main actions using Ctrl (ex: undo, redo, save) can still work
+        return self._fsm.state in {'main', 'insert'}
+
     @RFTool.on_reset
     def reset(self):
         self.quickswitch = False
