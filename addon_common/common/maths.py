@@ -1215,15 +1215,17 @@ class BBox:
         return self.max_dim
 
 class BBox2D:
-    def __init__(self, point2Ds):
+    def __init__(self, point2Ds, *, default_min=None, default_max=None):
         if not point2Ds:
             nan = float('nan')
-            self.min = None
-            self.max = None
-            self.mx, self.my = nan, nan
-            self.Mx, self.My = nan, nan
-            self.min_dim = nan
-            self.max_dim = nan
+            self.min, self.max = default_min, default_max
+            self.mx, self.my = default_min or (nan, nan)
+            self.Mx, self.My = default_max or (nan, nan)
+            if self.min is None or self.max is None:
+                self.min_dim, self.max_dim = nan, nan
+            else:
+                self.min_dim = min(self.size_x, self.size_y)
+                self.max_dim = max(self.size_x, self.size_y)
             return
 
         mx, Mx = min(x for (x,_) in point2Ds), max(x for (x,_) in point2Ds)
@@ -1688,27 +1690,21 @@ class Accel2D:
         self._is_face = lambda elem: isinstance(elem, face_type)
         self.bins = {}
 
-        pts = [pt for v in verts for pt in Point_to_Point2Ds(v.co) if pt]
+        # collect all involved pts so we can find bbox
+        vef_pts = [pt for v in verts for pt in Point_to_Point2Ds(v.co) if pt]
         for ef in chain(edges, faces):
             ef_pts_list = zip(*[Point_to_Point2Ds(v.co) for v in ef.verts])
-            for ef_pts in ef_pts_list:
-                if not all(ef_pts): continue
-                pts += ef_pts
-        total_pts = len(pts)
+            vef_pts.extend( pt for ef_pts in ef_pts_list if all(ef_pts) for pt in ef_pts )
+        bbox = BBox2D(vef_pts or [ Point2D((0,0)) ])
 
-        if total_pts:
-            bbox = BBox2D(pts)
-            self.min = Point2D((bbox.mx - self.margin, bbox.my - self.margin))
-            self.max = Point2D((bbox.Mx + self.margin, bbox.My + self.margin))
-        else:
-            self.min = Point2D((0, 0))
-            self.max = Point2D((1, 1))
+        self.min = Point2D((bbox.mx - self.margin, bbox.my - self.margin))
+        self.max = Point2D((bbox.Mx + self.margin, bbox.My + self.margin))
         self.size = self.max - self.min  # includes margin
         self.sizex, self.sizey = self.size
         self.minx, self.miny = self.min
-        sz = max(1, ceil(sqrt(total_pts)))
-        self.bin_cols, self.bin_rows = sz, sz
+        self.bin_len = ceil(sqrt(len(vef_pts)) + 0.1)
 
+        # debug variables
         tot_inserted = 0
         max_spread = 1
 
@@ -1735,10 +1731,11 @@ class Accel2D:
                         self._put((i, j), ef)
 
         if False:
+            # debug reporting
             def get_index(s, v, m, M): return clamp(int(len(s) * (v - m) / max(1, M - m)), 0, len(s) - 1)
             fill_max = max((len(b) for b in self.bins.values()), default=0)
             fill_min = min((len(b) for b in self.bins.values()), default=0)
-            distribution = [0] * min(100, self.bin_cols * self.bin_rows)
+            distribution = [0] * min(100, self.bin_len * self.bin_len)
             for b in self.bins.values():
                 distribution[get_index(distribution, len(b), fill_min, fill_max)] += 1
             filling_max = max(distribution)
@@ -1748,7 +1745,7 @@ class Accel2D:
             term_printer.boxed(
                 f'Counts: v={len(self.verts)} e={len(self.edges)} f={len(self.faces)}  (total pts={total_pts}, ins={tot_inserted})',
                 f'Size: min={self.min}, max={self.max} size={self.size}',
-                f'Bins: {self.bin_cols}x{self.bin_rows} non-zero={len(self.bins)}/{self.bin_cols*self.bin_rows} ({100*len(self.bins)/(self.bin_cols*self.bin_rows):0.0f}%)',
+                f'Bins: {self.bin_len}x{self.bin_len} non-zero={len(self.bins)}/{self.bin_len*self.bin_len} ({100*len(self.bins)/(self.bin_len*self.bin_len):0.0f}%)',
                 f'Inserts: total={tot_inserted}, max spread={max_spread}',
                 f'Fill: {fill_min} [{distribution}] {fill_max}',
                 title=f'Accel2D: {label}', color='black', highlight='green',
@@ -1756,14 +1753,14 @@ class Accel2D:
 
     @profiler.function
     def compute_ij(self, v2d):
-        i = int(self.bin_cols * (v2d.x - self.minx) / self.sizex)
-        j = int(self.bin_rows * (v2d.y - self.miny) / self.sizey)
-        i = clamp(i, 0, self.bin_cols - 1)
-        j = clamp(j, 0, self.bin_rows - 1)
+        i = int(self.bin_len * (v2d.x - self.minx) / self.sizex)
+        j = int(self.bin_len * (v2d.y - self.miny) / self.sizey)
+        i = clamp(i, 0, self.bin_len - 1)
+        j = clamp(j, 0, self.bin_len - 1)
         return (i, j)
 
     def _put(self, ij, o):
-        # assert 0 <= ij[0] < self.bin_cols and 0 <= ij[1] < self.bin_rows, f'{ij} is outside {self.bin_cols}x{self.bin_rows}'
+        # assert 0 <= ij[0] < self.bin_len and 0 <= ij[1] < self.bin_len, f'{ij} is outside {self.bin_len}x{self.bin_len}'
         if ij in self.bins: self.bins[ij].add(o)
         else:               self.bins[ij] = { o }
 
