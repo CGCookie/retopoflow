@@ -102,6 +102,8 @@ default_rf_keymaps = {
     'delete': ['X', 'DEL', 'BACK_SPACE'],
     'delete pie menu': ['CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'],
     'smooth edge flow': ['SHIFT+S'],
+    'rip': ['V'],
+    'rip fill': ['ALT+V'],
 
     'hide selected': ['H'],
     'hide unselected': ['SHIFT+H'],
@@ -122,10 +124,6 @@ default_rf_keymaps = {
 
     # knife
     'knife reset': ['E'],
-
-    # polypen
-    'rip': ['V'],
-    'rip fill': ['ALT+V'],
 
     # grease pencil
     'grease clear': ['C'],
