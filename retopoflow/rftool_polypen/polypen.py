@@ -112,7 +112,6 @@ class PolyPen(RFTool, PolyPen_Insert):
     @RFTool.on_events('reset', 'target change', 'view change', 'mouse move')
     @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
-    @RFTool.once_per_frame
     def update_nearest(self):
         self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
         self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], selected_only=True)
@@ -236,13 +235,17 @@ class PolyPen(RFTool, PolyPen_Insert):
     def modal_move(self):
         if self.move_actions['confirm']():
             self.defer_recomputing = False
-            self.rfcontext.merge_verts_by_dist(self.bmverts, options['polypen merge dist'])
+            if options['polypen automerge']:
+                self.rfcontext.merge_verts_by_dist(self.bmverts, options['polypen merge dist'])
             return 'main'
 
         if self.move_actions['cancel']():
             self.defer_recomputing = False
             self.rfcontext.undo_cancel()
             return 'main'
+
+        if self.actions.mousemove:
+            tag_redraw_all('polypen mouse move')
 
     @RFTool.on_mouse_move
     @RFTool.once_per_frame
@@ -259,17 +262,11 @@ class PolyPen(RFTool, PolyPen_Insert):
             # check if xy_updated is "close" to any visible verts (in image plane)
             # if so, snap xy_updated to vert position (in image plane)
             if options['polypen automerge']:
-                bmv1,d = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_vis_accel, max_dist=options['polypen merge dist'])
-                if bmv1 is None:
-                    set2D_vert(bmv, xy_updated)
-                    continue
-                xy1 = self.rfcontext.Point_to_Point2D(bmv1.co)
-                if not xy1:
-                    set2D_vert(bmv, xy_updated)
-                    continue
-                set2D_vert(bmv, xy1)
-            else:
-                set2D_vert(bmv, xy_updated)
+                bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_vis_accel, max_dist=options['polypen merge dist'])
+                if bmv1:
+                    xy_updated = self.rfcontext.Point_to_Point2D(bmv1.co)
+                    print(f'{xy} + {delta} = {xy+delta}, {xy_updated} ({bmv1})')
+            set2D_vert(bmv, xy_updated)
 
         self.rfcontext.update_verts_faces(self.bmverts)
         self.rfcontext.dirty()

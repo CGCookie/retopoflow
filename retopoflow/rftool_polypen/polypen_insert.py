@@ -51,10 +51,24 @@ from ...config.options import options, themes
 
 
 class PolyPen_Insert():
+    @RFTool.on_events('target change')
+    @FSM.onlyinstate('previs insert')
+    @RFTool.not_while_navigating
+    def gather_selection(self):
+        self.sel_verts, self.sel_edges, self.sel_faces = self.rfcontext.get_selected_geom()
+        self.num_sel_verts, self.num_sel_edges, self.num_sel_faces = len(self.sel_verts), len(self.sel_edges), len(self.sel_faces)
+
+    @RFTool.on_events('target change', 'view change')
+    @FSM.onlyinstate('previs insert')
+    @RFTool.not_while_navigating
+    def gather_visible(self):
+        self.vis_verts, self.vis_edges, self.vis_faces = self.rfcontext.get_vis_geom()
 
     @FSM.on_state('previs insert', 'enter')
     def modal_previs_enter(self):
         self.draw_coords = []
+        self.gather_visible()
+        self.gather_selection()
         self.set_next_state()
         self.rfcontext.fast_update_timer.enable(True)
         self.modal_previs_mousemove()
@@ -86,9 +100,8 @@ class PolyPen_Insert():
 
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate('previs insert')
+    @RFTool.not_while_navigating
     def draw_postpixel(self):
-        if self.actions.is_navigating: return
-
         gpustate.blend('ALPHA')
         CC_DRAW.stipple(pattern=[4,4])
         CC_DRAW.point_size(8)
@@ -144,31 +157,28 @@ class PolyPen_Insert():
         determines what the next state will be, based on selected mode, selected geometry, and hovered geometry
         '''
 
-        if not self.actions.mouse:
-            self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
-            self.vis_verts, self.vis_edges, self.vis_faces = [], [], []
-            return
+        self.draw_coords = []
+        self.nearest_vert, self.nearest_edge, self.nearest_face, self.nearest_geom = None, None, None, None
+        self.insert_edge = None
+
+        if not self.actions.mouse: return
+        hit_pos = self.actions.hit_pos
+        if not hit_pos: return
 
         with profiler.code('getting nearest geometry'):
             self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'])
             self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'])
             self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'])
             self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
-            self.vis_verts, self.vis_edges, self.vis_faces = self.rfcontext.get_vis_geom()
-
-        # determine next state based on current selection, hovered geometry
-        num_verts = len(self.sel_verts)
-        num_edges = len(self.sel_edges)
-        num_faces = len(self.sel_faces)
-        self.insert_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen insert dist'])
+            self.insert_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen insert dist'])
 
         if self.insert_edge and self.insert_edge.select:      # overriding: if hovering over a selected edge, knife it!
             self.next_state = 'knife selected edge'
 
         elif options['polypen insert mode'] == 'Tri/Quad':
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            if self.num_sel_verts == 1 and self.num_sel_edges == 0 and self.num_sel_faces == 0:
                 self.next_state = 'vert-edge'
-            elif num_edges and num_faces == 0:
+            elif self.num_sel_edges and self.num_sel_faces == 0:
                 quad_snap = (
                     (not self.nearest_vert and self.nearest_edge) and
                     (len(self.nearest_edge.link_faces) <= 1) and
@@ -179,33 +189,30 @@ class PolyPen_Insert():
                     self.next_state = 'edge-quad-snap'
                 else:
                     self.next_state = 'edge-face'
-            elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+            elif self.num_sel_verts == 3 and self.num_sel_edges == 3 and self.num_sel_faces == 1:
                 self.next_state = 'tri-quad'
             else:
                 self.next_state = 'new vertex'
 
         elif options['polypen insert mode'] == 'Quad-Only':
             # a Desmos construction of how this works: https://www.desmos.com/geometry/bmmx206thi
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            if self.num_sel_verts == 1 and self.num_sel_edges == 0 and self.num_sel_faces == 0:
                 self.next_state = 'vert-edge'
-            elif num_edges:
+            elif self.num_sel_edges:
                 quad_snap = (
                     (not self.nearest_vert and self.nearest_edge) and
                     (len(self.nearest_edge.link_faces) <= 1) and
                     (not any(v in self.sel_verts for v in self.nearest_edge.verts)) and
                     (not any(e in f.edges for v in self.nearest_edge.verts for f in v.link_faces for e in self.sel_edges))
                 )
-                if quad_snap:
-                    self.next_state = 'edge-quad-snap'
-                else:
-                    self.next_state = 'edge-quad'
+                self.next_state = 'edge-quad-snap' if quad_snap else 'edge-quad'
             else:
                 self.next_state = 'new vertex'
 
         elif options['polypen insert mode'] == 'Tri-Only':
-            if num_verts == 1 and num_edges == 0 and num_faces == 0:
+            if self.num_sel_verts == 1 and self.num_sel_edges == 0 and self.num_sel_faces == 0:
                 self.next_state = 'vert-edge'
-            elif num_edges and num_faces == 0:
+            elif self.num_sel_edges and self.num_sel_faces == 0:
                 quad = (
                     (not self.nearest_vert and self.nearest_edge) and
                     (len(self.nearest_edge.link_faces) <= 1) and
@@ -216,13 +223,13 @@ class PolyPen_Insert():
                     self.next_state = 'edge-quad-snap'
                 else:
                     self.next_state = 'edge-face'
-            elif num_verts == 3 and num_edges == 3 and num_faces == 1:
+            elif self.num_sel_verts == 3 and self.num_sel_edges == 3 and self.num_sel_faces == 1:
                 self.next_state = 'edge-face'
             else:
                 self.next_state = 'new vertex'
 
         elif options['polypen insert mode'] == 'Edge-Only':
-            if num_verts == 0:
+            if self.num_sel_verts == 0:
                 self.next_state = 'new vertex'
             else:
                 if self.insert_edge:
@@ -233,41 +240,33 @@ class PolyPen_Insert():
         else:
             assert False, f'Unhandled PolyPen insert mode: {options["polypen insert mode"]}'
 
-        self.modal_previs_set_draw()
         tag_redraw_all('PolyPen next state')
 
+        match self.next_state:
+            case 'unset':
+                return
 
-    def modal_previs_set_draw(self):
-        self.draw_coords = []
+            case 'knife selected edge':
+                bmv1,bmv2 = self.insert_edge.verts
+                faces = self.insert_edge.link_faces
+                if faces:
+                    for f in faces:
+                        lco = []
+                        for v0,v1 in iter_pairs(f.verts, True):
+                            lco.append(v0.co)
+                            if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
+                                lco.append(hit_pos)
+                        self.draw_coords.append(lco)
+                else:
+                    self.draw_coords.append([bmv1.co, hit_pos])
+                    self.draw_coords.append([bmv2.co, hit_pos])
+                return
 
-        hit_pos = self.actions.hit_pos
-        if not hit_pos: return
-
-        if self.next_state == 'unset': return
-
-        if self.next_state == 'knife selected edge':
-            bmv1,bmv2 = self.insert_edge.verts
-            faces = self.insert_edge.link_faces
-            if faces:
-                for f in faces:
-                    lco = []
-                    for v0,v1 in iter_pairs(f.verts, True):
-                        lco.append(v0.co)
-                        if (v0 == bmv1 and v1 == bmv2) or (v0 == bmv2 and v1 == bmv1):
-                            lco.append(hit_pos)
-                    self.draw_coords.append(lco)
-            else:
-                self.draw_coords.append([bmv1.co, hit_pos])
-                self.draw_coords.append([bmv2.co, hit_pos])
-
-        elif self.next_state == 'new vertex':
-            p0 = hit_pos
-            e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-            if e1:
-                bmv1,bmv2 = e1.verts
-                if d is not None and d < self.rfcontext.drawing.scale(options['polypen insert dist']):
-                    f = next(iter(e1.link_faces), None)
-                    if f:
+            case 'new vertex':
+                p0 = hit_pos
+                if self.insert_edge:
+                    bmv1,bmv2 = self.insert_edge.verts
+                    if f := next(iter(self.insert_edge.link_faces), None):
                         lco = []
                         for v0,v1 in iter_pairs(f.verts, True):
                             lco.append(v0.co)
@@ -279,22 +278,17 @@ class PolyPen_Insert():
                         self.draw_coords.append([bmv2.co, hit_pos])
                 else:
                     self.draw_coords.append([hit_pos])
-            else:
-                self.draw_coords.append([hit_pos])
+                return
 
-        elif self.next_state in {'vert-edge', 'vert-edge-vert'}:
-            sel_verts = self.sel_verts
-            bmv0 = next(iter(sel_verts))
-            if self.nearest_vert:
-                p0 = self.nearest_vert.co
-            elif self.next_state == 'vert-edge':
-                p0 = hit_pos
-                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-                if e1:
-                    bmv1,bmv2 = e1.verts
-                    if d is not None and d < self.rfcontext.drawing.scale(options['polypen insert dist']):
-                        f = next(iter(e1.link_faces), None)
-                        if f:
+            case 'vert-edge' | 'vert-edge-vert':
+                bmv0,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
+                if self.nearest_vert:
+                    p0 = self.nearest_vert.co
+                elif self.next_state == 'vert-edge':
+                    p0 = hit_pos
+                    if self.insert_edge:
+                        bmv1,bmv2 = self.insert_edge.verts
+                        if f := next(iter(self.insert_edge.link_faces), None):
                             lco = []
                             for v0,v1 in iter_pairs(f.verts, True):
                                 lco.append(v0.co)
@@ -304,24 +298,18 @@ class PolyPen_Insert():
                         else:
                             self.draw_coords.append([bmv1.co, p0])
                             self.draw_coords.append([bmv2.co, p0])
-            elif self.next_state == 'vert-edge-vert':
-                p0 = hit_pos
-            else:
+                elif self.next_state == 'vert-edge-vert':
+                    p0 = hit_pos
+                else:
+                    return
+                self.draw_coords.append([bmv0.co, p0])
                 return
-            self.draw_coords.append([bmv0.co, p0])
 
-        elif self.actions.shift and not self.actions.ctrl:
-            if self.next_state in ['edge-face', 'edge-quad', 'edge-quad-snap', 'tri-quad']:
-                nearest_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
-                if nearest_vert:
-                    self.draw_coords.append([nearest_vert.co, hit_pos])
-
-        elif not self.actions.shift and self.actions.ctrl:
-            if self.next_state == 'edge-face':
-                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges) #next(iter(self.sel_edges))
+            case 'edge-face':
+                e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+                e1 = self.insert_edge
                 if not e0: return
-                e1,d = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
-                if e1 and d < self.rfcontext.drawing.scale(options['polypen insert dist']) and e0 == e1:
+                if e1 and e0 == e1:
                     bmv1,bmv2 = e1.verts
                     p0 = hit_pos
                     f = next(iter(e1.link_faces), None)
@@ -343,8 +331,9 @@ class PolyPen_Insert():
                     else:
                         p0 = hit_pos
                     self.draw_coords.append([p0, bmv1.co, bmv2.co])
+                return
 
-            elif self.next_state == 'edge-quad':
+            case 'edge-quad':
                 # a Desmos construction of how this works: https://www.desmos.com/geometry/bmmx206thi
                 xy0, xy1, xy2, xy3 = self._get_edge_quad_verts()
                 if xy0 is None: return
@@ -353,8 +342,9 @@ class PolyPen_Insert():
                 co2 = self.rfcontext.raycast_sources_Point2D(xy2)[0]
                 co3 = self.rfcontext.raycast_sources_Point2D(xy3)[0]
                 self.draw_coords.append([co1, co2, co3, co0])
+                return
 
-            elif self.next_state == 'edge-quad-snap':
+            case 'edge-quad-snap':
                 e0,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
                 e1 = self.nearest_edge
                 if not e0 or not e1: return
@@ -366,8 +356,9 @@ class PolyPen_Insert():
                 # if e0.vector2D(self.rfcontext.Point_to_Point2D).dot(e1.vector2D(self.rfcontext.Point_to_Point2D)) > 0:
                 #     bmv2,bmv3 = bmv3,bmv2
                 self.draw_coords.append([bmv0.co, bmv1.co, bmv2.co, bmv3.co])
+                return
 
-            elif self.next_state == 'tri-quad':
+            case 'tri-quad':
                 if self.nearest_vert and not self.nearest_vert.select:
                     p0 = self.nearest_vert.co
                 else:
@@ -384,15 +375,32 @@ class PolyPen_Insert():
                         lco.append(p0)
                 self.draw_coords.append(lco)
                 #self.draw_coords.append([p0, bmv1.co, bmv2.co])
+                return
 
-            # elif self.next_state == 'edges-face':
-            #     if self.nearest_vert and not self.nearest_vert.select:
-            #         p0 = self.nearest_vert.co
-            #     else:
-            #         p0 = hit_pos
-            #     e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
-            #     bmv1,bmv2 = e1.verts
-            #     self.draw_coords.append([p0, bmv1.co, bmv2.co])
+            case _:
+                pass
+
+        # case 'edges-face':
+        #     if self.nearest_vert and not self.nearest_vert.select:
+        #         p0 = self.nearest_vert.co
+        #     else:
+        #         p0 = hit_pos
+        #     e1,_ = self.rfcontext.nearest2D_edge(edges=self.sel_edges)
+        #     bmv1,bmv2 = e1.verts
+        #     self.draw_coords.append([p0, bmv1.co, bmv2.co])
+
+        # if self.actions.shift and not self.actions.ctrl:
+        #     # TODO: ALTERNATIVE INSERT, BUT NOT BEING USED!?!?
+        #     #       not in docs, not in main polypen.py FSM state
+        #     match self.next_state:
+        #         case 'edge-face' | 'edge-quad' | 'edge-quad-snap' | 'tri-quad':
+        #             nearest_sel_vert,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts, max_dist=options['polypen merge dist'])
+        #             if nearest_sel_vert:
+        #                 self.draw_coords.append([nearest_sel_vert.co, hit_pos])
+        #             return
+        #         case _:
+        #             return
+
 
     def _get_edge_quad_verts(self):
         '''
@@ -483,33 +491,40 @@ class PolyPen_Insert():
             return 'move'
 
         if self.next_state in {'vert-edge', 'vert-edge-vert'}:
-            bmv0 = next(iter(sel_verts))
+            bmv0,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
 
             if self.next_state == 'vert-edge':
-                nearest_vert,dist = self.rfcontext.nearest2D_vert(verts=self.vis_verts, max_dist=options['polypen merge dist'])
-                if nearest_vert:
-                    bmv1 = nearest_vert
+                if self.nearest_vert:
+                    bmv1 = self.nearest_vert
                     lbmf = bmv0.shared_faces(bmv1)
+                    bme = bmv0.shared_edge(bmv1)
                     if len(lbmf) == 1 and not bmv0.share_edge(bmv1):
                         # split face
                         bmf = lbmf[0]
                         bmf.split(bmv0, bmv1)
                         self.rfcontext.select(bmv1)
                         return 'main'
+                    if not bme:
+                        bme = self.rfcontext.new_edge((bmv0, bmv1))
+                    self.rfcontext.select(bme)
+                    self.prep_move(
+                        bmverts=[bmv1],
+                        action_confirm=(lambda: self.actions.released('insert')),
+                    )
+                    return 'move'
 
-                nearest_edge,dist = self.rfcontext.nearest2D_edge(edges=self.vis_edges)
                 bmv1 = self.rfcontext.new2D_vert_mouse()
                 if not bmv1:
                     self.rfcontext.undo_cancel()
                     return 'main'
-                if dist is not None and dist < self.rfcontext.drawing.scale(options['polypen insert dist']):
-                    if bmv0 in nearest_edge.verts:
+                if self.nearest_edge:
+                    if bmv0 in self.nearest_edge.verts:
                         # selected vert already part of edge; split
-                        bme0,bmv2 = nearest_edge.split()
+                        bme0,bmv2 = self.nearest_edge.split()
                         bmv1.merge(bmv2)
                         self.rfcontext.select(bmv1)
                     else:
-                        bme0,bmv2 = nearest_edge.split()
+                        bme0,bmv2 = self.nearest_edge.split()
                         bmv1.merge(bmv2)
                         bmf = next(iter(bmv0.shared_faces(bmv1)), None)
                         if bmf:

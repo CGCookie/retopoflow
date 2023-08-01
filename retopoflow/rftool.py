@@ -83,8 +83,10 @@ class RFTool:
         'view change',          # called whenever view has changed
         'mouse move',           # called whenever mouse has moved
         'mouse stop',           # called whenever mouse has stopped moving
-        'once per frame',       # called once per frame
         'new frame',            # called each frame
+
+        # the following are filters, not events, so the decorated fns are immediately wrapped
+        'once per frame',       # only called once per frame
         'not while navigating', # delay calling until after navigating
     }
 
@@ -120,10 +122,31 @@ class RFTool:
         return wrapper
 
     @staticmethod
-    def once_per_frame(fn): return rftool_callback_decorator('once per frame', fn)
+    def once_per_frame(fn):
+        name, count = fn.__name__, None
+        @wraps(fn)
+        def wrapped(self, *args, **kwargs):
+            nonlocal name, count
+            if count == RFTool._draw_count:
+                if hasattr(self, '_callback_next_frame'):
+                    self._callback_next_frame.setdefault(name, lambda: fn(self, *args, **kwargs))
+            else:
+                count = RFTool._draw_count
+                fn(self, *args, **kwargs)
+        return wrapped
 
     @staticmethod
-    def not_while_navigating(fn): return rftool_callback_decorator('not while navigating', fn)
+    def not_while_navigating(fn):
+        name = fn.__name__
+        @wraps(fn)
+        def wrapped(self, *args, **kwargs):
+            nonlocal name
+            if RFTool.actions.is_navigating:
+                if hasattr(self, '_callback_after_navigating'):
+                    self._callback_after_navigating.setdefault(name, lambda: fn(self, *args, **kwargs))
+            else:
+                fn(self, *args, **kwargs)
+        return wrapped
 
     def _gather_callbacks(self):
         rftool_fns = find_fns(self, '_rftool_callback', full_search=True)
@@ -132,29 +155,6 @@ class RFTool:
             for mode in self._events
         }
 
-        for fn in self._callbacks['once per frame']:
-            def wrapper(fn):
-                fn._draw_count = -1
-                @wraps(fn)
-                def wrapped(*args, **kwargs):
-                    if fn._draw_count != RFTool._draw_count:
-                        fn._draw_count = RFTool._draw_count
-                        fn(self, *args, **kwargs)
-                    elif hasattr(self, '_callback_next_frame'):
-                        self._callback_next_frame.add(lambda: fn(self, *args, **kwargs))
-                return wrapped
-            setattr(self, fn.__name__, wrapper(fn))
-
-        for fn in self._callbacks['not while navigating']:
-            def wrapper(fn):
-                @wraps(fn)
-                def wrapped(*args, **kwargs):
-                    if not RFTool.actions.is_navigating:
-                        fn(self, *args, **kwargs)
-                    else:
-                        self._callback_after_navigating.add(lambda: fn(self, *args, **kwargs))
-                return wrapped
-            setattr(self, fn.__name__, wrapper(fn))
 
     def _callback(self, event, *args, **kwargs):
         ret = []
@@ -180,8 +180,8 @@ class RFTool:
         self._reset()
 
     def _reset(self):
-        self._callback_after_navigating = set()
-        self._callback_next_frame = set()
+        self._callback_after_navigating = {}
+        self._callback_next_frame = {}
         RFTool._draw_count = -1
         self._fsm.force_reset()
         self._callback('reset')
@@ -215,14 +215,15 @@ class RFTool:
     def _new_frame(self):
         RFTool._draw_count = self.rfcontext._draw_count
         self._callback('new frame')
-        for fn in self._callback_next_frame:
-            fn()
+
+        fns = list(self._callback_next_frame.values())
         self._callback_next_frame.clear()
+        for fn in fns: fn()
 
     def _done_navigating(self):
-        for fn in self._callback_after_navigating:
-            fn()
+        fns = list(self._callback_after_navigating.values())
         self._callback_after_navigating.clear()
+        for fn in fns: fn()
 
     def _draw_pre3d(self):   self._draw.pre3d()
     def _draw_post3d(self):  self._draw.post3d()
