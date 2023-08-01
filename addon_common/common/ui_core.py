@@ -235,7 +235,6 @@ class UI_Element(
 
     def __del__(self):
         if self._cacheRenderBuf:
-            self._cacheRenderBuf.free()
             self._cacheRenderBuf = None
 
     def __repr__(self):

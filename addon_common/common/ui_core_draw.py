@@ -99,6 +99,18 @@ class UI_Core_Draw:
                         gpustate.blend('ALPHA_PREMULT', only='enable')
                         child._draw(offset)
 
+    default_draw_cache_style = {
+        'background-color': (0,0,0,0),
+        'margin-top': 0,
+        'margin-right': 0,
+        'margin-bottom': 0,
+        'margin-left': 0,
+        'padding-top': 0,
+        'padding-right': 0,
+        'padding-bottom': 0,
+        'padding-left': 0,
+        'border-width': 0,
+    }
     def _draw_cache(self, offset):
         ox,oy = offset
         with gpustate.ScissorStack.wrap(self._l+ox, self._t+oy, self._w, self._h):
@@ -108,21 +120,13 @@ class UI_Core_Draw:
                 if True:
                     draw_texture_2d(texture_id, (self._l+ox, self._b+oy), self._w, self._h)
                 else:
-                    dpi_mult = Globals.drawing.get_dpi_mult()
-                    texture_fit = 0
-                    background_override = None
-                    ui_draw.draw(self._l+ox, self._t+oy, self._w, self._h, dpi_mult, {
-                        'background-color': (0,0,0,0),
-                        'margin-top': 0,
-                        'margin-right': 0,
-                        'margin-bottom': 0,
-                        'margin-left': 0,
-                        'padding-top': 0,
-                        'padding-right': 0,
-                        'padding-bottom': 0,
-                        'padding-left': 0,
-                        'border-width': 0,
-                        }, texture_id, texture_fit, background_override=background_override)
+                    ui_draw.draw(
+                        self._l+ox, self._t+oy, self._w, self._h,
+                        Globals.drawing.get_dpi_mult(),
+                        self.default_draw_cache_style,
+                        texture_id, 0,
+                        background_override=None,
+                    )
             else:
                 gpustate.blend('ALPHA_PREMULT', only='function')
                 self._draw_real(offset)
@@ -135,7 +139,7 @@ class UI_Core_Draw:
             self._cacheRenderBuf.resize(self._w, self._h)
         else:
             # do not already have a render buffer, so create one
-            self._cacheRenderBuf = gpustate.FrameBuffer.new(self._w, self._h)
+            self._cacheRenderBuf = gpustate.FrameBuffer(self._w, self._h)
 
     def _cache_hierarchical(self, depth):
         if self._innerTextAsIs is not None: return   # do not cache this low level!

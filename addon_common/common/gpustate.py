@@ -636,190 +636,90 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
 ######################################################################################################
 
 
-
-# Ideally, would use GPUOffScreen, however it keeps flickering (creating new? deleting?)
-# modified from addons/mesh_snap_utitities_line/snap_context_l/__init__.py
-
 class FrameBuffer:
-    # _null_buffer = (ctypes.c_int32 * 1).from_address(0)
-    _creating = False
-    _fbs = []
-    _all_fbs = []
-
-    @staticmethod
-    def new(width, height):
-        if FrameBuffer._fbs:
-            fb = FrameBuffer._fbs.pop()
-            fb.resize(width, height)
-        else:
-            FrameBuffer._creating = True
-            fb = FrameBuffer()
-            FrameBuffer._creating = False
-            FrameBuffer._all_fbs.append(fb)  # add to list so that __del__ isn't called too soon!
-            fb._create(width, height)
-
-        return fb
-
-    def free(self):
-        FrameBuffer._fbs.append(self)
-
-    def __init__(self):
-        assert FrameBuffer._creating == True, 'do not create FrameBuffer objects directly, use FrameBuffer.new()'
-        self._is_freed = False
-        self._is_error = False
+    def __init__(self, width, height):
+        self._width, self._height = None, None
         self._is_bound = False
-
-    def _create(self, width, height):
-        import bgl
-        get_glerror('FrameBuffer._create: start')
-        self._width = max(1, int(width))
-        self._height = max(1, int(height))
-
-        self._fbo = bgl.Buffer(bgl.GL_INT, 1)
-        self._buf_color = bgl.Buffer(bgl.GL_INT, 1)
-        self._buf_depth = bgl.Buffer(bgl.GL_INT, 1)
-
-        self._cur_fbo = None
-        self._cur_viewport = None
-        # self._cur_fbo = bgl.Buffer(bgl.GL_INT, 1)
-        # self._cur_viewport = bgl.Buffer(bgl.GL_INT, 4)
-        self._cur_projection = gpu.matrix.get_projection_matrix()
-
-        # get_glerror('FrameBuffer._create: gen render buf, tex')
-        bgl.glGenRenderbuffers(1, self._buf_depth)
-        bgl.glGenTextures(1, self._buf_color)
-        self._config_textures()
-
-        # get_glerror('FrameBuffer._create: gen fb')
-        bgl.glGenFramebuffers(1, self._fbo)
-        # IMPORTANT: do NOT clear color/depth yet, because color and depth buffers are not attached!
-        self._bind(set_viewport=False, set_projection=False, clear_color=False, clear_depth=False)
-        # get_glerror('FrameBuffer._create: setup fb')
-        bgl.glFramebufferRenderbuffer(bgl.GL_FRAMEBUFFER, bgl.GL_DEPTH_ATTACHMENT,bgl.GL_RENDERBUFFER, self._buf_depth[0])
-        bgl.glFramebufferTexture(bgl.GL_FRAMEBUFFER, bgl.GL_COLOR_ATTACHMENT0, self._buf_color[0], 0)
-        bgl.glDrawBuffers(1, bgl.Buffer(bgl.GL_INT, 1, [bgl.GL_COLOR_ATTACHMENT0]))
-        # get_glerror('FrameBuffer._create: check status')
-        status = bgl.glCheckFramebufferStatus(bgl.GL_FRAMEBUFFER)
-        if status != bgl.GL_FRAMEBUFFER_COMPLETE:
-            print("Framebuffer Invalid", status)
-            self._is_error = True
-        bgl.glClear(bgl.GL_COLOR_BUFFER_BIT | bgl.GL_DEPTH_BUFFER_BIT)
-        # get_glerror('FrameBuffer._create: unbind')
-        self._unbind(unset_viewport=False, unset_projection=False)
-        get_glerror('FrameBuffer._create: done')
-
-    def __del__(self):
-        import bgl
-        if self not in FrameBuffer._all_fbs: return
-        assert not self._is_freed
-        FrameBuffer._all_fbs.remove(self)
-        # print('----> DELETING FRAMEBUFFER')
-        assert not self._is_bound, 'Cannot free a bounded FrameBuffer'
-        # print(self._fbo, self._buf_depth, self._buf_color)
-        bgl.glDeleteFramebuffers(1, self._fbo)
-        bgl.glDeleteRenderbuffers(1, self._buf_depth)
-        bgl.glDeleteTextures(1, self._buf_color)
-        del self._fbo
-        del self._buf_color
-        del self._buf_depth
-        # del self._cur_fbo
-        # del self._cur_viewport
-        self._is_freed = True
-
-    @property
-    def color_texture(self):
-        return self._buf_color[0]
-    @property
-    def width(self):
-        return self._width
-    @property
-    def height(self):
-        return self._height
-
-    def _config_textures(self):
-        import bgl
-        bgl.glBindRenderbuffer(bgl.GL_RENDERBUFFER, self._buf_depth[0])
-        bgl.glRenderbufferStorage(bgl.GL_RENDERBUFFER, bgl.GL_DEPTH_COMPONENT, self._width, self._height)
-        bgl.glBindRenderbuffer(bgl.GL_RENDERBUFFER, 0)
-
-        # NULL = bgl.Buffer(bgl.GL_INT, 1, self._null_buffer)
-        bgl.glBindTexture(bgl.GL_TEXTURE_2D, self._buf_color[0])
-        bgl.glTexImage2D(bgl.GL_TEXTURE_2D, 0, bgl.GL_RGBA, self._width, self._height, 0, bgl.GL_RGBA, bgl.GL_UNSIGNED_BYTE, None)
-        bgl.glTexParameteri(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MIN_FILTER, bgl.GL_NEAREST)
-        bgl.glTexParameteri(bgl.GL_TEXTURE_2D, bgl.GL_TEXTURE_MAG_FILTER, bgl.GL_NEAREST)
-        bgl.glBindTexture(bgl.GL_TEXTURE_2D, 0)
-        # del NULL
-
-    def _bind(self, set_viewport=True, set_projection=True, clear_color=True, clear_depth=True):
-        import bgl
-        assert not self._is_bound, 'Cannot bind a bounded FrameBuffer'
-        assert not self._is_error, 'Cannot bind a FrameBuffer with error'
-        assert not self._is_freed, 'Cannot bind a freed FrameBuffer'
-        self._is_bound = True
-        self._cur_fbo = gpu.state.active_framebuffer_get()
-        self._cur_viewport = gpu.state.viewport_get()
-        # bgl.glGetIntegerv(bgl.GL_FRAMEBUFFER_BINDING, self._cur_fbo)
-        # bgl.glGetIntegerv(bgl.GL_VIEWPORT, self._cur_viewport)
-        bgl.glBindFramebuffer(bgl.GL_FRAMEBUFFER, self._fbo[0])
-        self._cur_projection = gpu.matrix.get_projection_matrix()
-        if set_viewport:
-            bgl.glViewport(0, 0, self._width, self._height)
-        if set_projection:
-            vx, vy, vw, vh = -1, -1, 2 / self._width, 2 / self._height
-            M = Matrix([
-                [vw,  0,  0, vx],
-                [ 0, vh,  0, vy],
-                [ 0,  0,  1,  0],
-                [ 0,  0,  0,  1],
-                ])
-            gpu.matrix.load_projection_matrix(M)
-        ScissorStack.push(0, self._height - 1, self._width, self._height, clamp=False)
-        if clear_color: bgl.glClear(bgl.GL_COLOR_BUFFER_BIT)
-        if clear_depth: bgl.glClear(bgl.GL_DEPTH_BUFFER_BIT)
-
-    def _unbind(self, unset_viewport=True, unset_projection=True):
-        import bgl
-        assert self._is_bound, 'Cannot unbind a unbounded FrameBuffer'
-        assert not self._is_error, 'Cannot unbind a FrameBuffer with error'
-        assert not self._is_freed, 'Cannot unbind a freed FrameBuffer'
-        # get_glerror('FrameBuffer.unbind: unsetting projection, viewport')
-        if unset_projection: gpu.matrix.load_projection_matrix(self._cur_projection)
-        # if unset_viewport: bgl.glViewport(*self._cur_viewport)
-        self._cur_fbo.bind()
-        if unset_viewport: gpu.state.viewport_set(*self._cur_viewport)
-        # get_glerror('FrameBuffer.unbind: binding to prev')
-        # bgl.glBindFramebuffer(bgl.GL_FRAMEBUFFER, self._cur_fbo[0])
-        # get_glerror('FrameBuffer.unbind: popping scissorstack')
-        ScissorStack.pop()
-        self._cur_fbo = None
-        self._cur_viewport = None
-        self._is_bound = False
-        # get_glerror('FrameBuffer.unbind: done')
-
-    @contextmanager
-    def bind(self, set_viewport=True, set_projection=True, clear_color=True, clear_depth=True):
-        try:
-            self._bind(set_viewport=set_viewport, set_projection=set_projection, clear_color=clear_color, clear_depth=clear_depth)
-            yield None
-            self._unbind(unset_viewport=set_viewport, unset_projection=set_projection)
-        except Exception as e:
-            self._unbind(unset_viewport=set_viewport, unset_projection=set_projection)
-            print(f'Caught exception while FrameBuffer was bound:')
-            print(f'  {set_viewport=} {clear_color=} {clear_depth=}')
-            Globals.debugger.print_exception()
-            raise e
+        self.resize(width, height)
 
     def resize(self, width, height, clear_color=True, clear_depth=True):
         assert not self._is_bound, 'Cannot resize a bounded FrameBuffer'
-        assert not self._is_error, 'Cannot resize a FrameBuffer with error'
-        assert not self._is_freed, 'Cannot resize a freed FrameBuffer'
 
-        width, height = int(width), int(height)
+        width, height = max(1, int(width)), max(1, int(height))
         if self._width == width and self._height == height: return
-        # with self.bind(set_viewport=False, clear_color=clear_color, clear_depth=clear_depth):
-        # print('Resizing FrameBuffer from %dx%d to %dx%d' % (self._width, self._height, width, height))
         self._width, self._height = width, height
-        self._config_textures()
+
+        vx, vy, vw, vh = -1, -1, 2 / self._width, 2 / self._height
+        self._matrix = Matrix([
+            [vw,  0,  0, vx],
+            [ 0, vh,  0, vy],
+            [ 0,  0,  1,  0],
+            [ 0,  0,  0,  1],
+        ])
+
+        self._tex_color = gpu.types.GPUTexture((self._width, self._height), format='RGBA8')
+        self._tex_depth = gpu.types.GPUTexture((self._width, self._height), format='DEPTH_COMPONENT32F')
+
+        self._framebuffer = gpu.types.GPUFrameBuffer(
+            color_slots={ 'texture': self._tex_color },
+            depth_slot=self._tex_depth,
+        )
+
+    @property
+    def color_texture(self): return self._tex_color
+    @property
+    def width(self): return self._width
+    @property
+    def height(self): return self._height
+
+    def _set_viewport(self):
+        o = self._framebuffer if False else gpu.state
+        o.viewport_set(0, 0, self._width, self._height)
+    def _reset_viewport(self):
+        o = self._cur_fbo if False else gpu.state
+        o.viewport_set(*self._cur_viewport)
+
+    def _set_projection(self):
+        gpu.matrix.load_projection_matrix(self._matrix)
+    def _reset_projection(self):
+        gpu.matrix.load_projection_matrix(self._cur_projection)
+
+    def _set_scissor(self):
+        ScissorStack.push(0, self._height - 1, self._width, self._height, clamp=False)
+    def _reset_scissor(self):
+        ScissorStack.pop()
+
+    def _clear(self):
+        self._framebuffer.clear(color=(0.0, 0.0, 0.0, 0.0), depth=1.0)
+
+    @contextmanager
+    def bind(self):
+        assert not self._is_bound, 'Cannot bind a bounded FrameBuffer'
+        try:
+            self._is_bound = True
+            self._cur_fbo = gpu.state.active_framebuffer_get()
+            self._cur_viewport = gpu.state.viewport_get()
+            self._cur_projection = gpu.matrix.get_projection_matrix()
+            with self._framebuffer.bind():
+                self._set_viewport()
+                self._set_projection()
+                self._set_scissor()
+                self._clear()
+                yield None
+        except Exception as e:
+            print(f'Caught exception while FrameBuffer was bound:')
+            print(f'  {e}')
+            Globals.debugger.print_exception()
+            raise e
+        finally:
+            self._reset_scissor()
+            self._reset_projection()
+            self._reset_viewport()
+            self._cur_fbo = None
+            self._cur_viewport = None
+            self._cur_projection = None
+            self._is_bound = False
+
 
 
 
