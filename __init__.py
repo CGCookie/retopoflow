@@ -37,11 +37,12 @@ bl_info = {
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (3, 6, 0),
-    "version":      (3, 4, 0),
+    "version":      (3, 4, 1),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",
-    "category":     "3D View",}
+    "category":     "3D View",
+    "warning":      "Alpha",}
 
 # update bl_info above based on hive data
 from .addon_common.hive.hive import Hive
