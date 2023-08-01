@@ -1688,6 +1688,18 @@ class RFTarget(RFMesh):
             rfvert.normal = norm
         self.recalculate_face_normals(verts=[e for e in out if type(e) is BMVert], faces=[e for e in out if type(e) is BMFace])
 
+    def flip_symmetry_verts_to_correct_side(self):
+        for bmv in self.bme.verts:
+            if self.mirror_mod.x and bmv.co.x < 0:
+                bmv.co.x = -bmv.co.x
+                bmv.normal.x = -bmv.normal.x
+            if self.mirror_mod.y and bmv.co.y > 0:
+                bmv.co.y = -bmv.co.y
+                bmv.normal.y = -bmv.normal.y
+            if self.mirror_mod.z and bmv.co.z < 0:
+                bmv.co.z = -bmv.co.z
+                bmv.normal.z = -bmv.normal.z
+
     def new_vert(self, co, norm):
         # assuming co and norm are in world space!
         # so, do not set co directly; need to xform to local first.

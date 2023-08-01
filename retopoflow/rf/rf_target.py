@@ -127,7 +127,9 @@ class RetopoFlow_Target:
             f'Editing these vertices will cause them to snap to the symmetry plane.',
             f'(Editing vertices on the "correct" side of symmetry will work as expected)',
             f'',
-            f'You can see these vertices by clicking Select Bad Symmetry button under Target Cleaning > Symmetry',
+            f'You can see these vertices by clicking Select Bad Symmetry button',
+            f'or flip these vertices by clicking Flip Bad Symmetry button.',
+            f'Both buttons are under Target Cleaning > Symmetry.'
         ])]
 
         self.alert_user(
@@ -488,6 +490,12 @@ class RetopoFlow_Target:
     def apply_mirror_symmetry(self):
         self.undo_push('applying mirror symmetry')
         self.rftarget.apply_mirror_symmetry(self.nearest_sources_Point)
+        self.dirty()
+
+    def flip_symmetry_verts_to_correct_side(self):
+        self.undo_push('flipping verts to correct side of symmetry')
+        self.rftarget.flip_symmetry_verts_to_correct_side()
+        self.dirty()
 
     @profiler.function
     def clip_pointloop(self, pointloop, connected):

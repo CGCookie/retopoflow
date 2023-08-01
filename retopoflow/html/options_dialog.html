@@ -510,14 +510,15 @@ def mirror_changed(self):
                 <div class="collection">
                     <h1>Normals</h1>
                     <div class="contents">
-                        <button title="Flip normal of selected faces" class="full-size" on_mouseclick="self.flip_face_normals()">Flip</button>
-                        <button title="Recalculates the normal of selected faces, same as Recalculate Outside (Shift + N) in Edit Mode" on_mouseclick="self.recalculate_face_normals()">Recalculate</button>
+                        <button title="Flip normal of selected faces" class="half-size" on_mouseclick="self.flip_face_normals()">Flip</button>
+                        <button title="Recalculates the normal of selected faces, same as Recalculate Outside (Shift + N) in Edit Mode" class="half-size" on_mouseclick="self.recalculate_face_normals()">Recalculate</button>
                     </div>
                 </div>
                 <div class="collection">
                     <h1>Symmetry</h1>
                     <div class="contents">
-                        <button title="Select vertices that are on the wrong side of symmetry plane" class="full-size" on_mouseclick="self.select_bad_symmetry()">Select Bad Symmetry</button>
+                        <button title="Select vertices that are on the wrong side of symmetry plane" on_mouseclick="self.select_bad_symmetry()">Select Bad Symmetry</button>
+                        <button title="Flip vertices that are on the wrong side of symmetry plane" on_mouseclick="self.flip_symmetry_verts_to_correct_side()">Flip Bad Symmetry</button>
                     </div>
                 </div>
             </div>
@@ -612,6 +613,13 @@ def mirror_changed(self):
                             <input id="merge-apply-threshold" type="number" value="BoundFloat('''self.rftarget.mirror_mod.symmetry_threshold''', min_value=0.0, step_size=0.00001)" title='Distance within which mirrored vertices will be merged'> <!-- scrub -->
                         </div>
                         <button title="Apply mirror symmetry to target mesh" on_mouseclick="self.apply_mirror_symmetry()">Apply Mirror</button>
+                    </div>
+                </div>
+                <div class="collection">
+                    <h1>Cleaning</h1>
+                    <div class="contents">
+                        <button title="Select vertices that are on the wrong side of symmetry plane" on_mouseclick="self.select_bad_symmetry()">Select Bad Symmetry</button>
+                        <button title="Flip vertices that are on the wrong side of symmetry plane" on_mouseclick="self.flip_symmetry_verts_to_correct_side()">Flip Bad Symmetry</button>
                     </div>
                 </div>
             </div>
