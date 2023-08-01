@@ -244,9 +244,6 @@ class PolyPen(RFTool, PolyPen_Insert):
             self.rfcontext.undo_cancel()
             return 'main'
 
-        if self.actions.mousemove:
-            tag_redraw_all('polypen mouse move')
-
     @RFTool.on_mouse_move
     @RFTool.once_per_frame
     @FSM.onlyinstate('move')
@@ -265,7 +262,6 @@ class PolyPen(RFTool, PolyPen_Insert):
                 bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=xy_updated, vis_accel=self.move_vis_accel, max_dist=options['polypen merge dist'])
                 if bmv1:
                     xy_updated = self.rfcontext.Point_to_Point2D(bmv1.co)
-                    print(f'{xy} + {delta} = {xy+delta}, {xy_updated} ({bmv1})')
             set2D_vert(bmv, xy_updated)
 
         self.rfcontext.update_verts_faces(self.bmverts)

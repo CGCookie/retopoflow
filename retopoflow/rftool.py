@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
 from functools import wraps
 
-from ..addon_common.common.blender import BlenderIcon
+from ..addon_common.common.blender import BlenderIcon, tag_redraw_all
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.functools import find_fns
 from ..addon_common.common.drawing import DrawCallbacks, Cursors
@@ -130,6 +130,7 @@ class RFTool:
             if count == RFTool._draw_count:
                 if hasattr(self, '_callback_next_frame'):
                     self._callback_next_frame.setdefault(name, lambda: fn(self, *args, **kwargs))
+                    tag_redraw_all('once per frame')
             else:
                 count = RFTool._draw_count
                 fn(self, *args, **kwargs)
