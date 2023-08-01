@@ -85,6 +85,7 @@ class Knife(RFTool, Knife_Insert):
     @RFTool.on_reset
     def reset(self):
         self.quickswitch = False
+        self.hovering_sel_geom = None
 
     @RFTool.on_events('reset', 'target change', 'view change', 'mouse move')
     @RFTool.once_per_frame
