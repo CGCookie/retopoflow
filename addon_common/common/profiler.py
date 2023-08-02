@@ -325,7 +325,11 @@ Globals.set(profiler)
 
 
 @contextlib.contextmanager
-def time_it(label=None, *, prefix='', infix=' '):
+def time_it(label=None, *, prefix='', infix=' ', enabled=True):
+    if not enabled:
+        yield None
+        return
+
     start = time.time()
 
     if label is None:

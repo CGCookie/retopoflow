@@ -43,7 +43,6 @@ from ...addon_common.common.profiler import profiler
 from ...addon_common.common.maths import (
     Point, Vec, Direction,
     Point2D, Vec2D,
-    Accel2D,
     clamp, mid,
     Color,
 )

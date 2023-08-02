@@ -34,7 +34,8 @@ from ...addon_common.common.decorators import timed_call
 from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
-from ...addon_common.common.maths import Point2D, Vec2D, Direction2D, Accel2D
+from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
+from ...addon_common.common.maths_accel import Accel2D
 from ...addon_common.common.text import fix_string
 
 from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
@@ -256,7 +257,7 @@ class RetopoFlow_Target:
             accel_data.verts,
             accel_data.edges,
             accel_data.faces,
-            self.get_point2D_symmetries
+            self.iter_point2D_symmetries
         )
 
         # remember important things that influence accel structure
@@ -391,6 +392,12 @@ class RetopoFlow_Target:
         if my and mz:        yield Point(( x, -y, -z))
         if mx and my and mz: yield Point((-x, -y, -z))
 
+    def iter_point2D_symmetries(self, point):
+        yield from (
+            pt
+            for spt in self.iter_symmetry_points(point)
+            if self.Point2D_in_area(pt := self.Point_to_Point2D(spt))
+        )
     def get_point2D_symmetries(self, point):
         pts = [ self.Point_to_Point2D(pt) for pt in self.iter_symmetry_points(point) ]
         return [ pt for pt in pts if self.Point2D_in_area(pt) ]
@@ -402,39 +409,39 @@ class RetopoFlow_Target:
     def nearest2D_vert(self, point=None, max_dist=None, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.get_point2D_symmetries, verts=verts, max_dist=max_dist)
+        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
 
     @profiler.function
     def nearest2D_verts(self, point=None, max_dist:float=10, verts=None):
         xy = self.get_point2D(point or self.actions.mouse)
         max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.get_point2D_symmetries, verts=verts)
+        return self.rftarget.nearest2D_bmverts_Point2D(xy, max_dist, self.iter_point2D_symmetries, verts=verts)
 
     @profiler.function
     def nearest2D_edge(self, point=None, max_dist=None, edges=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.get_point2D_symmetries, edges=edges, max_dist=max_dist)
+        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
 
     @profiler.function
     def nearest2D_edges(self, point=None, max_dist:float=10, edges=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.get_point2D_symmetries, edges=edges)
+        return self.rftarget.nearest2D_bmedges_Point2D(xy, max_dist, self.iter_point2D_symmetries, edges=edges)
 
     # TODO: implement max_dist
     @profiler.function
     def nearest2D_face(self, point=None, max_dist=None, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.get_point2D_symmetries, faces=faces)
+        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.iter_point2D_symmetries, faces=faces)
 
     # TODO: fix this function! Izzza broken
     @profiler.function
     def nearest2D_faces(self, point=None, max_dist:float=10, faces=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if max_dist: max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest2D_bmfaces_Point2D(xy, self.get_point2D_symmetries, faces=faces)
+        return self.rftarget.nearest2D_bmfaces_Point2D(xy, self.iter_point2D_symmetries, faces=faces)
 
 
     ########################################

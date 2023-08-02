@@ -29,7 +29,6 @@ from ...addon_common.common.maths import (
     Vec, Vec2D,
     Point, Point2D,
     Direction,
-    Accel2D,
     Color,
     closest_point_segment,
 )

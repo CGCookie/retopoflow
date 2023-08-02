@@ -34,7 +34,7 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.maths import (
     Point, Vec, Normal, Direction,
     Point2D, Vec2D, Direction2D,
-    Accel2D, clamp, Color, Plane,
+    clamp, Color, Plane,
 )
 from ...addon_common.common.debug import dprint
 from ...addon_common.common.blender import tag_redraw_all
