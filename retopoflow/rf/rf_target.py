@@ -35,6 +35,7 @@ from ...addon_common.common.profiler import profiler, time_it
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D, Accel2D
+from ...addon_common.common.text import fix_string
 
 from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..rfmesh.rfmesh import RFSource, RFTarget
@@ -121,20 +122,21 @@ class RetopoFlow_Target:
         bad = self.rftarget.check_symmetry()
         if not bad: return
 
-        message = ['\n'.join([
-            f'Symmetry is enabled on the {", ".join(bad)} {"axis" if len(bad)==1 else "axes"}, but vertices were found on the "wrong" side of the symmetry {"plane" if len(bad)==1 else "planes"}.',
-            f'',
-            f'Editing these vertices will cause them to snap to the symmetry plane.',
-            f'(Editing vertices on the "correct" side of symmetry will work as expected)',
-            f'',
-            f'You can see these vertices by clicking Select Bad Symmetry button',
-            f'or flip these vertices by clicking Flip Bad Symmetry button.',
-            f'Both buttons are under Target Cleaning > Symmetry.'
-        ])]
+        a = ", ".join(bad) + (" axis" if len(bad)==1 else " axes")
+        p = "plane" if len(bad)==1 else "planes"
 
         self.alert_user(
             title='Bad Target Symmetry',
-            message='\n\n'.join(message),
+            message=fix_string(f'''
+                Symmetry is enabled on the {a}, but vertices were found on the "wrong" side of the symmetry {p}.
+
+                Editing these vertices will cause them to snap to the symmetry plane.
+                (Editing vertices on the "correct" side of symmetry will work as expected)
+
+                You can see these vertices by clicking Select Bad Symmetry button
+                or flip these vertices by clicking Flip Bad Symmetry button.
+                Both buttons are under Target Cleaning > Symmetry
+            '''),
             level='warning',
         )
 
@@ -183,10 +185,10 @@ class RetopoFlow_Target:
     def set_accel_defer(self, defer): self.accel_defer_recomputing = defer
 
     def get_accel_visible(self, **kwargs):
-        accel_data = self.generate_accel_data_struct(**kwargs)
+        accel_data = self._generate_accel_data_struct(**kwargs)
         return accel_data.accel
 
-    def generate_accel_data_struct(self, *, selected_only=None, force=False):
+    def _generate_accel_data_struct(self, *, selected_only=None, force=False):
         target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
         mm = self.rftarget.mirror_mod
@@ -274,16 +276,16 @@ class RetopoFlow_Target:
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
 
     def get_vis_verts(self, **kwargs):
-        self.generate_accel_data_struct(**kwargs)
+        self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts
     def get_vis_edges(self, **kwargs):
-        self.generate_accel_data_struct(**kwargs)
+        self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_edges
     def get_vis_faces(self, **kwargs):
-        self.generate_accel_data_struct(**kwargs)
+        self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_faces
     def get_vis_geom(self,  **kwargs):
-        self.generate_accel_data_struct(**kwargs)
+        self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
 
     def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):

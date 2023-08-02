@@ -69,7 +69,11 @@ def mirror_changed(self):
     if self.rftarget.mirror_mod.y: s += ['Y']
     if self.rftarget.mirror_mod.z: s += ['Z']
     if not s: s = ['(none)']
-    self.ui_options.getElementById('mirroroptions_summary').innerText = f'Symmetry: {",".join(s)}'
+    innerText = f'Symmetry: {",".join(s)}'
+    ui = self.ui_options.getElementById('mirroroptions_summary')
+    if ui.innerText == innerText: return
+    ui.innerText = innerText
+    self.check_target_symmetry()
     self.dirty_render()
 
 </script>
