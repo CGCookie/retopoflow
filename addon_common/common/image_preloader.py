@@ -56,46 +56,47 @@ class ImagePreloader:
             path_images.extend(glob.glob('*.png'))
         os.chdir(path_cur)
 
-        if version == 'process':
-            # this version spins up new Processes, so Python's GIL isn't an issue
-            # :) loading is much FASTER!      (truly parallel loading)
-            # :( DIFFICULT to pause or abort  (no shared resources)
-            def setter(p):
-                if cls.quitted(): return
-                for path_image, img in p.result():
-                    if img is None: continue
-                    print(f'CookieCutter: {path_image} is preloaded')
-                    set_image_cache(path_image, img)
-            executor = ProcessPoolExecutor() # ThreadPoolExecutor()
-            for path_image in path_images:
-                p = executor.submit(preload_image, path_image)
-                p.add_done_callback(setter)
-            def abort():
-                nonlocal executor
-                cls.quit()
-                # the following line causes a crash :(
-                # executor.shutdown(wait=False)
-            atexit.register(abort)
-
-        elif version == 'thread':
-            # this version spins up new Threads, so Python's GIL is used
-            # :( loading is much SLOWER!  (serial loading)
-            # :) EASY to pause and abort  (shared resources)
-            def abort():
-                cls.quit()
-            atexit.register(abort)
-            def start():
-                for png in path_images:
-                    print(f'CookieCutter: preloading image "{png}"')
-                    preload_image(png)
-                    time.sleep(0.5)
-                    for loop in range(10):
-                        if not cls.paused(): break
-                        if cls.quitted(): break
-                        time.sleep(0.5)
-                    else:
-                        # if looped too many times, just quit
-                        return
+        match version:
+            case 'process':
+                # this version spins up new Processes, so Python's GIL isn't an issue
+                # :) loading is much FASTER!      (truly parallel loading)
+                # :( DIFFICULT to pause or abort  (no shared resources)
+                def setter(p):
                     if cls.quitted(): return
-                print(f'CookieCutter: all images preloaded')
-            ThreadPoolExecutor().submit(start)
+                    for path_image, img in p.result():
+                        if img is None: continue
+                        print(f'CookieCutter: {path_image} is preloaded')
+                        set_image_cache(path_image, img)
+                executor = ProcessPoolExecutor() # ThreadPoolExecutor()
+                for path_image in path_images:
+                    p = executor.submit(preload_image, path_image)
+                    p.add_done_callback(setter)
+                def abort():
+                    nonlocal executor
+                    cls.quit()
+                    # the following line causes a crash :(
+                    # executor.shutdown(wait=False)
+                atexit.register(abort)
+
+            case 'thread':
+                # this version spins up new Threads, so Python's GIL is used
+                # :( loading is much SLOWER!  (serial loading)
+                # :) EASY to pause and abort  (shared resources)
+                def abort():
+                    cls.quit()
+                atexit.register(abort)
+                def start():
+                    for png in path_images:
+                        print(f'CookieCutter: preloading image "{png}"')
+                        preload_image(png)
+                        time.sleep(0.5)
+                        for loop in range(10):
+                            if not cls.paused(): break
+                            if cls.quitted(): break
+                            time.sleep(0.5)
+                        else:
+                            # if looped too many times, just quit
+                            return
+                        if cls.quitted(): return
+                    print(f'CookieCutter: all images preloaded')
+                ThreadPoolExecutor().submit(start)
