@@ -776,24 +776,25 @@ class RFMesh():
             nearest.append((self._wrap_bmedge(bme), dist))
         return nearest
 
-    def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2Ds, verts=None):
+    def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2Ds, *, verts=None, fwd=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if verts is None:
             verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
             verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         nearest = []
         for bmv in verts:
-            co = self.xform.l2w_point(bmv.co)
-            for p2d in Point_to_Point2Ds(co):
+            co, no = l2w_point(bmv.co), l2w_normal(bmv.normal)
+            for p2d in Point_to_Point2Ds(co, no, fwd=fwd):
                 if p2d is None: continue
                 if (p2d - xy).length > dist2D: continue
                 d3d = 0
                 nearest.append((self._wrap_bmvert(bmv), d3d))
         return nearest
 
-    def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2Ds, verts=None, max_dist=None):
+    def nearest2D_bmvert_Point2D(self, xy:Point2D, Point_to_Point2Ds, *, verts=None, max_dist=None, fwd=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
@@ -801,11 +802,11 @@ class RFMesh():
             verts = [bmv for bmv in self.bme.verts if bmv.is_valid and not bmv.hide]
         else:
             verts = [self._unwrap(bmv) for bmv in verts if bmv.is_valid and not bmv.hide]
-        l2w_point = self.xform.l2w_point
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         bv,bd = None,None
         for bmv in verts:
-            co = l2w_point(bmv.co)
-            for p2d in Point_to_Point2Ds(co):
+            co, no = l2w_point(bmv.co), l2w_normal(bmv.normal)
+            for p2d in Point_to_Point2Ds(co, no, fwd=fwd):
                 if p2d is None: continue
                 d2d = (xy - p2d).length
                 if d2d > max_dist: continue
@@ -813,21 +814,22 @@ class RFMesh():
         if bv is None: return (None,None)
         return (self._wrap_bmvert(bv),bd)
 
-    def nearest2D_bmedges_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2Ds, edges=None, shorten=0.01):
+    def nearest2D_bmedges_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2Ds, *, edges=None, shorten=0.01, fwd=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if edges is None:
             edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
             edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
-        l2w_point = self.xform.l2w_point
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         nearest = []
         dist2D2 = dist2D**2
         s0,s1 = shorten/2,1-shorten/2
         for bme in edges:
             bmv0, bmv1 = bme.verts
-            co0, co1 = l2w_point(bmv0.co), l2w_point(bmv1.co)
-            for v0, v1 in zip(Point_to_Point2Ds(co0), Point_to_Point2Ds(co1)):
+            co0, no0 = l2w_point(bmv0.co), l2w_normal(bmv0.normal)
+            co1, no1 = l2w_point(bmv1.co), l2w_normal(bmv1.normal)
+            for v0, v1 in zip(Point_to_Point2Ds(co0, no0, fwd=fwd), Point_to_Point2Ds(co1, no1, fwd=fwd)):
                 if not v0 or not v1: continue
                 l = v0.distance_to(v1)
                 if l == 0:
@@ -840,18 +842,19 @@ class RFMesh():
                 nearest.append((self._wrap_bmedge(bme), math.sqrt(dist2)))
         return nearest
 
-    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2Ds, edges=None, shorten=0.01, max_dist=None):
+    def nearest2D_bmedge_Point2D(self, xy:Point2D, Point_to_Point2Ds, *, edges=None, shorten=0.01, max_dist=None, fwd=None):
         if not max_dist or max_dist < 0: max_dist = float('inf')
         if edges is None:
             edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
         else:
             edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
-        l2w_point = self.xform.l2w_point
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         be,bd,bpp = None,None,None
         for bme in edges:
             bmv0, bmv1 = bme.verts
-            co0, co1 = l2w_point(bmv0.co), l2w_point(bmv1.co)
-            for v0, v1 in zip(Point_to_Point2Ds(co0), Point_to_Point2Ds(co1)):
+            co0, no0 = l2w_point(bmv0.co), l2w_normal(bmv0.normal)
+            co1, no1 = l2w_point(bmv1.co), l2w_normal(bmv1.normal)
+            for v0, v1 in zip(Point_to_Point2Ds(co0, no0, fwd=fwd), Point_to_Point2Ds(co1, no1, fwd=fwd)):
                 if v0 is None or v1 is None: continue
                 diff = v1 - v0
                 l = diff.length
@@ -868,17 +871,17 @@ class RFMesh():
         if be is None: return (None,None)
         return (self._wrap_bmedge(be), (xy-bpp).length)
 
-    def nearest2D_bmfaces_Point2D(self, xy:Point2D, Point_to_Point2Ds, faces=None):
+    def nearest2D_bmfaces_Point2D(self, xy:Point2D, Point_to_Point2Ds, *, faces=None, fwd=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
             faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
             faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         nearest = []
-        l2w_point = self.xform.l2w_point
         for bmf in faces:
-            ptsets = [Point_to_Point2Ds(l2w_point(bmv.co)) for bmv in bmf.verts]
+            ptsets = [Point_to_Point2Ds(l2w_point(bmv.co), l2w_normal(bmv.normal), fwd=fwd) for bmv in bmf.verts]
             ptsets = list(zip(*ptsets))
             for pts in ptsets:
                 pts = [pt for pt in pts if pt]
@@ -890,19 +893,19 @@ class RFMesh():
                         nearest.append((self._wrap_bmface(bmf), dist))
         return nearest
 
-    def nearest2D_bmface_Point2D(self, forward:Direction, xy:Point2D, Point_to_Point2Ds, faces=None):
+    def nearest2D_bmface_Point2D(self, forward:Direction, xy:Point2D, Point_to_Point2Ds, *, faces=None, fwd=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
         if faces is None:
             faces = [bmf for bmf in self.bme.faces if bmf.is_valid and not bmf.hide]
         else:
             faces = [self._unwrap(bmf) for bmf in faces if bmf.is_valid and not bmf.hide]
+        l2w_point, l2w_normal = self.xform.l2w_point, self.xform.l2w_normal
         bv,bd = None,None
         best_d = float('inf')
         best_f = None
-        l2w_point = self.xform.l2w_point
         for bmf in faces:
-            ptsets = [Point_to_Point2Ds(l2w_point(bmv.co)) for bmv in bmf.verts]
+            ptsets = [Point_to_Point2Ds(l2w_point(bmv.co), l2w_normal(bmv.normal), fwd=fwd) for bmv in bmf.verts]
             ptsets = list(zip(*ptsets))
             for pts in ptsets:
                 pts = [pt for pt in pts if pt]

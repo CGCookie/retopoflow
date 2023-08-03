@@ -78,9 +78,9 @@ class RetopoFlow_Sources:
             return Accel2D.simple_edges('RFSource edges', edges, Point_to_Point2D)
 
         self.rftarget.set_symmetry_accel(
-            gen_accel(rfsources_xyplanes, lambda p:[Point2D((p.x,p.y))]),
-            gen_accel(rfsources_xzplanes, lambda p:[Point2D((p.x,p.z))]),
-            gen_accel(rfsources_yzplanes, lambda p:[Point2D((p.y,p.z))]),
+            gen_accel(rfsources_xyplanes, lambda p,_:[Point2D((p.x,p.y))]),
+            gen_accel(rfsources_xzplanes, lambda p,_:[Point2D((p.x,p.z))]),
+            gen_accel(rfsources_yzplanes, lambda p,_:[Point2D((p.y,p.z))]),
         )
 
     ###################################################

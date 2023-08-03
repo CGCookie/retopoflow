@@ -30,7 +30,7 @@ from mathutils import Matrix, Vector, Quaternion
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
 
-from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D
+from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec
 
 from .colors import colorname_to_color
 from .decorators import stats_wrapper, blender_version_wrapper
@@ -42,6 +42,7 @@ from ..terminal import term_printer
 class SimpleVert:
     def __init__(self, co):
         self.co = co
+        self.normal = Vec((0, 0, 0))
         self.is_valid = True
 
 class SimpleEdge:
@@ -62,15 +63,15 @@ class Accel2D:
     margin = 0.001
     DEBUG = False
 
-    @staticmethod
-    def simple_verts(label, verts, Point_to_Point2Ds):
-        verts = [ SimpleVert(v) for v in verts ]
-        return Accel2D(label, verts, [], [], Point_to_Point2Ds)
+    # @staticmethod
+    # def simple_verts(label, lco, Point_to_Point2Ds):
+    #     verts = [ SimpleVert(co) for co in lco ]
+    #     return Accel2D(label, verts, [], [], Point_to_Point2Ds)
 
     @staticmethod
     def simple_edges(label, edges, Point_to_Point2Ds):
-        edges = [ SimpleEdge(( SimpleVert(v0), SimpleVert(v1) )) for (v0, v1) in edges ]
-        verts = [v for e in edges for v in e.verts]
+        edges = [ SimpleEdge(( SimpleVert(co0), SimpleVert(co1) )) for (co0, co1) in edges ]
+        verts = [ co for e in edges for co in e.verts ]
         return Accel2D(label, verts, edges, [], Point_to_Point2Ds)
 
     @profiler.function
@@ -90,12 +91,12 @@ class Accel2D:
         with time_it('collect', enabled=Accel2D.DEBUG):
             bbox = BBox2D()
             with time_it('collect verts', enabled=Accel2D.DEBUG):
-                bbox.insert_points(pt for v in verts for pt in Point_to_Point2Ds(v.co))
+                bbox.insert_points(pt for v in verts for pt in Point_to_Point2Ds(v.co, v.normal))
             with time_it('collect edges and faces', enabled=Accel2D.DEBUG):
                 bbox.insert_points(
                     pt
                     for ef in chain(edges, faces)
-                    for ef_pts in zip(*[Point_to_Point2Ds(v.co) for v in ef.verts])
+                    for ef_pts in zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
                     for pt in ef_pts
                 )
         if bbox.count == 0:
@@ -117,7 +118,7 @@ class Accel2D:
         # inserting verts
         with time_it('insert verts', enabled=Accel2D.DEBUG):
             for v in verts:
-                for pt in Point_to_Point2Ds(v.co):
+                for pt in Point_to_Point2Ds(v.co, v.normal):
                     tot_inserted += 1
                     i, j = self.compute_ij(pt)
                     self._put((i, j), v)
@@ -125,7 +126,7 @@ class Accel2D:
         # inserting edges and faces
         with time_it('insert edges and faces', enabled=Accel2D.DEBUG):
             for ef in chain(edges, faces):
-                ef_pts_list = zip(*[Point_to_Point2Ds(v.co) for v in ef.verts])
+                ef_pts_list = zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
                 for ef_pts in ef_pts_list:
                     tot_inserted += 1
                     bbox2 = BBox2D()
