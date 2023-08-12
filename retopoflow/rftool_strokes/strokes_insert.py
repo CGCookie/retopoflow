@@ -66,11 +66,18 @@ class Strokes_Insert():
     @FSM.on_state('previs insert', 'enter')
     def modal_previs_enter(self):
         self.set_widget('brush')
-        self.currently_stroking = False
         self.rfcontext.fast_update_timer.enable(True)
         self.rfwidget.inner_color = Color((1, 1, 1, 0.5)) if options['strokes snap stroke'] else Color((1, 1, 1, 0.0625))
         self.rfwidget.inner_radius = options['strokes snap dist']
-        self.update_connection_prepost()
+
+        self.connection_pre = None
+        self.connection_post = None
+
+    def _nearest_connection(self):
+        if not options['strokes snap stroke']: return None
+        vert, _ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
+        if not vert: return None
+        return (vert, (self.rfcontext.Point_to_Point2D(vert.co), self.actions.mouse))
 
     @FSM.on_state('previs insert')
     def modal_previs(self):
@@ -90,20 +97,8 @@ class Strokes_Insert():
     @RFTool.once_per_frame
     @FSM.onlyinstate('previs insert')
     def update_connection_prepost(self):
-        if not options['strokes snap stroke']:
-            self.connection_pre = None
-            self.connection_post = None
-            return
-
-        vert, _ = self.rfcontext.accel_nearest2D_vert(max_dist=options['strokes snap dist'])
-        connection = None
-        if vert:
-            connection = (vert, (self.rfcontext.Point_to_Point2D(vert.co), self.actions.mouse))
-
-        if not self.currently_stroking:
-            self.connection_pre = connection
-        else:
-            self.connection_post = connection
+        # only called when in insert previs but not stroking...
+        self.connection_pre = self._nearest_connection()
 
 
     @contextmanager
@@ -118,7 +113,7 @@ class Strokes_Insert():
 
     @RFWidget.on_actioning('Strokes stroke')
     def stroking(self):
-        self.currently_stroking = True
+        self.connection_post = self._nearest_connection()
 
     @RFWidget.on_action('Strokes stroke')
     def stroke(self):
@@ -154,10 +149,6 @@ class Strokes_Insert():
             if bmv1 and not bmv1.select: bmv1 = None
         bmv0_sel = bmv0 and bmv0 in sel_verts
         bmv1_sel = bmv1 and bmv1 in sel_verts
-
-        self.currently_stroking = False
-        self.connection_pre = None
-        self.connection_post = None
 
         if bmv0:
             stroke3D = [bmv0.co] + stroke3D
@@ -232,7 +223,9 @@ class Strokes_Insert():
                 # print(f'Create Strip')
                 self.replay = self.create_strip
 
-        # print(self.replay)
+        self.connection_pre = None
+        self.connection_post = None
+
         if self.replay: self.replay()
 
     def get_edges_for_extrude(self, only_closest=None):
