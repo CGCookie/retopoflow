@@ -717,6 +717,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             cl = loop_data['cl']
 
             # draw segment count label
+            loop = [vert for vert in loop if vert.is_valid]
             loop = [(vert, point_to_point2d(vert.co)) for vert in loop if is_visible(vert.co)]
             if loop:
                 bmv = max(loop, key=lambda bmvp2d:bmvp2d[1].y)[0]
@@ -730,6 +731,7 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             plane = string_data['plane']
 
             # draw segment count label
+            string = [vert for vert in string if vert.is_valid]
             string = [(vert, point_to_point2d(vert.co)) for vert in string if is_visible(vert.co)]
             if string:
                 bmv = max(string, key=lambda bmvp2d:bmvp2d[1].y)[0]
