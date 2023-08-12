@@ -329,6 +329,7 @@ class Strokes_Insert():
 
         with self.defer_recomputing_while():
             verts = [self.rfcontext.new2D_vert_point(s) for s in nstroke]
+            verts = [vert for vert in verts if vert]
             edges = [self.rfcontext.new_edge([v0, v1]) for (v0, v1) in iter_pairs(verts, wrap=False)]
 
             if snap0:
