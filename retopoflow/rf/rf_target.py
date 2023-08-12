@@ -23,10 +23,11 @@ import time
 import random
 import traceback
 from itertools import chain
-from mathutils import Vector
-from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
 
 import bpy
+
+from mathutils import Vector
+from mathutils.geometry import intersect_line_line_2d as intersect_segment_segment_2d
 
 from ...config.options import visualization, options, retopoflow_datablocks
 from ...addon_common.common.debug import dprint, Debugger
@@ -249,16 +250,18 @@ class RetopoFlow_Target:
                 edges = self.get_unselected_edges()
                 faces = self.get_unselected_faces()
 
-        accel_data.verts = self.visible_verts(verts=verts)
-        accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
-        accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
-        accel_data.accel = Accel2D(
-            f'RFTarget visible geometry ({selected_only=})',
-            accel_data.verts,
-            accel_data.edges,
-            accel_data.faces,
-            self.iter_point2D_symmetries
-        )
+        with time_it('getting visible geometry', enabled=False):
+            accel_data.verts = self.visible_verts(verts=verts)
+            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
+            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
+        with time_it('building accel struct', enabled=False):
+            accel_data.accel = Accel2D(
+                f'RFTarget visible geometry ({selected_only=})',
+                accel_data.verts,
+                accel_data.edges,
+                accel_data.faces,
+                self.iter_point2D_symmetries
+            )
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version
