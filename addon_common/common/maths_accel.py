@@ -30,7 +30,7 @@ from mathutils import Matrix, Vector, Quaternion
 from bmesh.types import BMVert
 from mathutils.geometry import intersect_line_plane, intersect_point_tri
 
-from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec
+from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec, mid
 
 from .colors import colorname_to_color
 from .decorators import stats_wrapper, blender_version_wrapper
