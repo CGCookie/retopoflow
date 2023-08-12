@@ -24,6 +24,7 @@ import random
 from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 from typing import List
 from itertools import chain
+from concurrent.futures import ProcessPoolExecutor
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
@@ -73,6 +74,15 @@ class Accel2D:
         edges = [ SimpleEdge(( SimpleVert(co0), SimpleVert(co1) )) for (co0, co1) in edges ]
         verts = [ co for e in edges for co in e.verts ]
         return Accel2D(label, verts, edges, [], Point_to_Point2Ds)
+
+    def _insert_edge(self, edge):
+        pts_list = zip(*[ self.Point_to_Point2Ds(v.co, v.normal) for v in edge.verts ])
+        for co0, co1 in pts_list:
+            (i0, j0), (i1, j1) = self.compute_ij(co0), self.compute_ij(co1)
+            mini, minj, maxi, maxj = min(i0, i1), min(j0, j1), max(i0, i1), max(j0, j1)
+            for i in range(mini, maxi + 1):
+                for j in range(minj, maxj + 1):
+                    self._put((i, j), edge)
 
     @profiler.function
     def __init__(self, label, verts, edges, faces, Point_to_Point2Ds):
@@ -125,17 +135,16 @@ class Accel2D:
 
         # inserting edges and faces
         with time_it('insert edges and faces', enabled=Accel2D.DEBUG):
-            for ef in chain(edges, faces):
+            for e in edges:
+                self._insert_edge(e)
+            for ef in faces:
                 ef_pts_list = zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
                 for ef_pts in ef_pts_list:
                     tot_inserted += 1
-                    bbox2 = BBox2D()
-                    bbox2.insert_points(self.compute_ij(pt) for pt in ef_pts)
-                    mini, minj = int(bbox2.mx), int(bbox2.my)
-                    maxi, maxj = int(bbox2.Mx), int(bbox2.My)
-                    spread = (maxi-mini+1)*(maxj-minj+1)
-                    if spread > max_spread[0]:
-                        max_spread = (spread, maxi-mini+1, maxj-minj+1)
+                    bbox2 = BBox2D((self.compute_ij(pt) for pt in ef_pts))
+                    mini, minj, maxi, maxj = int(bbox2.mx), int(bbox2.my), int(bbox2.Mx), int(bbox2.My)
+                    sizei, sizej = maxi - mini + 1, maxj - minj + 1
+                    if (spread := sizei*sizej) > max_spread[0]: max_spread = (spread, sizei, sizej)
                     for i in range(mini, maxi + 1):
                         for j in range(minj, maxj + 1):
                             self._put((i, j), ef)
@@ -164,11 +173,11 @@ class Accel2D:
 
     @profiler.function
     def compute_ij(self, v2d):
-        i = int(self.bin_len * (v2d.x - self.minx) / self.sizex)
-        j = int(self.bin_len * (v2d.y - self.miny) / self.sizey)
-        i = clamp(i, 0, self.bin_len - 1)
-        j = clamp(j, 0, self.bin_len - 1)
-        return (i, j)
+        bl = self.bin_len
+        return (
+            clamp(int(bl * (v2d.x - self.minx) / self.sizex), 0, bl - 1),
+            clamp(int(bl * (v2d.y - self.miny) / self.sizey), 0, bl - 1)
+        )
 
     def _put(self, ij, o):
         # assert 0 <= ij[0] < self.bin_len and 0 <= ij[1] < self.bin_len, f'{ij} is outside {self.bin_len}x{self.bin_len}'

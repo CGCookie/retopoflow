@@ -1215,7 +1215,7 @@ class BBox:
         return self.max_dim
 
 class BBox2D:
-    def __init__(self, pts=[]):
+    def __init__(self, pts=None):
         self._count = 0
         nan = float('nan')
         self.mx, self.my = nan, nan
@@ -1226,6 +1226,7 @@ class BBox2D:
     def __repr__(self): return self.__str__()
 
     def insert_points(self, pts):
+        if not pts: return
         for pt in pts: self.insert(pt)
     def insert(self, pt:Point2D):
         if not pt: return
