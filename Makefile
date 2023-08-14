@@ -102,7 +102,7 @@ build-thumbnails:
 	cd help/images && python3 $(CREATE_THUMBNAILS)
 
 build:
-	make _build-common _build-github _build-blendermarket
+	make _build-docs _build-common _build-github _build-blendermarket
 	@echo "\n\n"$(NAME)" "$(VVERSION)" is ready"
 
 build-github:
@@ -115,8 +115,11 @@ build-blendermarket:
 
 # helper targets
 
+_build-docs:
+	make build-thumbnails build-docs
+
 _build-common:
-	make check blinfo build-thumbnails build-docs
+	make check blinfo
 	mkdir -p $(BUILD_DIR)/$(NAME)
 	# copy files over to build folder
 	# note: rsync flag -a == archive (same as -rlptgoD)
