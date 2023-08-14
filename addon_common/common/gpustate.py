@@ -589,6 +589,7 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
 
     # INTERFACE
     safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+    safe_name = re.sub(r'__+', '_', safe_name)
     shader_interface = gpu.types.GPUStageInterfaceInfo(f'interface_{safe_name}') # NOTE: DO NOT CALL IT `interface`
     qualified_fns = {
         'noperspective': shader_interface.no_perspective,
