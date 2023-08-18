@@ -176,7 +176,7 @@ class Tweak(RFTool):
             self._boundary = []
 
         self.bmfaces = set([f for bmv,_ in nearest for f in bmv.link_faces])
-        self.mousedown = self.rfcontext.actions.mousedown
+        self.mousedown = self.rfcontext.actions.mouse
         self._timer = self.actions.start_timer(120.0)
 
         self.rfcontext.split_target_visualization(verts=self.bmverts)
@@ -209,6 +209,7 @@ class Tweak(RFTool):
         update_face_normal = self.rfcontext.update_face_normal
 
         for (bmv, sympl, xy, xyz, strength) in self.bmvert_data:
+            if not bmv.is_valid: continue
             co2D = xy + delta * strength
             match options['tweak mode']:
                 case 'snap':
@@ -233,6 +234,7 @@ class Tweak(RFTool):
                     self.rfcontext.snap_vert(bmv)
 
         for bmf in self.bmfaces:
+            if not bmf.is_valid: continue
             update_face_normal(bmf)
 
         tag_redraw_all('Tweak mouse move')
