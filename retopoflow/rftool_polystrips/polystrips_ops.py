@@ -52,7 +52,7 @@ class PolyStrips_Ops:
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         Point2D_to_Ray = self.rfcontext.Point2D_to_Ray
         nearest_sources_Point = self.rfcontext.nearest_sources_Point
-        raycast = self.rfcontext.raycast_sources_Point2D
+        raycast = lambda p: self.rfcontext.raycast_sources_Point2D(p, correct_mirror=False)
         vis_verts = self.rfcontext.visible_verts()
         vis_edges = self.rfcontext.visible_edges(verts=vis_verts)
         vis_faces = self.rfcontext.visible_faces(verts=vis_verts)
