@@ -95,7 +95,10 @@ class RFWidget_BrushStroke_Factory:
 
             @FSM.on_state('stroking', 'enter')
             def modal_line_enter(self):
-                self.stroke2D = [self.actions.mouse]
+                xy = self.actions.mouse
+                p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+                if p: xy = self.rfcontext.Point_to_Point2D(p)
+                self.stroke2D = [xy]
                 tag_redraw_all('BrushStroke line_enter')
 
             @FSM.on_state('stroking')
@@ -104,7 +107,10 @@ class RFWidget_BrushStroke_Factory:
 
                 if self.actions.released('insert'):
                     # TODO: tessellate the last steps?
-                    self.stroke2D.append(self.actions.mouse)
+                    xy = self.actions.mouse
+                    p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+                    if p: xy = self.rfcontext.Point_to_Point2D(p)
+                    self.stroke2D.append(xy)
                     self.callback_actions(self.action_name)
                     return 'main'
 
@@ -113,7 +119,10 @@ class RFWidget_BrushStroke_Factory:
                     self.actions.unuse('insert', ignoremods=True, ignoremulti=True)
                     return 'main'
 
-                lpos, cpos = self.stroke2D[-1], self.actions.mouse
+                xy = self.actions.mouse
+                p,n,_,_ = self.rfcontext.raycast_sources_mouse()
+                if p: xy = self.rfcontext.Point_to_Point2D(p)
+                lpos, cpos = self.stroke2D[-1], xy
                 npos = lpos + (cpos - lpos) * (1 - self.tightness)
                 self.stroke2D.append(npos)
                 tag_redraw_all('BrushStroke line')
@@ -221,7 +230,6 @@ class RFWidget_BrushStroke_Factory:
 
                 self.hit = False
 
-                xy = self.rfcontext.actions.mouse
                 p,n,_,_ = self.rfcontext.raycast_sources_mouse()
                 if not p: return
                 depth = self.rfcontext.Point_to_depth(p)
