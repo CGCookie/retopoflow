@@ -103,7 +103,8 @@ class RetopoFlow_Sources:
     ###################################################
     # ray casting functions
 
-    def raycast_sources_Ray(self, ray:Ray, *, correct_mirror=True, ignore_backface=None):
+    def raycast_sources_Ray(self, ray:Ray, *, correct_mirror=None, ignore_backface=None):
+        if correct_mirror is None: correct_mirror = options['symmetry mirror input']
         ignore_backface = self.ray_ignore_backface_sources() if ignore_backface is None else ignore_backface
         bp,bn,bi,bd,bo = None,None,None,None,None
         for rfsource in self.rfsources:
@@ -125,7 +126,7 @@ class RetopoFlow_Sources:
             if self.get_rfsource_snap(rfsource)
         ]
 
-    def raycast_sources_Point2D(self, xy:Point2D, *, correct_mirror=True, ignore_backface=None):
+    def raycast_sources_Point2D(self, xy:Point2D, *, correct_mirror=None, ignore_backface=None):
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start), correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
@@ -133,10 +134,10 @@ class RetopoFlow_Sources:
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start))
 
-    def raycast_sources_mouse(self, *, correct_mirror=True, ignore_backface=None):
+    def raycast_sources_mouse(self, *, correct_mirror=None, ignore_backface=None):
         return self.raycast_sources_Point2D(self.actions.mouse, correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
-    def raycast_sources_Point(self, xyz:Point, *, correct_mirror=True, ignore_backface=None):
+    def raycast_sources_Point(self, xyz:Point, *, correct_mirror=None, ignore_backface=None):
         if xyz is None: return None,None,None,None
         xy = self.Point_to_Point2D(xyz)
         return self.raycast_sources_Point2D(xy, correct_mirror=correct_mirror, ignore_backface=ignore_backface)

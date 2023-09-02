@@ -609,6 +609,10 @@ def mirror_changed(self):
                         <input type="range" value="BoundFloat('''options['target alpha mirror']''', min_value=0.0, max_value=1.0)">
                     </div>
                 </div>
+                <label>
+                    <input type="checkbox" checked="BoundBool('''options['symmetry mirror input']''')" title='If checked, input will be mirrored to "correct" side of symmetry.  Otherwise it will be clamped or clipped.'>
+                    Mirror Input
+                </label>
                 <div class="collection">
                     <h1>Merge / Apply</h1>
                     <div class="contents">
