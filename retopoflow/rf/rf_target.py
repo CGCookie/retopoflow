@@ -310,7 +310,7 @@ class RetopoFlow_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
-        if not vis_accel: return None,None
+        if not vis_accel: return (None, None)
 
         if not max_dist:
             # no max_dist, so get _all_ visible vertices
@@ -330,7 +330,7 @@ class RetopoFlow_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
-        if not vis_accel: return None,None
+        if not vis_accel: return (None, None)
 
         if not max_dist:
             edges = self.accel_vis_edges
@@ -350,7 +350,7 @@ class RetopoFlow_Target:
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
-        if not vis_accel: return None
+        if not vis_accel: return (None, None)
 
         if not max_dist:
             faces = self.accel_vis_faces
