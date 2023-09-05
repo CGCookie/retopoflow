@@ -1,8 +1,8 @@
 :root {
     --button-background: hsla(200, 0%, 20%, 1.0);
     --button-hover-background: hsla(200, 0%, 35%, 1.00);
-    --button-selected-background: hsla(200, 90%, 41%, 1.00); /* rgb(10, 135, 197); */
-    --button-hover-selected-background: hsla(200, 90%, 50%, 1.00);
+    --button-selected-background: hsla(210, 100%, 45%, 1.0);
+    --button-hover-selected-background: hsla(210, 60%, 35%, 1.0);
 
     --button-text: hsl(200, 0%, 90%);
     --button-selected-text: white;
@@ -10,8 +10,8 @@
 
     --option-background: transparent;
     --option-hover-background: hsla(200, 0%, 50%, 0.25);
-    --option-selected-background: hsla(200, 90%, 41%, 1.00); /* rgb(10, 135, 197); */
-    --option-hover-selected-background: hsla(200, 90%, 50%, 1.00); /* rgb(10, 135, 197); */
+    --option-selected-background: hsla(210, 100%, 45%, 1.0);
+    --option-hover-selected-background: hsla(210, 60%, 35%, 1.0);
 
     --option-text: hsl(200, 0%, 90%);
     --option-selected-text: white;

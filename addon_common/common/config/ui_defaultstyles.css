@@ -64,13 +64,13 @@ button:focus {
 }
 button:active {
     /*background: rgb(192,128,128);*/
-    background: hsla(200, 100%, 62.5%, 1.0); /* rgba(128,224,255,0.5); */
+    background: hsla(210, 100%, 45%, 1.0);
 }
 button:hover {
     background: rgba(160, 160, 160, 1.00); /* hsla(200, 100%, 62.5%, 1.0); /* rgb(64,192,255); */
 }
 button:active:hover {
-    background: hsla(200, 100%, 62.5%, 1.0); /*rgb(128,224,255);*/
+    background: hsla(210, 60%, 35%, 1.0);
 }
 button:disabled {
     background-color: rgb(128,128,128);
@@ -938,4 +938,3 @@ dialog.tooltip {
     min-width: 0px;
     max-width: 300px;
 }
-
