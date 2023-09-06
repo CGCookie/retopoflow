@@ -2,6 +2,16 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.0&rarr;3.4.1
+
+- Improved visualization and editing when working on "wrong" side of symmetry
+- Fixed bridging bug with Strokes
+- Fixed many bugs
+- Improved general PolyPen performance
+- UI drawing uses framebuffers again (UI performance)
+- Warns when geometry is on "wrong" side of symmetry
+- General code cleanup, refactor, and optimizations
+
 ### RetopoFlow 3.3.0&rarr;3.4.0
 
 This version of RetopoFlow requires Blender 3.6 or later.
