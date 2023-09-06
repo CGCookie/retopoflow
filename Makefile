@@ -76,13 +76,13 @@ update-copyright:
 build-docs:
 	# rebuild online docs
 	python3 $(DOCS_REBUILD)
-	cd help/web && bundle add webrick && bundle update
+	cd docs && bundle add webrick && bundle update
 
 serve-docs:
-	cd help/web && bundle exec jekyll serve
+	cd docs && bundle exec jekyll serve
 
 clean-docs:
-	cd help/web && bundle exec jekyll clean
+	cd docs && bundle exec jekyll clean
 
 
 #########################################################

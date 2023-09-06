@@ -143,9 +143,9 @@ path_root  = os.path.abspath(os.path.join(path_here, '..'))
 path_help        = os.path.join(path_root, 'help')
 path_help_images = os.path.join(path_root, 'help', 'images')
 
-path_help_web_config  = os.path.join(path_root, 'help', 'web_config')
-path_help_web         = os.path.join(path_root, 'help', 'web')
-path_help_web_images  = os.path.join(path_root, 'help', 'web', 'images')
+path_help_web_config  = os.path.join(path_root, 'docs_config')
+path_help_web         = os.path.join(path_root, 'docs')
+path_help_web_images  = os.path.join(path_root, 'docs', 'images')
 
 path_icons = os.path.join(path_root, 'icons')
 
