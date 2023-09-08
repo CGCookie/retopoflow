@@ -253,7 +253,7 @@ class RFVert(BMElemWrapper):
         return [RFFace(bmf) for bmf in bmv0.link_faces if bmf.is_valid and bmv1 in bmf.verts]
 
     def face_separate(self, f):
-        if not (self.is_valid and f.is_valid): return None
+        if not (self.is_valid and f and f.is_valid): return None
         bmv = BMElemWrapper._unwrap(self)
         bmf = BMElemWrapper._unwrap(f)
         new_bmv = face_vert_separate(bmf, bmv)
