@@ -282,6 +282,7 @@ class PolyPen_Insert():
 
             case 'vert-edge' | 'vert-edge-vert':
                 bmv0,_ = self.rfcontext.nearest2D_vert(verts=self.sel_verts)
+                if not bmv0: return
                 if self.nearest_vert:
                     p0 = self.nearest_vert.co
                 elif self.next_state == 'vert-edge':
