@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.1&rarr;3.4.2
+
+- Minor bug fix
+
 ### RetopoFlow 3.4.0&rarr;3.4.1
 
 - Improved visualization and editing when working on "wrong" side of symmetry
