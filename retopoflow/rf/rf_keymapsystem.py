@@ -353,6 +353,8 @@ keymap_details = [
         ('pin', 'Pin selected geometry'),
         ('unpin', 'Unpin selected geometry'),
         ('unpin all', 'Unpin all geometry'),
+        ('mark seam', 'Mark selected edges as seam'),
+        ('clear seam', 'Unmark selected edges as seam'),
     ]),
     ('Switching Between Tools', [
         ('contours tool', 'Switch to Contours'),

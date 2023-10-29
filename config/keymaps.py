@@ -147,6 +147,10 @@ default_rf_keymaps = {
     'unpin': ['ALT+P'],
     'unpin all': ['SHIFT+ALT+P'],
 
+    # seams
+    'mark seam': ['CTRL+E'],
+    'clear seam': ['CTRL+SHIFT+E'],
+
     # shortcuts to tools
     'contours tool': ['ONE', 'CTRL+ALT+C'],
     'polystrips tool': ['TWO', 'CTRL+ALT+P'],

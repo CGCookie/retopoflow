@@ -305,6 +305,14 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                 self.unpin_all()
                 return
 
+            # seams
+            if self.actions.pressed('mark seam'):
+                self.mark_seam_selected()
+                return
+            if self.actions.pressed('clear seam'):
+                self.clear_seam_selected()
+                return
+
         return self.modal_main_rest()
 
     def modal_main_rest(self):
