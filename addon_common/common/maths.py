@@ -557,6 +557,26 @@ class Color(Vector):
     @a.setter
     def a(self, v): self.w = v
 
+    @property
+    def hsl(self):
+        # https://en.wikipedia.org/wiki/HSL_and_HSV#From_RGB
+        # 0 <= H < 1 (circular), 0 <= S <= 1, 0 <= L <= 1
+        r, g, b = self.x, self.y, self.z
+        x_max, x_min = max(r, g, b), min(r, g, b)
+        c = x_max - x_min
+        l = (x_max + x_min) / 2.0
+        h = 0
+        if c > 0:
+            if   x_max == r: h = (60 / 360) * (((g - b) / c) % 6)
+            elif x_max == g: h = (60 / 360) * (((b - r) / c) + 2)
+            else:            h = (60 / 360) * (((r - g) / c) + 4)
+        s = (x_max - l) / min(l, 1 - l) if 0 < l < 1 else 0
+        return (h, s, l)
+
+    def rotated_hue(self, hue_add):
+        h,s,l = self.hsl
+        return Color.HSL((h + hue_add, s, l))
+
     def __str__(self):
         # return '<Color (%0.4f, %0.4f, %0.4f, %0.4f)>' % (self.r, self.g, self.b, self.a)
         return 'Color(%0.2f, %0.2f, %0.2f, %0.2f)' % (self.r, self.g, self.b, self.a)

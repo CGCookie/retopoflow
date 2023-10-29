@@ -311,9 +311,9 @@ class Options:
 
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
-        'target alpha line warning':          0.25,
-        'target alpha line pinned':           0.25,
-        'target alpha line seam':             0.25,
+        'target alpha line warning':          0.75,
+        'target alpha line pinned':           0.95,
+        'target alpha line seam':             0.95,
         'target alpha line mirror':           0.10,
         'target alpha line mirror selected':  0.50,
         'target alpha line mirror warning':   0.15,
@@ -322,9 +322,9 @@ class Options:
 
         'target alpha point':                 0.25,
         'target alpha point selected':        1.00,
-        'target alpha point warning':         0.50,
-        'target alpha point pinned':          0.50,
-        'target alpha point seam':            0.50,
+        'target alpha point warning':         0.75,
+        'target alpha point pinned':          0.95,
+        'target alpha point seam':            0.95,
         'target alpha point mirror':          0.00,
         'target alpha point mirror selected': 0.50,
         'target alpha point mirror warning':  0.15,
@@ -640,43 +640,42 @@ class Themes:
 
         'stroke':     Color.from_ints(255, 255,   0, 255),
         'highlight':  Color.from_ints(255, 255,  25, 255),
-        'set select':  Color.from_ints(255, 255, 255, 192),
-        'add select':  Color.from_ints(128, 255, 128, 192),
-        'del select':  Color.from_ints(255, 128, 128, 192),
+        'set select': Color.from_ints(255, 255, 255, 192),
+        'add select': Color.from_ints(128, 255, 128, 192),
+        'del select': Color.from_ints(255, 128, 128, 192),
 
         # RFTools
         'polystrips': Color.from_ints(  0, 100,  25, 150),
         'strokes':    Color.from_ints(  0, 100,  90, 150),
         'tweak':      Color.from_ints(229, 137,  26, 255), # Opacity is set by brush strength
         'relax':      Color.from_ints(  0, 135, 255, 255), # Opacity is set by brush strength
+
+        # Target Geometry
+        'warn':       Color.from_ints(182,  31,   0),
+        'seam':       Color.from_ints(255, 160, 255),
+        'pin':        Color.from_ints(255,  41, 255),
     }
 
     themes = {
-        'Blue': {
-            'select':  Color.from_ints( 55, 160, 255),
-            'new':     Color.from_ints( 40,  40, 255),
-            'active':  Color.from_ints( 40, 255, 255),
-            'warn':    Color.from_ints(182,  31,   0),
-            'pin':     Color.from_ints(128, 128, 192),
-            'seam':    Color.from_ints(255, 255, 160),
-        },
         'Green': {
             'select':  Color.from_ints( 78, 207,  81),
             'new':     Color.from_ints( 40, 255,  40),
-            'active':  Color.from_ints( 40, 255, 255),
-            'warn':    Color.from_ints(182,  31,   0),
-            'pin':     Color.from_ints(128, 192, 128),
-            'seam':    Color.from_ints(255, 160, 255),
+        },
+        'Blue': {
+            'select':  Color.from_ints( 55, 160, 255),
+            'new':     Color.from_ints( 40,  40, 255),
         },
         'Orange': {
             'select':  Color.from_ints(255, 135,  54),
             'new':     Color.from_ints(255, 128,  64),
-            'active':  Color.from_ints(255,  80,  64),
-            'warn':    Color.from_ints(182,  31,   0),
-            'pin':     Color.from_ints(192, 160, 128),
-            'seam':    Color.from_ints(160, 255, 255),
         },
     }
+    # themes['Blue'] = {
+    #     key: color.rotated_hue((209 - 121) / 360) for (key, color) in themes['Green'].items()
+    # }
+    # themes['Orange'] = {
+    #     key: color.rotated_hue((24 - 121) / 360) for (key, color) in themes['Green'].items()
+    # }
 
     @property
     def theme(self):
