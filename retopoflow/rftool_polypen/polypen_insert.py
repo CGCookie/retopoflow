@@ -496,6 +496,12 @@ class PolyPen_Insert():
             if self.next_state == 'vert-edge':
                 if self.nearest_vert:
                     bmv1 = self.nearest_vert
+                    if bmv0 == bmv1:
+                        self.prep_move(
+                            bmverts=[bmv0],
+                            action_confirm=(lambda: self.actions.released('insert')),
+                        )
+                        return 'move'
                     lbmf = bmv0.shared_faces(bmv1)
                     bme = bmv0.shared_edge(bmv1)
                     if len(lbmf) == 1 and not bmv0.share_edge(bmv1):
