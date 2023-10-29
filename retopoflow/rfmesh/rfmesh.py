@@ -990,9 +990,9 @@ class RFMesh():
         if wrap_fn is None: wrap_fn = self._wrap
         return [ wrap_fn(bmelem) for bmelem in bmelems ]
 
-    def iter_verts(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid, self.bme.verts), wrap_fn=self._wrap_bmvert)
-    def iter_edges(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid, self.bme.edges), wrap_fn=self._wrap_bmedge)
-    def iter_faces(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid, self.bme.faces), wrap_fn=self._wrap_bmvert)
+    def iter_verts(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid_revealed, self.bme.verts), wrap_fn=self._wrap_bmvert)
+    def iter_edges(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid_revealed, self.bme.edges), wrap_fn=self._wrap_bmedge)
+    def iter_faces(self): yield from self.iter_wrap(filter(RFMesh.fn_is_valid_revealed, self.bme.faces), wrap_fn=self._wrap_bmvert)
 
     def get_verts(self): return list(self.iter_verts())
     def get_edges(self): return list(self.iter_edges())
