@@ -64,7 +64,7 @@ class Loops_Insert():
             self.insert_action = lambda: self.actions.pressed('insert')
             self.insert_done   = lambda: not self.actions.using_onlymods('insert')
         else:
-            self.insert_action = lambda: self.actions.pressed('quick insert')
+            self.insert_action = lambda: self.actions.pressed({'quick insert', 'confirm quick'})
             self.insert_done   = lambda: self.actions.pressed('cancel')
 
 

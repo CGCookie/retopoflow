@@ -303,6 +303,7 @@ keymap_details = [
     ('General', [
         ('confirm', 'Confirm'),
         ('confirm drag', 'Confirm with Drag (sometimes this is needed for certain actions)'),
+        ('confirm quick', 'Confirm with quick switch tool'),
         ('cancel', 'Cancel'),
         ('done', 'Quit RetopoFlow'),
         ('done alt0', 'Quit RetopoFlow (alternative)'),

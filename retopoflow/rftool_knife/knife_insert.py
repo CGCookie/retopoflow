@@ -105,7 +105,11 @@ class Knife_Insert():
         else:
             self.knife_actions = {
                 'insert': (lambda: self.actions.pressed('quick insert')),
-                'done':   (lambda: self.actions.pressed('cancel') or self.actions.pressed('confirm', ignoremouse=True)),
+                'done':   (lambda: any([
+                    self.actions.pressed('cancel'),
+                    self.actions.pressed('confirm', ignoremouse=True),
+                    self.actions.pressed('confirm quick'),
+                ])),
                 'move':   (lambda: self.actions.released('quick insert', ignoremods=True)),
             }
 
