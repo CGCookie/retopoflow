@@ -534,11 +534,11 @@ def mirror_changed(self):
                     <h1>Geometry Pinning</h1>
                     <div class="contents">
                         <label class="pin-enable">
-                            <input type="checkbox" checked="BoundBool('''options['pin enabled']''')" title="Check to enable geometry pinning, where pinned geometry cannot be moved">
+                            <input type="checkbox" checked="BoundBool('''options['pin enabled']''')" title="Check to enable geometry pinning, where pinned geometry cannot be moved.  Note: to avoid confusion, pinning is disabled if not showing pinned geometry">
                             Enabled
                         </label>
                         <label>
-                            <input type="checkbox" checked="BoundBool('''options['show pinned']''')" title="Visualize pinned geometry (vertices, edges, polygons)">
+                            <input type="checkbox" checked="BoundBool('''options['show pinned']''')" title="Visualize pinned geometry (vertices, edges, polygons).  Note: to avoid confusion, pinning is disabled if not showing pinned geometry">
                             Show
                         </label>
                         <button title="Pin selected geometry" on_mouseclick="self.pin_selected()">Pin Selected</button>
@@ -550,11 +550,11 @@ def mirror_changed(self):
                     <h1>Seams</h1>
                     <div class="contents">
                         <label class="pin-seams">
-                            <input type="checkbox" checked="BoundBool('''options['pin seam']''')" title="Check to pin seams, where seam edges cannot be moved">
+                            <input type="checkbox" checked="BoundBool('''options['pin seam']''')" title="Check to pin seams, where seam edges cannot be moved.  Note: to avoid confusion, seam pinning is disabled if not showing seams">
                             Pin
                         </label>
                         <label>
-                            <input type="checkbox" checked="BoundBool('''options['show seam']''')" title="Visualize seam edges">
+                            <input type="checkbox" checked="BoundBool('''options['show seam']''')" title="Visualize seam edges.  Note: to avoid confusion, seam pinning is disabled if not showing seams">
                             Show
                         </label>
                         <button title="Mark selected edges as seam" on_mouseclick="self.mark_seam_selected()" class="half-size">Mark Selected</button>

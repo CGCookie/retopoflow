@@ -159,8 +159,8 @@ class RFVert(BMElemWrapper):
         if not self.bmelem.is_valid: return
         if any(math.isnan(v) for v in co): return
         # assert not any(math.isnan(v) for v in co), f'Setting RFVert.co to {co}'
-        if options['pin enabled'] and self.pinned: return
-        if options['pin seam']    and self.seam:   return
+        if options['show pinned'] and options['pin enabled'] and self.pinned: return
+        if options['show seam']   and options['pin seam']    and self.seam:   return
         co = self.symmetry_real(co, to_world=False)
         # # the following does not work well, because new verts have co=(0,0,0)
         # mm = BMElemWrapper.mirror_mod
