@@ -4,7 +4,8 @@ This document contains details about what has changed in RetopoFlow since versio
 
 ### RetopoFlow 3.4.1&rarr;3.4.2
 
-- Minor bug fix
+- Strokes now shows counts for selected verts, selected edges, new spans, new loops
+- Minor bug fixes
 
 ### RetopoFlow 3.4.0&rarr;3.4.1
 

@@ -774,21 +774,8 @@ class Strokes_Insert():
 
     @DrawCallbacks.on_draw('post2d')
     @FSM.onlyinstate('previs insert')
-    def draw_postpixel(self):
+    def draw_postpixel_strokeconnect(self):
         gpustate.blend('ALPHA')
-        point_to_point2d = self.rfcontext.Point_to_Point2D
-        up = self.rfcontext.Vec_up()
-        size_to_size2D = self.rfcontext.size_to_size2D
-        text_draw2D = self.rfcontext.drawing.text_draw2D
-        self.rfcontext.drawing.set_font_size(12)
-
-        for collection in self.edge_collections:
-            l = len(collection['edges'])
-            c = collection['center']
-            xy = point_to_point2d(c)
-            if not xy: continue
-            xy.y += 10
-            text_draw2D(str(l), xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
 
         if self.connection_pre:
             Globals.drawing.draw2D_linestrip(self.connection_pre[1], themes['stroke'], width=2, stipple=[4,4])

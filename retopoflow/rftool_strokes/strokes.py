@@ -187,11 +187,33 @@ class Strokes(RFTool, Strokes_Insert):
                 edges.discard(e)
                 v0,v1 = e.verts
                 working |= {e for e in (v0.link_edges + v1.link_edges) if e in edges}
-            ctr = Point.average(v.co for v in {v for e in current for v in e.verts})
+            verts = {v for e in current for v in e.verts}
             self.edge_collections.append({
+                'verts': verts,
                 'edges': current,
-                'center': ctr,
+                'center': Point.average(v.co for v in verts),
             })
+
+
+    @DrawCallbacks.on_draw('post2d')
+    def draw_postpixel_counts(self):
+        gpustate.blend('ALPHA')
+        point_to_point2d = self.rfcontext.Point_to_Point2D
+        text_draw2D = self.rfcontext.drawing.text_draw2D
+        self.rfcontext.drawing.set_font_size(12)
+
+        for collection in self.edge_collections:
+            lv = len(collection['verts'])
+            le = len(collection['edges'])
+            c = collection['center']
+            xy = point_to_point2d(c)
+            if not xy: continue
+            xy.y += 10
+            t = f'V:{lv}, E:{le}'
+            if self.strip_crosses: t += f'\nSpan: {self.strip_crosses}'
+            if self.strip_loops:   t += f'\nLoop: {self.strip_loops}'
+            text_draw2D(t, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
+
 
     def filter_edge_selection(self, bme):
         return bme.select or len(bme.link_faces) < 2
@@ -365,7 +387,6 @@ class Strokes(RFTool, Strokes_Insert):
 
     @FSM.on_state('move')
     @RFTool.dirty_when_done
-    @profiler.function
     def move(self):
         released = self.rfcontext.actions.released
         if self.actions.pressed(self.move_done_pressed):

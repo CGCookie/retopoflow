@@ -747,8 +747,8 @@ class Contours(RFTool, Contours_Ops, Contours_Props, Contours_Utils):
             xy = point_to_point2d(bmv.co)
             xy.y += 10
             if s_loops:
-                text_draw2D('O ' + s_loops, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
+                text_draw2D('O: ' + s_loops, xy, color=(1,1,0,1), dropshadow=(0,0,0,0.5))
                 xy.y += 10
             if s_strings:
-                text_draw2D('C ' + s_strings, xy, color=(0,1,1,1), dropshadow=(0,0,0,0.5))
+                text_draw2D('C: ' + s_strings, xy, color=(0,1,1,1), dropshadow=(0,0,0,0.5))
 
