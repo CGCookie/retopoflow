@@ -5,7 +5,8 @@ This document contains details about what has changed in RetopoFlow since versio
 ### RetopoFlow 3.4.1&rarr;3.4.2
 
 - Strokes now shows counts for selected verts, selected edges, new spans, new loops
-- Updated colors for target geometry: pinned, seam, non-manifold
+- Improved clarity for target geometry that is pinned, seam, non-manifold
+- Disabling visualization of pinned or seam geometry will disable pinning
 - Minor bug fixes
 
 ### RetopoFlow 3.4.0&rarr;3.4.1

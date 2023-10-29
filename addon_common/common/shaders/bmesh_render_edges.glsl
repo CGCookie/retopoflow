@@ -52,8 +52,14 @@ out vec3 vCNormal;          // normal wrt camera
 out vec3 vWNormal;          // normal wrt world
 out vec3 vMNormal;          // normal wrt model
 out vec3 vTNormal;          // normal wrt target
-out vec4 vColor;            // color of geometry (considers selection)
+out vec4 vColorIn;          // color of geometry inside
+out vec4 vColorOut;         // color of geometry outside (considers selection)
 out vec2 vPCPosition;
+
+bool is_warning()   { return use_warning()   && warning  > 0.5; }
+bool is_pinned()    { return use_pinned()    && pinned   > 0.5; }
+bool is_seam()      { return use_seam()      && seam     > 0.5; }
+bool is_selection() { return use_selection() && selected > 0.5; }
 
 void main() {
     vec4 pos0 = get_pos(vec3(vert_pos0));
@@ -62,7 +68,7 @@ void main() {
     vec2 ppos1 = xyz4(options.matrix_p * options.matrix_v * options.matrix_m * pos1).xy;
     vec2 pdir0 = normalize(ppos1 - ppos0);
     vec2 pdir1 = vec2(-pdir0.y, pdir0.x);
-    vec4 off = vec4((options.radius.x + 2.0) * pdir1 * 2.0 * (vert_offset.y-0.5) / options.screen_size.xy, 0, 0);
+    vec4 off = vec4((options.radius.x + options.radius.y + 2.0) * pdir1 * 2.0 * (vert_offset.y-0.5) / options.screen_size.xy, 0, 0);
 
     vec4 pos = pos0 + vert_offset.x * (pos1 - pos0);
     vec3 norm = normalize(vec3(vert_norm) * vec3(options.vert_scale));
@@ -100,17 +106,23 @@ void main() {
 
     gl_Position = vPPosition;
 
-    vColor = options.color_normal;
+    vColorIn  = options.color_normal;
+    vColorOut = vec4(options.color_normal.rgb, 0.0);
 
-    if(use_warning()   && warning  > 0.5) vColor = mix(vColor, options.color_warning,  0.75);
-    if(use_pinned()    && pinned   > 0.5) vColor = mix(vColor, options.color_pinned,   0.75);
-    if(use_seam()      && seam     > 0.5) vColor = mix(vColor, options.color_seam,     0.75);
-    if(use_selection() && selected > 0.5) vColor = mix(vColor, options.color_selected, 0.75);
+    if(is_selection()) {
+        vColorIn  = color_over(options.color_selected, vColorIn);
+        vColorOut = vec4(options.color_selected.rgb, 0.0);
+    }
+    if(is_warning())   vColorOut = color_over(options.color_warning,  vColorOut);
+    if(is_pinned())    vColorOut = color_over(options.color_pinned,   vColorOut);
+    if(is_seam())      vColorOut = color_over(options.color_seam,     vColorOut);
 
-    vColor.a *= 1.0 - options.hidden.x;
+    vColorIn.a  *= 1.0 - options.hidden.x;
+    vColorOut.a *= 1.0 - options.hidden.x;
 
     if(debug_invert_backfacing && vCNormal.z < 0.0) {
-        vColor = vec4(vec3(1,1,1) - vColor.rgb, vColor.a);
+        vColorIn  = vec4(vec3(1,1,1) - vColorIn.rgb,  vColorIn.a);
+        vColorOut = vec4(vec3(1,1,1) - vColorOut.rgb, vColorOut.a);
     }
 }
 
@@ -137,7 +149,8 @@ in vec3 vCNormal;          // normal wrt camera
 in vec3 vWNormal;          // normal wrt world
 in vec3 vMNormal;          // normal wrt model
 in vec3 vTNormal;          // normal wrt target
-in vec4 vColor;            // color of geometry (considers selection)
+in vec4 vColorIn;          // color of geometry inside (considers selection)
+in vec4 vColorOut;         // color of geometry outside
 in vec2 vPCPosition;
 
 out vec4 outColor;
@@ -146,16 +159,18 @@ out float gl_FragDepth;
 void main() {
     float clip  = options.clip[1] - options.clip[0];
     float focus = (view_distance() - options.clip[0]) / clip + 0.04;
-    vec3  rgb   = vColor.rgb;
-    float alpha = vColor.a;
 
     float dist_from_center = length(options.screen_size.xy * (vPCPosition - vPPosition.xy));
-    float alpha_mult = 1.0 - (dist_from_center - options.radius.x);
+    float alpha_mult = 1.0 - (dist_from_center - (options.radius.x + options.radius.y));
     if(alpha_mult <= 0) {
         discard;
         return;
     }
-    alpha *= min(1.0, alpha_mult);
+
+    float mix_in_out = clamp(dist_from_center - options.radius.x, 0.0, 1.0);
+    vec4  vColor = mix(vColorIn, vColorOut, mix_in_out);
+    vec3  rgb    = vColor.rgb;
+    float alpha  = vColor.a * min(1.0, alpha_mult);
 
     if(is_view_perspective()) {
         // perspective projection

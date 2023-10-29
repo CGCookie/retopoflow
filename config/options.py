@@ -312,8 +312,8 @@ class Options:
         'target alpha line':                  0.10,
         'target alpha line selected':         1.00,
         'target alpha line warning':          0.75,
-        'target alpha line pinned':           0.95,
-        'target alpha line seam':             0.95,
+        'target alpha line pinned':           0.75,
+        'target alpha line seam':             0.75,
         'target alpha line mirror':           0.10,
         'target alpha line mirror selected':  0.50,
         'target alpha line mirror warning':   0.15,
@@ -651,9 +651,9 @@ class Themes:
         'relax':      Color.from_ints(  0, 135, 255, 255), # Opacity is set by brush strength
 
         # Target Geometry
-        'warn':       Color.from_ints(182,  31,   0),
-        'seam':       Color.from_ints(255, 160, 255),
-        'pin':        Color.from_ints(255,  41, 255),
+        'warn':       Color((0.43, 0.072, 0.03)), #.from_ints(182,  31,   0),
+        'seam':       Color((0.859, 0.145, 0.071)), #.from_ints(255, 160, 255),
+        'pin':        Color.from_ints(217, 200, 18), #.from_ints(255,  41, 255),
     }
 
     themes = {

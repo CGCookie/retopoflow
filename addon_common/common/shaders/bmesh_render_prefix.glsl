@@ -84,7 +84,7 @@ float unit_scaling_factor() { return options.view_settings1[1]; }
 float normal_offset()       { return options.view_settings1[2]; }
 bool  constrain_offset()    { return options.view_settings1[3] > 0.5; }
 float view_push()           { return options.view_settings2[0]; }
-vec4 view_position()        { return options.view_position; }
+vec4  view_position()       { return options.view_position; }
 
 float clip_near() { return options.clip[0]; }
 float clip_far()  { return options.clip[1]; }
@@ -98,7 +98,11 @@ bool use_rounding()  { return options.use_settings1[0] > 0.5; }
 float magic_offset()    { return options.offset.x; }
 float magic_dotoffset() { return options.dotoffset.x; }
 
-
+vec4 color_over(vec4 top, vec4 bottom) {
+    float a = top.a + (1.0 - top.a) * bottom.a;
+    vec3 c = (top.rgb * top.a + (1.0 - top.a) * bottom.a * bottom.rgb) / a;
+    return vec4(c, a);
+}
 
 /////////////////////////////////////////////////////////////////////////
 // vertex shader

@@ -190,7 +190,7 @@ class BufferedRender_Batch:
         if self.shader_type == 'POINTS':
             set_if_set('size',       lambda v: self.set_shader_option('radius', (v*dpi_mult, 0, 0, 0)))
         elif self.shader_type == 'LINES':
-            set_if_set('width',      lambda v: self.set_shader_option('radius', (v*dpi_mult, 0, 0, 0)))
+            set_if_set('width',      lambda v: self.set_shader_option('radius', (v*dpi_mult, 2*dpi_mult, 0, 0)))
 
     def _draw(self, sx, sy, sz):
         self.set_shader_option('vert_scale', (sx, sy, sz, 0))

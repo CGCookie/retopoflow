@@ -76,8 +76,8 @@ void main() {
 
     vColor = options.color_normal;
 
-    if(use_pinned()    && pinned   > 0.5) vColor = mix(vColor, options.color_pinned,   0.75);
     if(use_selection() && selected > 0.5) vColor = mix(vColor, options.color_selected, 0.75);
+    if(use_pinned()    && pinned   > 0.5) vColor = mix(vColor, options.color_pinned,   0.75);
 
     vColor.a *= 1.0 - options.hidden.x;
 
