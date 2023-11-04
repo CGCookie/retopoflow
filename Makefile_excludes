@@ -63,3 +63,6 @@ b293
 .gitmodules
 
 issues/
+
+docs/
+docs_config/
