@@ -8,6 +8,7 @@ This document contains details about what has changed in RetopoFlow since versio
 - Improved clarity for target geometry that is pinned, seam, non-manifold
 - Disabling visualization of pinned or seam geometry will disable pinning
 - Added keymap for marking/clearing seams, confirming quick tools
+- Added Merge options to Delete / Dissolve pie menu
 - Minor bug fixes
 
 ### RetopoFlow 3.4.0&rarr;3.4.1

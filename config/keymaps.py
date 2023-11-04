@@ -102,6 +102,7 @@ default_rf_keymaps = {
     'scale': ['S'],
     'delete': ['X', 'DEL', 'BACK_SPACE'],
     'delete pie menu': ['CTRL+X', 'CTRL+DEL', 'CTRL+BACK_SPACE'],
+    'merge': ['M'],
     'smooth edge flow': ['SHIFT+S'],
     'rip': ['V'],
     'rip fill': ['ALT+V'],

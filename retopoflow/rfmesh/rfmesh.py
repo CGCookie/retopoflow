@@ -33,7 +33,8 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.ops import (
     bisect_plane, holes_fill,
     dissolve_verts, dissolve_edges, dissolve_faces,
-    remove_doubles, mirror, recalc_face_normals
+    remove_doubles, mirror, recalc_face_normals,
+    pointmerge,
 )
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -1740,6 +1741,19 @@ class RFTarget(RFMesh):
         ret = holes_fill(self.bme, edges=edges, sides=sides)
         print('RetopoFlow holes_fill', ret)
 
+
+    def merge_at_center(self, nearest):
+        rfvs = list(self.get_selected_verts())
+        co, norm, _, _ = nearest(Point.average(v.co for v in rfvs))
+        if not co or not norm: return None
+        bmvs = [self._unwrap(v) for v in rfvs]
+        pointmerge(self.bme, verts=bmvs)
+        rfv = self._wrap_bmvert(bmvs[0])
+        rfv.co = co
+        rfv.normal = norm
+        rfv.select = True
+        self.update_verts_faces([rfv])
+        return rfv
 
     def collapse_edges_faces(self, nearest):
         # find all connected components

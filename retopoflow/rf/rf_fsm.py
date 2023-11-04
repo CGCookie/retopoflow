@@ -278,15 +278,22 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
                     if not option: return
                     self.delete_dissolve_collapse_option(option)
                 self.show_pie_menu([
-                    ('Delete Verts',   ('Delete',   'Vertices')),
-                    ('Delete Edges',   ('Delete',   'Edges')),
-                    ('Delete Faces',   ('Delete',   'Faces')),
-                    ('Dissolve Faces', ('Dissolve', 'Faces')),
-                    ('Dissolve Edges', ('Dissolve', 'Edges')),
-                    ('Dissolve Verts', ('Dissolve', 'Vertices')),
+                    ('Delete Verts',      ('Delete',   'Vertices')),
+                    ('Delete Edges',      ('Delete',   'Edges')),
+                    ('Delete Faces',      ('Delete',   'Faces')),
+                    ('Dissolve Faces',    ('Dissolve', 'Faces')),
+                    ('Dissolve Edges',    ('Dissolve', 'Edges')),
+                    ('Dissolve Verts',    ('Dissolve', 'Vertices')),
+                    ('Merge at Center',   ('Merge',    'At Center')),
+                    ('Merge by Distance', ('Merge',    'By Distance')),
                     # ('Collapse Edges & Faces', ('Collapse', 'Edges & Faces')),
                     #'Dissolve Loops',
                 ], callback, release='delete pie menu', always_callback=True, rotate=-60)
+                return
+
+            # merge
+            if self.actions.pressed('merge'):
+                self.show_merge_dialog()
                 return
 
             # smoothing

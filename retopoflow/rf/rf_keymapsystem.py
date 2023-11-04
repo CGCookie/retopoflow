@@ -322,7 +322,8 @@ keymap_details = [
         ('rotate', 'Rotate'),
         ('scale', 'Scale'),
         ('delete', 'Show delete menu'),
-        ('delete pie menu', 'Show delete pie menu'),
+        ('delete pie menu', 'Show delete/dissolve/merge pie menu'),
+        # ('merge', 'Show merge menu'),
         ('smooth edge flow', 'Smooth edge flow of selected geometry'),
         ('rotate plane', 'Contours: rotate plane'),
         ('rotate screen', 'Contours: rotate screen'),
@@ -402,6 +403,7 @@ ignored_keys = {
     'toggle full area',
     'reload css',
     'select box', 'select box del', 'select box add',
+    'merge',
 }
 
 # check that all keymaps are able to be edited

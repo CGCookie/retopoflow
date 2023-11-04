@@ -1086,15 +1086,15 @@ class RetopoFlow_Target:
     # delete / dissolve
 
     def delete_dissolve_collapse_option(self, opt):
-        if opt is None: return
-        if opt[0] == 'Dissolve':
-            self.dissolve_option(opt[1])
-        elif opt[0] == 'Delete':
-            self.delete_option(opt[1])
-        elif opt[0] == 'Collapse':
-            self.collapse_option(opt[1])
-        else:
-            return
+        actions = {
+            'Dissolve': self.dissolve_option,
+            'Delete':   self.delete_option,
+            'Collapse': self.collapse_option,
+            'Merge':    self.merge_option,
+        }
+        if opt is None or opt[0] not in actions: return
+        action = actions[opt[0]]
+        action(opt[1])
 
     def dissolve_option(self, opt):
         sel_verts = self.rftarget.get_selected_verts()
@@ -1167,6 +1167,28 @@ class RetopoFlow_Target:
         except RuntimeError as e:
             self.undo_cancel()
             self.alert_user('Error while collapsing:\n' + '\n'.join(e.args))
+
+    def merge_option(self, opt):
+        if opt == 'At Center':
+            pass
+        elif opt == 'By Distance':
+            pass
+        else:
+            return
+
+        try:
+            self.undo_push('merge %s' % opt)
+            if opt == 'At Center':
+                self.merge_at_center()
+            elif opt == 'By Distance':
+                self.remove_selected_doubles()
+            self.dirty()
+        except RuntimeError as e:
+            self.undo_cancel()
+            self.alert_user('Error while merging:\n' + '\n'.join(e.args))
+
+    def merge_at_center(self):
+        self.rftarget.merge_at_center(self.nearest_sources_Point)
 
     def collapse_edges_faces(self):
         self.rftarget.collapse_edges_faces(self.nearest_sources_Point)

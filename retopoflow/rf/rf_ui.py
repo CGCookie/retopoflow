@@ -474,3 +474,18 @@ class RetopoFlow_UI:
         # self.document.force_clean(self.actions.context)
         # self.document.center_on_mouse(win)
         # self.document.sticky_element = win
+
+    def show_merge_dialog(self):
+        if not self.any_selected():
+            self.alert_user('No geometry selected to merge', title='Merge')
+            return
+
+        w,h = self.actions.region.width,self.actions.region.height
+        self.ui_delete.reposition(
+            left = self.actions.mouse.x - 100,
+            top = self.actions.mouse.y - h + 20,
+        )
+        self.ui_delete.is_visible = True
+        self.document.focus(self.ui_delete)
+        self.document.sticky_element = self.ui_delete
+
