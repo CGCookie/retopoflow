@@ -207,7 +207,8 @@ class Knife(RFTool, Knife_Insert):
     @FSM.on_state('move')
     def modal_move(self):
         if self.move_actions['confirm']():
-            self.rfcontext.merge_verts_by_dist(self.bmverts, options['knife merge dist'])
+            if options['knife automerge']:
+                self.rfcontext.merge_verts_by_dist(self.bmverts, options['knife merge dist'])
             return self.state_after_move
 
         if self.move_actions['cancel']():
