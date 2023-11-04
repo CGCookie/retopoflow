@@ -305,7 +305,6 @@ class RetopoFlow_Target:
             self.iter_point2D_symmetries if symmetry else self.iter_point2D_nosymmetry,
         )
 
-    @profiler.function
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
@@ -325,7 +324,6 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
 
-    @profiler.function
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:
@@ -345,7 +343,6 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
 
-    @profiler.function
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         xy = self.get_point2D(point or self.actions.mouse)
         if not vis_accel:

@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import re
 import random
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
+from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan, isfinite
 from typing import List
 from itertools import chain
 from concurrent.futures import ProcessPoolExecutor
@@ -196,7 +196,7 @@ class Accel2D:
 
     @profiler.function
     def get(self, v2d, within, *, fn_filter=None):
-        if isinf(v2d.x) or isinf(v2d.y) or isnan(v2d.x) or isnan(v2d.y): return set()
+        if v2d is None or not (isfinite(v2d.x) and isfinite(v2d.y)): return set()
         delta = Vec2D((within, within))
         p0, p1 = v2d - delta, v2d + delta
         i0, j0 = self.compute_ij(p0)
