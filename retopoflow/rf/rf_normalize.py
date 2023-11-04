@@ -207,7 +207,7 @@ class RetopoFlow_Normalize:
         if not sources: return 1.0
         bbox = BBox.merge( get_source_bbox(s) for s in sources )
         max_length = bbox.get_max_dimension()
-        scene_scale = bpy.context.scene.unit_settings.scale_length
+        scene_scale = 1.0 # bpy.context.scene.unit_settings.scale_length
         magic_scale = 10.0  # to make the unit box manageable
         return (scene_scale * magic_scale) / max_length
 
