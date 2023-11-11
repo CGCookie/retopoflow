@@ -227,7 +227,7 @@ class VIEW3D_OT_RetopoFlow_EnableDebugging(Operator):
     bl_options = set()
     @classmethod
     def poll(cls, context):
-        return not DeepDebug.is_enabled()
+        return DeepDebug.can_be_enabled() and not DeepDebug.is_enabled()
     def invoke(self, context, event):
         return self.execute(context)
     def execute(self, context):
@@ -262,11 +262,14 @@ class VIEW3D_OT_RetopoFlow_OpenDebugging(Operator):
     bl_options = set()
     @classmethod
     def poll(cls, context):
-        return DeepDebug.is_enabled()
+        path = next((str(p) for p in [DeepDebug.path_debug(), DeepDebug.path_debug_backup()] if p.exists()), None)
+        return path is not None
+        # return DeepDebug.is_enabled()
     def invoke(self, context, event):
         return self.execute(context)
     def execute(self, context):
-        path = str(DeepDebug.path_debug())
+        path = next((str(p) for p in [DeepDebug.path_debug(), DeepDebug.path_debug_backup()] if p.exists()), None)
+        if not path: return {'CANCELLED'}
         def get_debug_textblock():
             return next((t for t in bpy.data.texts if t.filepath == path), None)
         sys.stdout.flush()
@@ -276,6 +279,26 @@ class VIEW3D_OT_RetopoFlow_OpenDebugging(Operator):
         bpy.ops.text.open(filepath=path)
         t = get_debug_textblock()
         show_blender_text(t.name)
+        return {'FINISHED'}
+
+@add_to_registry
+class VIEW3D_OT_RetopoFlow_ClearDebugging(Operator):
+    bl_idname = "cgcookie.retopoflow_cleardebugging"
+    bl_label = "RetopoFlow: Clear Debugging Info"
+    bl_description = "Deletes any deep debugging info"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_options = set()
+    @classmethod
+    def poll(cls, context):
+        path = next((str(p) for p in [DeepDebug.path_debug(), DeepDebug.path_debug_backup()] if p.exists()), None)
+        return path is not None
+        # return DeepDebug.is_enabled()
+    def invoke(self, context, event):
+        return self.execute(context)
+    def execute(self, context):
+        for path in [DeepDebug.path_debug(), DeepDebug.path_debug_backup()]:
+            if path.exists(): path.unlink()
         return {'FINISHED'}
 
 
@@ -920,21 +943,27 @@ if import_succeeded:
             row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
 
             # DEEP DEBUGGER
-            col = box.column()
-            row = col.row(align=True)
-            row.label(text='Deep Debugging')
-            if DeepDebug.is_enabled():
-                row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='CHECKBOX_HLT') #'X')
-            else:
-                row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CHECKBOX_DEHLT') #'X')
-            row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
-            row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
-            if DeepDebug.needs_restart():
-                col.label(text='Restart Blender to finish', icon='BLENDER')
-            elif DeepDebug.is_enabled():
+            if DeepDebug.can_be_enabled():
+                col = box.column()
                 row = col.row(align=True)
-                row.label(text='', icon='DOT')
-                row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
+                row.label(text='Deep Debugging')
+                if DeepDebug.is_enabled():
+                    row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='CHECKBOX_HLT') #'X')
+                else:
+                    row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CHECKBOX_DEHLT') #'X')
+                row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
+                if DeepDebug.needs_restart():
+                    col.label(text='Restart Blender to finish', icon='BLENDER')
+                elif DeepDebug.is_enabled():
+                    row = col.row(align=True)
+                    row.label(text='', icon='DOT')
+                    row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
+                elif DeepDebug.path_debug_backup().exists():
+                    row = col.row(align=True)
+                    row.label(text='', icon='DOT')
+                    row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
+                    row.operator('cgcookie.retopoflow_cleardebugging',   text='Clear', icon='X')
 
             # ADDON UPDATER
             col = box.column(align=True)

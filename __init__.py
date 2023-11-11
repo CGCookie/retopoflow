@@ -25,6 +25,7 @@ from .addon_common.terminal.deepdebug import DeepDebug
 DeepDebug.init(
     fn_debug='RetopoFlow_debug.txt',
     clear=True,                         # clear deep debugging file every Blender session
+    enable_only_once=True,              # only allow this feature to be enabled for one session
 )
 
 

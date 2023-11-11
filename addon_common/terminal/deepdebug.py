@@ -21,6 +21,7 @@ Created by Jonathan Denning
 
 import os
 import sys
+import platform
 from pathlib import Path
 
 from . import term_printer
@@ -30,7 +31,15 @@ from . import term_printer
 class DeepDebug:
     _fn_debug = 'debug.txt'
     _path_debug = None
+    _path_debug_backup = None
     _needs_restart = False
+
+    @staticmethod
+    def can_be_enabled():
+        # we were having problems with windows, but we might have a better approach.
+        # see init below.
+        # if platform.system() == 'Windows': return False
+        return True
 
     @staticmethod
     def path_debug():
@@ -39,8 +48,22 @@ class DeepDebug:
         return DeepDebug._path_debug
 
     @staticmethod
+    def path_debug_backup():
+        if DeepDebug._path_debug_backup is None:
+            path_debug = DeepDebug.path_debug()
+            DeepDebug._path_debug_backup = path_debug.parent / f'{path_debug.name}.bkp'
+        return DeepDebug._path_debug_backup
+
+    @staticmethod
     def is_enabled():
         return DeepDebug.path_debug().exists()
+
+    @staticmethod
+    def has_been_debugged():
+        path_debug = DeepDebug.path_debug()
+        if not path_debug.exists(): return False
+        with path_debug.open() as f:
+            return len(f.read()) != 0
 
     @staticmethod
     def needs_restart():
@@ -59,7 +82,7 @@ class DeepDebug:
         DeepDebug._needs_restart = True
 
     @staticmethod
-    def init(*, fn_debug=None, clear=True):
+    def init(*, fn_debug=None, clear=True, enable_only_once=True):
         if DeepDebug._path_debug:
             print(f'Addon Common: DeepDebug should be initialized only once')
             return
@@ -71,6 +94,13 @@ class DeepDebug:
         if not DeepDebug.is_enabled(): return
 
         path_debug = DeepDebug.path_debug()
+        path_backup = DeepDebug.path_debug_backup()
+
+        # disable deep debugging if it should be run only once and it has already been run
+        if enable_only_once and DeepDebug.has_been_debugged():
+            if path_backup.exists(): path_backup.unlink()
+            path_debug.rename(path_backup)
+            return
 
         term_printer.boxed(
             f'Redirecting ALL STDOUT and STDERR',
@@ -80,10 +110,15 @@ class DeepDebug:
         sys.stdout.flush()
         if clear: path_debug.unlink()  # delete it to reset session recording
 
-        # https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/11632982#11632982
-        # in C++, see https://stackoverflow.com/a/13888242 and https://cplusplus.com/reference/cstdio/freopen/
-        os.close(1)
-        os.open(path_debug, os.O_WRONLY | os.O_CREAT)
+        # WARNING: closing STDOUT does _NOT_ work on Windows!
+        # on windows, using a different approach, but it does not capture everything :(
+        if platform.system() != 'Windows':
+            # https://stackoverflow.com/questions/4675728/redirect-stdout-to-a-file-in-python/11632982#11632982
+            # in C++, see https://stackoverflow.com/a/13888242 and https://cplusplus.com/reference/cstdio/freopen/
+            os.close(1) ; os.open(path_debug, os.O_WRONLY | os.O_CREAT)
+        else:
+            # https://github.com/ipython/ipython/issues/10847
+            sys.stdout = open(path_debug, 'wt', buffering=1)
 
     @staticmethod
     def read():
