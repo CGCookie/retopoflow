@@ -622,6 +622,7 @@ if import_succeeded:
 
         @staticmethod
         def draw_popover(self, context):
+            if retopoflow.RetopoFlow.instance: return
             if context.mode == 'EDIT_MESH' or context.mode == 'OBJECT':
                 self.layout.separator()
                 if is_editing_target(context):
