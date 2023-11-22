@@ -125,7 +125,7 @@ kmi_to_humanreadable = [
         'DOUBLE': 'Double',
         'CLICK':  'Click',
     },{
-        'SPACE': ' ',
+        'SPACE': 'Space',
     }
 ]
 

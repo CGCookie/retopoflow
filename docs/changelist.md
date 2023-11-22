@@ -2,6 +2,17 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.1&rarr;3.4.2
+
+- Worked around issue of "locking" Blender interface on Windows machines with Blender >3.6
+- Strokes now shows counts for selected verts, selected edges, new spans, new loops
+- Improved clarity for target geometry that is pinned, seam, non-manifold
+- Disabling visualization of pinned or seam geometry will disable pinning
+- Added keymap for marking/clearing seams, confirming quick tools
+- Added keymap for confirming quick tools
+- Added Merge options to Delete / Dissolve pie menu
+- Many minor bug fixes
+
 ### RetopoFlow 3.4.0&rarr;3.4.1
 
 - Improved visualization and editing when working on "wrong" side of symmetry

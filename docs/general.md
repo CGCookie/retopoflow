@@ -93,6 +93,11 @@ For example, pressing `G` in Contours will slide the selected loop.
 | {{ site.data.keymaps.delete_pie_menu }}                            | : | delete / dissolve pie menu
 | {{ site.data.keymaps.blender_undo }}                               | : | undo |
 | {{ site.data.keymaps.blender_redo }}                               | : | redo |
+| {{ site.data.keymaps.pin }}                                        | : | pin selected geometry |
+| {{ site.data.keymaps.unpin }}                                      | : | unpin selected geometry |
+| {{ site.data.keymaps.unpin_all }}                                  | : | unpin all pinned geometry |
+| {{ site.data.keymaps.mark_seam }}                                  | : | mark selected edges as seam |
+| {{ site.data.keymaps.clear_seam }}                                | : | unmark selected edges as seam |
 
 
 General selection has a few options to help with selecting troublesome vertices (ex: just below surface of source).
