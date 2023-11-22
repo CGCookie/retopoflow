@@ -272,7 +272,7 @@ class Options:
         'color theme':                  'Green',
         'symmetry view':                'Edge',
         'symmetry effect':              0.5,
-        'symmetry mirror input':        True,       # True: input is mirrored to correct side of symmetry.  False: input is clamped
+        'symmetry mirror input':        False,       # True: input is mirrored to correct side of symmetry.  False: input is clamped
         'normal offset multiplier':     1.0,
         'constrain offset':             False,      # when False, symmetry viz looks good.  do we still need this???
         'ui scale':                     1.0,
