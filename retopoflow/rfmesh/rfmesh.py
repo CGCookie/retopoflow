@@ -1720,6 +1720,7 @@ class RFTarget(RFMesh):
 
     def new_face(self, verts):
         # see if a face happens to exist already...
+        verts = [v for v in verts if v]
         face_in_common = accumulate_last(
             (
                 set(f for f in v.link_faces if f.is_valid)
