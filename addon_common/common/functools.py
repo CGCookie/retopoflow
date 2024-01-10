@@ -25,6 +25,36 @@ from inspect import isfunction, signature
 ##################################################
 
 
+def wrap_function(fn_original, *, fn_pre=None, fn_post=None):
+    import inspect
+    mod_original = inspect.getmodule(fn_original)
+    # find name of fn in mod
+    key_original = next((k for k in dir(mod_original) if getattr(mod_original, k) == fn_original), None)
+    key_original = fn_original.__name__ if key_original in dir(mod_original) and getattr(mod_original, key_original) == fn_original else key_original
+    assert key_original, f'Could not find {fn_original} in {mod_original}'
+    def wrapped(*args, **kwargs):
+        if fn_pre: fn_pre(*args, **kwargs)
+        ret = fn_original(*args, **kwargs)
+        if fn_post: fn_post(*args, **kwargs)
+        return ret
+    def unwrap():
+        # print(f'unwrapping')
+        setattr(mod_original, fn_original.__name__, fn_original)
+    # print(f'wrapping')
+    setattr(mod_original, fn_original.__name__, wrapped)
+    return unwrap
+
+
+
+
+
+
+
+
+
+##################################################
+
+
 # find functions of object that has key attribute
 # returns list of (attribute value, fn)
 def find_fns(obj, key, *, full_search=False):

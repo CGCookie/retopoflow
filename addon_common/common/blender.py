@@ -35,6 +35,29 @@ from .blender_cursors import Cursors
 from ..terminal import term_printer
 
 
+
+def iter_all_VIEW_3D_areas(*, screen=None):
+    if screen:
+        yield from (a for a in screen.areas if a.type == 'VIEW_3D')
+        return
+
+    yield from (
+        a
+        for wm in bpy.data.window_managers.values()
+        for win in wm.windows
+        for a in win.screen.areas
+        if a.type == 'VIEW_3D'
+    )
+
+def iter_all_VIEW_3D_spaces():
+    yield from (
+        s
+        for a in iter_all_VIEW_3D_areas()
+        for s in a.spaces
+        if s.type == 'VIEW_3D'
+    )
+
+
 def get_view3d_area(context=None):
     # assuming: context.screen is correct, and a SINGLE VIEW_3D area!
     if not context: context = bpy.context

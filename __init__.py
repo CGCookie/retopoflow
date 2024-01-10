@@ -1,22 +1,22 @@
 '''
-Copyright (C) 2023 CG Cookie
-http://cgcookie.com
-hello@cgcookie.com
+Copyright (C) 2024 Orange Turbine
+http://orangeturbine.com
+orangeturbine@cgcookie.com
 
-Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
+This file is part of RetopoFlow.
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 
@@ -34,15 +34,17 @@ DeepDebug.init(
 # NOTE: the following lines are automatically updated based on hive.json
 #       if "warning" is present (not commented out), a warning icon will show in add-ons list
 bl_info = {
-    "name":         "RetopoFlow",
+    "name":         "RetopoFlow 4.0.0α",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
-    "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "blender":      (3, 6, 0),
-    "version":      (3, 4, 2),
+    "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
+    "blender":      (4, 0, 0),
+    "version":      (4, 0, 0),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",
-    "category":     "3D View",}
+    "category":     "3D View",
+    "warning":      "Alpha",
+}
 
 # update bl_info above based on hive data
 from .addon_common.hive.hive import Hive
@@ -50,6 +52,8 @@ Hive.update_bl_info(bl_info, __file__)
 
 
 import bpy
+
+# the following two functions will be overwritten later, as long as everything looks good!
 def register():   pass
 def unregister(): pass
 
@@ -71,8 +75,8 @@ elif bpy.app.version < Hive.get_version('blender hard minimum version'):
     )
 
 else:
-    from .retopoflow import blenderregister
-    def register():   blenderregister.register(bl_info)
-    def unregister(): blenderregister.unregister(bl_info)
+    from .retopoflow.rfcore import RFCore
+    def register():   RFCore.register()
+    def unregister(): RFCore.unregister()
 
 

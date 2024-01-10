@@ -53,7 +53,7 @@ class Hive:
         insert = '\n' + '\n'.join([
             f'''{f'    "{k}":':20s}{f'"{v}"' if isinstance(v, str) else f'{v}'},'''
             for (k,v) in Hive.to_bl_info().items()
-        ])
+        ]) + '\n'
         init_file = re.sub(
             r'(?P<start>bl_info *= *\{)(?P<replace>[^}]+)(?P<end>\})',
             rf'\1{insert}\3',

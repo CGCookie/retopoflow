@@ -1,0 +1,191 @@
+'''
+Copyright (C) 2024 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Lampel
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
+import bpy
+
+from ..addon_common.common.blender import iter_all_VIEW_3D_areas, iter_all_VIEW_3D_spaces
+
+from .rftool_base import get_all_RFTools
+
+# import order determines tool order
+from .rftool_contours.contours import RFTool_Contours
+from .rftool_polypen.polypen   import RFTool_PolyPen
+
+
+
+class RFCore:
+    active_RFTool = None
+    is_running = False
+    event_mouse = None
+
+    unset_retopology_overlay = False
+
+    _is_registered = False
+    _unwrap_activate_tool = None
+    _handle_draw_cursor = None
+
+    @staticmethod
+    def register():
+        print(f'REGISTER')
+        if RFCore._is_registered:
+            print(f'  ALREADY REGISTERED!!')
+            return
+
+        RFTools = { rft.bl_idname for rft in get_all_RFTools() }
+        print(f'RFTools: {RFTools}')
+
+        # register RF operator and RF tools
+        bpy.utils.register_class(RFCore_Operator)
+        for i, rft in enumerate(get_all_RFTools()):
+            bpy.utils.register_tool(rft, separator=(i==0))
+
+        # wrap toll change function
+        def tool_changed(context, space_type, idname, **kwargs):
+            prev_active = RFCore.active_RFTool
+            RFCore.active_RFTool = idname if idname in RFTools else None
+            if not prev_active and RFCore.active_RFTool: RFCore.start()
+            if prev_active and not RFCore.active_RFTool: RFCore.stop()
+        from bl_ui import space_toolsystem_common
+        from ..addon_common.common.functools import wrap_function
+        RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=tool_changed)
+
+        RFCore._is_registered = True
+
+    @staticmethod
+    def unregister():
+        print(f'UNREGISTER')
+        if not RFCore._is_registered:
+            print(f'  ALREADY UNREGISTERED!!')
+            return
+
+        if not bpy.context.workspace:
+            # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
+            return
+
+        if RFCore.active_RFTool:
+            # RFTool is active, so switch away first!
+            import bl_ui
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+
+        RFCore.stop()
+
+        # unwrap tool change function
+        RFCore._unwrap_activate_tool()
+        RFCore._unwrap_activate_tool = None
+
+        # unregister RF operator and RF tools
+        for rft in reversed(get_all_RFTools()):
+            bpy.utils.unregister_tool(rft)
+        bpy.utils.unregister_class(RFCore_Operator)
+
+        RFCore._is_registered = False
+
+
+    @staticmethod
+    def start():
+        if RFCore.is_running: return
+        RFCore.is_running = True
+        RFCore.event_mouse = None
+        RFCore._handle_draw_cursor = bpy.types.WindowManager.draw_cursor_add(RFCore.handle_draw_cursor, tuple(), 'VIEW_3D', 'WINDOW')
+        bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
+        bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
+        bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
+        RFCore.unset_retopology_overlay = False
+        for s in iter_all_VIEW_3D_spaces():
+            RFCore.unset_retopology_overlay |= s.overlay.show_retopology
+            s.overlay.show_retopology = True
+        bpy.ops.retopoflow.core()
+
+    @staticmethod
+    def stop():
+        if not RFCore.is_running: return
+        RFCore.is_running = False
+        RFCore.event_mouse = None
+        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
+        bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
+        bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
+        bpy.types.WindowManager.draw_cursor_remove(RFCore._handle_draw_cursor)
+        for s in iter_all_VIEW_3D_spaces():
+            s.overlay.show_retopology = RFCore.unset_retopology_overlay
+
+    @staticmethod
+    def handle_draw_cursor(mouse):
+        if not RFCore.is_running:
+            print('NOT RUNNING ANYMORE')
+            return
+        # print(f'handle_draw_cursor({mouse})')
+        if mouse != RFCore.event_mouse:
+            if RFCore.event_mouse: print(f'LOST CONTROL!')
+            RFCore.event_mouse = None
+
+    @staticmethod
+    def handle_depsgraph_update(scene, depsgraph):
+        print(f'handle_depsgraph_update({scene}, {depsgraph})')
+        for up in depsgraph.updates:
+            print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
+    @staticmethod
+    def handle_redo_post(*args, **kwargs):
+        print(f'handle_redo_post({args}, {kwargs})')
+    @staticmethod
+    def handle_undo_post(*args, **kwargs):
+        print(f'handle_undo_post({args}, {kwargs})')
+
+
+
+
+class RFCore_Operator(bpy.types.Operator):
+    bl_idname = "retopoflow.core"
+    bl_label = "RetopoFlow Core"
+
+    @classmethod
+    def poll(cls, context):
+        # only start if an RFTool is active
+        return RFCore.active_RFTool
+
+    def execute(self, context):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        # print(f'MODAL {event.type} {event.value}')
+
+        if not context.area:
+            # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
+            # WORKAROUND: restart modal operator with correct context
+            print(f'RESTARTING!')
+
+            def rerun():
+                area = next(iter_all_VIEW_3D_areas(screen=bpy.context.screen), None)
+                with bpy.context.temp_override(area=area):
+                    bpy.ops.retopoflow.core()
+            bpy.app.timers.register(rerun, first_interval=0.01)
+
+            return {'FINISHED'}
+
+        if not RFCore.is_running:
+            print(f'EXITING!')
+            return {'FINISHED'}
+
+        if not RFCore.event_mouse: print(f'IN CONTROL!')
+        RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+
+        return {'PASS_THROUGH'}
+

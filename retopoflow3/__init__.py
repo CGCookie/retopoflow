@@ -1,9 +1,9 @@
 '''
-Copyright (C) 2024 CG Cookie
+Copyright (C) 2023 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
-Created by Jonathan Denning, Jonathan Lampel
+Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,18 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
-from ..rftool_base import RFTool_Base
-
-
-class RFTool_Contours(RFTool_Base):
-    bl_idname = "retopoflow.contours"
-    bl_label = "Contours"
-    bl_description = "Contours"
-    bl_icon = "ops.generic.select_circle"
-    bl_widget = None
-
-
-
-
-
+__all__ = [
+    'retopoflow',
+]

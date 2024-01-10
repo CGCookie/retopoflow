@@ -20,17 +20,11 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from ..rftool_base import RFTool_Base
 
+class RFTool_Base(bpy.types.WorkSpaceTool):
+    bl_space_type = 'VIEW_3D'
+    bl_context_mode = 'EDIT_MESH'
 
-class RFTool_Contours(RFTool_Base):
-    bl_idname = "retopoflow.contours"
-    bl_label = "Contours"
-    bl_description = "Contours"
-    bl_icon = "ops.generic.select_circle"
-    bl_widget = None
-
-
-
-
+def get_all_RFTools():
+    return RFTool_Base.__subclasses__()
 

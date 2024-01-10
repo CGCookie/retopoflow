@@ -1,9 +1,9 @@
 '''
-Copyright (C) 2023 CG Cookie
+Copyright (C) 2024 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
-Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
+Created by Jonathan Denning, Jonathan Lampel
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
