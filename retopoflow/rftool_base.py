@@ -49,7 +49,7 @@ operators = []
 def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None):
     class RFOp(bpy.types.Operator):
         bl_idname = f"retopoflow.{idname}"
-        bl_label = f"RetopoFlow: {label}"
+        bl_label = label
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()

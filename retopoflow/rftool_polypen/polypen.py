@@ -72,10 +72,21 @@ def raycast_mouse_objects(context, event):
     hit = Mi @ hit
     return hit.xyz
 
+
 visualizing = False
+translate_options = {
+    'snap': True,
+    'use_snap_project': True,
+    'use_snap_self': False,
+    'use_snap_edit': False,
+    'use_snap_nonedit': True,
+    'use_snap_selectable': True,
+    'snap_elements': {'FACE_PROJECT', 'FACE_NEAREST'},
+    'snap_target': 'CLOSEST',
+    # 'release_confirm': True,
+}
 
-
-@invoke_operator('PolyPen_Insert', 'polypen_insert', 'PolyPon: Insert')
+@invoke_operator('PolyPen_Insert', 'polypen_insert', 'Insert')
 def pp_insert(context, event):
     global visualizing
     print('INSERT!')
@@ -94,20 +105,7 @@ def pp_insert(context, event):
 
     visualizing = False
 
-    bpy.ops.transform.transform(
-        'INVOKE_DEFAULT',
-        mode='TRANSLATION',
-        snap=True,
-        use_snap_project=True,
-        use_snap_self=False,
-        use_snap_edit=False,
-        use_snap_nonedit=True,
-        use_snap_selectable=True,
-        snap_elements={'FACE_PROJECT', 'FACE_NEAREST'},
-        snap_target='CLOSEST',
-        # release_confirm=True,
-    )
-
+    bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
 
 @invoke_operator('PolyPen_MouseMove', 'polypen_mousemove', 'PolyPen: Mouse Move')
 def pp_mousemove(context, event):
@@ -115,8 +113,6 @@ def pp_mousemove(context, event):
     if not visualizing and event.alt: print(f'START VISUALIZING!!')
     if visualizing and not event.alt: print(f'STOP VISUALIZING')
     visualizing = event.alt
-
-
 
 
 
@@ -133,16 +129,7 @@ class RFTool_PolyPen(RFTool_Base):
         (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING', 'alt': True}, None),
         (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
         (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
-        ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':[
-            ('snap', True),
-            ('use_snap_project', True),
-            ('use_snap_self', False),
-            ('use_snap_edit', False),
-            ('use_snap_nonedit', True),
-            ('use_snap_selectable', True),
-            ('snap_elements', {'FACE_PROJECT', 'FACE_NEAREST'}),
-            ('snap_target', 'CLOSEST')
-        ]}),
+        ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':list(translate_options.items())}),
     )
 
 
