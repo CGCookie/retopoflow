@@ -72,8 +72,12 @@ def raycast_mouse_objects(context, event):
     hit = Mi @ hit
     return hit.xyz
 
+visualizing = False
+
+
 @invoke_operator('PolyPen_Insert', 'polypen_insert', 'PolyPon: Insert')
 def pp_insert(context, event):
+    global visualizing
     print('INSERT!')
 
     hit = raycast_mouse_objects(context, event)
@@ -87,6 +91,8 @@ def pp_insert(context, event):
     bme.select_flush(True)
     bme.select_flush(False)
     bmesh.update_edit_mesh(context.active_object.data)
+
+    visualizing = False
 
     bpy.ops.transform.transform(
         'INVOKE_DEFAULT',
@@ -102,21 +108,14 @@ def pp_insert(context, event):
         # release_confirm=True,
     )
 
-@execute_operator('PolyPen_InsertStart', 'polypen_insert_start', 'PolyPon: Insert Start')
-def pp_insert_start(context):
-    print('START INSERT VIZ!')
-    # context.scene.tool_settings.use_snap = True
-    # context.scene.tool_settings.snap_target = 'CLOSEST'
-    # # context.scene.tool_settings.snap_elements_base = {'FACE'}
-    # context.scene.tool_settings.snap_elements_individual = {'FACE_PROJECT', 'FACE_NEAREST'}
-    # context.scene.tool_settings.use_snap_self = False
-    # context.scene.tool_settings.use_snap_edit = False
-    # context.scene.tool_settings.use_snap_nonedit = True
-    # context.scene.tool_settings.use_snap_selectable = True
 
-@execute_operator('PolyPen_InsertEnd', 'polypen_insert_end', 'PolyPon: Insert End')
-def pp_insert_end(context):
-    print('END INSERT VIZ!')
+@invoke_operator('PolyPen_MouseMove', 'polypen_mousemove', 'PolyPen: Mouse Move')
+def pp_mousemove(context, event):
+    global visualizing
+    if not visualizing and event.alt: print(f'START VISUALIZING!!')
+    if visualizing and not event.alt: print(f'STOP VISUALIZING')
+    visualizing = event.alt
+
 
 
 
@@ -130,8 +129,10 @@ class RFTool_PolyPen(RFTool_Base):
 
     bl_keymap = (
         (pp_insert.bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
-        (pp_insert_start.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
-        (pp_insert_end.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
+        (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING'}, None),
+        (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING', 'alt': True}, None),
+        (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
+        (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
         ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':[
             ('snap', True),
             ('use_snap_project', True),
