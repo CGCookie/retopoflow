@@ -24,23 +24,38 @@ import bpy
 from ..addon_common.common.blender import iter_all_VIEW_3D_areas, iter_all_VIEW_3D_spaces
 
 from .rftool_base import get_all_RFTools
+from .rftool_base import register as register_ops
+from .rftool_base import unregister as unregister_ops
 
 # import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 
 
+'''
+TODO:
+- does not handle multiple spaces correctly
+    - each space has its own overlay.show_retopology, but we're approaching this globally
+    - this is potentially complicated when full-screening area
+- does not handle multiple windows correctly
+    - how to stop operator running in window if that window is closed?
+'''
 
 class RFCore:
     active_RFTool = None
     is_running = False
     event_mouse = None
 
+    running_in_windows = []
+
     unset_retopology_overlay = False
 
     _is_registered = False
     _unwrap_activate_tool = None
     _handle_draw_cursor = None
+    _handle_preview = None
+    _handle_postview = None
+    _handle_postpixel = None
 
     @staticmethod
     def register():
@@ -56,6 +71,8 @@ class RFCore:
         bpy.utils.register_class(RFCore_Operator)
         for i, rft in enumerate(get_all_RFTools()):
             bpy.utils.register_tool(rft, separator=(i==0))
+            rft.register()
+        register_ops()
 
         # wrap toll change function
         def tool_changed(context, space_type, idname, **kwargs):
@@ -92,7 +109,9 @@ class RFCore:
         RFCore._unwrap_activate_tool = None
 
         # unregister RF operator and RF tools
+        unregister_ops()
         for rft in reversed(get_all_RFTools()):
+            rft.unregister()
             bpy.utils.unregister_tool(rft)
         bpy.utils.unregister_class(RFCore_Operator)
 
@@ -104,10 +123,20 @@ class RFCore:
         if RFCore.is_running: return
         RFCore.is_running = True
         RFCore.event_mouse = None
-        RFCore._handle_draw_cursor = bpy.types.WindowManager.draw_cursor_add(RFCore.handle_draw_cursor, tuple(), 'VIEW_3D', 'WINDOW')
+
+        wm = bpy.types.WindowManager
+        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, tuple(), 'VIEW_3D', 'WINDOW')
+
+        space = bpy.types.SpaceView3D
+        RFCore._handle_preview   = space.draw_handler_add(RFCore.handle_preview,   tuple(), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview  = space.draw_handler_add(RFCore.handle_postview,  tuple(), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel = space.draw_handler_add(RFCore.handle_postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
+        # tag_redraw_all('CC ui_start', only_tag=False)
+
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
+
         RFCore.unset_retopology_overlay = False
         for s in iter_all_VIEW_3D_spaces():
             RFCore.unset_retopology_overlay |= s.overlay.show_retopology
@@ -119,10 +148,19 @@ class RFCore:
         if not RFCore.is_running: return
         RFCore.is_running = False
         RFCore.event_mouse = None
+
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
-        bpy.types.WindowManager.draw_cursor_remove(RFCore._handle_draw_cursor)
+
+        space = bpy.types.SpaceView3D
+        space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
+        space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
+        space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
+
+        wm = bpy.types.WindowManager
+        wm.draw_cursor_remove(RFCore._handle_draw_cursor)
+
         for s in iter_all_VIEW_3D_spaces():
             s.overlay.show_retopology = RFCore.unset_retopology_overlay
 
@@ -131,10 +169,25 @@ class RFCore:
         if not RFCore.is_running:
             print('NOT RUNNING ANYMORE')
             return
-        # print(f'handle_draw_cursor({mouse})')
+
+        # print(f'handle_draw_cursor({mouse})  {bpy.context.window in RFCore.running_in_windows}')
+        if bpy.context.window not in RFCore.running_in_windows:
+            print(f'LAUNCHING IN NEW WINDOW')
+            bpy.ops.retopoflow.core()
+
         if mouse != RFCore.event_mouse:
             if RFCore.event_mouse: print(f'LOST CONTROL!')
             RFCore.event_mouse = None
+
+    @staticmethod
+    def handle_preview():
+        '''print(f'handle_preview()')'''
+    @staticmethod
+    def handle_postview():
+        '''print(f'handle_postview()')'''
+    @staticmethod
+    def handle_postpixel():
+        '''print(f'handle_postpixel()')'''
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
@@ -150,7 +203,6 @@ class RFCore:
 
 
 
-
 class RFCore_Operator(bpy.types.Operator):
     bl_idname = "retopoflow.core"
     bl_label = "RetopoFlow Core"
@@ -162,6 +214,7 @@ class RFCore_Operator(bpy.types.Operator):
 
     def execute(self, context):
         context.window_manager.modal_handler_add(self)
+        RFCore.running_in_windows.append(context.window)
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
@@ -182,6 +235,7 @@ class RFCore_Operator(bpy.types.Operator):
 
         if not RFCore.is_running:
             print(f'EXITING!')
+            RFCore.running_in_windows.remove(context.window)
             return {'FINISHED'}
 
         if not RFCore.event_mouse: print(f'IN CONTROL!')
