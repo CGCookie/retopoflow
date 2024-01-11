@@ -20,8 +20,10 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bmesh
 
-from ..addon_common.common.blender import iter_all_VIEW_3D_areas, iter_all_VIEW_3D_spaces
+from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
+from ..addon_common.common.reseter import Reseter
 
 from .rftool_base import get_all_RFTools
 from .rftool_base import register as register_ops
@@ -30,6 +32,9 @@ from .rftool_base import unregister as unregister_ops
 # import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
+
+RFTools = { rft.bl_idname: rft for rft in get_all_RFTools() }
+print(f'RFTools: {list(RFTools.keys())}')
 
 
 '''
@@ -48,7 +53,7 @@ class RFCore:
 
     running_in_windows = []
 
-    unset_retopology_overlay = False
+    reseter = Reseter()
 
     _is_registered = False
     _unwrap_activate_tool = None
@@ -64,9 +69,6 @@ class RFCore:
             print(f'  ALREADY REGISTERED!!')
             return
 
-        RFTools = { rft.bl_idname for rft in get_all_RFTools() }
-        print(f'RFTools: {RFTools}')
-
         # register RF operator and RF tools
         bpy.utils.register_class(RFCore_Operator)
         for i, rft in enumerate(get_all_RFTools()):
@@ -75,14 +77,9 @@ class RFCore:
         register_ops()
 
         # wrap toll change function
-        def tool_changed(context, space_type, idname, **kwargs):
-            prev_active = RFCore.active_RFTool
-            RFCore.active_RFTool = idname if idname in RFTools else None
-            if not prev_active and RFCore.active_RFTool: RFCore.start()
-            if prev_active and not RFCore.active_RFTool: RFCore.stop()
         from bl_ui import space_toolsystem_common
         from ..addon_common.common.functools import wrap_function
-        RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=tool_changed)
+        RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         RFCore._is_registered = True
 
@@ -117,9 +114,27 @@ class RFCore:
 
         RFCore._is_registered = False
 
+    @staticmethod
+    def tool_changed(context, space_type, idname, **kwargs):
+        prev_active = RFCore.active_RFTool
+        RFCore.active_RFTool = idname if idname in RFTools else None
+        print(f'{prev_active} -> {idname}')
+
+        if not prev_active and RFCore.active_RFTool:
+            RFCore.start(context)
+
+        # XXX: resizing the Blender window will cause tool change to change to current tool???
+        if prev_active != RFCore.active_RFTool:
+            if prev_active:
+                RFTools[prev_active].deactivate(context)
+            if RFCore.active_RFTool:
+                RFTools[RFCore.active_RFTool].activate(context)
+
+        if prev_active and not RFCore.active_RFTool:
+            RFCore.stop()
 
     @staticmethod
-    def start():
+    def start(context):
         if RFCore.is_running: return
         RFCore.is_running = True
         RFCore.event_mouse = None
@@ -137,11 +152,29 @@ class RFCore:
         bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
 
-        RFCore.unset_retopology_overlay = False
-        for s in iter_all_VIEW_3D_spaces():
-            RFCore.unset_retopology_overlay |= s.overlay.show_retopology
-            s.overlay.show_retopology = True
+        for s in iter_all_view3d_spaces():
+            RFCore.reseter['s.overlay.show_retopology'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap'] = True
+        RFCore.reseter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
+        RFCore.reseter['context.scene.tool_settings.use_snap_self'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_edit'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_nonedit'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_selectable'] = True
+
+        emesh = context.active_object.data
+        bm = bmesh.from_edit_mesh(emesh)
+        if 'rf: select after move' not in bm.verts.layers.int:
+            bm.verts.layers.int.new('rf: select after move')
+
         bpy.ops.retopoflow.core()
+
+    @staticmethod
+    def restart():
+        def rerun():
+            area = next(iter_all_view3d_areas(screen=bpy.context.screen), None)
+            with bpy.context.temp_override(area=area):
+                bpy.ops.retopoflow.core()
+        bpy.app.timers.register(rerun, first_interval=0.01)
 
     @staticmethod
     def stop():
@@ -161,8 +194,7 @@ class RFCore:
         wm = bpy.types.WindowManager
         wm.draw_cursor_remove(RFCore._handle_draw_cursor)
 
-        for s in iter_all_VIEW_3D_spaces():
-            s.overlay.show_retopology = RFCore.unset_retopology_overlay
+        RFCore.reseter.reset()
 
     @staticmethod
     def handle_draw_cursor(mouse):
@@ -181,25 +213,31 @@ class RFCore:
 
     @staticmethod
     def handle_preview():
-        '''print(f'handle_preview()')'''
+        # print(f'handle_preview()')
+        pass
     @staticmethod
     def handle_postview():
-        '''print(f'handle_postview()')'''
+        # print(f'handle_postview()')
+        pass
     @staticmethod
     def handle_postpixel():
-        '''print(f'handle_postpixel()')'''
+        # print(f'handle_postpixel()')
+        pass
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
-        print(f'handle_depsgraph_update({scene}, {depsgraph})')
-        for up in depsgraph.updates:
-            print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
+        # print(f'handle_depsgraph_update({scene}, {depsgraph})')
+        # for up in depsgraph.updates:
+        #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
+        pass
     @staticmethod
     def handle_redo_post(*args, **kwargs):
-        print(f'handle_redo_post({args}, {kwargs})')
+        # print(f'handle_redo_post({args}, {kwargs})')
+        pass
     @staticmethod
     def handle_undo_post(*args, **kwargs):
-        print(f'handle_undo_post({args}, {kwargs})')
+        # print(f'handle_undo_post({args}, {kwargs})')
+        pass
 
 
 
@@ -224,13 +262,7 @@ class RFCore_Operator(bpy.types.Operator):
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
             print(f'RESTARTING!')
-
-            def rerun():
-                area = next(iter_all_VIEW_3D_areas(screen=bpy.context.screen), None)
-                with bpy.context.temp_override(area=area):
-                    bpy.ops.retopoflow.core()
-            bpy.app.timers.register(rerun, first_interval=0.01)
-
+            RFCore.restart()
             return {'FINISHED'}
 
         if not RFCore.is_running:

@@ -25,38 +25,34 @@ from .globals import Globals
 
 class Cursors:
     # https://docs.blender.org/api/current/bpy.types.Window.html#bpy.types.Window.cursor_set
-    _cursors = {
-
-        # blender cursors
-        'DEFAULT':      'DEFAULT',
-        'NONE':         'NONE',
-        'WAIT':         'WAIT',
-        'CROSSHAIR':    'CROSSHAIR',
-        'MOVE_X':       'MOVE_X',
-        'MOVE_Y':       'MOVE_Y',
-        'KNIFE':        'KNIFE',
-        'TEXT':         'TEXT',
-        'PAINT_BRUSH':  'PAINT_BRUSH',
-        'HAND':         'HAND',
-        'SCROLL_X':     'SCROLL_X',
-        'SCROLL_Y':     'SCROLL_Y',
-        'EYEDROPPER':   'EYEDROPPER',
-
-        # lower case version of blender cursors
-        'default':      'DEFAULT',
-        'none':         'NONE',
-        'wait':         'WAIT',
-        'crosshair':    'CROSSHAIR',
-        'move_x':       'MOVE_X',
-        'move_y':       'MOVE_Y',
-        'knife':        'KNIFE',
-        'text':         'TEXT',
-        'paint_brush':  'PAINT_BRUSH',
-        'hand':         'HAND',
-        'scroll_x':     'SCROLL_X',
-        'scroll_y':     'SCROLL_Y',
-        'eyedropper':   'EYEDROPPER',
-    }
+    _blender_cursors = [
+        # https://docs.blender.org/api/current/bpy_types_enum_items/window_cursor_items.html#rna-enum-window-cursor-items
+        'DEFAULT',
+        'NONE',
+        'WAIT',
+        'CROSSHAIR',
+        'MOVE_X',
+        'MOVE_Y',
+        'KNIFE',
+        'TEXT',
+        'PAINT_BRUSH',
+        'PAINT_CROSS',
+        'DOT',
+        'ERASER',
+        'HAND',
+        'SCROLL_X',
+        'SCROLL_Y',
+        'SCROLL_XY',
+        'EYEDROPPER',
+        'PICK_AREA',
+        'STOP',
+        'COPY',
+        'CROSS',
+        'MUTE',
+        'ZOOM_IN',
+        'ZOOM_OUT',
+    ]
+    _cursors = { k: k for k in _blender_cursors } | { k.lower(): k for k in _blender_cursors }
 
     @staticmethod
     def __getattr__(cursor):

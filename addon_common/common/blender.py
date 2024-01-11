@@ -36,7 +36,7 @@ from ..terminal import term_printer
 
 
 
-def iter_all_VIEW_3D_areas(*, screen=None):
+def iter_all_view3d_areas(*, screen=None):
     if screen:
         yield from (a for a in screen.areas if a.type == 'VIEW_3D')
         return
@@ -49,10 +49,10 @@ def iter_all_VIEW_3D_areas(*, screen=None):
         if a.type == 'VIEW_3D'
     )
 
-def iter_all_VIEW_3D_spaces():
+def iter_all_view3d_spaces():
     yield from (
         s
-        for a in iter_all_VIEW_3D_areas()
+        for a in iter_all_view3d_areas()
         for s in a.spaces
         if s.type == 'VIEW_3D'
     )

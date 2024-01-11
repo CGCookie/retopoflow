@@ -19,100 +19,153 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import numpy as np
 import bpy
 import bmesh
+from bmesh.types import BMVert, BMEdge, BMFace
 
-from mathutils import Vector
-from bpy_extras.view3d_utils import region_2d_to_origin_3d
-from bpy_extras.view3d_utils import region_2d_to_vector_3d
-
-from ..rftool_base import RFTool_Base, invoke_operator, execute_operator
-
-
-def distance_between_locations(a, b):
-    a = a.xyz / a.w
-    b = b.xyz / b.w
-    return (a - b).length
-
-def raycast_mouse_objects(context, event):
-    mouse = (event.mouse_region_x, event.mouse_region_y)
-    ray_world = (
-        Vector((*region_2d_to_origin_3d(context.region, context.region_data, mouse), 1.0)),
-        Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse), 0.0)),
-    )
-    best_hit = None
-    best_dist = float('inf')
-    print(f'RAY {ray_world}')
-    for obj in context.scene.objects:
-        if obj.type != 'MESH': continue
-        if obj.mode != 'OBJECT': continue
-        if obj.hide_get(): continue
-        if obj.hide_select: continue
-        if obj.hide_viewport: continue
-        M = obj.matrix_world
-        Mi = M.inverted()
-        ray_local = (
-            Mi @ ray_world[0],
-            (Mi @ ray_world[1]).normalized(),
-        )
-        result, loc, normal, idx = obj.ray_cast(ray_local[0].xyz / ray_local[0].w, ray_local[1].xyz)
-        if not result: continue
-        loc_world = M @ Vector((*loc, 1.0))
-        dist = distance_between_locations(ray_world[0], loc_world)
-        print(f'  HIT {obj.name} {loc_world} {dist}')
-        if dist >= best_dist: continue
-        best_hit = loc_world
-        best_dist = dist
-
-    if not best_hit: return None
-
-    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
-    M = context.active_object.matrix_world
-    Mi = M.inverted()
-    hit = Mi @ hit
-    return hit.xyz
+from ..rftool_base import RFTool_Base
+from ..common.operator import invoke_operator, execute_operator, operators
+from ..common.raycast import raycast_mouse_valid_sources
+from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.blender_cursors import Cursors
 
 
 visualizing = False
+reseter = Reseter()
 translate_options = {
     'snap': True,
     'use_snap_project': True,
-    'use_snap_self': False,
-    'use_snap_edit': False,
+    'use_snap_self': False, # True,
+    'use_snap_edit': False, # True,
     'use_snap_nonedit': True,
     'use_snap_selectable': True,
-    'snap_elements': {'FACE_PROJECT', 'FACE_NEAREST'},
+    'snap_elements': {'FACE_PROJECT', 'FACE_NEAREST'}, #, 'VERTEX'},
     'snap_target': 'CLOSEST',
     # 'release_confirm': True,
 }
 
-@invoke_operator('PolyPen_Insert', 'polypen_insert', 'Insert')
-def pp_insert(context, event):
-    global visualizing
-    print('INSERT!')
 
-    hit = raycast_mouse_objects(context, event)
-    if not hit: return {'CANCELLED'}
+def get_all_selected(bm):
+    return {
+        BMVert: get_all_selected_bmverts(bm),
+        BMEdge: get_all_selected_bmedges(bm),
+        BMFace: get_all_selected_bmfaces(bm),
+    }
 
-    bme = bmesh.from_edit_mesh(context.active_object.data)
-    for bmv in bme.select_history: bmv.select_set(False)
-    bmv = bme.verts.new(hit)
-    bme.select_history.add(bmv)
-    bmv.select_set(True)
-    bme.select_flush(True)
-    bme.select_flush(False)
-    bmesh.update_edit_mesh(context.active_object.data)
+def get_all_selected_bmverts(bm):
+    return { bmv for bmv in bm.verts if bmv.select and not bmv.hide }
+def get_all_selected_bmedges(bm):
+    return { bme for bme in bm.edges if bme.select and not bme.hide }
+def get_all_selected_bmfaces(bm):
+    return { bmf for bmf in bm.faces if bmf.select and not bmf.hide }
 
-    visualizing = False
+def deselect_all(bm):
+    for bmv in bm.verts: bmv.select_set(False)
 
-    bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
+def flush_selection(bm, emesh):
+    bm.select_flush(True)
+    bm.select_flush(False)
+    bmesh.update_edit_mesh(emesh)
 
-@invoke_operator('PolyPen_MouseMove', 'polypen_mousemove', 'PolyPen: Mouse Move')
-def pp_mousemove(context, event):
-    global visualizing
-    if not visualizing and event.alt: print(f'START VISUALIZING!!')
-    if visualizing and not event.alt: print(f'STOP VISUALIZING')
-    visualizing = event.alt
+
+
+class RETOPOFLOW_OT_PolyPen(bpy.types.Operator):
+    bl_idname = f"retopoflow.polypen"
+    bl_label = f'PolyPen'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = set()
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def invoke(self, context, event):
+        print(f'STARTING')
+
+        context.window_manager.modal_handler_add(self)
+        context.workspace.status_text_set(text='PolyPen\tInsert')
+
+        self._select_next = False
+
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if self._select_next:
+            emesh = context.active_object.data
+            bm = bmesh.from_edit_mesh(emesh)
+            sellayer = bm.verts.layers.int.get('rf: select after move')
+            for bmv in bm.verts:
+                if bmv[sellayer] == 0: continue
+                bmv.select_set(True)
+                bmv[sellayer] = 0
+            flush_selection(bm, emesh)
+            self._select_next = False
+
+        if not event.alt:
+            print(F'LEAVING')
+            context.workspace.status_text_set(None)
+            return {'FINISHED'}
+
+        if event.type == 'LEFTMOUSE':
+            self.insert(context, event)
+            return {'RUNNING_MODAL'}
+
+        return {'RUNNING_MODAL'}
+
+    def insert(self, context, event):
+        global visualizing
+        print('INSERT!')
+
+        hit = raycast_mouse_valid_sources(context, event)
+        if not hit: return
+
+        # make sure artist can see the vert
+        bpy.ops.mesh.select_mode(type='VERT', use_extend=True, action='ENABLE')
+
+        emesh = context.active_object.data
+        bm = bmesh.from_edit_mesh(emesh)
+        selected = get_all_selected(bm)
+        sellayer = bm.verts.layers.int.get('rf: select after move')
+
+        # print(selected)
+        nactive = None
+        nselected = set()
+        self._select_next = False
+
+        if len(selected[BMVert]) == 1:
+            bmv0 = selected[BMVert].pop()
+            bmv = bm.verts.new(hit)
+            bme = bm.edges.new((bmv0, bmv))
+
+            nactive = bmv
+            nselected.add(bmv)
+            for bme_v in bme.verts:
+                bme_v[sellayer] = 1
+            self._select_next = True
+
+        elif len(selected[BMVert]) == 2 and len(selected[BMEdge]) == 1:
+            bmv0,bmv1 = selected[BMEdge].pop().verts
+            bmv = bm.verts.new(hit)
+            bmf = bm.faces.new((bmv0,bmv1,bmv))
+
+            nactive = bmv
+            nselected.add(bmv)
+            for bmf_v in bmf.verts:
+                bmf_v[sellayer] = 1
+            self._select_next = True
+
+        deselect_all(bm)
+        for bmelem in nselected:
+            bmelem.select_set(True)
+        flush_selection(bm, emesh)
+
+        visualizing = False
+
+        bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
+
+operators.append(RETOPOFLOW_OT_PolyPen)
 
 
 
@@ -124,12 +177,22 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
 
     bl_keymap = (
-        (pp_insert.bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
-        (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING'}, None),
-        (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING', 'alt': True}, None),
-        (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
-        (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
-        ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':list(translate_options.items())}),
+        ('retopoflow.polypen', {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
+        # (pp_insert.bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
+        # (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING'}, None),
+        # (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING', 'alt': True}, None),
+        # (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
+        # (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
+        # ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':list(translate_options.items())}),
     )
 
+    @classmethod
+    def activate(cls, context):
+        reseter['context.scene.tool_settings.use_mesh_automerge'] = True
+        reseter['context.scene.tool_settings.double_threshold'] = 0.01
+        # reseter['context.scene.tool_settings.snap_elements_base'] = {'VERTEX'}
+        reseter['context.scene.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
 
+    @classmethod
+    def deactivate(cls, context):
+        reseter.reset()

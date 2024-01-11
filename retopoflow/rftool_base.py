@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from .common import operator
 
 
 '''
@@ -38,58 +39,19 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     @classmethod
     def unregister(cls): pass
 
+    @classmethod
+    def activate(cls, context): pass
+    @classmethod
+    def deactivate(cls, context): pass
 
 
 def get_all_RFTools():
     return RFTool_Base.__subclasses__()
 
 
-operators = []
-
-def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None):
-    class RFOp(bpy.types.Operator):
-        bl_idname = f"retopoflow.{idname}"
-        bl_label = label
-        bl_space_type = "VIEW_3D"
-        bl_region_type = "TOOLS"
-        bl_options = set()
-
-        @classmethod
-        def poll(cls, context):
-            return fn_poll(context) if fn_poll else True
-        def invoke(self, context, event):
-            ret = fn_invoke(context, event) if fn_invoke else self.execute(context)
-            return ret if ret is not None else {'FINISHED'}
-        def execute(self, context):
-            ret = fn_exec(context) if fn_exec else {'CANCELLED'}
-            return ret if ret is not None else {'FINISHED'}
-
-    RFOp.__name__ = f'RETOPOFLOW_OT_{name}'
-    operators.append(RFOp)
-    return RFOp
-
-
-def invoke_operator(name, idname, label):
-    def get(fn):
-        create_operator(name, idname, label, fn_invoke=fn)
-        fn.bl_idname = f'retopoflow.{idname}'
-        return fn
-    return get
-
-def execute_operator(name, idname, label):
-    def get(fn):
-        create_operator(name, idname, label, fn_exec=fn)
-        fn.bl_idname = f'retopoflow.{idname}'
-        return fn
-    return get
-
-
 def register():
-    for op in operators:
-        bpy.utils.register_class(op)
+    operator.register()
 
 def unregister():
-    for op in reversed(operators):
-        bpy.utils.unregister_class(op)
-
+    operator.unregister()
 
