@@ -51,14 +51,14 @@ class Reseter:
                 f_locals['__o'] = o
                 pvalue = eval(f'__o.{a}', f_globals, f_locals)
 
-            print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
+            # print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
             self._previous[key] = ( pvalue, f_globals, f_locals )
 
         self._setter(key, value)
 
     def __delitem__(self, key):
         value, _, _ = self._previous[key]
-        print(f'Reseter {self._label}: reset {key} <- {value} ({type(value)})')
+        # print(f'Reseter {self._label}: reset {key} <- {value} ({type(value)})')
         self._setter(key, value)
         del self._previous[key]
 

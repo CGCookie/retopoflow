@@ -19,16 +19,17 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import numpy as np
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
 
+from enum import Enum
+
 from ..rftool_base import RFTool_Base
-from ..common.operator import invoke_operator, execute_operator, operators
+from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_mouse_valid_sources
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.reseter import Reseter
-from ...addon_common.common.blender_cursors import Cursors
 
 
 visualizing = False
@@ -45,37 +46,138 @@ translate_options = {
     # 'release_confirm': True,
 }
 
-
-def get_all_selected(bm):
-    return {
-        BMVert: get_all_selected_bmverts(bm),
-        BMEdge: get_all_selected_bmedges(bm),
-        BMFace: get_all_selected_bmfaces(bm),
-    }
-
-def get_all_selected_bmverts(bm):
-    return { bmv for bmv in bm.verts if bmv.select and not bmv.hide }
-def get_all_selected_bmedges(bm):
-    return { bme for bme in bm.edges if bme.select and not bme.hide }
-def get_all_selected_bmfaces(bm):
-    return { bmf for bmf in bm.faces if bmf.select and not bmf.hide }
-
-def deselect_all(bm):
-    for bmv in bm.verts: bmv.select_set(False)
-
-def flush_selection(bm, emesh):
-    bm.select_flush(True)
-    bm.select_flush(False)
-    bmesh.update_edit_mesh(emesh)
+class PP_Action(Enum):
+    NONE = -1
+    VERT = 0
+    VERT_EDGE = 1
+    EDGE_TRIANGLE = 2
 
 
+class PP_Logic:
+    def __init__(self, context, event):
+        self.em = context.active_object.data
+        self.bm = bmesh.from_edit_mesh(self.em)
+        self.layer_sel_vert = self.bm.verts.layers.int.get('rf: select after move')
+        self.layer_sel_edge = self.bm.edges.layers.int.get('rf: select after move')
+        self.layer_sel_face = self.bm.faces.layers.int.get('rf: select after move')
+        self.update_selection = False
+        self.get_selection = True
+        self.update(context, event)
 
-class RETOPOFLOW_OT_PolyPen(bpy.types.Operator):
-    bl_idname = f"retopoflow.polypen"
-    bl_label = f'PolyPen'
+    def update(self, context, event):
+        # update previsualization and commit data structures with mouse position
+        # ex: if triangle is selected, determine which edge to split to make quad
+
+        if self.update_selection:
+            for bmv in self.bm.verts:
+                bmv.select_set(bmv[self.layer_sel_vert] == 1)
+                bmv[self.layer_sel_vert] = 0
+            for bme in self.bm.edges:
+                if bme[self.layer_sel_edge] == 0: continue
+                for bmv in bme.verts:
+                    bmv.select_set(True)
+                bme[self.layer_sel_edge] = 0
+            for bmf in self.bm.faces:
+                if bmf[self.layer_sel_face] == 0: continue
+                for bmv in bmf.verts:
+                    bmv.select_set(True)
+                bmf[self.layer_sel_face] = 0
+            bmops.flush_selection(self.bm, self.em)
+            self.get_selection = True
+            self.update_selection = False
+
+        if self.get_selection:
+            self.selected = bmops.get_all_selected(self.bm)
+
+        # update commit data structure with mouse position
+        self.state = PP_Action.NONE
+        self.hit = raycast_mouse_valid_sources(context, event)
+        if not self.hit: return
+
+        # TODO: update previsualizations
+
+        if len(self.selected[BMVert]) == 0:
+            self.state = PP_Action.VERT
+
+        elif len(self.selected[BMVert]) == 1:
+            self.state = PP_Action.VERT_EDGE
+            self.bmv = next(iter(self.selected[BMVert]), None)
+
+        elif len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
+            self.state = PP_Action.EDGE_TRIANGLE
+            self.bme = next(iter(self.selected[BMEdge]), None)
+
+    def draw(self, context):
+        # draw previsualization
+        pass
+
+    def commit(self, context, event):
+        # apply the change
+
+        if self.state == PP_Action.NONE: return
+
+        # make sure artist can see the vert
+        bpy.ops.mesh.select_mode(type='VERT', use_extend=True, action='ENABLE')
+
+        select_now = []     # to be selected before move
+        select_later = []   # to be selected after move
+
+        match self.state:
+            case PP_Action.VERT:
+                bmv = self.bm.verts.new(self.hit)
+                select_now = [bmv]
+
+            case PP_Action.VERT_EDGE:
+                bmv0 = self.bmv
+                bmv1 = self.bm.verts.new(self.hit)
+                bme = self.bm.edges.new((bmv0, bmv1))
+                select_now = [bmv1]
+                select_later = [bme]
+
+            case PP_Action.EDGE_TRIANGLE:
+                bmv0, bmv1 = self.bme.verts
+                bmv = self.bm.verts.new(self.hit)
+                bmf = self.bm.faces.new((bmv0,bmv1,bmv))
+                select_now = [bmv]
+                select_later = [bmf]
+
+            case _:
+                assert False, f'Unhandled PolyPen state {self.state}'
+
+        bmops.deselect_all(self.bm)
+        for bmelem in select_now:
+            bmelem.select_set(True)
+        for bmelem in select_later:
+            match bmelem:
+                case BMVert():
+                    bmelem[self.layer_sel_vert] = 1
+                case BMEdge():
+                    bmelem[self.layer_sel_edge] = 1
+                    for bmv in bmelem.verts:
+                        bmv[self.layer_sel_vert] = 1
+                case BMFace():
+                    bmelem[self.layer_sel_face] = 1
+                    for bmv in bmelem.verts:
+                        bmv[self.layer_sel_vert] = 1
+        self.update_selection = bool(select_later)
+
+        bmops.flush_selection(self.bm, self.em)
+        bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
+        # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
+        #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
+        #       is created and then merged into existing geometry
+
+
+class RETOPOFLOW_OT_PolyPen(RFOperator):
+    bl_idname = "retopoflow.polypen"
+    bl_label = 'PolyPen'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = set()
+
+    @classmethod
+    def get_keymap(cls):
+        return {'type': 'LEFT_ALT', 'value': 'PRESS'}
 
     @classmethod
     def poll(cls, context):
@@ -86,22 +188,12 @@ class RETOPOFLOW_OT_PolyPen(bpy.types.Operator):
 
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(text='PolyPen\tInsert')
-
-        self._select_next = False
+        self.logic = PP_Logic(context, event)
 
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        if self._select_next:
-            emesh = context.active_object.data
-            bm = bmesh.from_edit_mesh(emesh)
-            sellayer = bm.verts.layers.int.get('rf: select after move')
-            for bmv in bm.verts:
-                if bmv[sellayer] == 0: continue
-                bmv.select_set(True)
-                bmv[sellayer] = 0
-            flush_selection(bm, emesh)
-            self._select_next = False
+        self.logic.update(context, event)
 
         if not event.alt:
             print(F'LEAVING')
@@ -109,64 +201,10 @@ class RETOPOFLOW_OT_PolyPen(bpy.types.Operator):
             return {'FINISHED'}
 
         if event.type == 'LEFTMOUSE':
-            self.insert(context, event)
+            self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
         return {'RUNNING_MODAL'}
-
-    def insert(self, context, event):
-        global visualizing
-        print('INSERT!')
-
-        hit = raycast_mouse_valid_sources(context, event)
-        if not hit: return
-
-        # make sure artist can see the vert
-        bpy.ops.mesh.select_mode(type='VERT', use_extend=True, action='ENABLE')
-
-        emesh = context.active_object.data
-        bm = bmesh.from_edit_mesh(emesh)
-        selected = get_all_selected(bm)
-        sellayer = bm.verts.layers.int.get('rf: select after move')
-
-        # print(selected)
-        nactive = None
-        nselected = set()
-        self._select_next = False
-
-        if len(selected[BMVert]) == 1:
-            bmv0 = selected[BMVert].pop()
-            bmv = bm.verts.new(hit)
-            bme = bm.edges.new((bmv0, bmv))
-
-            nactive = bmv
-            nselected.add(bmv)
-            for bme_v in bme.verts:
-                bme_v[sellayer] = 1
-            self._select_next = True
-
-        elif len(selected[BMVert]) == 2 and len(selected[BMEdge]) == 1:
-            bmv0,bmv1 = selected[BMEdge].pop().verts
-            bmv = bm.verts.new(hit)
-            bmf = bm.faces.new((bmv0,bmv1,bmv))
-
-            nactive = bmv
-            nselected.add(bmv)
-            for bmf_v in bmf.verts:
-                bmf_v[sellayer] = 1
-            self._select_next = True
-
-        deselect_all(bm)
-        for bmelem in nselected:
-            bmelem.select_set(True)
-        flush_selection(bm, emesh)
-
-        visualizing = False
-
-        bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
-
-operators.append(RETOPOFLOW_OT_PolyPen)
-
 
 
 class RFTool_PolyPen(RFTool_Base):
@@ -177,13 +215,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
 
     bl_keymap = (
-        ('retopoflow.polypen', {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
-        # (pp_insert.bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'alt': True}, None),
-        # (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING'}, None),
-        # (pp_mousemove.bl_idname, {'type': 'MOUSEMOVE', 'value': 'NOTHING', 'alt': True}, None),
-        # (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'PRESS'}, None),
-        # (pp_mousemove.bl_idname, {'type': 'LEFT_ALT', 'value': 'RELEASE'}, None),
-        # ('transform.translate', {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, {'properties':list(translate_options.items())}),
+        (RETOPOFLOW_OT_PolyPen.bl_idname, RETOPOFLOW_OT_PolyPen.get_keymap(), None),
     )
 
     @classmethod

@@ -55,7 +55,7 @@ def raycast_mouse_valid_sources(context, event):
 
     best_hit = None
     best_dist = float('inf')
-    print(f'RAY {ray_world}')
+    # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted()
@@ -67,7 +67,7 @@ def raycast_mouse_valid_sources(context, event):
         if not result: continue
         co_world = M @ Vector((*co, 1.0))
         dist = distance_between_locations(ray_world[0], co_world)
-        print(f'  HIT {obj.name} {co_world} {dist}')
+        # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue
         best_hit = co_world
         best_dist = dist

@@ -22,10 +22,10 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 
-operators = []
+class RFOperator(bpy.types.Operator): pass
 
 def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):
-    class RFOp(bpy.types.Operator):
+    class RFOp(RFOperator):
         bl_idname = f"retopoflow.{idname}"
         bl_label = label
         bl_space_type = "VIEW_3D"
@@ -46,7 +46,6 @@ def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exe
             return ret if ret is not None else {'FINISHED'}
 
     RFOp.__name__ = f'RETOPOFLOW_OT_{name}'
-    operators.append(RFOp)
     return RFOp
 
 
@@ -76,9 +75,9 @@ def modal_operator(name, label):
 
 
 def register():
-    for op in operators:
+    for op in RFOperator.__subclasses__():
         bpy.utils.register_class(op)
 
 def unregister():
-    for op in reversed(operators):
+    for op in reversed(RFOperator.__subclasses__()):
         bpy.utils.unregister_class(op)

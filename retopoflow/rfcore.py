@@ -165,6 +165,10 @@ class RFCore:
         bm = bmesh.from_edit_mesh(emesh)
         if 'rf: select after move' not in bm.verts.layers.int:
             bm.verts.layers.int.new('rf: select after move')
+        if 'rf: select after move' not in bm.edges.layers.int:
+            bm.edges.layers.int.new('rf: select after move')
+        if 'rf: select after move' not in bm.faces.layers.int:
+            bm.faces.layers.int.new('rf: select after move')
 
         bpy.ops.retopoflow.core()
 
