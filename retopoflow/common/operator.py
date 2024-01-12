@@ -22,7 +22,21 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 
-class RFOperator(bpy.types.Operator): pass
+class RFOperator(bpy.types.Operator):
+    @staticmethod
+    def get_all_RFOperators():
+        return RFOperator.__subclasses__()
+
+    @staticmethod
+    def register_all():
+        for op in RFOperator.get_all_RFOperators():
+            bpy.utils.register_class(op)
+
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFOperator.get_all_RFOperators()):
+            bpy.utils.unregister_class(op)
+
 
 def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):
     class RFOp(RFOperator):
@@ -74,10 +88,3 @@ def modal_operator(name, label):
     return get
 
 
-def register():
-    for op in RFOperator.__subclasses__():
-        bpy.utils.register_class(op)
-
-def unregister():
-    for op in reversed(RFOperator.__subclasses__()):
-        bpy.utils.unregister_class(op)

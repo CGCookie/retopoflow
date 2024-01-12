@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from .common import operator
 
 
 '''
@@ -34,6 +33,9 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     bl_space_type = 'VIEW_3D'
     bl_context_mode = 'EDIT_MESH'
 
+    ###########################################################
+    # subclasses may overwrite these class methods
+
     @classmethod
     def register(cls): pass
     @classmethod
@@ -45,13 +47,25 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     def deactivate(cls, context): pass
 
 
-def get_all_RFTools():
-    return RFTool_Base.__subclasses__()
+    ###########################################################
+
+    @staticmethod
+    def get_all_RFTools():
+        return RFTool_Base.__subclasses__()
+
+    @staticmethod
+    def register_all():
+        for i, rft in enumerate(RFTool_Base.get_all_RFTools()):
+            bpy.utils.register_tool(rft, separator=(i==0))
+            rft.register()
+
+    @staticmethod
+    def unregister_all():
+        for rft in reversed(RFTool_Base.get_all_RFTools()):
+            rft.unregister()
+            bpy.utils.unregister_tool(rft)
 
 
-def register():
-    operator.register()
 
-def unregister():
-    operator.unregister()
+
 

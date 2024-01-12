@@ -21,19 +21,19 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+import bl_ui
 
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
+from .common.operator import RFOperator
 
-from .rftool_base import get_all_RFTools
-from .rftool_base import register as register_ops
-from .rftool_base import unregister as unregister_ops
+from .rftool_base import RFTool_Base
 
 # import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 
-RFTools = { rft.bl_idname: rft for rft in get_all_RFTools() }
+RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 print(f'RFTools: {list(RFTools.keys())}')
 
 
@@ -71,10 +71,8 @@ class RFCore:
 
         # register RF operator and RF tools
         bpy.utils.register_class(RFCore_Operator)
-        for i, rft in enumerate(get_all_RFTools()):
-            bpy.utils.register_tool(rft, separator=(i==0))
-            rft.register()
-        register_ops()
+        RFTool_Base.register_all()
+        RFOperator.register_all()
 
         # wrap toll change function
         from bl_ui import space_toolsystem_common
@@ -96,7 +94,6 @@ class RFCore:
 
         if RFCore.active_RFTool:
             # RFTool is active, so switch away first!
-            import bl_ui
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
 
         RFCore.stop()
@@ -106,10 +103,8 @@ class RFCore:
         RFCore._unwrap_activate_tool = None
 
         # unregister RF operator and RF tools
-        unregister_ops()
-        for rft in reversed(get_all_RFTools()):
-            rft.unregister()
-            bpy.utils.unregister_tool(rft)
+        RFOperator.unregister_all()
+        RFTool_Base.unregister_all()
         bpy.utils.unregister_class(RFCore_Operator)
 
         RFCore._is_registered = False
