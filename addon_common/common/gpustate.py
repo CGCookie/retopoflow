@@ -900,8 +900,8 @@ def gpu_info():
     }
     return platform | capabilities
 
-if not bpy.app.background:
-    print(f'Addon Common: {gpu_info()}')
+# if not bpy.app.background:
+#     print(f'Addon Common: {gpu_info()}')
 
 
 ####################################
