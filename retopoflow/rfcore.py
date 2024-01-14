@@ -113,7 +113,7 @@ class RFCore:
     def tool_changed(context, space_type, idname, **kwargs):
         prev_active = RFCore.active_RFTool
         RFCore.active_RFTool = idname if idname in RFTools else None
-        print(f'{prev_active} -> {idname}')
+        # print(f'{prev_active} -> {idname}')
 
         if not prev_active and RFCore.active_RFTool:
             RFCore.start(context)
@@ -138,9 +138,9 @@ class RFCore:
         RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, tuple(), 'VIEW_3D', 'WINDOW')
 
         space = bpy.types.SpaceView3D
-        RFCore._handle_preview   = space.draw_handler_add(RFCore.handle_preview,   tuple(), 'WINDOW', 'PRE_VIEW')
-        RFCore._handle_postview  = space.draw_handler_add(RFCore.handle_postview,  tuple(), 'WINDOW', 'POST_VIEW')
-        RFCore._handle_postpixel = space.draw_handler_add(RFCore.handle_postpixel, tuple(), 'WINDOW', 'POST_PIXEL')
+        RFCore._handle_preview   = space.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview  = space.draw_handler_add(RFCore.handle_postview,  (context,), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel = space.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
@@ -155,15 +155,6 @@ class RFCore:
         RFCore.reseter['context.scene.tool_settings.use_snap_edit'] = True
         RFCore.reseter['context.scene.tool_settings.use_snap_nonedit'] = True
         RFCore.reseter['context.scene.tool_settings.use_snap_selectable'] = True
-
-        emesh = context.active_object.data
-        bm = bmesh.from_edit_mesh(emesh)
-        if 'rf: select after move' not in bm.verts.layers.int:
-            bm.verts.layers.int.new('rf: select after move')
-        if 'rf: select after move' not in bm.edges.layers.int:
-            bm.edges.layers.int.new('rf: select after move')
-        if 'rf: select after move' not in bm.faces.layers.int:
-            bm.faces.layers.int.new('rf: select after move')
 
         bpy.ops.retopoflow.core()
 
@@ -211,17 +202,20 @@ class RFCore:
             RFCore.event_mouse = None
 
     @staticmethod
-    def handle_preview():
+    def handle_preview(context):
         # print(f'handle_preview()')
-        pass
+        if RFOperator.active_operator:
+            RFOperator.active_operator.draw_preview(context)
     @staticmethod
-    def handle_postview():
+    def handle_postview(context):
         # print(f'handle_postview()')
-        pass
+        if RFOperator.active_operator:
+            RFOperator.active_operator.draw_postview(context)
     @staticmethod
-    def handle_postpixel():
+    def handle_postpixel(context):
         # print(f'handle_postpixel()')
-        pass
+        if RFOperator.active_operator:
+            RFOperator.active_operator.draw_postpixel(context)
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):

@@ -20,22 +20,74 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import re
 
+from ...addon_common.common.blender_cursors import Cursors
+
+
+re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
+map_icons = {
+    'LMB': 'MOUSE_LMB',
+    'MMB': 'MOUSE_MMB',
+    'RMB': 'MOUSE_RMB',
+}
 
 class RFOperator(bpy.types.Operator):
+    active_operator = None
+
     @staticmethod
     def get_all_RFOperators():
         return RFOperator.__subclasses__()
-
     @staticmethod
     def register_all():
         for op in RFOperator.get_all_RFOperators():
             bpy.utils.register_class(op)
-
     @staticmethod
     def unregister_all():
         for op in reversed(RFOperator.get_all_RFOperators()):
             bpy.utils.unregister_class(op)
+
+    @classmethod
+    def poll(cls, context):
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
+        return True
+
+    def invoke(self, context, event):
+        RFOperator.active_operator = self
+        context.window_manager.modal_handler_add(self)
+        context.workspace.status_text_set(lambda header, context: self.status(header, context))
+        context.area.tag_redraw()
+        self.init(context, event)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        ret = self.update(context, event)
+        if ret & {'FINISHED', 'CANCELLED'}:
+            RFOperator.active_operator = None
+            context.workspace.status_text_set(None)
+            context.area.tag_redraw()
+            Cursors.restore()
+        return ret
+
+    def status(self, header, context):
+        layout = header.layout
+        row = layout.row()
+        row.ui_units_x = 7
+        row.label(text=self.bl_label)
+        row = layout.row()
+        row.ui_units_x = 10 * len(self.rf_status)
+        for e in self.rf_status:
+            m_entry = re_status_entry.match(e)
+            icon = m_entry['icon'] or ''
+            row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
+
+    def init(self, context, event): pass
+    def update(self, context, event): return {'FINISHED'}
+    def draw_preview(self, context): pass
+    def draw_postview(self, context): pass
+    def draw_postpixel(self, context): pass
+
 
 
 def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):

@@ -22,13 +22,19 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
+import blf
+import gpu
+from gpu_extras.batch import batch_for_shader
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from enum import Enum
 
 from ..rftool_base import RFTool_Base
+from ..common.bmesh import get_bmesh_emesh, get_select_layers
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_mouse_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.reseter import Reseter
 
 
@@ -45,6 +51,7 @@ translate_options = {
     'snap_target': 'CLOSEST',
     # 'release_confirm': True,
 }
+shader = gpu.shader.from_builtin('UNIFORM_COLOR')
 
 class PP_Action(Enum):
     NONE = -1
@@ -55,18 +62,18 @@ class PP_Action(Enum):
 
 class PP_Logic:
     def __init__(self, context, event):
-        self.em = context.active_object.data
-        self.bm = bmesh.from_edit_mesh(self.em)
-        self.layer_sel_vert = self.bm.verts.layers.int.get('rf: select after move')
-        self.layer_sel_edge = self.bm.edges.layers.int.get('rf: select after move')
-        self.layer_sel_face = self.bm.faces.layers.int.get('rf: select after move')
+        self.matrix_world = context.edit_object.matrix_world
+        self.bm, self.em = get_bmesh_emesh(context)
+        self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = get_select_layers(self.bm)
         self.update_selection = False
         self.get_selection = True
+        self.mouse = None
         self.update(context, event)
 
     def update(self, context, event):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
+        # print('UPDATE')
 
         if self.update_selection:
             for bmv in self.bm.verts:
@@ -89,10 +96,15 @@ class PP_Logic:
         if self.get_selection:
             self.selected = bmops.get_all_selected(self.bm)
 
+        self.mouse = (event.mouse_region_x, event.mouse_region_y)
+
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
         self.hit = raycast_mouse_valid_sources(context, event)
-        if not self.hit: return
+        if not self.hit:
+            Cursors.restore()
+            return
+        Cursors.set('NONE')
 
         # TODO: update previsualizations
 
@@ -109,7 +121,42 @@ class PP_Logic:
 
     def draw(self, context):
         # draw previsualization
-        pass
+        if not self.mouse: return
+        if not self.hit: return
+
+        # 'POINTS', 'LINES', 'TRIS', 'LINE_STRIP', 'LINE_LOOP', 'TRI_STRIP', 'TRI_FAN', 'LINES_ADJ', 'TRIS_ADJ', 'LINE_STRIP_ADJ'
+        batch = None
+        match self.state:
+            case PP_Action.VERT:
+                batch = batch_for_shader(shader, 'POINTS', {"pos": [ self.mouse ]})
+            case PP_Action.VERT_EDGE:
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
+                if pt:
+                    batch = batch_for_shader(shader, 'LINES', {"pos": [ self.mouse, pt ]})
+            case PP_Action.EDGE_TRIANGLE:
+                bmv0, bmv1 = self.bme.verts
+                pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                if pt0 and pt1:
+                    batch = batch_for_shader(shader, 'LINE_LOOP', {"pos": [ self.mouse, pt0, pt1 ]})
+            case _:
+                pass
+
+        if not batch: return
+
+        # point_size = gpu.state.point_size_get() # DOES NOT EXIST??
+        line_width = gpu.state.line_width_get()
+
+        gpu.state.blend_set('ALPHA')
+        gpu.state.point_size_set(5.0)
+        gpu.state.line_width_set(2.0)
+        shader.uniform_float("color", (40/255, 255/255, 40/255, 1.0))
+        batch.draw(shader)
+
+        # restore opengl defaults
+        # gpu.state.point_size_set(point_size)
+        gpu.state.line_width_set(line_width)
+        gpu.state.blend_set('NONE')
 
     def commit(self, context, event):
         # apply the change
@@ -161,6 +208,8 @@ class PP_Logic:
                         bmv[self.layer_sel_vert] = 1
         self.update_selection = bool(select_later)
 
+        self.hit = None
+
         bmops.flush_selection(self.bm, self.em)
         bpy.ops.transform.transform('INVOKE_DEFAULT', mode='TRANSLATION', **translate_options)
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
@@ -168,54 +217,50 @@ class PP_Logic:
         #       is created and then merged into existing geometry
 
 
-class RETOPOFLOW_OT_PolyPen(RFOperator):
+class RFOperator_PolyPen(RFOperator):
     bl_idname = "retopoflow.polypen"
     bl_label = 'PolyPen'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = set()
 
-    @classmethod
-    def get_keymap(cls):
-        return {'type': 'LEFT_ALT', 'value': 'PRESS'}
+    rf_keymap = {'type': 'LEFT_ALT', 'value': 'PRESS'}
+    rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def invoke(self, context, event):
-        print(f'STARTING')
-
-        context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set(text='PolyPen\tInsert')
+    def init(self, context, event):
+        print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
 
-        return {'RUNNING_MODAL'}
-
-    def modal(self, context, event):
+    def update(self, context, event):
         self.logic.update(context, event)
 
         if not event.alt:
-            print(F'LEAVING')
-            context.workspace.status_text_set(None)
+            print(F'LEAVING POLYPEN')
             return {'FINISHED'}
 
         if event.type == 'LEFTMOUSE':
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
+        if event.type == 'MOUSEMOVE':
+            context.area.tag_redraw()
+
         return {'RUNNING_MODAL'}
+
+    def draw_postpixel(self, context):
+        # print(f'post pixel')
+        self.logic.draw(context)
 
 
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
-    bl_description = "PolyPen"
+    bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = "ops.generic.select_circle"
     bl_widget = None
 
     bl_keymap = (
-        (RETOPOFLOW_OT_PolyPen.bl_idname, RETOPOFLOW_OT_PolyPen.get_keymap(), None),
+        (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, None),
     )
 
     @classmethod
