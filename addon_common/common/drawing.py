@@ -676,7 +676,7 @@ class CC_2D_POINTS(CC_DRAW):
     @classmethod
     def begin(cls):
         shader_2D_point.bind()
-        ubos_2D_point.options.mvpmatrix = Drawing._instance.get_pixel_matrix()
+        ubos_2D_point.options.MVPMatrix = Drawing._instance.get_pixel_matrix()
         ubos_2D_point.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height, 0, 0)
         ubos_2D_point.options.color = cls._default_color
         cls.update()

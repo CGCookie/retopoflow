@@ -20,7 +20,7 @@ Created by Jonathan Denning
 */
 
 struct Options {
-    mat4 mvpmatrix;        // pixel matrix
+    mat4 MVPMatrix;        // pixel matrix
     vec4 screensize;       // width,height of screen (for antialiasing)
     vec4 center;           // center of point
     vec4 radius_border;
@@ -42,7 +42,7 @@ noperspective out vec2 vpos;    // position scaled by screensize
 void main() {
     float radius_border = options.radius_border.x + options.radius_border.y;
     vec2 p = options.center.xy + (pos - vec2(0.5, 0.5)) * radius_border;
-    gl_Position = options.mvpmatrix * vec4(p, 0.0, 1.0);
+    gl_Position = options.MVPMatrix * vec4(p, 0.0, 1.0);
     vpos = gl_Position.xy * options.screensize.xy;  // just p?
 }
 
@@ -69,7 +69,7 @@ void main() {
     float radius_border = options.radius_border.x + options.radius_border.y;
     vec4 colorb = options.colorBorder;
     if(colorb.a < (1.0/255.0)) colorb.rgb = options.color.rgb;
-    vec2 ctr = (options.mvpmatrix * vec4(options.center.xy, 0.0, 1.0)).xy;
+    vec2 ctr = (options.MVPMatrix * vec4(options.center.xy, 0.0, 1.0)).xy;
     float d = distance(vpos, ctr.xy * options.screensize.xy);
     if(d > radius_border) { discard; return; }
     if(d <= options.radius_border.x) {

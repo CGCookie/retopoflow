@@ -26,6 +26,8 @@ import blf
 import gpu
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from mathutils import Vector, Matrix
+import math
 
 from enum import Enum
 
@@ -36,6 +38,9 @@ from ..common.raycast import raycast_mouse_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.blender import get_path_from_addon_common
+from ...addon_common.common import gpustate
+from ...addon_common.common.utils import iter_pairs
 
 
 visualizing = False
@@ -58,6 +63,223 @@ class PP_Action(Enum):
     VERT = 0
     VERT_EDGE = 1
     EDGE_TRIANGLE = 2
+
+
+
+def create_shader(fn_glsl):
+    path_glsl = get_path_from_addon_common('common', 'shaders', fn_glsl)
+    txt = open(path_glsl, 'rt').read()
+    vert_source, frag_source = gpustate.shader_parse_string(txt)
+    try:
+        # Drawing.glCheckError(f'pre-compile check: {fn_glsl}')
+        ret = gpustate.gpu_shader(f'drawing {fn_glsl}', vert_source, frag_source)
+        # Drawing.glCheckError(f'post-compile check: {fn_glsl}')
+        return ret
+    except Exception as e:
+        print('ERROR WHILE COMPILING SHADER %s' % fn_glsl)
+        assert False
+shader_2D_point, ubos_2D_point = create_shader('point_2D.glsl')
+batch_2D_point = batch_for_shader(shader_2D_point, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
+shader_2D_lineseg, ubos_2D_lineseg = create_shader('lineseg_2D.glsl')
+batch_2D_lineseg = batch_for_shader(shader_2D_lineseg, 'TRIS', {"pos": [(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)]})
+
+
+from contextlib import contextmanager
+
+class Drawing:
+    @staticmethod
+    def scale(s):
+        return s * (bpy.context.preferences.system.ui_scale) if s is not None else None
+
+    @staticmethod
+    def get_pixel_matrix():
+        rgn = bpy.context.region
+        # r3d = bpy.context.region_data
+        w,h = rgn.width,rgn.height
+        mx, my, mw, mh = -1, -1, 2 / w, 2 / h
+        return Matrix([
+            [ mw,  0,  0, mx],
+            [  0, mh,  0, my],
+            [  0,  0,  1,  0],
+            [  0,  0,  0,  1]
+        ])
+
+    # @contextmanager
+    # def draw(self, draw_type:"CC_DRAW"):
+    #     assert hasattr(Drawing, '_drawing'), 'Cannot nest Drawing.draw calls'
+    #     Drawing._draw = draw_type
+    #     try:
+    #         draw_type.begin()
+    #         yield draw_type
+    #         draw_type.end()
+    #     except Exception as e:
+    #         print(f'Drawing.draw({draw_type}): Caught unexpected exception')
+    #         print(e)
+    #     del Drawing._draw
+
+
+
+    def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
+        gpu.state.blend_set('ALPHA')
+        radius = Drawing.scale(radius)
+        border = Drawing.scale(border)
+        if borderColor is None: borderColor = (*color[:3], 0)
+        shader_2D_point.bind()
+        ubos_2D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix()
+        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
+        ubos_2D_point.options.color = color
+        ubos_2D_point.options.colorBorder = borderColor
+        ubos_2D_point.options.center = (*pt, 0, 1)
+        ubos_2D_point.update_shader()
+        batch_2D_point.draw(shader_2D_point)
+        gpu.shader.unbind()
+
+    def draw2D_points(context, pts, color, *, radius=1, border=0, borderColor=None):
+        gpu.state.blend_set('ALPHA')
+        radius = Drawing.scale(radius)
+        border = Drawing.scale(border)
+        if borderColor is None: borderColor = (*color[:3], 0)
+        shader_2D_point.bind()
+        ubos_2D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix()
+        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
+        ubos_2D_point.options.color = color
+        ubos_2D_point.options.colorBorder = borderColor
+        for pt in pts:
+            ubos_2D_point.options.center = (*pt, 0, 1)
+            ubos_2D_point.update_shader()
+            batch_2D_point.draw(shader_2D_point)
+        gpu.shader.unbind()
+
+    def draw2D_linestrip(context, points, color0, *, color1=None, width=1, stipple=None, offset=0):
+        gpu.state.blend_set('ALPHA')
+        if color1 is None: color1 = (*color0[:3], 0)
+        width = Drawing.scale(width)
+        stipple = [Drawing.scale(v) for v in stipple] if stipple else [1.0, 0.0]
+        offset = Drawing.scale(offset)
+        shader_2D_lineseg.bind()
+        ubos_2D_lineseg.options.MVPMatrix = Drawing.get_pixel_matrix()
+        ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        for p0,p1 in iter_pairs(points, False):
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
+            ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
+            offset += (p1 - p0).length
+        gpu.shader.unbind()
+
+
+# ######################################################################################################
+# # The following classes mimic the immediate mode for (old-school way of) drawing geometry
+# #   glBegin(GL_TRIANGLES)
+# #   glColor3f(p)
+# #   glVertex3f(p)
+# #   glEnd()
+
+# class CC_DRAW:
+#     _point_size:float = 1
+#     _line_width:float = 1
+#     _border_width:float = 0
+#     _border_color:Color = Color((0, 0, 0, 0))
+#     _stipple_pattern:List[float] = [1,0]
+#     _stipple_offset:float = 0
+#     _stipple_color:Color = Color((0, 0, 0, 0))
+
+#     _default_color = Color((1, 1, 1, 1))
+#     _default_point_size = 1
+#     _default_line_width = 1
+#     _default_border_width = 0
+#     _default_border_color = Color((0, 0, 0, 0))
+#     _default_stipple_pattern = [1,0]
+#     _default_stipple_color = Color((0, 0, 0, 0))
+
+#     @classmethod
+#     def reset(cls):
+#         s = Drawing.scale
+#         CC_DRAW._point_size = s(CC_DRAW._default_point_size)
+#         CC_DRAW._line_width = s(CC_DRAW._default_line_width)
+#         CC_DRAW._border_width = s(CC_DRAW._default_border_width)
+#         CC_DRAW._border_color = CC_DRAW._default_border_color
+#         CC_DRAW._stipple_offset = 0
+#         CC_DRAW._stipple_pattern = [s(v) for v in CC_DRAW._default_stipple_pattern]
+#         CC_DRAW._stipple_color = CC_DRAW._default_stipple_color
+#         cls.update()
+
+#     @classmethod
+#     def update(cls): pass
+
+#     @classmethod
+#     def point_size(cls, size):
+#         s = Drawing._instance.scale
+#         CC_DRAW._point_size = s(size)
+#         cls.update()
+
+#     @classmethod
+#     def line_width(cls, width):
+#         s = Drawing._instance.scale
+#         CC_DRAW._line_width = s(width)
+#         cls.update()
+
+#     @classmethod
+#     def border(cls, *, width=None, color=None):
+#         s = Drawing._instance.scale
+#         if width is not None:
+#             CC_DRAW._border_width = s(width)
+#         if color is not None:
+#             CC_DRAW._border_color = color
+#         cls.update()
+
+#     @classmethod
+#     def stipple(cls, *, pattern=None, offset=None, color=None):
+#         s = Drawing._instance.scale
+#         if pattern is not None:
+#             CC_DRAW._stipple_pattern = [s(v) for v in pattern]
+#         if offset is not None:
+#             CC_DRAW._stipple_offset = s(offset)
+#         if color is not None:
+#             CC_DRAW._stipple_color = color
+#         cls.update()
+
+#     @classmethod
+#     def end(cls):
+#         gpu.shader.unbind()
+
+# if not bpy.app.background:
+#     CC_DRAW.reset()
+
+
+# class CC_2D_POINTS(CC_DRAW):
+#     @classmethod
+#     def begin(cls):
+#         shader_2D_point.bind()
+#         ubos_2D_point.options.MVPMatrix = Drawing._instance.get_pixel_matrix()
+#         ubos_2D_point.options.screensize = (Drawing._instance.area.width, Drawing._instance.area.height, 0, 0)
+#         ubos_2D_point.options.color = cls._default_color
+#         cls.update()
+
+#     @classmethod
+#     def update(cls):
+#         ubos_2D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
+#         ubos_2D_point.options.colorBorder = cls._border_color
+
+#     @classmethod
+#     def color(cls, c:Color):
+#         ubos_2D_point.options.color = c
+
+#     @classmethod
+#     def vertex(cls, p:Point2D):
+#         if p:
+#             ubos_2D_point.options.center = (*p, 0, 1)
+#             ubos_2D_point.options.update_shader()
+#             batch_2D_point.draw(shader_2D_point)
+
+
+
+
 
 
 class PP_Logic:
@@ -102,9 +324,9 @@ class PP_Logic:
         self.state = PP_Action.NONE
         self.hit = raycast_mouse_valid_sources(context, event)
         if not self.hit:
-            Cursors.restore()
+            # Cursors.restore()
             return
-        Cursors.set('NONE')
+        # Cursors.set('NONE')
 
         # TODO: update previsualizations
 
@@ -128,11 +350,37 @@ class PP_Logic:
         batch = None
         match self.state:
             case PP_Action.VERT:
-                batch = batch_for_shader(shader, 'POINTS', {"pos": [ self.mouse ]})
+                # batch = batch_for_shader(shader, 'POINTS', {"pos": [ self.mouse ]})
+                Drawing.draw2D_point(
+                    context,
+                    Vector(self.mouse),
+                    (40/255, 255/255, 40/255, 1.0),
+                    radius=8,
+                )
             case PP_Action.VERT_EDGE:
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
                 if pt:
-                    batch = batch_for_shader(shader, 'LINES', {"pos": [ self.mouse, pt ]})
+                    Drawing.draw2D_linestrip(
+                        context,
+                        [pt, Vector(self.mouse)],
+                        (40/255, 255/255, 40/255, 1.0),
+                        stipple=[5,5],
+                        width=2,
+                    )
+                    Drawing.draw2D_point(
+                        context,
+                        Vector(self.mouse),
+                        (40/255, 255/255, 40/255, 1.0),
+                        radius=8,
+                    )
+                    Drawing.draw2D_point(
+                        context,
+                        pt,
+                        (40/255, 255/255, 40/255, 0.0),
+                        radius=8,
+                        border=2,
+                        borderColor=(40/255, 255/255, 40/255, 0.5),
+                    )
             case PP_Action.EDGE_TRIANGLE:
                 bmv0, bmv1 = self.bme.verts
                 pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
@@ -148,8 +396,8 @@ class PP_Logic:
         line_width = gpu.state.line_width_get()
 
         gpu.state.blend_set('ALPHA')
-        gpu.state.point_size_set(5.0)
-        gpu.state.line_width_set(2.0)
+        gpu.state.point_size_set(7.0)
+        gpu.state.line_width_set(3.0)
         shader.uniform_float("color", (40/255, 255/255, 40/255, 1.0))
         batch.draw(shader)
 
