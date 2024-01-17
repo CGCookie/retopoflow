@@ -50,7 +50,7 @@ def iter_all_valid_sources(context):
         )
     )
 
-def raycast_mouse_valid_sources(context, event):
+def raycast_mouse_valid_sources(context, event, *, world=True):
     ray_world = ray_from_mouse(context, event)
 
     best_hit = None
@@ -74,8 +74,9 @@ def raycast_mouse_valid_sources(context, event):
     if not best_hit: return None
 
     hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
-    M = context.active_object.matrix_world
-    Mi = M.inverted()
-    hit = Mi @ hit
+    if not world:
+        M = context.active_object.matrix_world
+        Mi = M.inverted()
+        hit = Mi @ hit
     return hit.xyz
 

@@ -477,6 +477,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
 class PP_Logic:
     def __init__(self, context, event):
         self.matrix_world = context.edit_object.matrix_world
+        self.matrix_world_inv = self.matrix_world.inverted()
         self.bm, self.em = get_bmesh_emesh(context)
         self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = get_select_layers(self.bm)
         self.update_selection = False
@@ -510,7 +511,7 @@ class PP_Logic:
         if self.get_selection:
             self.selected = bmops.get_all_selected(self.bm)
 
-        self.mouse = (event.mouse_region_x, event.mouse_region_y)
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
@@ -613,19 +614,19 @@ class PP_Logic:
 
         match self.state:
             case PP_Action.VERT:
-                bmv = self.bm.verts.new(self.hit)
+                bmv = self.bm.verts.new(self.matrix_world_inv @ self.hit)
                 select_now = [bmv]
 
             case PP_Action.VERT_EDGE:
                 bmv0 = self.bmv
-                bmv1 = self.bm.verts.new(self.hit)
+                bmv1 = self.bm.verts.new(self.matrix_world_inv @ self.hit)
                 bme = self.bm.edges.new((bmv0, bmv1))
                 select_now = [bmv1]
                 select_later = [bme]
 
             case PP_Action.EDGE_TRIANGLE:
                 bmv0, bmv1 = self.bme.verts
-                bmv = self.bm.verts.new(self.hit)
+                bmv = self.bm.verts.new(self.matrix_world_inv @ self.hit)
                 bmf = self.bm.faces.new((bmv0,bmv1,bmv))
                 select_now = [bmv]
                 select_later = [bmf]
