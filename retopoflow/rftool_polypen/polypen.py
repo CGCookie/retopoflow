@@ -136,8 +136,9 @@ class PP_Logic:
 
         co = self.matrix_world_inv @ self.hit
         self.nearest_co, self.nearest_norm, self.nearest_idx, self.nearest_dist = self.bvh.find_nearest(co)
-        self.nearest_bmf = self.bm.faces[self.nearest_idx]
-        self.nearest_bmv = min(self.nearest_bmf.verts, key=lambda bmv:(bmv.co - co).length)
+        if self.nearest_co:
+            self.nearest_bmf = self.bm.faces[self.nearest_idx]
+            self.nearest_bmv = min(self.nearest_bmf.verts, key=lambda bmv:(bmv.co - co).length)
 
         # TODO: update previsualizations
 
@@ -157,15 +158,16 @@ class PP_Logic:
         if not self.mouse: return
         if not self.hit: return
 
-        co = self.matrix_world @ self.nearest_bmv.co
-        p = location_3d_to_region_2d(context.region, context.region_data, co)
-        if (p - self.mouse).length < Drawing.scale(10):
-            with Drawing.draw(context, CC_2D_POINTS) as draw:
-                draw.point_size(8)
-                draw.border(width=2, color=Color4((40/255, 255/255, 255/255, 0.5)))
-                draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
-                # print((self.hit, self.nearest_co))
-                draw.vertex(p)
+        if self.nearest_co:
+            co = self.matrix_world @ self.nearest_bmv.co
+            p = location_3d_to_region_2d(context.region, context.region_data, co)
+            if (p - self.mouse).length < Drawing.scale(10):
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+                    draw.border(width=2, color=Color4((40/255, 255/255, 255/255, 0.5)))
+                    draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
+                    # print((self.hit, self.nearest_co))
+                    draw.vertex(p)
 
 
         match self.state:
