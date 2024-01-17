@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from mathutils import Vector, Color
+
 
 #####################################################################################
 # below are various token converters
@@ -179,3 +181,119 @@ colorname_to_color = {
     'darkslategrey': (47,79,79),
     'black': (0,0,0),
 }
+
+
+class Color4(Vector):
+    @staticmethod
+    def from_ints(r, g, b, a=255):
+        return Color4((r/255.0, g/255.0, b/255.0, a/255.0))
+
+    @staticmethod
+    def from_color(c:Color, *, a=1.0):
+        return Color4((c.r, c.g, c.b, a))
+
+    def as_color(self, *, premultiply=False):
+        a = self.a if premultiply else 1.0
+        return Color((self.r * a, self.g * a, self.b * a))
+
+    def as_vector(self, *, length=4):
+        return Vector(self) if length==4 else Vector(self[:length])
+
+    def from_vector(self, v):
+        if len(v) == 3: self.r, self.g, self.b = v
+        else: self.r, self.g, self.b, self.a = v
+
+    @staticmethod
+    def HSL(hsl):
+        # https://en.wikipedia.org/wiki/HSL_and_HSV
+        # 0 <= H < 1 (circular), 0 <= S <= 1, 0 <= L <= 1
+        if len(hsl) == 3: h,s,l,a = *hsl, 1.0
+        else:             h,s,l,a = hsl
+
+        h = (h % 1) * 6
+        s = clamp(s, 0, 1)
+        l = clamp(l, 0, 1)
+        a = clamp(a, 0, 1)
+
+        c = (1 - abs(2 * l - 1)) * s
+        x = c * (1 - abs(h % 2 - 1))
+        m = l - c / 2
+
+        if   h < 1: r,g,b = c,x,0
+        elif h < 2: r,g,b = x,c,0
+        elif h < 3: r,g,b = 0,c,x
+        elif h < 4: r,g,b = 0,x,c
+        elif h < 5: r,g,b = x,0,c
+        else:       r,g,b = c,0,x
+
+        r += m
+        g += m
+        b += m
+
+        return Color4((r, g, b, a))
+
+    @property
+    def r(self): return self.x
+    @r.setter
+    def r(self, v): self.x = v
+
+    @property
+    def g(self): return self.y
+    @g.setter
+    def g(self, v): self.y = v
+
+    @property
+    def b(self): return self.z
+    @b.setter
+    def b(self, v): self.z = v
+
+    @property
+    def a(self): return self.w
+    @a.setter
+    def a(self, v): self.w = v
+
+    @property
+    def hsl(self):
+        # https://en.wikipedia.org/wiki/HSL_and_HSV#From_RGB
+        # 0 <= H < 1 (circular), 0 <= S <= 1, 0 <= L <= 1
+        r, g, b = self.x, self.y, self.z
+        x_max, x_min = max(r, g, b), min(r, g, b)
+        c = x_max - x_min
+        l = (x_max + x_min) / 2.0
+        h = 0
+        if c > 0:
+            if   x_max == r: h = (60 / 360) * (((g - b) / c) % 6)
+            elif x_max == g: h = (60 / 360) * (((b - r) / c) + 2)
+            else:            h = (60 / 360) * (((r - g) / c) + 4)
+        s = (x_max - l) / min(l, 1 - l) if 0 < l < 1 else 0
+        return (h, s, l)
+
+    def rotated_hue(self, hue_add):
+        h,s,l = self.hsl
+        return Color4.HSL((h + hue_add, s, l))
+
+    def __str__(self):
+        # return '<Color (%0.4f, %0.4f, %0.4f, %0.4f)>' % (self.r, self.g, self.b, self.a)
+        return f'Color4({self.r:0.2f}, {self.g:0.2f}, {self.b:0.2f}, {self.a:0.2f})'
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __mul__(self, other):
+        t = type(other)
+        if t is float or t is int:
+            return Color4((other * self.r, other * self.g, other * self.b, self.a))
+        if t is Color:
+            return Color4((self.r * other.r, self.g * other.g, self.b * other.b, self.a))
+        if t is Color4:
+            return Color4((self.r * other.r, self.g * other.g, self.b * other.b, self.a * other.a))
+        assert False, f"unhandled type of other: {other} ({t})"
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+# set colornames in Color, ex: Color.white, Color.black, Color.transparent
+for colorname in colorname_to_color.keys():
+    c = colorname_to_color[colorname]
+    c = (c[0]/255, c[1]/255, c[2]/255, 1.0 if len(c)==3 else c[3])
+    setattr(Color4, colorname, Color4(c))
