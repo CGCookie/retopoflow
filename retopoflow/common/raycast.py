@@ -34,6 +34,7 @@ def distance_between_locations(a, b):
 
 def ray_from_mouse(context, event):
     mouse = (event.mouse_region_x, event.mouse_region_y)
+    if not context.region_data: return (None, None)
     return (
         Vector((*region_2d_to_origin_3d(context.region, context.region_data, mouse), 1.0)),
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
@@ -64,6 +65,7 @@ def prep_raycast_valid_sources(context):
 
 def raycast_mouse_valid_sources(context, event, *, world=True):
     ray_world = ray_from_mouse(context, event)
+    if ray_world[0] is None: return None
 
     best_hit = None
     best_dist = float('inf')

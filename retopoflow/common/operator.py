@@ -69,20 +69,24 @@ class RFOperator(bpy.types.Operator):
             self.last_op = last_op
             context.area.tag_redraw()
 
-        try:
-            ret = self.update(context, event)
-        except KeyboardInterrupt as e:
-            print(f'Caught KeyboardInterrupt Exception: {e}')
+        if not context.area:
+            # this can happen if an area is fullscreened :(
             ret = {'CANCELLED'}
-        except Exception as e:
-            print(f'Unhandled Exception Caught: {e}')
-            Debugger.print_exception()
-            ret = {'CANCELLED'}
+        else:
+            try:
+                ret = self.update(context, event)
+            except KeyboardInterrupt as e:
+                print(f'Caught KeyboardInterrupt Exception: {e}')
+                ret = {'CANCELLED'}
+            except Exception as e:
+                print(f'Unhandled Exception Caught: {e}')
+                Debugger.print_exception()
+                ret = {'CANCELLED'}
 
         if ret & {'FINISHED', 'CANCELLED'}:
             RFOperator.active_operator = None
             context.workspace.status_text_set(None)
-            context.area.tag_redraw()
+            for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()
         return ret
 
