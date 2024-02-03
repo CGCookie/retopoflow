@@ -360,6 +360,7 @@ class CC_2D_TRIANGLES(CC_DRAW):
         cls.color(cls._last_color)
         cls._last_p1 = cls._last_p0
         cls._last_p0 = p
+        return cls
 
 class CC_2D_TRIANGLE_FAN(CC_DRAW):
     @classmethod

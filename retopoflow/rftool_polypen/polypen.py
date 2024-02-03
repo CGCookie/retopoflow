@@ -299,6 +299,7 @@ class PP_Logic:
                 d0t = (pt - p0).normalized() * Drawing.scale(8)
                 d1t = (pt - p1).normalized() * Drawing.scale(8)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
+
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
@@ -318,6 +319,10 @@ class PP_Logic:
 
                     draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
                     draw.vertex(p0 + d01).vertex(p1 - d01)
+
+                with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.vertex(pt).vertex(p0).vertex(p1)
 
             case _:
                 pass
