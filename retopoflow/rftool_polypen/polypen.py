@@ -256,7 +256,7 @@ class PP_Logic:
             p = location_3d_to_region_2d(context.region, context.region_data, co)
             with Drawing.draw(context, CC_2D_POINTS) as draw:
                 draw.point_size(8)
-                draw.border(width=2, color=Color4((40/255, 255/255, 255/255, 0.5)))
+                draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
                 draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
                 draw.vertex(p)
 
@@ -265,6 +265,7 @@ class PP_Logic:
             case PP_Action.VERT:
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
                 if not pt: return
+                if self.nearest.bmv: return
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
@@ -279,8 +280,10 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
-                    draw.vertex(pt)
+
+                    if not self.nearest.bmv:
+                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.vertex(pt)
 
                     draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
                     draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
@@ -304,8 +307,10 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
-                    draw.vertex(pt)
+
+                    if not self.nearest.bmv:
+                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.vertex(pt)
 
                     draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
                     draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
