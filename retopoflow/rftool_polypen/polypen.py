@@ -213,10 +213,6 @@ class PP_Logic:
 
         self.nearest.update(context, self.matrix_world_inv @ self.hit)
         if self.nearest.bmv:
-            # co = self.matrix_world @ self.nearest.bmv.co
-            # p = location_3d_to_region_2d(context.region, context.region_data, co)
-            # if (p - self.mouse).length < Drawing.scale(10):
-            #     self.hit = self.nearest.bmv.co
             self.hit = self.nearest.bmv.co
 
         # TODO: update previsualizations
@@ -247,13 +243,6 @@ class PP_Logic:
         if self.nearest.bmv:
             co = self.matrix_world @ self.nearest.bmv.co
             p = location_3d_to_region_2d(context.region, context.region_data, co)
-            # if (p - self.mouse).length < Drawing.scale(10):
-            #     with Drawing.draw(context, CC_2D_POINTS) as draw:
-            #         draw.point_size(8)
-            #         draw.border(width=2, color=Color4((40/255, 255/255, 255/255, 0.5)))
-            #         draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
-            #         # print((self.hit, self.nearest.co))
-            #         draw.vertex(p)
             with Drawing.draw(context, CC_2D_POINTS) as draw:
                 draw.point_size(8)
                 draw.border(width=2, color=Color4((40/255, 255/255, 255/255, 0.5)))
@@ -368,6 +357,9 @@ class PP_Logic:
                 bmf = next(iter(bmops.shared_link_faces([bmv0, bmv1, bmv])), None)
                 if not bmf:
                     bmf = self.bm.faces.new((bmv0,bmv1,bmv))
+                    bmf.normal_update()
+                    if bmf.normal.dot(bmv0.normal) < 0:
+                        bmf.normal_flip()
                 select_now = [bmv]
                 select_later = [bmf]
 
