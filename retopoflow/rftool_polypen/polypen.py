@@ -143,11 +143,20 @@ def distance_point_linesegment(pt, p0, p1):
     else:
         dd = dv / ld
         v = pt - p0
-        p = p0 + dd * clamp(dd.dot(v), 0, ld)
+        p = p0 + dd * clamp(dd.dot(v), 0.05, ld * 0.95)
     return (pt - p).length
+
 def distance_point_bmedge(pt, bme):
     bmv0, bmv1 = bme.verts
     return distance_point_linesegment(pt, bmv0.co, bmv1.co)
+
+def distance2d_point_bmedge(context, matrix, pt, bme):
+    bmv0, bmv1 = bme.verts
+    p  = matrix @ pt
+    p0 = matrix @ bmv0.co
+    p1 = matrix @ bmv1.co
+    return distance_point_linesegment(p, p0, p1)
+
 
 class PP_Logic:
     def __init__(self, context, event):
@@ -230,8 +239,10 @@ class PP_Logic:
 
         elif len(self.selected[BMEdge]) > 1:
             self.state = PP_Action.EDGE_TRIANGLE
-            # SHOULD CHECK IN SCREEN
-            self.bme = min(self.selected[BMEdge], key=lambda bme:distance_point_bmedge(self.hit, bme))
+            self.bme = min(
+                self.selected[BMEdge],
+                key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
+            )
 
     def draw(self, context):
         # draw previsualization
@@ -254,6 +265,7 @@ class PP_Logic:
             case PP_Action.VERT:
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
                 if not pt: return
+
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
@@ -264,6 +276,7 @@ class PP_Logic:
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
                 if not (p0 and pt): return
                 d = (pt - p0).normalized() * Drawing.scale(8)
+
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
@@ -274,9 +287,9 @@ class PP_Logic:
                     draw.vertex(p0)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                     draw.line_width(2)
                     draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                     draw.vertex(p0 + d).vertex(pt - d)
 
             case PP_Action.EDGE_TRIANGLE:
@@ -300,9 +313,10 @@ class PP_Logic:
                     draw.vertex(p1)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                     draw.line_width(2)
                     draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                     draw.vertex(p0 + d0t).vertex(pt - d0t)
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
@@ -323,7 +337,7 @@ class PP_Logic:
         if self.state == PP_Action.NONE: return
 
         # make sure artist can see the vert
-        bpy.ops.mesh.select_mode(type='VERT', use_extend=True, action='ENABLE')
+        context.tool_settings.mesh_select_mode[0] = True
 
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
