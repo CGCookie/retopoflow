@@ -29,6 +29,7 @@ from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
 from .common.operator import RFOperator
+from .common.raycast import prep_raycast_valid_sources
 
 from .rftool_base import RFTool_Base
 
@@ -148,7 +149,7 @@ class RFCore:
         RFCore.event_mouse = None
 
         wm = bpy.types.WindowManager
-        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, tuple(), 'VIEW_3D', 'WINDOW')
+        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, (context,), 'VIEW_3D', 'WINDOW')
 
         space = bpy.types.SpaceView3D
         RFCore._handle_preview   = space.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
@@ -201,7 +202,7 @@ class RFCore:
         RFCore.reseter.reset()
 
     @staticmethod
-    def handle_draw_cursor(mouse):
+    def handle_draw_cursor(context, mouse):
         if not RFCore.is_running:
             print('NOT RUNNING ANYMORE')
             return
@@ -258,6 +259,7 @@ class RFCore_Operator(bpy.types.Operator):
         return RFCore.active_RFTool
 
     def execute(self, context):
+        prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
         RFCore.running_in_windows.append(context.window)
         return {'RUNNING_MODAL'}

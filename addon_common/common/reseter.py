@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from bpy.types import bpy_prop_array
 import inspect
 
 class Reseter:
@@ -33,9 +34,10 @@ class Reseter:
         _, f_globals, f_locals = self._previous[key]
         if type(value) is str: value = f'"{value}"'
 
-        if type(key) is str:
+        tkey = type(key)
+        if tkey is str:
             exec(f'{key} = {value}', f_globals, f_locals)
-        elif type(key) is tuple:
+        elif tkey is tuple:
             _, a = key
             exec(f'__o.{a} = {value}', f_globals, f_locals)
 
@@ -44,12 +46,16 @@ class Reseter:
             frame = inspect.currentframe().f_back
             f_globals, f_locals = dict(frame.f_globals), dict(frame.f_locals)
 
-            if type(key) is str:
+            tkey = type(key)
+            if tkey is str:
                 pvalue = eval(f'{key}', f_globals, f_locals)
-            elif type(key) is tuple:
+            elif tkey is tuple:
                 o, a = key
                 f_locals['__o'] = o
                 pvalue = eval(f'__o.{a}', f_globals, f_locals)
+
+            if type(pvalue) is bpy_prop_array:
+                pvalue = list(pvalue)
 
             # print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
             self._previous[key] = ( pvalue, f_globals, f_locals )

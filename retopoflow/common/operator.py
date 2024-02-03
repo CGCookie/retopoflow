@@ -23,7 +23,7 @@ import bpy
 import re
 
 from ...addon_common.common.blender_cursors import Cursors
-
+from ...addon_common.common.debug import Debugger
 
 re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
 map_icons = {
@@ -58,11 +58,27 @@ class RFOperator(bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(lambda header, context: self.status(header, context))
         context.area.tag_redraw()
+        self.last_op = None
         self.init(context, event)
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        ret = self.update(context, event)
+        last_op = ops[-1] if (ops := context.window_manager.operators) else None
+        if self.last_op != last_op:
+            self.logic.reset()
+            self.last_op = last_op
+            context.area.tag_redraw()
+
+        try:
+            ret = self.update(context, event)
+        except KeyboardInterrupt as e:
+            print(f'Caught KeyboardInterrupt Exception: {e}')
+            ret = {'CANCELLED'}
+        except Exception as e:
+            print(f'Unhandled Exception Caught: {e}')
+            Debugger.print_exception()
+            ret = {'CANCELLED'}
+
         if ret & {'FINISHED', 'CANCELLED'}:
             RFOperator.active_operator = None
             context.workspace.status_text_set(None)
@@ -83,6 +99,7 @@ class RFOperator(bpy.types.Operator):
             row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
 
     def init(self, context, event): pass
+    def reset(self): pass
     def update(self, context, event): return {'FINISHED'}
     def draw_preview(self, context): pass
     def draw_postview(self, context): pass

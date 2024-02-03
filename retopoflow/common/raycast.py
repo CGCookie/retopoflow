@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
+import time
+
 from mathutils import Vector
 from bpy_extras.view3d_utils import region_2d_to_origin_3d
 from bpy_extras.view3d_utils import region_2d_to_vector_3d
@@ -49,6 +51,16 @@ def iter_all_valid_sources(context):
             not obj.hide_viewport
         )
     )
+
+# Note: the initial call to obj.ray_cast can take a noticeable moment if obj is really big (>1m triangles)
+# while the BVH is built.  Every subsequent call to obj.ray_cast is very fast due to BVH being cached.
+# This function forces Blender to generate BVHs for all source objects, so we can control when they are built.
+def prep_raycast_valid_sources(context):
+    print(f'CACHING BVHS FOR ALL SOURCE OBJECTS')
+    start = time.time()
+    for obj in iter_all_valid_sources(context):
+        obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
+    print(f'  {time.time() - start:0.2f}secs')
 
 def raycast_mouse_valid_sources(context, event, *, world=True):
     ray_world = ray_from_mouse(context, event)

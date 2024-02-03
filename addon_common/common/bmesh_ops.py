@@ -45,3 +45,21 @@ def flush_selection(bm, emesh):
     bm.select_flush(True)
     bm.select_flush(False)
     bmesh.update_edit_mesh(emesh)
+
+def shared_link_edges(bmvs):
+    bmes = None
+    for bmv in bmvs:
+        if bmes is None:
+            bmes = set(bmv.link_edges)
+        else:
+            bmes &= set(bmv.link_edges)
+    return bmes
+
+def shared_link_faces(bmvs):
+    bmfs = None
+    for bmv in bmvs:
+        if bmfs is None:
+            bmfs = set(bmv.link_faces)
+        else:
+            bmfs &= set(bmv.link_faces)
+    return bmfs
