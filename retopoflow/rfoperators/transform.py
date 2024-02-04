@@ -48,7 +48,6 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 
-
 class RFOperator_Translate(RFOperator):
     bl_idname = "retopoflow.translate"
     bl_label = 'Translate'
@@ -133,7 +132,7 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        forward = view_forward_direction(context)
+        forward = (self.matrix_world_inv @ Vector((*view_forward_direction(context), 0.0))).xyz
         for bmf, _ in self.bmfs:
             bmf.normal_update()
             if forward.dot(bmf.normal) > 0:

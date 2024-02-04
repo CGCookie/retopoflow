@@ -35,6 +35,7 @@ map_icons = {
 class RFOperator(bpy.types.Operator):
     active_operators = []
     RFCore = None
+    tickled = None
 
     @staticmethod
     def active_operator():
@@ -68,6 +69,7 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
+        if RFOperator.tickled: RFOperator.tickled()
         RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         last_op = ops[-1] if (ops := context.window_manager.operators) else None
@@ -99,7 +101,25 @@ class RFOperator(bpy.types.Operator):
             context.workspace.status_text_set(None)
             for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()
+            if RFOperator.active_operators:
+                # other RF operators on stack
+                # tickle them so they can see the changes
+                # context.window.event_simulate('TIMER', 'NOTHING')  # GRRRR! this reqs Blender cmdline arg
+                RFOperator.tickle(context)
         return ret
+
+    @staticmethod
+    def tickle(context):
+        wm  = context.window_manager
+        timer = wm.event_timer_add(0.01, window=context.window)
+        print('tickling!')
+        def tickled():
+            print('tickled!')
+            wm.event_timer_remove(timer)
+            RFOperator.tickled = None
+        RFOperator.tickled = tickled
+
+
 
     def status(self, header, context):
         layout = header.layout

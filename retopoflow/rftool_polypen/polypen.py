@@ -64,6 +64,19 @@ class RFOperator_PolyPen(RFOperator):
     rf_keymap = {'type': 'LEFT_CTRL', 'value': 'PRESS'}
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
+    insert_mode: bpy.props.EnumProperty(
+        name='Insert Mode',
+        items=[
+            # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
+            # None is a separator
+            ("TRI-ONLY", "Tri-Only", "Insert triangles only", 'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
+            ("TRI/QUAD", "Tri/Quad", "Insert triangles then quads", 'MESH_GRID', 2),
+            ("EDGE-ONLY", "Edge-Only", "Insert edges only", 'SNAP_MIDPOINT', 3),
+        ],
+        default=2,
+        # use get and set to make settings sticky across sessions?
+    )
+
     def init(self, context, event):
         print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
@@ -72,7 +85,7 @@ class RFOperator_PolyPen(RFOperator):
         self.logic.reset()
 
     def update(self, context, event):
-        self.logic.update(context, event)
+        self.logic.update(context, event, self.insert_mode)
 
         if not event.ctrl:
             print(F'LEAVING POLYPEN')
@@ -97,11 +110,17 @@ class RFTool_PolyPen(RFTool_Base):
     bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = "ops.generic.select_circle"
     bl_widget = None
+    bl_operator = 'retopoflow.polypen'
 
     bl_keymap = (
-        (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, None),
+        (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, {'properties': [('insert_mode', 'TRIANGLE')]}),
         (RFOperator_Translate.bl_idname, RFOperator_Translate.rf_keymap, None),
     )
+
+    def draw_settings(context, layout, tool):
+        layout.label(text="PolyPen")
+        props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
+        layout.prop(props, 'insert_mode')
 
     @classmethod
     def activate(cls, context):

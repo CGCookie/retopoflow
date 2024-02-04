@@ -67,6 +67,7 @@ class PP_Action(Enum):
     EDGE_TRIANGLE = 2
 
 
+
 def distance_point_linesegment(pt, p0, p1):
     dv = p1 - p0
     ld = dv.length
@@ -97,7 +98,7 @@ class PP_Logic:
         self.update_bmesh_selection = False
         self.mouse = None
         self.reset()
-        self.update(context, event)
+        self.update(context, event, None)
 
     def reset(self):
         self.bm = None
@@ -105,7 +106,7 @@ class PP_Logic:
         self.nearest = None
         self.selected = None
 
-    def update(self, context, event):
+    def update(self, context, event, insert_mode):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
@@ -146,13 +147,13 @@ class PP_Logic:
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
-        self.hit = raycast_mouse_valid_sources(context, event)
+        self.hit = raycast_mouse_valid_sources(context, event, world=False)
         if not self.hit:
             # Cursors.restore()
             return
         # Cursors.set('NONE')
 
-        self.nearest.update(context, self.matrix_world_inv @ self.hit)
+        self.nearest.update(context, self.hit)
         if self.nearest.bmv:
             self.hit = self.nearest.bmv.co
 
@@ -161,9 +162,12 @@ class PP_Logic:
         if len(self.selected[BMVert]) == 0:
             self.state = PP_Action.VERT
 
-        elif len(self.selected[BMVert]) == 1:
+        elif len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
             self.state = PP_Action.VERT_EDGE
-            self.bmv = next(iter(self.selected[BMVert]), None)
+            self.bmv = min(
+                self.selected[BMVert],
+                key=(lambda bmv:(self.hit - bmv.co).length),
+            )
 
         elif len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
             self.state = PP_Action.EDGE_TRIANGLE
@@ -173,7 +177,7 @@ class PP_Logic:
             self.state = PP_Action.EDGE_TRIANGLE
             self.bme = min(
                 self.selected[BMEdge],
-                key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
+                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
 
     def draw(self, context):
@@ -195,7 +199,7 @@ class PP_Logic:
 
         match self.state:
             case PP_Action.VERT:
-                pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
                 if not pt: return
                 if self.nearest.bmv: return
 
@@ -206,7 +210,7 @@ class PP_Logic:
 
             case PP_Action.VERT_EDGE:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
-                pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
                 if not (p0 and pt): return
                 d = (pt - p0).normalized() * Drawing.scale(8)
 
@@ -231,7 +235,7 @@ class PP_Logic:
                 bmv0, bmv1 = self.bme.verts
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
                 p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
-                pt = location_3d_to_region_2d(context.region, context.region_data, self.hit)
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
                 if not (p0 and p1 and pt): return
                 d0t = (pt - p0).normalized() * Drawing.scale(8)
                 d1t = (pt - p1).normalized() * Drawing.scale(8)
@@ -284,7 +288,7 @@ class PP_Logic:
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
                 else:
-                    bmv = self.bm.verts.new(self.matrix_world_inv @ self.hit)
+                    bmv = self.bm.verts.new(self.hit)
                 select_now = [bmv]
 
             case PP_Action.VERT_EDGE:
@@ -292,7 +296,7 @@ class PP_Logic:
                 if self.nearest.bmv:
                     bmv1 = self.nearest.bmv
                 else:
-                    bmv1 = self.bm.verts.new(self.matrix_world_inv @ self.hit)
+                    bmv1 = self.bm.verts.new(self.hit)
                 bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
                 if not bme:
                     bme = self.bm.edges.new((bmv0, bmv1))
@@ -304,7 +308,7 @@ class PP_Logic:
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
                 else:
-                    bmv = self.bm.verts.new(self.matrix_world_inv @ self.hit)
+                    bmv = self.bm.verts.new(self.hit)
                 bmf = next(iter(bmops.shared_link_faces([bmv0, bmv1, bmv])), None)
                 if not bmf:
                     bmf = self.bm.faces.new((bmv0,bmv1,bmv))
@@ -340,7 +344,6 @@ class PP_Logic:
         bmops.flush_selection(self.bm, self.em)
 
         bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False)
-        # bpy.ops.transform.transform('INVOKE_DEFAULT', False, mode='TRANSLATION', snap=not event.ctrl, **translate_options)
 
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
