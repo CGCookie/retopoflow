@@ -219,18 +219,18 @@ class RFCore:
     @staticmethod
     def handle_preview(context):
         # print(f'handle_preview()')
-        if RFOperator.active_operator:
-            RFOperator.active_operator.draw_preview(context)
+        if RFOperator.active_operator():
+            RFOperator.active_operator().draw_preview(context)
     @staticmethod
     def handle_postview(context):
         # print(f'handle_postview()')
-        if RFOperator.active_operator:
-            RFOperator.active_operator.draw_postview(context)
+        if RFOperator.active_operator():
+            RFOperator.active_operator().draw_postview(context)
     @staticmethod
     def handle_postpixel(context):
         # print(f'handle_postpixel()')
-        if RFOperator.active_operator:
-            RFOperator.active_operator.draw_postpixel(context)
+        if RFOperator.active_operator():
+            RFOperator.active_operator().draw_postpixel(context)
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):

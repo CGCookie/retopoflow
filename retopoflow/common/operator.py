@@ -33,7 +33,11 @@ map_icons = {
 }
 
 class RFOperator(bpy.types.Operator):
-    active_operator = None
+    active_operators = []
+
+    @staticmethod
+    def active_operator():
+        return RFOperator.active_operators[-1] if RFOperator.active_operators else None
 
     @staticmethod
     def get_all_RFOperators():
@@ -54,18 +58,18 @@ class RFOperator(bpy.types.Operator):
         return True
 
     def invoke(self, context, event):
-        RFOperator.active_operator = self
+        RFOperator.active_operators.append(self)
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(lambda header, context: self.status(header, context))
-        context.area.tag_redraw()
         self.last_op = None
         self.init(context, event)
+        context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
         last_op = ops[-1] if (ops := context.window_manager.operators) else None
         if self.last_op != last_op:
-            self.logic.reset()
+            self.reset()
             self.last_op = last_op
             context.area.tag_redraw()
 
@@ -84,7 +88,11 @@ class RFOperator(bpy.types.Operator):
                 ret = {'CANCELLED'}
 
         if ret & {'FINISHED', 'CANCELLED'}:
-            RFOperator.active_operator = None
+            if RFOperator.active_operator() != self:
+                print(f'RFOperator: currently finishing operator is not top??')
+                print(self)
+                print(RFOperator.active_operators)
+            RFOperator.active_operators.remove(self)
             context.workspace.status_text_set(None)
             for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()

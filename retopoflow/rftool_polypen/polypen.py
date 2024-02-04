@@ -29,13 +29,15 @@ from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 
 import math
+import time
 from typing import List
 from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources
+from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
+from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.reseter import Reseter
@@ -200,7 +202,7 @@ class PP_Logic:
                     bmv.select_set(True)
                 bmf[self.layer_sel_face] = 0
             bmops.flush_selection(self.bm, self.em)
-            bpy.ops.mesh.normals_make_consistent('EXEC_DEFAULT', False)
+            # bpy.ops.mesh.normals_make_consistent('EXEC_DEFAULT', False)
             bpy.ops.ed.undo_push(message='Selected geometry after move')
             self.selected = None
 
@@ -377,7 +379,7 @@ class PP_Logic:
                 if not bmf:
                     bmf = self.bm.faces.new((bmv0,bmv1,bmv))
                     bmf.normal_update()
-                    if bmf.normal.dot(bmv0.normal) < 0:
+                    if view_forward_direction(context).dot(bmf.normal) > 0:
                         bmf.normal_flip()
                 select_now = [bmv]
                 select_later = [bmf]
@@ -403,10 +405,13 @@ class PP_Logic:
         self.update_bmesh_selection = bool(select_later)
         self.nearest = None
         self.hit = None
+        self.selected = None
 
         bmops.flush_selection(self.bm, self.em)
 
-        bpy.ops.transform.transform('INVOKE_DEFAULT', False, mode='TRANSLATION', snap=not event.ctrl, **translate_options)
+        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False)
+        # bpy.ops.transform.transform('INVOKE_DEFAULT', False, mode='TRANSLATION', snap=not event.ctrl, **translate_options)
+
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
         #       is created and then merged into existing geometry
@@ -425,8 +430,6 @@ class RFOperator_PolyPen(RFOperator):
     def init(self, context, event):
         print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
-        context.area.tag_redraw()
-        self.last_op = None
 
     def reset(self):
         self.logic.reset()
@@ -438,7 +441,7 @@ class RFOperator_PolyPen(RFOperator):
             print(F'LEAVING POLYPEN')
             return {'FINISHED'}
 
-        if event.type == 'LEFTMOUSE':
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
@@ -448,8 +451,99 @@ class RFOperator_PolyPen(RFOperator):
         return {'PASS_THROUGH'}
 
     def draw_postpixel(self, context):
-        # print(f'post pixel')
         self.logic.draw(context)
+
+
+class RFOperator_Translate(RFOperator):
+    bl_idname = "retopoflow.translate"
+    bl_label = 'Translate'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = set()
+
+    rf_keymap = {'type': 'G', 'value': 'PRESS'}
+    rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
+
+    def init(self, context, event):
+        print(f'STARTING TRANSLATE')
+        self.matrix_world = context.edit_object.matrix_world
+        self.matrix_world_inv = self.matrix_world.inverted()
+        self.bm, self.em = get_bmesh_emesh(context)
+        self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+
+        self.bmvs = [(bmv, Vector(bmv.co))     for bmv in bmops.get_all_selected_bmverts(self.bm)]
+        self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for (bmv,_) in self.bmvs for bmf in bmv.link_faces }]
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+
+        Cursors.set('NONE')  # PAINT_CROSS
+
+    def update(self, context, event):
+        if event.type in {'RIGHTMOUSE', 'ESC'}:
+            self.cancel_reset(context, event)
+            return {'CANCELLED'}
+
+        if event.type == 'LEFTMOUSE':
+            # HANDLE MERGE!!!
+            # bpy.ops.mesh.remove_doubles('EXEC_DEFAULT', use_unselected=True)
+            self.automerge(context, event)
+            return {'FINISHED'}
+
+        if event.type == 'MOUSEMOVE':
+            self.translate(context, event)
+
+        return {'RUNNING_MODAL'}
+
+    def automerge(self, context, event):
+        merging = {}
+        for bmv, _ in self.bmvs:
+            self.nearest.update(context, bmv.co)
+            if not self.nearest.bmv: continue
+            bmv_into = self.nearest.bmv
+            if bmv_into not in merging: merging[bmv_into] = [bmv_into]
+            merging[bmv_into].append(bmv)
+        for bmvs in merging.values():
+            bmesh.ops.pointmerge(self.bm, verts=bmvs, merge_co=bmvs[0].co)
+
+        self.update_normals(context, event)
+
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
+    def cancel_reset(self, context, event):
+        for bmv, co_orig in self.bmvs:
+            bmv.co = co_orig
+        for bmf, norm_orig in self.bmfs:
+            bmf.normal_update()
+            if norm_orig.dot(bmf.normal) < 0: bmf.normal_flip()
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
+    def translate(self, context, event):
+        mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        delta = mouse - self.mouse
+
+        for bmv, co_orig in self.bmvs:
+            co = (self.matrix_world @ Vector((*co_orig, 1.0))).xyz
+            point = location_3d_to_region_2d(context.region, context.region_data, co)
+            if not point: continue
+            co = raycast_point_valid_sources(context, event, point + delta, world=False)
+            if not co: continue
+            self.nearest.update(context, co)
+            if self.nearest.bmv: co = self.nearest.bmv.co
+            bmv.co = co
+
+        self.update_normals(context, event)
+
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
+    def update_normals(self, context, event):
+        forward = view_forward_direction(context)
+        for bmf, _ in self.bmfs:
+            bmf.normal_update()
+            if forward.dot(bmf.normal) > 0:
+                bmf.normal_flip()
+
 
 
 class RFTool_PolyPen(RFTool_Base):
@@ -461,6 +555,7 @@ class RFTool_PolyPen(RFTool_Base):
 
     bl_keymap = (
         (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, None),
+        (RFOperator_Translate.bl_idname, RFOperator_Translate.rf_keymap, None),
     )
 
     @classmethod

@@ -40,6 +40,13 @@ def ray_from_mouse(context, event):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
     )
 
+def ray_from_point(context, point):
+    if not context.region_data: return (None, None)
+    return (
+        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point), 1.0)),
+        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point).normalized(), 0.0)),
+    )
+
 def iter_all_valid_sources(context):
     yield from (
         obj
@@ -94,3 +101,33 @@ def raycast_mouse_valid_sources(context, event, *, world=True):
         hit = Mi @ hit
     return hit.xyz
 
+def raycast_point_valid_sources(context, event, point, *, world=True):
+    ray_world = ray_from_point(context, point)
+    if ray_world[0] is None: return None
+
+    best_hit = None
+    best_dist = float('inf')
+    # print(f'RAY {ray_world}')
+    for obj in iter_all_valid_sources(context):
+        M = obj.matrix_world
+        Mi = M.inverted()
+        ray_local = (
+            Mi @ ray_world[0],
+            (Mi @ ray_world[1]).normalized(),
+        )
+        result, co, normal, idx = obj.ray_cast(ray_local[0].xyz / ray_local[0].w, ray_local[1].xyz)
+        if not result: continue
+        co_world = M @ Vector((*co, 1.0))
+        dist = distance_between_locations(ray_world[0], co_world)
+        # print(f'  HIT {obj.name} {co_world} {dist}')
+        if dist >= best_dist: continue
+        best_hit = co_world
+        best_dist = dist
+    if not best_hit: return None
+
+    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
+    if not world:
+        M = context.active_object.matrix_world
+        Mi = M.inverted()
+        hit = Mi @ hit
+    return hit.xyz
