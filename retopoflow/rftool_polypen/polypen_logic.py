@@ -24,6 +24,7 @@ import bmesh
 import bpy
 import gpu
 from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.utils import edge_split, vert_splice
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -65,18 +66,18 @@ class PP_Action(Enum):
     VERT = 0
     VERT_EDGE = 1
     EDGE_TRIANGLE = 2
+    TRIANGLE_QUAD = 3
 
 
 
 def distance_point_linesegment(pt, p0, p1):
-    dv = p1 - p0
-    ld = dv.length
-    if abs(ld) <= 0.00001:
-        p = p0
-    else:
-        dd = dv / ld
-        v = pt - p0
-        p = p0 + dd * clamp(dd.dot(v), 0.05, ld * 0.95)
+    v01 = p1 - p0
+    l01_squared = v01.length_squared
+    if l01_squared <= 0.00001:
+        return (pt - p0).length
+    v0t = pt - p0
+    f = clamp(v0t.dot(v01) / l01_squared, 0.05, 0.95)
+    p = p0 + v01 * f
     return (pt - p).length
 
 def distance_point_bmedge(pt, bme):
@@ -85,9 +86,10 @@ def distance_point_bmedge(pt, bme):
 
 def distance2d_point_bmedge(context, matrix, pt, bme):
     bmv0, bmv1 = bme.verts
-    p  = matrix @ pt
-    p0 = matrix @ bmv0.co
-    p1 = matrix @ bmv1.co
+    p  = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt)
+    p0 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv0.co)
+    p1 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv1.co)
+    if not p or not p0 or not p1: return float('inf')
     return distance_point_linesegment(p, p0, p1)
 
 
@@ -160,7 +162,6 @@ class PP_Logic:
         if self.nearest.bmv:
             self.hit = self.nearest.bmv.co
 
-        # TODO: update previsualizations
 
         if len(self.selected[BMVert]) == 0:
             self.state = PP_Action.VERT
@@ -170,6 +171,14 @@ class PP_Logic:
             self.bmv = min(
                 self.selected[BMVert],
                 key=(lambda bmv:(self.hit - bmv.co).length),
+            )
+
+        elif insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1 and len(next(iter(self.selected[BMFace])).edges) == 3:
+            self.state = PP_Action.TRIANGLE_QUAD
+            self.bmf = next(iter(self.selected[BMFace]))
+            self.bme = min(
+                self.bmf.edges,
+                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
 
         elif len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
@@ -273,6 +282,53 @@ class PP_Logic:
                     draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
                     draw.vertex(pt).vertex(p0).vertex(p1)
 
+            case PP_Action.TRIANGLE_QUAD:
+                bmev0, bmev1 = self.bme.verts
+                bmv0, bmv1, bmv2 = self.bmf.verts
+                if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
+                    pass
+                elif (bmev0 == bmv1 and bmev1 == bmv2) or (bmev0 == bmv2 and bmev1 == bmv1):
+                    bmv0, bmv1, bmv2 = bmv1, bmv2, bmv0
+                else:
+                    bmv0, bmv1, bmv2 = bmv2, bmv0, bmv1
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv2.co)
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
+                if not (p0 and p1 and p2 and pt): return
+                d0t = (pt - p0).normalized() * Drawing.scale(8)
+                d1t = (pt - p1).normalized() * Drawing.scale(8)
+                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+
+                    if not self.nearest.bmv:
+                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.vertex(pt)
+
+                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+                    draw.vertex(p2)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.vertex(p0 + d0t).vertex(pt - d0t)
+                    draw.vertex(p1 + d1t).vertex(pt - d1t)
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0 + d01).vertex(p1 - d01)
+
+                with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.vertex(p0).vertex(pt).vertex(p1)
+                    draw.vertex(p0).vertex(p1).vertex(p2)
+
             case _:
                 pass
 
@@ -322,6 +378,25 @@ class PP_Logic:
                         bmf.normal_flip()
                 select_now = [bmv]
                 select_later = [bmf]
+
+            case PP_Action.TRIANGLE_QUAD:
+                bmev0, bmev1 = self.bme.verts
+                bmv0, bmv1, bmv2 = self.bmf.verts
+                if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
+                    pass
+                elif (bmev0 == bmv1 and bmev1 == bmv2) or (bmev0 == bmv2 and bmev1 == bmv1):
+                    bmv0, bmv1, bmv2 = bmv1, bmv2, bmv0
+                else:
+                    bmv0, bmv1, bmv2 = bmv2, bmv0, bmv1
+                if self.nearest.bmv:
+                    bmv = self.nearest.bmv
+                else:
+                    bmv = self.bm.verts.new(self.hit)
+                bme_new, bmv_new = edge_split(self.bme, bmev0, 0.5)
+                vert_splice(bmv_new, bmv)
+                select_now = [bmv]
+                select_later = [self.bmf]
+
 
             case _:
                 assert False, f'Unhandled PolyPen state {self.state}'

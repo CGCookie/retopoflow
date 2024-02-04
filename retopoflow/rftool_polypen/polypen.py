@@ -115,6 +115,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_keymap = (
         (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, {'properties': [('insert_mode', 'TRIANGLE')]}),
         (RFOperator_Translate.bl_idname, RFOperator_Translate.rf_keymap, None),
+        (RFOperator_Translate.bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     )
 
     def draw_settings(context, layout, tool):
