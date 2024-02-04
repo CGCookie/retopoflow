@@ -107,7 +107,7 @@ class RFTool_PolyPen(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
-        reseter['context.tool_settings.use_mesh_automerge'] = True4
+        reseter['context.tool_settings.use_mesh_automerge'] = True
         reseter['context.tool_settings.double_threshold'] = 0.01
         # reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
         reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}

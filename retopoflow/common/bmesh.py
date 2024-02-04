@@ -26,6 +26,8 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
 
+from ...addon_common.common.decorators import add_cache
+
 from .drawing import Drawing
 
 
@@ -48,12 +50,11 @@ def get_select_layers(bm):
 
 
 
-triangle_inds = []
+@add_cache('triangle_inds', [])
 def verts_to_triangles(count):
-    global triangle_inds
-    if count > len(triangle_inds):
-        triangle_inds = [[i,i,i] for i in range(count*2)]
-    return triangle_inds[:count]
+    if count > len(verts_to_triangles.triangle_inds):
+        verts_to_triangles.triangle_inds = [[i,i,i] for i in range(count*2)]
+    return verts_to_triangles.triangle_inds[:count]
 
 class NearestBMVert:
     def __init__(self, bm, matrix, matrix_inv):
