@@ -34,6 +34,7 @@ map_icons = {
 
 class RFOperator(bpy.types.Operator):
     active_operators = []
+    RFCore = None
 
     @staticmethod
     def active_operator():
@@ -67,6 +68,8 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
+        RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+
         last_op = ops[-1] if (ops := context.window_manager.operators) else None
         if self.last_op != last_op:
             self.reset()

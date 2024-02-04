@@ -212,25 +212,23 @@ class RFCore:
             print(f'LAUNCHING IN NEW WINDOW')
             bpy.ops.retopoflow.core()
 
+        # print(list(context.window_manager.operators))
         if mouse != RFCore.event_mouse:
             if RFCore.event_mouse: print(f'LOST CONTROL!')
             RFCore.event_mouse = None
 
     @staticmethod
     def handle_preview(context):
-        # print(f'handle_preview()')
-        if RFOperator.active_operator():
-            RFOperator.active_operator().draw_preview(context)
+        if not RFOperator.active_operator(): return
+        RFOperator.active_operator().draw_preview(context)
     @staticmethod
     def handle_postview(context):
-        # print(f'handle_postview()')
-        if RFOperator.active_operator():
-            RFOperator.active_operator().draw_postview(context)
+        if not RFOperator.active_operator(): return
+        RFOperator.active_operator().draw_postview(context)
     @staticmethod
     def handle_postpixel(context):
-        # print(f'handle_postpixel()')
-        if RFOperator.active_operator():
-            RFOperator.active_operator().draw_postpixel(context)
+        if not RFOperator.active_operator(): return
+        RFOperator.active_operator().draw_postpixel(context)
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
@@ -246,7 +244,7 @@ class RFCore:
     def handle_undo_post(*args, **kwargs):
         # print(f'handle_undo_post({args}, {kwargs})')
         pass
-
+RFOperator.RFCore = RFCore
 
 
 class RFCore_Operator(bpy.types.Operator):
