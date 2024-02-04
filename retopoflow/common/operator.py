@@ -115,6 +115,7 @@ class RFOperator(bpy.types.Operator):
         def tickled():
             wm.event_timer_remove(timer)
             RFOperator.tickled = None
+            context.area.tag_redraw()
         RFOperator.tickled = tickled
 
 

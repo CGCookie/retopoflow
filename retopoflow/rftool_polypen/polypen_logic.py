@@ -215,7 +215,8 @@ class PP_Logic:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
                 if not (p0 and pt): return
-                d = (pt - p0).normalized() * Drawing.scale(8)
+                diff = pt - p0
+                d = diff.normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
@@ -228,11 +229,12 @@ class PP_Logic:
                     draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
                     draw.vertex(p0)
 
-                with Drawing.draw(context, CC_2D_LINES) as draw:
-                    draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
-                    draw.vertex(p0 + d).vertex(pt - d)
+                if diff.length > Drawing.scale(8):
+                    with Drawing.draw(context, CC_2D_LINES) as draw:
+                        draw.line_width(2)
+                        draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.vertex(p0 + d).vertex(pt - d)
 
             case PP_Action.EDGE_TRIANGLE:
                 bmv0, bmv1 = self.bme.verts
