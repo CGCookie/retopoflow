@@ -112,9 +112,7 @@ class RFOperator(bpy.types.Operator):
     def tickle(context):
         wm  = context.window_manager
         timer = wm.event_timer_add(0.01, window=context.window)
-        print('tickling!')
         def tickled():
-            print('tickled!')
             wm.event_timer_remove(timer)
             RFOperator.tickled = None
         RFOperator.tickled = tickled

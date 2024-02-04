@@ -47,6 +47,17 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
+from ..common.drawing import (
+    Drawing,
+    CC_2D_POINTS,
+    CC_2D_LINES,
+    CC_2D_LINE_STRIP,
+    CC_2D_LINE_LOOP,
+    CC_2D_TRIANGLES,
+    CC_2D_TRIANGLE_FAN,
+    CC_3D_TRIANGLES,
+)
+
 
 class RFOperator_Translate(RFOperator):
     bl_idname = "retopoflow.translate"
@@ -69,6 +80,8 @@ class RFOperator_Translate(RFOperator):
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for (bmv,_) in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
+        self.highlight = set()
+
         Cursors.set('NONE')  # PAINT_CROSS
 
     def update(self, context, event):
@@ -86,6 +99,17 @@ class RFOperator_Translate(RFOperator):
             self.translate(context, event)
 
         return {'RUNNING_MODAL'}
+
+    def draw_postpixel(self, context):
+        if self.highlight:
+            with Drawing.draw(context, CC_2D_POINTS) as draw:
+                draw.point_size(8)
+                draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
+                for bmv in self.highlight:
+                    co = self.matrix_world @ bmv.co
+                    p = location_3d_to_region_2d(context.region, context.region_data, co)
+                    draw.vertex(p)
 
     def automerge(self, context, event):
         merging = {}
@@ -113,6 +137,7 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def translate(self, context, event):
+        self.highlight = set()
         mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         delta = mouse - self.mouse
 
@@ -123,7 +148,9 @@ class RFOperator_Translate(RFOperator):
             co = raycast_point_valid_sources(context, event, point + delta, world=False)
             if not co: continue
             self.nearest.update(context, co)
-            if self.nearest.bmv: co = self.nearest.bmv.co
+            if self.nearest.bmv:
+                co = self.nearest.bmv.co
+                self.highlight.add(self.nearest.bmv)
             bmv.co = co
 
         self.update_normals(context, event)

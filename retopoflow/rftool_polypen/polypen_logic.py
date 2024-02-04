@@ -97,6 +97,7 @@ class PP_Logic:
         self.matrix_world_inv = self.matrix_world.inverted()
         self.update_bmesh_selection = False
         self.mouse = None
+        self.insert_mode = None
         self.reset()
         self.update(context, event, None)
 
@@ -110,6 +111,8 @@ class PP_Logic:
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
+
+        self.insert_mode = insert_mode
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -301,7 +304,7 @@ class PP_Logic:
                 if not bme:
                     bme = self.bm.edges.new((bmv0, bmv1))
                 select_now = [bmv1]
-                select_later = [bme]
+                select_later = [bme] if self.insert_mode != 'EDGE-ONLY' else []
 
             case PP_Action.EDGE_TRIANGLE:
                 bmv0, bmv1 = self.bme.verts
