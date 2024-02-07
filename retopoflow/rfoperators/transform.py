@@ -66,7 +66,10 @@ class RFOperator_Translate(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = set()
 
-    rf_keymap = {'type': 'G', 'value': 'PRESS'}
+    rf_keymaps = [
+        (bl_idname, {'type': 'G',         'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
+    ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
 
     def init(self, context, event):

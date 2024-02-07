@@ -61,7 +61,9 @@ class RFOperator_PolyPen(RFOperator):
     bl_region_type = "TOOLS"
     bl_options = set()
 
-    rf_keymap = {'type': 'LEFT_CTRL', 'value': 'PRESS'}
+    rf_keymaps = [
+        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'properties': [('insert_mode', 'TRIANGLE')]}),
+    ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
     insert_mode: bpy.props.EnumProperty(
@@ -95,9 +97,12 @@ class RFOperator_PolyPen(RFOperator):
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
-        if event.type == 'MOUSEMOVE':
+        if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             context.area.tag_redraw()
+            # returning {'PASS_THROUGH'} on MOUSEMOVE on INBETWEEN_MOUSEMOVE events allows Blender's auto save to trigger
+            return {'PASS_THROUGH'}
 
+        return {'RUNNING_MODAL'} # prevent other operators from working here...
         return {'PASS_THROUGH'}
 
     def draw_postpixel(self, context):
@@ -113,9 +118,8 @@ class RFTool_PolyPen(RFTool_Base):
     bl_operator = 'retopoflow.polypen'
 
     bl_keymap = (
-        (RFOperator_PolyPen.bl_idname, RFOperator_PolyPen.rf_keymap, {'properties': [('insert_mode', 'TRIANGLE')]}),
-        (RFOperator_Translate.bl_idname, RFOperator_Translate.rf_keymap, None),
-        (RFOperator_Translate.bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
+        *[ keymap for keymap in RFOperator_PolyPen.rf_keymaps ],
+        *[ keymap for keymap in RFOperator_Translate.rf_keymaps ],
     )
 
     def draw_settings(context, layout, tool):
