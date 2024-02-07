@@ -32,20 +32,29 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 from typing import List
-from enum import Enum
+from enum import Enum, IntEnum
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.bmesh import (
+    get_bmesh_emesh,
+    get_select_layers,
+    NearestBMVert,
+    NearestBMEdge,
+)
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
-from ..common.maths import view_forward_direction
+from ..common.maths import (
+    view_forward_direction,
+    distance_point_linesegment,
+    distance_point_bmedge,
+    distance2d_point_bmedge,
+)
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate
@@ -61,36 +70,15 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 
-class PP_Action(Enum):
-    NONE = -1
-    VERT = 0
-    VERT_EDGE = 1
-    EDGE_TRIANGLE = 2
-    TRIANGLE_QUAD = 3
+class PP_Action(IntEnum):
+    NONE           = -1
+    VERT           =  0
+    VERT_EDGE      =  1
+    EDGE_TRIANGLE  =  2
+    TRIANGLE_QUAD  =  3
+    EDGE_VERT      =  4  # split hovered edge
+    VERT_EDGE_VERT =  5  # split hovered edge and connect to nearest selected vert
 
-
-
-def distance_point_linesegment(pt, p0, p1):
-    v01 = p1 - p0
-    l01_squared = v01.length_squared
-    if l01_squared <= 0.00001:
-        return (pt - p0).length
-    v0t = pt - p0
-    f = clamp(v0t.dot(v01) / l01_squared, 0.05, 0.95)
-    p = p0 + v01 * f
-    return (pt - p).length
-
-def distance_point_bmedge(pt, bme):
-    bmv0, bmv1 = bme.verts
-    return distance_point_linesegment(pt, bmv0.co, bmv1.co)
-
-def distance2d_point_bmedge(context, matrix, pt, bme):
-    bmv0, bmv1 = bme.verts
-    p  = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt)
-    p0 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv0.co)
-    p1 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv1.co)
-    if not p or not p0 or not p1: return float('inf')
-    return distance_point_linesegment(p, p0, p1)
 
 
 class PP_Logic:
@@ -121,6 +109,7 @@ class PP_Logic:
             self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = get_select_layers(self.bm)
             self.selected = None
             self.nearest = None
+            self.nearest_bme = None
 
         if self.update_bmesh_selection:
             self.update_bmesh_selection = False
@@ -139,11 +128,13 @@ class PP_Logic:
                 bmf[self.layer_sel_face] = 0
             bmops.flush_selection(self.bm, self.em)
             # bpy.ops.mesh.normals_make_consistent('EXEC_DEFAULT', False)
-            bpy.ops.ed.undo_push(message='Selected geometry after move')
+            # bpy.ops.ed.undo_push(message='Selected geometry after move')
             self.selected = None
 
         if self.nearest is None or not self.nearest.is_valid:
             self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+        if self.nearest_bme is None or not self.nearest_bme.is_valid:
+            self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv)
 
         if self.selected is None:
             self.selected = bmops.get_all_selected(self.bm)
@@ -162,12 +153,22 @@ class PP_Logic:
         if self.nearest.bmv:
             self.hit = self.nearest.bmv.co
 
+        self.nearest_bme.update(context, self.hit)
+        if self.nearest_bme.bme:
+            pass
 
         if len(self.selected[BMVert]) == 0:
-            self.state = PP_Action.VERT
+            # inserting vertex
+            if not self.nearest.bmv and self.nearest_bme.bme:
+                self.state = PP_Action.EDGE_VERT
+            else:
+                self.state = PP_Action.VERT
 
         elif len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
-            self.state = PP_Action.VERT_EDGE
+            if not self.nearest.bmv and self.nearest_bme.bme:
+                self.state = PP_Action.VERT_EDGE_VERT
+            else:
+                self.state = PP_Action.VERT_EDGE
             self.bmv = min(
                 self.selected[BMVert],
                 key=(lambda bmv:(self.hit - bmv.co).length),
@@ -198,6 +199,7 @@ class PP_Logic:
         if not self.hit: return
         if not self.bm.is_valid: return
         if not self.nearest or not self.nearest.is_valid: return
+        if not self.nearest_bme or not self.nearest_bme.is_valid: return
 
         if self.nearest.bmv:
             co = self.matrix_world @ self.nearest.bmv.co
@@ -219,6 +221,65 @@ class PP_Logic:
                     draw.point_size(8)
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                     draw.vertex(pt)
+
+            case PP_Action.EDGE_VERT:
+                if not self.nearest_bme.bme: return
+                bmv0, bmv1 = self.nearest_bme.bme.verts
+                pt = self.nearest_bme.co2d
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
+                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.vertex(pt)
+
+                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0 + d01).vertex(pt - d01)
+                    draw.vertex(p1 - d01).vertex(pt + d01)
+
+            case PP_Action.VERT_EDGE_VERT:
+                if not self.nearest_bme.bme: return
+                bmv0, bmv1 = self.nearest_bme.bme.verts
+                pt = self.nearest_bme.co2d
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
+                # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
+                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.vertex(pt)
+
+                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+
+                    draw.vertex(pn)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0 + d01).vertex(pt - d01)
+                    draw.vertex(p1 - d01).vertex(pt + d01)
+
+                    draw.vertex(pt).vertex(pn)
 
             case PP_Action.VERT_EDGE:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
@@ -337,6 +398,8 @@ class PP_Logic:
         # apply the change
 
         if self.state == PP_Action.NONE: return
+        # TODO: UNDO NOT PUSHING ON MULTIPLE TIMES!?!?!
+        bpy.ops.ed.undo_push(message=f'PolyPen commit {time.time()}')
 
         # make sure artist can see the vert
         context.tool_settings.mesh_select_mode[0] = True
@@ -351,6 +414,14 @@ class PP_Logic:
                 else:
                     bmv = self.bm.verts.new(self.hit)
                 select_now = [bmv]
+
+            case PP_Action.EDGE_VERT:
+                bme = self.nearest_bme.bme
+                bmev0, bmev1 = bme.verts
+                bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
+                bmv_new.co = self.hit
+                select_now = [bmv_new]
+                select_later = []
 
             case PP_Action.VERT_EDGE:
                 bmv0 = self.bmv

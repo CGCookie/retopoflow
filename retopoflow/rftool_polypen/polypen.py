@@ -102,8 +102,8 @@ class RFOperator_PolyPen(RFOperator):
             # returning {'PASS_THROUGH'} on MOUSEMOVE on INBETWEEN_MOUSEMOVE events allows Blender's auto save to trigger
             return {'PASS_THROUGH'}
 
-        return {'RUNNING_MODAL'} # prevent other operators from working here...
-        return {'PASS_THROUGH'}
+        # return {'RUNNING_MODAL'} # prevent other operators from working here...
+        return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
         self.logic.draw(context)

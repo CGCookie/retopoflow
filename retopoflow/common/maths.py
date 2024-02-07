@@ -20,9 +20,13 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bmesh
 from mathutils import Vector, Matrix, Quaternion
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 import math
+
+from ...addon_common.common.maths import clamp
 
 def view_forward_direction(context):
     r3d = context.region_data
@@ -36,3 +40,35 @@ def view_up_direction(context):
     r3d = context.region_data
     mat = r3d.view_matrix
     return (mat.inverted() @ Vector((0,1,0,0))).xyz
+
+
+def distance_point_linesegment(pt, p0, p1, *, min_factor=0.05, max_factor=0.95, default=float('inf')):
+    if not pt or not p0 or not p1: return default
+    v01 = p1 - p0
+    l01_squared = v01.length_squared
+    if l01_squared <= 0.00001:
+        return (pt - p0).length
+    v0t = pt - p0
+    f = clamp(v0t.dot(v01) / l01_squared, min_factor, max_factor)
+    p = p0 + v01 * f
+    return (pt - p).length
+
+def distance_point_bmedge(pt, bme):
+    bmv0, bmv1 = bme.verts
+    return distance_point_linesegment(pt, bmv0.co, bmv1.co)
+
+def distance2d_point_bmedge(context, matrix, pt, bme):
+    bmv0, bmv1 = bme.verts
+    p  = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt)
+    p0 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv0.co)
+    p1 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv1.co)
+    if not p or not p0 or not p1: return float('inf')
+    return distance_point_linesegment(p, p0, p1)
+
+def closest_point_linesegment(pt, p0, p1):
+    v01 = p1 - p0
+    l01_squared = v01.length_squared
+    v0t = pt - p0
+    f = clamp(v0t.dot(v01) / l01_squared, 0.0, 1.0)
+    return p0 + v01 * f
+
