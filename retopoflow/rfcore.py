@@ -218,6 +218,13 @@ class RFCore:
             RFCore.event_mouse = None
 
     @staticmethod
+    def cursor_warp(context, point):
+        x,y = map(int, point)
+        context.window.cursor_warp(x, y)
+        RFCore.event_mouse = (x,y)
+
+
+    @staticmethod
     def handle_preview(context):
         if not RFOperator.active_operator(): return
         RFOperator.active_operator().draw_preview(context)

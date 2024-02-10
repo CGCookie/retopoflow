@@ -81,6 +81,9 @@ class RFOperator(bpy.types.Operator):
         if not context.area:
             # this can happen if an area is fullscreened :(
             ret = {'CANCELLED'}
+        elif context.mode != 'EDIT_MESH':
+            # this can happen if undoing back into OBJECT mode
+            ret = {'CANCELLED'}
         else:
             try:
                 ret = self.update(context, event)

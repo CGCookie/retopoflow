@@ -82,7 +82,11 @@ class RFOperator_Translate(RFOperator):
         bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         self.bmvs = [(bmv, Vector(bmv.co))     for bmv in bmvs]
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in bmvs for bmf in bmv.link_faces }]
-        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.cursor_orig = Vector((event.mouse_x, event.mouse_y))
+        self.cursor_center = Vector((context.window.width // 2, context.window.height // 2))
+        self.RFCore.cursor_warp(context, self.cursor_center)  # NOTE: initial warping might not happen right away
+        self.delta = Vector((0, 0))
+        self.delay_delta_update = True
 
         self.highlight = set()
 
@@ -91,29 +95,34 @@ class RFOperator_Translate(RFOperator):
     def update(self, context, event):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
+            self.RFCore.cursor_warp(context, self.cursor_orig)
             return {'CANCELLED'}
 
         if event.type == 'LEFTMOUSE':
             # HANDLE MERGE!!!
-            # bpy.ops.mesh.remove_doubles('EXEC_DEFAULT', use_unselected=True)
             self.automerge(context, event)
+            self.RFCore.cursor_warp(context, self.cursor_orig)
             return {'FINISHED'}
 
-        if event.type == 'MOUSEMOVE':
+        if self.delay_delta_update:
+            self.delay_delta_update = False
+        elif event.type == 'MOUSEMOVE':
+            self.delta += Vector((event.mouse_x, event.mouse_y)) - self.cursor_center
+            self.RFCore.cursor_warp(context, self.cursor_center)
             self.translate(context, event)
 
         return {'RUNNING_MODAL'}
 
     def draw_postpixel(self, context):
-        if self.highlight:
-            with Drawing.draw(context, CC_2D_POINTS) as draw:
-                draw.point_size(8)
-                draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
-                for bmv in self.highlight:
-                    co = self.matrix_world @ bmv.co
-                    p = location_3d_to_region_2d(context.region, context.region_data, co)
-                    draw.vertex(p)
+        if not self.highlight: return
+        with Drawing.draw(context, CC_2D_POINTS) as draw:
+            draw.point_size(8)
+            draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+            draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
+            for bmv in self.highlight:
+                co = self.matrix_world @ bmv.co
+                p = location_3d_to_region_2d(context.region, context.region_data, co)
+                draw.vertex(p)
 
     def automerge(self, context, event):
         merging = {}
@@ -142,14 +151,12 @@ class RFOperator_Translate(RFOperator):
 
     def translate(self, context, event):
         self.highlight = set()
-        mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        delta = mouse - self.mouse
 
         for bmv, co_orig in self.bmvs:
             co = (self.matrix_world @ Vector((*co_orig, 1.0))).xyz
             point = location_3d_to_region_2d(context.region, context.region_data, co)
             if not point: continue
-            co = raycast_point_valid_sources(context, event, point + delta, world=False)
+            co = raycast_point_valid_sources(context, event, point + self.delta, world=False)
             if not co: continue
             self.nearest.update(context, co)
             if self.nearest.bmv:
@@ -165,6 +172,7 @@ class RFOperator_Translate(RFOperator):
     def update_normals(self, context, event):
         forward = (self.matrix_world_inv @ Vector((*view_forward_direction(context), 0.0))).xyz
         for bmf, _ in self.bmfs:
+            if not bmf.is_valid: continue
             bmf.normal_update()
             if forward.dot(bmf.normal) > 0:
                 bmf.normal_flip()
