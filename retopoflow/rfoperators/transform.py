@@ -79,8 +79,9 @@ class RFOperator_Translate(RFOperator):
         self.bm, self.em = get_bmesh_emesh(context)
         self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
 
-        self.bmvs = [(bmv, Vector(bmv.co))     for bmv in bmops.get_all_selected_bmverts(self.bm)]
-        self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for (bmv,_) in self.bmvs for bmf in bmv.link_faces }]
+        bmvs = list(bmops.get_all_selected_bmverts(self.bm))
+        self.bmvs = [(bmv, Vector(bmv.co))     for bmv in bmvs]
+        self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
         self.highlight = set()
