@@ -79,6 +79,15 @@ class PP_Action(IntEnum):
     EDGE_VERT      =  4  # split hovered edge
     VERT_EDGE_VERT =  5  # split hovered edge and connect to nearest selected vert
 
+    @staticmethod
+    def __getitem__(v):
+        if type(v) is int:
+            for k in dir(PP_Action):
+                if getattr(PP_Action, k) == v:
+                    return k
+        if type(v) is str:
+            return getattr(PP_Action, v)
+        return None
 
 
 class PP_Logic:
@@ -429,11 +438,29 @@ class PP_Logic:
                     bmv1 = self.nearest.bmv
                 else:
                     bmv1 = self.bm.verts.new(self.hit)
-                bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
+                bmf_split = next((bmf for bmf in bmv0.link_faces if bmv1 in bmf.verts), None)
+                bme = None
+                if bmf_split:
+                    bme = next(iter(bmesh.ops.connect_verts(self.bm, verts=[bmv0, bmv1])), None)
+                if not bme:
+                    bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
                 if not bme:
                     bme = self.bm.edges.new((bmv0, bmv1))
                 select_now = [bmv1]
                 select_later = [bme] if self.insert_mode != 'EDGE-ONLY' else []
+
+            case PP_Action.VERT_EDGE_VERT:
+                bme = self.nearest_bme.bme
+                bmev0, bmev1 = bme.verts
+                bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
+                bmv_new.co = self.hit
+                bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
+                if bmf_split:
+                    bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                else:
+                    bme_new = self.bm.edges.new((self.bmv, bmv_new))
+                select_now = [bmv_new]
+                select_later = []
 
             case PP_Action.EDGE_TRIANGLE:
                 bmv0, bmv1 = self.bme.verts
@@ -470,7 +497,7 @@ class PP_Logic:
 
 
             case _:
-                assert False, f'Unhandled PolyPen state {self.state}'
+                assert False, f'Unhandled PolyPen state {PP_Action[self.state]}'
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:
