@@ -77,7 +77,7 @@ class RFCore:
         bpy.utils.register_class(RFCore_Operator)
         bpy.utils.register_class(RFCore_NewTarget_Cursor)
         bpy.utils.register_class(RFCore_NewTarget_Active)
-        bpy.utils.register_class(RFCore_Panel)
+        bpy.utils.register_class(RFCORE_PT_Panel)
         RFTool_Base.register_all()
         RFOperator.register_all()
 
@@ -86,7 +86,7 @@ class RFCore:
         from ..addon_common.common.functools import wrap_function
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
-        bpy.types.VIEW3D_MT_editor_menus.append(RFCore_Panel.draw_popover)
+        bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
 
         RFCore._is_registered = True
 
@@ -107,7 +107,7 @@ class RFCore:
 
         RFCore.stop()
 
-        bpy.types.VIEW3D_MT_editor_menus.remove(RFCore_Panel.draw_popover)
+        bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
         RFCore._unwrap_activate_tool()
@@ -116,7 +116,7 @@ class RFCore:
         # unregister RF operator and RF tools
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
-        bpy.utils.unregister_class(RFCore_Panel)
+        bpy.utils.unregister_class(RFCORE_PT_Panel)
         bpy.utils.unregister_class(RFCore_NewTarget_Active)
         bpy.utils.unregister_class(RFCore_NewTarget_Cursor)
         bpy.utils.unregister_class(RFCore_Operator)
@@ -406,7 +406,7 @@ class RFCore_NewTarget_Active(bpy.types.Operator):
 #         retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
 #         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
 
-class RFCore_Panel(bpy.types.Panel):
+class RFCORE_PT_Panel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = 'Start RetopoFlow'
@@ -417,14 +417,13 @@ class RFCore_Panel(bpy.types.Panel):
 
     @staticmethod
     def draw_popover(self, context):
-        if context.mode != 'OBJECT': return
-        layout = self.layout
-
-        layout.separator()
-        row = layout.row(align=True)
-        row.label(text=f'{Hive.get("short name")}')
-        row.operator('retopoflow.newtarget_cursor', text="", icon='CURSOR')
-        row.operator('retopoflow.newtarget_active', text="", icon='MOD_MESHDEFORM')
+        if context.mode == 'OBJECT':
+            layout = self.layout
+            layout.separator()
+            row = layout.row(align=True)
+            row.label(text=f'{Hive.get("short name")}')
+            row.operator('retopoflow.newtarget_cursor', text="", icon='CURSOR')
+            row.operator('retopoflow.newtarget_active', text="", icon='MOD_MESHDEFORM')
 
     def draw(self, context): pass
 

@@ -48,9 +48,11 @@ class RFOperator(bpy.types.Operator):
     def register_all():
         for op in RFOperator.get_all_RFOperators():
             bpy.utils.register_class(op)
+            op.register()
     @staticmethod
     def unregister_all():
         for op in reversed(RFOperator.get_all_RFOperators()):
+            op.unregister()
             bpy.utils.unregister_class(op)
 
     @classmethod
@@ -69,7 +71,11 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        if RFOperator.tickled: RFOperator.tickled()
+        if RFOperator.tickled:
+            # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
+            # handle tickle event (which will remove tickle timer / handler)
+            RFOperator.tickled()
+
         RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         last_op = ops[-1] if (ops := context.window_manager.operators) else None
@@ -105,14 +111,16 @@ class RFOperator(bpy.types.Operator):
             for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()
             if RFOperator.active_operators:
-                # other RF operators on stack
-                # tickle them so they can see the changes
-                # context.window.event_simulate('TIMER', 'NOTHING')  # GRRRR! this reqs Blender cmdline arg
+                # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
+
         return ret
 
     @staticmethod
     def tickle(context):
+        # tickle RF operator by temporarily setting a timer that will self-remove (causes modal / update to be called)
+        # sadly, cannot use context.window.event_simulate, because this requires `--enable-event-simulate` Blender commandline argument
+        # ex: context.window.event_simulate('TIMER', 'NOTHING')
         wm  = context.window_manager
         timer = wm.event_timer_add(0.01, window=context.window)
         def tickled():
@@ -135,6 +143,10 @@ class RFOperator(bpy.types.Operator):
             icon = m_entry['icon'] or ''
             row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
 
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}
