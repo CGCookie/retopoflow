@@ -95,6 +95,7 @@ class NearestBMVert:
 
         self.bmv = None
         if not self.is_valid: return
+        if not co: return
 
         bmv_co, bmv_norm, bmv_idx, bmv_dist = self.bvh_verts.find_nearest(co, distance) # distance=1.0
         bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh_faces.find_nearest(co, distance) # distance=1.0

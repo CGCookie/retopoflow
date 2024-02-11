@@ -39,7 +39,20 @@ def get_all_selected_bmfaces(bm):
     return { bmf for bmf in bm.faces if bmf.select and not bmf.hide }
 
 def deselect_all(bm):
+    bm.select_history.clear()
     for bmv in bm.verts: bmv.select_set(False)
+def select_set(bm, bmelem, selected):
+    if selected: select(bm, bmelem)
+    else: deselect(bm, bmelem)
+def select(bm, bmelem):
+    bm.select_history.add(bmelem)
+    bmelem.select_set(True)
+def deselect(bm, bmelem):
+    bm.select_history.discard(bmelem)
+    bmelem.select_set(False)
+def reselect(bm, bmelem):
+    deselect(bm, bmelem)
+    select(bm, bmelem)
 
 def flush_selection(bm, emesh):
     bm.select_flush(True)
