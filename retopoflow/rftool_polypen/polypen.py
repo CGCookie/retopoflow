@@ -62,26 +62,30 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'properties': [('insert_mode', 'TRIANGLE')]}),
+        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode', 'TRIANGLE'}),
+        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode': 'EDGE-ONLY'}),
     ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
     insert_mode: bpy.props.EnumProperty(
         name='Insert Mode',
+        description='Insertion mode for PolyPen',
         items=[
             # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
+            # must have number?
             # None is a separator
-            ("TRI-ONLY", "Tri-Only", "Insert triangles only", 'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
-            ("TRI/QUAD", "Tri/Quad", "Insert triangles then quads", 'MESH_GRID', 2),
-            ("EDGE-ONLY", "Edge-Only", "Insert edges only", 'SNAP_MIDPOINT', 3),
+            ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
+            ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 'MESH_GRID',      2),
+            ("EDGE-ONLY", "Edge-Only", "Insert edges only",           'SNAP_MIDPOINT',  3),
         ],
-        default=2,
+        default='TRI/QUAD',
         # use get and set to make settings sticky across sessions?
     )
 
     def init(self, context, event):
         print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
+        self.tickle(context)
 
     def reset(self):
         self.logic.reset()
@@ -123,7 +127,7 @@ class RFTool_PolyPen(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        layout.label(text="PolyPen")
+        # layout.label(text="PolyPen")
         props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         layout.prop(props, 'insert_mode')
 

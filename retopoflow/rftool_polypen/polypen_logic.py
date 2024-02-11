@@ -122,19 +122,26 @@ class PP_Logic:
 
         if self.update_bmesh_selection:
             self.update_bmesh_selection = False
+            self.bm.select_history.validate()
+            active = self.bm.select_history.active
             for bmv in self.bm.verts:
-                bmv.select_set(bmv[self.layer_sel_vert] == 1)
+                if bmv[self.layer_sel_vert] == 0: continue
+                # bmv.select_set(bmv[self.layer_sel_vert] == 1)
+                bmops.select(self.bm, bmv)
                 bmv[self.layer_sel_vert] = 0
             for bme in self.bm.edges:
                 if bme[self.layer_sel_edge] == 0: continue
                 for bmv in bme.verts:
-                    bmv.select_set(True)
+                    # bmv.select_set(True)
+                    bmops.select(self.bm, bmv)
                 bme[self.layer_sel_edge] = 0
             for bmf in self.bm.faces:
                 if bmf[self.layer_sel_face] == 0: continue
                 for bmv in bmf.verts:
-                    bmv.select_set(True)
+                    # bmv.select_set(True)
+                    bmops.select(self.bm, bmv)
                 bmf[self.layer_sel_face] = 0
+            if active: bmops.reselect(self.bm, active)
             bmops.flush_selection(self.bm, self.em)
             # bpy.ops.mesh.normals_make_consistent('EXEC_DEFAULT', False)
             # bpy.ops.ed.undo_push(message='Selected geometry after move')
@@ -369,6 +376,8 @@ class PP_Logic:
                 d0t = (pt - p0).normalized() * Drawing.scale(8)
                 d1t = (pt - p1).normalized() * Drawing.scale(8)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d02 = (p2 - p0).normalized() * Drawing.scale(8)
+                d12 = (p2 - p1).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
@@ -392,7 +401,9 @@ class PP_Logic:
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
                     draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.vertex(p0 + d01).vertex(p1 - d01)
+                    # draw.vertex(p0 + d01).vertex(p1 - d01)
+                    draw.vertex(p0 + d02).vertex(p2 - d02)
+                    draw.vertex(p1 + d12).vertex(p2 - d12)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
                     draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
@@ -501,7 +512,7 @@ class PP_Logic:
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:
-            bmelem.select_set(True)
+            bmops.select(self.bm, bmelem)
         for bmelem in select_later:
             match bmelem:
                 case BMVert():
@@ -521,7 +532,7 @@ class PP_Logic:
 
         bmops.flush_selection(self.bm, self.em)
 
-        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False)
+        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False)
 
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert

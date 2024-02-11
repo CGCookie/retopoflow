@@ -72,6 +72,13 @@ class RFOperator_Translate(RFOperator):
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
 
+    move_hovered: bpy.props.BoolProperty(
+        name='Select and Move Hovered',
+        description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
+        default=True,
+    )
+
+
     def init(self, context, event):
         print(f'STARTING TRANSLATE')
         self.matrix_world = context.edit_object.matrix_world
@@ -79,36 +86,53 @@ class RFOperator_Translate(RFOperator):
         self.bm, self.em = get_bmesh_emesh(context)
         self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
 
-        bmvs = list(bmops.get_all_selected_bmverts(self.bm))
-        self.bmvs = [(bmv, Vector(bmv.co))     for bmv in bmvs]
-        self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in bmvs for bmf in bmv.link_faces }]
-        self.cursor_orig = Vector((event.mouse_x, event.mouse_y))
-        self.cursor_center = Vector((context.window.width // 2, context.window.height // 2))
-        self.RFCore.cursor_warp(context, self.cursor_center)  # NOTE: initial warping might not happen right away
-        self.delta = Vector((0, 0))
+        if self.move_hovered:
+            hit = raycast_mouse_valid_sources(context, event, world=False)
+            self.nearest.update(context, hit)
+            print(f'  SELECT HOVERED {self.nearest.bmv}')
+            # select hovered geometry
+            if self.nearest.bmv:
+                bmops.deselect_all(self.bm)
+                bmops.select(self.bm, self.nearest.bmv)
+                #self.bm.select_history.validate()
+                bmops.flush_selection(self.bm, self.em)
+
+        self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
+        self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
+        self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
+
+        self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
+        self.mouse = Vector((event.mouse_x, event.mouse_y))
+        self.mouse_orig = Vector((event.mouse_x, event.mouse_y))
+        self.mouse_prev = Vector((event.mouse_x, event.mouse_y))
+        self.mouse_center = Vector((context.window.width // 2, context.window.height // 2))
+        # self.RFCore.cursor_warp(context, self.mouse_center)  # NOTE: initial warping might not happen right away
         self.delay_delta_update = True
+        self.delta = Vector((0, 0))
 
         self.highlight = set()
 
-        Cursors.set('NONE')  # PAINT_CROSS
+        # Cursors.set('NONE')  # PAINT_CROSS
 
     def update(self, context, event):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
-            self.RFCore.cursor_warp(context, self.cursor_orig)
+            # self.RFCore.cursor_warp(context, self.mouse_orig)
+            print(f'CANCEL TRANSLATE')
             return {'CANCELLED'}
 
         if event.type == 'LEFTMOUSE':
             # HANDLE MERGE!!!
             self.automerge(context, event)
-            self.RFCore.cursor_warp(context, self.cursor_orig)
+            # self.RFCore.cursor_warp(context, self.mouse_orig)
+            print(f'COMMIT TRANSLATE')
             return {'FINISHED'}
 
         if self.delay_delta_update:
             self.delay_delta_update = False
         elif event.type == 'MOUSEMOVE':
-            self.delta += Vector((event.mouse_x, event.mouse_y)) - self.cursor_center
-            self.RFCore.cursor_warp(context, self.cursor_center)
+            self.mouse_prev = self.mouse
+            self.mouse = Vector((event.mouse_x, event.mouse_y))
             self.translate(context, event)
 
         return {'RUNNING_MODAL'}
@@ -126,7 +150,7 @@ class RFOperator_Translate(RFOperator):
 
     def automerge(self, context, event):
         merging = {}
-        for bmv, _ in self.bmvs:
+        for bmv in self.bmvs:
             self.nearest.update(context, bmv.co)
             if not self.nearest.bmv: continue
             bmv_into = self.nearest.bmv
@@ -141,7 +165,7 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def cancel_reset(self, context, event):
-        for bmv, co_orig in self.bmvs:
+        for bmv, co_orig in zip(self.bmvs, self.bmvs_co_orig):
             bmv.co = co_orig
         for bmf, norm_orig in self.bmfs:
             bmf.normal_update()
@@ -150,14 +174,26 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def translate(self, context, event):
-        self.highlight = set()
+        # self.delta += self.mouse - self.mouse_center
+        # self.RFCore.cursor_warp(context, self.mouse_center)
+        # self.delta = self.mouse - self.mouse_orig
+        self.delta += self.mouse - self.mouse_prev
+        factor = 1.0
+        while factor > 0.0:
+            if all(raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
+                break
+            factor -= 0.01
 
-        for bmv, co_orig in self.bmvs:
-            co = (self.matrix_world @ Vector((*co_orig, 1.0))).xyz
-            point = location_3d_to_region_2d(context.region, context.region_data, co)
-            if not point: continue
-            co = raycast_point_valid_sources(context, event, point + self.delta, world=False)
-            if not co: continue
+        factor = 1.0
+        while factor > 0.0:
+            if all(raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
+                break
+            factor -= 0.01
+        if factor <= 0.0: return
+
+        self.highlight = set()
+        for bmv, co2d_orig in zip(self.bmvs, self.bmvs_co2d_orig):
+            co = raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor, world=False)
             self.nearest.update(context, co)
             if self.nearest.bmv:
                 co = self.nearest.bmv.co
