@@ -71,6 +71,7 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
+        self.RFCore.is_controlling = True
         if RFOperator.tickled:
             # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
             # handle tickle event (which will remove tickle timer / handler)

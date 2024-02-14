@@ -125,6 +125,7 @@ class RFOperator_Translate(RFOperator):
             # HANDLE MERGE!!!
             self.automerge(context, event)
             # self.RFCore.cursor_warp(context, self.mouse_orig)
+            bpy.ops.ed.undo_push(message='Transform')
             print(f'COMMIT TRANSLATE')
             return {'FINISHED'}
 
@@ -154,10 +155,8 @@ class RFOperator_Translate(RFOperator):
             self.nearest.update(context, bmv.co)
             if not self.nearest.bmv: continue
             bmv_into = self.nearest.bmv
-            if bmv_into not in merging: merging[bmv_into] = [bmv_into]
-            merging[bmv_into].append(bmv)
-        for bmvs in merging.values():
-            bmesh.ops.pointmerge(self.bm, verts=bmvs, merge_co=bmvs[0].co)
+            merging[bmv_into] = bmv
+        bmesh.ops.weld_verts(self.bm, targetmap=merging)
 
         self.update_normals(context, event)
 

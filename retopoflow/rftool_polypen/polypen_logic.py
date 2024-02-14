@@ -506,7 +506,6 @@ class PP_Logic:
                 select_now = [bmv]
                 select_later = [self.bmf]
 
-
             case _:
                 assert False, f'Unhandled PolyPen state {PP_Action[self.state]}'
 

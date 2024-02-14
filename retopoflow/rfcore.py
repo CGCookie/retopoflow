@@ -54,6 +54,7 @@ class RFCore:
     active_RFTool = None
     is_running = False
     event_mouse = None
+    is_controlling = False
 
     running_in_windows = []
 
@@ -147,6 +148,7 @@ class RFCore:
         if RFCore.is_running: return
         RFCore.is_running = True
         RFCore.event_mouse = None
+        RFCore.is_controlling = True
 
         wm = bpy.types.WindowManager
         RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, (context,), 'VIEW_3D', 'WINDOW')
@@ -186,6 +188,7 @@ class RFCore:
         if not RFCore.is_running: return
         RFCore.is_running = False
         RFCore.event_mouse = None
+        RFCore.is_controlling = False
 
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
@@ -214,7 +217,10 @@ class RFCore:
 
         # print(list(context.window_manager.operators))
         if mouse != RFCore.event_mouse:
-            if RFCore.event_mouse: print(f'LOST CONTROL!')
+            if RFCore.event_mouse:
+                print(f'LOST CONTROL!')
+                context.area.tag_redraw()
+                RFCore.is_controlling = False
             RFCore.event_mouse = None
 
     @staticmethod
@@ -227,14 +233,17 @@ class RFCore:
     @staticmethod
     def handle_preview(context):
         if not RFOperator.active_operator(): return
+        if not RFCore.is_controlling: return
         RFOperator.active_operator().draw_preview(context)
     @staticmethod
     def handle_postview(context):
         if not RFOperator.active_operator(): return
+        if not RFCore.is_controlling: return
         RFOperator.active_operator().draw_postview(context)
     @staticmethod
     def handle_postpixel(context):
         if not RFOperator.active_operator(): return
+        if not RFCore.is_controlling: return
         RFOperator.active_operator().draw_postpixel(context)
 
     @staticmethod
@@ -284,7 +293,9 @@ class RFCore_Operator(bpy.types.Operator):
             RFCore.running_in_windows.remove(context.window)
             return {'FINISHED'}
 
-        if not RFCore.event_mouse: print(f'IN CONTROL!')
+        if not RFCore.event_mouse:
+            print(f'IN CONTROL!')
+            RFCore.is_controlling = True
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         return {'PASS_THROUGH'}
