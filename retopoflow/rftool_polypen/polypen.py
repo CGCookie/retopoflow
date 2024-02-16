@@ -23,6 +23,7 @@ import blf
 import bmesh
 import bpy
 import gpu
+import os
 from bmesh.types import BMVert, BMEdge, BMFace
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
@@ -117,7 +118,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
     bl_description = "Create complex topology on vertex-by-vertex basis"
-    bl_icon = "ops.generic.select_circle"
+    bl_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'icons', 'polypen')
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 
