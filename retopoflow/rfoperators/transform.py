@@ -80,7 +80,7 @@ class RFOperator_Translate(RFOperator):
 
 
     def init(self, context, event):
-        print(f'STARTING TRANSLATE')
+        # print(f'STARTING TRANSLATE')
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.bm, self.em = get_bmesh_emesh(context)
@@ -89,7 +89,7 @@ class RFOperator_Translate(RFOperator):
         if self.move_hovered:
             hit = raycast_mouse_valid_sources(context, event, world=False)
             self.nearest.update(context, hit)
-            print(f'  SELECT HOVERED {self.nearest.bmv}')
+            # print(f'  SELECT HOVERED {self.nearest.bmv}')
             # select hovered geometry
             if self.nearest.bmv:
                 bmops.deselect_all(self.bm)
@@ -118,7 +118,7 @@ class RFOperator_Translate(RFOperator):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
             # self.RFCore.cursor_warp(context, self.mouse_orig)
-            print(f'CANCEL TRANSLATE')
+            # print(f'CANCEL TRANSLATE')
             return {'CANCELLED'}
 
         if event.type == 'LEFTMOUSE':
@@ -126,7 +126,7 @@ class RFOperator_Translate(RFOperator):
             self.automerge(context, event)
             # self.RFCore.cursor_warp(context, self.mouse_orig)
             bpy.ops.ed.undo_push(message='Transform')
-            print(f'COMMIT TRANSLATE')
+            # print(f'COMMIT TRANSLATE')
             return {'FINISHED'}
 
         if self.delay_delta_update:

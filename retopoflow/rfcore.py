@@ -34,11 +34,11 @@ from .common.raycast import prep_raycast_valid_sources
 from .rftool_base import RFTool_Base
 
 # import order determines tool order
-from .rftool_contours.contours import RFTool_Contours
+# from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
-print(f'RFTools: {list(RFTools.keys())}')
+# print(f'RFTools: {list(RFTools.keys())}')
 
 
 '''
@@ -69,9 +69,9 @@ class RFCore:
 
     @staticmethod
     def register():
-        print(f'REGISTER')
+        # print(f'REGISTER')
         if RFCore._is_registered:
-            print(f'  ALREADY REGISTERED!!')
+            # print(f'  ALREADY REGISTERED!!')
             return
 
         # register RF operator and RF tools
@@ -93,9 +93,9 @@ class RFCore:
 
     @staticmethod
     def unregister():
-        print(f'UNREGISTER')
+        # print(f'UNREGISTER')
         if not RFCore._is_registered:
-            print(f'  ALREADY UNREGISTERED!!')
+            # print(f'  ALREADY UNREGISTERED!!')
             return
 
         if not bpy.context.workspace:
@@ -207,18 +207,18 @@ class RFCore:
     @staticmethod
     def handle_draw_cursor(context, mouse):
         if not RFCore.is_running:
-            print('NOT RUNNING ANYMORE')
+            # print('NOT RUNNING ANYMORE')
             return
 
         # print(f'handle_draw_cursor({mouse})  {bpy.context.window in RFCore.running_in_windows}')
         if bpy.context.window not in RFCore.running_in_windows:
-            print(f'LAUNCHING IN NEW WINDOW')
+            # print(f'LAUNCHING IN NEW WINDOW')
             bpy.ops.retopoflow.core()
 
         # print(list(context.window_manager.operators))
         if mouse != RFCore.event_mouse:
             if RFCore.event_mouse:
-                print(f'LOST CONTROL!')
+                # print(f'LOST CONTROL!')
                 context.area.tag_redraw()
                 RFCore.is_controlling = False
             RFCore.event_mouse = None
@@ -284,17 +284,17 @@ class RFCore_Operator(bpy.types.Operator):
         if not context.area:
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
-            print(f'RESTARTING!')
+            # print(f'RESTARTING!')
             RFCore.restart()
             return {'FINISHED'}
 
         if not RFCore.is_running:
-            print(f'EXITING!')
+            # print(f'EXITING!')
             RFCore.running_in_windows.remove(context.window)
             return {'FINISHED'}
 
         if not RFCore.event_mouse:
-            print(f'IN CONTROL!')
+            # print(f'IN CONTROL!')
             RFCore.is_controlling = True
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 

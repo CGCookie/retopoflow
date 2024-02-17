@@ -84,7 +84,7 @@ class RFOperator_PolyPen(RFOperator):
     )
 
     def init(self, context, event):
-        print(f'STARTING POLYPEN')
+        # print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
         self.tickle(context)
 
@@ -95,7 +95,7 @@ class RFOperator_PolyPen(RFOperator):
         self.logic.update(context, event, self.insert_mode)
 
         if not event.ctrl:
-            print(F'LEAVING POLYPEN')
+            # print(F'LEAVING POLYPEN')
             return {'FINISHED'}
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
