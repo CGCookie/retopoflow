@@ -27,6 +27,7 @@ from bmesh.types import BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split, vert_splice
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_line_line_2d
 from mathutils.bvhtree import BVHTree
 
 import math
@@ -54,6 +55,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
+from ...addon_common.common.maths import intersection2d_line_line
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
@@ -74,12 +76,14 @@ from ..common.drawing import (
 
 class PP_Action(ValueIntEnum):
     NONE           = -1
-    VERT           =  0
-    VERT_EDGE      =  1
-    EDGE_TRIANGLE  =  2
-    TRIANGLE_QUAD  =  3
-    EDGE_VERT      =  4  # split hovered edge
-    VERT_EDGE_VERT =  5  # split hovered edge and connect to nearest selected vert
+    VERT           =  0  # insert new vert
+    VERT_EDGE      =  1  # extrude vert into edge
+    EDGE_TRIANGLE  =  2  # create triangle from selected edge and new/hovered vert
+    EDGE_QUAD      =  3  # create new edge and bridge with selected to create quad
+    EDGE_QUAD_EDGE =  4  # bridge selected and hover edge into quad
+    TRIANGLE_QUAD  =  5  # insert vert into edge of triangle to turn into quad
+    EDGE_VERT      =  6  # split hovered edge
+    VERT_EDGE_VERT =  7  # split hovered edge and connect to nearest selected vert
 
 
 
@@ -158,7 +162,7 @@ class PP_Logic:
 
         self.nearest.update(context, self.hit)
         if self.nearest.bmv:
-            self.hit = self.nearest.bmv.co
+            self.hit = Vector(self.nearest.bmv.co)
 
         self.nearest_bme.update(context, self.hit)
         if self.nearest_bme.bme:
@@ -170,35 +174,119 @@ class PP_Logic:
                 self.state = PP_Action.EDGE_VERT
             else:
                 self.state = PP_Action.VERT
+            return
 
-        elif len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
+        if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
             if not self.nearest.bmv and self.nearest_bme.bme:
                 self.state = PP_Action.VERT_EDGE_VERT
             else:
                 self.state = PP_Action.VERT_EDGE
+            # find closest selected BMVert from which to extrude
             self.bmv = min(
                 self.selected[BMVert],
                 key=(lambda bmv:(self.hit - bmv.co).length),
             )
+            return
 
-        elif insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1 and len(next(iter(self.selected[BMFace])).edges) == 3:
+        if insert_mode in {'TRI/QUAD', 'QUAD-ONLY'} and self.nearest_bme.bme and not self.nearest.bmv:
+            # find hovered bme but make sure it doesn't share a face with selected bme
+            sel_bme = min(
+                self.selected[BMEdge],
+                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
+            )
+            sel_bmf = next((bmf for bmf in sel_bme.link_faces if bmf.select), None)
+            if insert_mode == 'QUAD-ONLY' or (not sel_bmf or len(sel_bmf.verts) != 3):
+                hov_bme = self.nearest_bme.bme
+                if not any(hov_bme in bmf.edges for bmf in sel_bme.link_faces):
+                    self.state = PP_Action.EDGE_QUAD_EDGE
+                    self.bme = sel_bme
+                    self.bme_hovered = hov_bme
+
+                    bmv0, bmv1 = self.bme.verts
+                    bmv2, bmv3 = self.bme_hovered.verts
+                    p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                    p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                    p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv2.co)
+                    p3 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv3.co)
+                    if not (p0 and p1 and p2 and p3): return
+
+                    # ensure verts order makes a nice looking quad
+                    v01 = (p1 - p0)
+                    dotdir = v01.dot(p2 - p0) - v01.dot(p3 - p0)
+                    if dotdir < 0:
+                        p2, p3 = p3, p2
+                        bmv2, bmv3 = bmv3, bmv2
+                    # but swap verts if line segments are crossing
+                    if intersect_line_line_2d(p0, p3, p1, p2):
+                        p2, p3 = p3, p2
+                        bmv2, bmv3 = bmv3, bmv2
+                    self.bme_hovered_bmvs = [bmv2, bmv3]
+
+                    return
+
+        if insert_mode == 'QUAD-ONLY':
+            sel_bme = min(
+                self.selected[BMEdge],
+                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
+            )
+            bmv0, bmv1 = sel_bme.verts
+            p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+            p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+            hit2, hit3 = PP_get_edge_quad_verts(context, p0, p1, self.mouse, self.matrix_world)
+            p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit2)
+            p3 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit3)
+            if not (p0 and p1 and p2 and p3): return
+
+            # ensure verts order makes a nice looking quad
+            v01 = (p1 - p0)
+            dotdir = v01.dot(p2 - p0) - v01.dot(p3 - p0)
+            if dotdir < 0:
+                p2, p3 = p3, p2
+                hit2, hit3 = hit3, hit2
+            # but swap verts if line segments are crossing
+            if intersect_line_line_2d(p0, p3, p1, p2):
+                p2, p3 = p3, p2
+                hit2, hit3 = hit3, hit2
+
+            self.bmv2 = None
+            self.bmv3 = None
+            self.nearest.update(context, hit2)
+            if self.nearest.bmv:
+                self.bmv2 = self.nearest.bmv
+                hit2 = self.nearest.bmv.co
+            self.nearest.update(context, hit3)
+            if self.nearest.bmv:
+                self.bmv3 = self.nearest.bmv
+                hit3 = self.nearest.bmv.co
+            self.nearest.bmv = None
+
+            self.state = PP_Action.EDGE_QUAD
+            self.bme = sel_bme
+            self.hit2, self.hit3 = hit2, hit3
+            return
+
+        if insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1 and len(next(iter(self.selected[BMFace])).edges) == 3:
             self.state = PP_Action.TRIANGLE_QUAD
             self.bmf = next(iter(self.selected[BMFace]))
             self.bme = min(
                 self.bmf.edges,
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
+            return
 
-        elif len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
+        if len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
             self.state = PP_Action.EDGE_TRIANGLE
             self.bme = next(iter(self.selected[BMEdge]), None)
+            return
 
-        elif len(self.selected[BMEdge]) > 1:
+        if len(self.selected[BMEdge]) > 1:
             self.state = PP_Action.EDGE_TRIANGLE
             self.bme = min(
                 self.selected[BMEdge],
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
+            return
+
 
     def draw(self, context):
         # draw previsualization
@@ -350,6 +438,91 @@ class PP_Logic:
                     draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
                     draw.vertex(pt).vertex(p0).vertex(p1)
 
+            case PP_Action.EDGE_QUAD_EDGE:
+                bmv0, bmv1 = self.bme.verts
+                bmv2, bmv3 = self.bme_hovered_bmvs
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv2.co)
+                p3 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv3.co)
+                if not (p0 and p1 and p2 and p3): return
+
+                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d12 = (p2 - p1).normalized() * Drawing.scale(8)
+                d23 = (p3 - p2).normalized() * Drawing.scale(8)
+                d30 = (p0 - p3).normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+                    draw.vertex(p2)
+                    draw.vertex(p3)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.vertex(p3 + d30).vertex(p0 - d30)
+                    draw.vertex(p1 + d12).vertex(p2 - d12)
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0 + d01).vertex(p1 - d01)
+                    draw.vertex(p2 + d23).vertex(p3 - d23)
+
+                with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.vertex(p0).vertex(p1).vertex(p2)
+                    draw.vertex(p0).vertex(p2).vertex(p3)
+
+            case PP_Action.EDGE_QUAD:
+                bmv0, bmv1 = self.bme.verts
+                hit2, hit3 = self.hit2, self.hit3
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit2)
+                p3 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit3)
+                if not (p0 and p1 and p2 and p3): return
+
+                v01, v12, v23, v30 = (p1 - p0), (p2 - p1), (p3 - p2), (p0 - p3)
+                d01 = v01.normalized() * Drawing.scale(8)
+                d12 = v12.normalized() * Drawing.scale(8)
+                d23 = v23.normalized() * Drawing.scale(8)
+                d30 = v30.normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(8)
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    if not self.bmv2: draw.vertex(p2)
+                    if not self.bmv3: draw.vertex(p3)
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+                    if self.bmv2: draw.vertex(p2)
+                    if self.bmv3: draw.vertex(p3)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    if v30.length > Drawing.scale(8): draw.vertex(p3 + d30).vertex(p0 - d30)
+                    if v12.length > Drawing.scale(8): draw.vertex(p1 + d12).vertex(p2 - d12)
+                    draw.vertex(p2 + d23).vertex(p3 - d23)
+
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.vertex(p0 + d01).vertex(p1 - d01)
+
+                with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.vertex(p0).vertex(p1).vertex(p2)
+                    draw.vertex(p0).vertex(p2).vertex(p3)
+
+
             case PP_Action.TRIANGLE_QUAD:
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
@@ -479,6 +652,29 @@ class PP_Logic:
                 select_now = [bmv]
                 select_later = [bmf]
 
+            case PP_Action.EDGE_QUAD_EDGE:
+                bmv0, bmv1 = self.bme.verts
+                bmv2, bmv3 = self.bme_hovered_bmvs
+                bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
+                bmf.normal_update()
+                if view_forward_direction(context).dot(bmf.normal) > 0:
+                    bmf.normal_flip()
+                select_now = [bmv2, bmv3]
+                select_later = [bmf]
+
+            case PP_Action.EDGE_QUAD:
+                bmv0, bmv1 = self.bme.verts
+                if self.bmv2: bmv2 = self.bmv2
+                else:         bmv2 = self.bm.verts.new(self.hit2)
+                if self.bmv3: bmv3 = self.bmv3
+                else:         bmv3 = self.bm.verts.new(self.hit3)
+                bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
+                bmf.normal_update()
+                if view_forward_direction(context).dot(bmf.normal) > 0:
+                    bmf.normal_flip()
+                select_now = [bmv2, bmv3]
+                select_later = [bmf]
+
             case PP_Action.TRIANGLE_QUAD:
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
@@ -527,4 +723,39 @@ class PP_Logic:
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
         #       is created and then merged into existing geometry
+
+
+def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world):
+    '''
+    this function is used in quad-only mode to find positions of quad verts based on selected edge and mouse position
+    a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
+    '''
+    if not p0 or not p1 or not mouse: return None, None
+    v01 = p1 - p0
+    dist01 = v01.length
+    mid01 = p0 + v01 / 2
+    mid23 = mouse
+    between = mid23 - mid01
+    if between.length < 0.0001: return None, None
+    mid0123 = mid01 + between / 2
+    perp = Vector((-between.y, between.x))
+    if perp.dot(v01) < 0: perp.negate()
+    intersection = intersection2d_line_line(p0, p1, mid0123, mid0123 + perp)
+    if not intersection: return None, None
+    intersection = Vector(intersection)
+
+    toward = (mid23 - intersection).normalized()
+    if toward.dot(perp) < 0: dist01 = -dist01
+
+    between_len = between.length * v01.normalized().dot(perp)
+
+    for tries in range(32):
+        p2, p3 = mid23 + toward * (dist01 / 2), mid23 - toward * (dist01 / 2)
+        hit2 = raycast_point_valid_sources(context, p2)
+        hit3 = raycast_point_valid_sources(context, p3)
+        if hit2 and hit3:
+            Mi = matrix_world.inverted()
+            return Mi @ hit2, Mi @ hit3
+        dist01 /= 2
+    return None, None
 
