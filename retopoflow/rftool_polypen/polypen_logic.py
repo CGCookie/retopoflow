@@ -295,7 +295,7 @@ class PP_Logic:
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
-                    draw.vertex(pt).vertex(pn)
+                    draw.vertex(pn).vertex(pt)
 
             case PP_Action.VERT_EDGE:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
