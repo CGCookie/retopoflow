@@ -101,7 +101,7 @@ def raycast_mouse_valid_sources(context, event, *, world=True):
         hit = Mi @ hit
     return hit.xyz
 
-def raycast_point_valid_sources(context, event, point, *, world=True):
+def raycast_point_valid_sources(context, point, *, world=True):
     ray_world = ray_from_point(context, point)
     if ray_world[0] is None: return None
 

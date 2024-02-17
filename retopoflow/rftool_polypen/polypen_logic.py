@@ -32,7 +32,6 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 from typing import List
-from enum import Enum, IntEnum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
@@ -41,6 +40,7 @@ from ..common.bmesh import (
     NearestBMVert,
     NearestBMEdge,
 )
+from ..common.enums import ValueIntEnum
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
 from ..common.maths import (
@@ -70,7 +70,9 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 
-class PP_Action(IntEnum):
+
+
+class PP_Action(ValueIntEnum):
     NONE           = -1
     VERT           =  0
     VERT_EDGE      =  1
@@ -79,15 +81,6 @@ class PP_Action(IntEnum):
     EDGE_VERT      =  4  # split hovered edge
     VERT_EDGE_VERT =  5  # split hovered edge and connect to nearest selected vert
 
-    @staticmethod
-    def __getitem__(v):
-        if type(v) is int:
-            for k in dir(PP_Action):
-                if getattr(PP_Action, k) == v:
-                    return k
-        if type(v) is str:
-            return getattr(PP_Action, v)
-        return None
 
 
 class PP_Logic:
@@ -161,9 +154,7 @@ class PP_Logic:
         self.state = PP_Action.NONE
         self.hit = raycast_mouse_valid_sources(context, event, world=False)
         if not self.hit:
-            # Cursors.restore()
             return
-        # Cursors.set('NONE')
 
         self.nearest.update(context, self.hit)
         if self.nearest.bmv:

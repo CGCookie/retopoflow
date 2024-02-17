@@ -52,7 +52,6 @@ from ..rfoperators.transform import RFOperator_Translate
 
 from .polypen_logic import PP_Logic
 
-reseter = Reseter()
 
 
 class RFOperator_PolyPen(RFOperator):
@@ -63,7 +62,7 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode', 'TRIANGLE'}),
+        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None), #{'insert_mode', 'TRIANGLE'}),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode': 'EDGE-ONLY'}),
     ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
@@ -78,6 +77,7 @@ class RFOperator_PolyPen(RFOperator):
             ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
             ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 'MESH_GRID',      2),
             ("EDGE-ONLY", "Edge-Only", "Insert edges only",           'SNAP_MIDPOINT',  3),
+            ("QUAD-ONLY", "Quad-Only", "Insert quads only",           'CUBE',           4),
         ],
         default='TRI/QUAD',
         # use get and set to make settings sticky across sessions?
@@ -104,10 +104,8 @@ class RFOperator_PolyPen(RFOperator):
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             context.area.tag_redraw()
-            # returning {'PASS_THROUGH'} on MOUSEMOVE on INBETWEEN_MOUSEMOVE events allows Blender's auto save to trigger
             return {'PASS_THROUGH'}
 
-        # return {'RUNNING_MODAL'} # prevent other operators from working here...
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
@@ -136,12 +134,13 @@ class RFTool_PolyPen(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
-        reseter['context.tool_settings.use_mesh_automerge'] = True
-        reseter['context.tool_settings.double_threshold'] = 0.01
-        # reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
-        reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
-        reseter['context.tool_settings.mesh_select_mode'] = [True, True, True]
+        cls.reseter = Reseter()
+        cls.reseter['context.tool_settings.use_mesh_automerge'] = True
+        cls.reseter['context.tool_settings.double_threshold'] = 0.01
+        # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
+        cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
+        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, True]
 
     @classmethod
     def deactivate(cls, context):
-        reseter.reset()
+        cls.reseter.reset()

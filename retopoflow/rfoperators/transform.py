@@ -179,20 +179,20 @@ class RFOperator_Translate(RFOperator):
         self.delta += self.mouse - self.mouse_prev
         factor = 1.0
         while factor > 0.0:
-            if all(raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
+            if all(raycast_point_valid_sources(context, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
                 break
             factor -= 0.01
 
         factor = 1.0
         while factor > 0.0:
-            if all(raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
+            if all(raycast_point_valid_sources(context, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
                 break
             factor -= 0.01
         if factor <= 0.0: return
 
         self.highlight = set()
         for bmv, co2d_orig in zip(self.bmvs, self.bmvs_co2d_orig):
-            co = raycast_point_valid_sources(context, event, co2d_orig + self.delta * factor, world=False)
+            co = raycast_point_valid_sources(context, co2d_orig + self.delta * factor, world=False)
             self.nearest.update(context, co)
             if self.nearest.bmv:
                 co = self.nearest.bmv.co
