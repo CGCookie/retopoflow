@@ -36,7 +36,7 @@ from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Act
 # import order determines tool order
 # from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
-from .rftool_relax.relax       import RFTool_Relax
+# from .rftool_relax.relax       import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
@@ -81,6 +81,7 @@ class RFCore:
         bpy.utils.register_class(RFCore_NewTarget_Cursor)
         bpy.utils.register_class(RFCore_NewTarget_Active)
         bpy.utils.register_class(RFCORE_PT_Panel)
+        bpy.utils.register_class(RFCORE_MT_PieMenu)
         RFTool_Base.register_all()
         RFOperator.register_all()
 
@@ -121,6 +122,7 @@ class RFCore:
         # unregister RF operator and RF tools
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
+        bpy.utils.unregister_class(RFCORE_MT_PieMenu)
         bpy.utils.unregister_class(RFCORE_PT_Panel)
         bpy.utils.unregister_class(RFCore_NewTarget_Active)
         bpy.utils.unregister_class(RFCore_NewTarget_Cursor)
@@ -377,3 +379,32 @@ class RFCORE_PT_Panel(bpy.types.Panel):
     #     # row.label(text='New')
     #     # row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
     #     # row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
+
+
+class RFCORE_MT_PieMenu(bpy.types.Menu):
+    bl_idname = 'retopoflow.piemune'
+    bl_label = 'RetopoFlow Tool Switch'
+
+    def draw(self, context):
+        if context.mode != 'EDIT_MESH': return
+
+        layout = self.layout
+        pie = layout.menu_pie()
+        # 4 - LEFT
+        pie.operator(RFTool_Contours.bl_idname, text=RFTool_Contours.bl_label, icon="OBJECT_DATAMODE")
+        # 6 - RIGHT
+        # pie.operator(RFTool_PolyPen.bl_idname, text=RFTool_PolyPen.bl_label, icon="OBJECT_DATAMODE")
+        pie.separator()
+        # 2 - BOTTOM
+        # pie.operator(RFTool_Relax.bl_idname, text=RFTool_Relax.bl_label, icon="OBJECT_DATAMODE")
+        pie.separator()
+        # 8 - TOP
+        pie.separator()
+        # 7 - TOP - LEFT
+        pie.separator()
+        # 9 - TOP - RIGHT
+        pie.separator()
+        # 1 - BOTTOM - LEFT
+        pie.separator()
+        # 3 - BOTTOM - RIGHT
+        pie.separator()

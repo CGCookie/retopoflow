@@ -469,7 +469,7 @@ class PP_Logic:
                     draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
 
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
-                    draw.vertex(p3 + d30).vertex(p0 - d30)
+                    draw.vertex(p0 - d30).vertex(p3 + d30)
                     draw.vertex(p1 + d12).vertex(p2 - d12)
 
                     draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
