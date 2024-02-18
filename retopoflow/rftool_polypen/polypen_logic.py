@@ -32,6 +32,7 @@ from mathutils.bvhtree import BVHTree
 
 import math
 import time
+from enum import auto
 from typing import List
 
 from ..rftool_base import RFTool_Base
@@ -75,15 +76,15 @@ from ..common.drawing import (
 
 
 class PP_Action(ValueIntEnum):
-    NONE           = -1
-    VERT           =  0  # insert new vert
-    VERT_EDGE      =  1  # extrude vert into edge
-    EDGE_TRIANGLE  =  2  # create triangle from selected edge and new/hovered vert
-    EDGE_QUAD      =  3  # create new edge and bridge with selected to create quad
-    EDGE_QUAD_EDGE =  4  # bridge selected and hover edge into quad
-    TRIANGLE_QUAD  =  5  # insert vert into edge of triangle to turn into quad
-    EDGE_VERT      =  6  # split hovered edge
-    VERT_EDGE_VERT =  7  # split hovered edge and connect to nearest selected vert
+    NONE           = auto()  # do not do anything (could not determine what to do)
+    VERT           = auto()  # insert new vert
+    VERT_EDGE      = auto()  # extrude vert into edge
+    EDGE_TRI       = auto()  # create triangle from selected edge and new/hovered vert
+    EDGE_QUAD      = auto()  # create new edge and bridge with selected to create quad
+    EDGE_QUAD_EDGE = auto()  # bridge selected and hover edge into quad
+    TRI_QUAD       = auto()  # insert vert into edge of triangle to turn into quad
+    EDGE_VERT      = auto()  # split hovered edge
+    VERT_EDGE_EDGE = auto()  # split hovered edge and connect to nearest selected vert
 
 
 
@@ -165,8 +166,10 @@ class PP_Logic:
             self.hit = Vector(self.nearest.bmv.co)
 
         self.nearest_bme.update(context, self.hit)
-        if self.nearest_bme.bme:
-            pass
+
+
+        ###########################################################################################
+        # determine state of polypen based on selected geo, hovered geo, and insert mode
 
         if len(self.selected[BMVert]) == 0:
             # inserting vertex
@@ -178,7 +181,7 @@ class PP_Logic:
 
         if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
             if not self.nearest.bmv and self.nearest_bme.bme:
-                self.state = PP_Action.VERT_EDGE_VERT
+                self.state = PP_Action.VERT_EDGE_EDGE
             else:
                 self.state = PP_Action.VERT_EDGE
             # find closest selected BMVert from which to extrude
@@ -266,7 +269,7 @@ class PP_Logic:
             return
 
         if insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1 and len(next(iter(self.selected[BMFace])).edges) == 3:
-            self.state = PP_Action.TRIANGLE_QUAD
+            self.state = PP_Action.TRI_QUAD
             self.bmf = next(iter(self.selected[BMFace]))
             self.bme = min(
                 self.bmf.edges,
@@ -275,12 +278,12 @@ class PP_Logic:
             return
 
         if len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
-            self.state = PP_Action.EDGE_TRIANGLE
+            self.state = PP_Action.EDGE_TRI
             self.bme = next(iter(self.selected[BMEdge]), None)
             return
 
         if len(self.selected[BMEdge]) > 1:
-            self.state = PP_Action.EDGE_TRIANGLE
+            self.state = PP_Action.EDGE_TRI
             self.bme = min(
                 self.selected[BMEdge],
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
@@ -344,7 +347,7 @@ class PP_Logic:
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
-            case PP_Action.VERT_EDGE_VERT:
+            case PP_Action.VERT_EDGE_EDGE:
                 if not self.nearest_bme.bme: return
                 bmv0, bmv1 = self.nearest_bme.bme.verts
                 pt = self.nearest_bme.co2d
@@ -401,7 +404,7 @@ class PP_Logic:
                         draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
                         draw.vertex(p0 + d).vertex(pt - d)
 
-            case PP_Action.EDGE_TRIANGLE:
+            case PP_Action.EDGE_TRI:
                 bmv0, bmv1 = self.bme.verts
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
                 p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
@@ -510,7 +513,7 @@ class PP_Logic:
                     draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
 
                     draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
-                    if v30.length > Drawing.scale(8): draw.vertex(p3 + d30).vertex(p0 - d30)
+                    if v30.length > Drawing.scale(8): draw.vertex(p0 - d30).vertex(p3 + d30)
                     if v12.length > Drawing.scale(8): draw.vertex(p1 + d12).vertex(p2 - d12)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
@@ -523,7 +526,7 @@ class PP_Logic:
                     draw.vertex(p0).vertex(p2).vertex(p3)
 
 
-            case PP_Action.TRIANGLE_QUAD:
+            case PP_Action.TRI_QUAD:
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
                 if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
@@ -624,7 +627,7 @@ class PP_Logic:
                 select_now = [bmv1]
                 select_later = [bme] if self.insert_mode != 'EDGE-ONLY' else []
 
-            case PP_Action.VERT_EDGE_VERT:
+            case PP_Action.VERT_EDGE_EDGE:
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
@@ -637,7 +640,7 @@ class PP_Logic:
                 select_now = [bmv_new]
                 select_later = []
 
-            case PP_Action.EDGE_TRIANGLE:
+            case PP_Action.EDGE_TRI:
                 bmv0, bmv1 = self.bme.verts
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
@@ -675,7 +678,7 @@ class PP_Logic:
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
 
-            case PP_Action.TRIANGLE_QUAD:
+            case PP_Action.TRI_QUAD:
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
                 if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
@@ -733,16 +736,22 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world):
     if not p0 or not p1 or not mouse: return None, None
     v01 = p1 - p0
     dist01 = v01.length
+    d01 = v01 / dist01
     mid01 = p0 + v01 / 2
     mid23 = mouse
     between = mid23 - mid01
     if between.length < 0.0001: return None, None
+
     mid0123 = mid01 + between / 2
     perp = Vector((-between.y, between.x))
     if perp.dot(v01) < 0: perp.negate()
     intersection = intersection2d_line_line(p0, p1, mid0123, mid0123 + perp)
     if not intersection: return None, None
-    intersection = Vector(intersection)
+
+    dist = d01.dot(intersection - mid01)
+    if abs(dist) < dist01 * 1.2:
+        dist = dist01 * 1.2 * (1 if dist > 0 else -1)
+        intersection = mid01 + d01 * dist
 
     toward = (mid23 - intersection).normalized()
     if toward.dot(perp) < 0: dist01 = -dist01

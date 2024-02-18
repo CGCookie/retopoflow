@@ -2021,7 +2021,7 @@ def intersection2d_line_line(p0, p1, p2, p3):
     td = (x0 - x1) * (y2 - y3) - (y0 - y1) * (x2 - x3)
     if td == 0: return None
     t = tn / td
-    return (x0 + t * (x1 - x0), y0 + t * (y1 - y0))
+    return Vector((x0 + t * (x1 - x0), y0 + t * (y1 - y0)))
 
 
 def closest2d_point_line(pt:Point2D, p0:Point2D, p1:Point2D):
