@@ -34,7 +34,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # NOTE: the following lines are automatically updated based on hive.json
 #       if "warning" is present (not commented out), a warning icon will show in add-ons list
 bl_info = {
-    "name":         "RetopoFlow 4.0.0α",
+    "name":         "RetopoFlow 4",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (4, 0, 0),

@@ -382,7 +382,7 @@ class RFCORE_PT_Panel(bpy.types.Panel):
 
 
 class RFCORE_MT_PieMenu(bpy.types.Menu):
-    bl_idname = 'retopoflow.piemune'
+    bl_idname = 'retopoflow.piemenu'
     bl_label = 'RetopoFlow Tool Switch'
 
     def draw(self, context):

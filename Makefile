@@ -53,6 +53,7 @@ info:
 	@echo "Information:"
 	@echo "  "$(NAME)" "$(ZIP_VERSION)
 	@echo "  Build Path:   "$(BUILD_DIR)
+	@echo "  Folder:       "$(NAME)
 	@echo "  Install Path: "$(INSTALL_DIR)
 	@echo "Targets:"
 	@echo "  development:   clean, check, gittag, install"
