@@ -137,12 +137,13 @@ class RFOperator(bpy.types.Operator):
         row = layout.row()
         row.ui_units_x = 7
         row.label(text=self.bl_label)
-        row = layout.row()
-        row.ui_units_x = 10 * len(self.rf_status)
-        for e in self.rf_status:
-            m_entry = re_status_entry.match(e)
-            icon = m_entry['icon'] or ''
-            row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
+        if hasattr(self, 'rf_status'):
+            row = layout.row()
+            row.ui_units_x = 10 * len(self.rf_status)
+            for e in self.rf_status:
+                m_entry = re_status_entry.match(e)
+                icon = m_entry['icon'] or ''
+                row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
 
     @classmethod
     def register(cls): pass

@@ -50,58 +50,41 @@ from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate
 
-from .polypen_logic import PP_Logic
+# from .polypen_logic import PP_Logic
 
 
 
-class RFOperator_PolyPen(RFOperator):
-    bl_idname = "retopoflow.polypen"
-    bl_label = 'PolyPen'
-    bl_description = 'Create complex topology on vertex-by-vertex basis'
+class RFOperator_Relax(RFOperator):
+    bl_idname = "retopoflow.relax"
+    bl_label = 'Relax'
+    bl_description = 'Relax the vertex positions to smooth out topology'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None), #{'insert_mode', 'TRIANGLE'}),
-        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode': 'EDGE-ONLY'}),
+        (bl_idname, {'type': 'LEFTMOUSE',  'value': 'PRESS'}, None),
     ]
-    rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
-
-    insert_mode: bpy.props.EnumProperty(
-        name='Insert Mode',
-        description='Insertion mode for PolyPen',
-        items=[
-            # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
-            # must have number?
-            # None is a separator
-            ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
-            ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 'MESH_GRID',      2),
-            ("EDGE-ONLY", "Edge-Only", "Insert edges only",           'SNAP_MIDPOINT',  3),
-            ("QUAD-ONLY", "Quad-Only", "Insert quads only",           'CUBE',           4),
-        ],
-        default='TRI/QUAD',
-        # use get and set to make settings sticky across sessions?
-    )
+    # rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
-        self.logic = PP_Logic(context, event)
+        # self.logic = PP_Logic(context, event)
         self.tickle(context)
 
     def reset(self):
-        self.logic.reset()
+        # self.logic.reset()
+        pass
 
     def update(self, context, event):
-        self.logic.update(context, event, self.insert_mode)
+        # self.logic.update(context, event, self.insert_mode)
 
-        if not event.ctrl:
-            # print(F'LEAVING POLYPEN')
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}
 
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            self.logic.commit(context, event)
-            return {'RUNNING_MODAL'}
+        # if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+        #     # self.logic.commit(context, event)
+        #     return {'RUNNING_MODAL'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             context.area.tag_redraw()
@@ -110,26 +93,26 @@ class RFOperator_PolyPen(RFOperator):
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
-        self.logic.draw(context)
+        # self.logic.draw(context)
+        pass
 
 
-class RFTool_PolyPen(RFTool_Base):
-    bl_idname = "retopoflow.polypen"
-    bl_label = "PolyPen"
-    bl_description = "Create complex topology on vertex-by-vertex basis"
-    bl_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'icons', 'polypen')
+class RFTool_Relax(RFTool_Base):
+    bl_idname = "retopoflow.relax"
+    bl_label = "Relax"
+    bl_description = "Relax the vertex positions to smooth out topology"
+    bl_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'icons', 'relax')
     bl_widget = None
-    bl_operator = 'retopoflow.polypen'
+    bl_operator = 'retopoflow.relax'
 
     bl_keymap = (
-        *[ keymap for keymap in RFOperator_PolyPen.rf_keymaps ],
-        *[ keymap for keymap in RFOperator_Translate.rf_keymaps ],
+        *[ keymap for keymap in RFOperator_Relax.rf_keymaps ],
     )
 
     def draw_settings(context, layout, tool):
         # layout.label(text="PolyPen")
-        props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
-        layout.prop(props, 'insert_mode')
+        props = tool.operator_properties(RFOperator_Relax.bl_idname)
+        # layout.prop(props, 'insert_mode')
 
     @classmethod
     def activate(cls, context):

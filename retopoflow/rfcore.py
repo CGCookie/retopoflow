@@ -23,8 +23,6 @@ import bpy
 import bmesh
 import bl_ui
 
-from bpy_extras.object_utils import object_data_add
-
 from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
@@ -33,9 +31,12 @@ from .common.raycast import prep_raycast_valid_sources
 
 from .rftool_base import RFTool_Base
 
+from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
+
 # import order determines tool order
 # from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
+from .rftool_relax.relax       import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
@@ -51,6 +52,7 @@ TODO:
 '''
 
 class RFCore:
+    default_RFTool = RFTool_PolyPen  # should be stored and sticky across sessions
     active_RFTool = None
     is_running = False
     event_mouse = None
@@ -87,7 +89,8 @@ class RFCore:
         from ..addon_common.common.functools import wrap_function
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
-        bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
+        # bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
+        bpy.types.VIEW3D_MT_add.append(RFCore.draw_menu_items)
 
         RFCore._is_registered = True
 
@@ -108,7 +111,8 @@ class RFCore:
 
         RFCore.stop()
 
-        bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
+        bpy.types.VIEW3D_MT_add.remove(RFCore.draw_menu_items)
+        # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
         RFCore._unwrap_activate_tool()
@@ -123,6 +127,14 @@ class RFCore:
         bpy.utils.unregister_class(RFCore_Operator)
 
         RFCore._is_registered = False
+
+    @staticmethod
+    def draw_menu_items(self, context):
+        if context.mode != 'OBJECT': return
+        self.layout.separator()
+        self.layout.label(text=f'{Hive.get("name")}')
+        RFCore_NewTarget_Cursor.draw_menu_item(self, context)
+        RFCore_NewTarget_Active.draw_menu_item(self, context)
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
@@ -260,7 +272,10 @@ class RFCore:
     def handle_undo_post(*args, **kwargs):
         # print(f'handle_undo_post({args}, {kwargs})')
         pass
+
 RFOperator.RFCore = RFCore
+RFCore_NewTarget_Active.RFCore = RFCore
+RFCore_NewTarget_Cursor.RFCore = RFCore
 
 
 class RFCore_Operator(bpy.types.Operator):
@@ -301,93 +316,6 @@ class RFCore_Operator(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
 
-class RFCore_NewTarget_Cursor(bpy.types.Operator):
-    """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
-    bl_idname = "retopoflow.newtarget_cursor"
-    bl_label = "RF: New target at Cursor"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-
-    @classmethod
-    def poll(cls, context):
-        if not context.region or context.region.type != 'WINDOW': return False
-        if not context.space_data or context.space_data.type != 'VIEW_3D': return False
-        # check we are not in mesh editmode
-        if context.mode == 'EDIT_MESH': return False
-        # make sure we have source meshes
-        # if not retopoflow.RetopoFlow.get_sources(): return False
-        # all seems good!
-        return True
-
-    def invoke(self, context, event):
-        auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
-        context.preferences.edit.use_enter_edit_mode = False
-
-        # for o in bpy.data.objects: o.select_set(False)
-        for o in context.view_layer.objects: o.select_set(False)
-
-        mesh = bpy.data.meshes.new('RetopoFlow')
-        obj = object_data_add(context, mesh, name='RetopoFlow')
-        obj.select_set(True)
-        context.view_layer.objects.active = obj
-
-        # if matrix_world:
-        #     obj.matrix_world = matrix_world
-
-        bpy.ops.object.mode_set(mode='EDIT')
-
-        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
-
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFTool_PolyPen.bl_idname)
-        # return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-        return {'FINISHED'}
-
-class RFCore_NewTarget_Active(bpy.types.Operator):
-    """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
-    bl_idname = "retopoflow.newtarget_active"
-    bl_label = "RF: New target at Active"
-    bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-
-    @classmethod
-    def poll(cls, context):
-        if not context.region or context.region.type != 'WINDOW': return False
-        if not context.space_data or context.space_data.type != 'VIEW_3D': return False
-        # check we are not in mesh editmode
-        if context.mode == 'EDIT_MESH': return False
-        if not context.view_layer.objects.active: return False
-        # make sure we have source meshes
-        # if not retopoflow.RetopoFlow.get_sources(): return False
-        # all seems good!
-        return True
-
-    def invoke(self, context, event):
-        matrix_world = context.view_layer.objects.active.matrix_world
-
-        auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
-        context.preferences.edit.use_enter_edit_mode = False
-
-        # for o in bpy.data.objects: o.select_set(False)
-        for o in context.view_layer.objects: o.select_set(False)
-
-        mesh = bpy.data.meshes.new('RetopoFlow')
-        obj = object_data_add(context, mesh, name='RetopoFlow')
-        obj.select_set(True)
-        context.view_layer.objects.active = obj
-
-        obj.matrix_world = matrix_world
-
-        bpy.ops.object.mode_set(mode='EDIT')
-
-        bpy.context.preferences.edit.use_enter_edit_mode = auto_edit_mode
-
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFTool_PolyPen.bl_idname)
-        # return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-        return {'FINISHED'}
 
 # class RFCore_NewTarget_Active(Operator):
 #     """Create new target object+mesh at the active source and start RetopoFlow"""
