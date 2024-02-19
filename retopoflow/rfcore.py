@@ -91,7 +91,7 @@ class RFCore:
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         # bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
-        bpy.types.VIEW3D_MT_add.append(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
 
         RFCore._is_registered = True
 
@@ -112,7 +112,7 @@ class RFCore:
 
         RFCore.stop()
 
-        bpy.types.VIEW3D_MT_add.remove(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items) 
         # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
@@ -134,7 +134,7 @@ class RFCore:
     def draw_menu_items(self, context):
         if context.mode != 'OBJECT': return
         self.layout.separator()
-        self.layout.label(text=f'{Hive.get("name")}')
+        # self.layout.label(text=f'{Hive.get("name")}')
         RFCore_NewTarget_Cursor.draw_menu_item(self, context)
         RFCore_NewTarget_Active.draw_menu_item(self, context)
 

@@ -34,7 +34,7 @@ class RFCore_NewTarget_Cursor(bpy.types.Operator):
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
-    rf_label = "New target at Cursor"
+    rf_label = "Retopology at Cursor"
     rf_icon = 'CURSOR'
 
     RFCore = None
@@ -65,8 +65,8 @@ class RFCore_NewTarget_Cursor(bpy.types.Operator):
         # for o in bpy.data.objects: o.select_set(False)
         for o in context.view_layer.objects: o.select_set(False)
 
-        mesh = bpy.data.meshes.new('RetopoFlow')
-        obj = object_data_add(context, mesh, name='RetopoFlow')
+        mesh = bpy.data.meshes.new('Retopology')
+        obj = object_data_add(context, mesh, name='Retopology')
         obj.select_set(True)
         context.view_layer.objects.active = obj
 
@@ -91,7 +91,7 @@ class RFCore_NewTarget_Active(bpy.types.Operator):
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
-    rf_label = "New target at Active"
+    rf_label = "Retopology at Active"
     rf_icon = 'PIVOT_ACTIVE' # 'MOD_MESHDEFORM'
 
     RFCore = None
@@ -116,6 +116,19 @@ class RFCore_NewTarget_Active(bpy.types.Operator):
         # all seems good!
         return True
 
+    def create_new_name(self, context):
+        # Attempts to match current naming convention
+        active_name = context.view_layer.objects.active.name
+        first_letter = 'r'
+        for letter in active_name:
+            if letter.isupper():
+                first_letter = 'R'
+                break
+        for separator in [' ', '-']:
+            if separator in active_name:
+                return f'{active_name}{separator}{first_letter}etopology'
+        return active_name + f'_{first_letter}etopology'
+
     def invoke(self, context, event):
         matrix_world = context.view_layer.objects.active.matrix_world
 
@@ -125,8 +138,9 @@ class RFCore_NewTarget_Active(bpy.types.Operator):
         # for o in bpy.data.objects: o.select_set(False)
         for o in context.view_layer.objects: o.select_set(False)
 
-        mesh = bpy.data.meshes.new('RetopoFlow')
-        obj = object_data_add(context, mesh, name='RetopoFlow')
+        name = self.create_new_name(context)
+        mesh = bpy.data.meshes.new(name)
+        obj = object_data_add(context, mesh, name=name)
         obj.select_set(True)
         context.view_layer.objects.active = obj
 

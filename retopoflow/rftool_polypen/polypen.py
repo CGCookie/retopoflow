@@ -75,10 +75,10 @@ class RFOperator_PolyPen(RFOperator):
             # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
             # must have number?
             # None is a separator
-            ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       'MESH_ICOSPHERE', 1),  # 'MESH_DATA'
-            ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 'MESH_GRID',      2),
-            ("EDGE-ONLY", "Edge-Only", "Insert edges only",           'SNAP_MIDPOINT',  3),
-            ("QUAD-ONLY", "Quad-Only", "Insert quads only",           'CUBE',           4),
+            ("EDGE-ONLY", "Edge-Only", "Insert edges only",           1),
+            ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       2),  # 'MESH_DATA'
+            ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 3),
+            ("QUAD-ONLY", "Quad-Only", "Insert quads only",           4),
         ],
         default='TRI/QUAD',
         # use get and set to make settings sticky across sessions?
