@@ -21,14 +21,6 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
-
-'''
-TODO:
-
-- custom WorkSpaceTool icons! https://github.com/blender/blender/blob/main/release/datafiles/blender_icons_geom.py
-
-'''
-
 class RFTool_Base(bpy.types.WorkSpaceTool):
     bl_space_type = 'VIEW_3D'
     bl_context_mode = 'EDIT_MESH'
