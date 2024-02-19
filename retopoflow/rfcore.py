@@ -173,9 +173,9 @@ class RFCore:
         RFCore._handle_postpixel = space.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
-        bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
-        bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
-        bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
+        # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
+        # bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
+        # bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
 
         for s in iter_all_view3d_spaces():
             RFCore.reseter['s.overlay.show_retopology'] = True
@@ -204,9 +204,9 @@ class RFCore:
         RFCore.event_mouse = None
         RFCore.is_controlling = False
 
-        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
-        bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
-        bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
+        # bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
+        # bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
+        # bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
 
         space = bpy.types.SpaceView3D
         space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
