@@ -97,6 +97,7 @@ class RFOperator_PolyPen(RFOperator):
 
         if not event.ctrl:
             # print(F'LEAVING POLYPEN')
+            self.logic.cleanup()
             return {'FINISHED'}
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':

@@ -39,6 +39,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
     get_select_layers,
+    clean_select_layers,
     NearestBMVert,
     NearestBMEdge,
 )
@@ -103,6 +104,9 @@ class PP_Logic:
         self.em = None
         self.nearest = None
         self.selected = None
+
+    def cleanup(self):
+        clean_select_layers(self.bm)
 
     def update(self, context, event, insert_mode):
         # update previsualization and commit data structures with mouse position

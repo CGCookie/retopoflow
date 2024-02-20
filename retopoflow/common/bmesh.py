@@ -44,17 +44,24 @@ def get_bmesh_emesh(context):
     return (bm, em)
 
 def get_select_layers(bm):
-    if 'rf: select after move' not in bm.verts.layers.int:
-        bm.verts.layers.int.new('rf: select after move')
-    if 'rf: select after move' not in bm.edges.layers.int:
-        bm.edges.layers.int.new('rf: select after move')
-    if 'rf: select after move' not in bm.faces.layers.int:
-        bm.faces.layers.int.new('rf: select after move')
-    layer_sel_vert = bm.verts.layers.int.get('rf: select after move')
-    layer_sel_edge = bm.edges.layers.int.get('rf: select after move')
-    layer_sel_face = bm.faces.layers.int.get('rf: select after move')
+    if 'rf_vert_select_after_move' not in bm.verts.layers.int:
+        bm.verts.layers.int.new('rf_vert_select_after_move')
+    if 'rf_edge_select_after_move' not in bm.edges.layers.int:
+        bm.edges.layers.int.new('rf_edge_select_after_move')
+    if 'rf_face_select_after_move' not in bm.faces.layers.int:
+        bm.faces.layers.int.new('rf_face_select_after_move')
+    layer_sel_vert = bm.verts.layers.int.get('rf_vert_select_after_move')
+    layer_sel_edge = bm.edges.layers.int.get('rf_edge_select_after_move')
+    layer_sel_face = bm.faces.layers.int.get('rf_face_select_after_move')
     return (layer_sel_vert, layer_sel_edge, layer_sel_face)
 
+def clean_select_layers(bm):
+    if 'rf_vert_select_after_move' in bm.verts.layers.int:
+        bm.verts.layers.int.remove(bm.verts.layers.int.get('rf_vert_select_after_move'))
+    if 'rf_edge_select_after_move' in bm.edges.layers.int:
+        bm.edges.layers.int.remove(bm.edges.layers.int.get('rf_edge_select_after_move'))
+    if 'rf_face_select_after_move' in bm.faces.layers.int:
+        bm.faces.layers.int.remove(bm.faces.layers.int.get('rf_face_select_after_move'))
 
 
 @add_cache('triangle_inds', [])

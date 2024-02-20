@@ -112,7 +112,7 @@ class RFCore:
 
         RFCore.stop()
 
-        bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items) 
+        bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
         # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
