@@ -746,7 +746,7 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world):
     between = mid23 - mid01
     if between.length < 0.0001: return None, None
 
-    mid0123 = mid01 + between / 2
+    mid0123 = mid01 + between * 0.75  # [0,1] larger => more parallel to original
     perp = Vector((-between.y, between.x))
     if perp.dot(v01) < 0: perp.negate()
     intersection = intersection2d_line_line(p0, p1, mid0123, mid0123 + perp)
