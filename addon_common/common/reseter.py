@@ -36,10 +36,12 @@ class Reseter:
 
         tkey = type(key)
         if tkey is str:
-            exec(f'{key} = {value}', f_globals, f_locals)
+            try: exec(f'{key} = {value}', f_globals, f_locals)
+            except: pass
         elif tkey is tuple:
             _, a = key
-            exec(f'__o.{a} = {value}', f_globals, f_locals)
+            try: exec(f'__o.{a} = {value}', f_globals, f_locals)
+            except: pass
 
     def __setitem__(self, key, value):
         if key not in self._previous:
