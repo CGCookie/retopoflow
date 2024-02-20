@@ -19,19 +19,17 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from inspect import isfunction, signature
+from functools import wraps
+from inspect import isfunction, signature, getmodule
 
 
 ##################################################
 
 
 def wrap_function(fn_original, *, fn_pre=None, fn_post=None):
-    import inspect
-    mod_original = inspect.getmodule(fn_original)
-    # find name of fn in mod
-    key_original = next((k for k in dir(mod_original) if getattr(mod_original, k) == fn_original), None)
-    key_original = fn_original.__name__ if key_original in dir(mod_original) and getattr(mod_original, key_original) == fn_original else key_original
-    assert key_original, f'Could not find {fn_original} in {mod_original}'
+    mod_original = getmodule(fn_original)
+
+    @wraps(fn_original)
     def wrapped(*args, **kwargs):
         if fn_pre: fn_pre(*args, **kwargs)
         ret = fn_original(*args, **kwargs)
@@ -40,7 +38,7 @@ def wrap_function(fn_original, *, fn_pre=None, fn_post=None):
     def unwrap():
         # print(f'unwrapping')
         setattr(mod_original, fn_original.__name__, fn_original)
-    # print(f'wrapping')
+
     setattr(mod_original, fn_original.__name__, wrapped)
     return unwrap
 
