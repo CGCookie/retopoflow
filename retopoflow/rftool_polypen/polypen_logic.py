@@ -24,7 +24,7 @@ import bmesh
 import bpy
 import gpu
 from bmesh.types import BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split, vert_splice
+from bmesh.utils import edge_split
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
@@ -696,7 +696,7 @@ class PP_Logic:
                 else:
                     bmv = self.bm.verts.new(self.hit)
                 bme_new, bmv_new = edge_split(self.bme, bmev0, 0.5)
-                vert_splice(bmv_new, bmv)
+                bmesh.ops.weld_verts(self.bm, targetmap={bmv_new: bmv})
                 select_now = [bmv]
                 select_later = [self.bmf]
 
