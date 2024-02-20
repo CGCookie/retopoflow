@@ -139,7 +139,7 @@ class RFTool_PolyPen(RFTool_Base):
         props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         layout.prop(props, 'insert_mode')
         if props.insert_mode == 'QUAD-ONLY':
-            layout.prop(props, 'quad_stability')
+            layout.prop(props, 'quad_stability', slider=True)
 
     @classmethod
     def activate(cls, context):
