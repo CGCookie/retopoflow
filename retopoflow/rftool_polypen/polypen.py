@@ -83,6 +83,13 @@ class RFOperator_PolyPen(RFOperator):
         default='TRI/QUAD',
         # use get and set to make settings sticky across sessions?
     )
+    quad_stability: bpy.props.FloatProperty(
+        name='Quad Stability',
+        description='Stability of parallel edges',
+        min=0.00,
+        max=1.00,
+        default=1.00,
+    )
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
@@ -93,7 +100,7 @@ class RFOperator_PolyPen(RFOperator):
         self.logic.reset()
 
     def update(self, context, event):
-        self.logic.update(context, event, self.insert_mode)
+        self.logic.update(context, event, self.insert_mode, self.quad_stability)
 
         if not event.ctrl:
             # print(F'LEAVING POLYPEN')
@@ -131,6 +138,8 @@ class RFTool_PolyPen(RFTool_Base):
         # layout.label(text="PolyPen")
         props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         layout.prop(props, 'insert_mode')
+        if props.insert_mode == 'QUAD-ONLY':
+            layout.prop(props, 'quad_stability')
 
     @classmethod
     def activate(cls, context):

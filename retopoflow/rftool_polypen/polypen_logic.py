@@ -51,6 +51,7 @@ from ..common.maths import (
     distance_point_linesegment,
     distance_point_bmedge,
     distance2d_point_bmedge,
+    clamp,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
@@ -96,8 +97,9 @@ class PP_Logic:
         self.update_bmesh_selection = False
         self.mouse = None
         self.insert_mode = None
+        self.parallel_stable = None
         self.reset()
-        self.update(context, event, None)
+        self.update(context, event, None, 1.00)
 
     def reset(self):
         self.bm = None
@@ -108,12 +110,13 @@ class PP_Logic:
     def cleanup(self):
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode):
+    def update(self, context, event, insert_mode, parallel_stable):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
 
         self.insert_mode = insert_mode
+        self.parallel_stable = parallel_stable
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -239,7 +242,7 @@ class PP_Logic:
             bmv0, bmv1 = sel_bme.verts
             p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
             p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
-            hit2, hit3 = PP_get_edge_quad_verts(context, p0, p1, self.mouse, self.matrix_world)
+            hit2, hit3 = PP_get_edge_quad_verts(context, p0, p1, self.mouse, self.matrix_world, self.parallel_stable)
             p2 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit2)
             p3 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ hit3)
             if not (p0 and p1 and p2 and p3): return
@@ -732,7 +735,7 @@ class PP_Logic:
         #       is created and then merged into existing geometry
 
 
-def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world):
+def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable, *, min_dist_ratio=1.1):
     '''
     this function is used in quad-only mode to find positions of quad verts based on selected edge and mouse position
     a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
@@ -746,15 +749,15 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world):
     between = mid23 - mid01
     if between.length < 0.0001: return None, None
 
-    mid0123 = mid01 + between * 0.75  # [0,1] larger => more parallel to original
+    mid0123 = mid01 + between * clamp(parallel_stable, 0.01, 0.99)  # [0,1] larger => more parallel to original
     perp = Vector((-between.y, between.x))
     if perp.dot(v01) < 0: perp.negate()
     intersection = intersection2d_line_line(p0, p1, mid0123, mid0123 + perp)
     if not intersection: return None, None
 
     dist = d01.dot(intersection - mid01)
-    if abs(dist) < dist01 * 1.2:
-        dist = dist01 * 1.2 * (1 if dist > 0 else -1)
+    if abs(dist) < dist01 * min_dist_ratio:
+        dist = dist01 * min_dist_ratio * (1 if dist > 0 else -1)
         intersection = mid01 + d01 * dist
 
     toward = (mid23 - intersection).normalized()
