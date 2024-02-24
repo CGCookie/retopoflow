@@ -54,6 +54,7 @@ from ..addon_common.common import ui_core
 from ..addon_common.common.decorators import add_cache
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.drawing import Drawing, DrawCallbacks
+from ..addon_common.common.fontmanager import FontManager
 from ..addon_common.common.fsm import FSM
 from ..addon_common.common.globals import Globals
 from ..addon_common.common.image_preloader import ImagePreloader
@@ -164,6 +165,7 @@ class RetopoFlow(
         self.undo_clear()
         self.done_target()
         self.done_sources()
+        FontManager.unload_fontids()
         # one more toggle, because done_target() might push to target mesh
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.mode_set(mode='EDIT')

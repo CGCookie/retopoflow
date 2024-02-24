@@ -67,10 +67,13 @@ class FontManager:
 
     @staticmethod
     def unload_fontids():
+        unloaded = []
         for name,fontid in FontManager._cache.items():
-            print('Unloading font "%s" as id %d' % (name, fontid))
-            blf.unload(name)
-        FontManager._cache = {}
+            if type(name) is str:
+                blf.unload(name)
+                unloaded += [name]
+        for name in unloaded:
+            del FontManager._cache[name]
         FontManager._last_fontid = 0
 
     @staticmethod

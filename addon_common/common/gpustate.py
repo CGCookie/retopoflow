@@ -895,9 +895,10 @@ def gpu_info():
     }
     cap = [(a, getattr(gpu.capabilities, a)) for a in dir(gpu.capabilities) if 'extensions' not in a]
     cap = [(a, fn) for (a, fn) in cap if isroutine(fn)]
-    capabilities = {
-        a: fn() for (a, fn) in cap
-    }
+    capabilities = {}
+    for (a, fn) in cap:
+        try: capabilities[a] = fn()
+        except: pass
     return platform | capabilities
 
 if not bpy.app.background:
