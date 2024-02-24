@@ -89,6 +89,8 @@ class CookieCutter(
     bl_idname = "view3d.cookiecutter_unnamed"
     bl_label = "CookieCutter Unnamed"
 
+    is_running = False
+
     @classmethod
     def can_start(cls, context): return True
 
@@ -120,12 +122,16 @@ class CookieCutter(
         return False
 
     def invoke(self, context, event):
+        CookieCutter.is_running = True
         self._cc_stage = 'prestart'
         self.context = context
         self.event = event
 
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
+
+    def stop_running(self):
+        CookieCutter.is_running = False
 
     def done(self, *, cancel=False, emergency_bail=False):
         if emergency_bail:

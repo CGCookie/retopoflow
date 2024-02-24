@@ -967,7 +967,7 @@ def toggle_property(o, k): setattr(o, k, not getattr(o, k))
 
 def toggle_screen_header(ctx):
     # print(f'Addon Common Warning: Cannot toggle header visibility (addon_common/common/blender.py: toggle_screen_header)')
-    # print(f'  Skipping while bug exists in Blender 3.0+, see: https://developer.blender.org/T93410')
+    # print(f'  Skipping while bug exists in Blender 4.0+, see: https://developer.blender.org/T93410')
     space = ctx['space_data'] if type(ctx) is dict else get_view3d_space(ctx)
     toggle_property(space, 'show_region_header')
 

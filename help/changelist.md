@@ -6,6 +6,7 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - Fixed text rendering bug
 - Fixed GPU Capabilities bug with Blender 4.1
+- Fixed Blender UI becoming unresponsive after starting RF
 
 ### RetopoFlow 3.4.1&rarr;3.4.2
 

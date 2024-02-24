@@ -37,6 +37,7 @@ from bpy.app.handlers import persistent
 
 from ..addon_common.hive.hive import Hive
 from ..addon_common.common.decorators import add_cache
+from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 
 import_succeeded = False
@@ -623,6 +624,7 @@ if import_succeeded:
         @staticmethod
         def draw_popover(self, context):
             if retopoflow.RetopoFlow.instance: return
+            if CookieCutter.is_running: return
             if context.mode == 'EDIT_MESH' or context.mode == 'OBJECT':
                 self.layout.separator()
                 if is_editing_target(context):

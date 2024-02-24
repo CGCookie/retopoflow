@@ -159,6 +159,7 @@ class CookieCutter_Modal:
             fn_end = self.end_commit if self._done == 'commit' else self.end_cancel
             fn_end()
             self.end()
+            self.stop_running()
         except Exception as e:
             self._handle_exception(e, 'call end() with %s' % self._done)
 
