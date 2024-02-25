@@ -24,8 +24,10 @@ import bl_ui
 
 from bpy_extras.object_utils import object_data_add
 
+from ..common.operator import RFRegisterClass
 
-class RFCore_NewTarget_Cursor(bpy.types.Operator):
+
+class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
     """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
     bl_idname = "retopoflow.newtarget_cursor"
     bl_label = "RF: New target at Cursor"
@@ -82,7 +84,7 @@ class RFCore_NewTarget_Cursor(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class RFCore_NewTarget_Active(bpy.types.Operator):
+class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
     """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
     bl_idname = "retopoflow.newtarget_active"
     bl_label = "RF: New target at Active"

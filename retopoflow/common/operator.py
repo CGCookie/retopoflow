@@ -32,6 +32,27 @@ map_icons = {
     'RMB': 'MOUSE_RMB',
 }
 
+
+class RFRegisterClass:
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
+
+    @staticmethod
+    def get_all_classes():
+        return RFRegisterClass.__subclasses__()
+    @staticmethod
+    def register_all():
+        for op in RFRegisterClass.get_all_classes():
+            bpy.utils.register_class(op)
+            op.register()
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFRegisterClass.get_all_classes()):
+            op.unregister()
+            bpy.utils.unregister_class(op)
+
 class RFOperator(bpy.types.Operator):
     active_operators = []
     RFCore = None

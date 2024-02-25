@@ -26,7 +26,7 @@ import bl_ui
 from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
-from .common.operator import RFOperator
+from .common.operator import RFOperator, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
 
 from .rftool_base import RFTool_Base
@@ -77,13 +77,9 @@ class RFCore:
             return
 
         # register RF operator and RF tools
-        bpy.utils.register_class(RFCore_Operator)
-        bpy.utils.register_class(RFCore_NewTarget_Cursor)
-        bpy.utils.register_class(RFCore_NewTarget_Active)
-        bpy.utils.register_class(RFCORE_PT_Panel)
-        bpy.utils.register_class(RFCORE_MT_PieMenu)
         RFTool_Base.register_all()
         RFOperator.register_all()
+        RFRegisterClass.register_all()
 
         # wrap toll change function
         from bl_ui import space_toolsystem_common
@@ -91,7 +87,7 @@ class RFCore:
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         # bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
-        bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_add.append(RFCore.draw_menu_items)
 
         RFCore._is_registered = True
 
@@ -112,7 +108,7 @@ class RFCore:
 
         RFCore.stop()
 
-        bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_add.remove(RFCore.draw_menu_items)
         # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
@@ -120,13 +116,9 @@ class RFCore:
         RFCore._unwrap_activate_tool = None
 
         # unregister RF operator and RF tools
+        RFRegisterClass.unregister_all()
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
-        bpy.utils.unregister_class(RFCORE_MT_PieMenu)
-        bpy.utils.unregister_class(RFCORE_PT_Panel)
-        bpy.utils.unregister_class(RFCore_NewTarget_Active)
-        bpy.utils.unregister_class(RFCore_NewTarget_Cursor)
-        bpy.utils.unregister_class(RFCore_Operator)
 
         RFCore._is_registered = False
 
@@ -280,7 +272,7 @@ RFCore_NewTarget_Active.RFCore = RFCore
 RFCore_NewTarget_Cursor.RFCore = RFCore
 
 
-class RFCore_Operator(bpy.types.Operator):
+class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.core"
     bl_label = "RetopoFlow Core"
 
@@ -319,35 +311,7 @@ class RFCore_Operator(bpy.types.Operator):
 
 
 
-# class RFCore_NewTarget_Active(Operator):
-#     """Create new target object+mesh at the active source and start RetopoFlow"""
-#     bl_idname = "retopoflow.newtarget_active"
-#     bl_label = "RF: New target at Active"
-#     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the active source and start RetopoFlow"
-#     bl_space_type = "VIEW_3D"
-#     bl_region_type = "TOOLS"
-#     bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
-
-#     @classmethod
-#     def poll(cls, context):
-#         if not context.region or context.region.type != 'WINDOW': return False
-#         if not context.space_data or context.space_data.type != 'VIEW_3D': return False
-#         # check we are not in mesh editmode
-#         if context.mode == 'EDIT_MESH': return False
-#         # make sure we have source meshes
-#         # if not retopoflow.RetopoFlow.get_sources(): return False
-#         o = get_active_object()
-#         if not o: return False
-#         # if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False): return False
-#         # all seems good!
-#         return True
-
-#     def invoke(self, context, event):
-#         o = get_active_object()
-#         retopoflow.RetopoFlow.create_new_target(context, matrix_world=o.matrix_world)
-#         return bpy.ops.cgcookie.retopoflow('INVOKE_DEFAULT')
-
-class RFCORE_PT_Panel(bpy.types.Panel):
+class RFCORE_PT_Panel(RFRegisterClass, bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
     bl_label = 'Start RetopoFlow'
@@ -381,30 +345,30 @@ class RFCORE_PT_Panel(bpy.types.Panel):
     #     # row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
 
 
-class RFCORE_MT_PieMenu(bpy.types.Menu):
-    bl_idname = 'retopoflow.piemenu'
-    bl_label = 'RetopoFlow Tool Switch'
+# class RFCORE_MT_PIE_PieMenu(bpy.types.Menu):
+#     bl_idname = 'retopoflow.piemenu'
+#     bl_label = 'RetopoFlow Tool Switch'
 
-    def draw(self, context):
-        if context.mode != 'EDIT_MESH': return
+#     def draw(self, context):
+#         if context.mode != 'EDIT_MESH': return
 
-        layout = self.layout
-        pie = layout.menu_pie()
-        # 4 - LEFT
-        pie.operator(RFTool_Contours.bl_idname, text=RFTool_Contours.bl_label, icon="OBJECT_DATAMODE")
-        # 6 - RIGHT
-        # pie.operator(RFTool_PolyPen.bl_idname, text=RFTool_PolyPen.bl_label, icon="OBJECT_DATAMODE")
-        pie.separator()
-        # 2 - BOTTOM
-        # pie.operator(RFTool_Relax.bl_idname, text=RFTool_Relax.bl_label, icon="OBJECT_DATAMODE")
-        pie.separator()
-        # 8 - TOP
-        pie.separator()
-        # 7 - TOP - LEFT
-        pie.separator()
-        # 9 - TOP - RIGHT
-        pie.separator()
-        # 1 - BOTTOM - LEFT
-        pie.separator()
-        # 3 - BOTTOM - RIGHT
-        pie.separator()
+#         layout = self.layout
+#         pie = layout.menu_pie()
+#         # 4 - LEFT
+#         pie.operator(RFTool_Contours.bl_idname, text=RFTool_Contours.bl_label, icon="OBJECT_DATAMODE")
+#         # 6 - RIGHT
+#         # pie.operator(RFTool_PolyPen.bl_idname, text=RFTool_PolyPen.bl_label, icon="OBJECT_DATAMODE")
+#         pie.separator()
+#         # 2 - BOTTOM
+#         # pie.operator(RFTool_Relax.bl_idname, text=RFTool_Relax.bl_label, icon="OBJECT_DATAMODE")
+#         pie.separator()
+#         # 8 - TOP
+#         pie.separator()
+#         # 7 - TOP - LEFT
+#         pie.separator()
+#         # 9 - TOP - RIGHT
+#         pie.separator()
+#         # 1 - BOTTOM - LEFT
+#         pie.separator()
+#         # 3 - BOTTOM - RIGHT
+#         pie.separator()

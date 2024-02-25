@@ -36,7 +36,7 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
-from ..common.operator import invoke_operator, execute_operator, RFOperator
+from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass
 from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
@@ -52,6 +52,83 @@ from ..rfoperators.transform import RFOperator_Translate
 
 from .polypen_logic import PP_Logic
 
+
+class PolyPen_Properties:
+    insert_modes = [
+        # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
+        # must have number?
+        # None is a separator
+        ("EDGE-ONLY", "Edge-Only", "Insert edges only",           1),
+        ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       2),  # 'MESH_DATA'
+        ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 3),
+        ("QUAD-ONLY", "Quad-Only", "Insert quads only",           4),
+    ]
+    insert_mode = 3
+
+    rf_keymaps = []
+
+    @staticmethod
+    def generate_operators():
+        ops_insert = []
+        def gen_insert_mode(idname, label, value):
+            nonlocal ops_insert
+            rf_idname = f'retopoflow.polypen_setinsertmode_{idname.lower()}'
+            rf_label = label
+            class RFTool_OT_PolyPen_SetInsertMode(RFRegisterClass, bpy.types.Operator):
+                bl_idname = rf_idname
+                bl_label = rf_label
+                bl_description = f'Set PolyPen Insert Mode to {label}'
+                def execute(self, context):
+                    PolyPen_Properties.set_insert_mode(None, value)
+                    context.area.tag_redraw()
+                    return {'FINISHED'}
+            RFTool_OT_PolyPen_SetInsertMode.__name__ = f'RFTool_OT_PolyPen_SetInsertMode_{idname}'
+            ops_insert += [(rf_idname, rf_label)]
+
+        class VIEW3D_MT_PIE_PolyPen(RFRegisterClass, bpy.types.Menu):
+            bl_label = 'Select PolyPen Insert Mode'
+
+            def draw(self, context):
+                nonlocal ops_insert
+                layout = self.layout
+                pie = layout.menu_pie()
+                for bl_idname, bl_label in ops_insert:
+                    pie.operator(bl_idname, text=bl_label) # icon='OBJECT_DATAMODE'
+                # # 4 - LEFT
+                # # 6 - RIGHT
+                # # 2 - BOTTOM
+                # # 8 - TOP
+                # # 7 - TOP - LEFT
+                # # 9 - TOP - RIGHT
+                # # 1 - BOTTOM - LEFT
+                # # 3 - BOTTOM - RIGHT
+                # pie.separator()
+
+        class RFTool_OT_Show_PolyPen_Pie(RFRegisterClass, bpy.types.Operator):
+            bl_idname = 'retopoflow.polypen_setinsertmode_piemenu'
+            bl_label = 'PolyPen Insert Mode Pie Menu'
+            def execute(self, context):
+                bpy.ops.wm.call_menu_pie(name="VIEW3D_MT_PIE_PolyPen")
+                return {'FINISHED'}
+
+        gen_insert_mode('EdgeOnly', 'Edge-Only', 1)
+        gen_insert_mode('TriOnly',  'Tri-Only',  2)
+        gen_insert_mode('TriQuad',  'Tri/Quad',  3)
+        gen_insert_mode('QuadOnly', 'Quad-Only', 4)
+
+        PolyPen_Properties.rf_keymaps += [
+            (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'ACCENT_GRAVE', 'shift': True, 'value': 'PRESS'}, None),
+            (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'Q', 'value': 'PRESS'}, None),
+        ]
+
+    @staticmethod
+    def get_insert_mode(self): return PolyPen_Properties.insert_mode
+    @staticmethod
+    def set_insert_mode(self, v): PolyPen_Properties.insert_mode = v
+
+# TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
+#       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
+PolyPen_Properties.generate_operators()
 
 
 class RFOperator_PolyPen(RFOperator):
@@ -71,17 +148,9 @@ class RFOperator_PolyPen(RFOperator):
     insert_mode: bpy.props.EnumProperty(
         name='Insert Mode',
         description='Insertion mode for PolyPen',
-        items=[
-            # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
-            # must have number?
-            # None is a separator
-            ("EDGE-ONLY", "Edge-Only", "Insert edges only",           1),
-            ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       2),  # 'MESH_DATA'
-            ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 3),
-            ("QUAD-ONLY", "Quad-Only", "Insert quads only",           4),
-        ],
-        default='TRI/QUAD',
-        # use get and set to make settings sticky across sessions?
+        items=PolyPen_Properties.insert_modes,
+        get=PolyPen_Properties.get_insert_mode,
+        set=PolyPen_Properties.set_insert_mode,
     )
     quad_stability: bpy.props.FloatProperty(
         name='Quad Stability',
@@ -121,6 +190,7 @@ class RFOperator_PolyPen(RFOperator):
         self.logic.draw(context)
 
 
+
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
@@ -132,6 +202,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_keymap = (
         *[ keymap for keymap in RFOperator_PolyPen.rf_keymaps ],
         *[ keymap for keymap in RFOperator_Translate.rf_keymaps ],
+        *[ keymap for keymap in PolyPen_Properties.rf_keymaps ],
     )
 
     def draw_settings(context, layout, tool):
