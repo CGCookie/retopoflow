@@ -178,6 +178,8 @@ class RFOperator_Translate(RFOperator):
         # self.delta = self.mouse - self.mouse_orig
         self.delta += self.mouse - self.mouse_prev
 
+        # TODO: not respecting the mirror modifier clip setting!
+
         factor = 1.0
         while factor > 0.0:
             if all(raycast_point_valid_sources(context, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
