@@ -177,11 +177,6 @@ class RFOperator_Translate(RFOperator):
         # self.RFCore.cursor_warp(context, self.mouse_center)
         # self.delta = self.mouse - self.mouse_orig
         self.delta += self.mouse - self.mouse_prev
-        factor = 1.0
-        while factor > 0.0:
-            if all(raycast_point_valid_sources(context, co2d_orig + self.delta * factor) for co2d_orig in self.bmvs_co2d_orig):
-                break
-            factor -= 0.01
 
         factor = 1.0
         while factor > 0.0:
