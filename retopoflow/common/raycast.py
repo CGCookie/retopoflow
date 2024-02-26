@@ -132,3 +132,29 @@ def raycast_point_valid_sources(context, point, *, world=True):
         Mi = M.inverted()
         hit = Mi @ hit
     return hit.xyz
+
+def nearest_point_valid_sources(context, point, *, world=True):
+    point_world = Vector((*point, 1.0))
+    best_hit = None
+    best_dist = float('inf')
+    # print(f'RAY {ray_world}')
+    for obj in iter_all_valid_sources(context):
+        M = obj.matrix_world
+        Mi = M.inverted()
+        point_local = Mi @ point
+        result, co, normal, idx = obj.closest_point_on_mesh(point_local)
+        if not result: continue
+        co_world = M @ Vector((*co, 1.0))
+        dist = distance_between_locations(point_world, co_world)
+        # print(f'  HIT {obj.name} {co_world} {dist}')
+        if dist >= best_dist: continue
+        best_hit = co_world
+        best_dist = dist
+    if not best_hit: return None
+
+    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
+    if not world:
+        M = context.active_object.matrix_world
+        Mi = M.inverted()
+        hit = Mi @ hit
+    return hit.xyz

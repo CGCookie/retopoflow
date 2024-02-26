@@ -47,10 +47,11 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.timerhandler import TimerHandler
 
 from ..rfoperators.transform import RFOperator_Translate
 
-# from .polypen_logic import PP_Logic
+from .relax_logic import Relax_Logic
 
 
 
@@ -69,17 +70,20 @@ class RFOperator_Relax(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
-        # self.logic = PP_Logic(context, event)
+        self.logic = Relax_Logic(context, event)
         self.tickle(context)
+        self.timer = TimerHandler(120, context=context, enabled=True)
 
     def reset(self):
         # self.logic.reset()
         pass
 
     def update(self, context, event):
+        self.logic.update(context, event)
         # self.logic.update(context, event, self.insert_mode)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            self.timer.stop()
             return {'FINISHED'}
 
         # if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
