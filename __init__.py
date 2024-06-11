@@ -41,7 +41,7 @@ bl_info = {
     "version":      (4, 0, 0),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
-    "location":     "View 3D > Header",
+    "location":     "Edit Mode Toolbar",
     "category":     "3D View",
     "warning":      "Alpha",
 }
