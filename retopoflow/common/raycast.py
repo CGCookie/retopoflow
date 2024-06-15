@@ -50,7 +50,7 @@ def ray_from_point(context, point):
 def iter_all_valid_sources(context):
     yield from (
         obj
-        for obj in context.scene.objects
+        for obj in context.view_layer.objects
         if (
             obj.type == 'MESH' and
             obj.mode == 'OBJECT' and
