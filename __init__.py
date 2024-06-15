@@ -42,7 +42,7 @@ bl_info = {
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "Edit Mode Toolbar",
-    "category":     "Mesh",
+    "category":     "3D View",
     "warning":      "Alpha",
 }
 
