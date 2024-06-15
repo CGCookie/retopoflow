@@ -54,13 +54,13 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
         if not context.region or context.region.type != 'WINDOW': return False
         if not context.space_data or context.space_data.type != 'VIEW_3D': return False
         # check we are not in mesh editmode
-        if context.mode == 'EDIT_MESH': return False
+        if context.mode != 'OBJECT': return False
         # make sure we have source meshes
         # if not retopoflow.RetopoFlow.get_sources(): return False
         # all seems good!
         return True
 
-    def invoke(self, context, event):
+    def execute(self, context):
         auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
         context.preferences.edit.use_enter_edit_mode = False
 
@@ -111,7 +111,7 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
         if not context.region or context.region.type != 'WINDOW': return False
         if not context.space_data or context.space_data.type != 'VIEW_3D': return False
         # check we are not in mesh editmode
-        if context.mode == 'EDIT_MESH': return False
+        if context.mode != 'OBJECT': return False
         if not context.view_layer.objects.active: return False
         # make sure we have source meshes
         # if not retopoflow.RetopoFlow.get_sources(): return False
@@ -131,7 +131,7 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
                 return f'{active_name}{separator}{first_letter}etopology'
         return active_name + f'_{first_letter}etopology'
 
-    def invoke(self, context, event):
+    def execute(self, context):
         matrix_world = context.view_layer.objects.active.matrix_world
 
         auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
