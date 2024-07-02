@@ -400,6 +400,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         if not RFCore.event_mouse:
             # print(f'IN CONTROL!')
             RFCore.is_controlling = True
+            context.area.tag_redraw()
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         if RFCore.is_controlling:

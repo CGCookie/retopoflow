@@ -30,6 +30,8 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d
 
 from .maths import point_to_vec3, vector_to_vec3
 
+def mouse_from_event(event): return (event.mouse_region_x, event.mouse_region_y)
+
 def vec_forward(context):
     # TODO: remove invert!
     r3d = context.space_data.region_3d
@@ -93,9 +95,10 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_mouse_valid_sources(context, event):
-    ray_world = ray_from_mouse(context, event)
-    # print(f'raycast_mouse_valid_sources {ray_world=}')
+def raycast_valid_sources(context, point):
+    ray_world = ray_from_point(context, point)
+
+    # print(f'raycast_valid_sources {ray_world=}')
     if ray_world[0] is None: return None
 
     best = None

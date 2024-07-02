@@ -38,7 +38,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
+from ..common.raycast import raycast_point_valid_sources
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors

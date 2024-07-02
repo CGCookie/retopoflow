@@ -45,7 +45,7 @@ from ..common.bmesh import (
 )
 from ..common.enums import ValueIntEnum
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
 from ..common.maths import (
     view_forward_direction,
     distance_point_linesegment,
@@ -164,7 +164,7 @@ class PP_Logic:
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
-        hit = raycast_mouse_valid_sources(context, event)
+        hit = raycast_valid_sources(context, mouse_from_event(event))
         if hit:
             self.hit = hit['co_local']
         else:

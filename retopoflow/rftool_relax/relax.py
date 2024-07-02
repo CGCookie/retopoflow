@@ -24,6 +24,7 @@ import bmesh
 import bpy
 import gpu
 import os
+from random import random
 from bmesh.types import BMVert, BMEdge, BMFace
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
@@ -48,7 +49,7 @@ from ..common.drawing import (
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
@@ -92,7 +93,7 @@ class RFOperator_Relax(RFOperator):
         pass
 
     def update(self, context, event):
-        print('update')
+        # print('update')
         self.logic.update(context, event)
         # self.logic.update(context, event, self.insert_mode)
 
@@ -139,17 +140,19 @@ class RFBrush_Falloff:
 
     def update(self, context, event):
         if event.type != 'MOUSEMOVE': return
+        self.mouse = mouse_from_event(event)
+        self._update(context)
 
-        context.area.tag_redraw()
-
-        self.mouse = (event.mouse_x, event.mouse_y)
+    def _update(self, context):
         self.hit = False
-        print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-        hit = raycast_mouse_valid_sources(context, event)
-        print(f'  {hit=}')
+        context.area.tag_redraw()
+        if not self.mouse: return
+        # print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+        hit = raycast_valid_sources(context, self.mouse)
+        # print(f'  {hit=}')
         if not hit: return
         scale = size2D_to_size(context, 1.0, hit['distance'])
-        print(f'  {scale=}')
+        # print(f'  {scale=}')
         if scale is None: return
 
         n = hit['no_local']
@@ -166,7 +169,9 @@ class RFBrush_Falloff:
         self.hit_rmat = rmat
 
     def draw_postview(self, context):
-        print(f'RFBrush_Falloff.draw_postview {self.hit=}')
+        # print(f'RFBrush_Falloff.draw_postview {random()}')
+        # print(f'RFBrush_Falloff.draw_postview {self.hit=}')
+        self._update(context)
         if not self.hit: return
 
         fillscale = Color((1, 1, 1, self.strength * (self.brush_max_alpha - self.brush_min_alpha) + self.brush_min_alpha))

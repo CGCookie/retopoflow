@@ -36,7 +36,7 @@ from enum import Enum
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
@@ -87,7 +87,7 @@ class RFOperator_Translate(RFOperator):
         self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
 
         if self.move_hovered:
-            hit = raycast_mouse_valid_sources(context, event)
+            hit = raycast_valid_sources(context, mouse_from_event(event))
             if hit:
                 co = hit['co_local']
                 self.nearest.update(context, co)

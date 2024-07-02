@@ -34,7 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
 
@@ -52,7 +52,7 @@ class Relax_Logic:
         bpy.ops.ed.undo_push(message='Relax')
 
     def update(self, context, event):
-        hit = raycast_mouse_valid_sources(context, event)
+        hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
 
         bvh = BVHTree.FromBMesh(self.bm)
