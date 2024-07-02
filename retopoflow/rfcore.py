@@ -271,9 +271,15 @@ class RFCore:
         RFOperator.active_operator().draw_preview(context)
     @staticmethod
     def handle_postview(context):
-        if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
-        RFOperator.active_operator().draw_postview(context)
+        if RFOperator.active_operator():
+            RFOperator.active_operator().draw_postview(context)
+
+        selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
+        brush = selected_RFTool.rf_brush
+        if brush:
+            brush.draw_postview(context)
+
     @staticmethod
     def handle_postpixel(context):
         if not RFOperator.active_operator(): return

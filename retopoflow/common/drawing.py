@@ -30,7 +30,8 @@ from typing import List
 
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
-from ...addon_common.common.colors import Color4
+from ...addon_common.common.colors import Color4, Color
+from ...addon_common.common.maths import Point, Normal, Direction, Frame
 
 
 
@@ -58,7 +59,8 @@ def create_shader(fn_glsl, *, segments=1, pos=None):
 
 shader_2D_point,    ubos_2D_point,    batch_2D_point    = create_shader('point_2D.glsl')
 shader_2D_lineseg,  ubos_2D_lineseg,  batch_2D_lineseg  = create_shader('lineseg_2D.glsl')
-shader_2D_circle,   ubos_2D_circle,   batch_2D_circle   = create_shader('circle_2D.glsl', segments=100)
+shader_2D_circle,   ubos_2D_circle,   batch_2D_circle   = create_shader('circle_2D.glsl', segments=64)
+shader_3D_circle,   ubos_3D_circle,   batch_3D_circle   = create_shader('circle_3D.glsl', segments=64)
 shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle = create_shader('triangle_2D.glsl', pos=[(1,0), (0,1), (0,0)])
 
 
@@ -82,6 +84,11 @@ class Drawing:
             [  0,  0,  0,  1]
         ])
 
+    @staticmethod
+    def get_view_matrix(context):
+        r3d = context.space_data.region_3d
+        return r3d.perspective_matrix if r3d else None
+
     @contextmanager
     @staticmethod
     def draw(context, draw_type:"CC_DRAW"):
@@ -97,7 +104,24 @@ class Drawing:
             print(e)
         del Drawing._draw
 
-
+    @staticmethod
+    def draw3D_circle(context, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):
+        assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
+        area = context.area
+        f = Frame(o=center, x=x, y=y, z=n)
+        radius = Drawing.scale(radius)
+        width = Drawing.scale(width)
+        shader_3D_circle.bind()
+        ubos_3D_circle.options.MVPMatrix = Drawing.get_view_matrix(context)
+        ubos_3D_circle.options.screensize = (area.width, area.height, 0.0, 0.0)
+        ubos_3D_circle.options.center    = f.o
+        ubos_3D_circle.options.color     = color
+        ubos_3D_circle.options.plane_x   = f.x
+        ubos_3D_circle.options.plane_y   = f.y
+        ubos_3D_circle.options.settings  = (radius, width, depth_near, depth_far)
+        ubos_3D_circle.update_shader()
+        batch_3D_circle.draw(shader_3D_circle)
+        gpu.shader.unbind()
 
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')

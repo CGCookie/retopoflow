@@ -36,17 +36,28 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.drawing import (
+    Drawing,
+    CC_2D_POINTS,
+    CC_2D_LINES,
+    CC_2D_LINE_STRIP,
+    CC_2D_LINE_LOOP,
+    CC_2D_TRIANGLES,
+    CC_2D_TRIANGLE_FAN,
+    CC_3D_TRIANGLES,
+)
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources, size2D_to_size
+from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
+from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, Direction, Vec
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.timerhandler import TimerHandler
 
@@ -116,18 +127,75 @@ class RFBrush_Falloff:
         self.hit_z = None
         self.hit_rmat = None
 
+        self.falloff = 0.5
+        self.radius = 50
+        self.strength = 0.5
+        self.fill_color = Color.from_ints(  0, 135, 255, 255)
+        self.outer_color = Color((1,1,1,1))
+        self.inner_color = Color((1,1,1,0.5))
+        self.below_alpha = Color((1,1,1,0.25))
+        self.brush_max_alpha = 0.7
+        self.brush_min_alpha = 0.1
+
     def update(self, context, event):
         if event.type != 'MOUSEMOVE': return
 
+        context.area.tag_redraw()
+
         self.mouse = (event.mouse_x, event.mouse_y)
         self.hit = False
-        print(f'RFBrush_Falloff {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+        print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
         hit = raycast_mouse_valid_sources(context, event)
         print(f'  {hit=}')
         if not hit: return
         scale = size2D_to_size(context, 1.0, hit['distance'])
-        # print(f'  {scale=}')
+        print(f'  {scale=}')
+        if scale is None: return
 
+        n = hit['no_local']
+        rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+
+        self.hit = True
+        self.hit_scale = scale
+        self.hit_p = hit['co_local']
+        self.hit_n = hit['no_local']
+        self.hit_depth = hit['distance']
+        self.hit_x = Vec(rmat @ Direction.X)
+        self.hit_y = Vec(rmat @ Direction.Y)
+        self.hit_z = Vec(rmat @ Direction.Z)
+        self.hit_rmat = rmat
+
+    def draw_postview(self, context):
+        print(f'RFBrush_Falloff.draw_postview {self.hit=}')
+        if not self.hit: return
+
+        fillscale = Color((1, 1, 1, self.strength * (self.brush_max_alpha - self.brush_min_alpha) + self.brush_min_alpha))
+
+        ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
+        p, n = self.hit_p, self.hit_n
+        ro = self.radius * self.hit_scale
+        ri = ro * ff
+        rm = (ro + ri) / 2.0
+        co, ci, cc = self.outer_color, self.inner_color, self.fill_color * fillscale
+
+        fwd = Direction(vec_forward(context)) * (self.hit_depth * 0.0005)
+
+        # draw below
+        gpustate.depth_mask(False)
+        gpustate.depth_test('GREATER')
+        Drawing.draw3D_circle(context, p-fwd*1.0, rm, cc * self.below_alpha, n=n, width=ro - ri)
+        Drawing.draw3D_circle(context, p-fwd*2.0, ro, co * self.below_alpha, n=n, width=2*self.hit_scale)
+        Drawing.draw3D_circle(context, p-fwd*2.0, ri, ci * self.below_alpha, n=n, width=2*self.hit_scale)
+
+        # draw above
+        gpustate.depth_test('LESS_EQUAL')
+        Drawing.draw3D_circle(context, p-fwd*1.0, rm, cc, n=n, width=ro - ri)
+        Drawing.draw3D_circle(context, p-fwd*2.0, ro, co, n=n, width=2*self.hit_scale)
+        Drawing.draw3D_circle(context, p-fwd*2.0, ri, ci, n=n, width=2*self.hit_scale)
+
+        # reset
+        gpustate.depth_test('LESS_EQUAL')
+        gpustate.depth_mask(True)
 
 
 class RFTool_Relax(RFTool_Base):

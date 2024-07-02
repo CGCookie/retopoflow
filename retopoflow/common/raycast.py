@@ -30,6 +30,11 @@ from bpy_extras.view3d_utils import region_2d_to_location_3d
 
 from .maths import point_to_vec3, vector_to_vec3
 
+def vec_forward(context):
+    # TODO: remove invert!
+    r3d = context.space_data.region_3d
+    return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
+
 def distance_between_locations(a, b):
     a, b = point_to_vec3(a), point_to_vec3(b)
     return (a - b).length
