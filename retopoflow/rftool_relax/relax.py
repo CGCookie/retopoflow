@@ -36,8 +36,9 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
+from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources, size2D_to_size
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
@@ -64,7 +65,8 @@ class RFOperator_Relax(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFTMOUSE',  'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+        # (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY'}, None),
     ]
     # rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
@@ -79,6 +81,7 @@ class RFOperator_Relax(RFOperator):
         pass
 
     def update(self, context, event):
+        print('update')
         self.logic.update(context, event)
         # self.logic.update(context, event, self.insert_mode)
 
@@ -97,17 +100,44 @@ class RFOperator_Relax(RFOperator):
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
-        # self.logic.draw(context)
+        self.logic.draw(context)
         pass
+
+
+class RFBrush_Falloff:
+    def __init__(self):
+        self.mouse = None
+        self.hit = False
+        self.hit_p = None
+        self.hit_n = None
+        self.hit_depth = None
+        self.hit_x = None
+        self.hit_y = None
+        self.hit_z = None
+        self.hit_rmat = None
+
+    def update(self, context, event):
+        if event.type != 'MOUSEMOVE': return
+
+        self.mouse = (event.mouse_x, event.mouse_y)
+        self.hit = False
+        print(f'RFBrush_Falloff {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+        hit = raycast_mouse_valid_sources(context, event)
+        print(f'  {hit=}')
+        if not hit: return
+        scale = size2D_to_size(context, 1.0, hit['distance'])
+        # print(f'  {scale=}')
+
 
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
     bl_label = "Relax"
     bl_description = "Relax the vertex positions to smooth out topology"
-    bl_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'icons', 'relax')
+    bl_icon = get_path_to_blender_icon('relax')
     bl_widget = None
     bl_operator = 'retopoflow.relax'
+    rf_brush = RFBrush_Falloff()
 
     bl_keymap = (
         *[ keymap for keymap in RFOperator_Relax.rf_keymaps ],

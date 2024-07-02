@@ -164,8 +164,11 @@ class PP_Logic:
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
-        self.hit = raycast_mouse_valid_sources(context, event, world=False)
-        if not self.hit:
+        hit = raycast_mouse_valid_sources(context, event)
+        if hit:
+            self.hit = hit['co_local']
+        else:
+            self.hit = None
             return
 
         self.nearest.update(context, self.hit)

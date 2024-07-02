@@ -52,11 +52,11 @@ class Relax_Logic:
         bpy.ops.ed.undo_push(message='Relax')
 
     def update(self, context, event):
-        hit = raycast_mouse_valid_sources(context, event, world=False)
+        hit = raycast_mouse_valid_sources(context, event)
         if not hit: return
 
         bvh = BVHTree.FromBMesh(self.bm)
-        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit, 0.2) }
+        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], 0.2) }
         nearest_bmverts = { bmv for i in nearest_bmface_inds for bmv in self.bm.faces[i].verts }
 
         # bmops.deselect_all(self.bm)
@@ -264,3 +264,10 @@ class Relax_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
+
+    def draw(self, context):
+        if not self.mouse: return
+        if not self.hit: return
+        if not self.bm.is_valid: return
+
+        pass

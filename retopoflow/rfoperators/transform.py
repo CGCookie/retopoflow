@@ -87,15 +87,17 @@ class RFOperator_Translate(RFOperator):
         self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
 
         if self.move_hovered:
-            hit = raycast_mouse_valid_sources(context, event, world=False)
-            self.nearest.update(context, hit)
-            # print(f'  SELECT HOVERED {self.nearest.bmv}')
-            # select hovered geometry
-            if self.nearest.bmv:
-                bmops.deselect_all(self.bm)
-                bmops.select(self.bm, self.nearest.bmv)
-                #self.bm.select_history.validate()
-                bmops.flush_selection(self.bm, self.em)
+            hit = raycast_mouse_valid_sources(context, event)
+            if hit:
+                co = hit['co_local']
+                self.nearest.update(context, co)
+                # print(f'  SELECT HOVERED {self.nearest.bmv}')
+                # select hovered geometry
+                if self.nearest.bmv:
+                    bmops.deselect_all(self.bm)
+                    bmops.select(self.bm, self.nearest.bmv)
+                    #self.bm.select_history.validate()
+                    bmops.flush_selection(self.bm, self.em)
 
         self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]

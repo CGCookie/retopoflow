@@ -26,11 +26,28 @@ import time
 from mathutils import Vector
 from bpy_extras.view3d_utils import region_2d_to_origin_3d
 from bpy_extras.view3d_utils import region_2d_to_vector_3d
+from bpy_extras.view3d_utils import region_2d_to_location_3d
+
+from .maths import point_to_vec3, vector_to_vec3
 
 def distance_between_locations(a, b):
-    a = a.xyz / a.w
-    b = b.xyz / b.w
+    a, b = point_to_vec3(a), point_to_vec3(b)
     return (a - b).length
+
+def point2D_to_point(context, xy, depth:float):
+    r = ray_from_point(context, xy)
+    return (r[0] + r[1] * depth) if r[0] and r[1] else None
+
+def size2D_to_size(context, size2D, depth3D):
+    # note: scaling then unscaling helps with numerical instability when clip_start is small
+    scale = 1000.0
+    # find center of screen
+    xy0 = Vector((context.region.width * 0.5, context.region.height * 0.5))
+    xy1 = xy0 + Vector((0, size2D * scale))
+    p3d0 = point2D_to_point(context, xy0, depth3D)
+    p3d1 = point2D_to_point(context, xy1, depth3D)
+    if not p3d0 or not p3d1: return None
+    return (p3d0 - p3d1).length / scale
 
 def ray_from_mouse(context, event):
     mouse = (event.mouse_region_x, event.mouse_region_y)
@@ -71,36 +88,56 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_mouse_valid_sources(context, event, *, world=True):
+def raycast_mouse_valid_sources(context, event):
     ray_world = ray_from_mouse(context, event)
+    # print(f'raycast_mouse_valid_sources {ray_world=}')
     if ray_world[0] is None: return None
 
-    best_hit = None
-    best_dist = float('inf')
-    # print(f'RAY {ray_world}')
+    best = None
+
+    Ma = context.active_object.matrix_world
+    Mai = Ma.inverted()
+    Mat = Ma.transposed()
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted()
+        Mit = Mi.transposed()
+        Mt = M.transposed()
         ray_local = (
             Mi @ ray_world[0],
-            (Mi @ ray_world[1]).normalized(),
+            (Mt @ ray_world[1]).normalized(),
         )
-        result, co, normal, idx = obj.ray_cast(ray_local[0].xyz / ray_local[0].w, ray_local[1].xyz)
+        result, co_hit, no_hit, idx = obj.ray_cast(point_to_vec3(ray_local[0]), vector_to_vec3(ray_local[1]))
         if not result: continue
-        co_world = M @ Vector((*co, 1.0))
-        dist = distance_between_locations(ray_world[0], co_world)
-        # print(f'  HIT {obj.name} {co_world} {dist}')
-        if dist >= best_dist: continue
-        best_hit = co_world
-        best_dist = dist
-    if not best_hit: return None
 
-    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
-    if not world:
-        M = context.active_object.matrix_world
-        Mi = M.inverted()
-        hit = Mi @ hit
-    return hit.xyz
+        co_world = point_to_vec3( M   @ Vector((*co_hit, 1.0)))
+        no_world = vector_to_vec3(Mit @ Vector((*no_hit, 0.0)))
+        dist = distance_between_locations(ray_world[0], co_world)
+
+        if best and best['distance'] <= dist: continue
+
+        co_active = point_to_vec3( Mai @ Vector((*co_world, 1.0)))
+        no_active = vector_to_vec3(Mat @ Vector((*no_world, 0.0)))
+
+        best = {
+            'object':   obj,   # hit object
+            'distance': dist,  # distance between ray origin and hit point (in world space)
+            'co_local': co_active, 'no_local': no_active,  # co and normal wrt to active object
+            'co_hit':   co_hit,    'no_hit':   no_hit,     # co and normal wrt to hit object
+            'co_world': co_world,  'no_world': no_world,   # co and normal in world space
+        }
+    return best
+
+    # if not best: return None
+
+    # if not world:
+
+    # hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
+    # if not world:
+    #     M = context.active_object.matrix_world
+    #     Mi = M.inverted()
+    #     hit = Mi @ hit
+    # return hit.xyz
 
 def raycast_point_valid_sources(context, point, *, world=True):
     ray_world = ray_from_point(context, point)
@@ -116,7 +153,7 @@ def raycast_point_valid_sources(context, point, *, world=True):
             Mi @ ray_world[0],
             (Mi @ ray_world[1]).normalized(),
         )
-        result, co, normal, idx = obj.ray_cast(ray_local[0].xyz / ray_local[0].w, ray_local[1].xyz)
+        result, co, normal, idx = obj.ray_cast(point_to_vec3(ray_local[0]), vector_to_vec3(ray_local[1]))
         if not result: continue
         co_world = M @ Vector((*co, 1.0))
         dist = distance_between_locations(ray_world[0], co_world)
@@ -126,12 +163,12 @@ def raycast_point_valid_sources(context, point, *, world=True):
         best_dist = dist
     if not best_hit: return None
 
-    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
+    hit = Vector((*point_to_vec3(best_hit), 1.0))
     if not world:
         M = context.active_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
-    return hit.xyz
+    return point_to_vec3(hit)
 
 def nearest_point_valid_sources(context, point, *, world=True):
     point_world = Vector((*point, 1.0))
@@ -152,9 +189,9 @@ def nearest_point_valid_sources(context, point, *, world=True):
         best_dist = dist
     if not best_hit: return None
 
-    hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
+    hit = Vector((*point_to_vec3(best_hit), 1.0))
     if not world:
         M = context.active_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
-    return hit.xyz
+    return point_to_vec3(hit)

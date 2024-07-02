@@ -36,6 +36,7 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass
 from ..common.raycast import raycast_mouse_valid_sources, raycast_point_valid_sources
 from ..common.maths import view_forward_direction
@@ -140,8 +141,8 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None), #{'insert_mode', 'TRIANGLE'}),
-        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None), #{'insert_mode': 'EDGE-ONLY'}),
+        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None), #{'properties': [('insert_mode', 'TRI-ONLY')]},
+        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
     ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
@@ -195,7 +196,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
     bl_description = "Create complex topology on vertex-by-vertex basis"
-    bl_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'icons', 'polypen')
+    bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 

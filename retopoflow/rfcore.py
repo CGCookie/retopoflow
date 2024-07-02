@@ -52,22 +52,24 @@ TODO:
 '''
 
 class RFCore:
-    default_RFTool = RFTool_PolyPen  # should be stored and sticky across sessions
-    active_RFTool = None
-    is_running = False
-    event_mouse = None
-    is_controlling = False
+    # is_running and is_controlling indicate current state of RetopoFlow's core.
+    # under normal circumstances, RFCore is in control whenever it is running.  however, RF will
+    # lose "control" any time another modal operator gains control (ex: orbit view, box select, etc.).
+    is_running     = False  # RFCore modal operator is running
+    is_controlling = False  # RFCore is top modal operator
+    event_mouse    = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
 
-    running_in_windows = []
+    default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
+    selected_RFTool_idname = None               # currently selected RFTool, but might not be active
+    running_in_areas       = []                 # areas that RFCore operator is currently running in
+    reseter                = Reseter()          # helper for resetting bpy settings to original settings
 
-    reseter = Reseter()
-
-    _is_registered = False
-    _unwrap_activate_tool = None
-    _handle_draw_cursor = None
-    _handle_preview = None
-    _handle_postview = None
-    _handle_postpixel = None
+    _is_registered        = False   # True if RF is registered with Blender
+    _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
+    _handle_draw_cursor   = None    # handle to callback for WindowManager's draw cursor
+    _handle_preview       = None    # handle to callback for PRE_VIEW draw handler
+    _handle_postview      = None    # handle to callback for POST_VIEW draw handler
+    _handle_postpixel     = None    # handle to callback for POST_PIXEL draw handler
 
     @staticmethod
     def register():
@@ -81,7 +83,7 @@ class RFCore:
         RFOperator.register_all()
         RFRegisterClass.register_all()
 
-        # wrap toll change function
+        # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
         from ..addon_common.common.functools import wrap_function
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
@@ -102,7 +104,7 @@ class RFCore:
             # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
             return
 
-        if RFCore.active_RFTool:
+        if RFCore.selected_RFTool_idname:
             # RFTool is active, so switch away first!
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
 
@@ -132,21 +134,20 @@ class RFCore:
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
-        prev_active = RFCore.active_RFTool
-        RFCore.active_RFTool = idname if idname in RFTools else None
-        # print(f'{prev_active} -> {idname}')
+        prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
+        RFCore.selected_RFTool_idname = idname if idname in RFTools else None
 
-        if not prev_active and RFCore.active_RFTool:
+        if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
             RFCore.start(context)
 
         # XXX: resizing the Blender window will cause tool change to change to current tool???
-        if prev_active != RFCore.active_RFTool:
-            if prev_active:
-                RFTools[prev_active].deactivate(context)
-            if RFCore.active_RFTool:
-                RFTools[RFCore.active_RFTool].activate(context)
+        if prev_selected_RFTool_idname != RFCore.selected_RFTool_idname:
+            if prev_selected_RFTool_idname:
+                RFTools[prev_selected_RFTool_idname].deactivate(context)
+            if RFCore.selected_RFTool_idname:
+                RFTools[RFCore.selected_RFTool_idname].activate(context)
 
-        if prev_active and not RFCore.active_RFTool:
+        if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
             RFCore.stop()
 
     @staticmethod
@@ -156,13 +157,11 @@ class RFCore:
         RFCore.event_mouse = None
         RFCore.is_controlling = True
 
-        wm = bpy.types.WindowManager
-        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor, (context,), 'VIEW_3D', 'WINDOW')
-
-        space = bpy.types.SpaceView3D
-        RFCore._handle_preview   = space.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
-        RFCore._handle_postview  = space.draw_handler_add(RFCore.handle_postview,  (context,), 'WINDOW', 'POST_VIEW')
-        RFCore._handle_postpixel = space.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
+        wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor,   (context,), 'VIEW_3D', 'WINDOW')
+        RFCore._handle_preview     = space.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview    = space.draw_handler_add(RFCore.handle_postview,  (context,), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel   = space.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
@@ -179,13 +178,21 @@ class RFCore:
         RFCore.reseter['context.scene.tool_settings.use_snap_nonedit'] = True
         RFCore.reseter['context.scene.tool_settings.use_snap_selectable'] = True
 
-        bpy.ops.retopoflow.core()
+        try:
+            bpy.ops.retopoflow.core()
+        except:
+            pass
 
     @staticmethod
     def restart():
+        print(f'RFCore.restart()')
         def rerun():
             area = next(iter_all_view3d_areas(screen=bpy.context.screen), None)
-            with bpy.context.temp_override(area=area):
+            if not area: return
+            region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+            space = area.spaces.active
+            r3d = space.region_3d
+            with bpy.context.temp_override(area=area, region=region, space=space, region_3d=r3d):
                 bpy.ops.retopoflow.core()
         bpy.app.timers.register(rerun, first_interval=0.01)
 
@@ -208,7 +215,17 @@ class RFCore:
         wm = bpy.types.WindowManager
         wm.draw_cursor_remove(RFCore._handle_draw_cursor)
 
+        RFCore.running_in_areas.clear()
+
         RFCore.reseter.reset()
+
+    @staticmethod
+    def handle_update(context, event):
+        if not RFCore.selected_RFTool_idname: return
+
+        selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
+        brush = selected_RFTool.rf_brush
+        if brush: brush.update(context, event)
 
     @staticmethod
     def handle_draw_cursor(context, mouse):
@@ -216,9 +233,13 @@ class RFCore:
             # print('NOT RUNNING ANYMORE')
             return
 
-        # print(f'handle_draw_cursor({mouse})  {bpy.context.window in RFCore.running_in_windows}')
-        if bpy.context.window not in RFCore.running_in_windows:
-            # print(f'LAUNCHING IN NEW WINDOW')
+        def idx(items, item):
+            return next((idx for (idx,i) in enumerate(items) if i == item), None)
+        # print(f'handle_draw_cursor area={idx(context.window.screen.areas, context.area)}')
+        # print(f'handle_draw_cursor({mouse})  {RFCore.selected_RFTool_idname=}  {RFOperator.active_operator()=}  {bpy.context.window in RFCore.running_in_areas=}')
+        # print(f'{RFTools[RFCore.selected_RFTool_idname]}')
+        if context.area not in RFCore.running_in_areas:
+            print(f'LAUNCHING IN NEW AREA')
             bpy.ops.retopoflow.core()
 
         # print(list(context.window_manager.operators))
@@ -228,6 +249,13 @@ class RFCore:
                 context.area.tag_redraw()
                 RFCore.is_controlling = False
             RFCore.event_mouse = None
+
+        # if RFCore.is_controlling:
+        #     selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
+        #     brush = selected_RFTool.rf_brush
+        #     if brush:
+        #         print(f'updating brush {brush}')
+        #         pass
 
     @staticmethod
     def cursor_warp(context, point):
@@ -252,16 +280,19 @@ class RFCore:
         if not RFCore.is_controlling: return
         RFOperator.active_operator().draw_postpixel(context)
 
+    # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
         #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
         pass
+    # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_redo_post(*args, **kwargs):
         # print(f'handle_redo_post({args}, {kwargs})')
         pass
+    # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_undo_post(*args, **kwargs):
         # print(f'handle_undo_post({args}, {kwargs})')
@@ -275,37 +306,98 @@ RFCore_NewTarget_Cursor.RFCore = RFCore
 class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.core"
     bl_label = "RetopoFlow Core"
+    running_operators = 0
 
     @classmethod
     def poll(cls, context):
+        if not context.region:
+            # TODO: fix this!!
+            print('RF was started without context being set up correctly.')
+            print('This can happen when blender starts RF without the artist switching to it.')
+            print('For example: if startup blend chooses RF tool')
+            RFCore.restart()
+            return False
+            #RFCore.selected_RFTool_idname = None
+            #bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+            #return False
+            # def switch(state=0):
+            #     if state == 0:
+            #         bpy.app.timers.register(lambda: switch(1), first_interval=0.01)
+            #     elif state == 1:
+            #         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+            #         bpy.app.timers.register(lambda: switch(2), first_interval=0.01)
+            #     else:
+            #         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFCore.default_RFTool.bl_idname)
+            # switch()
+            # return False
         # only start if an RFTool is active
-        return RFCore.active_RFTool
+        return bool(RFCore.selected_RFTool_idname)
+
+    def __init__(self):
+        print(f'RFCore_Operator.__init__')
+        self.running_in_area = None
+        RFCore_Operator.running_operators += 1
+        self.is_running = True
+    def __del__(self):
+        print(f'RFCore_Operator.__del__!!! {getattr(self, "is_running", None)}')
+        if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
+            RFCore.running_in_areas.remove(self.running_in_area)
+        RFCore_Operator.running_operators -= 1
+        self.is_running = False
 
     def execute(self, context):
         prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
-        RFCore.running_in_windows.append(context.window)
+        self.running_in_area = context.area
+        self.is_running = True
+        RFCore.running_in_areas.append(context.area)
+        print(f'RFCore_Operator executing')
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
         # print(f'MODAL {event.type} {event.value}')
+        # print(f'RFCore_Operator:')
+        # print(dir(context))
+        # print(f' {context.area=}')
+        # print(f' {context.space_data=}')
+        # print(f' {context.space_data.region_3d=}')
 
         if not context.area:
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
-            # print(f'RESTARTING!')
-            RFCore.restart()
+            print(f'no context.area, exiting')
+            # RFCore.restart()
+            print(f'RFCore_Operator exiting')
             return {'FINISHED'}
+        if context.area.type != 'VIEW_3D':
+            print(f'area type changed, exiting')
+            return {'FINISHED'}
+
+        if not context.region or not context.region_data:
+            # THIS HAPPENS WHEN BLENDER STARTED RETOPOFLOW WITHOUT THE
+            # ARTIST SWITCHING TO IT (EX: RF TOOL IS DEFAULT).
+            # I THINK THE CONTEXT IS NOT QUITE SET UP CORRECTLY.
+            # NEED TO SWITCH TO DIFFERENT TOOL, THEN SWITCH BACK??
+            print(f'no {context.region=} or {context.region_data=}, RESTARTING!')
+            RFCore.restart()
+            print(f'RFCore_Operator exiting')
+            return {'FINISHED'}
+
+        # print(f' {len(context.area.spaces)=}')
+        #' {context.region=} {context.region_data=}')
 
         if not RFCore.is_running:
             # print(f'EXITING!')
-            RFCore.running_in_windows.remove(context.window)
+            print(f'RFCore_Operator exiting')
             return {'FINISHED'}
 
         if not RFCore.event_mouse:
             # print(f'IN CONTROL!')
             RFCore.is_controlling = True
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+
+        if RFCore.is_controlling:
+            RFCore.handle_update(context, event)
 
         return {'PASS_THROUGH'}
 
