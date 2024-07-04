@@ -33,7 +33,7 @@ from .rftool_base import RFTool_Base
 
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
-# import order determines tool order
+# NOTE: import order determines tool order
 # from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 from .rftool_relax.relax       import RFTool_Relax
@@ -282,9 +282,14 @@ class RFCore:
 
     @staticmethod
     def handle_postpixel(context):
-        if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
-        RFOperator.active_operator().draw_postpixel(context)
+        if RFOperator.active_operator():
+            RFOperator.active_operator().draw_postpixel(context)
+
+        selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
+        brush = selected_RFTool.rf_brush
+        if brush:
+            brush.draw_postpixel(context)
 
     # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod

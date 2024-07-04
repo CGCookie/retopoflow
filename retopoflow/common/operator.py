@@ -39,9 +39,15 @@ class RFRegisterClass:
     @classmethod
     def unregister(cls): pass
 
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFRegisterClass._subclasses.append(cls)
+        super().__init_subclass__(**kwargs)
+
     @staticmethod
     def get_all_classes():
-        return RFRegisterClass.__subclasses__()
+        return RFRegisterClass._subclasses
+        # return RFRegisterClass.__subclasses__()  # this only works if the subclass is still in scope!!!!!
     @staticmethod
     def register_all():
         for op in RFRegisterClass.get_all_classes():
@@ -53,18 +59,30 @@ class RFRegisterClass:
             op.unregister()
             bpy.utils.unregister_class(op)
 
+def chain_rf_keymaps(*classes):
+    return tuple( keymap for cls in classes for keymap in cls.rf_keymaps )
+
 class RFOperator(bpy.types.Operator):
     active_operators = []
     RFCore = None
     tickled = None
 
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFOperator._subclasses.append(cls)
+        super().__init_subclass__(**kwargs)
+
     @staticmethod
     def active_operator():
         return RFOperator.active_operators[-1] if RFOperator.active_operators else None
+    @classmethod
+    def is_active(cls):
+        return type(RFOperator.active_operator()) is cls
 
     @staticmethod
     def get_all_RFOperators():
-        return RFOperator.__subclasses__()
+        return RFOperator._subclasses
+        # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
     @staticmethod
     def register_all():
         for op in RFOperator.get_all_RFOperators():
@@ -87,6 +105,8 @@ class RFOperator(bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(lambda header, context: self.status(header, context))
         self.last_op = None
+        self.working_area = context.area
+        self.working_window = context.window
         self.init(context, event)
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
@@ -227,5 +247,18 @@ def modal_operator(name, label):
         fn.bl_idname = f'retopoflow.{idname}'
         return fn
     return get
+
+def wrap_property(cls, propname, proptype, **kwargs):
+    def getter(_): return getattr(cls, propname)
+    def setter(_, v): setattr(cls, propname, v)
+    match proptype:
+        case 'int':
+            return bpy.props.IntProperty(get=getter, set=setter, **kwargs)
+        case 'float':
+            return bpy.props.FloatProperty(get=getter, set=setter, **kwargs)
+        case 'enum':
+            return bpy.props.EnumProperty(get=getter, set=setter, **kwargs)
+        case _:
+            assert False, f'Unhandled property type {proptype} for {cls}.{propname}'
 
 

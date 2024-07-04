@@ -45,14 +45,13 @@ def point2D_to_point(context, xy, depth:float):
     r = ray_from_point(context, xy)
     return (r[0] + r[1] * depth) if r[0] and r[1] else None
 
-def size2D_to_size(context, size2D, depth3D):
+def size2D_to_size(context, depth3D):
     # note: scaling then unscaling helps with numerical instability when clip_start is small
-    scale = 1000.0
+    w, h = context.region.width * 0.5, context.region.height * 0.5
+    scale = min(w, h)
     # find center of screen
-    xy0 = Vector((context.region.width * 0.5, context.region.height * 0.5))
-    xy1 = xy0 + Vector((0, size2D * scale))
-    p3d0 = point2D_to_point(context, xy0, depth3D)
-    p3d1 = point2D_to_point(context, xy1, depth3D)
+    xy0, xy1 = Vector((w, h)), Vector((w + scale, h))
+    p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
     if not p3d0 or not p3d1: return None
     return (p3d0 - p3d1).length / scale
 

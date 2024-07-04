@@ -31,7 +31,7 @@ from typing import List
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4, Color
-from ...addon_common.common.maths import Point, Normal, Direction, Frame
+from ...addon_common.common.maths import Point, Normal, Direction, Frame, Point2D
 
 
 
@@ -103,6 +103,26 @@ class Drawing:
             print(f'Drawing.draw({draw_type}): Caught unexpected exception')
             print(e)
         del Drawing._draw
+
+    # draw circle in screen space
+    def draw2D_circle(context, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
+        area = context.area
+        radius = Drawing.scale(radius)
+        width = Drawing.scale(width)
+        stipple = [Drawing.scale(v) for v in stipple] if stipple else [1,0]
+        offset = Drawing.scale(offset)
+        shader_2D_circle.bind()
+        ubos_2D_circle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_circle.options.screensize = (area.width, area.height, 0.0, 0.0)
+        ubos_2D_circle.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_2D_circle.options.color0 = color0
+        ubos_2D_circle.options.color1 = color1
+        ubos_2D_circle.options.radius_width = (radius, width, 0.0, 0.0)
+        ubos_2D_circle.options.stipple_data = (*stipple, offset, 0.0)
+        ubos_2D_circle.update_shader()
+        batch_2D_circle.draw(shader_2D_circle)
+        gpu.shader.unbind()
 
     @staticmethod
     def draw3D_circle(context, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):

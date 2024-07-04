@@ -26,6 +26,11 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     bl_context_mode = 'EDIT_MESH'
     rf_brush = None
 
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFTool_Base._subclasses.append(cls)
+        super().__init_subclass__(**kwargs)
+
     ###########################################################
     # subclasses may overwrite these class methods
 
@@ -44,7 +49,8 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
 
     @staticmethod
     def get_all_RFTools():
-        return RFTool_Base.__subclasses__()
+        return RFTool_Base._subclasses
+        # return RFTool_Base.__subclasses__()  # this only works if the subclass is still in scope!!!!!
 
     @staticmethod
     def register_all():

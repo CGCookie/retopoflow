@@ -76,3 +76,5 @@ def point_to_vec3(v):
     return v.xyz / v.w if len(v) == 4 else v.xyz
 def vector_to_vec3(v):
     return v.xyz
+
+def lerp(f, m, M): return m + f * (M - m)

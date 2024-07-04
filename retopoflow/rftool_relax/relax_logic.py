@@ -51,29 +51,29 @@ class Relax_Logic:
         self._time = time.time()
         bpy.ops.ed.undo_push(message='Relax')
 
-    def update(self, context, event):
+    def update(self, context, event, brush):
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
 
-        bvh = BVHTree.FromBMesh(self.bm)
-        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], 0.2) }
-        nearest_bmverts = { bmv for i in nearest_bmface_inds for bmv in self.bm.faces[i].verts }
-
-        # bmops.deselect_all(self.bm)
-        # for bmelem in nearest_bmverts:
-        #     bmops.select(self.bm, bmelem)
-        # bmops.flush_selection(self.bm, self.em)
-
         # collect data for smoothing
-        radius = 10 # self.rfwidgets['brushstroke'].get_scaled_radius()
+        radius = brush.get_scaled_radius()
+        bvh = BVHTree.FromBMesh(self.bm)
+        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], radius) }
+        nearest_bmverts = { bmv for i in nearest_bmface_inds for bmv in self.bm.faces[i].verts }
+        if False:
+            # Debug: select all verts under brush
+            bmops.deselect_all(self.bm)
+            for bmelem in nearest_bmverts:
+                bmops.select(self.bm, bmelem)
+            bmops.flush_selection(self.bm, self.em)
         nearest = nearest_bmverts # self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
+        M = hit['object'].matrix_world
         for bmv in nearest:
-            d = 1.0
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_strength[bmv] = 1.0 # self.rfwidgets['brushstroke'].get_strength_dist(d) / radius
+            vert_strength[bmv] = brush.get_strength_Point(M @ bmv.co)
         # self.rfcontext.select(verts)
 
         if not verts or not edges: return
@@ -93,9 +93,9 @@ class Relax_Logic:
         opt_mult            = 1.5 # options['relax force multiplier']
 
         cur_time = time.time()
-        time_delta = cur_time - self._time
+        time_delta = min(cur_time - self._time, 0.1)
         self._time = cur_time
-        strength = (5.0 / opt_steps) * 1.0 * time_delta # self.rfwidgets['brushstroke'].strength * time_delta
+        strength = (5.0 / opt_steps) * brush.strength * time_delta
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
@@ -256,8 +256,9 @@ class Relax_Logic:
                 #     if p is not None:
                 #         co = p
 
-                bmv.co = nearest_point_valid_sources(context, co, world=False)
-                
+                co_world = self.matrix_world @ Vector((*co, 1.0))
+                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                bmv.co = self.matrix_world_inv @ co_world_snapped
                 # self.rfcontext.snap_vert(bmv)
             # self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')

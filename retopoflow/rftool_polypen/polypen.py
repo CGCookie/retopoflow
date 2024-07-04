@@ -37,7 +37,7 @@ from enum import Enum
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass
+from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
 from ..common.raycast import raycast_point_valid_sources
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
@@ -146,13 +146,19 @@ class RFOperator_PolyPen(RFOperator):
     ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
-    insert_mode: bpy.props.EnumProperty(
+    insert_mode: wrap_property(
+        PolyPen_Properties, 'insert_mode', 'enum',
         name='Insert Mode',
         description='Insertion mode for PolyPen',
         items=PolyPen_Properties.insert_modes,
-        get=PolyPen_Properties.get_insert_mode,
-        set=PolyPen_Properties.set_insert_mode,
     )
+    # insert_mode: bpy.props.EnumProperty(
+    #     name='Insert Mode',
+    #     description='Insertion mode for PolyPen',
+    #     items=PolyPen_Properties.insert_modes,
+    #     get=PolyPen_Properties.get_insert_mode,
+    #     set=PolyPen_Properties.set_insert_mode,
+    # )
     quad_stability: bpy.props.FloatProperty(
         name='Quad Stability',
         description='Stability of parallel edges',
@@ -200,11 +206,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 
-    bl_keymap = (
-        *[ keymap for keymap in RFOperator_PolyPen.rf_keymaps ],
-        *[ keymap for keymap in RFOperator_Translate.rf_keymaps ],
-        *[ keymap for keymap in PolyPen_Properties.rf_keymaps ],
-    )
+    bl_keymap = chain_rf_keymaps(RFOperator_PolyPen, RFOperator_Translate, PolyPen_Properties)
 
     def draw_settings(context, layout, tool):
         # layout.label(text="PolyPen")
