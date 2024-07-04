@@ -68,7 +68,7 @@ from ..rfoperators.transform import RFOperator_Translate
 from .relax_logic import Relax_Logic
 
 
-class RFBrush_Falloff:
+class RF_Relax_Brush:
     # brush settings
     radius   = 200
     falloff  = 1.5
@@ -90,7 +90,7 @@ class RFBrush_Falloff:
     _instance = None
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(RFBrush_Falloff, cls).__new__(cls)
+            cls._instance = super(RF_Relax_Brush, cls).__new__(cls)
         return cls._instance
 
     def __init__(self):
@@ -143,7 +143,7 @@ class RFBrush_Falloff:
         if context.area not in self.mouse_areas: return
         self.hit = False
         if not self.mouse: return
-        # print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+        # print(f'RF_Relax_Brush.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
         hit = raycast_valid_sources(context, self.mouse)
         # print(f'  {hit=}')
         if not hit: return
@@ -180,8 +180,8 @@ class RFBrush_Falloff:
     def draw_postview(self, context):
         if context.area not in self.mouse_areas: return
         if RFOperator_Relax_Brush.is_active(): return
-        # print(f'RFBrush_Falloff.draw_postview {random()}')
-        # print(f'RFBrush_Falloff.draw_postview {self.hit=}')
+        # print(f'RF_Relax_Brush.draw_postview {random()}')
+        # print(f'RF_Relax_Brush.draw_postview {self.hit=}')
         self._update(context)
         if not self.hit: return
 
@@ -248,7 +248,7 @@ class RFOperator_Relax_Brush(RFOperator):
             case _:
                 assert False, f'Unhandled {self.adjust=}'
 
-        self.brush = RFBrush_Falloff()
+        self.brush = RF_Relax_Brush()
         dist = self._var_to_dist_fn()
         self.prev_radius = self.brush.radius
         self._change_pre = dist
@@ -316,37 +316,48 @@ class RFOperator_Relax(RFOperator):
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
-        ('retopoflow.relax_brush_radius', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
-        ('retopoflow.relax_brush_falloff', {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
+        ('retopoflow.relax_brush_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
+        ('retopoflow.relax_brush_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
         ('retopoflow.relax_brush_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, None),
     ]
     rf_status = ['LMB: Relax']
 
     brush_radius: wrap_property(
-        RFBrush_Falloff, 'radius', 'int',
+        RF_Relax_Brush, 'radius', 'int',
         name='Radius',
         description='Radius of Brush',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
-        RFBrush_Falloff, 'falloff', 'float',
+        RF_Relax_Brush, 'falloff', 'float',
         name='Falloff',
         description='Falloff of Brush',
         min=0.00,
         max=100.00,
     )
     brush_strength: wrap_property(
-        RFBrush_Falloff, 'strength', 'float',
+        RF_Relax_Brush, 'strength', 'float',
         name='Strength',
         description='Strength of Brush',
         min=0.01,
         max=1.00,
     )
 
+    mask_boundary: bpy.props.EnumProperty(
+        name='Mask: Boundary',
+        description='Mask: Boundary',
+        items=[
+            ('EXCLUDE', 'Exclude', 'Relax vertices not along boundary', 0),
+            ('SLIDE',   'Slide',   'Relax vertices along boundary, but move them by sliding along boundary', 1),
+            ('INCLUDE', 'Include', 'Relax all vertices within brush, regardless of being along boundary', 2),
+        ],
+        default='INCLUDE',
+    )
+
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
-        self.logic = Relax_Logic(context, event)
+        self.logic = Relax_Logic(context, event, RFTool_Relax.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
 
@@ -356,7 +367,7 @@ class RFOperator_Relax(RFOperator):
 
     def update(self, context, event):
         # print('update')
-        self.logic.update(context, event, RFTool_Relax.rf_brush)
+        self.logic.update(context, event, RFTool_Relax.rf_brush, self)
         # self.logic.update(context, event, self.insert_mode)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
@@ -394,7 +405,7 @@ class RFTool_Relax(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.relax'
 
-    rf_brush = RFBrush_Falloff()
+    rf_brush = RF_Relax_Brush()
 
     bl_keymap = chain_rf_keymaps(RFOperator_Relax)
 
@@ -404,6 +415,17 @@ class RFTool_Relax(RFTool_Base):
         layout.prop(props, 'brush_radius')
         layout.prop(props, 'brush_falloff')
         layout.prop(props, 'brush_strength')
+
+        # TOOL_HEADER: 3d view > toolbar
+        # UI: 3d view > n-panel
+        # WINDOW: properties > tool
+        if context.region.type == 'TOOL_HEADER':
+            pass
+        elif context.region.type in {'UI', 'WINDOW'}:
+            layout.label(text="Masking Options")
+            layout.prop(props, 'mask_boundary', text="Boundary")
+        else:
+            print(f'RFTool_Relax.draw_settings: {context.region.type=}')
 
     @classmethod
     def activate(cls, context):

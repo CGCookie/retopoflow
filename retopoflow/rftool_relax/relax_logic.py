@@ -37,10 +37,11 @@ from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.maths import closest_point_segment
 
 
 class Relax_Logic:
-    def __init__(self, context, event):
+    def __init__(self, context, event, brush, relax):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.mouse = None
@@ -50,10 +51,31 @@ class Relax_Logic:
         self.bm.faces.ensure_lookup_table()
         self._time = time.time()
         bpy.ops.ed.undo_push(message='Relax')
+        self._boundary = []
+        if relax.mask_boundary == 'SLIDE':
+            self._boundary = [
+                (bme.verts[0].co, bme.verts[1].co)
+                for bme in self.bm.edges
+                if not bme.is_manifold
+            ]
 
-    def update(self, context, event, brush):
+    def update(self, context, event, brush, relax):
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
+
+        # gather options
+        opt_mask_boundary   = relax.mask_boundary # options['relax mask boundary']
+        # opt_mask_symmetry   = options['relax mask symmetry']
+        # opt_mask_occluded   = options['relax mask hidden']
+        # opt_mask_selected   = options['relax mask selected']
+        opt_steps           = 2 # options['relax steps']
+        opt_edge_length     = True # options['relax edge length']
+        opt_face_radius     = True # options['relax face radius']
+        opt_face_sides      = True # options['relax face sides']
+        opt_face_angles     = True # options['relax face angles']
+        opt_correct_flipped = True # options['relax correct flipped faces']
+        opt_straight_edges  = True # options['relax straight edges']
+        opt_mult            = 1.5 # options['relax force multiplier']
 
         # collect data for smoothing
         radius = brush.get_scaled_radius()
@@ -70,6 +92,7 @@ class Relax_Logic:
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         M = hit['object'].matrix_world
         for bmv in nearest:
+            if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
@@ -77,20 +100,6 @@ class Relax_Logic:
         # self.rfcontext.select(verts)
 
         if not verts or not edges: return
-
-        # gather options
-        # opt_mask_boundary   = options['relax mask boundary']
-        # opt_mask_symmetry   = options['relax mask symmetry']
-        # opt_mask_occluded   = options['relax mask hidden']
-        # opt_mask_selected   = options['relax mask selected']
-        opt_steps           = 2 # options['relax steps']
-        opt_edge_length     = True # options['relax edge length']
-        opt_face_radius     = True # options['relax face radius']
-        opt_face_sides      = True # options['relax face sides']
-        opt_face_angles     = True # options['relax face angles']
-        opt_correct_flipped = True # options['relax correct flipped faces']
-        opt_straight_edges  = True # options['relax straight edges']
-        opt_mult            = 1.5 # options['relax force multiplier']
 
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
@@ -247,14 +256,14 @@ class Relax_Logic:
                 #     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
                 #     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
 
-                # if opt_mask_boundary == 'slide' and bmv.is_on_boundary():
-                #     p, d = None, None
-                #     for (v0, v1) in self._boundary:
-                #         p_ = closest_point_segment(co, v0, v1)
-                #         d_ = (p_ - co).length
-                #         if p is None or d_ < d: p, d = p_, d_
-                #     if p is not None:
-                #         co = p
+                if opt_mask_boundary == 'SLIDE' and bmv.is_boundary:
+                    p, d = None, None
+                    for (v0, v1) in self._boundary:
+                        p_ = closest_point_segment(co, v0, v1)
+                        d_ = (p_ - co).length
+                        if p is None or d_ < d: p, d = p_, d_
+                    if p is not None:
+                        co = p
 
                 co_world = self.matrix_world @ Vector((*co, 1.0))
                 co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
