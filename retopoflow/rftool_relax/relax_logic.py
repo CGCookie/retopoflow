@@ -69,7 +69,7 @@ class Relax_Logic:
 
         # gather options
         opt_mask_boundary   = relax.mask_boundary
-        # opt_mask_symmetry   = options['relax mask symmetry']
+        opt_mask_symmetry   = relax.mask_symmetry
         opt_mask_occluded   = relax.mask_occluded
         opt_mask_selected   = relax.mask_selected
         opt_steps           = relax.algorithm_iterations
@@ -88,6 +88,9 @@ class Relax_Logic:
             if not hit: return False
             o = hit['ray_world'][0]
             return hit['distance'] < (o.xyz - point.xyz).length * factor
+        def is_bmvert_on_symmetry_plane(bmv):
+            # TODO: IMPLEMENT!
+            return False
 
         # collect data for smoothing
         radius = brush.get_scaled_radius()
@@ -104,6 +107,7 @@ class Relax_Logic:
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv in nearest:
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
             if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
             if opt_mask_selected == 'ONLY' and not bmv.select: continue
@@ -271,6 +275,7 @@ class Relax_Logic:
             for bmv in displace:
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv]) * mult
 
+                # TODO: IMPLEMENT!
                 # if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
                 #     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
                 #     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)

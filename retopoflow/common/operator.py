@@ -137,14 +137,20 @@ class RFOperator(bpy.types.Operator):
             try:
                 ret = self.update(context, event)
             except KeyboardInterrupt as e:
-                print(f'Caught KeyboardInterrupt Exception: {e}')
+                print(f'RFOperator.modal: Caught KeyboardInterrupt Exception in self.update: {e}')
                 ret = {'CANCELLED'}
             except Exception as e:
-                print(f'Unhandled Exception Caught: {e}')
+                print(f'RFOperator.modal: Unhandled Exception Caught in self.update: {e}')
                 Debugger.print_exception()
                 ret = {'CANCELLED'}
 
         if ret & {'FINISHED', 'CANCELLED'}:
+            try:
+                self.finish(context)
+            except Exception as e:
+                print(f'RFOperator.modal: Unhandled Exception Caught in self.finish: {e}')
+                Debugger.print_exception()
+                ret = {'CANCELLED'}
             if RFOperator.active_operator() != self:
                 print(f'RFOperator: currently finishing operator is not top??')
                 print(self)
@@ -195,6 +201,7 @@ class RFOperator(bpy.types.Operator):
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}
+    def finish(self, context): pass
     def draw_preview(self, context): pass
     def draw_postview(self, context): pass
     def draw_postpixel(self, context): pass

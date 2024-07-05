@@ -408,7 +408,7 @@ class RFOperator_Relax(RFOperator):
 
     mask_boundary: bpy.props.EnumProperty(
         name='Mask: Boundary',
-        description='Mask: Boundary',
+        description='How to handle boundary geometry',
         items=[
             ('EXCLUDE', 'Exclude', 'Relax vertices not along boundary', 0),
             ('SLIDE',   'Slide',   'Relax vertices along boundary, but move them by sliding along boundary', 1),
@@ -416,9 +416,19 @@ class RFOperator_Relax(RFOperator):
         ],
         default='INCLUDE',
     )
+    mask_symmetry: bpy.props.EnumProperty(
+        name='Mask: Symmetry',
+        description='How to handle geometry near symmetry plane',
+        items=[
+            ('EXCLUDE', 'Exclude', 'Relax vertices not along symmetry plane', 0),
+            ('SLIDE',   'Slide',   'Relax vertices along symmetry plane, but move them by sliding along symmetry plane', 1),
+            ('INCLUDE', 'Include', 'Relax all vertices within brush, regardless of being along symmetry plane', 2),
+        ],
+        default='SLIDE',
+    )
     mask_occluded: bpy.props.EnumProperty(
         name='Mask: Occluded',
-        description='Mask: Occluded',
+        description='How to handle occluded geometry',
         items=[
             ('EXCLUDE', 'Exclude', 'Relax vertices not occluded by other geometry', 0),
             ('INCLUDE', 'Include', 'Relax all vertices within brush, regardless of being occluded', 1),
@@ -427,7 +437,7 @@ class RFOperator_Relax(RFOperator):
     )
     mask_selected: bpy.props.EnumProperty(
         name='Mask: Selected',
-        description='Mask: Selected',
+        description='How to handle (un)selected geometry',
         items=[
             ('EXCLUDE', 'Exclude', 'Relax only unselected vertices', 0),
             ('ONLY',    'Only',    'Relax only selected vertices', 1),
@@ -447,29 +457,27 @@ class RFOperator_Relax(RFOperator):
         pass
 
     def update(self, context, event):
-        # print('update')
         self.logic.update(context, event, RFTool_Relax.rf_brush, self)
         # self.logic.update(context, event, self.insert_mode)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
-            self.timer.stop()
             return {'FINISHED'}
 
-        if event.type == 'Z' and event.ctrl:
-            # hack to prevent crashing blender when undoing while still running modal
-            # TODO: look at keymap for undo!
-            self.timer.stop()
+        if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
+            # Should this undo or just stop?
             return {'CANCELLED'}
-
-        # if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-        #     # self.logic.commit(context, event)
-        #     return {'RUNNING_MODAL'}
+        if event.type == 'ESC' and event.value == 'PRESS':
+            # Should this undo or just stop?
+            return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
-        return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
+        return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
+
+    def finish(self, context):
+        self.timer.stop()
 
     def draw_postpixel(self, context):
         self.logic.draw(context)
@@ -515,6 +523,7 @@ class RFTool_Relax(RFTool_Base):
 
             layout.label(text="Masking Options:")
             layout.prop(props, 'mask_boundary', text="Boundary")
+            # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
             layout.prop(props, 'mask_occluded', text="Occluded")
             layout.prop(props, 'mask_selected', text="Selected")
 
