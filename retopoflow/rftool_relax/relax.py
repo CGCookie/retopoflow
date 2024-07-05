@@ -76,6 +76,7 @@ class RF_Relax_Brush:
 
     # brush visualization settings
     fill_color      = Color.from_ints(0, 135, 255, 255)
+    min_color       = Color((1,1,1,0.5))
     outer_color     = Color((1,1,1,1))
     inner_color     = Color((1,1,1,0.5))
     below_alpha     = Color((1,1,1,0.25))
@@ -118,7 +119,7 @@ class RF_Relax_Brush:
 
         mouse = mouse_from_event(event)
 
-        if RFOperator_Relax.is_active() or RFOperator_Relax_Brush.is_active():
+        if RFOperator_Relax.is_active() or RFOperator_RelaxBrush_Adjust.is_active():
             # artist is actively relaxing or adjusting brush properties, so always consider us inside if we're in the same area
             active_op = RFOperator.active_operator()
             mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
@@ -166,20 +167,23 @@ class RF_Relax_Brush:
 
     def draw_postpixel(self, context):
         if context.area not in self.mouse_areas: return
-        if not RFOperator_Relax_Brush.is_active(): return
+        if not RFOperator_RelaxBrush_Adjust.is_active(): return
+        center2D = self.center2D
         fillscale = Color((1, 1, 1, lerp(self.strength, self.brush_min_alpha, self.brush_max_alpha)))
         r = self.radius
         co, ci, cf = self.outer_color, self.inner_color, self.fill_color * fillscale
+        cm = self.min_color
         ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
         fs = (1-ff) * self.radius
         gpustate.blend('ALPHA')
-        Drawing.draw2D_circle(context, self._change_center, r-fs/2, cf, width=fs)
-        Drawing.draw2D_circle(context, self._change_center, r,      co, width=1)
-        Drawing.draw2D_circle(context, self._change_center, r*ff,   ci, width=1)
+        Drawing.draw2D_circle(context, center2D, r-fs/2, cf, width=fs)
+        Drawing.draw2D_circle(context, center2D, r,      co, width=1)
+        Drawing.draw2D_circle(context, center2D, r*ff,   ci, width=1)
+        Drawing.draw2D_circle(context, center2D, 2,      cm, width=1)
 
     def draw_postview(self, context):
         if context.area not in self.mouse_areas: return
-        if RFOperator_Relax_Brush.is_active(): return
+        if RFOperator_RelaxBrush_Adjust.is_active(): return
         # print(f'RF_Relax_Brush.draw_postview {random()}')
         # print(f'RF_Relax_Brush.draw_postview {self.hit=}')
         self._update(context)
@@ -213,7 +217,8 @@ class RF_Relax_Brush:
         gpustate.depth_test('LESS_EQUAL')
         gpustate.depth_mask(True)
 
-class RFOperator_Relax_Brush(RFOperator):
+
+class RFOperator_RelaxBrush_Adjust(RFOperator):
     bl_idname = 'retopoflow.relax_brush'
     bl_label = 'Relax Brush'
     bl_description = 'Adjust properties of relax brush'
@@ -221,18 +226,43 @@ class RFOperator_Relax_Brush(RFOperator):
     bl_space_type = 'TOOLS'
     bl_options = set()
 
+    rf_keymaps = [
+        ('retopoflow.relax_brush_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
+        ('retopoflow.relax_brush_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
+        ('retopoflow.relax_brush_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, None),
+    ]
     rf_status = ['LMB: Commit', 'RMB: Cancel']
 
     adjust: bpy.props.EnumProperty(
         name='Relax Brush Property',
         description='Property of Relax Brush to adjust',
         items=[
-            ('RADIUS',   'Radius',   'Adjust Relax Brush Radius',   1),
-            ('STRENGTH', 'Strength', 'Adjust Relax Brush Strength', 2),
-            ('FALLOFF',  'Falloff',  'Adjust Relax Brush Falloff',  3),
+            ('NONE',     'None',     'Adjust Nothing',              -1), # prevents default
+            ('RADIUS',   'Radius',   'Adjust Relax Brush Radius',    0),
+            ('STRENGTH', 'Strength', 'Adjust Relax Brush Strength',  1),
+            ('FALLOFF',  'Falloff',  'Adjust Relax Brush Falloff',   2),
         ],
-        default='RADIUS',
+        default='NONE',
     )
+
+    #################################################################################
+    # these are hacks to launch relax_brush operator with certain set properties
+    @staticmethod
+    @execute_operator('relax_brush_radius', 'Adjust Relax Brush Radius')
+    def relax_brush_radius(context):
+        bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='RADIUS')
+    @staticmethod
+    @execute_operator('relax_brush_strength', 'Adjust Relax Brush Strength')
+    def relax_brush_strength(context):
+        bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='STRENGTH')
+    @staticmethod
+    @execute_operator('relax_brush_falloff', 'Adjust Relax Brush Falloff')
+    def relax_brush_falloff(context):
+        bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='FALLOFF')
+    #################################################################################
+
+    def can_init(self, context, event):
+        if self.adjust == 'NONE': return False
 
     def init(self, context, event):
         match self.adjust:
@@ -250,57 +280,47 @@ class RFOperator_Relax_Brush(RFOperator):
 
         self.brush = RF_Relax_Brush()
         dist = self._var_to_dist_fn()
-        self.prev_radius = self.brush.radius
+        self.prev_radius = RF_Relax_Brush.radius
         self._change_pre = dist
         mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-        self.brush._change_center = mouse - Vec2D((dist, 0))
+        RF_Relax_Brush.center2D = mouse - Vec2D((dist, 0))
         context.area.tag_redraw()
 
     def dist_to_radius(self, d):
-        type(self.brush).radius = max(1, int(d))
+        RF_Relax_Brush.radius = max(5, int(d))
     def radius_to_dist(self):
-        return self.brush.radius
+        return RF_Relax_Brush.radius
     def dist_to_strength(self, d):
-        type(self.brush).strength = 1.0 - max(0.01, min(1.0, d / self.brush.radius))
+        RF_Relax_Brush.strength = 1.0 - max(0.01, min(1.0, d / RF_Relax_Brush.radius))
     def strength_to_dist(self):
-        return self.brush.radius * (1.0 - self.brush.strength)
+        return RF_Relax_Brush.radius * (1.0 - RF_Relax_Brush.strength)
     def dist_to_falloff(self, d):
-        type(self.brush).falloff = math.log(0.5) / math.log(max(0.01, min(0.99, d / self.brush.radius)))
+        RF_Relax_Brush.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, d / RF_Relax_Brush.radius)))
     def falloff_to_dist(self):
-        return self.brush.radius * math.pow(0.5, 1.0 / max(self.brush.falloff, 0.0001))
+        return RF_Relax_Brush.radius * math.pow(0.5, 1.0 / max(RF_Relax_Brush.falloff, 0.0001))
 
     def update(self, context, event):
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
             return {'FINISHED'}
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
             self._dist_to_var_fn(self._change_pre)
-            # type(self.brush).radius = self.prev_radius
+            # RF_Relax_Brush.radius = self.prev_radius
             return {'CANCELLED'}
         if event.type == 'ESC' and event.value == 'PRESS':
             self._dist_to_var_fn(self._change_pre)
-            # type(self.brush).radius = self.prev_radius
+            # RF_Relax_Brush.radius = self.prev_radius
             return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-            dist = (self.brush._change_center - mouse).length
+            dist = (RF_Relax_Brush.center2D - mouse).length
             self._dist_to_var_fn(dist)
-            # type(self.brush).radius = int(dist)
+            # RF_Relax_Brush.radius = int(dist)
             context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
-        return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
+        return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
-
-@execute_operator('relax_brush_radius', 'Adjust Relax Brush Radius')
-def relax_brush_radius(context):
-    bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='RADIUS')
-@execute_operator('relax_brush_strength', 'Adjust Relax Brush Strength')
-def relax_brush_strength(context):
-    bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='STRENGTH')
-@execute_operator('relax_brush_falloff', 'Adjust Relax Brush Falloff')
-def relax_brush_falloff(context):
-    bpy.ops.retopoflow.relax_brush('INVOKE_DEFAULT', adjust='FALLOFF')
 
 
 
@@ -316,9 +336,6 @@ class RFOperator_Relax(RFOperator):
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
-        ('retopoflow.relax_brush_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
-        ('retopoflow.relax_brush_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
-        ('retopoflow.relax_brush_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, None),
     ]
     rf_status = ['LMB: Relax']
 
@@ -344,6 +361,51 @@ class RFOperator_Relax(RFOperator):
         max=1.00,
     )
 
+    algorithm_iterations: bpy.props.IntProperty(
+        name='Algorithm: Iterations',
+        description='Number of iterations per frame',
+        min=1,
+        max=10,
+        default=2,
+    )
+    algorithm_strength: bpy.props.FloatProperty(
+        name='Algorithm: Strength',
+        description='Strength multiplier per iteration',
+        min=0.1,
+        max=10.0,
+        default=1.5,
+    )
+    algorithm_average_edge_lengths: bpy.props.BoolProperty(
+        name='Algorithm: Average Edge Lengths',
+        description='Squash / stretch each edge toward the average edge length',
+        default=True,
+    )
+    algorithm_straighten_edges: bpy.props.BoolProperty(
+        name='Algorithm: Straighten Edges',
+        description='Try to straighten edges',
+        default=True,
+    )
+    algorithm_average_face_radius: bpy.props.BoolProperty(
+        name='Move face vertices so their distance to face center is equalized',
+        description='Algorithm: Average face radius',
+        default=True,
+    )
+    algorithm_average_face_lengths: bpy.props.BoolProperty(
+        name='Algorithm: Average Face-Edge Lengths',
+        description='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
+        default=False,
+    )
+    algorithm_average_face_angles: bpy.props.BoolProperty(
+        name='Algorithm: Average Face Angles',
+        description='Move face vertices so they are equally spread around face center',
+        default=True,
+    )
+    algorithm_correct_flipped_faces: bpy.props.BoolProperty(
+        name='Algorithm: Correct Flipped Faces',
+        description='Try to move vertices so faces are not flipped',
+        default=False,
+    )
+
     mask_boundary: bpy.props.EnumProperty(
         name='Mask: Boundary',
         description='Mask: Boundary',
@@ -353,6 +415,25 @@ class RFOperator_Relax(RFOperator):
             ('INCLUDE', 'Include', 'Relax all vertices within brush, regardless of being along boundary', 2),
         ],
         default='INCLUDE',
+    )
+    mask_occluded: bpy.props.EnumProperty(
+        name='Mask: Occluded',
+        description='Mask: Occluded',
+        items=[
+            ('EXCLUDE', 'Exclude', 'Relax vertices not occluded by other geometry', 0),
+            ('INCLUDE', 'Include', 'Relax all vertices within brush, regardless of being occluded', 1),
+        ],
+        default='EXCLUDE',
+    )
+    mask_selected: bpy.props.EnumProperty(
+        name='Mask: Selected',
+        description='Mask: Selected',
+        items=[
+            ('EXCLUDE', 'Exclude', 'Relax only unselected vertices', 0),
+            ('ONLY',    'Only',    'Relax only selected vertices', 1),
+            ('ALL',     'All',     'Relax all vertices within brush, regardless of selection', 2),
+        ],
+        default='ALL',
     )
 
     def init(self, context, event):
@@ -407,7 +488,7 @@ class RFTool_Relax(RFTool_Base):
 
     rf_brush = RF_Relax_Brush()
 
-    bl_keymap = chain_rf_keymaps(RFOperator_Relax)
+    bl_keymap = chain_rf_keymaps(RFOperator_Relax, RFOperator_RelaxBrush_Adjust)
 
     def draw_settings(context, layout, tool):
         layout.label(text="Brush:")
@@ -422,8 +503,21 @@ class RFTool_Relax(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             pass
         elif context.region.type in {'UI', 'WINDOW'}:
-            layout.label(text="Masking Options")
+            layout.label(text="Algorithm Options:")
+            layout.prop(props, 'algorithm_iterations',            text="Iterations")
+            layout.prop(props, 'algorithm_strength',              text="Strength")
+            layout.prop(props, 'algorithm_average_edge_lengths',  text='Average Edge Lengths')
+            layout.prop(props, 'algorithm_straighten_edges',      text='Straighten Edges')
+            layout.prop(props, 'algorithm_average_face_radius',   text='Average Face Radius')
+            layout.prop(props, 'algorithm_average_face_lengths',  text='Average Face Lengths')
+            layout.prop(props, 'algorithm_average_face_angles',   text='Average Face Angles')
+            layout.prop(props, 'algorithm_correct_flipped_faces', text='Correct Flipped Faces')
+
+            layout.label(text="Masking Options:")
             layout.prop(props, 'mask_boundary', text="Boundary")
+            layout.prop(props, 'mask_occluded', text="Occluded")
+            layout.prop(props, 'mask_selected', text="Selected")
+
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')
 

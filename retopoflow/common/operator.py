@@ -101,6 +101,7 @@ class RFOperator(bpy.types.Operator):
         return True
 
     def invoke(self, context, event):
+        if self.can_init(context, event) == False: return {'CANCELLED'}
         RFOperator.active_operators.append(self)
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(lambda header, context: self.status(header, context))
@@ -190,6 +191,7 @@ class RFOperator(bpy.types.Operator):
     def register(cls): pass
     @classmethod
     def unregister(cls): pass
+    def can_init(self, context, event): return True
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}

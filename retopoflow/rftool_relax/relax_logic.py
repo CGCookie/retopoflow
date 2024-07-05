@@ -37,7 +37,7 @@ from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment
+from ...addon_common.common.maths import closest_point_segment, Point
 
 
 class Relax_Logic:
@@ -60,22 +60,34 @@ class Relax_Logic:
             ]
 
     def update(self, context, event, brush, relax):
+        if event.type != 'TIMER': return
+
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
 
+        M = hit['object'].matrix_world
+
         # gather options
-        opt_mask_boundary   = relax.mask_boundary # options['relax mask boundary']
+        opt_mask_boundary   = relax.mask_boundary
         # opt_mask_symmetry   = options['relax mask symmetry']
-        # opt_mask_occluded   = options['relax mask hidden']
-        # opt_mask_selected   = options['relax mask selected']
-        opt_steps           = 2 # options['relax steps']
-        opt_edge_length     = True # options['relax edge length']
-        opt_face_radius     = True # options['relax face radius']
-        opt_face_sides      = True # options['relax face sides']
-        opt_face_angles     = True # options['relax face angles']
-        opt_correct_flipped = True # options['relax correct flipped faces']
-        opt_straight_edges  = True # options['relax straight edges']
-        opt_mult            = 1.5 # options['relax force multiplier']
+        opt_mask_occluded   = relax.mask_occluded
+        opt_mask_selected   = relax.mask_selected
+        opt_steps           = relax.algorithm_iterations
+        opt_mult            = relax.algorithm_strength
+        opt_edge_length     = relax.algorithm_average_edge_lengths
+        opt_straight_edges  = relax.algorithm_straighten_edges
+        opt_face_radius     = relax.algorithm_average_face_radius
+        opt_face_sides      = relax.algorithm_average_face_lengths
+        opt_face_angles     = relax.algorithm_average_face_angles
+        opt_correct_flipped = relax.algorithm_correct_flipped_faces
+
+        def is_bmvert_hidden(bmv, *, factor=0.999):
+            nonlocal M, context
+            point = M @ bmv.co
+            hit = raycast_valid_sources(context, point)
+            if not hit: return False
+            o = hit['ray_world'][0]
+            return hit['distance'] < (o.xyz - point.xyz).length * factor
 
         # collect data for smoothing
         radius = brush.get_scaled_radius()
@@ -90,9 +102,11 @@ class Relax_Logic:
             bmops.flush_selection(self.bm, self.em)
         nearest = nearest_bmverts # self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
-        M = hit['object'].matrix_world
         for bmv in nearest:
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
+            if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
+            if opt_mask_selected == 'ONLY' and not bmv.select: continue
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
@@ -128,6 +142,9 @@ class Relax_Logic:
             # should take into account xform??
             v0, v1 = bme.verts
             return (v1.co - v0.co)
+        def bme_center(bme):
+            v0, v1 = bme.verts
+            return Point.average([v0.co, v1.co])
         def bmf_compute_normal(bmf):
             ''' computes normal based on verts '''
             # TODO: should use loop rather than verts?
@@ -141,8 +158,10 @@ class Relax_Logic:
                 an = an + v0.cross(v1)
             return an.normalized()
         def bmf_is_flipped(bmf):
-            fn = bmf_computer_normal(bmf)
+            fn = bmf_compute_normal(bmf)
             return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
+        def bmf_center(bmf):
+            return Point.average(bmv.co for bmv in bmf.verts)
 
         def relax_3d():
             reset_forces()
@@ -161,78 +180,78 @@ class Relax_Logic:
                     add_force(bmv0, -f)
                     add_force(bmv1, +f)
 
-            # # push verts if neighboring faces seem flipped (still WiP!)
-            # if opt_correct_flipped:
-            #     bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
-            #     for bmf in bmf_flipped:
-            #         # find a non-flipped neighboring face
-            #         for bme in bmf.edges:
-            #             bmfs = set(bme.link_faces)
-            #             bmfs.discard(bmf)
-            #             if len(bmfs) != 1: continue
-            #             bmf_other = next(iter(bmfs))
-            #             if bmf_other not in chk_faces: continue
-            #             if bmf_other in bmf_flipped: continue
-            #             # pull edge toward bmf_other center
-            #             bmf_other_center = bmf_other.center()
-            #             bme_center = bme.calc_center()
-            #             vec = bmf_other_center - bme_center
-            #             bmv0,bmv1 = bme.verts
-            #             add_force(bmv0, vec * strength * 5)
-            #             add_force(bmv1, vec * strength * 5)
+            # push verts if neighboring faces seem flipped (still WiP!)
+            if opt_correct_flipped:
+                bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
+                for bmf in bmf_flipped:
+                    # find a non-flipped neighboring face
+                    for bme in bmf.edges:
+                        bmfs = set(bme.link_faces)
+                        bmfs.discard(bmf)
+                        if len(bmfs) != 1: continue
+                        bmf_other = next(iter(bmfs))
+                        if bmf_other not in chk_faces: continue
+                        if bmf_other in bmf_flipped: continue
+                        # pull edge toward bmf_other center
+                        bmf_c = bmf_center(bmf_other)
+                        bme_c = bme_center(bme)
+                        vec = bmf_c - bme_c
+                        bmv0,bmv1 = bme.verts
+                        add_force(bmv0, vec * strength * 5)
+                        add_force(bmv1, vec * strength * 5)
 
-            # # push verts to straighten edges (still WiP!)
-            # if opt_straight_edges:
-            #     for bmv in chk_verts:
-            #         if bmv.is_boundary: continue
-            #         bmes = bmv.link_edges
-            #         #if len(bmes) != 4: continue
-            #         center = Point.average(bme.other_vert(bmv).co for bme in bmes)
-            #         add_force(bmv, (center - bmv.co) * 0.1)
+            # push verts to straighten edges (still WiP!)
+            if opt_straight_edges:
+                for bmv in chk_verts:
+                    if bmv.is_boundary: continue
+                    bmes = bmv.link_edges
+                    #if len(bmes) != 4: continue
+                    center = Point.average(bme.other_vert(bmv).co for bme in bmes)
+                    add_force(bmv, (center - bmv.co) * 0.1)
 
-            # # attempt to "square" up the faces
-            # for bmf in chk_faces:
-            #     if bmf not in faces: continue
-            #     bmvs = bmf.verts
-            #     cnt = len(bmvs)
-            #     ctr = Point.average(bmv.co for bmv in bmvs)
-            #     rels = [bmv.co - ctr for bmv in bmvs]
+            # attempt to "square" up the faces
+            for bmf in chk_faces:
+                if bmf not in faces: continue
+                bmvs = bmf.verts
+                cnt = len(bmvs)
+                ctr = Point.average(bmv.co for bmv in bmvs)
+                rels = [bmv.co - ctr for bmv in bmvs]
 
-            #     # push verts toward average dist from verts to face center
-            #     if opt_face_radius:
-            #         avg_rel_len = sum(rel.length for rel in rels) / cnt
-            #         for rel, bmv in zip(rels, bmvs):
-            #             rel_len = rel.length
-            #             f = rel * ((avg_rel_len - rel_len) * strength * 2) #/ rel_len
-            #             add_force(bmv, f)
+                # push verts toward average dist from verts to face center
+                if opt_face_radius:
+                    avg_rel_len = sum(rel.length for rel in rels) / cnt
+                    for rel, bmv in zip(rels, bmvs):
+                        rel_len = rel.length
+                        f = rel * ((avg_rel_len - rel_len) * strength * 2) #/ rel_len
+                        add_force(bmv, f)
 
-            #     # push verts toward equal edge lengths
-            #     if opt_face_sides:
-            #         avg_face_edge_len = sum(bme.length for bme in bmf.edges) / cnt
-            #         for bme in bmf.edges:
-            #             bmv0, bmv1 = bme.verts
-            #             vec = bme.vector()
-            #             edge_len = vec.length
-            #             f = vec * ((avg_face_edge_len - edge_len) * strength) / edge_len
-            #             add_force(bmv0, f * -0.5)
-            #             add_force(bmv1, f * 0.5)
+                # push verts toward equal edge lengths
+                if opt_face_sides:
+                    avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / cnt
+                    for bme in bmf.edges:
+                        bmv0, bmv1 = bme.verts
+                        vec = bme_vector(bme)
+                        edge_len = vec.length
+                        f = vec * ((avg_face_edge_len - edge_len) * strength) / edge_len
+                        add_force(bmv0, f * -0.5)
+                        add_force(bmv1, f * 0.5)
 
-            #     # push verts toward equal spread
-            #     if opt_face_angles:
-            #         avg_angle = 2.0 * math.pi / cnt
-            #         for i0 in range(cnt):
-            #             i1 = (i0 + 1) % cnt
-            #             rel0,bmv0 = rels[i0],bmvs[i0]
-            #             rel1,bmv1 = rels[i1],bmvs[i1]
-            #             if rel0.length < 0.00001 or rel1.length < 0.00001: continue
-            #             vec = bmv1.co - bmv0.co
-            #             vec_len = vec.length
-            #             fvec0 = rel0.cross(vec).cross(rel0).normalize()
-            #             fvec1 = rel1.cross(rel1.cross(vec)).normalize()
-            #             angle = rel0.angle(rel1)
-            #             f_mag = (0.05 * (avg_angle - angle) * strength) / cnt #/ vec_len
-            #             add_force(bmv0, fvec0 * -f_mag)
-            #             add_force(bmv1, fvec1 * -f_mag)
+                # push verts toward equal spread
+                if opt_face_angles:
+                    avg_angle = 2.0 * math.pi / cnt
+                    for i0 in range(cnt):
+                        i1 = (i0 + 1) % cnt
+                        rel0,bmv0 = rels[i0],bmvs[i0]
+                        rel1,bmv1 = rels[i1],bmvs[i1]
+                        if rel0.length < 0.00001 or rel1.length < 0.00001: continue
+                        vec = bmv1.co - bmv0.co
+                        vec_len = vec.length
+                        fvec0 = rel0.cross(vec).cross(rel0).normalized()
+                        fvec1 = rel1.cross(rel1.cross(vec)).normalized()
+                        angle = rel0.angle(rel1)
+                        f_mag = (0.05 * (avg_angle - angle) * strength) / cnt #/ vec_len
+                        add_force(bmv0, fvec0 * -f_mag)
+                        add_force(bmv1, fvec1 * -f_mag)
 
         # perform smoothing
         for step in range(opt_steps):

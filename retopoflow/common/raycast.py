@@ -24,9 +24,12 @@ import bpy
 import time
 
 from mathutils import Vector
-from bpy_extras.view3d_utils import region_2d_to_origin_3d
-from bpy_extras.view3d_utils import region_2d_to_vector_3d
-from bpy_extras.view3d_utils import region_2d_to_location_3d
+from bpy_extras.view3d_utils import (
+    region_2d_to_origin_3d,
+    region_2d_to_vector_3d,
+    region_2d_to_location_3d,
+    location_3d_to_region_2d,
+)
 
 from .maths import point_to_vec3, vector_to_vec3
 
@@ -65,6 +68,9 @@ def ray_from_mouse(context, event):
 
 def ray_from_point(context, point):
     if not context.region_data: return (None, None)
+    if len(point) > 2:
+        point = location_3d_to_region_2d(context.region, context.region_data, point)
+        if not point: return (None, None)
     return (
         Vector((*region_2d_to_origin_3d(context.region, context.region_data, point), 1.0)),
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, point).normalized(), 0.0)),
@@ -132,6 +138,7 @@ def raycast_valid_sources(context, point):
             'co_local': co_active, 'no_local': no_active,  # co and normal wrt to active object
             'co_hit':   co_hit,    'no_hit':   no_hit,     # co and normal wrt to hit object
             'co_world': co_world,  'no_world': no_world,   # co and normal in world space
+            'ray_world': ray_world,
         }
     return best
 
