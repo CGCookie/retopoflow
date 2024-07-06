@@ -34,7 +34,7 @@ from .rftool_base import RFTool_Base
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 # NOTE: import order determines tool order
-# from .rftool_contours.contours import RFTool_Contours
+from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 from .rftool_relax.relax       import RFTool_Relax
 

@@ -37,6 +37,7 @@ from typing import List
 from enum import Enum
 
 from ..rftool_base import RFTool_Base
+from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
 from ..common.drawing import (
     Drawing,
@@ -68,7 +69,7 @@ from ..rfoperators.transform import RFOperator_Translate
 from .relax_logic import Relax_Logic
 
 
-class RF_Relax_Brush:
+class RFBrush_Relax(RFBrush_Base):
     # brush settings
     radius   = 200
     falloff  = 1.5
@@ -88,13 +89,7 @@ class RF_Relax_Brush:
     # hack to know which areas the mouse is in
     mouse_areas = set()
 
-    _instance = None
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(RF_Relax_Brush, cls).__new__(cls)
-        return cls._instance
-
-    def __init__(self):
+    def init(self):
         self.mouse = None
         self.hit = False
         self.hit_p = None
@@ -144,7 +139,7 @@ class RF_Relax_Brush:
         if context.area not in self.mouse_areas: return
         self.hit = False
         if not self.mouse: return
-        # print(f'RF_Relax_Brush.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+        # print(f'RFBrush_Relax.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
         hit = raycast_valid_sources(context, self.mouse)
         # print(f'  {hit=}')
         if not hit: return
@@ -184,8 +179,8 @@ class RF_Relax_Brush:
     def draw_postview(self, context):
         if context.area not in self.mouse_areas: return
         if RFOperator_RelaxBrush_Adjust.is_active(): return
-        # print(f'RF_Relax_Brush.draw_postview {random()}')
-        # print(f'RF_Relax_Brush.draw_postview {self.hit=}')
+        # print(f'RFBrush_Relax.draw_postview {random()}')
+        # print(f'RFBrush_Relax.draw_postview {self.hit=}')
         self._update(context)
         if not self.hit: return
 
@@ -278,44 +273,44 @@ class RFOperator_RelaxBrush_Adjust(RFOperator):
             case _:
                 assert False, f'Unhandled {self.adjust=}'
 
-        self.brush = RF_Relax_Brush()
+        # self.brush = RFBrush_Relax()
         dist = self._var_to_dist_fn()
-        self.prev_radius = RF_Relax_Brush.radius
+        self.prev_radius = RFBrush_Relax.radius
         self._change_pre = dist
         mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-        RF_Relax_Brush.center2D = mouse - Vec2D((dist, 0))
+        RFBrush_Relax.center2D = mouse - Vec2D((dist, 0))
         context.area.tag_redraw()
 
     def dist_to_radius(self, d):
-        RF_Relax_Brush.radius = max(5, int(d))
+        RFBrush_Relax.radius = max(5, int(d))
     def radius_to_dist(self):
-        return RF_Relax_Brush.radius
+        return RFBrush_Relax.radius
     def dist_to_strength(self, d):
-        RF_Relax_Brush.strength = 1.0 - max(0.01, min(1.0, d / RF_Relax_Brush.radius))
+        RFBrush_Relax.strength = 1.0 - max(0.01, min(1.0, d / RFBrush_Relax.radius))
     def strength_to_dist(self):
-        return RF_Relax_Brush.radius * (1.0 - RF_Relax_Brush.strength)
+        return RFBrush_Relax.radius * (1.0 - RFBrush_Relax.strength)
     def dist_to_falloff(self, d):
-        RF_Relax_Brush.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, d / RF_Relax_Brush.radius)))
+        RFBrush_Relax.falloff = math.log(0.5) / math.log(max(0.01, min(0.99, d / RFBrush_Relax.radius)))
     def falloff_to_dist(self):
-        return RF_Relax_Brush.radius * math.pow(0.5, 1.0 / max(RF_Relax_Brush.falloff, 0.0001))
+        return RFBrush_Relax.radius * math.pow(0.5, 1.0 / max(RFBrush_Relax.falloff, 0.0001))
 
     def update(self, context, event):
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
             return {'FINISHED'}
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
             self._dist_to_var_fn(self._change_pre)
-            # RF_Relax_Brush.radius = self.prev_radius
+            # RFBrush_Relax.radius = self.prev_radius
             return {'CANCELLED'}
         if event.type == 'ESC' and event.value == 'PRESS':
             self._dist_to_var_fn(self._change_pre)
-            # RF_Relax_Brush.radius = self.prev_radius
+            # RFBrush_Relax.radius = self.prev_radius
             return {'CANCELLED'}
 
-        if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+        if event.type == 'MOUSEMOVE':
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-            dist = (RF_Relax_Brush.center2D - mouse).length
+            dist = (RFBrush_Relax.center2D - mouse).length
             self._dist_to_var_fn(dist)
-            # RF_Relax_Brush.radius = int(dist)
+            # RFBrush_Relax.radius = int(dist)
             context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
@@ -340,21 +335,21 @@ class RFOperator_Relax(RFOperator):
     rf_status = ['LMB: Relax']
 
     brush_radius: wrap_property(
-        RF_Relax_Brush, 'radius', 'int',
+        RFBrush_Relax, 'radius', 'int',
         name='Radius',
         description='Radius of Brush',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
-        RF_Relax_Brush, 'falloff', 'float',
+        RFBrush_Relax, 'falloff', 'float',
         name='Falloff',
         description='Falloff of Brush',
         min=0.00,
         max=100.00,
     )
     brush_strength: wrap_property(
-        RF_Relax_Brush, 'strength', 'float',
+        RFBrush_Relax, 'strength', 'float',
         name='Strength',
         description='Strength of Brush',
         min=0.01,
@@ -494,7 +489,7 @@ class RFTool_Relax(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.relax'
 
-    rf_brush = RF_Relax_Brush()
+    rf_brush = RFBrush_Relax()
 
     bl_keymap = chain_rf_keymaps(RFOperator_Relax, RFOperator_RelaxBrush_Adjust)
 
@@ -535,11 +530,9 @@ class RFTool_Relax(RFTool_Base):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
         cls.reseter = Reseter()
-        cls.reseter['context.tool_settings.use_mesh_automerge'] = True
-        cls.reseter['context.tool_settings.double_threshold'] = 0.01
+        cls.reseter['context.tool_settings.use_mesh_automerge'] = False
         # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
-        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, True]
 
     @classmethod
     def deactivate(cls, context):

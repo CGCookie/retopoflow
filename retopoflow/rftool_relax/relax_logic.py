@@ -52,6 +52,7 @@ class Relax_Logic:
         self._time = time.time()
         bpy.ops.ed.undo_push(message='Relax')
         self._boundary = []
+
         if relax.mask_boundary == 'SLIDE':
             self._boundary = [
                 (bme.verts[0].co, bme.verts[1].co)

@@ -76,6 +76,18 @@ def ray_from_point(context, point):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, point).normalized(), 0.0)),
     )
 
+def plane_normal_from_points(context, p0, p1):
+    if not context.region_data: return (None, None)
+    if len(p0) > 2:
+        p0 = location_3d_to_region_2d(context.region, context.region_data, p0)
+        if not p0: return (None, None)
+    if len(p1) > 2:
+        p1 = location_3d_to_region_2d(context.region, context.region_data, p1)
+        if not p1: return (None, None)
+    d0 = region_2d_to_vector_3d(context.region, context.region_data, p0).normalized()
+    d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
+    return d0.cross(d1).normalized()
+
 def iter_all_valid_sources(context):
     yield from (
         obj
@@ -133,12 +145,12 @@ def raycast_valid_sources(context, point):
         no_active = vector_to_vec3(Mat @ Vector((*no_world, 0.0)))
 
         best = {
-            'object':   obj,   # hit object
-            'distance': dist,  # distance between ray origin and hit point (in world space)
-            'co_local': co_active, 'no_local': no_active,  # co and normal wrt to active object
-            'co_hit':   co_hit,    'no_hit':   no_hit,     # co and normal wrt to hit object
-            'co_world': co_world,  'no_world': no_world,   # co and normal in world space
-            'ray_world': ray_world,
+            'ray_world':  ray_world,  # ray based on point
+            'distance':   dist,       # distance between ray origin and hit point (in world space)
+            'object':     obj,       'face_index': idx,        # hit object and face index
+            'co_local':   co_active, 'no_local':   no_active,  # co and normal wrt to active object
+            'co_hit':     co_hit,    'no_hit':     no_hit,     # co and normal wrt to hit object
+            'co_world':   co_world,  'no_world':   no_world,   # co and normal in world space
         }
     return best
 

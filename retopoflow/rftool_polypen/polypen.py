@@ -187,7 +187,7 @@ class RFOperator_PolyPen(RFOperator):
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 
-        if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
+        if event.type == 'MOUSEMOVE':
             context.area.tag_redraw()
             return {'PASS_THROUGH'}
 
