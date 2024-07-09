@@ -41,9 +41,11 @@ from ..common.raycast import (
     mouse_from_event,
     plane_normal_from_points,
 )
+from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import Point2D
 from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.utils import iter_pairs
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -137,52 +139,153 @@ class Contours_Logic:
             context.area.tag_redraw()
 
     def crawl_faces(self, context):
-        hit_co = self.hit['co_world']
-        cut_n = plane_normal_from_points(context, self.mousedown, self.mouse)
+        M_local = context.active_object.matrix_world
+        Mi_local = M_local.inverted()
+        plane_co = self.hit['co_world']
+        plane_no = plane_normal_from_points(context, self.mousedown, self.mouse)
 
-        M = self.hit['object'].matrix_world
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
         hit_bm = bmesh.new()
-        hit_bm.from_mesh(self.hit['object'].data)
+        hit_bm.from_mesh(hit_obj.data)
         hit_bm.faces.ensure_lookup_table()
+        hit_bmf = hit_bm.faces[self.hit['face_index']]
 
-        def bmv_sign(bmv): return cut_n.dot((M @ bmv.co) - hit_co)
-        def bme_cut(bme):
+        def point_plane_signed_dist(co): return plane_no.dot(co - plane_co)
+        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
+        def bmv_intersect_plane(bmv):
+            return bmv if bmv_plane_signed_dist(bmv) == 0 else None
+        def bme_intersect_plane(bme):
             bmv0, bmv1 = bme.verts
-            s0, s1 = bmv_sign(bmv0), bmv_sign(bmv1)
-            return s0 == 0 or s1 == 0 or (s0 < 0) == (s1 > 0)
-        def bme_cut_pt(bme):
-            bmv0, bmv1 = bme.verts
-            s0, s1 = bmv_sign(bmv0), bmv_sign(bmv1)
-            sd = s1 - s0
-            f = -s0 / sd
-            v = bmv1.co - bmv0.co
-            return bmv0.co + v * f
+            co0, co1 = M @ bmv0.co, M @ bmv1.co
+            s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
+            if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
+            f = s0 / (s0 - s1)
+            return co0 + (co1 - co0) * f
 
-        start = hit_bm.faces[self.hit['face_index']]
-        mapping = {}
-        working = { start }
+        bmf_graph = {}
+        bmf_intersections = {}
+        working = { hit_bmf }
         while working:
             bmf = working.pop()
-            if bmf in mapping: continue
-            mapping[bmf] = []
+            if bmf in bmf_graph: continue
+            bmf_graph[bmf] = set()
+            bmf_intersections[bmf] = {}
+            for bmv in bmf.verts:
+                co = bmv_intersect_plane(bmv)
+                if not co: continue
+                bmfs = set(bmv.link_faces)
+                working |= bmfs
+                bmf_graph[bmf] |= bmfs
+                for bmf_ in bmfs:
+                    bmf_intersections.setdefault(bmf_, {})
+                    bmf_intersections[bmf][bmf_] = co
+                    bmf_intersections[bmf_][bmf] = co
+                    bmf_intersections[bmf][bmv] = co
             for bme in bmf.edges:
-                if not bme_cut(bme): continue
-                mapping[bmf].append(bme)
-                for bmf_ in bme.link_faces:
-                    working.add(bmf_)
-        # attempt to find loop
-        # cur = start
-        # bmes_seen = set()
+                co = bme_intersect_plane(bme)
+                if not co: continue
+                bmfs = set(bme.link_faces)
+                working |= bmfs
+                bmf_graph[bmf] |= bmfs
+                for bmf_ in bmfs:
+                    bmf_intersections.setdefault(bmf_, {})
+                    bmf_intersections[bmf][bmf_] = co
+                    bmf_intersections[bmf_][bmf] = co
+                    bmf_intersections[bmf][bme] = co
+
+        # find longest cycle or path in bmf_graph
+        longest_path = []
+        longest_cycle = []
+        for start_bmf in bmf_graph:
+            working = [(start_bmf, iter(bmf_graph[start_bmf]))]
+            touched = { start_bmf }
+            while working:
+                cur_bmf, cur_iter = working[-1]
+                next_bmf = next(cur_iter, None)
+                if not next_bmf:
+                    if len(working) > len(longest_path):
+                        # found new longest path!
+                        longest_path = [bmf for (bmf, _) in working]
+                    working.pop()
+                    touched.remove(cur_bmf)
+                    continue
+                if next_bmf in touched:
+                    # already in path/cycle
+                    if next_bmf == start_bmf:
+                        # CYCLE!
+                        if len(working) > 2 and len(working) > len(longest_cycle):
+                            # found new longest cycle!
+                            longest_cycle = [bmf for (bmf, _) in working]
+                    continue
+                touched.add(next_bmf)
+                working.append((next_bmf, iter(bmf_graph[next_bmf])))
+
+        select_now = []
+        select_later = []
+        if len(longest_cycle) >= len(longest_path) * 0.5:
+            # use cycle
+            print(f'{len(longest_cycle)=}')
+            bmvs = []
+            for (bmf0, bmf1) in iter_pairs(longest_cycle, False):
+                co = bmf_intersections[bmf0][bmf1]
+                print(co)
+                bmv = self.bm.verts.new(Mi_local @ co)
+                if bmvs:
+                    self.bm.edges.new((bmvs[-1], bmv))
+                bmvs.append(bmv)
+                select_now.append(bmv)
+            self.bm.edges.new((bmvs[-1], bmvs[0]))
+        else:
+            # use path
+            print(f'{len(longest_path)=}')
+            bmvs = []
+            for (bmf0, bmf1) in iter_pairs(longest_path, False):
+                co = bmf_intersections[bmf0][bmf1]
+                print(co)
+                bmv = self.bm.verts.new(Mi_local @ co)
+                if bmvs:
+                    self.bm.edges.new((bmvs[-1], bmv))
+                bmvs.append(bmv)
+                select_now.append(bmv)
+
+
+        bmops.deselect_all(self.bm)
+        for bmelem in select_now:
+            bmops.select(self.bm, bmelem)
+        for bmelem in select_later:
+            match bmelem:
+                case BMVert():
+                    bmelem[self.layer_sel_vert] = 1
+                case BMEdge():
+                    bmelem[self.layer_sel_edge] = 1
+                    for bmv in bmelem.verts:
+                        bmv[self.layer_sel_vert] = 1
+                case BMFace():
+                    bmelem[self.layer_sel_face] = 1
+                    for bmv in bmelem.verts:
+                        bmv[self.layer_sel_vert] = 1
+        self.update_bmesh_selection = bool(select_later)
+        self.nearest = None
+        self.hit = None
+        self.selected = None
+
+        bmops.flush_selection(self.bm, self.em)
+
+
+        # # attempt to find loop
+        # bmes_seen = [hit_bmf]
         # while True:
         #     bme = next((bme for bme in cur.edges if bme in mapping and bme not in bmes_seen), None)
         #     if not bme:
         #         print('no loop found')
         #         break
         #     cur = 
-        bmes_cut = set(bme for bmes in mapping.values() for bme in bmes)
-        pts = [ bme_cut_pt(bme) for bme in bmes_cut ]
-        print([bmf.index for bmf in mapping])
-        print(pts)
+        # # bmes_cut = set(bme for bmes in mapping.values() for bme in bmes)
+        # # print(all(bme.is_manifold for bme in bmes_cut))
+        # # pts = [ bme_intersect_plane_point(bme) for bme in bmes_cut ]
+        # # print([bmf.index for bmf in mapping])
+        # # print(pts)
 
 
         # def bmf_cut(bmf):
