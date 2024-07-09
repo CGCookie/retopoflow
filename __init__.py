@@ -38,15 +38,12 @@ bl_info = {
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (3, 6, 0),
-    "version":      (3, 4, 3),
+    "version":      (3, 4, 4),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",
-    "category":     "3D View",}
-
-# update bl_info above based on hive data
-from .addon_common.hive.hive import Hive
-Hive.update_bl_info(bl_info, __file__)
+    "category":     "3D View",
+}
 
 
 import bpy
@@ -62,17 +59,17 @@ if bpy.app.background:
         title='RetopoFlow', margin=' ', sides='double', color='black', highlight='blue',
     )
 
-elif bpy.app.version < Hive.get_version('blender hard minimum version'):
-    term_printer.boxed(
-        f'Blender version does not meet hard requirements',
-        f'Minimum Blender Version: {Hive.get("blender hard minimum version")}',
-        f'Skipping any further initialization',
-        title='RetopoFlow', margin=' ', sides='double', color='black', highlight='red',
-    )
+# elif bpy.app.version < Hive.get_version('blender hard minimum version'):
+#     term_printer.boxed(
+#         f'Blender version does not meet hard requirements',
+#         f'Minimum Blender Version: {Hive.get("blender hard minimum version")}',
+#         f'Skipping any further initialization',
+#         title='RetopoFlow', margin=' ', sides='double', color='black', highlight='red',
+#     )
 
 else:
     from .retopoflow import blenderregister
-    def register():   blenderregister.register(bl_info)
-    def unregister(): blenderregister.unregister(bl_info)
+    def register():   blenderregister.register()
+    def unregister(): blenderregister.unregister()
 
 

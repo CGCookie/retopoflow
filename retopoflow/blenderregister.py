@@ -600,6 +600,7 @@ if import_succeeded:
         return False
     def is_addon_folder_valid(context):
         # remove .retopoflow
+        if __package__.startswith('bl_ext'): return True
         path = re.sub(r'\.retopoflow$', '', __package__)
         bad_chars = set(re.sub(r'[a-zA-Z0-9_]', '', path))
         if not bad_chars: return True
@@ -1093,13 +1094,11 @@ if not import_succeeded:
             box.operator('cgcookie.retopoflow_web_blendermarket', icon='URL')
 
 
-def register(bl_info):
+def register():
     for cls in RF_classes: bpy.utils.register_class(cls)
-    if import_succeeded: updater.register(bl_info)
     bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 
-def unregister(bl_info):
+def unregister():
     if import_succeeded: ImagePreloader.quit()
     bpy.types.VIEW3D_MT_editor_menus.remove(VIEW3D_PT_RetopoFlow.draw_popover)
-    if import_succeeded: updater.unregister()
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)
