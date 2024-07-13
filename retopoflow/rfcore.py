@@ -204,6 +204,8 @@ class RFCore:
         RFCore.event_mouse = None
         RFCore.is_controlling = False
 
+        # clean up cache, otherwise old bmesh objects may become invalid even if
+        # blender does not recognize them as invalid (bm.is_valid still True)
         get_object_bmesh.cache.clear()
 
         # bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)

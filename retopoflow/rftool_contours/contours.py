@@ -304,6 +304,60 @@ class Contours_Logic:
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
         print(f'{path_length=}')
 
+
+        # should we bridge with currently selected geometry?
+        def find_selected_cycle_or_path():
+            selected = bmops.get_all_selected(self.bm)
+
+            longest_path = []
+            longest_cycle = []
+
+            def vert_selected(bme):
+                yield from (bmv for bmv in bme.verts if bmv in selected[BMVert])
+            def link_edge_selected(bmv):
+                yield from (bme for bme in bmv.link_edges if bme in selected[BMEdge])
+            def adjacent_selected_bmedges(bme):
+                for bmv in bme.verts:
+                    if bmv not in selected[BMVert]: continue
+                    for bme_ in bmv.link_edges:
+                        if bme_ not in selected[BMEdge]: continue
+                        if bme_ == bme: continue
+                        yield bme_
+            start_bmes = {
+                bme for bme in selected[BMEdge]
+                if len(list(adjacent_selected_bmedges(bme))) == 1
+            }
+            if not start_bmes: start_bmes = selected[BMEdge]
+            for start_bme in start_bmes:
+                working = [(start_bme, adjacent_selected_bmedges(start_bme))]
+                touched = {start_bme}
+                while working:
+                    cur_bme, cur_iter = working[-1]
+                    next_bme = next(cur_iter, None)
+                    if not next_bme:
+                        if len(working) > len(longest_path):
+                            longest_path = [bme for (bme,_) in working]
+                        working.pop()
+                        touched.remove(cur_bme)
+                        continue
+                    if next_bme in touched:
+                        if next_bme == start_bme and len(working) > 2 and len(working) > len(longest_cycle):
+                            longest_cycle = [bme for (bme,_) in working]
+                        continue
+                    touched.add(next_bme)
+                    working.append((next_bme, adjacent_selected_bmedges(next_bme)))
+                if len(longest_cycle) > 50:
+                    break
+            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
+            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+        sel_path, sel_cyclic = find_selected_cycle_or_path()
+
+        print(f'{len(sel_path)=} {sel_cyclic=}')
+        print(f'{cyclic == sel_cyclic}')
+        bridge = len(sel_path) > 0 and (cyclic == sel_cyclic)
+        if bridge:
+            vertex_count = len(sel_path) if sel_cyclic else len(sel_path)+1
+
         # find pts for new geometry
         # note: might need to take a few attempts due to numerical precision
         segment_count = vertex_count if cyclic else (vertex_count - 1)
@@ -342,6 +396,9 @@ class Contours_Logic:
         bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(bmvs, cyclic)]
         print(f'created {len(bmes)} BMEdges')
 
+        if bridge:
+            for bme0, bme1 in zip(bmes, sel_path):
+                self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[0], bme1.verts[1]])
 
         bmops.deselect_all(self.bm)
 
