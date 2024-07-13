@@ -34,7 +34,7 @@ from typing import List
 from enum import Enum
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
 from ..common.maths import view_forward_direction

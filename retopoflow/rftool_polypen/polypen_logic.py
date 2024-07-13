@@ -38,7 +38,6 @@ from typing import List
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
-    get_select_layers,
     clean_select_layers,
     NearestBMVert,
     NearestBMEdge,
@@ -120,7 +119,7 @@ class PP_Logic:
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
-            self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = get_select_layers(self.bm)
+            self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = bmops.get_select_layers(self.bm)
             self.selected = None
             self.nearest = None
             self.nearest_bme = None

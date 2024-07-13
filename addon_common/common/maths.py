@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import re
 import random
+import numpy as np
 from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 from typing import List
 from itertools import chain
@@ -666,19 +667,20 @@ class Plane(Entity3D):
         n = Normal((p1 - p0).cross(p2 - p0)).normalize()
         return cls(o, n)
 
+    @classmethod
+    def fit_to_points(cls, points: List[Point]):
+        center = Point.average(points)
+        lpoints = np.matrix([co - center for co in points]).T
+        svd = np.linalg.svd(lpoints)
+        left = svd[0]
+        normal = Normal(left[:,-1])
+        return Plane(center, normal)
+
     def __init__(self, o: Point, n: Normal):
-        self.o = o
-        self.n = n
-        self.d = o.dot(n)
+        self.o, self.n, self.d = o, n, o.dot(n)
 
-    def __str__(self):
-        return '<Plane (%0.4f, %0.4f, %0.4f), (%0.4f, %0.4f, %0.4f)>' % (
-            self.o.x, self.o.y, self.o.z,
-            self.n.x, self.n.y, self.n.z
-        )
-
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):  return f'<Plane {self.o}, {self.n}>'
+    def __repr__(self): return self.__str__()
 
     def side(self, p: Point, threshold=zero_threshold):
         d = (p - self.o).dot(self.n)

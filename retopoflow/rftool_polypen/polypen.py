@@ -35,7 +35,7 @@ from typing import List
 from enum import Enum
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
 from ..common.raycast import raycast_point_valid_sources

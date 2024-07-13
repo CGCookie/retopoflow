@@ -33,7 +33,7 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops

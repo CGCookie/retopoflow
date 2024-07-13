@@ -38,7 +38,7 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, get_select_layers, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,

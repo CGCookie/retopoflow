@@ -43,17 +43,31 @@ def get_bmesh_emesh(context):
     bm = bmesh.from_edit_mesh(em)
     return (bm, em)
 
-def get_select_layers(bm):
-    if 'rf_vert_select_after_move' not in bm.verts.layers.int:
-        bm.verts.layers.int.new('rf_vert_select_after_move')
-    if 'rf_edge_select_after_move' not in bm.edges.layers.int:
-        bm.edges.layers.int.new('rf_edge_select_after_move')
-    if 'rf_face_select_after_move' not in bm.faces.layers.int:
-        bm.faces.layers.int.new('rf_face_select_after_move')
-    layer_sel_vert = bm.verts.layers.int.get('rf_vert_select_after_move')
-    layer_sel_edge = bm.edges.layers.int.get('rf_edge_select_after_move')
-    layer_sel_face = bm.faces.layers.int.get('rf_face_select_after_move')
-    return (layer_sel_vert, layer_sel_edge, layer_sel_face)
+def iter_mirror_modifiers(obj):
+    yield from (
+        mod
+        for mod in obj.modifiers
+        if mod.type == 'MIRROR' and mod.show_viewport and mod.show_in_editmode and mod.show_on_cage
+    )
+def has_mirror_x(context):
+    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.active_object))
+def has_mirror_y(context):
+    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.active_object))
+def has_mirror_z(context):
+    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.active_object))
+
+@add_cache('cache', {})
+def get_object_bmesh(obj):
+    bm = get_object_bmesh.cache.get(obj, None)
+    if bm and not bm.is_valid: bm = None
+    if not bm:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+        get_object_bmesh.cache[obj] = bm
+    return bm
 
 def clean_select_layers(bm):
     if 'rf_vert_select_after_move' in bm.verts.layers.int:

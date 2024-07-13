@@ -25,8 +25,9 @@ from mathutils import Vector, Matrix, Quaternion
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 import math
+import numpy as np
 
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, Point, Vector, Normal
 
 def view_forward_direction(context):
     r3d = context.region_data
@@ -78,3 +79,35 @@ def vector_to_vec3(v):
     return v.xyz
 
 def lerp(f, m, M): return m + f * (M - m)
+
+
+# class Plane:
+#     @classmethod
+#     def fit_to_points(cls, points):
+#         center = Point.average(points)
+#         lpoints = np.matrix([co - center for co in points]).T
+#         svd = np.linalg.svd(lpoints)
+#         left = svd[0]
+#         normal = Normal(left[:,-1])
+#         return Plane(center, normal)
+
+#     def __init__(self, center, normal):
+#         self.center = center
+#         self.normal = normal
+
+#     def __str__(self):
+#         return f'<Plane {self.center} {self.normal}>'
+#     def __repr__(self):
+#         return self.__str__()
+
+#     def signed_distance_point(self, point):
+#         return self.normal.dot(point - self.center)
+
+def fit_plane_to_points(points):
+    center = Point.average(points)
+    lpoints = np.matrix([co - center for co in points]).T
+    svd = np.linalg.svd(lpoints)
+    left = svd[0]
+    normal = Normal(left[:,-1])
+    return (center, normal)
+

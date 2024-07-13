@@ -26,6 +26,7 @@ import bl_ui
 from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
+from .common.bmesh import get_object_bmesh
 from .common.operator import RFOperator, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
 
@@ -202,6 +203,8 @@ class RFCore:
         RFCore.is_running = False
         RFCore.event_mouse = None
         RFCore.is_controlling = False
+
+        get_object_bmesh.cache.clear()
 
         # bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         # bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)

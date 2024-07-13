@@ -24,6 +24,21 @@ import bpy
 import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace
 
+
+def get_select_layers(bm):
+    if 'rf_vert_select_after_move' not in bm.verts.layers.int:
+        bm.verts.layers.int.new('rf_vert_select_after_move')
+    if 'rf_edge_select_after_move' not in bm.edges.layers.int:
+        bm.edges.layers.int.new('rf_edge_select_after_move')
+    if 'rf_face_select_after_move' not in bm.faces.layers.int:
+        bm.faces.layers.int.new('rf_face_select_after_move')
+    layer_sel_vert = bm.verts.layers.int.get('rf_vert_select_after_move')
+    layer_sel_edge = bm.edges.layers.int.get('rf_edge_select_after_move')
+    layer_sel_face = bm.faces.layers.int.get('rf_face_select_after_move')
+    return (layer_sel_vert, layer_sel_edge, layer_sel_face)
+
+
+
 def get_all_selected(bm):
     return {
         BMVert: get_all_selected_bmverts(bm),
@@ -53,6 +68,28 @@ def deselect(bm, bmelem):
 def reselect(bm, bmelem):
     deselect(bm, bmelem)
     select(bm, bmelem)
+
+def deselect_iter(bm, bmelems):
+    for bmelem in bmelems:
+        deselect(bm, bmelem)
+def select_iter(bm, bmelems):
+    for bmelem in bmelems:
+        select(bm, bmelem)
+
+def select_later_iter(bm, bmelems):
+    layer_sel_vert, layer_sel_edge, layer_sel_face = get_select_layers(bm)
+    for bmelem in bmelems:
+        match bmelem:
+            case BMVert():
+                bmelem[self.layer_sel_vert] = 1
+            case BMEdge():
+                bmelem[self.layer_sel_edge] = 1
+                for bmv in bmelem.verts:
+                    bmv[self.layer_sel_vert] = 1
+            case BMFace():
+                bmelem[self.layer_sel_face] = 1
+                for bmv in bmelem.verts:
+                    bmv[self.layer_sel_vert] = 1
 
 def flush_selection(bm, emesh):
     bm.select_flush(True)

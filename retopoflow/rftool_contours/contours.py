@@ -23,14 +23,16 @@ import bpy
 import os
 import time
 import bmesh
+from itertools import chain
+from collections import defaultdict
+from bmesh.types import BMVert, BMEdge, BMFace
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
-    get_bmesh_emesh,
-    get_select_layers,
+    get_bmesh_emesh, get_object_bmesh,
     clean_select_layers,
-    NearestBMVert,
-    NearestBMEdge,
+    NearestBMVert, NearestBMEdge,
+    has_mirror_x, has_mirror_y, has_mirror_z,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
@@ -43,9 +45,9 @@ from ..common.raycast import (
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import Point2D
+from ...addon_common.common.maths import Point2D, Point, Normal, Vector, Plane
 from ...addon_common.common.reseter import Reseter
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.utils import iter_pairs, rotate_cycle
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -68,7 +70,7 @@ class Contours_Logic:
         self.mousedown = None
         self.hit = None
         self.reset()
-        self.update(context, event)
+        self.update(context, event, 16)
 
     def reset(self):
         self.bm = None
@@ -78,10 +80,10 @@ class Contours_Logic:
     def cleanup(self):
         clean_select_layers(self.bm)
 
-    def update(self, context, event):
+    def update(self, context, event, contours):
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
-            self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = get_select_layers(self.bm)
+            self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = bmops.get_select_layers(self.bm)
             self.selected = None
             self.nearest = None
             self.nearest_bme = None
@@ -132,29 +134,29 @@ class Contours_Logic:
             # do something with self.mousedown and self.mouse and self.hit
             if self.hit:
                 t0 = time.time()
-                self.crawl_faces(context)
-                print(time.time() - t0)
+                self.new_cut(context, contours.initial_cut_count)
+                print(f'time for new cut: {time.time() - t0}')
             self.mousedown = None
             self.hit = None
             context.area.tag_redraw()
 
-    def crawl_faces(self, context):
+    def new_cut(self, context, vertex_count):
         M_local = context.active_object.matrix_world
         Mi_local = M_local.inverted()
-        plane_co = self.hit['co_world']
-        plane_no = plane_normal_from_points(context, self.mousedown, self.mouse)
+        plane_cut = Plane(
+            self.hit['co_world'],
+            plane_normal_from_points(context, self.mousedown, self.mouse),
+        )
 
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
-        hit_bm = bmesh.new()
-        hit_bm.from_mesh(hit_obj.data)
-        hit_bm.faces.ensure_lookup_table()
+        hit_bm = get_object_bmesh(hit_obj)
+        print(f'{hit_bm=}')
         hit_bmf = hit_bm.faces[self.hit['face_index']]
 
-        def point_plane_signed_dist(co): return plane_no.dot(co - plane_co)
+        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
         def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
-        def bmv_intersect_plane(bmv):
-            return bmv if bmv_plane_signed_dist(bmv) == 0 else None
+        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
         def bme_intersect_plane(bme):
             bmv0, bmv1 = bme.verts
             co0, co1 = M @ bmv0.co, M @ bmv1.co
@@ -162,109 +164,189 @@ class Contours_Logic:
             if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
             f = s0 / (s0 - s1)
             return co0 + (co1 - co0) * f
+        def intersect_plane(bmelem):
+            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
+            return fn(bmelem)
 
+        # find all geometry connected to hit_bmf that intersects cut plane
         bmf_graph = {}
-        bmf_intersections = {}
+        bmf_intersections = defaultdict(dict)
         working = { hit_bmf }
         while working:
             bmf = working.pop()
             if bmf in bmf_graph: continue
             bmf_graph[bmf] = set()
-            bmf_intersections[bmf] = {}
-            for bmv in bmf.verts:
-                co = bmv_intersect_plane(bmv)
+            for bmelem in chain(bmf.verts, bmf.edges):
+                co = intersect_plane(bmelem)
                 if not co: continue
-                bmfs = set(bmv.link_faces)
+                bmfs = set(bmelem.link_faces)
                 working |= bmfs
                 bmf_graph[bmf] |= bmfs
+                bmf_intersections[bmf][bmelem] = co
                 for bmf_ in bmfs:
-                    bmf_intersections.setdefault(bmf_, {})
                     bmf_intersections[bmf][bmf_] = co
                     bmf_intersections[bmf_][bmf] = co
-                    bmf_intersections[bmf][bmv] = co
-            for bme in bmf.edges:
-                co = bme_intersect_plane(bme)
-                if not co: continue
-                bmfs = set(bme.link_faces)
-                working |= bmfs
-                bmf_graph[bmf] |= bmfs
-                for bmf_ in bmfs:
-                    bmf_intersections.setdefault(bmf_, {})
-                    bmf_intersections[bmf][bmf_] = co
-                    bmf_intersections[bmf_][bmf] = co
-                    bmf_intersections[bmf][bme] = co
 
         # find longest cycle or path in bmf_graph
-        longest_path = []
-        longest_cycle = []
-        for start_bmf in bmf_graph:
-            working = [(start_bmf, iter(bmf_graph[start_bmf]))]
-            touched = { start_bmf }
-            while working:
-                cur_bmf, cur_iter = working[-1]
-                next_bmf = next(cur_iter, None)
-                if not next_bmf:
-                    if len(working) > len(longest_path):
-                        # found new longest path!
-                        longest_path = [bmf for (bmf, _) in working]
-                    working.pop()
-                    touched.remove(cur_bmf)
-                    continue
-                if next_bmf in touched:
-                    # already in path/cycle
-                    if next_bmf == start_bmf:
-                        # CYCLE!
-                        if len(working) > 2 and len(working) > len(longest_cycle):
+        def find_cycle_or_path():
+            longest_path = []
+            longest_cycle = []
+
+            start_bmfs = {
+                bmf for bmf in bmf_intersections
+                if any(type(bmelem) is BMVert for bmelem in bmf_intersections[bmf])
+                or any(type(bmelem) is BMEdge and len(bmelem.link_faces) == 1 for bmelem in bmf_intersections[bmf])
+            }
+            if not start_bmfs: start_bmfs = set(bmf_graph.keys())
+
+            for start_bmf in start_bmfs:
+                working = [(start_bmf, iter(bmf_graph[start_bmf]))]
+                touched = { start_bmf }
+                while working:
+                    cur_bmf, cur_iter = working[-1]
+                    next_bmf = next(cur_iter, None)
+
+                    if not next_bmf:
+                        if len(working) > len(longest_path):
+                            # found new longest path!
+                            longest_path = [bmf for (bmf, _) in working]
+
+                        working.pop()
+                        touched.remove(cur_bmf)
+                        continue
+
+                    if next_bmf in touched:
+                        # already in path/cycle
+                        if next_bmf == start_bmf and len(working) > 2 and len(working) > len(longest_cycle):
                             # found new longest cycle!
                             longest_cycle = [bmf for (bmf, _) in working]
-                    continue
-                touched.add(next_bmf)
-                working.append((next_bmf, iter(bmf_graph[next_bmf])))
+                        continue
 
-        select_now = []
+                    touched.add(next_bmf)
+                    working.append((next_bmf, iter(bmf_graph[next_bmf])))
+
+                # if we found a large enough cycle, we can declare victory!
+                # NOTE: we cannot do the same for path, because we might have
+                #       started crawling in the middle of the path
+                if len(longest_cycle) > 50:
+                    break
+
+            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
+            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+
+        path, cyclic = find_cycle_or_path()
+        print(f'{len(path)=} {cyclic=}')
+        if len(path) < 2:
+            print(f'PATH TOO SHORT')
+            return
+
+        # find points in order
+        points = []
+        def add_path_end(bmf):
+            bmelem = next((
+                bmelem for bmelem in bmf_intersections[bmf]
+                if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
+            ), None)
+            if not bmelem: return
+            points.append(Mi_local @ bmf_intersections[bmf][bmelem])
+        if not cyclic:
+            add_path_end(path[0])
+        for (bmf0, bmf1) in iter_pairs(path, False):
+            points.append(Mi_local @ bmf_intersections[bmf0][bmf1])
+        if not cyclic:
+            add_path_end(path[-1])
+
+        # fit plane to points
+        plane_fit = Plane.fit_to_points(points)
+        print(f'{plane_fit=}')
+
+        # handle cutting across mirror planes
+        def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
+        def pt_x0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.x)
+        def pt_y0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.y)
+        def pt_z0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.z)
+
+        if has_mirror_x(context) and any(pt.x < 0 for pt in points):
+            # NOTE: considers ONLY the positive x side of mirror!
+            l = len(points)
+            bpoints = []
+            if cyclic:
+                start_indices = [i for i in range(l) if points[i].x < 0 and points[(i+1)%l].x >= 0]
+                for start_index in start_indices:
+                    npoints = []
+                    for offset in range(l):
+                        i0, i1 = (start_index + offset) % l, (start_index + offset + 1) % l
+                        pt0, pt1 = points[i0], points[i1]
+                        if pt0.x >= 0:
+                            npoints.append(pt0)
+                            if pt1.x < 0:
+                                npoints.append(pt_x0(pt0, pt1))
+                                break
+                        elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
+                    if len(npoints) > len(bpoints): bpoints = npoints
+                vertex_count = vertex_count // 2 + 1
+            else:
+                npoints = []
+                for i in range(l):
+                    if points[i].x >= 0:
+                        if i > 0 and points[i-1].x < 0:
+                            npoints.append(pt_x0(points[i-1], points[i]))
+                        npoints.append(points[i])
+                    else:
+                        if i > 0 and points[i-1].x >= 0:
+                            npoints.append(pt_x0(points[i-1], points[i]))
+                        if len(npoints) > len(bpoints): bpoints = npoints
+                        npoints = []
+            points = bpoints
+            cyclic = False
+
+        # compute length
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+        print(f'{path_length=}')
+
+        # find pts for new geometry
+        # note: might need to take a few attempts due to numerical precision
+        segment_count = vertex_count if cyclic else (vertex_count - 1)
+        segment_length = path_length / segment_count
+        segment_length_min, segment_length_max = 0, segment_length * 2
+        for _ in range(100):
+            dist, npts = 0, []
+            for pt0, pt1 in iter_pairs(points, cyclic):
+                v = pt1 - pt0
+                l = v.length
+                if dist > l:
+                    dist -= l
+                    continue
+                d = v / l
+                pt = pt0
+                while dist <= l:
+                    pt = pt + d * dist
+                    npts.append(pt)
+                    l -= dist
+                    dist = segment_length
+            if not cyclic: npts.append(points[-1])
+            diff = vertex_count - len(npts)
+            if diff == 0: break
+            if diff > 0: segment_length_max = segment_length
+            else: segment_length_min = segment_length
+            segment_length = (segment_length_max + segment_length_min) / 2
+            # scale down segment_length to help with numerical precision issues
+            #segment_length *= 0.99
+
+        # create geometry!
+        bmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
+        # bmvs = [ self.bm.verts.new(co) for co in points ]  # debug: use all points
+        print(f'created {len(bmvs)} BMVerts')
+        select_now = list(bmvs)
         select_later = []
-        if len(longest_cycle) >= len(longest_path) * 0.5:
-            # use cycle
-            print(f'{len(longest_cycle)=}')
-            bmvs = []
-            for (bmf0, bmf1) in iter_pairs(longest_cycle, False):
-                co = bmf_intersections[bmf0][bmf1]
-                print(co)
-                bmv = self.bm.verts.new(Mi_local @ co)
-                if bmvs:
-                    self.bm.edges.new((bmvs[-1], bmv))
-                bmvs.append(bmv)
-                select_now.append(bmv)
-            self.bm.edges.new((bmvs[-1], bmvs[0]))
-        else:
-            # use path
-            print(f'{len(longest_path)=}')
-            bmvs = []
-            for (bmf0, bmf1) in iter_pairs(longest_path, False):
-                co = bmf_intersections[bmf0][bmf1]
-                print(co)
-                bmv = self.bm.verts.new(Mi_local @ co)
-                if bmvs:
-                    self.bm.edges.new((bmvs[-1], bmv))
-                bmvs.append(bmv)
-                select_now.append(bmv)
+        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(bmvs, cyclic)]
+        print(f'created {len(bmes)} BMEdges')
 
 
         bmops.deselect_all(self.bm)
-        for bmelem in select_now:
-            bmops.select(self.bm, bmelem)
-        for bmelem in select_later:
-            match bmelem:
-                case BMVert():
-                    bmelem[self.layer_sel_vert] = 1
-                case BMEdge():
-                    bmelem[self.layer_sel_edge] = 1
-                    for bmv in bmelem.verts:
-                        bmv[self.layer_sel_vert] = 1
-                case BMFace():
-                    bmelem[self.layer_sel_face] = 1
-                    for bmv in bmelem.verts:
-                        bmv[self.layer_sel_vert] = 1
+
+        bmops.select_iter(self.bm, select_now)
+        bmops.select_later_iter(self.bm, select_later)
         self.update_bmesh_selection = bool(select_later)
         self.nearest = None
         self.hit = None
@@ -356,7 +438,15 @@ class RFOperator_Contours(RFOperator):
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
     ]
 
-    rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
+    rf_status = ['LMB: Insert']
+
+    initial_cut_count: bpy.props.IntProperty(
+        name='Initial Count',
+        description='Number of vertices to create in a new cut',
+        default=8,
+        min=3,
+        max=100,
+    )
 
     def init(self, context, event):
         self.logic = Contours_Logic(context, event)
@@ -366,7 +456,7 @@ class RFOperator_Contours(RFOperator):
         self.logic.reset()
 
     def update(self, context, event):
-        self.logic.update(context, event)
+        self.logic.update(context, event, self)
 
         if self.logic.mousedown:
             return {'RUNNING_MODAL'}
@@ -394,7 +484,9 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap = chain_rf_keymaps(RFOperator_Contours)
 
     def draw_settings(context, layout, tool):
-        pass
+        layout.label(text='Cut:')
+        props = tool.operator_properties(RFOperator_Contours.bl_idname)
+        layout.prop(props, 'initial_cut_count')
 
     @classmethod
     def activate(cls, context):
