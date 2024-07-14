@@ -26,6 +26,7 @@ import bmesh
 from itertools import chain
 from collections import defaultdict
 from bmesh.types import BMVert, BMEdge, BMFace
+from mathutils import Matrix
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
@@ -39,6 +40,7 @@ from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
 from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources,
+    nearest_point_valid_sources,
     size2D_to_size,
     vec_forward,
     mouse_from_event,
@@ -260,6 +262,7 @@ class Contours_Logic:
 
         # fit plane to points
         plane_fit = Plane.fit_to_points(points)
+        avg_radius = sum((pt - plane_fit.o).length for pt in points) / len(points)
         print(f'{plane_fit=}')
 
         # handle cutting across mirror planes
@@ -358,6 +361,40 @@ class Contours_Logic:
         print(f'{cyclic == sel_cyclic}')
         bridge = len(sel_path) > 0 and (cyclic == sel_cyclic)
         if bridge:
+            nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
+            nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
+            npoints = [Point(bmv.co) for bmv in nbmvs]
+            nplane_fit = Plane.fit_to_points(npoints)
+            navg_radius = sum((pt - nplane_fit.o).length for pt in npoints) / len(npoints)
+            R = Matrix.Rotation(
+                -plane_fit.n.angle(nplane_fit.n),
+                4,
+                plane_fit.n.cross(nplane_fit.n),
+            )
+            S = Matrix.Scale(avg_radius / navg_radius, 4)
+            T0 = Matrix.Translation(-nplane_fit.o)
+            T1 = Matrix.Translation(plane_fit.o)
+            M = T1 @ R @ S @ T0
+            for bmv in nbmvs:
+                npt = M @ Vector((*bmv.co, 1))
+                npt_world = M_local @ npt
+                npt_world_snapped = nearest_point_valid_sources(context, npt_world.xyz / npt_world.w, world=True)
+                bmv.co = Mi_local @ npt_world_snapped
+            select_now = nbmvs
+            select_later = []
+            bmops.deselect_all(self.bm)
+            bmops.select_iter(self.bm, select_now)
+            bmops.select_later_iter(self.bm, select_later)
+            self.update_bmesh_selection = bool(select_later)
+            self.nearest = None
+            self.hit = None
+            self.selected = None
+
+            bmops.flush_selection(self.bm, self.em)
+            bmesh.update_edit_mesh(self.em)
+            bpy.ops.ed.undo_push(message='Contours new cut')
+            return
+
             vertex_count = len(sel_path) if sel_cyclic else len(sel_path)+1
             if cyclic:
                 # find selected BMVert that is closest to cut
@@ -437,7 +474,6 @@ class Contours_Logic:
             bmesh.ops.recalc_face_normals(self.bm, faces=bmfs)
 
         bmops.deselect_all(self.bm)
-
         bmops.select_iter(self.bm, select_now)
         bmops.select_later_iter(self.bm, select_later)
         self.update_bmesh_selection = bool(select_later)
