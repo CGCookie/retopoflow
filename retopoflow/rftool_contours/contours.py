@@ -33,6 +33,7 @@ from ..common.bmesh import (
     clean_select_layers,
     NearestBMVert, NearestBMEdge,
     has_mirror_x, has_mirror_y, has_mirror_z,
+    shared_bmv, crossed_quad,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
@@ -44,8 +45,9 @@ from ..common.raycast import (
     plane_normal_from_points,
 )
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import Point2D, Point, Normal, Vector, Plane
+from ...addon_common.common.maths import Point2D, Point, Normal, Vector, Plane, closest_point_segment
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs, rotate_cycle
 from ..common.drawing import (
@@ -357,13 +359,42 @@ class Contours_Logic:
         bridge = len(sel_path) > 0 and (cyclic == sel_cyclic)
         if bridge:
             vertex_count = len(sel_path) if sel_cyclic else len(sel_path)+1
+            if cyclic:
+                # find selected BMVert that is closest to cut
+                sel_verts = [shared_bmv(bme0, bme1) for (bme0, bme1) in iter_pairs(sel_path, True)]
+                sel_verts = rotate_cycle(sel_verts, 1)
+                closest = None
+                for j, bmv in enumerate(sel_verts):
+                    for i,(pt0,pt1) in enumerate(iter_pairs(points, cyclic)):
+                        pt = closest_point_segment(bmv.co, pt0, pt1)
+                        dist = (pt - bmv.co).length
+                        if closest and closest['dist'] <= dist: continue
+                        closest = {
+                            'bmv':  bmv,
+                            'i':    i,
+                            'j':    j,
+                            'pt0':  pt0,
+                            'pt1':  pt1,
+                            'pt':   pt,
+                            'dist': dist,
+                        }
+                print(closest)
+                points = rotate_cycle(points, -closest['i'])
+                sel_path = rotate_cycle(sel_path, -closest['j'])
+                sel_verts = rotate_cycle(sel_verts, -closest['j'])
+                pt0, pt1 = points[-1], points[1]
+                co0, co1 = sel_verts[-1].co, sel_verts[1].co
+                if (pt0 - co0).length + (pt1 - co1).length > (pt0 - co1).length + (pt1 - co0).length:
+                    sel_path = list(sel_path[::-1])
 
         # find pts for new geometry
         # note: might need to take a few attempts due to numerical precision
         segment_count = vertex_count if cyclic else (vertex_count - 1)
-        segment_length = path_length / segment_count
-        segment_length_min, segment_length_max = 0, segment_length * 2
+        true_segment_length = path_length / segment_count
+        factor_min, factor_max = 0.8, 1.2
         for _ in range(100):
+            factor = (factor_min + factor_max) / 2
+            segment_length = true_segment_length * factor
             dist, npts = 0, []
             for pt0, pt1 in iter_pairs(points, cyclic):
                 v = pt1 - pt0
@@ -380,12 +411,11 @@ class Contours_Logic:
                     dist = segment_length
             if not cyclic: npts.append(points[-1])
             diff = vertex_count - len(npts)
-            if diff == 0: break
-            if diff > 0: segment_length_max = segment_length
-            else: segment_length_min = segment_length
-            segment_length = (segment_length_max + segment_length_min) / 2
-            # scale down segment_length to help with numerical precision issues
-            #segment_length *= 0.99
+            if diff == 0:
+                error = sum((pt0-pt1).length - true_segment_length for (pt0, pt1) in iter_pairs(points, cyclic))
+                (factor_min, factor_max) = (factor_min, factor) if error < 0 else (factor, factor_max)
+            else:
+                (factor_min, factor_max) = (factor_min, factor) if diff > 0 else (factor, factor_max)
 
         # create geometry!
         bmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
@@ -397,8 +427,14 @@ class Contours_Logic:
         print(f'created {len(bmes)} BMEdges')
 
         if bridge:
+            bmfs = []
             for bme0, bme1 in zip(bmes, sel_path):
-                self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[0], bme1.verts[1]])
+                if crossed_quad(bme0.verts[0].co, bme0.verts[1].co, bme1.verts[0].co, bme1.verts[1].co):
+                    bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[1], bme1.verts[0]])
+                else:
+                    bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[0], bme1.verts[1]])
+                bmfs.append(bmf)
+            bmesh.ops.recalc_face_normals(self.bm, faces=bmfs)
 
         bmops.deselect_all(self.bm)
 
@@ -410,49 +446,9 @@ class Contours_Logic:
         self.selected = None
 
         bmops.flush_selection(self.bm, self.em)
+        bmesh.update_edit_mesh(self.em)
+        bpy.ops.ed.undo_push(message='Contours new cut')
 
-
-        # # attempt to find loop
-        # bmes_seen = [hit_bmf]
-        # while True:
-        #     bme = next((bme for bme in cur.edges if bme in mapping and bme not in bmes_seen), None)
-        #     if not bme:
-        #         print('no loop found')
-        #         break
-        #     cur = 
-        # # bmes_cut = set(bme for bmes in mapping.values() for bme in bmes)
-        # # print(all(bme.is_manifold for bme in bmes_cut))
-        # # pts = [ bme_intersect_plane_point(bme) for bme in bmes_cut ]
-        # # print([bmf.index for bmf in mapping])
-        # # print(pts)
-
-
-        # def bmf_cut(bmf):
-        #     above, below = False, False
-        #     for vidx in f.vertices:
-        #         sign = vsigns[vidx]
-        #         if sign == 0: return True
-        #         if sign > 0: above = True
-        #         else: below = True
-        #     return above and below
-
-        # faces_in_cut = { f.index for f in faces if face_in_cut(f) }
-        # print(faces_in_cut)
-        # print(self.hit['face_index'] in faces_in_cut)
-
-        # vert_faces = { vidx:[] for vidx in range(len(verts)) }
-        # for fidx, f in enumerate(faces):
-        #     for vidx in f.vertices:
-        #         vert_faces[vidx].append(fidx)
-
-        # incut   = { self.hit['face_index'] }
-        # touched = { self.hit['face_index'] }
-        # working = { self.hit['face_index'] }
-        # while working:
-        #     fidx = working.pop()
-        #     for vidx in faces[fidx].vertices:
-        #         for fidx_ in vert_faces[vidx]:
-        #             if fidx_ in touched: continue
 
     def draw(self, context):
         if not self.mousedown: return
@@ -493,6 +489,8 @@ class RFOperator_Contours(RFOperator):
     rf_keymaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
+        # below is needed to handle case when CTRL is pressed when mouse is initially outside area
+        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
     ]
 
     rf_status = ['LMB: Insert']
@@ -515,12 +513,17 @@ class RFOperator_Contours(RFOperator):
     def update(self, context, event):
         self.logic.update(context, event, self)
 
+        if not event.ctrl:
+            self.logic.cleanup()
+            Cursors.restore()
+            return {'FINISHED'}
+        else:
+            Cursors.set('CROSSHAIR')
+
+
         if self.logic.mousedown:
             return {'RUNNING_MODAL'}
 
-        if not event.ctrl:
-            self.logic.cleanup()
-            return {'FINISHED'}
 
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 

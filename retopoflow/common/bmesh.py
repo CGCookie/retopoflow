@@ -84,6 +84,26 @@ def verts_to_triangles(count):
         verts_to_triangles.triangle_inds = [[i,i,i] for i in range(count*2)]
     return verts_to_triangles.triangle_inds[:count]
 
+def bme_other_bmv(bme, bmv):
+    return next((bmv_ for bmv_ in bme.verts if bmv_ != bmv), None)
+
+def shared_bmv(bme0, bme1):
+    bmv0, bmv1 = bme0.verts
+    if bmv0 in bme1.verts: return bmv0
+    if bmv1 in bme1.verts: return bmv1
+    return None
+
+def crossed_quad(pt0, pt1, pt2, pt3):
+    v01 = pt1 - pt0
+    v12 = pt2 - pt1
+    v23 = pt3 - pt2
+    v30 = pt0 - pt3
+    n0 = v01.cross(-v30)
+    n1 = v12.cross(-v01)
+    n2 = v23.cross(-v12)
+    n3 = v30.cross(-v23)
+    return n0.dot(n1) < 0 or n0.dot(n2) < 0 or n0.dot(n3) < 0 or n1.dot(n2) < 0 or n1.dot(n3) < 0 or n2.dot(n3) < 0
+
 class NearestBMVert:
     def __init__(self, bm, matrix, matrix_inv):
         self.bm = bm

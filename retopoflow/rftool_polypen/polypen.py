@@ -141,8 +141,10 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None), #{'properties': [('insert_mode', 'TRI-ONLY')]},
+        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
+        # below is needed to handle case when CTRL is pressed when mouse is initially outside area
+        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
     ]
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
@@ -189,7 +191,9 @@ class RFOperator_PolyPen(RFOperator):
 
         if event.type == 'MOUSEMOVE':
             context.area.tag_redraw()
-            return {'PASS_THROUGH'}
+            # must return RUNNING_MODAL, otherwise PP will get started over and over
+            # again due to CTRL+MOUSEMOVE is a keymap to launch PP
+            return {'RUNNING_MODAL'}
 
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
