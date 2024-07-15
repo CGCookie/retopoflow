@@ -263,9 +263,18 @@ class Contours_Logic:
 
         # handle cutting across mirror planes
         def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
-        def pt_x0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.x)
-        def pt_y0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.y)
-        def pt_z0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.z)
+        def pt_x0(pt0, pt1):
+            pt = pt0 + dir01(pt0, pt1) * abs(pt0.x)
+            pt.x = 0
+            return pt
+        def pt_y0(pt0, pt1):
+            pt = pt0 + dir01(pt0, pt1) * abs(pt0.y)
+            pt.y = 0
+            return pt
+        def pt_z0(pt0, pt1):
+            pt = pt0 + dir01(pt0, pt1) * abs(pt0.z)
+            pt.z = 0
+            return pt
 
         if has_mirror_x(context) and any(pt.x < 0 for pt in points):
             # NOTE: considers ONLY the positive x side of mirror!
