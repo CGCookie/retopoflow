@@ -673,11 +673,17 @@ class Plane(Entity3D):
         lpoints = np.matrix([co - center for co in points]).T
         svd = np.linalg.svd(lpoints)
         left = svd[0]
-        normal = Normal(left[:,-1])
-        return Plane(center, normal)
+        x = Direction(left[:,0])
+        y = Direction(left[:,1])
+        z = Direction(left[:,2])
+        # normal = Normal(left[:,-1])
+        return Plane(center, x=x, y=y, z=z)
 
-    def __init__(self, o: Point, n: Normal):
-        self.o, self.n, self.d = o, n, o.dot(n)
+    def __init__(self, o:Point, n:Normal=None, x:Direction=None, y:Direction=None, z:Direction=None):
+        self.o = o
+        self.frame = Frame(self.o, x=x, y=y, z=z or n)
+        self.n = Normal(self.frame.z)
+        self.d = o.dot(self.n)
 
     def __str__(self):  return f'<Plane {self.o}, {self.n}>'
     def __repr__(self): return self.__str__()
@@ -696,6 +702,11 @@ class Plane(Entity3D):
 
     def project(self, p: Point):
         return p + self.n * (self.o - p).dot(self.n)
+
+    def w2l_point(self, p: Point):
+        return self.frame.w2l_point(p)
+    def l2w_point(self, p: Point):
+        return self.frame.l2w_point(p)
 
     def polygon_intersects(self, points: List[Point]):
         return abs(sum(self.side(p) for p in points)) != len(points)

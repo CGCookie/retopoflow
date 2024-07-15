@@ -52,6 +52,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import Point2D, Point, Normal, Vector, Plane, closest_point_segment
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs, rotate_cycle
+from ...addon_common.ext.circle_fit import hyperLSQ
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -260,11 +261,6 @@ class Contours_Logic:
         if not cyclic:
             add_path_end(path[-1])
 
-        # fit plane to points
-        plane_fit = Plane.fit_to_points(points)
-        avg_radius = sum((pt - plane_fit.o).length for pt in points) / len(points)
-        print(f'{plane_fit=}')
-
         # handle cutting across mirror planes
         def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
         def pt_x0(pt0, pt1): return pt0 + dir01(pt0, pt1) * abs(pt0.x)
@@ -304,6 +300,16 @@ class Contours_Logic:
                         npoints = []
             points = bpoints
             cyclic = False
+
+        # fit plane to points
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        avg_radius = sum((pt - plane_fit.o).length for pt in points) / len(points)
+        print(f'{plane_fit=}')
+        print(f'{avg_radius=}')
+        print(f'{circle_fit=}')
+
+
 
         # compute length
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
@@ -365,21 +371,47 @@ class Contours_Logic:
             nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
             npoints = [Point(bmv.co) for bmv in nbmvs]
             nplane_fit = Plane.fit_to_points(npoints)
+            ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
             navg_radius = sum((pt - nplane_fit.o).length for pt in npoints) / len(npoints)
+            print(f'{nplane_fit=}')
+            print(f'{navg_radius=}')
+            print(f'{ncircle_fit=}')
             R = Matrix.Rotation(
                 -plane_fit.n.angle(nplane_fit.n),
                 4,
                 plane_fit.n.cross(nplane_fit.n),
             )
-            S = Matrix.Scale(avg_radius / navg_radius, 4)
-            T0 = Matrix.Translation(-nplane_fit.o)
-            T1 = Matrix.Translation(plane_fit.o)
+            # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
+            # the two axes of two planes might not align....  although they _should_ if we're bridging
+            S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4) # Matrix.Scale(avg_radius / navg_radius, 4)
+            T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0)))) # Matrix.Translation(-nplane_fit.o)
+            T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0)))) # Matrix.Translation(plane_fit.o)
             M = T1 @ R @ S @ T0
             for bmv in nbmvs:
                 npt = M @ Vector((*bmv.co, 1))
                 npt_world = M_local @ npt
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world.xyz / npt_world.w, world=True)
                 bmv.co = Mi_local @ npt_world_snapped
+
+            if not cyclic:
+                # snap ends
+                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
+                if len(bmv_ends) != 2:
+                    print(f'FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
+                else:
+                    bmv0, bmv1 = bmv_ends
+                    co0, co1 = bmv0.co, bmv1.co
+                    pt0, pt1 = points[0], points[-1]
+                    if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
+                        bmv0.co, bmv1.co = pt0, pt1
+                    else:
+                        bmv0.co, bmv1.co = pt1, pt0
+
+            # make sure face normals are correct.  cannot do this earlier, because
+            # faces have no defined normal (verts overlap)
+            nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
+            bmesh.ops.recalc_face_normals(self.bm, faces=nbmfs)
+
             select_now = nbmvs
             select_later = []
             bmops.deselect_all(self.bm)
@@ -455,13 +487,27 @@ class Contours_Logic:
                 (factor_min, factor_max) = (factor_min, factor) if diff > 0 else (factor, factor_max)
 
         # create geometry!
-        bmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
-        # bmvs = [ self.bm.verts.new(co) for co in points ]  # debug: use all points
-        print(f'created {len(bmvs)} BMVerts')
-        select_now = list(bmvs)
+        nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
+        # nbmvs = [ self.bm.verts.new(co) for co in points ]  # debug: use all points
+        print(f'created {len(nbmvs)} BMVerts')
+        select_now = list(nbmvs)
         select_later = []
-        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(bmvs, cyclic)]
+        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, cyclic)]
         print(f'created {len(bmes)} BMEdges')
+
+        if not cyclic:
+            # snap ends
+            bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_edges) == 1]
+            print(f'FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH')
+            if len(bmv_ends) == 2:
+                bmv0, bmv1 = bmv_ends
+                co0, co1 = bmv0.co, bmv1.co
+                pt0, pt1 = points[0], points[-1]
+                if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
+                    bmv0.co, bmv1.co = pt0, pt1
+                else:
+                    bmv0.co, bmv1.co = pt1, pt0
+
 
         if bridge:
             bmfs = []
