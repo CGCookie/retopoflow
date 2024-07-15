@@ -41,7 +41,7 @@ from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
 from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources,
-    nearest_point_valid_sources,
+    nearest_point_valid_sources, nearest_normal_valid_sources,
     size2D_to_size,
     vec_forward,
     mouse_from_event,
@@ -421,6 +421,15 @@ class Contours_Logic:
             # faces have no defined normal (verts overlap)
             nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
             bmesh.ops.recalc_face_normals(self.bm, faces=nbmfs)
+            for bmf in nbmfs:
+                pt = M_local @ Point.average((bmv.co for bmv in bmf.verts))
+                no_world = nearest_normal_valid_sources(context, pt, world=True)
+                no_local = Mi_local @ Vector((*no_world, 0.0)).xyz
+                print(f'{bmf.normal=} {no_local=} {bmf.normal.dot(no_local)}')
+                if bmf.normal.dot(no_local) < 0:
+                    bmf.normal_flip()
+            for bmf in nbmfs:
+                print(f'{bmf.normal=}')
 
             select_now = nbmvs
             select_later = []
@@ -568,24 +577,6 @@ class Contours_Logic:
             draw.vertex(pm)
 
 
-# class RFOperator_Contours_Select(RFOperator):
-#     bl_idname = 'retopoflow.contours_select'
-#     bl_label = 'Contours Select'
-#     bl_description = 'Select geometry for Contours'
-#     bl_space_type = 'VIEW_3D'
-#     bl_region_type = 'TOOLS'
-#     bl_options = set()
-#     rf_keymaps = [
-#         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
-#     ]
-#     def init(self, context, event):
-#         pass
-#     def update(self, context, event):
-
-# @invoke_operator('contours_select', 'Contours Select', description='Select geometry for Contours')
-# def invoke_contours_select(context, event):
-#     bpy.ops.mesh.loop_multi_select(ring=False)
-
 
 class RFOperator_Contours(RFOperator):
     bl_idname = 'retopoflow.contours'
@@ -598,9 +589,12 @@ class RFOperator_Contours(RFOperator):
     rf_keymaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
+
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
+        # however, it is possible to cause this operator to be invoked multiple times!
+        # is_running class attribute below is used to prevent this
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
-        # ('retopoflow.contours_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+
         ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
     ]
 
@@ -614,9 +608,17 @@ class RFOperator_Contours(RFOperator):
         max=100,
     )
 
+    is_running = False  # see note in rf_keymaps
+    def can_init(self, context, event):
+        return not RFOperator_Contours.is_running
+
     def init(self, context, event):
+        RFOperator_Contours.is_running = True
         self.logic = Contours_Logic(context, event)
         self.tickle(context)
+
+    def finish(self, context):
+        RFOperator_Contours.is_running = False
 
     def reset(self):
         self.logic.reset()
@@ -624,18 +626,15 @@ class RFOperator_Contours(RFOperator):
     def update(self, context, event):
         self.logic.update(context, event, self)
 
+        if self.logic.mousedown:
+            return {'RUNNING_MODAL'}
+
         if not event.ctrl:
             self.logic.cleanup()
             Cursors.restore()
             return {'FINISHED'}
-        else:
-            Cursors.set('CROSSHAIR')
 
-
-        if self.logic.mousedown:
-            return {'RUNNING_MODAL'}
-
-
+        Cursors.set('CROSSHAIR')
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
@@ -652,7 +651,7 @@ class RFTool_Contours(RFTool_Base):
 
     # rf_brush = RFBrush_Contours()
 
-    bl_keymap = chain_rf_keymaps(RFOperator_Contours) #, RFOperator_Contours_Select)
+    bl_keymap = chain_rf_keymaps(RFOperator_Contours)
 
     def draw_settings(context, layout, tool):
         layout.label(text='Cut:')
