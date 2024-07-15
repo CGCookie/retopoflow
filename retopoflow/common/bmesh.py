@@ -64,7 +64,9 @@ def get_object_bmesh(obj):
     if bm and not bm.is_valid: bm = None
     if not bm:
         bm = bmesh.new()
-        bm.from_mesh(obj.data)
+        # bm.from_mesh(obj.data)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        bm.from_object(obj, depsgraph)
         bm.verts.ensure_lookup_table()
         bm.edges.ensure_lookup_table()
         bm.faces.ensure_lookup_table()
