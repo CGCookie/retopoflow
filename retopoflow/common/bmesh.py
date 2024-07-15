@@ -39,7 +39,7 @@ from .drawing import Drawing
 
 
 def get_bmesh_emesh(context):
-    em = context.active_object.data
+    em = context.edit_object.data
     bm = bmesh.from_edit_mesh(em)
     return (bm, em)
 
@@ -49,12 +49,14 @@ def iter_mirror_modifiers(obj):
         for mod in obj.modifiers
         if mod.type == 'MIRROR' and mod.show_viewport and mod.show_in_editmode and mod.show_on_cage
     )
+def mirror_threshold(context):
+    return next((mod.merge_threshold for mod in iter_mirror_modifiers(context.edit_object)), None)
 def has_mirror_x(context):
-    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.active_object))
+    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.edit_object))
 def has_mirror_y(context):
-    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.active_object))
+    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.edit_object))
 def has_mirror_z(context):
-    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.active_object))
+    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.edit_object))
 
 @add_cache('cache', {})
 def get_object_bmesh(obj):

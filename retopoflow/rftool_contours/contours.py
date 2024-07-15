@@ -33,8 +33,9 @@ from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh,
     clean_select_layers,
     NearestBMVert, NearestBMEdge,
-    has_mirror_x, has_mirror_y, has_mirror_z,
+    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     shared_bmv, crossed_quad,
+    bme_other_bmv,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
@@ -146,7 +147,7 @@ class Contours_Logic:
             context.area.tag_redraw()
 
     def new_cut(self, context, vertex_count):
-        M_local = context.active_object.matrix_world
+        M_local = context.edit_object.matrix_world
         Mi_local = M_local.inverted()
         plane_cut = Plane(
             self.hit['co_world'],
@@ -436,34 +437,34 @@ class Contours_Logic:
             bpy.ops.ed.undo_push(message='Contours new cut')
             return
 
-            vertex_count = len(sel_path) if sel_cyclic else len(sel_path)+1
-            if cyclic:
-                # find selected BMVert that is closest to cut
-                sel_verts = [shared_bmv(bme0, bme1) for (bme0, bme1) in iter_pairs(sel_path, True)]
-                sel_verts = rotate_cycle(sel_verts, 1)
-                closest = None
-                for j, bmv in enumerate(sel_verts):
-                    for i,(pt0,pt1) in enumerate(iter_pairs(points, cyclic)):
-                        pt = closest_point_segment(bmv.co, pt0, pt1)
-                        dist = (pt - bmv.co).length
-                        if closest and closest['dist'] <= dist: continue
-                        closest = {
-                            'bmv':  bmv,
-                            'i':    i,
-                            'j':    j,
-                            'pt0':  pt0,
-                            'pt1':  pt1,
-                            'pt':   pt,
-                            'dist': dist,
-                        }
-                print(closest)
-                points = rotate_cycle(points, -closest['i'])
-                sel_path = rotate_cycle(sel_path, -closest['j'])
-                sel_verts = rotate_cycle(sel_verts, -closest['j'])
-                pt0, pt1 = points[-1], points[1]
-                co0, co1 = sel_verts[-1].co, sel_verts[1].co
-                if (pt0 - co0).length + (pt1 - co1).length > (pt0 - co1).length + (pt1 - co0).length:
-                    sel_path = list(sel_path[::-1])
+            # vertex_count = len(sel_path) if sel_cyclic else len(sel_path)+1
+            # if cyclic:
+            #     # find selected BMVert that is closest to cut
+            #     sel_verts = [shared_bmv(bme0, bme1) for (bme0, bme1) in iter_pairs(sel_path, True)]
+            #     sel_verts = rotate_cycle(sel_verts, 1)
+            #     closest = None
+            #     for j, bmv in enumerate(sel_verts):
+            #         for i,(pt0,pt1) in enumerate(iter_pairs(points, cyclic)):
+            #             pt = closest_point_segment(bmv.co, pt0, pt1)
+            #             dist = (pt - bmv.co).length
+            #             if closest and closest['dist'] <= dist: continue
+            #             closest = {
+            #                 'bmv':  bmv,
+            #                 'i':    i,
+            #                 'j':    j,
+            #                 'pt0':  pt0,
+            #                 'pt1':  pt1,
+            #                 'pt':   pt,
+            #                 'dist': dist,
+            #             }
+            #     print(closest)
+            #     points = rotate_cycle(points, -closest['i'])
+            #     sel_path = rotate_cycle(sel_path, -closest['j'])
+            #     sel_verts = rotate_cycle(sel_verts, -closest['j'])
+            #     pt0, pt1 = points[-1], points[1]
+            #     co0, co1 = sel_verts[-1].co, sel_verts[1].co
+            #     if (pt0 - co0).length + (pt1 - co1).length > (pt0 - co1).length + (pt1 - co0).length:
+            #         sel_path = list(sel_path[::-1])
 
         # find pts for new geometry
         # note: might need to take a few attempts due to numerical precision
@@ -517,16 +518,15 @@ class Contours_Logic:
                 else:
                     bmv0.co, bmv1.co = pt1, pt0
 
-
-        if bridge:
-            bmfs = []
-            for bme0, bme1 in zip(bmes, sel_path):
-                if crossed_quad(bme0.verts[0].co, bme0.verts[1].co, bme1.verts[0].co, bme1.verts[1].co):
-                    bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[1], bme1.verts[0]])
-                else:
-                    bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[0], bme1.verts[1]])
-                bmfs.append(bmf)
-            bmesh.ops.recalc_face_normals(self.bm, faces=bmfs)
+        # if bridge:
+        #     bmfs = []
+        #     for bme0, bme1 in zip(bmes, sel_path):
+        #         if crossed_quad(bme0.verts[0].co, bme0.verts[1].co, bme1.verts[0].co, bme1.verts[1].co):
+        #             bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[1], bme1.verts[0]])
+        #         else:
+        #             bmf = self.bm.faces.new([bme0.verts[0], bme0.verts[1], bme1.verts[0], bme1.verts[1]])
+        #         bmfs.append(bmf)
+        #     bmesh.ops.recalc_face_normals(self.bm, faces=bmfs)
 
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, select_now)
@@ -568,6 +568,59 @@ class Contours_Logic:
             draw.vertex(pm)
 
 
+# class RFOperator_Contours_Select(RFOperator):
+#     bl_idname = 'retopoflow.contours_select'
+#     bl_label = 'Contours Select'
+#     bl_description = 'Select geometry for Contours'
+#     bl_space_type = 'VIEW_3D'
+#     bl_region_type = 'TOOLS'
+#     bl_options = set()
+#     rf_keymaps = [
+#         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+#     ]
+#     def init(self, context, event):
+#         pass
+#     def update(self, context, event):
+
+@invoke_operator('contours_select', 'Contours Select', description='Select geometry for Contours')
+def invoke_contours_select(context, event):
+    bm, em = get_bmesh_emesh(context)
+    M_world = context.edit_object.matrix_world
+    Mi_world = M_world.inverted()
+    hit = raycast_valid_sources(context, mouse_from_event(event))
+    hit_pt = Mi_world @ hit['co_world']
+    print(f'{hit=}')
+    if not hit: return {'CANCELLED'}
+    nearest = None
+    mirror_x = has_mirror_x(context)
+    mirror_t = mirror_threshold(context)
+    for bme in bm.edges:
+        bmv0, bmv1 = bme.verts
+        pt = closest_point_segment(hit_pt, bmv0.co, bmv1.co)
+        dist = (pt - hit_pt).length
+        if nearest and dist >= nearest['dist']: continue
+        nearest = {
+            'bme': bme,
+            'dist': dist,
+        }
+    print(nearest)
+    if not nearest: return {'CANCELLED'}
+    working = set(nearest['bme'].verts)
+    touched = set()
+    while working:
+        bmv = working.pop()
+        for bme in bmv.link_edges:
+            if bme in touched: continue
+            if not bme.is_boundary and not bme.is_wire: continue
+            if mirror_x and all(bmv.co.x <= mirror_t for bmv in bme.verts): continue
+            touched.add(bme)
+            working.add(bme_other_bmv(bme, bmv))
+    bmops.deselect_all(bm)
+    bmops.select_iter(bm, touched)
+    bmops.flush_selection(bm, em)
+    bpy.ops.ed.undo_push(message='Contours new select')
+    return {'FINISHED'}
+
 
 class RFOperator_Contours(RFOperator):
     bl_idname = 'retopoflow.contours'
@@ -582,6 +635,7 @@ class RFOperator_Contours(RFOperator):
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
+        ('retopoflow.contours_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
     ]
 
     rf_status = ['LMB: Insert']
@@ -632,7 +686,7 @@ class RFTool_Contours(RFTool_Base):
 
     # rf_brush = RFBrush_Contours()
 
-    bl_keymap = chain_rf_keymaps(RFOperator_Contours)
+    bl_keymap = chain_rf_keymaps(RFOperator_Contours) #, RFOperator_Contours_Select)
 
     def draw_settings(context, layout, tool):
         layout.label(text='Cut:')

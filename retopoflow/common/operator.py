@@ -208,10 +208,11 @@ class RFOperator(bpy.types.Operator):
 
 
 
-def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):
     class RFOp(RFOperator):
         bl_idname = f"retopoflow.{idname}"
         bl_label = label
+        bl_description = description if description is not None else label
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
         bl_options = set()
@@ -233,10 +234,10 @@ def create_operator(name, idname, label, *, fn_poll=None, fn_invoke=None, fn_exe
     return RFOp
 
 
-def invoke_operator(name, label):
+def invoke_operator(name, label, **kwargs):
     idname = name.lower()
     def get(fn):
-        create_operator(name, idname, label, fn_invoke=fn)
+        create_operator(name, idname, label, fn_invoke=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
         return fn
     return get

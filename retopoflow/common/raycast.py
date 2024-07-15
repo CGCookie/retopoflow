@@ -84,8 +84,15 @@ def plane_normal_from_points(context, p0, p1):
     if len(p1) > 2:
         p1 = location_3d_to_region_2d(context.region, context.region_data, p1)
         if not p1: return (None, None)
-    d0 = region_2d_to_vector_3d(context.region, context.region_data, p0).normalized()
-    d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
+    w, h = context.area.width, context.area.height
+    q0 = region_2d_to_origin_3d(context.region, context.region_data, Vector((w/2, h/2)))
+    q1 = region_2d_to_location_3d(context.region, context.region_data, p0, context.edit_object.location)
+    q2 = region_2d_to_location_3d(context.region, context.region_data, p1, context.edit_object.location)
+    d0 = (q1 - q0).normalized()
+    d1 = (q2 - q0).normalized()
+    # the following does _not_ work with orthographic projection, because directions are parallel
+    #d0 = region_2d_to_vector_3d(context.region, context.region_data, p0).normalized()
+    #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
 
 def iter_all_valid_sources(context):
@@ -120,9 +127,9 @@ def raycast_valid_sources(context, point):
 
     best = None
 
-    Ma = context.active_object.matrix_world
-    Mai = Ma.inverted()
-    Mat = Ma.transposed()
+    Me = context.edit_object.matrix_world
+    Mei = Me.inverted()
+    Met = Me.transposed()
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted()
@@ -141,8 +148,8 @@ def raycast_valid_sources(context, point):
 
         if best and best['distance'] <= dist: continue
 
-        co_active = point_to_vec3( Mai @ Vector((*co_world, 1.0)))
-        no_active = vector_to_vec3(Mat @ Vector((*no_world, 0.0)))
+        co_active = point_to_vec3( Mei @ Vector((*co_world, 1.0)))
+        no_active = vector_to_vec3(Met @ Vector((*no_world, 0.0)))
 
         best = {
             'ray_world':  ray_world,  # ray based on point
@@ -160,7 +167,7 @@ def raycast_valid_sources(context, point):
 
     # hit = Vector((*(best_hit.xyz / best_hit.w), 1.0))
     # if not world:
-    #     M = context.active_object.matrix_world
+    #     M = context.edit_object.matrix_world
     #     Mi = M.inverted()
     #     hit = Mi @ hit
     # return hit.xyz
