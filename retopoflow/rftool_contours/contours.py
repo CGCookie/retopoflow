@@ -582,44 +582,9 @@ class Contours_Logic:
 #         pass
 #     def update(self, context, event):
 
-@invoke_operator('contours_select', 'Contours Select', description='Select geometry for Contours')
-def invoke_contours_select(context, event):
-    bm, em = get_bmesh_emesh(context)
-    M_world = context.edit_object.matrix_world
-    Mi_world = M_world.inverted()
-    hit = raycast_valid_sources(context, mouse_from_event(event))
-    hit_pt = Mi_world @ hit['co_world']
-    print(f'{hit=}')
-    if not hit: return {'CANCELLED'}
-    nearest = None
-    mirror_x = has_mirror_x(context)
-    mirror_t = mirror_threshold(context)
-    for bme in bm.edges:
-        bmv0, bmv1 = bme.verts
-        pt = closest_point_segment(hit_pt, bmv0.co, bmv1.co)
-        dist = (pt - hit_pt).length
-        if nearest and dist >= nearest['dist']: continue
-        nearest = {
-            'bme': bme,
-            'dist': dist,
-        }
-    print(nearest)
-    if not nearest: return {'CANCELLED'}
-    working = set(nearest['bme'].verts)
-    touched = set()
-    while working:
-        bmv = working.pop()
-        for bme in bmv.link_edges:
-            if bme in touched: continue
-            if not bme.is_boundary and not bme.is_wire: continue
-            if mirror_x and all(bmv.co.x <= mirror_t for bmv in bme.verts): continue
-            touched.add(bme)
-            working.add(bme_other_bmv(bme, bmv))
-    bmops.deselect_all(bm)
-    bmops.select_iter(bm, touched)
-    bmops.flush_selection(bm, em)
-    bpy.ops.ed.undo_push(message='Contours new select')
-    return {'FINISHED'}
+# @invoke_operator('contours_select', 'Contours Select', description='Select geometry for Contours')
+# def invoke_contours_select(context, event):
+#     bpy.ops.mesh.loop_multi_select(ring=False)
 
 
 class RFOperator_Contours(RFOperator):
@@ -635,7 +600,8 @@ class RFOperator_Contours(RFOperator):
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
-        ('retopoflow.contours_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+        # ('retopoflow.contours_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
     ]
 
     rf_status = ['LMB: Insert']
