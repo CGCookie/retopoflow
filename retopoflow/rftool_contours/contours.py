@@ -337,17 +337,25 @@ class Contours_Logic:
                 dist2 = (self.mousemiddle - center2).length
                 if dist3 > radius3 or dist2 > radius2: continue
                 edge_ring = set()
+                cyclic_ring = False
+                first_attempt = True
                 for bme in {bme for bme in bmf.edges if bme in bmes}:
                     pre_bmf = bmf
                     while True:
-                        if bme in edge_ring: break
+                        if bme in edge_ring:
+                            if first_attempt:
+                                cyclic_ring = True
+                            break
                         edge_ring.add(bme)
                         next_bmf = next((bmf for bmf in bme.link_faces if bmf != pre_bmf), None)
                         if not next_bmf or len(next_bmf.edges) != 4: break
                         bme = next(bme_ for bme_ in next_bmf.edges if not shared_bmv(bme, bme_))
                         pre_bmf = next_bmf
+                    first_attempt = False
                 break
-            print(f'{len(edge_ring)=}')
+            if edge_ring:
+                cyclic = cyclic_ring
+                print(f'{len(edge_ring)=} {cyclic=}')
 
         # should we bridge with currently selected geometry?
         sel_path, sel_cyclic = find_selected_cycle_or_path(self.bm, self.hit['co_local'])
@@ -403,7 +411,10 @@ class Contours_Logic:
 
             if not cyclic:
                 # snap ends
-                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
+                if edge_ring:
+                    bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 2]
+                else:
+                    bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
                 if len(bmv_ends) != 2:
                     print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
                 else:
