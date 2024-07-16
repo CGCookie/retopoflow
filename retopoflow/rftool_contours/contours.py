@@ -304,12 +304,9 @@ class Contours_Logic:
             points = bpoints
             cyclic = False
 
-        # fit plane to points
+        # compute useful statistics about points
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
-        avg_radius = sum((pt - plane_fit.o).length for pt in points) / len(points)
-
-        # compute length
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
         # should we bridge with currently selected geometry?
@@ -322,35 +319,27 @@ class Contours_Logic:
             nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
             nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
             npoints = [Point(bmv.co) for bmv in nbmvs]
+
+            # compute useful statistics about newly created geometry
             nplane_fit = Plane.fit_to_points(npoints)
             ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
-            navg_radius = sum((pt - nplane_fit.o).length for pt in npoints) / len(npoints)
-            R = Matrix.Rotation(
-                -plane_fit.n.angle(nplane_fit.n),
-                4,
-                plane_fit.n.cross(nplane_fit.n),
-            )
+
+            # compute xforms to roughly move new geometry to match cut
             # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
             # the two axes of two planes might not align....  although they _should_ if we're bridging
-            S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4) # Matrix.Scale(avg_radius / navg_radius, 4)
-            T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0)))) # Matrix.Translation(-nplane_fit.o)
-            T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0)))) # Matrix.Translation(plane_fit.o)
-            M = T1 @ R @ S @ T0
+            R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
+            S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
+            T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
+            T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
+            xform = T1 @ R @ S @ T0
+            # transform all points, then snap to surface
             for bmv in nbmvs:
-                npt = M @ bvec_to_point(bmv.co)
+                npt = xform @ bvec_to_point(bmv.co)
                 npt_world = point_to_bvec3(M_local @ npt)
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
                 npt_local_snapped = Mi_local @ npt_world_snapped
                 # should find closest point in points?
-                closest = None
-                for pt in points:
-                    d = (pt - npt_local_snapped).length
-                    if closest and closest['dist'] <= d: continue
-                    closest = {
-                        'dist': d,
-                        'point': pt,
-                    }
-                bmv.co = closest['point']
+                bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
 
             if not cyclic:
                 # snap ends
