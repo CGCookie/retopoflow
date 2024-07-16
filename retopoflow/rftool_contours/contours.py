@@ -36,6 +36,7 @@ from ..common.bmesh import (
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     shared_bmv, crossed_quad,
     bme_other_bmv,
+    ensure_correct_normals,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
@@ -420,16 +421,7 @@ class Contours_Logic:
             # make sure face normals are correct.  cannot do this earlier, because
             # faces have no defined normal (verts overlap)
             nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
-            bmesh.ops.recalc_face_normals(self.bm, faces=nbmfs)
-            for bmf in nbmfs:
-                pt = M_local @ Point.average((bmv.co for bmv in bmf.verts))
-                no_world = nearest_normal_valid_sources(context, pt, world=True)
-                no_local = Mi_local @ Vector((*no_world, 0.0)).xyz
-                print(f'{bmf.normal=} {no_local=} {bmf.normal.dot(no_local)}')
-                if bmf.normal.dot(no_local) < 0:
-                    bmf.normal_flip()
-            for bmf in nbmfs:
-                print(f'{bmf.normal=}')
+            ensure_correct_normals(self.bm, nbmfs)
 
             select_now = nbmvs
             select_later = []

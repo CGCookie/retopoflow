@@ -59,12 +59,13 @@ class PolyPen_Properties:
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
         # None is a separator
-        ("EDGE-ONLY", "Edge-Only", "Insert edges only",           1),
-        ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       2),  # 'MESH_DATA'
-        ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 3),
+        ("VERT-ONLY", "Vert-Only", "Insert vertices only",        1),
+        ("EDGE-ONLY", "Edge-Only", "Insert edges only",           2),
+        ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       3),  # 'MESH_DATA'
+        ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 0),
         ("QUAD-ONLY", "Quad-Only", "Insert quads only",           4),
     ]
-    insert_mode = 3
+    insert_mode = 0
 
     rf_keymaps = []
 
@@ -112,9 +113,10 @@ class PolyPen_Properties:
                 bpy.ops.wm.call_menu_pie(name="VIEW3D_MT_PIE_PolyPen")
                 return {'FINISHED'}
 
-        gen_insert_mode('EdgeOnly', 'Edge-Only', 1)
-        gen_insert_mode('TriOnly',  'Tri-Only',  2)
-        gen_insert_mode('TriQuad',  'Tri/Quad',  3)
+        # gen_insert_mode('VertOnly', 'Vert-Only', 1)
+        gen_insert_mode('EdgeOnly', 'Edge-Only', 2)
+        gen_insert_mode('TriOnly',  'Tri-Only',  3)
+        gen_insert_mode('TriQuad',  'Tri/Quad',  0)
         gen_insert_mode('QuadOnly', 'Quad-Only', 4)
 
         PolyPen_Properties.rf_keymaps += [

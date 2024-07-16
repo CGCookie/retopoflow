@@ -27,13 +27,16 @@ from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
 
 from ...addon_common.common.decorators import add_cache
-from ..common.maths import (
+from ...addon_common.common import bmesh_ops as bmops
+from .maths import (
     view_forward_direction,
     distance_point_linesegment,
     distance_point_bmedge,
     distance2d_point_bmedge,
     closest_point_linesegment,
+    Point,
 )
+from .raycast import nearest_normal_valid_sources
 
 from .drawing import Drawing
 
@@ -107,6 +110,19 @@ def crossed_quad(pt0, pt1, pt2, pt3):
     n2 = v23.cross(-v12)
     n3 = v30.cross(-v23)
     return n0.dot(n1) < 0 or n0.dot(n2) < 0 or n0.dot(n3) < 0 or n1.dot(n2) < 0 or n1.dot(n3) < 0 or n2.dot(n3) < 0
+
+def ensure_correct_normals(bm, bmfs):
+    M_local = bpy.context.edit_object.matrix_world
+    Mi_local = M_local.inverted()
+    bmesh.ops.recalc_face_normals(bm, faces=bmfs)
+    for bmf in bmfs:
+        pt = M_local @ Point.average((bmv.co for bmv in bmf.verts))
+        no_world = nearest_normal_valid_sources(bpy.context, pt, world=True)
+        no_local = Mi_local @ Vector((*no_world, 0.0)).xyz
+        if bmf.normal.dot(no_local) < 0:
+            bmf.normal_flip()
+
+
 
 class NearestBMVert:
     def __init__(self, bm, matrix, matrix_inv):

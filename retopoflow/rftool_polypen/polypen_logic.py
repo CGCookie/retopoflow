@@ -180,6 +180,10 @@ class PP_Logic:
         ###########################################################################################
         # determine state of polypen based on selected geo, hovered geo, and insert mode
 
+        if insert_mode is None or insert_mode == 'VERT-ONLY':
+            self.state = PP_Action.VERT
+            return
+
         if len(self.selected[BMVert]) == 0:
             # inserting vertex
             if not self.nearest.bmv and self.nearest_bme.bme:
