@@ -122,6 +122,92 @@ def ensure_correct_normals(bm, bmfs):
         if bmf.normal.dot(no_local) < 0:
             bmf.normal_flip()
 
+def bmes_share_face(bme0, bme1):
+    return any(bmf in bme1.link_faces for bmf in bme0.link_faces)
+
+
+# finds closest path of selected, connected, boundary/wire BMEdges
+def find_selected_cycle_or_path(bm, point_closest):
+    selected = bmops.get_all_selected(bm)
+
+    # find edge loop on boundary or are wires
+    t = mirror_threshold(bpy.context)
+    def use_bme(bme):
+        if bme not in selected[BMEdge]: return False
+        if len(bme.link_faces) > 1: return False
+        if has_mirror_x(bpy.context) and all(abs(bmv.co.x) <= t for bmv in bme.verts): return False
+        return True
+
+    all_boundary_bmes = { bme for bme in selected[BMEdge] if use_bme(bme) }
+    # separate into connected parts, and grab connected part that is closest to point
+    touched = set()
+    closest = None
+    for bme_start in all_boundary_bmes:
+        if bme_start in touched: continue
+        bmes = set()
+        working = { bme_start }
+        while working:
+            bme = working.pop()
+            if bme in touched: continue
+            touched.add(bme)
+            bmes.add(bme)
+            working |= {
+                bme_ for bmv in bme.verts for bme_ in bmv.link_edges
+                if use_bme(bme_) and not bmes_share_face(bme, bme_)
+            }
+        dist = min(distance_point_bmedge(point_closest, bme) for bme in bmes)
+        if closest and closest['dist'] <= dist: continue
+        closest = {
+            'dist': dist,
+            'bmes': bmes,
+        }
+
+    selected = {
+        BMVert: { bmv for bme in closest['bmes'] for bmv in bme.verts },
+        BMEdge: closest['bmes'],
+    }
+
+    longest_path = []
+    longest_cycle = []
+
+    def vert_selected(bme):
+        yield from (bmv for bmv in bme.verts if bmv in selected[BMVert])
+    def link_edge_selected(bmv):
+        yield from (bme for bme in bmv.link_edges if bme in selected[BMEdge])
+    def adjacent_selected_bmedges(bme):
+        for bmv in bme.verts:
+            if bmv not in selected[BMVert]: continue
+            for bme_ in bmv.link_edges:
+                if bme_ not in selected[BMEdge]: continue
+                if bme_ == bme: continue
+                yield bme_
+    start_bmes = {
+        bme for bme in selected[BMEdge]
+        if len(list(adjacent_selected_bmedges(bme))) == 1
+    }
+    if not start_bmes: start_bmes = selected[BMEdge]
+    for start_bme in start_bmes:
+        working = [(start_bme, adjacent_selected_bmedges(start_bme))]
+        touched = {start_bme}
+        while working:
+            cur_bme, cur_iter = working[-1]
+            next_bme = next(cur_iter, None)
+            if not next_bme:
+                if len(working) > len(longest_path):
+                    longest_path = [bme for (bme,_) in working]
+                working.pop()
+                touched.remove(cur_bme)
+                continue
+            if next_bme in touched:
+                if next_bme == start_bme and len(working) > 2 and len(working) > len(longest_cycle):
+                    longest_cycle = [bme for (bme,_) in working]
+                continue
+            touched.add(next_bme)
+            working.append((next_bme, adjacent_selected_bmedges(next_bme)))
+        if len(longest_cycle) > 50:
+            break
+    is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
+    return (longest_cycle if is_cyclic else longest_path, is_cyclic)
 
 
 class NearestBMVert:

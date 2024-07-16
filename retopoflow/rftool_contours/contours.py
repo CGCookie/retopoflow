@@ -37,10 +37,14 @@ from ..common.bmesh import (
     shared_bmv, crossed_quad,
     bme_other_bmv,
     ensure_correct_normals,
+    find_selected_cycle_or_path,
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
-from ..common.maths import bvec_to_point, point_to_bvec3, vector_to_bvec3
+from ..common.maths import (
+    bvec_to_point, point_to_bvec3, vector_to_bvec3,
+    pt_x0, pt_y0, pt_z0,
+)
 from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources,
     nearest_point_valid_sources, nearest_normal_valid_sources,
@@ -162,9 +166,10 @@ class Contours_Logic:
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
         hit_bm = get_object_bmesh(hit_obj)
-        print(f'{hit_bm=}')
         hit_bmf = hit_bm.faces[self.hit['face_index']]
 
+        # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
+        # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
         def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
         def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
         def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
@@ -178,8 +183,6 @@ class Contours_Logic:
         def intersect_plane(bmelem):
             fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
             return fn(bmelem)
-
-        # find all geometry connected to hit_bmf that intersects cut plane
         bmf_graph = {}
         bmf_intersections = defaultdict(dict)
         working = { hit_bmf }
@@ -244,11 +247,9 @@ class Contours_Logic:
 
             is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
             return (longest_cycle if is_cyclic else longest_path, is_cyclic)
-
         path, cyclic = find_cycle_or_path()
-        print(f'{len(path)=} {cyclic=}')
         if len(path) < 2:
-            print(f'PATH TOO SHORT')
+            print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
             return
 
         # find points in order
@@ -268,20 +269,6 @@ class Contours_Logic:
             add_path_end(path[-1])
 
         # handle cutting across mirror planes
-        def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
-        def pt_x0(pt0, pt1):
-            pt = pt0 + dir01(pt0, pt1) * abs(pt0.x)
-            pt.x = 0
-            return pt
-        def pt_y0(pt0, pt1):
-            pt = pt0 + dir01(pt0, pt1) * abs(pt0.y)
-            pt.y = 0
-            return pt
-        def pt_z0(pt0, pt1):
-            pt = pt0 + dir01(pt0, pt1) * abs(pt0.z)
-            pt.z = 0
-            return pt
-
         if has_mirror_x(context) and any(pt.x < 0 for pt in points):
             # NOTE: considers ONLY the positive x side of mirror!
             l = len(points)
@@ -300,6 +287,7 @@ class Contours_Logic:
                                 break
                         elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
                     if len(npoints) > len(bpoints): bpoints = npoints
+                # update vertex count, because the loop crosses mirror
                 vertex_count = vertex_count // 2 + 1
             else:
                 npoints = []
@@ -320,78 +308,23 @@ class Contours_Logic:
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         avg_radius = sum((pt - plane_fit.o).length for pt in points) / len(points)
-        print(f'{plane_fit=}')
-        print(f'{avg_radius=}')
-        print(f'{circle_fit=}')
-
-
 
         # compute length
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
-        print(f'{path_length=}')
-
 
         # should we bridge with currently selected geometry?
-        def find_selected_cycle_or_path():
-            selected = bmops.get_all_selected(self.bm)
-
-            longest_path = []
-            longest_cycle = []
-
-            def vert_selected(bme):
-                yield from (bmv for bmv in bme.verts if bmv in selected[BMVert])
-            def link_edge_selected(bmv):
-                yield from (bme for bme in bmv.link_edges if bme in selected[BMEdge])
-            def adjacent_selected_bmedges(bme):
-                for bmv in bme.verts:
-                    if bmv not in selected[BMVert]: continue
-                    for bme_ in bmv.link_edges:
-                        if bme_ not in selected[BMEdge]: continue
-                        if bme_ == bme: continue
-                        yield bme_
-            start_bmes = {
-                bme for bme in selected[BMEdge]
-                if len(list(adjacent_selected_bmedges(bme))) == 1
-            }
-            if not start_bmes: start_bmes = selected[BMEdge]
-            for start_bme in start_bmes:
-                working = [(start_bme, adjacent_selected_bmedges(start_bme))]
-                touched = {start_bme}
-                while working:
-                    cur_bme, cur_iter = working[-1]
-                    next_bme = next(cur_iter, None)
-                    if not next_bme:
-                        if len(working) > len(longest_path):
-                            longest_path = [bme for (bme,_) in working]
-                        working.pop()
-                        touched.remove(cur_bme)
-                        continue
-                    if next_bme in touched:
-                        if next_bme == start_bme and len(working) > 2 and len(working) > len(longest_cycle):
-                            longest_cycle = [bme for (bme,_) in working]
-                        continue
-                    touched.add(next_bme)
-                    working.append((next_bme, adjacent_selected_bmedges(next_bme)))
-                if len(longest_cycle) > 50:
-                    break
-            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
-            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
-        sel_path, sel_cyclic = find_selected_cycle_or_path()
-
-        print(f'{len(sel_path)=} {sel_cyclic=}')
-        print(f'{cyclic == sel_cyclic}')
+        sel_path, sel_cyclic = find_selected_cycle_or_path(self.bm, self.hit['co_local'])
         bridge = len(sel_path) > 0 and (cyclic == sel_cyclic)
 
         if bridge:
+            # extrude selection to cut
+
             nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
             nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
             npoints = [Point(bmv.co) for bmv in nbmvs]
             nplane_fit = Plane.fit_to_points(npoints)
             ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
             navg_radius = sum((pt - nplane_fit.o).length for pt in npoints) / len(npoints)
-            print(f'{nplane_fit=}')
-            print(f'{navg_radius=}')
-            print(f'{ncircle_fit=}')
             R = Matrix.Rotation(
                 -plane_fit.n.angle(nplane_fit.n),
                 4,
@@ -407,13 +340,23 @@ class Contours_Logic:
                 npt = M @ bvec_to_point(bmv.co)
                 npt_world = point_to_bvec3(M_local @ npt)
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-                bmv.co = Mi_local @ npt_world_snapped
+                npt_local_snapped = Mi_local @ npt_world_snapped
+                # should find closest point in points?
+                closest = None
+                for pt in points:
+                    d = (pt - npt_local_snapped).length
+                    if closest and closest['dist'] <= d: continue
+                    closest = {
+                        'dist': d,
+                        'point': pt,
+                    }
+                bmv.co = closest['point']
 
             if not cyclic:
                 # snap ends
                 bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
                 if len(bmv_ends) != 2:
-                    print(f'FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
+                    print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
                 else:
                     bmv0, bmv1 = bmv_ends
                     co0, co1 = bmv0.co, bmv1.co
@@ -430,6 +373,7 @@ class Contours_Logic:
 
             select_now = nbmvs
             select_later = []
+
         else:
             # find pts for new geometry
             # note: might need to take a few attempts due to numerical precision
@@ -464,17 +408,16 @@ class Contours_Logic:
             # create geometry!
             nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
             # nbmvs = [ self.bm.verts.new(co) for co in points ]  # debug: use all points
-            print(f'created {len(nbmvs)} BMVerts')
             select_now = list(nbmvs)
             select_later = []
             bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, cyclic)]
-            print(f'created {len(bmes)} BMEdges')
 
             if not cyclic:
                 # snap ends
                 bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_edges) == 1]
-                print(f'FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH')
-                if len(bmv_ends) == 2:
+                if len(bmv_ends) != 2:
+                    print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
+                else:
                     bmv0, bmv1 = bmv_ends
                     co0, co1 = bmv0.co, bmv1.co
                     pt0, pt1 = points[0], points[-1]

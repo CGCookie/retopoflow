@@ -84,3 +84,24 @@ def lerp(f, m, M): return m + f * (M - m)
 
 
 
+# return point on line segment where x/y/z is 0
+# used for splitting line segments that cross mirror plane
+def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
+def pt_x0(pt0, pt1):
+    d = dir01(pt0, pt1)
+    if d.x == 0: return pt0
+    pt = pt0 + d * (abs(pt0.x) / d.x)
+    pt.x = 0
+    return pt
+def pt_y0(pt0, pt1):
+    d = dir01(pt0, pt1)
+    if d.y == 0: return pt0
+    pt = pt0 + d * (abs(pt0.y) / d.y)
+    pt.y = 0
+    return pt
+def pt_z0(pt0, pt1):
+    d = dir01(pt0, pt1)
+    if d.z == 0: return pt0
+    pt = pt0 + d * (abs(pt0.z) / d.z)
+    pt.z = 0
+    return pt
