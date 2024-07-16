@@ -73,9 +73,11 @@ def closest_point_linesegment(pt, p0, p1):
     f = clamp(v0t.dot(v01) / l01_squared, 0.0, 1.0)
     return p0 + v01 * f
 
-def point_to_vec3(v):
-    return v.xyz / v.w if len(v) == 4 else v.xyz
-def vector_to_vec3(v):
+def bvec_to_point(v):
+    return Point((*point_to_bvec3(v), 1.0))
+def point_to_bvec3(pt):
+    return pt.xyz / pt.w if len(pt) == 4 else pt.xyz
+def vector_to_bvec3(v):
     return v.xyz
 
 def lerp(f, m, M): return m + f * (M - m)

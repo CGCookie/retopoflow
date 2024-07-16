@@ -31,7 +31,7 @@ from bpy_extras.view3d_utils import (
     location_3d_to_region_2d,
 )
 
-from .maths import point_to_vec3, vector_to_vec3
+from .maths import point_to_bvec3, vector_to_bvec3
 
 def mouse_from_event(event): return (event.mouse_region_x, event.mouse_region_y)
 
@@ -41,7 +41,7 @@ def vec_forward(context):
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
 
 def distance_between_locations(a, b):
-    a, b = point_to_vec3(a), point_to_vec3(b)
+    a, b = point_to_bvec3(a), point_to_bvec3(b)
     return (a - b).length
 
 def point2D_to_point(context, xy, depth:float):
@@ -139,17 +139,17 @@ def raycast_valid_sources(context, point):
             Mi @ ray_world[0],
             (Mt @ ray_world[1]).normalized(),
         )
-        result, co_hit, no_hit, idx = obj.ray_cast(point_to_vec3(ray_local[0]), vector_to_vec3(ray_local[1]))
+        result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
         if not result: continue
 
-        co_world = point_to_vec3( M   @ Vector((*co_hit, 1.0)))
-        no_world = vector_to_vec3(Mit @ Vector((*no_hit, 0.0)))
+        co_world = point_to_bvec3( M   @ Vector((*co_hit, 1.0)))
+        no_world = vector_to_bvec3(Mit @ Vector((*no_hit, 0.0)))
         dist = distance_between_locations(ray_world[0], co_world)
 
         if best and best['distance'] <= dist: continue
 
-        co_active = point_to_vec3( Mei @ Vector((*co_world, 1.0)))
-        no_active = vector_to_vec3(Met @ Vector((*no_world, 0.0)))
+        co_active = point_to_bvec3( Mei @ Vector((*co_world, 1.0)))
+        no_active = vector_to_bvec3(Met @ Vector((*no_world, 0.0)))
 
         best = {
             'ray_world':  ray_world,  # ray based on point
@@ -186,7 +186,7 @@ def raycast_point_valid_sources(context, point, *, world=True):
             Mi @ ray_world[0],
             (Mi @ ray_world[1]).normalized(),
         )
-        result, co, normal, idx = obj.ray_cast(point_to_vec3(ray_local[0]), vector_to_vec3(ray_local[1]))
+        result, co, normal, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
         if not result: continue
         co_world = M @ Vector((*co, 1.0))
         dist = distance_between_locations(ray_world[0], co_world)
@@ -196,12 +196,12 @@ def raycast_point_valid_sources(context, point, *, world=True):
         best_dist = dist
     if not best_hit: return None
 
-    hit = Vector((*point_to_vec3(best_hit), 1.0))
+    hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
         M = context.active_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
-    return point_to_vec3(hit)
+    return point_to_bvec3(hit)
 
 def nearest_point_valid_sources(context, point, *, world=True):
     point_world = Vector((*point, 1.0))
@@ -222,12 +222,12 @@ def nearest_point_valid_sources(context, point, *, world=True):
         best_dist = dist
     if not best_hit: return None
 
-    hit = Vector((*point_to_vec3(best_hit), 1.0))
+    hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
         M = context.active_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
-    return point_to_vec3(hit)
+    return point_to_bvec3(hit)
 
 def nearest_normal_valid_sources(context, point, *, world=True):
     point_world = Vector((*point, 1.0))
@@ -249,9 +249,9 @@ def nearest_normal_valid_sources(context, point, *, world=True):
         best_dist = dist
     if not best_hit: return None
 
-    hit = Vector((*vector_to_vec3(best_hit), 0.0))
+    hit = Vector((*vector_to_bvec3(best_hit), 0.0))
     if not world:
         M = context.active_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
-    return vector_to_vec3(hit)
+    return vector_to_bvec3(hit)
