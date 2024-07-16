@@ -162,6 +162,8 @@ def find_selected_cycle_or_path(bm, point_closest):
             'bmes': bmes,
         }
 
+    if not closest: return ([], False)
+
     selected = {
         BMVert: { bmv for bme in closest['bmes'] for bmv in bme.verts },
         BMEdge: closest['bmes'],

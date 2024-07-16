@@ -26,6 +26,7 @@ import bmesh
 from itertools import chain
 from collections import defaultdict
 from bmesh.types import BMVert, BMEdge, BMFace
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Matrix
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
@@ -40,7 +41,11 @@ from ..common.bmesh import (
     find_selected_cycle_or_path,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import invoke_operator, execute_operator, RFOperator, RFRegisterClass, chain_rf_keymaps, wrap_property
+from ..common.operator import (
+    invoke_operator, execute_operator,
+    RFOperator, RFRegisterClass,
+    chain_rf_keymaps, wrap_property,
+)
 from ..common.maths import (
     bvec_to_point, point_to_bvec3, vector_to_bvec3,
     pt_x0, pt_y0, pt_z0,
@@ -135,8 +140,8 @@ class Contours_Logic:
             if (self.mousedown - self.mouse).length < Drawing.scale(8):
                 self.hit = None
             else:
-                pm = Point2D.average((self.mouse, self.mousedown))
-                self.hit = raycast_valid_sources(context, pm)
+                self.mousemiddle = Point2D.average((self.mouse, self.mousedown))
+                self.hit = raycast_valid_sources(context, self.mousemiddle)
 
         if event.type == 'MOUSEMOVE' and self.mousedown:
             context.area.tag_redraw()
@@ -148,9 +153,7 @@ class Contours_Logic:
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             # do something with self.mousedown and self.mouse and self.hit
             if self.hit:
-                t0 = time.time()
                 self.new_cut(context, contours.initial_cut_count)
-                print(f'time for new cut: {time.time() - t0}')
             self.mousedown = None
             self.hit = None
             context.area.tag_redraw()
@@ -168,6 +171,7 @@ class Contours_Logic:
         hit_bm = get_object_bmesh(hit_obj)
         hit_bmf = hit_bm.faces[self.hit['face_index']]
 
+        ####################################################################################################
         # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
         # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
         def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
@@ -201,6 +205,7 @@ class Contours_Logic:
                     bmf_intersections[bmf][bmf_] = co
                     bmf_intersections[bmf_][bmf] = co
 
+        ####################################################################################################
         # find longest cycle or path in bmf_graph
         def find_cycle_or_path():
             longest_path = []
@@ -247,11 +252,13 @@ class Contours_Logic:
 
             is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
             return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+
         path, cyclic = find_cycle_or_path()
         if len(path) < 2:
             print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
             return
 
+        ####################################################################################################
         # find points in order
         points = []
         def add_path_end(bmf):
@@ -259,15 +266,15 @@ class Contours_Logic:
                 bmelem for bmelem in bmf_intersections[bmf]
                 if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
             ), None)
-            if not bmelem: return
-            points.append(Mi_local @ bmf_intersections[bmf][bmelem])
-        if not cyclic:
-            add_path_end(path[0])
-        for (bmf0, bmf1) in iter_pairs(path, False):
-            points.append(Mi_local @ bmf_intersections[bmf0][bmf1])
-        if not cyclic:
-            add_path_end(path[-1])
+            return [ Mi_local @ bmf_intersections[bmf][bmelem] ] if bmelem else []
+        if not cyclic: points += add_path_end(path[0])
+        points += [
+            Mi_local @ bmf_intersections[bmf0][bmf1]
+            for (bmf0, bmf1) in iter_pairs(path, False)
+        ]
+        if not cyclic: points += add_path_end(path[-1])
 
+        ####################################################################################################
         # handle cutting across mirror planes
         if has_mirror_x(context) and any(pt.x < 0 for pt in points):
             # NOTE: considers ONLY the positive x side of mirror!
@@ -304,21 +311,74 @@ class Contours_Logic:
             points = bpoints
             cyclic = False
 
+        ####################################################################################################
         # compute useful statistics about points
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
+        # did we hit current geometry and need to insert an edge loop?
+        edge_ring = None
+        if self.bm.verts:
+            # find bmedges that cross the plane
+            edge_ring = set()
+            bmes = { bme for bme in self.bm.edges if plane_fit.edge_crosses((bme.verts[0].co, bme.verts[1].co)) }
+            for bmf in (bmf for bme in bmes for bmf in bme.link_faces):
+                if len(bmf.edges) != 4: continue
+                center3 = sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
+                radius3 = max((bmv.co - center3).length for bmv in bmf.verts)
+                dist3 = (self.hit['co_local'] - center3).length
+                pts2d = [
+                    location_3d_to_region_2d(context.region, context.region_data, M_local @ bmv.co)
+                    for bmv in bmf.verts
+                ]
+                center2 = sum(pts2d, Vector((0,0))) / len(pts2d)
+                radius2 = max((pt2d - center2).length for pt2d in pts2d)
+                dist2 = (self.mousemiddle - center2).length
+                if dist3 > radius3 or dist2 > radius2: continue
+                edge_ring = set()
+                for bme in {bme for bme in bmf.edges if bme in bmes}:
+                    pre_bmf = bmf
+                    while True:
+                        if bme in edge_ring: break
+                        edge_ring.add(bme)
+                        next_bmf = next((bmf for bmf in bme.link_faces if bmf != pre_bmf), None)
+                        if not next_bmf or len(next_bmf.edges) != 4: break
+                        bme = next(bme_ for bme_ in next_bmf.edges if not shared_bmv(bme, bme_))
+                        pre_bmf = next_bmf
+                break
+            print(f'{len(edge_ring)=}')
+
         # should we bridge with currently selected geometry?
         sel_path, sel_cyclic = find_selected_cycle_or_path(self.bm, self.hit['co_local'])
-        bridge = len(sel_path) > 0 and (cyclic == sel_cyclic)
+        bridge = sel_path and (cyclic == sel_cyclic)
 
-        if bridge:
-            # extrude selection to cut
+        ####################################################################################################
+        # create new geometry!
+        if bridge or edge_ring:
+            if edge_ring:
+                # cut in new edge loop
+                bmeloops = {
+                    bme_
+                    for bme in edge_ring
+                    for bmf in bme.link_faces
+                    for bme_ in bmf.edges
+                } - edge_ring
+                # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
+                bmops.deselect_all(self.bm)
+                bmops.select_iter(self.bm, bmeloops)
+                nbmelems = bmesh.ops.subdivide_edgering(self.bm, edges=list(edge_ring), cuts=1)['faces']
+                nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
+                npoints = [Point(bmv.co) for bmv in nbmvs]
 
-            nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
-            nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
-            npoints = [Point(bmv.co) for bmv in nbmvs]
+            elif bridge:
+                # extrude selection to cut
+                nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
+                nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
+                npoints = [Point(bmv.co) for bmv in nbmvs]
+
+            else:
+                assert False, f'Contours: should never reach here'
 
             # compute useful statistics about newly created geometry
             nplane_fit = Plane.fit_to_points(npoints)
@@ -396,7 +456,6 @@ class Contours_Logic:
 
             # create geometry!
             nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
-            # nbmvs = [ self.bm.verts.new(co) for co in points ]  # debug: use all points
             select_now = list(nbmvs)
             select_later = []
             bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, cyclic)]
