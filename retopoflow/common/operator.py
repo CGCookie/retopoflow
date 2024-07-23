@@ -98,10 +98,15 @@ class RFOperator(bpy.types.Operator):
     def poll(cls, context):
         if not context.edit_object: return False
         if context.edit_object.type != 'MESH': return False
+
+        # make sure RFOperator has only one running instance!
+        if getattr(cls, '_is_running', False): return False
+
         return True
 
     def invoke(self, context, event):
         if self.can_init(context, event) == False: return {'CANCELLED'}
+        type(self)._is_running = True
         RFOperator.active_operators.append(self)
         context.window_manager.modal_handler_add(self)
         context.workspace.status_text_set(lambda header, context: self.status(header, context))
@@ -162,6 +167,7 @@ class RFOperator(bpy.types.Operator):
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
+            type(self)._is_running = False
 
         return ret
 
