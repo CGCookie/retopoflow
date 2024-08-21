@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.3&rarr;3.4.4
+
+- Added compatability with Blender extensions
+
 ### RetopoFlow 3.4.2&rarr;3.4.3
 
 - Fixed text rendering bug
