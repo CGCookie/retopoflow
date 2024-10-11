@@ -158,18 +158,13 @@ class Contours_Logic:
             self.hit = None
             context.area.tag_redraw()
 
-    def new_cut(self, context, vertex_count):
-        M_local = context.edit_object.matrix_world
-        Mi_local = M_local.inverted()
-        plane_cut = Plane(
-            self.hit['co_world'],
-            plane_normal_from_points(context, self.mousedown, self.mouse),
-        )
-
-        hit_obj = self.hit['object']
+    def generate_cut_info(self, context, plane_cut, hit_obj, hit_bmf):
+        '''
+        generates cut info of high-res mesh (hit_obj) starting at hit_bmf
+        '''
         M = hit_obj.matrix_world
-        hit_bm = get_object_bmesh(hit_obj)
-        hit_bmf = hit_bm.faces[self.hit['face_index']]
+
+        # TODO: walk from hit_bmf to find bmf that crosses plane_cut
 
         ####################################################################################################
         # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
@@ -256,7 +251,7 @@ class Contours_Logic:
         path, cyclic = find_cycle_or_path()
         if len(path) < 2:
             print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
-            return
+            return None
 
         ####################################################################################################
         # find points in order
@@ -266,16 +261,17 @@ class Contours_Logic:
                 bmelem for bmelem in bmf_intersections[bmf]
                 if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
             ), None)
-            return [ Mi_local @ bmf_intersections[bmf][bmelem] ] if bmelem else []
+            return [ self.matrix_world_inv @ bmf_intersections[bmf][bmelem] ] if bmelem else []
         if not cyclic: points += add_path_end(path[0])
         points += [
-            Mi_local @ bmf_intersections[bmf0][bmf1]
+            self.matrix_world_inv @ bmf_intersections[bmf0][bmf1]
             for (bmf0, bmf1) in iter_pairs(path, False)
         ]
         if not cyclic: points += add_path_end(path[-1])
 
         ####################################################################################################
         # handle cutting across mirror planes
+        mirror_clipped_loop = False
         if has_mirror_x(context) and any(pt.x < 0 for pt in points):
             # NOTE: considers ONLY the positive x side of mirror!
             l = len(points)
@@ -294,8 +290,7 @@ class Contours_Logic:
                                 break
                         elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
                     if len(npoints) > len(bpoints): bpoints = npoints
-                # update vertex count, because the loop crosses mirror
-                vertex_count = vertex_count // 2 + 1
+                mirror_clipped_loop = True
             else:
                 npoints = []
                 for i in range(l):
@@ -310,12 +305,50 @@ class Contours_Logic:
                         npoints = []
             points = bpoints
             cyclic = False
+        # TODO: handle other mirror planes!
+
+        if len(points) < 3:
+            print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
+            return None
+
 
         ####################################################################################################
         # compute useful statistics about points
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        return {
+            'points': points,
+            'cyclic': cyclic,
+            'plane_fit': plane_fit,
+            'circle_fit': circle_fit,
+            'path_length': path_length,
+            'mirror_clipped_loop': mirror_clipped_loop,
+        }
+
+
+    def new_cut(self, context, vertex_count):
+        plane_cut = Plane(
+            self.hit['co_world'],
+            plane_normal_from_points(context, self.mousedown, self.mouse),
+        )
+
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+        hit_bm = get_object_bmesh(hit_obj)
+        hit_bmf = hit_bm.faces[self.hit['face_index']]
+
+        cut_info = self.generate_cut_info(context, plane_cut, hit_obj, hit_bmf)
+        if not cut_info: return
+        points       = cut_info['points']
+        cyclic       = cut_info['cyclic']
+        plane_fit    = cut_info['plane_fit']
+        circle_fit   = cut_info['circle_fit']
+        path_length  = cut_info['path_length']
+        if cut_info['mirror_clipped_loop']:
+            # update vertex count, because the loop crosses mirror
+            vertex_count = vertex_count // 2 + 1
 
         # did we hit current geometry and need to insert an edge loop?
         edge_ring = None
@@ -329,7 +362,7 @@ class Contours_Logic:
                 radius3 = max((bmv.co - center3).length for bmv in bmf.verts)
                 dist3 = (self.hit['co_local'] - center3).length
                 pts2d = [
-                    location_3d_to_region_2d(context.region, context.region_data, M_local @ bmv.co)
+                    location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
                     for bmv in bmf.verts
                 ]
                 center2 = sum(pts2d, Vector((0,0))) / len(pts2d)
@@ -363,6 +396,7 @@ class Contours_Logic:
 
         ####################################################################################################
         # create new geometry!
+
         if bridge or edge_ring:
             if edge_ring:
                 # cut in new edge loop
@@ -403,9 +437,9 @@ class Contours_Logic:
             # transform all points, then snap to surface
             for bmv in nbmvs:
                 npt = xform @ bvec_to_point(bmv.co)
-                npt_world = point_to_bvec3(M_local @ npt)
+                npt_world = point_to_bvec3(self.matrix_world @ npt)
                 npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-                npt_local_snapped = Mi_local @ npt_world_snapped
+                npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
                 # should find closest point in points?
                 bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
 

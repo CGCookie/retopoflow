@@ -61,8 +61,6 @@ from ...addon_common.common.maths import intersection2d_line_line
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
-from ..rfoperators.transform import RFOperator_Translate
-
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -734,7 +732,7 @@ class PP_Logic:
 
         bmops.flush_selection(self.bm, self.em)
 
-        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False)
+        bpy.ops.retopoflow.translate_screenspace('INVOKE_DEFAULT', False, move_hovered=False)
 
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert

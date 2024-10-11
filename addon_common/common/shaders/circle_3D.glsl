@@ -50,14 +50,16 @@ noperspective out vec2 cpos;    // center of line, scaled by screensize
 
 void main() {
     float ang = TAU * pos.x;
-    float r = radius() + (pos.y - 0.5) * width();
-    vec3 v = options.plane_x.xyz * cos(ang) + options.plane_y.xyz * sin(ang);
-    vec3 p = options.center.xyz + r * v;
-    vec3 cp = options.center.xyz + radius() * v;
-    vec4 pcp = options.MVPMatrix * vec4(cp, 1.0);
-    gl_Position = options.MVPMatrix * vec4(p, 1.0);
-    vpos = vec2(gl_Position.x * options.screensize.x, gl_Position.y * options.screensize.y);
-    cpos = vec2(pcp.x * options.screensize.x, pcp.y * options.screensize.y);
+    float r   = radius();
+    float rio = r + (pos.y - 0.5) * (width() + 0.0001);
+    vec3  c   = options.center.xyz;
+    vec3  v   = options.plane_x.xyz * cos(ang) + options.plane_y.xyz * sin(ang);
+    vec4  pp  = options.MVPMatrix * vec4(c + v * rio,  1.0);
+    vec4  pcp = options.MVPMatrix * vec4(c + v * r,    1.0);
+
+    gl_Position = pp;
+    vpos = pp.xy  * options.screensize.xy;
+    cpos = pcp.xy * options.screensize.xy;
 }
 
 
@@ -67,7 +69,7 @@ void main() {
 noperspective in vec2 vpos;
 noperspective in vec2 cpos;
 
-out vec4 outColor;
+out vec4  outColor;
 out float gl_FragDepth;
 
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
@@ -82,16 +84,15 @@ vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 }
 
 void main() {
-    outColor = options.color;
-
-    // antialias along edge of line.... NOT WORKING!
-    float cdist = length(cpos - vpos);
-    if(cdist > width()) {
-        outColor.a *= clamp(1.0 - (cdist - width()), 1.0, 1.0);
-    }
+    // // antialias along edge of line.... NOT WORKING!
+    float alpha = 1.0;
+    // float cdist = length(cpos - vpos);
+    // if(cdist < width()) {
+    //     alpha = clamp(1.0 - (width() - cdist), 0.0, 1.0);
+    // }
 
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
-    outColor = blender_srgb_to_framebuffer_space(outColor);
+    outColor = blender_srgb_to_framebuffer_space(options.color * vec4(1.0,1.0,1.0,alpha));
     gl_FragDepth = mix(depth_near(), depth_far(), gl_FragCoord.z);
 }
 

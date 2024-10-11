@@ -211,7 +211,7 @@ def nearest_point_valid_sources(context, point, *, world=True):
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted()
-        point_local = Mi @ point
+        point_local = Mi @ Vector((*point, 1.0))
         result, co, normal, idx = obj.closest_point_on_mesh(point_local)
         if not result: continue
         co_world = M @ Vector((*co, 1.0))

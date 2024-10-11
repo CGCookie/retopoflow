@@ -28,6 +28,7 @@ from mathutils import Vector, Matrix
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.maths import clamp
 from .maths import (
     view_forward_direction,
     distance_point_linesegment,
@@ -41,9 +42,13 @@ from .raycast import nearest_normal_valid_sources
 from .drawing import Drawing
 
 
-def get_bmesh_emesh(context):
+def get_bmesh_emesh(context, *, ensure_lookup_tables=False):
     em = context.edit_object.data
     bm = bmesh.from_edit_mesh(em)
+    if ensure_lookup_tables:
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
     return (bm, em)
 
 def iter_mirror_modifiers(obj):
@@ -212,14 +217,58 @@ def find_selected_cycle_or_path(bm, point_closest):
     return (longest_cycle if is_cyclic else longest_path, is_cyclic)
 
 
+def nearest_bmv_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):
+    # note: xform co local, so technically we are not finding the closest in world-space
+    #       as object could be scaled non-uniformly, but this is faster!
+    co_2d = location_3d_to_region_2d(context.region, context.region_data, co_world)
+    if not co_2d: return None
+    co_local = (matrix_inv @ Vector((*co_world.xyz, 1.0))).xyz
+    distance_squared, distance2d_squared = distance ** 2, distance2d ** 2
+    closest, closest_dist = None, float('inf')
+    for bmv in bm.verts:
+        bmvco_2d = location_3d_to_region_2d(context.region, context.region_data, (matrix @ Vector((*bmv.co.xyz, 1.0))).xyz)
+        if not bmvco_2d: continue
+        if (bmvco_2d.xy - co_2d.xy).length_squared > distance2d_squared: continue
+        dist = (bmv.co - co_local).length_squared
+        if dist > distance_squared: continue
+        if dist >= closest_dist: continue
+        closest, closest_dist = bmv, dist
+    return closest
+
+def nearest_bme_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):
+    # note: xform co local, so technically we are not finding the closest in world-space
+    #       as object could be scaled non-uniformly, but this is faster!
+    co_2d = location_3d_to_region_2d(context.region, context.region_data, co_world)
+    if not co_2d: return None
+    co_local = (matrix_inv @ Vector((*co_world.xyz, 1.0))).xyz
+    distance_squared, distance2d_squared = distance ** 2, distance2d ** 2
+    closest, closest_dist = None, float('inf')
+    for bme in bm.edges:
+        bmv0, bmv1 = bme.verts
+        co0, co1 = bmv0.co, bmv1.co
+        a, b = co1 - co0, co_local - co0
+        bl = b.length
+        bd = b / bl
+        p = co0 + bd * clamp(a.dot(bd), 0, bl)
+        bmvco_2d = location_3d_to_region_2d(context.region, context.region_data, (matrix @ Vector((*bmv.co.xyz, 1.0))).xyz)
+        if not bmvco_2d: continue
+        if (bmvco_2d.xy - co_2d.xy).length_squared > distance2d_squared: continue
+        dist = (co_local - p).length_squared
+        if dist > distance_squared: continue
+        if dist >= closest_dist: continue
+        closest, closest_dist = bme, dist
+    return closest
+
+
 class NearestBMVert:
-    def __init__(self, bm, matrix, matrix_inv):
+    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         self.bm = bm
         self.matrix = matrix
         self.matrix_inv = matrix_inv
-        self.bm.verts.ensure_lookup_table()
-        self.bm.edges.ensure_lookup_table()
-        self.bm.faces.ensure_lookup_table()
+        if ensure_lookup_tables:
+            self.bm.verts.ensure_lookup_table()
+            self.bm.edges.ensure_lookup_table()
+            self.bm.faces.ensure_lookup_table()
 
         # assuming there are relatively few loose bmvs (bmvert that is not part of a bmface)
         self.loose_bmvs = [bmv for bmv in self.bm.verts if not bmv.link_faces]
@@ -274,13 +323,14 @@ def edges_to_triangles(count):
     return edges_to_triangles.triangle_inds[:count]
 
 class NearestBMEdge:
-    def __init__(self, bm, matrix, matrix_inv):
+    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         self.bm = bm
         self.matrix = matrix
         self.matrix_inv = matrix_inv
-        self.bm.verts.ensure_lookup_table()
-        self.bm.edges.ensure_lookup_table()
-        self.bm.faces.ensure_lookup_table()
+        if ensure_lookup_tables:
+            self.bm.verts.ensure_lookup_table()
+            self.bm.edges.ensure_lookup_table()
+            self.bm.faces.ensure_lookup_table()
 
         # assuming there are relatively few loose bmes (bmedge that is not part of a bmface)
         self.loose_bmes = [bme for bme in self.bm.edges if not bme.link_faces]

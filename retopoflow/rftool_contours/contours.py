@@ -20,66 +20,27 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import os
-import time
 import bmesh
-from itertools import chain
-from collections import defaultdict
-from bmesh.types import BMVert, BMEdge, BMFace
+from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Matrix
 from ..rftool_base import RFTool_Base
-from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import (
-    get_bmesh_emesh, get_object_bmesh,
-    clean_select_layers,
-    NearestBMVert, NearestBMEdge,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
-    shared_bmv, crossed_quad,
-    bme_other_bmv,
-    ensure_correct_normals,
-    find_selected_cycle_or_path,
-)
+from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world
 from ..common.icons import get_path_to_blender_icon
+from ..common.maths import view_forward_direction
 from ..common.operator import (
     invoke_operator, execute_operator,
     RFOperator, RFRegisterClass,
     chain_rf_keymaps, wrap_property,
 )
-from ..common.maths import (
-    bvec_to_point, point_to_bvec3, vector_to_bvec3,
-    pt_x0, pt_y0, pt_z0,
-)
-from ..common.raycast import (
-    raycast_valid_sources, raycast_point_valid_sources,
-    nearest_point_valid_sources, nearest_normal_valid_sources,
-    size2D_to_size,
-    vec_forward,
-    mouse_from_event,
-    plane_normal_from_points,
-)
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import (
-    Point2D, Point, Normal, Vector, Plane,
-    closest_point_segment,
-)
 from ...addon_common.common.reseter import Reseter
-from ...addon_common.common.utils import iter_pairs, rotate_cycle
-from ...addon_common.ext.circle_fit import hyperLSQ
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
+
+from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 from .contours_logic import Contours_Logic
+
 
 
 class RFOperator_Contours(RFOperator):
@@ -145,7 +106,10 @@ class RFTool_Contours(RFTool_Base):
 
     # rf_brush = RFBrush_Contours()
 
-    bl_keymap = chain_rf_keymaps(RFOperator_Contours)
+    bl_keymap = chain_rf_keymaps(
+        RFOperator_Contours,
+        RFOperator_Translate_BoundaryLoop,
+    )
 
     def draw_settings(context, layout, tool):
         layout.label(text='Cut:')

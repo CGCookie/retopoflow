@@ -49,7 +49,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
-from ..rfoperators.transform import RFOperator_Translate
+from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from .polypen_logic import PP_Logic
 
@@ -156,13 +156,6 @@ class RFOperator_PolyPen(RFOperator):
         description='Insertion mode for PolyPen',
         items=PolyPen_Properties.insert_modes,
     )
-    # insert_mode: bpy.props.EnumProperty(
-    #     name='Insert Mode',
-    #     description='Insertion mode for PolyPen',
-    #     items=PolyPen_Properties.insert_modes,
-    #     get=PolyPen_Properties.get_insert_mode,
-    #     set=PolyPen_Properties.set_insert_mode,
-    # )
     quad_stability: bpy.props.FloatProperty(
         name='Quad Stability',
         description='Stability of parallel edges',
@@ -212,7 +205,11 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 
-    bl_keymap = chain_rf_keymaps(RFOperator_PolyPen, RFOperator_Translate, PolyPen_Properties)
+    bl_keymap = chain_rf_keymaps(
+        RFOperator_PolyPen,
+        RFOperator_Translate_ScreenSpace,
+        PolyPen_Properties,
+    )
 
     def draw_settings(context, layout, tool):
         # layout.label(text="PolyPen")
@@ -220,6 +217,7 @@ class RFTool_PolyPen(RFTool_Base):
         layout.prop(props, 'insert_mode')
         if props.insert_mode == 'QUAD-ONLY':
             layout.prop(props, 'quad_stability', slider=True)
+        layout.prop(context.tool_settings, 'use_mesh_automerge')
 
     @classmethod
     def activate(cls, context):

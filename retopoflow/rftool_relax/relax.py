@@ -64,8 +64,6 @@ from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, 
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.timerhandler import TimerHandler
 
-from ..rfoperators.transform import RFOperator_Translate
-
 from .relax_logic import Relax_Logic
 
 
@@ -151,6 +149,7 @@ class RFBrush_Relax(RFBrush_Base):
         rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
 
         self.hit = True
+        self.hit_ray = hit['ray_world']
         self.hit_scale = scale
         self.hit_p = hit['co_world']
         self.hit_n = hit['no_world']
@@ -190,23 +189,25 @@ class RFBrush_Relax(RFBrush_Base):
         p, n = self.hit_p, self.hit_n
         ro = self.radius * self.hit_scale
         ri = ro * ff
-        rm = (ro + ri) / 2.0
+        rm, rd = (ro + ri) / 2.0, (ro - ri)
+        rt = (2 + 2 * (1 + self.hit_n.dot(self.hit_ray[1]))) * self.hit_scale
         co, ci, cf = self.outer_color, self.inner_color, self.fill_color * fillscale
+        #print(self.hit_n, self.hit_ray[1], self.hit_n.dot(self.hit_ray[1]))
 
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
 
         # draw below
         gpustate.depth_test('GREATER')
-        Drawing.draw3D_circle(context, p, rm, cf * self.below_alpha, n=n, width=ro - ri, depth_far=self.depth_fill)
-        Drawing.draw3D_circle(context, p, ro, co * self.below_alpha, n=n, width=2*self.hit_scale, depth_far=self.depth_border)
-        Drawing.draw3D_circle(context, p, ri, ci * self.below_alpha, n=n, width=2*self.hit_scale, depth_far=self.depth_border)
+        Drawing.draw3D_circle(context, p, rm, cf * self.below_alpha, n=n, width=rd, depth_far=self.depth_fill)
+        Drawing.draw3D_circle(context, p, ro, co * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
+        Drawing.draw3D_circle(context, p, ri, ci * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
 
         # draw above
         gpustate.depth_test('LESS_EQUAL')
-        Drawing.draw3D_circle(context, p, rm, cf, n=n, width=ro - ri, depth_far=self.depth_fill)
-        Drawing.draw3D_circle(context, p, ro, co, n=n, width=2*self.hit_scale, depth_far=self.depth_border)
-        Drawing.draw3D_circle(context, p, ri, ci, n=n, width=2*self.hit_scale, depth_far=self.depth_border)
+        Drawing.draw3D_circle(context, p, rm, cf, n=n, width=rd, depth_far=self.depth_fill)
+        Drawing.draw3D_circle(context, p, ro, co, n=n, width=rt, depth_far=self.depth_border)
+        Drawing.draw3D_circle(context, p, ri, ci, n=n, width=rt, depth_far=self.depth_border)
 
         # reset
         gpustate.depth_test('LESS_EQUAL')
