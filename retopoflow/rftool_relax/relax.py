@@ -223,6 +223,7 @@ class RFOperator_RelaxBrush_Adjust(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
+        # see hacks below
         ('retopoflow.relax_brush_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
         ('retopoflow.relax_brush_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
         ('retopoflow.relax_brush_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, None),

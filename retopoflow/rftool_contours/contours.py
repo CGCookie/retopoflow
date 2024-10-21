@@ -87,6 +87,7 @@ class RFOperator_Contours(RFOperator):
         if not event.ctrl:
             self.logic.cleanup()
             Cursors.restore()
+            self.tickle(context)
             return {'FINISHED'}
 
         Cursors.set('CROSSHAIR')
