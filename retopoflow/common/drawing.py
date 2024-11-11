@@ -32,6 +32,7 @@ from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4, Color
 from ...addon_common.common.maths import Point, Normal, Direction, Frame, Point2D
+from ...addon_common.common.utils import iter_pairs
 
 
 
@@ -143,6 +144,26 @@ class Drawing:
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
 
+    def draw2D_linestrip(context, points, color0, *, color1=None, width=1, stipple=None, offset=0):
+        gpu.state.blend_set('ALPHA')
+        if color1 is None: color1 = (*color0[:3], 0)
+        width = Drawing.scale(width)
+        stipple = [Drawing.scale(v) for v in stipple] if stipple else [1.0, 0.0]
+        offset = Drawing.scale(offset)
+        shader_2D_lineseg.bind()
+        ubos_2D_lineseg.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        for p0,p1 in iter_pairs(points, False):
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
+            ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
+            offset += (p1 - p0).length
+        gpu.shader.unbind()
+
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')
     #     radius = Drawing.scale(radius)
@@ -174,26 +195,6 @@ class Drawing:
     #         ubos_2D_point.options.center = (*pt, 0, 1)
     #         ubos_2D_point.update_shader()
     #         batch_2D_point.draw(shader_2D_point)
-    #     gpu.shader.unbind()
-
-    # def draw2D_linestrip(context, points, color0, *, color1=None, width=1, stipple=None, offset=0):
-    #     gpu.state.blend_set('ALPHA')
-    #     if color1 is None: color1 = (*color0[:3], 0)
-    #     width = Drawing.scale(width)
-    #     stipple = [Drawing.scale(v) for v in stipple] if stipple else [1.0, 0.0]
-    #     offset = Drawing.scale(offset)
-    #     shader_2D_lineseg.bind()
-    #     ubos_2D_lineseg.options.MVPMatrix = Drawing.get_pixel_matrix()
-    #     ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height)
-    #     ubos_2D_lineseg.options.color0 = color0
-    #     ubos_2D_lineseg.options.color1 = color1
-    #     for p0,p1 in iter_pairs(points, False):
-    #         ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
-    #         ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
-    #         ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
-    #         ubos_2D_lineseg.update_shader()
-    #         batch_2D_lineseg.draw(shader_2D_lineseg)
-    #         offset += (p1 - p0).length
     #     gpu.shader.unbind()
 
 

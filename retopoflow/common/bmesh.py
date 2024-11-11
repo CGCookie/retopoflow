@@ -287,7 +287,7 @@ class NearestBMVert:
             all(bmv.is_valid for bmv in self.loose_bmvs),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10):
+    def update(self, context, co, *, distance=1.84467e19, distance2d=10, filter_selected=True, filter_fn=None):
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
@@ -301,7 +301,10 @@ class NearestBMVert:
         bmvs = []
         if bmv_idx is not None: bmvs += [self.loose_bmvs[bmv_idx]]
         if bmf_idx is not None: bmvs += self.bm.faces[bmf_idx].verts
-        bmvs = [bmv for bmv in bmvs if not bmv.select]
+        if filter_fn:
+            bmvs = [bmv for bmv in bmvs if filter_fn(bmv)]
+        elif filter_selected:
+            bmvs = [bmv for bmv in bmvs if not bmv.select]
         if not bmvs: return
 
         inf = float('inf')

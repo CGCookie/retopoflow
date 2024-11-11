@@ -20,14 +20,26 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 class RFBrush_Base:
-    _instances = {}
+    _subclasses = {}
     def __new__(cls):
-        if cls not in RFBrush_Base._instances:
-            RFBrush_Base._instances[cls] = super(RFBrush_Base, cls).__new__(cls)
-        return RFBrush_Base._instances[cls]
+        if cls not in RFBrush_Base._subclasses:
+            RFBrush_Base._subclasses[cls] = super(RFBrush_Base, cls).__new__(cls)
+        return RFBrush_Base._subclasses[cls]
 
+    _instances = set()
     def __init__(self):
+        RFBrush_Base._instances.add(self)
         self.init()
+    def __del__(self):
+        RFBrush_Base._instances.remove(self)
+
+    @classmethod
+    def get_instances(cls):
+        yield from (
+            instance
+            for instance in RFBrush_Base._instances
+            if isinstance(instance, cls)
+        )
 
     def init(self): pass
     def update(self, context, event): pass

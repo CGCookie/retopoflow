@@ -142,14 +142,16 @@ def raycast_valid_sources(context, point):
         result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
         if not result: continue
 
+        no_hit = no_hit.normalized()
+
         co_world = point_to_bvec3( M   @ Vector((*co_hit, 1.0)))
-        no_world = vector_to_bvec3(Mit @ Vector((*no_hit, 0.0)))
+        no_world = vector_to_bvec3(Mit @ Vector((*no_hit, 0.0))).normalized()
         dist = distance_between_locations(ray_world[0], co_world)
 
         if best and best['distance'] <= dist: continue
 
         co_active = point_to_bvec3( Mei @ Vector((*co_world, 1.0)))
-        no_active = vector_to_bvec3(Met @ Vector((*no_world, 0.0)))
+        no_active = vector_to_bvec3(Met @ Vector((*no_world, 0.0))).normalized()
 
         best = {
             'ray_world':  ray_world,  # ray based on point
