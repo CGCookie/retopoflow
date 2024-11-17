@@ -94,7 +94,7 @@ class RFOperator_Strokes(RFOperator):
         name='Initial Count',
         description='Number of vertices to create in a new cut',
         default=8,
-        min=3,
+        min=1,
         max=100,
     )
 

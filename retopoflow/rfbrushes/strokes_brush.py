@@ -134,6 +134,9 @@ class RFBrush_Strokes(RFBrush_Base):
         return self.stroke is not None
 
     def update(self, context, event):
+        if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
+        if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
+
         if not self.is_stroking():
             if not event.ctrl or not self.operator:
                 if self.mouse:
@@ -260,16 +263,16 @@ class RFBrush_Strokes(RFBrush_Base):
 
         if self.nearest:
             if self.is_stroking():
-                if self.snap_bmv0:
+                if self.snap_bmv0 and self.snap_bmv0.is_valid:
                     co = self.matrix_world @ self.snap_bmv0.co
                     p2d = location_3d_to_region_2d(context.region, context.region_data, co)
                     Drawing.draw2D_linestrip(context, [self.stroke[0], p2d], self.snap_color, width=2)
-                if self.snap_bmv1:
+                if self.snap_bmv1 and self.snap_bmv1.is_valid:
                     co = self.matrix_world @ self.snap_bmv1.co
                     p2d = location_3d_to_region_2d(context.region, context.region_data, co)
                     Drawing.draw2D_linestrip(context, [self.stroke[-1], p2d], self.snap_color, width=2)
             else:
-                if self.mouse and self.snap_bmv0:
+                if self.mouse and self.snap_bmv0 and self.snap_bmv0.is_valid:
                     co = self.matrix_world @ self.snap_bmv0.co
                     p2d = location_3d_to_region_2d(context.region, context.region_data, co)
                     Drawing.draw2D_linestrip(context, [Point2D(self.mouse), p2d], self.snap_color, width=2)

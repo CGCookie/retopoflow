@@ -48,12 +48,13 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
+from ...addon_common.common.maths import Color, Frame, closest_point_segment
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs
 
 import math
+import time
 
 '''
 need to determine shape of extrusion
@@ -62,26 +63,28 @@ key: |- stroke
      ǁ= selected boundary or wire edges (Ⓞ selected cycle)
      O  vertex under stroke
      X  corner vertex (edges change direction)
+     +  inserted verts (interpolated from selection and stroke)
 notes:
 - vertex under stroke must be at beginning or ending of stroke
 - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
 
-                Strip    L-shape   U-shape   Equals   Cycle   Torus
-                  |      |         ǁ     ǁ   ======   ⎛‾‾‾‾⎫   ⎛‾‾‾‾⎫
-Implemented:      |      |         ǁ     ǁ            |    |   | Ⓞ |
-                  |      O======   O-----O   ------   ⎝____⎭   ⎝____⎭
+                Strip    L-shape   U-shape   Equals   Cycle    Annulus
+                  |      | + + +   ǁ + + ǁ   ======   ⎛‾‾‾‾⎫   ⎛‾‾‾‾⎫ (vert inserted)
+Implemented:      |      | + + +   ǁ + + ǁ   + + +    |    |   | Ⓞ | (but not drawn)
+                  |      O======   O-----O   ------   ⎝____⎭   ⎝____⎭ (in ascii art)
 
                 C-shape   T-shape   I-shape   O-shape   D-shape
 Not             O------   ===O===   ===O===   X=====O   O-----C
-Implemented:    ǁ            |         |      ǁ     |   ǁ     |
-(yet)           X======      |      ===O===   X=====O   O-----C
+Implemented:    ǁ + + +   + +|+ +   + +|+ +   ǁ + + |   ǁ + + |
+(yet)           X======   + +|+ +   ===O===   X=====O   O-----C
 
 
 L vs C: there is a corner vertex in the edges (could we extend the L shape??)
 D has corners in the stroke, which will be tricky to determine... use acceleration?
 '''
 
-def find_point(points, is_cycle, length, v):
+
+def find_point_at(points, is_cycle, length, v):
     if v <= 0: return points[0]
     if v >= 1: return points[0] if is_cycle else points[-1]
     vt = v * length
@@ -95,6 +98,94 @@ def find_point(points, is_cycle, length, v):
             return p0 + (f * (p1 - p0))
         t += d01
     return points[0] if is_cycle else points[-1]
+
+def find_closest_point(points, is_cycle, p):
+    closest_p = None
+    closest_d = float('inf')
+    for (p0, p1) in iter_pairs(points, is_cycle):
+        pt = closest_point_segment(p, p0, p1)
+        d = (p - pt).length
+        if not closest_p or d < closest_d:
+            (closest_p, closest_d) = (pt, d)
+    return closest_p
+
+def compute_n(points):
+    p0 = points[0]
+    return sum((
+        (p1-p0).cross(p2-p0).normalized()
+        for (p1,p2) in zip(points[1:-1], points[2:])
+    ), Vector((0,0,0))).normalized()
+
+def is_bmv_end(bmv, bmes):
+    return len(set(bmv.link_edges) & bmes) != 2
+def bme_other_bmv(bme, bmv):
+    bmv0, bmv1 = bme.verts
+    return bmv0 if bmv1 == bmv else bmv1
+def bmes_shared_bmv(bme0, bme1):
+    return next(iter(set(bme0.verts) & set(bme1.verts)), None)
+def bmes_share_bmv(bme0, bme1):
+    return bool(set(bme0.verts) & set(bme1.verts))
+
+def bme_length(bme):
+    bmv0,bmv1 = bme.verts
+    return (bmv0.co - bmv1.co).length
+def bme_midpoint(bme):
+    bmv0,bmv1 = bme.verts
+    return (bmv0.co + bmv1.co) / 2
+
+def get_longest_strip_cycle(bmes):
+    if not bmes: return (None, None)
+
+    bmes = set(bmes)
+
+    strips, cycles = [], []
+
+    # first start with bmvert ends to find strips
+    bmv_ends = { bmv for bme in bmes for bmv in bme.verts if is_bmv_end(bmv, bmes) }
+    while True:
+        current_strip = []
+        bmv = next(( bmv for bme in bmes for bmv in bme.verts if bmv in bmv_ends ), None)
+        if not bmv: break
+        bme = None
+        while True:
+            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
+            current_strip += [bme]
+            bmv = bme_other_bmv(bme, bmv)
+            if bmv in bmv_ends: break
+        bmes -= set(current_strip)
+        strips += [current_strip]
+
+    # some of the strips may actually be cycles...
+    for strip in list(strips):
+        if len(strip) > 3 and bmes_share_bmv(strip[0], strip[-1]):
+            strips.remove(strip)
+            cycles.append(strip)
+
+    # any bmedges still in bmes _should_ be part of cycles
+    while True:
+        current_cycle = []
+        bmv = next(( bmv for bme in bmes for bmv in bme.verts ), None)
+        if not bmv: break
+        bme = None
+        while True:
+            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
+            if not bme or bme in current_cycle: break
+            current_cycle += [bme]
+            bmv = bme_other_bmv(bme, bmv)
+        bmes -= set(current_cycle)
+        cycles += [current_cycle]
+
+
+    longest_strip = max(strips, key=lambda strip:len(strip)) if strips else None
+    longest_cycle = max(cycles, key=lambda cycle:len(cycle)) if cycles else None
+
+    print(f'{strips=}')
+    print(f'{cycles=}')
+    print(f'{longest_strip=}')
+    print(f'{longest_cycle=}')
+
+    return (longest_strip, longest_cycle)
+
 
 
 class Strokes_Logic:
@@ -111,24 +202,48 @@ class Strokes_Logic:
         self.fixed_span_count = fixed_span_count
         self.radius = radius
 
+
         # project 2D stroke points to sources
         self.stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in self.stroke2D]
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
 
+        self.get_selected()
+
         print(f'PROCESSING {len(self.stroke2D)} {self.length2D} {self.is_cycle} {self.snap_bmv0} {self.snap_bmv1} {self.mode} {self.fixed_span_count} {self.radius}')
 
         # TODO: handle gracefully if these functions fail
-        if not self.is_cycle:
-            self.insert_strip()
-        else:
-            self.insert_cycle()
+        self.insert()
         bmesh.update_edit_mesh(self.em)
 
+    def insert(self):
+        bpy.ops.ed.undo_push(message=f'Strokes commit {time.time()}')
 
-    def find_point2D(self, v): return find_point(self.stroke2D, self.is_cycle, self.length2D, v)
-    def find_point3D(self, v): return find_point(self.stroke3D, self.is_cycle, self.length3D, v)
+        if self.is_cycle:
+            if not self.longest_cycle:
+                self.insert_cycle()
+            else:
+                self.insert_annulus()
+            return
+
+        self.insert_strip()
+
+
+    def get_selected(self):
+        self.sel_edges = [
+            bme
+            for bme in bmops.get_all_selected_bmedges(self.bm)
+            if bme.is_wire or bme.is_boundary
+            # len(bme.link_faces) < 2
+            # not is_manifold() ==> len(bme.link_faces) != 2 which includes edges with 3+ faces :(
+        ]
+        self.longest_strip, self.longest_cycle = get_longest_strip_cycle(self.sel_edges)
+        self.longest_strip_length = sum(bme_length(bme) for bme in self.longest_strip) if self.longest_strip else None
+        self.longest_cycle_length = sum(bme_length(bme) for bme in self.longest_cycle) if self.longest_cycle else None
+
+    def find_point2D(self, v): return find_point_at(self.stroke2D, self.is_cycle, self.length2D, v)
+    def find_point3D(self, v): return find_point_at(self.stroke3D, self.is_cycle, self.length3D, v)
 
     def insert_strip(self):
         match self.mode:
@@ -182,3 +297,75 @@ class Strokes_Logic:
             for (bmv0, bmv1) in iter_pairs(bmvs, True)
         ]
 
+    def insert_annulus(self):
+        assert self.is_cycle
+        assert self.longest_cycle
+
+        llc = len(self.longest_cycle)
+
+        # make sure stroke and selected cyclic bmvs have same winding direction
+        n_stroke3D = compute_n(self.stroke3D)
+        n_bmvs = compute_n([bme_midpoint(bme) for bme in self.longest_cycle])
+        if n_bmvs.dot(n_stroke3D) < 0:
+            # turning opposite directions
+            self.stroke3D.reverse()
+
+        # align closest points between selected cyclic bmvs and stroke
+        M, Mi = self.matrix_world, self.matrix_world_inv
+        closest_i, closest_pt0, closest_j, closest_pt1, closest_d = None, None, None, None, float('inf')
+        for i in range(llc):
+            bme_pre = self.longest_cycle[(i-1) % llc]
+            bme_cur = self.longest_cycle[i]
+            bmv = bmes_shared_bmv(bme_pre, bme_cur)
+            for (j, pt) in enumerate(self.stroke3D):
+                d = (bmv.co - pt).length
+                if d >= closest_d: continue
+                closest_i, closest_pt0, closest_j, closest_pt1, closest_d = i, bmv.co, j, pt, d
+        # rotate lists so self.stroke3D[0] aligns self.longest_cycle[0]
+        self.longest_cycle = self.longest_cycle[closest_i:] + self.longest_cycle[:closest_i]
+        self.stroke3D = self.stroke3D[closest_j:] + self.stroke3D[:closest_j]
+
+        # determine number of spans
+        match self.mode:
+            case 'BRUSH':
+                pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ closest_pt0)
+                pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ closest_pt1)
+                nspans = math.ceil((pt0 - pt1).length / self.radius)
+                print(f'{(pt0-pt1).length=} / {self.radius=} = {nspans=}')
+            case 'FIXED':
+                nspans = self.fixed_span_count
+            case _:
+                assert False, f'Unhandled {self.mode=}'
+        nspans = max(1, nspans)
+        nverts = nspans + 1
+
+        bme_pre = self.longest_cycle[-1]
+        accum_dist = 0
+        bmvs = [[] for i in range(nverts)]
+        for bme_cur in self.longest_cycle:
+            bmv = bmes_shared_bmv(bme_pre, bme_cur)
+            spt = self.find_point3D(accum_dist / self.longest_cycle_length)
+            pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv.co)
+            pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ spt)
+            v = pt1 - pt0
+
+            bmvs[0].append(bmv)
+            for i in range(1, nverts):
+                pt = pt0 + v * (i / (nverts - 1))
+                co = raycast_point_valid_sources(self.context, pt, world=False)
+                bmvs[i].append(self.bm.verts.new(co))
+
+            accum_dist += bme_length(bme_cur)
+            bme_pre = bme_cur
+        bmfs = []
+        for i in range(nverts-1):
+            for j in range(llc):
+                bmv00 = bmvs[i+0][(j+0)%llc]
+                bmv01 = bmvs[i+0][(j+1)%llc]
+                bmv10 = bmvs[i+1][(j+0)%llc]
+                bmv11 = bmvs[i+1][(j+1)%llc]
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmf.normal_update()
+                if view_forward_direction(self.context).dot(bmf.normal) > 0:
+                    bmf.normal_flip()
+                bmfs.append(bmf)
