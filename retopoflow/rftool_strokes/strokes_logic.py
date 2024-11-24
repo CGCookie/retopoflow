@@ -83,6 +83,9 @@ Not             O------   ===O===   ===O===   X=====O   O-----C
 Implemented:    ǁ + + +   + +|+ +   + +|+ +   ǁ + + |   ǁ + + |
 (yet)           X======   + +|+ +   ===O===   X=====O   O-----C
 
+What if two cycles of same length are selected, and stroke goes from a vert in one to a vert in the other?
+Control how the two are spanned??
+
 
 L vs C: there is a corner vertex in the edges (could we extend the L shape??)
 D has corners in the stroke, which will be tricky to determine... use acceleration?
@@ -220,7 +223,8 @@ class Strokes_Logic:
 
         # TODO: handle gracefully if these functions fail
         self.insert()
-        bmesh.update_edit_mesh(self.em)
+
+        bmops.flush_selection(self.bm, self.em)
 
     def insert(self):
         bpy.ops.ed.undo_push(message=f'Strokes commit {time.time()}')
@@ -230,12 +234,11 @@ class Strokes_Logic:
                 self.insert_cycle()
             else:
                 self.insert_annulus()
-            return
-
-        if self.longest_strip:
-            self.insert_equals()
         else:
-            self.insert_strip()
+            if self.longest_strip:
+                self.insert_equals()
+            else:
+                self.insert_strip()
 
 
     def process_selected(self):
@@ -257,6 +260,7 @@ class Strokes_Logic:
 
     def find_point2D(self, v): return find_point_at(self.stroke2D, self.is_cycle, self.length2D, v)
     def find_point3D(self, v): return find_point_at(self.stroke3D, self.is_cycle, self.length3D, v)
+
 
     #####################################################################################
     # simple insertions with no bridging
@@ -292,6 +296,10 @@ class Strokes_Logic:
                 bme = self.bm.edges.new((bmv0, bmv1))
             bmes += [bme]
 
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs)
+
     def insert_cycle(self):
         match self.mode:
             case 'BRUSH':
@@ -312,6 +320,10 @@ class Strokes_Logic:
             self.bm.edges.new((bmv0, bmv1))
             for (bmv0, bmv1) in iter_pairs(bmvs, True)
         ]
+
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs)
 
 
     ##############################################################################
@@ -391,6 +403,11 @@ class Strokes_Logic:
                     bmf.normal_flip()
                 bmfs.append(bmf)
 
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs[-1])
+
+
     def insert_equals(self):
         llc = len(self.longest_strip)
         M, Mi = self.matrix_world, self.matrix_world_inv
@@ -463,4 +480,8 @@ class Strokes_Logic:
                 if view_forward_direction(self.context).dot(bmf.normal) > 0:
                     bmf.normal_flip()
                 bmfs.append(bmf)
+
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs[-1])
 
