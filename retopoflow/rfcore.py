@@ -167,8 +167,8 @@ class RFCore:
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
-        # bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
-        # bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
+        bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
+        bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
 
         for s in iter_all_view3d_spaces():
             RFCore.reseter['s.overlay.show_retopology'] = True
@@ -308,12 +308,16 @@ class RFCore:
     @staticmethod
     def handle_redo_post(*args, **kwargs):
         # print(f'handle_redo_post({args}, {kwargs})')
-        pass
+        if not RFOperator.active_operator(): return
+        if not RFCore.is_controlling: return
+        RFOperator.active_operator().reset()
     # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_undo_post(*args, **kwargs):
-        # print(f'handle_undo_post({args}, {kwargs})')
-        pass
+        print(f'handle_undo_post({args}, {kwargs})')
+        if not RFOperator.active_operator(): return
+        if not RFCore.is_controlling: return
+        RFOperator.active_operator().reset()
 
 RFOperator.RFCore = RFCore
 RFCore_NewTarget_Active.RFCore = RFCore

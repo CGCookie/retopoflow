@@ -107,7 +107,9 @@ class RFOperator_Strokes(RFOperator):
         RFTool_Strokes.rf_brush.set_operator(None, context)
 
     def reset(self):
+        print('STROKES RESET')
         # self.logic.reset()
+        RFTool_Strokes.rf_brush.reset()
         pass
 
     def process_stroke(self, context, stroke, cycle, snap_bmv0, snap_bmv1):

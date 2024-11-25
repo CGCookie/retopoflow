@@ -112,6 +112,11 @@ class RFBrush_Strokes(RFBrush_Base):
         self.operator = operator
         self.reset_nearest(context)
 
+    def reset(self):
+        self.nearest = None
+        self.snap_bmv0 = None
+        self.snap_bmv1 = None
+
     def reset_nearest(self, context):
         if self.operator:
             self.matrix_world = context.edit_object.matrix_world

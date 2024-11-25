@@ -68,20 +68,20 @@ notes:
 - vertex under stroke must be at beginning or ending of stroke
 - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
 
-                Strip   Equals    L-shape   U-shape
-Implemented       |     ======    | + + +   ǁ + + ǁ
-Strip             |     + + +     | + + +   ǁ + + ǁ
-                  |     ------    O======   O-----O
+                Strip   Equals    T-shape
+Implemented       |     ======    ===O===
+Strip             |     + + +     + +|+ +
+                  |     ------    + +|+ +
 
                 Cycle    Annulus
 Implemented     ⎛‾‾‾‾⎫   ⎛‾‾‾‾⎫ (vert inserted)
 Cycle           |    |   | Ⓞ | (but not drawn)
                 ⎝____⎭   ⎝____⎭ (in ascii art)
 
-                C-shape   T-shape   I-shape   O-shape   D-shape
-Not             O------   ===O===   ===O===   X=====O   O-----C
-Implemented:    ǁ + + +   + +|+ +   + +|+ +   ǁ + + |   ǁ + + |
-(yet)           X======   + +|+ +   ===O===   X=====O   O-----C
+                U-shape   C-shape   I-shape   O-shape   D-shape
+Not             ǁ + + ǁ   O------   ===O===   X=====O   O-----C
+Implemented:    ǁ + + ǁ   ǁ + + +   + +|+ +   ǁ + + |   ǁ + + |
+(yet)           O-----O   X======   ===O===   X=====O   O-----C
 
 What if two cycles of same length are selected, and stroke goes from a vert in one to a vert in the other?
 Control how the two are spanned??
@@ -202,6 +202,7 @@ def get_longest_strip_cycle(bmes):
 class Strokes_Logic:
     def __init__(self, context, stroke2D, is_cycle, snap_bmv0, snap_bmv1, mode, fixed_span_count, radius):
         self.bm, self.em = get_bmesh_emesh(context)
+        bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.context = context
@@ -226,11 +227,14 @@ class Strokes_Logic:
         # TODO: handle gracefully if these functions fail
         self.insert()
 
+        bpy.ops.ed.undo_push(message=f'Strokes insert {time.time()}')
         bmops.flush_selection(self.bm, self.em)
 
     def insert(self):
-        bpy.ops.ed.undo_push(message=f'Strokes commit {time.time()}')
-
+        print(f'{self.is_cycle=}')
+        print(f'{self.longest_cycle=}')
+        print(f'{self.longest_strip=}')
+        print(f'{self.snap_sel0=} {self.snap_sel1=}')
         if self.is_cycle:
             if not self.longest_cycle:
                 self.insert_cycle()
@@ -241,18 +245,18 @@ class Strokes_Logic:
                 if self.snap_sel0 and self.snap_sel1:
                     self.insert_u()
                 elif self.snap_sel0 or self.snap_sel1:
-                    self.insert_l()
+                    self.insert_T()
                 else:
                     self.insert_equals()
             else:
                 self.insert_strip()
-
 
     def process_selected(self):
         """
         Finds and analyzes all selected geometry, which is used to determine how to interpret
         an insertion (new strip/cycle, bridging selection to stroke, etc. )
         """
+        print(self.bm, self.bm.is_valid)
         self.sel_edges = [
             bme
             for bme in bmops.get_all_selected_bmedges(self.bm)
@@ -260,6 +264,7 @@ class Strokes_Logic:
             # len(bme.link_faces) < 2
             # not is_manifold() ==> len(bme.link_faces) != 2 which includes edges with 3+ faces :(
         ]
+        print(self.sel_edges)
         self.longest_strip, self.longest_cycle = get_longest_strip_cycle(self.sel_edges)
         # compute 3D length
         self.longest_strip_length = sum(bme_length(bme) for bme in self.longest_strip) if self.longest_strip else None
@@ -500,7 +505,7 @@ class Strokes_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[-1])
 
-    def insert_l(self):
+    def insert_T(self):
         llc = len(self.longest_strip)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -510,8 +515,6 @@ class Strokes_Logic:
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
             self.snap_sel0, self.snap_sel1 = self.snap_sel1, self.snap_sel0
-        if self.snap_bmv0 in self.longest_strip[-1].verts:
-            self.longest_strip.reverse()
 
         # determine number of spans
         match self.mode:
@@ -525,20 +528,22 @@ class Strokes_Logic:
         nverts = nspans + 1
 
         # create template
+        pt2D = self.find_point2D(0)
         template = [
-            self.find_point2D(iv / (nverts - 1))
-            for iv in range(nverts)
+            self.find_point2D(iv / (nverts - 1)) - pt2D
+            for iv in range(1, nverts)
         ]
 
         # use template to build spans
         bmvs = []
-        bmv = self.snap_bmv0
-        for bme in self.longest_strip + [None]:
+        bmv = bme_unshared_bmv(self.longest_strip[0], self.longest_strip[1]) if len(self.longest_strip) > 1 else self.longest_strip[0].verts[0]
+        i_sel_row = 0
+        for i_row, bme in enumerate(self.longest_strip + [None]):
+            pt = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv.co)
             cur_bmvs = [bmv]
-            pt = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ cur_bmvs[-1].co)
-            for pt0, pt1 in iter_pairs(template, False):
-                pt = pt + (pt1 - pt0)
-                co = raycast_point_valid_sources(self.context, pt, world=False)
+            if bmv == self.snap_bmv0: i_sel_row = i_row
+            for offset in template:
+                co = raycast_point_valid_sources(self.context, pt + offset, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             bmvs.append(cur_bmvs)
             if not bme: break
@@ -560,7 +565,7 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[0])
+        bmops.select_iter(self.bm, bmvs[i_sel_row])
 
     def insert_u(self):
         pass
