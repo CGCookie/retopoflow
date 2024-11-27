@@ -213,11 +213,13 @@ class RFTool_PolyPen(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         # layout.label(text="PolyPen")
-        props = tool.operator_properties(RFOperator_PolyPen.bl_idname)
-        layout.prop(props, 'insert_mode')
-        if props.insert_mode == 'QUAD-ONLY':
-            layout.prop(props, 'quad_stability', slider=True)
+        props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
+        props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
+        layout.prop(props_polypen, 'insert_mode')
+        if props_polypen.insert_mode == 'QUAD-ONLY':
+            layout.prop(props_polypen, 'quad_stability', slider=True)
         layout.prop(context.tool_settings, 'use_mesh_automerge')
+        layout.prop(props_translate, 'distance2d')
 
     @classmethod
     def activate(cls, context):
