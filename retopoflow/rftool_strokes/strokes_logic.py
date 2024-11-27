@@ -146,6 +146,14 @@ def bme_midpoint(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co + bmv1.co) / 2
 
+def check_bmf_normals(fwd, bmfs):
+    for bmf in bmfs:
+        bmf.normal_update()
+        if fwd.dot(bmf.normal) > 0:
+            bmf.normal_flip()
+
+
+
 def get_longest_strip_cycle(bmes):
     if not bmes: return (None, None, None)
 
@@ -426,10 +434,10 @@ class Strokes_Logic:
                 bmv11 = bmvs[i+1][(j+1)%llc]
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmf.normal_update()
-                if view_forward_direction(self.context).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
                 bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -509,10 +517,10 @@ class Strokes_Logic:
                 bmv11 = bmvs[i+1][j+1]
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmf.normal_update()
-                if view_forward_direction(self.context).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
                 bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -571,10 +579,10 @@ class Strokes_Logic:
                 bmv11 = bmvs[i+1][j+1]
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmf.normal_update()
-                if view_forward_direction(self.context).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
                 bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
@@ -655,10 +663,10 @@ class Strokes_Logic:
                 bmv11 = bmvs[i+1][j+1]
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmf.normal_update()
-                if view_forward_direction(self.context).dot(bmf.normal) > 0:
-                    bmf.normal_flip()
                 bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
