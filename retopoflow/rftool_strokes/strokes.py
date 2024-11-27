@@ -156,11 +156,19 @@ class RFTool_Strokes(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        layout.label(text="Spans:")
         props = tool.operator_properties(RFOperator_Strokes.bl_idname)
-        layout.prop(props, 'span_insert_mode', text='')
-        if props.span_insert_mode == 'FIXED':
-            layout.prop(props, 'initial_cut_count', text="Count")
+        if context.region.type == 'TOOL_HEADER':
+            layout.label(text="Spans:")
+            layout.prop(props, 'span_insert_mode', text='')
+            if props.span_insert_mode == 'FIXED':
+                layout.prop(props, 'initial_cut_count', text="Count")
+        else:
+            header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
+            header.label(text="Spans")
+            if panel:
+                panel.prop(props, 'span_insert_mode', text='Method')
+                if props.span_insert_mode == 'FIXED':
+                    panel.prop(props, 'initial_cut_count', text="Count")
 
     @classmethod
     def activate(cls, context):
