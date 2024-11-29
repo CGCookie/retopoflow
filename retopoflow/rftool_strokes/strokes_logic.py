@@ -48,6 +48,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
+from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Color, Frame, closest_point_segment
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
@@ -56,7 +57,7 @@ from ...addon_common.common.utils import iter_pairs
 import math
 import time
 
-'''
+r'''
 need to determine shape of extrusion
 key: |- stroke
      C  corner in stroke (roughly 90° angle, but not easy to detect.  what if the stroke loops over itself?)
@@ -68,27 +69,41 @@ notes:
 - vertex under stroke must be at beginning or ending of stroke
 - vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
 
-                Strip   Equals    T-shape   I-shape
-Implemented       |     ======    ===O===   ===O===
-Strip             |     + + +     + +|+ +   + +|+ +
-                  |     ------    + +|+ +   ===O===
 
-                Cycle    Annulus
-Implemented     ⎛‾‾‾‾⎫   ⎛‾‾‾‾⎫ (vert inserted)
-Cycle           |    |   | Ⓞ | (but not drawn)
-                ⎝____⎭   ⎝____⎭ (in ascii art)
+Implemented:
 
-                O-shape   D-shape
-Not             X=====O   O-----C
-Implemented:    ǁ + + |   ǁ + + |
-(yet)           X=====O   O-----C
+             :  Nothing    Opposite   Extend Out
+             :  Selected   Side       Selected
+-------------+------------------------------------------------------
+             :             Equals     T-shaped     I-shaped
+-------------+------------------------------------------------------
+             :    |        ======     ===O===      ===O===
+     Strip/  :    |        + + +      + +|+ +      + +|+ +
+      Quad:  :    |        ------     + +|+ +      ===O===
+-------------+------------------------------------------------------
+             :   /‾\        /‾‾\        +++
+     Cycle/  :  (   )      ( Ⓞ )      ++Ⓞ++
+   Annulus:  :   \_/        \__/        +|+
+-------------+------------------------------------------------------
 
-What if two cycles of same length are selected, and stroke goes from a vert in one to a vert in the other?
-Control how the two are spanned??
+
+Not Implemented (yet):
+
+    O-shape   D-shape
+    X=====O   O-----C
+    ǁ + + |   ǁ + + |
+    X=====O   O-----C
 
 
-L/T vs C/I: there is a corner vertex in the edges
-D has corners in the stroke, which will be tricky to determine... use acceleration?
+Questions/Thoughts:
+
+- What if I-shaped did not required both sides (top/bottom) to be selected?
+    - What if only one side is selected?
+    - What if neither side is required to be selected?
+- I-shape for Annulus (inner and outer cycles selected)
+- Control how the two are spanned??
+    - Can rotate stroke-cycle?
+
 '''
 
 
@@ -146,13 +161,48 @@ def bme_midpoint(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co + bmv1.co) / 2
 
+def bmes_get_prevnext_bmvs(bmes, bmv):
+    # find bmes that have bmv, keep order!
+    fbmes = [bme for bme in bmes if bmv in bme.verts]
+    if len(fbmes) == 2:
+        return [bme_other_bmv(bme, bmv) for bme in fbmes]
+    # only one bme has bmv, so must be either first or last
+    bme = fbmes[0]
+    if bme == bmes[0]:
+        return bmv, bme_other_bmv(bme, bmv)
+    else:
+        return bme_other_bmv(bme, bmv), bmv
+
 def check_bmf_normals(fwd, bmfs):
     for bmf in bmfs:
         bmf.normal_update()
         if fwd.dot(bmf.normal) > 0:
             bmf.normal_flip()
 
+def fit_template2D(template, p0, *, target=None, along=None):
+    t0, t1 = template[0], template[-1]
+    vt01 = t1 - t0
+    lt = vt01.length
+    vp01 = (target - p0) if target else (along.normalized() * lt)
+    lp = vp01.length
+    scale, angle = lp / lt, vecs_screenspace_angle(vt01, vp01)
+    Mt = Matrix.Translation(Vector((-t0.x, -t0.y, 0)))
+    Mr = Matrix.Rotation(angle, 4, 'Z')
+    Ms = Matrix.Scale(scale, 4)
+    Mp = Matrix.Translation(Vector((p0.x, p0.y, 0)))
+    M = Mp @ Ms @ Mr @ Mt
+    fitted = [ (M @ Vector((t.x, t.y, 0, 1))).xy for t in template ]
+    return fitted
 
+def vec_screenspace_angle(v):
+    return -v.angle_signed(Vector((1,0)))
+def vecs_screenspace_angle(v0, v1):
+    a0 = vec_screenspace_angle(v0)
+    a1 = vec_screenspace_angle(v1)
+    a = a0 - a1
+    if a > 180: a = -(a - 180)
+    if a < -180: a = -(a - 180)
+    return a
 
 def get_longest_strip_cycle(bmes):
     if not bmes: return (None, None, None)
@@ -214,7 +264,7 @@ def get_longest_strip_cycle(bmes):
 
 
 class Strokes_Logic:
-    def __init__(self, context, stroke2D, is_cycle, snap_bmv0, snap_bmv1, mode, fixed_span_count, radius):
+    def __init__(self, context, stroke2D, is_cycle, snap_bmv0, snap_bmv1, mode, fixed_span_count, radius, extrapolate):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -227,6 +277,7 @@ class Strokes_Logic:
         self.mode = mode
         self.fixed_span_count = fixed_span_count
         self.radius = radius
+        self.extrapolate = extrapolate
 
         # project 2D stroke points to sources
         self.stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in self.stroke2D]
@@ -239,7 +290,12 @@ class Strokes_Logic:
         print(f'PROCESSING {len(self.stroke2D)} {self.length2D} {self.is_cycle} {self.snap_bmv0} {self.snap_bmv1} {self.mode} {self.fixed_span_count} {self.radius}')
 
         # TODO: handle gracefully if these functions fail
-        self.insert()
+        try:
+            self.insert()
+        except Exception as e:
+            print(f'Exception caught: {e}')
+            debugger.print_exception()
+
 
         bpy.ops.ed.undo_push(message=f'Strokes insert {time.time()}')
         bmops.flush_selection(self.bm, self.em)
@@ -249,23 +305,23 @@ class Strokes_Logic:
         print(f'{self.longest_cycle=}')
         print(f'{self.longest_strip0=}')
         print(f'{self.longest_strip1=}')
-        print(f'{self.snap_sel00=} {self.snap_sel01=}')
+        print(f'{self.snap_sel00=} {self.snap_sel10=} {self.snap_sel01=} {self.snap_sel11=}')
         if self.is_cycle:
             if not self.longest_cycle:
                 self.insert_cycle()
             else:
-                self.insert_annulus()
+                self.insert_cycle_equals()
         else:
             if self.longest_strip0:
                 if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1):
                     if (self.snap_sel00 and self.snap_sel11) or (self.snap_sel01 and self.snap_sel10):
-                        self.insert_I()
+                        self.insert_strip_I()
                         return
 
-                if self.snap_sel00 or self.snap_sel01:
-                    self.insert_T()
+                if self.snap_sel00 or self.snap_sel10:
+                    self.insert_strip_T()
                 else:
-                    self.insert_equals()
+                    self.insert_quad_equals()
             else:
                 self.insert_strip()
 
@@ -339,7 +395,7 @@ class Strokes_Logic:
     def insert_cycle(self):
         match self.mode:
             case 'BRUSH':
-                nspans = math.ceil(self.length2D / self.radius)
+                nspans = math.ceil(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
             case _:
@@ -365,7 +421,7 @@ class Strokes_Logic:
     ##############################################################################
     # basic bridging insertions
 
-    def insert_annulus(self):
+    def insert_cycle_equals(self):
         assert self.is_cycle
         assert self.longest_cycle
 
@@ -396,10 +452,9 @@ class Strokes_Logic:
         # determine number of spans
         match self.mode:
             case 'BRUSH':
-                pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ closest_pt0)
-                pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ closest_pt1)
-                nspans = math.ceil((pt0 - pt1).length / self.radius)
-                print(f'{(pt0-pt1).length=} / {self.radius=} = {nspans=}')
+                pt0 = self.project_pt(closest_pt0)
+                pt1 = self.project_pt(closest_pt1)
+                nspans = math.ceil((pt0 - pt1).length / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
             case _:
@@ -413,8 +468,8 @@ class Strokes_Logic:
         for bme_cur in self.longest_cycle:
             bmv = bmes_shared_bmv(bme_pre, bme_cur)
             spt = self.find_point3D(accum_dist / self.longest_cycle_length)
-            pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv.co)
-            pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ spt)
+            pt0 = self.project_bmv(bmv)
+            pt1 = self.project_pt(spt)
             v = pt1 - pt0
 
             bmvs[0].append(bmv)
@@ -444,7 +499,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
 
-    def insert_equals(self):
+    def insert_quad_equals(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -465,14 +520,13 @@ class Strokes_Logic:
         match self.mode:
             case 'BRUSH':
                 # find closest distance between selected and stroke
-                rgn, r3d = self.context.region, self.context.region_data
                 closest_distance2D = min(
-                    (s - location_3d_to_region_2d(rgn, r3d, M @ bmv.co)).length
+                    (s - self.project_bmv(bmv)).length
                     for s in self.stroke2D
                     for bme in self.longest_strip0
                     for bmv in bme.verts
                 )
-                nspans = math.ceil(closest_distance2D / self.radius)
+                nspans = math.ceil(closest_distance2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
             case _:
@@ -489,8 +543,8 @@ class Strokes_Logic:
         bmvs = [[] for i in range(nverts)]
         for bme_cur in self.longest_strip0 + [None]:
             spt = self.find_point3D(accum_dist / self.longest_strip0_length)
-            pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv.co)
-            pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ spt)
+            pt0 = self.project_bmv(bmv)
+            pt1 = self.project_pt(spt)
             v = pt1 - pt0
 
             bmvs[0].append(bmv)
@@ -526,16 +580,23 @@ class Strokes_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[-1])
 
-    def insert_T(self):
+    def project_pt(self, pt):
+        return location_3d_to_region_2d(self.context.region, self.context.region_data, self.matrix_world @ pt).xy
+    def project_bmv(self, bmv):
+        return self.project_pt(bmv.co).xy
+
+
+    def insert_strip_T(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected strip share first point at index 0
-        if self.snap_sel01:
+        if self.snap_sel10:
+            print('reversing')
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_sel00, self.snap_sel01 = self.snap_sel01, self.snap_sel00
+            self.snap_sel00, self.snap_sel10 = self.snap_sel10, self.snap_sel00
 
         # determine number of spans
         match self.mode:
@@ -549,26 +610,49 @@ class Strokes_Logic:
         nverts = nspans + 1
 
         # create template
-        pt2D = self.find_point2D(0)
         template = [
-            self.find_point2D(iv / (nverts - 1)) - pt2D
-            for iv in range(1, nverts)
+            self.find_point2D(iv / (nverts - 1))
+            for iv in range(nverts)
         ]
 
+        # get orientation of stroke to selected strip
+        vx = Vector((1, 0))
+        bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
+        pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
+        vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
+        template_len = vstroke.length
+        print(f'{vpn=} {vstroke=}')
+        angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
+        print(math.degrees(vec_screenspace_angle(vpn)), math.degrees(vec_screenspace_angle(vstroke)), math.degrees(angle))
+
         # use template to build spans
+        bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
         bmvs = []
-        bmv = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
-        i_sel_row = 0
         for i_row, bme in enumerate(self.longest_strip0 + [None]):
-            pt = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv.co)
-            cur_bmvs = [bmv]
-            if bmv == self.snap_bmv0: i_sel_row = i_row
-            for offset in template:
-                co = raycast_point_valid_sources(self.context, pt + offset, world=False)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            pt = self.project_bmv(bmv0)
+
+            if self.extrapolate == 'ADAPT':
+                bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
+                vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+                bme_angle = vec_screenspace_angle(vpn)
+                along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
+                print(math.degrees(bme_angle), math.degrees(bme_angle + angle), along, along*template_len)
+                fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
+                cur_bmvs = [bmv0]
+                for t in fitted[1:]:
+                    co = raycast_point_valid_sources(self.context, t, world=False)
+                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            else:
+                cur_bmvs = [bmv0]
+                offset0 = template[0]
+                for offset in template[1:]:
+                    co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
+                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
+
             bmvs.append(cur_bmvs)
             if not bme: break
-            bmv = bme_other_bmv(bme, bmv)
+            bmv0 = bme_other_bmv(bme, bmv0)
+        i_sel_row = next(i for (i, r) in enumerate(bmvs) if r[0] == self.snap_bmv0)
 
         bmfs = []
         for i in range(llc):
@@ -588,7 +672,7 @@ class Strokes_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[i_sel_row])
 
-    def insert_I(self):
+    def insert_strip_I(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -637,8 +721,8 @@ class Strokes_Logic:
             bmv1 = bme1.verts[0] if bme_vector(bme0).dot(bme_vector(bme1)) > 0 else bme1.verts[1]
         i_sel_row = 0
         for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
-            pt0 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv0.co)
-            pt1 = location_3d_to_region_2d(self.context.region, self.context.region_data, M @ bmv1.co)
+            pt0 = self.project_bmv(bmv0)
+            pt1 = self.project_bmv(bmv1)
             scale = (pt1 - pt0).length / template_length
             cur_bmvs = [bmv0]
             if bmv0 == self.snap_bmv0: i_sel_row = i_row

@@ -98,6 +98,16 @@ class RFOperator_Strokes(RFOperator):
         max=100,
     )
 
+    extrapolate_mode: bpy.props.EnumProperty(
+        name='Strokes Extrapolate Mode',
+        description='Controls how the strokes is extrapolated across selected edges',
+        items=[
+            ('FLAT',  'Flat',  'No changes to stroke', 0),
+            ('ADAPT', 'Adapt', 'Adapt stroke to the angle of edges', 1),
+        ],
+        default='FLAT',
+    )
+
     def init(self, context, event):
         # self.logic = Contours_Logic(context, event)
         RFTool_Strokes.rf_brush.set_operator(self, context)
@@ -113,7 +123,7 @@ class RFOperator_Strokes(RFOperator):
         pass
 
     def process_stroke(self, context, stroke, cycle, snap_bmv0, snap_bmv1):
-        logic = Strokes_Logic(context, stroke, cycle, snap_bmv0, snap_bmv1, self.span_insert_mode, self.initial_cut_count, RFTool_Strokes.rf_brush.radius)
+        logic = Strokes_Logic(context, stroke, cycle, snap_bmv0, snap_bmv1, self.span_insert_mode, self.initial_cut_count, RFTool_Strokes.rf_brush.radius, self.extrapolate_mode)
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'}:
@@ -161,6 +171,7 @@ class RFTool_Strokes(RFTool_Base):
         layout.prop(props, 'span_insert_mode', text='')
         if props.span_insert_mode == 'FIXED':
             layout.prop(props, 'initial_cut_count', text="Count")
+        layout.prop(props, 'extrapolate_mode', text='')
 
     @classmethod
     def activate(cls, context):
