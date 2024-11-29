@@ -64,7 +64,7 @@ class RFCore:
     default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
     selected_RFTool_idname = None               # currently selected RFTool, but might not be active
     running_in_areas       = []                 # areas that RFCore operator is currently running in
-    reseter                = Reseter()          # helper for resetting bpy settings to original settings
+    reseter                = Reseter('RFCore')  # helper for resetting bpy settings to original settings
 
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
@@ -179,6 +179,9 @@ class RFCore:
         RFCore.reseter['context.scene.tool_settings.use_snap_edit'] = True
         RFCore.reseter['context.scene.tool_settings.use_snap_nonedit'] = True
         RFCore.reseter['context.scene.tool_settings.use_snap_selectable'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_translate'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_rotate'] = True
+        RFCore.reseter['context.scene.tool_settings.use_snap_scale'] = True
 
         try:
             bpy.ops.retopoflow.core()

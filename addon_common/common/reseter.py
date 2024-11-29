@@ -23,9 +23,10 @@ from bpy.types import bpy_prop_array
 import inspect
 
 class Reseter:
-    def __init__(self, *, label=None):
+    def __init__(self, label=None):
         self._label = label
         self._previous = {}
+        # print(f'Reseter: new {self._label}')
 
     def __del__(self):
         self.reset()
@@ -74,4 +75,5 @@ class Reseter:
         keys = list(self._previous.keys())
         for key in keys:
             del self[key]
+        # print(f'Reseter: reset {self._label} {keys}')
 

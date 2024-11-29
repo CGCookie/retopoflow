@@ -531,7 +531,7 @@ class RFTool_Relax(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
-        cls.reseter = Reseter()
+        cls.reseter = Reseter('Relax')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = False
         # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
