@@ -59,11 +59,11 @@ class PolyPen_Properties:
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
         # None is a separator
-        ("VERT-ONLY", "Vert-Only", "Insert vertices only",        1),
-        ("EDGE-ONLY", "Edge-Only", "Insert edges only",           2),
-        ("TRI-ONLY",  "Tri-Only",  "Insert triangles only",       3),  # 'MESH_DATA'
+        ("VERT-ONLY", "Vertex", "Insert vertices only",           1),
+        ("EDGE-ONLY", "Edge", "Insert edges only",                2),
+        ("TRI-ONLY",  "Triangle",  "Insert triangles only",            3),  # 'MESH_DATA'
         ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 0),
-        ("QUAD-ONLY", "Quad-Only", "Insert quads only",           4),
+        ("QUAD-ONLY", "Quad", "Insert quads only",                4),
     ]
     insert_mode = 0
 
@@ -218,7 +218,7 @@ class RFTool_PolyPen(RFTool_Base):
         layout.prop(props_polypen, 'insert_mode')
         if props_polypen.insert_mode == 'QUAD-ONLY':
             layout.prop(props_polypen, 'quad_stability', slider=True)
-        layout.prop(context.tool_settings, 'use_mesh_automerge')
+        layout.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
         layout.prop(props_translate, 'distance2d')
 
     @classmethod

@@ -113,9 +113,15 @@ class RFTool_Contours(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        layout.label(text='Cut:')
         props = tool.operator_properties(RFOperator_Contours.bl_idname)
-        layout.prop(props, 'initial_cut_count')
+        if context.region.type == 'TOOL_HEADER':
+            layout.label(text='Cut:')
+            layout.prop(props, 'initial_cut_count')
+        else:
+            header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
+            header.label(text="Cut")
+            if panel:
+                panel.prop(props, 'initial_cut_count')
 
     @classmethod
     def activate(cls, context):

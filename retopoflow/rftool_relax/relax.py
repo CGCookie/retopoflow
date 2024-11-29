@@ -496,33 +496,46 @@ class RFTool_Relax(RFTool_Base):
     bl_keymap = chain_rf_keymaps(RFOperator_Relax, RFOperator_RelaxBrush_Adjust)
 
     def draw_settings(context, layout, tool):
-        layout.label(text="Brush:")
         props = tool.operator_properties(RFOperator_Relax.bl_idname)
-        layout.prop(props, 'brush_radius')
-        layout.prop(props, 'brush_falloff')
-        layout.prop(props, 'brush_strength')
 
         # TOOL_HEADER: 3d view > toolbar
         # UI: 3d view > n-panel
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
-            pass
+            layout.label(text="Brush:")
+            layout.prop(props, 'brush_radius')
+            layout.prop(props, 'brush_falloff')
+            layout.prop(props, 'brush_strength')
         elif context.region.type in {'UI', 'WINDOW'}:
-            layout.label(text="Algorithm Options:")
-            layout.prop(props, 'algorithm_iterations',            text="Iterations")
-            layout.prop(props, 'algorithm_strength',              text="Strength")
-            layout.prop(props, 'algorithm_average_edge_lengths',  text='Average Edge Lengths')
-            layout.prop(props, 'algorithm_straighten_edges',      text='Straighten Edges')
-            layout.prop(props, 'algorithm_average_face_radius',   text='Average Face Radius')
-            layout.prop(props, 'algorithm_average_face_lengths',  text='Average Face Lengths')
-            layout.prop(props, 'algorithm_average_face_angles',   text='Average Face Angles')
-            layout.prop(props, 'algorithm_correct_flipped_faces', text='Correct Flipped Faces')
+            header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
+            header.label(text="Brush")
+            if panel:
+                panel.prop(props, 'brush_radius')
+                panel.prop(props, 'brush_falloff')
+                panel.prop(props, 'brush_strength')
 
-            layout.label(text="Masking Options:")
-            layout.prop(props, 'mask_boundary', text="Boundary")
-            # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-            layout.prop(props, 'mask_occluded', text="Occluded")
-            layout.prop(props, 'mask_selected', text="Selected")
+            header, panel = layout.panel(idname='relax_algorithm_panel', default_closed=False)
+            header.label(text="Algorithm")
+            if panel:
+                panel.prop(props, 'algorithm_iterations',            text="Iterations")
+                panel.prop(props, 'algorithm_strength',              text="Strength")
+                col = panel.column(heading="Average")
+                col.prop(props, 'algorithm_average_edge_lengths',  text='Edge Lengths')
+                col.prop(props, 'algorithm_average_face_radius',   text='Face Radius')
+                col.prop(props, 'algorithm_average_face_angles',   text='Face Angles')
+                col.prop(props, 'algorithm_average_face_lengths',  text='Face Lengths')
+                col = panel.column(heading="Straighten")
+                col.prop(props, 'algorithm_straighten_edges',      text='Edges')
+                col = panel.column(heading="Correct")
+                col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
+
+            header, panel = layout.panel(idname='relax_masking_panel', default_closed=False)
+            header.label(text="Masking")
+            if panel:
+                panel.prop(props, 'mask_boundary', text="Boundary")
+                # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+                panel.prop(props, 'mask_occluded', text="Occluded")
+                panel.prop(props, 'mask_selected', text="Selected")
 
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')
