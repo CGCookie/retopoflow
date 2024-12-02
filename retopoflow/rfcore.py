@@ -27,7 +27,7 @@ from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
 from .common.bmesh import get_object_bmesh
-from .common.operator import RFOperator, RFRegisterClass
+from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
 
 from .rftool_base import RFTool_Base
@@ -83,6 +83,7 @@ class RFCore:
         # register RF operator and RF tools
         RFTool_Base.register_all()
         RFOperator.register_all()
+        RFOperator_Execute.register_all()
         RFRegisterClass.register_all()
 
         # wrap tool change function so we know when the artist switches tool
@@ -121,6 +122,7 @@ class RFCore:
 
         # unregister RF operator and RF tools
         RFRegisterClass.unregister_all()
+        RFOperator_Execute.unregister_all()
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
 
@@ -310,16 +312,16 @@ class RFCore:
     # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_redo_post(*args, **kwargs):
-        # print(f'handle_redo_post({args}, {kwargs})')
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
+        # print(f'handle_redo_post({args}, {kwargs})')
         RFOperator.active_operator().reset()
     # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_undo_post(*args, **kwargs):
-        print(f'handle_undo_post({args}, {kwargs})')
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
+        print(f'handle_undo_post({args}, {kwargs})')
         RFOperator.active_operator().reset()
 
 RFOperator.RFCore = RFCore

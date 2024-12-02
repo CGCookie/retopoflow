@@ -62,6 +62,39 @@ class RFRegisterClass:
 def chain_rf_keymaps(*classes):
     return tuple( keymap for cls in classes for keymap in cls.rf_keymaps )
 
+class RFOperator_Execute(bpy.types.Operator):
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFOperator._subclasses.append(cls)
+        super().__init_subclass__(**kwargs)
+
+    @staticmethod
+    def get_all_RFOperators():
+        return RFOperator_Execute._subclasses
+        # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+    @staticmethod
+    def register_all():
+        for op in RFOperator_Execute.get_all_RFOperators():
+            bpy.utils.register_class(op)
+            op.register()
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFOperator_Execute.get_all_RFOperators()):
+            op.unregister()
+            bpy.utils.unregister_class(op)
+
+    @classmethod
+    def poll(cls, context):
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
+        return True
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
+
+
 class RFOperator(bpy.types.Operator):
     active_operators = []
     RFCore = None
@@ -214,14 +247,14 @@ class RFOperator(bpy.types.Operator):
 
 
 
-def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None):
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set()):
     class RFOp(RFOperator):
         bl_idname = f"retopoflow.{idname}"
         bl_label = label
         bl_description = description if description is not None else label
         bl_space_type = "VIEW_3D"
         bl_region_type = "TOOLS"
-        bl_options = set()
+        bl_options = options
 
         @classmethod
         def poll(cls, context):

@@ -176,7 +176,7 @@ class RFBrush_Strokes(RFBrush_Base):
             elif event.value == 'RELEASE':
                 if self.is_stroking():
                     self.stroke += [Point2D(mouse)]
-                    self.operator.process_stroke(context, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
+                    self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
                     self.stroke = None
                     self.stroke_cycle = None
                     self.nearest = None

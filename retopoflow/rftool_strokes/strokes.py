@@ -41,7 +41,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ..common.maths import view_forward_direction, lerp
 from ..common.operator import (
     invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass,
+    RFOperator, RFOperator_Execute, RFRegisterClass,
     chain_rf_keymaps, wrap_property,
 )
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
@@ -55,6 +55,96 @@ from ...addon_common.common.reseter import Reseter
 from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+
+
+class RFOperator_Stroke_Insert(RFOperator_Execute):
+    bl_idname = 'retopoflow.strokes_insert'
+    bl_label = 'Strokes: Insert new stroke'
+    bl_description = 'Insert edge strips and extrude edges into a patch'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
+    # rf_keymaps = [
+    #     ('retopoflow.strokes_insert_increased', {'type': 'PLUS',         'value': 'PRESS', 'ctrl': 1}, None),
+    #     ('retopoflow.strokes_insert_increased', {'type': 'NUMPAD_PLUS',  'value': 'PRESS', 'ctrl': 1}, None),
+
+    #     ('retopoflow.strokes_insert_decreased', {'type': 'MINUS',        'value': 'PRESS', 'ctrl': 1}, None),
+    #     ('retopoflow.strokes_insert_decreased', {'type': 'NUMPAD_MINUS', 'value': 'PRESS', 'ctrl': 1}, None),
+    # ]
+
+    # insert_mode: bpy.props.EnumProperty(
+    #     name='Strokes Reinsert',
+    #     description='Reinsert stoke with adjusted spans',
+    #     items=[
+    #         ('DECREASE', 'Decrease', 'Reinsert stroke with decreased span count', -1),
+    #         ('INITIAL',  'Initial',  'Insert new stroke',                          0),
+    #         ('INCREASE', 'Increase', 'Reinsert stroke with increased span count',  1),
+    #     ],
+    #     is_hidden=True,
+    #     default='INITIAL'
+    # )
+
+    # @staticmethod
+    # @execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans')
+    # def strokes_spans_decrease(context):
+    #     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, insert_mode='DECREASE')
+
+    # @staticmethod
+    # @execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans')
+    # def strokes_spans_increase(context):
+    #     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, insert_mode='INCREASE')
+
+    extrapolate_mode: bpy.props.EnumProperty(
+        name='Strokes Extrapolate Mode',
+        description='Controls how the strokes is extrapolated across selected edges',
+        items=[
+            ('FLAT',  'Flat',  'No changes to stroke', 0),
+            ('ADAPT', 'Adapt', 'Adapt stroke to the angle of edges', 1),
+        ],
+        default='FLAT',
+    )
+
+    cut_count: bpy.props.IntProperty(
+        name='Count',
+        description='Number of vertices to create in a new cut',
+        default=8,
+        min=1,
+        soft_max=32,
+        max=256,
+    )
+
+    stroke_data = None
+
+    @staticmethod
+    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode):
+        RFOperator_Stroke_Insert.stroke_data = {
+            'initial':           True,
+            'radius':            radius,
+            'stroke3D':          stroke3D,
+            'is_cycle':          is_cycle,
+            'span_insert_mode':  span_insert_mode,
+            'cut_count':         initial_cut_count,
+        }
+        bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode)
+
+    # def draw(self, context):
+    #     layout = self.layout
+    #     layout.prop(self, 'extrapolate_mode')
+
+    def execute(self, context):
+        data = RFOperator_Stroke_Insert.stroke_data
+        logic = Strokes_Logic(
+            context,
+            data['radius'],
+            data['stroke3D'],
+            data['is_cycle'],
+            data['span_insert_mode'] if data['initial'] else 'FIXED',
+            data['cut_count'] if data['initial'] else self.cut_count,
+            self.extrapolate_mode,
+        )
+        if data['initial']:
+            self.cut_count = logic.cut_count
+            data['initial'] = False
+        return {'FINISHED'}
 
 
 class RFOperator_Strokes(RFOperator):
@@ -79,6 +169,7 @@ class RFOperator_Strokes(RFOperator):
     ]
 
     rf_status = ['LMB: Insert']
+
 
     span_insert_mode: bpy.props.EnumProperty(
         name='Strokes Span Insert Mode',
@@ -108,8 +199,8 @@ class RFOperator_Strokes(RFOperator):
         default='FLAT',
     )
 
+
     def init(self, context, event):
-        # self.logic = Contours_Logic(context, event)
         RFTool_Strokes.rf_brush.set_operator(self, context)
         self.tickle(context)
 
@@ -118,12 +209,11 @@ class RFOperator_Strokes(RFOperator):
 
     def reset(self):
         print('STROKES RESET')
-        # self.logic.reset()
         RFTool_Strokes.rf_brush.reset()
-        pass
 
-    def process_stroke(self, context, stroke, cycle, snap_bmv0, snap_bmv1):
-        logic = Strokes_Logic(context, stroke, cycle, snap_bmv0, snap_bmv1, self.span_insert_mode, self.initial_cut_count, RFTool_Strokes.rf_brush.radius, self.extrapolate_mode)
+    def process_stroke(self, context, radius, stroke2D, is_cycle, snap_bmv0, snap_bmv1):
+        stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
+        RFOperator_Stroke_Insert.strokes_insert(context, radius, stroke3D, is_cycle, self.span_insert_mode, self.initial_cut_count, self.extrapolate_mode)
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'}:
@@ -132,10 +222,8 @@ class RFOperator_Strokes(RFOperator):
 
         if not RFTool_Strokes.rf_brush.is_stroking():
             if not event.ctrl:
-                # self.logic.cleanup()
                 Cursors.restore()
                 self.tickle(context)
-                # print(f'ending')
                 return {'FINISHED'}
 
         Cursors.set('CROSSHAIR')
@@ -147,6 +235,7 @@ class RFOperator_Strokes(RFOperator):
     def draw_postpixel(self, context):
         # self.logic.draw(context)
         pass
+
 
 
 class RFTool_Strokes(RFTool_Base):
@@ -161,6 +250,7 @@ class RFTool_Strokes(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Strokes,
+        # RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
         # RFOperator_Translate_BoundaryLoop,
     )

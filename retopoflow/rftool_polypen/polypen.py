@@ -54,7 +54,7 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 from .polypen_logic import PP_Logic
 
 
-class PolyPen_Properties:
+class PolyPen_Insert_Modes:
     insert_modes = [
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
@@ -81,7 +81,7 @@ class PolyPen_Properties:
                 bl_label = rf_label
                 bl_description = f'Set PolyPen Insert Mode to {label}'
                 def execute(self, context):
-                    PolyPen_Properties.set_insert_mode(None, value)
+                    PolyPen_Insert_Modes.set_insert_mode(None, value)
                     context.area.tag_redraw()
                     return {'FINISHED'}
             RFTool_OT_PolyPen_SetInsertMode.__name__ = f'RFTool_OT_PolyPen_SetInsertMode_{idname}'
@@ -119,19 +119,19 @@ class PolyPen_Properties:
         gen_insert_mode('TriQuad',  'Tri/Quad',  0)
         gen_insert_mode('QuadOnly', 'Quad-Only', 4)
 
-        PolyPen_Properties.rf_keymaps += [
+        PolyPen_Insert_Modes.rf_keymaps += [
             (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'ACCENT_GRAVE', 'shift': True, 'value': 'PRESS'}, None),
             (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'Q', 'value': 'PRESS'}, None),
         ]
 
     @staticmethod
-    def get_insert_mode(self): return PolyPen_Properties.insert_mode
+    def get_insert_mode(self): return PolyPen_Insert_Modes.insert_mode
     @staticmethod
-    def set_insert_mode(self, v): PolyPen_Properties.insert_mode = v
+    def set_insert_mode(self, v): PolyPen_Insert_Modes.insert_mode = v
 
 # TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
 #       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
-PolyPen_Properties.generate_operators()
+PolyPen_Insert_Modes.generate_operators()
 
 
 class RFOperator_PolyPen(RFOperator):
@@ -151,10 +151,10 @@ class RFOperator_PolyPen(RFOperator):
     rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
 
     insert_mode: wrap_property(
-        PolyPen_Properties, 'insert_mode', 'enum',
+        PolyPen_Insert_Modes, 'insert_mode', 'enum',
         name='Insert Mode',
         description='Insertion mode for PolyPen',
-        items=PolyPen_Properties.insert_modes,
+        items=PolyPen_Insert_Modes.insert_modes,
     )
     quad_stability: bpy.props.FloatProperty(
         name='Quad Stability',
@@ -208,7 +208,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyPen,
         RFOperator_Translate_ScreenSpace,
-        PolyPen_Properties,
+        PolyPen_Insert_Modes,
     )
 
     def draw_settings(context, layout, tool):
