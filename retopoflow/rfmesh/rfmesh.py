@@ -965,8 +965,13 @@ class RFMesh():
     def visible_edges(self, is_visible, verts=None, edges=None):
         is_valid = RFMesh.fn_is_valid
         is_vert_vis = self._gen_is_vis(is_visible)
-        is_edge_vis = lambda bme: is_valid(bme) and all(bmv in verts for bmv in bme.verts)
-        verts = set(filter(is_vert_vis, self.bme.verts) if verts is None else filter(is_valid, map(self._unwrap, verts)))
+
+        # Edge is visible if ANY of its vertices are visible
+        is_edge_vis = lambda bme: (
+            is_valid(bme) and 
+            any(is_vert_vis(bmv) for bmv in bme.verts)
+        )
+
         edges = self.bme.edges if edges is None else map(self._unwrap, edges)
         return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
