@@ -669,6 +669,7 @@ class Strokes_Insert():
             if not best or score < best_score:
                 best = edge_strip
                 best_score = score
+
         if not best:
             self.rfcontext.alert_user(
                 'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.'
@@ -696,6 +697,13 @@ class Strokes_Insert():
             for e in edges
         ]
         strip_len = sum(edge_lens)
+
+        if strip_len == 0:
+            self.rfcontext.alert_user(
+                'The length of the strip is zero. Please ensure that the stroke is valid and try again.'
+            )
+            return
+
         avg_len = strip_len / len(edges)
         per_lens = [l / strip_len for l in edge_lens]
         percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
