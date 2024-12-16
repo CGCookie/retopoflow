@@ -217,10 +217,12 @@ class Knife_Insert():
 
     @RFTool.dirty_when_done
     def _insert(self):
+        # Get nearest geometry
         bmv, _ = self.rfcontext.accel_nearest2D_vert(max_dist=options['knife snap dist'])
         bme, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['knife snap dist'])
         bmf, _ = self.rfcontext.accel_nearest2D_face(max_dist=options['knife snap dist'])
 
+        # Determine if starting new cut or continuing existing one
         if self.knife_start is None and len(self.sel_verts) == 0:
             next_state = 'knife start'
         elif bme and any(v.select for v in bme.verts):
@@ -229,8 +231,10 @@ class Knife_Insert():
         else:
             next_state = 'knife cut'
 
+        # Handle different cutting states
         match next_state:
             case 'knife start':
+                # Starting new cut - handle vertex/edge/face creation
                 if bmv:
                     # just select the hovered vert
                     self.rfcontext.select(bmv)
@@ -260,6 +264,8 @@ class Knife_Insert():
                 return 'move'
 
             case 'knife cut':
+                # Continuing existing cut - handle intersections and splits
+                # Get intersection points between cut line and geometry
                 Point_to_Point2D = self.rfcontext.Point_to_Point2D
                 knife_start = self.knife_start or Point_to_Point2D(next(iter(self.sel_verts)).co)
                 knife_start_face = self.rfcontext.accel_nearest2D_face(point=knife_start, max_dist=options['knife snap dist'])[0]
@@ -284,7 +290,10 @@ class Knife_Insert():
                 pre_p = None
                 unfaced_verts = []
                 bmfs_to_shatter = set()
+                
+                # Create new geometry at intersections
                 for p,e,d in crosses:
+                    # Create vertices and split edges/faces as needed
                     if type(e) is RFVert:
                         cur = e
                     else:
@@ -344,7 +353,10 @@ class Knife_Insert():
         return
 
 
+    # Find intersections between cut line and existing geometry
     def _get_crosses(self, p0, p1):
+        # Calculate intersections between line segment p0-p1 and visible edges
+        # Returns list of (point, intersected_element, distance) tuples
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         dist = self.rfcontext.drawing.scale(options['knife snap dist'])
         crosses = set()
@@ -365,7 +377,22 @@ class Knife_Insert():
         for e in self.vis_edges:
             v0, v1 = e.verts
             c0, c1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
+            
+            # Skip invalid/degenerate edges
+            if (c0-c1).length < 0.000001: continue
+                
+            # Calculate intersection with a small epsilon to handle floating point precision
             i = intersect2d_segment_segment(p0, p1, c0, c1)
+            if i:
+                # Verify intersection point is actually on both segments
+                ip = Point2D(i)
+                on_p0p1 = (ip-p0).dot(p1-p0) >= -0.000001 and (ip-p1).dot(p0-p1) >= -0.000001
+                on_c0c1 = (ip-c0).dot(c1-c0) >= -0.000001 and (ip-c1).dot(c0-c1) >= -0.000001
+                if on_p0p1 and on_c0c1:
+                    add(ip, e)
+                    continue
+                    
+            # Existing snap checks
             clc0 = closest2d_point_segment(c0, p0, p1)
             clc1 = closest2d_point_segment(c1, p0, p1)
             clp0 = closest2d_point_segment(p0, c0, c1)
@@ -378,13 +405,17 @@ class Knife_Insert():
         crosses = sorted(crosses, key=lambda cross: cross[2])
         return crosses
 
+    ''' Drawing functions for visualization. '''
+
     def draw_crosses(self, crosses):
+        # Draw intersection points
         with Globals.drawing.draw(CC_2D_POINTS) as draw:
             for p,e,d in crosses:
                 draw.color(themes['active'] if type(e) is RFVert else themes['new'])
                 draw.vertex(p)
 
     def draw_lines(self, coords, poly_alpha=0.2):
+        # Draw preview lines and polygons
         line_color = themes['new']
         poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
         l = len(coords)
