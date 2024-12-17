@@ -31,7 +31,7 @@ from bpy_extras.view3d_utils import (
     location_3d_to_region_2d,
 )
 
-from .maths import point_to_bvec3, vector_to_bvec3
+from .maths import point_to_bvec3, vector_to_bvec3, point_to_bvec4, vector_to_bvec4
 
 def mouse_from_event(event): return (event.mouse_region_x, event.mouse_region_y)
 
@@ -119,8 +119,8 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context, point):
-    ray_world = ray_from_point(context, point)
+def raycast_valid_sources(context, point_world):
+    ray_world = ray_from_point(context, point_world)
 
     # print(f'raycast_valid_sources {ray_world=}')
     if ray_world[0] is None: return None
@@ -131,33 +131,34 @@ def raycast_valid_sources(context, point):
     Mei = Me.inverted()
     Met = Me.transposed()
     for obj in iter_all_valid_sources(context):
-        M = obj.matrix_world
-        Mi = M.inverted()
+        M   = obj.matrix_world
+        Mi  = M.inverted()
         Mit = Mi.transposed()
-        Mt = M.transposed()
+        #Mt  = M.transposed()
         ray_local = (
-            Mi @ ray_world[0],
-            (Mt @ ray_world[1]).normalized(),
+            (Mi @ ray_world[0]),
+            (Mi @ ray_world[1]).normalized(),
         )
         result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
         if not result: continue
 
         no_hit = no_hit.normalized()
 
-        co_world = point_to_bvec3( M   @ Vector((*co_hit, 1.0)))
-        no_world = vector_to_bvec3(Mit @ Vector((*no_hit, 0.0))).normalized()
+        co_world = point_to_bvec3(M @ point_to_bvec4(co_hit))
+        no_world  = vector_to_bvec3(Mit @ vector_to_bvec4(no_hit)).normalized()
         dist = distance_between_locations(ray_world[0], co_world)
+        # print(co_hit, dist)
 
         if best and best['distance'] <= dist: continue
 
-        co_active = point_to_bvec3( Mei @ Vector((*co_world, 1.0)))
-        no_active = vector_to_bvec3(Met @ Vector((*no_world, 0.0))).normalized()
+        co_local = point_to_bvec3(Mei @ point_to_bvec4(co_world))
+        no_local = vector_to_bvec3(Met @ vector_to_bvec4(no_world)).normalized()
 
         best = {
-            'ray_world':  ray_world,  # ray based on point
-            'distance':   dist,       # distance between ray origin and hit point (in world space)
+            'ray_world':  ray_world,  # ray based on point_world
+            'distance':   dist,       # world distance between ray origin and hit point
             'object':     obj,       'face_index': idx,        # hit object and face index
-            'co_local':   co_active, 'no_local':   no_active,  # co and normal wrt to active object
+            'co_local':   co_local,  'no_local':   no_local,   # co and normal wrt to active object
             'co_hit':     co_hit,    'no_hit':     no_hit,     # co and normal wrt to hit object
             'co_world':   co_world,  'no_world':   no_world,   # co and normal in world space
         }
@@ -174,8 +175,8 @@ def raycast_valid_sources(context, point):
     #     hit = Mi @ hit
     # return hit.xyz
 
-def raycast_point_valid_sources(context, point, *, world=True):
-    ray_world = ray_from_point(context, point)
+def raycast_point_valid_sources(context, point_world, *, world=True):
+    ray_world = ray_from_point(context, point_world)
     if ray_world[0] is None: return None
 
     best_hit = None

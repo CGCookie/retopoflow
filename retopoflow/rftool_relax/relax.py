@@ -113,8 +113,8 @@ class RFBrush_Relax(RFBrush_Base):
         mouse = mouse_from_event(event)
 
         if RFOperator_Relax.is_active() or RFOperator_RelaxBrush_Adjust.is_active():
-            # artist is actively relaxing or adjusting brush properties, so always consider us inside if we're in the same area
             active_op = RFOperator.active_operator()
+            # artist is actively relaxing or adjusting brush properties, so always consider us inside if we're in the same area
             mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
         else:
             mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
@@ -455,7 +455,6 @@ class RFOperator_Relax(RFOperator):
 
     def update(self, context, event):
         self.logic.update(context, event, RFTool_Relax.rf_brush, self)
-        # self.logic.update(context, event, self.insert_mode)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}
@@ -477,8 +476,8 @@ class RFOperator_Relax(RFOperator):
         self.timer.stop()
 
     def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
-        pass
 
 
 

@@ -34,6 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -66,8 +67,6 @@ class Relax_Logic:
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
 
-        M = hit['object'].matrix_world
-
         # gather options
         opt_mask_boundary   = relax.mask_boundary
         opt_mask_symmetry   = relax.mask_symmetry
@@ -83,12 +82,12 @@ class Relax_Logic:
         opt_correct_flipped = relax.algorithm_correct_flipped_faces
 
         def is_bmvert_hidden(bmv, *, factor=0.999):
-            nonlocal M, context
-            point = M @ bmv.co
+            nonlocal context
+            point = self.matrix_world @ point_to_bvec4(bmv.co)
             hit = raycast_valid_sources(context, point)
             if not hit: return False
-            o = hit['ray_world'][0]
-            return hit['distance'] < (o.xyz - point.xyz).length * factor
+            ray_e = hit['ray_world'][0]
+            return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
@@ -115,7 +114,7 @@ class Relax_Logic:
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_strength[bmv] = brush.get_strength_Point(M @ bmv.co)
+            vert_strength[bmv] = brush.get_strength_Point(self.matrix_world @ bmv.co)
         # self.rfcontext.select(verts)
 
         if not verts or not edges: return

@@ -77,8 +77,12 @@ def bvec_to_point(v):
     return Point((*point_to_bvec3(v), 1.0))
 def point_to_bvec3(pt):
     return pt.xyz / pt.w if len(pt) == 4 else pt.xyz
+def point_to_bvec4(pt):
+    return Vector((*point_to_bvec3(pt), 1))
 def vector_to_bvec3(v):
     return v.xyz
+def vector_to_bvec4(v):
+    return Vector((*v.xyz, 0))
 
 def lerp(f, m, M): return m + f * (M - m)
 
