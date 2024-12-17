@@ -83,8 +83,8 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     rf_keymaps = [
-        ('retopoflow.strokes_insert_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
-        ('retopoflow.strokes_insert_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
+        ('retopoflow.strokes_insert_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
     ]
 
     extrapolate_mode: bpy.props.EnumProperty(
