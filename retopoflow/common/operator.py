@@ -151,7 +151,7 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def modal(self, context, event):
-        self.RFCore.is_controlling = True
+        RFOperator.RFCore.is_controlling = True
         if RFOperator.tickled:
             # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
             # handle tickle event (which will remove tickle timer / handler)
@@ -209,14 +209,15 @@ class RFOperator(bpy.types.Operator):
         # tickle RF operator by temporarily setting a timer that will self-remove (causes modal / update to be called)
         # sadly, cannot use context.window.event_simulate, because this requires `--enable-event-simulate` Blender commandline argument
         # ex: context.window.event_simulate('TIMER', 'NOTHING')
-        wm  = context.window_manager
-        timer = wm.event_timer_add(0.01, window=context.window)
+        # bpy.app.timer also does not work, as it doesn't trigger an event
+        if RFOperator.tickled: RFOperator.tickled()
+        wm, win, area = context.window_manager, context.window, context.area
+        timer = wm.event_timer_add(0.01, window=win)
         def tickled():
             wm.event_timer_remove(timer)
             RFOperator.tickled = None
-            context.area.tag_redraw()
+            RFOperator.RFCore.tag_redraw_areas()
         RFOperator.tickled = tickled
-
 
 
     def status(self, header, context):

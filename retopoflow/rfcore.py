@@ -204,6 +204,11 @@ class RFCore:
         bpy.app.timers.register(rerun, first_interval=0.01)
 
     @staticmethod
+    def tag_redraw_areas():
+        for a in RFCore.running_in_areas:
+            a.tag_redraw()
+
+    @staticmethod
     def stop():
         if not RFCore.is_running: return
         RFCore.is_running = False
@@ -387,6 +392,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # print(f' {context.area=}')
         # print(f' {context.space_data=}')
         # print(f' {context.space_data.region_3d=}')
+        if RFOperator.tickled:
+            RFOperator.tickled()
 
         if not context.area:
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
