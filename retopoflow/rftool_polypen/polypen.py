@@ -193,6 +193,7 @@ class RFOperator_PolyPen(RFOperator):
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
     def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
 
 
