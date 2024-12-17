@@ -23,6 +23,8 @@ import bpy
 import bmesh
 import bl_ui
 
+import random
+
 from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
@@ -30,7 +32,8 @@ from .common.bmesh import get_object_bmesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
 
-from .rftool_base import RFTool_Base
+from .rftool_base  import RFTool_Base
+from .rfbrush_base import RFBrush_Base
 
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
@@ -244,6 +247,10 @@ class RFCore:
         if brush: brush.update(context, event)
 
     @staticmethod
+    def is_current_area(context):
+        return context.area == RFCore.running_in_areas[0] if RFCore.running_in_areas else False
+
+    @staticmethod
     def handle_draw_cursor(context, mouse):
         if not RFCore.is_running:
             # print('NOT RUNNING ANYMORE')
@@ -255,8 +262,13 @@ class RFCore:
         # print(f'handle_draw_cursor({mouse})  {RFCore.selected_RFTool_idname=}  {RFOperator.active_operator()=}  {bpy.context.window in RFCore.running_in_areas=}')
         # print(f'{RFTools[RFCore.selected_RFTool_idname]}')
         if context.area not in RFCore.running_in_areas:
-            print(f'LAUNCHING IN NEW AREA')
+            print(f'LAUNCHING IN NEW AREA {context.area.x},{context.area.y}')
             bpy.ops.retopoflow.core()
+        else:
+            # print(f'handle_draw_cursor: context.area: {context.area.x},{context.area.y}')
+            if not RFCore.is_current_area(context):
+                # reorder RFCore.running_in_areas so first is current area
+                RFCore.running_in_areas = [context.area] + [a for a in RFCore.running_in_areas if a != context.area]
 
         # print(list(context.window_manager.operators))
         if mouse != RFCore.event_mouse:
@@ -332,6 +344,7 @@ class RFCore:
 RFOperator.RFCore = RFCore
 RFCore_NewTarget_Active.RFCore = RFCore
 RFCore_NewTarget_Cursor.RFCore = RFCore
+RFBrush_Base.RFCore = RFCore
 
 
 class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
@@ -377,6 +390,9 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         self.is_running = False
 
     def execute(self, context):
+        # if any(isinstance(op, RFCore_Operator) for op in context.window.modal_operators):
+        #     print(f'Attempted to launch RFCore when it is already running...')
+        #     return {'CANCELLED'}
         prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
@@ -392,6 +408,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # print(f' {context.area=}')
         # print(f' {context.space_data=}')
         # print(f' {context.space_data.region_3d=}')
+        # print(event.type, [op for op in context.window.modal_operators], random.random())
+
         if RFOperator.tickled:
             RFOperator.tickled()
 

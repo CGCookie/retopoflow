@@ -20,6 +20,8 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 class RFBrush_Base:
+    RFCore = None
+
     _subclasses = {}
     def __new__(cls):
         if cls not in RFBrush_Base._subclasses:

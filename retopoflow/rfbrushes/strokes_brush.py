@@ -139,6 +139,10 @@ class RFBrush_Strokes(RFBrush_Base):
         return self.stroke is not None
 
     def update(self, context, event):
+        if not self.RFCore.is_current_area(context):
+            self.reset()
+            return
+
         if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
         if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
 
@@ -172,7 +176,6 @@ class RFBrush_Strokes(RFBrush_Base):
                 self.stroke_far = False
                 self.stroke_cycle = False
 
-                context.area.tag_redraw()
             elif event.value == 'RELEASE':
                 if self.is_stroking():
                     self.stroke += [Point2D(mouse)]
@@ -182,7 +185,8 @@ class RFBrush_Strokes(RFBrush_Base):
                     self.nearest = None
                     self.snap_bmv0 = None
                     self.snap_bmv1 = None
-                    context.area.tag_redraw()
+
+            context.area.tag_redraw()
 
         if self.mouse and event.type != 'MOUSEMOVE':
             return
@@ -249,6 +253,7 @@ class RFBrush_Strokes(RFBrush_Base):
         self.hit_rmat = rmat
 
     def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
         #if context.area not in self.mouse_areas: return
 
         gpustate.blend('ALPHA')
@@ -289,6 +294,7 @@ class RFBrush_Strokes(RFBrush_Base):
             Drawing.draw2D_circle(context, center2D, r, co, width=1)
 
     def draw_postview(self, context):
+        if not self.RFCore.is_current_area(context): return
         if context.area not in self.mouse_areas: return
         if RFOperator_StrokesBrush_Adjust.is_active(): return
         self._update(context)
