@@ -293,7 +293,7 @@ class Strokes_Logic:
 
     def process_stroke(self):
         # project 3D stroke points to screen
-        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D]
+        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D if pt]
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
@@ -353,8 +353,12 @@ class Strokes_Logic:
 
     def find_point2D(self, v):  return find_point_at(self.stroke2D, self.is_cycle, self.length2D, v)
     def find_point3D(self, v):  return find_point_at(self.stroke3D, self.is_cycle, self.length3D, v)
-    def project_pt(self, pt):   return location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt).xy
-    def project_bmv(self, bmv): return self.project_pt(bmv.co).xy
+    def project_pt(self, pt):
+        p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
+        return p.xy if p else None
+    def project_bmv(self, bmv):
+        p = self.project_pt(bmv.co)
+        return p.xy if p else None
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(pt3D)
         bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]

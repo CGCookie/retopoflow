@@ -132,10 +132,13 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
 
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
+        stroke3D = [pt for pt in data['stroke3D'] if pt]
+        if not stroke3D:
+            return {'CANCELLED'}
         logic = Strokes_Logic(
             context,
             data['radius'],
-            data['stroke3D'],
+            stroke3D,
             data['is_cycle'],
             data['span_insert_mode'] if data['initial'] else 'FIXED',
             data['cut_count'] if data['initial'] else self.cut_count,
@@ -151,8 +154,8 @@ class RFOperator_Strokes(RFOperator):
     bl_idname = 'retopoflow.strokes'
     bl_label = 'Strokes'
     bl_description = 'Insert edge strips and extrude edges into a patch'
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    # bl_space_type = 'VIEW_3D'
+    # bl_region_type = 'TOOLS'
     bl_options = set()
 
     rf_keymaps = [
