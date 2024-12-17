@@ -131,8 +131,6 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         if not stroke3D:
             return {'CANCELLED'}
 
-        data['extrapolate'] = self.extrapolate_mode
-
         logic = Strokes_Logic(
             context,
             data['radius'],
@@ -144,7 +142,11 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         )
         if data['initial']:
             self.cut_count = logic.cut_count
+            data['cut_count'] = self.cut_count
             data['initial'] = False
+        else:
+            data['extrapolate'] = self.extrapolate_mode
+
         return {'FINISHED'}
 
 
