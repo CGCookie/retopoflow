@@ -57,41 +57,35 @@ from .strokes_logic import Strokes_Logic
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 
+@execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans')
+def strokes_spans_decrease(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['cut_count'] = max(1, data['cut_count'] - 1)
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'])
+
+@execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans')
+def strokes_spans_increase(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['cut_count'] += 1
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'])
+
+
 class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_idname = 'retopoflow.strokes_insert'
     bl_label = 'Strokes: Insert new stroke'
     bl_description = 'Insert edge strips and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    # rf_keymaps = [
-    #     ('retopoflow.strokes_insert_increased', {'type': 'PLUS',         'value': 'PRESS', 'ctrl': 1}, None),
-    #     ('retopoflow.strokes_insert_increased', {'type': 'NUMPAD_PLUS',  'value': 'PRESS', 'ctrl': 1}, None),
-
-    #     ('retopoflow.strokes_insert_decreased', {'type': 'MINUS',        'value': 'PRESS', 'ctrl': 1}, None),
-    #     ('retopoflow.strokes_insert_decreased', {'type': 'NUMPAD_MINUS', 'value': 'PRESS', 'ctrl': 1}, None),
-    # ]
-
-    # insert_mode: bpy.props.EnumProperty(
-    #     name='Strokes Reinsert',
-    #     description='Reinsert stoke with adjusted spans',
-    #     items=[
-    #         ('DECREASE', 'Decrease', 'Reinsert stroke with decreased span count', -1),
-    #         ('INITIAL',  'Initial',  'Insert new stroke',                          0),
-    #         ('INCREASE', 'Increase', 'Reinsert stroke with increased span count',  1),
-    #     ],
-    #     is_hidden=True,
-    #     default='INITIAL'
-    # )
-
-    # @staticmethod
-    # @execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans')
-    # def strokes_spans_decrease(context):
-    #     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, insert_mode='DECREASE')
-
-    # @staticmethod
-    # @execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans')
-    # def strokes_spans_increase(context):
-    #     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, insert_mode='INCREASE')
+    rf_keymaps = [
+        ('retopoflow.strokes_insert_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
+        ('retopoflow.strokes_insert_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
+    ]
 
     extrapolate_mode: bpy.props.EnumProperty(
         name='Strokes Extrapolate Mode',
@@ -123,6 +117,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             'is_cycle':          is_cycle,
             'span_insert_mode':  span_insert_mode,
             'cut_count':         initial_cut_count,
+            'extrapolate':       extrapolate_mode,
         }
         bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode)
 
@@ -135,6 +130,9 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         stroke3D = [pt for pt in data['stroke3D'] if pt]
         if not stroke3D:
             return {'CANCELLED'}
+
+        data['extrapolate'] = self.extrapolate_mode
+
         logic = Strokes_Logic(
             context,
             data['radius'],
@@ -253,7 +251,7 @@ class RFTool_Strokes(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Strokes,
-        # RFOperator_Stroke_Insert,
+        RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
         # RFOperator_Translate_BoundaryLoop,
     )

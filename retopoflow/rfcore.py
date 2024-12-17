@@ -390,9 +390,6 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         self.is_running = False
 
     def execute(self, context):
-        # if any(isinstance(op, RFCore_Operator) for op in context.window.modal_operators):
-        #     print(f'Attempted to launch RFCore when it is already running...')
-        #     return {'CANCELLED'}
         prep_raycast_valid_sources(context)
         context.window_manager.modal_handler_add(self)
         self.running_in_area = context.area
