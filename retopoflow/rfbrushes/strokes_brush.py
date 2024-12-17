@@ -327,9 +327,9 @@ class RFOperator_StrokesBrush_Adjust(RFOperator):
     '''
     Handles resizing of Strokes Brush
     '''
-    bl_idname = 'retopoflow.strokes_brush'
-    bl_label = 'Strokes Brush'
-    bl_description = 'Adjust properties of strokes brush'
+    bl_idname = 'retopoflow.strokes_brush_radius'
+    bl_label = 'Adjust Strokes Brush Radius'
+    bl_description = 'Adjust radius of strokes brush'
     bl_space_type = 'VIEW_3D'
     bl_space_type = 'TOOLS'
     bl_options = set()
