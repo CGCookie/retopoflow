@@ -485,7 +485,7 @@ class RFOperator_Relax(RFOperator):
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
-    bl_label = "Relax"
+    bl_label = "RetopoFlow Relax"
     bl_description = "Relax the vertex positions to smooth out topology"
     bl_icon = get_path_to_blender_icon('relax')
     bl_widget = None

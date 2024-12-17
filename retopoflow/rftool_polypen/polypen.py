@@ -199,7 +199,7 @@ class RFOperator_PolyPen(RFOperator):
 
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
-    bl_label = "PolyPen"
+    bl_label = "RetopoFlow PolyPen"
     bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None

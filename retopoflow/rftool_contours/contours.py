@@ -99,7 +99,7 @@ class RFOperator_Contours(RFOperator):
 
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
-    bl_label = "Contours"
+    bl_label = "RetopoFlow Contours"
     bl_description = "Retopologize cylindrical forms, like arms and legs"
     bl_icon = get_path_to_blender_icon('contours')
     bl_widget = None

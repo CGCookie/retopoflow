@@ -240,7 +240,7 @@ class RFOperator_Strokes(RFOperator):
 
 class RFTool_Strokes(RFTool_Base):
     bl_idname = "retopoflow.strokes"
-    bl_label = "Strokes"
+    bl_label = "RetopoFlow Strokes"
     bl_description = "Insert edge strips and extrude edges into a patch"
     bl_icon = get_path_to_blender_icon('strokes')
     bl_widget = None
