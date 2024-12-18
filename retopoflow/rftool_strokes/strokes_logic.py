@@ -404,7 +404,7 @@ class Strokes_Logic:
     #####################################################################################
     # simple insertions with no bridging
 
-    def insert_strip(self, *, prep_only=False):
+    def insert_strip(self):
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
@@ -438,7 +438,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs)
         self.cut_count = nspans
 
-    def insert_cycle(self, *, prep_only=False):
+    def insert_cycle(self):
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
@@ -467,7 +467,7 @@ class Strokes_Logic:
     ##############################################################################
     # basic bridging insertions
 
-    def insert_cycle_equals(self, *, prep_only=False):
+    def insert_cycle_equals(self):
         assert self.is_cycle
         assert self.longest_cycle0
 
@@ -551,7 +551,7 @@ class Strokes_Logic:
         self.cut_count = nspans
 
 
-    def insert_strip_equals(self, *, prep_only=False):
+    def insert_strip_equals(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -643,7 +643,7 @@ class Strokes_Logic:
         self.cut_count = nspans
 
 
-    def insert_strip_T(self, *, prep_only=False):
+    def insert_strip_T(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -725,7 +725,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[i_sel_row])
         self.cut_count = nspans
 
-    def insert_cycle_T(self, *, prep_only=False):
+    def insert_cycle_T(self):
         '''
         forced on: adapt extrapolation
         '''
@@ -811,7 +811,7 @@ class Strokes_Logic:
         self.cut_count = nspans
 
 
-    def insert_strip_I(self, *, prep_only=False):
+    def insert_strip_I(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -897,7 +897,7 @@ class Strokes_Logic:
         self.cut_count = nspans
 
 
-    def insert_cycle_I(self, *, prep_only=False):
+    def insert_cycle_I(self):
         llc = len(self.longest_cycle0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -954,8 +954,6 @@ class Strokes_Logic:
         for i_row, (bme0, bme1) in enumerate(zip(self.longest_cycle0, self.longest_cycle1)):
             pt0, pt1 = self.project_bmv(bmv0), self.project_bmv(bmv1)
             scale = (pt1 - pt0).length / template_length
-            # angle = vec_screenspace_angle(pt1 - pt0)
-            # along = Vector((math.cos(angle), -math.sin(angle)))
             fitted = fit_template2D(template, pt0, target=pt1)
             cur_bmvs = [bmv0]
             if bmv0 == self.snap_bmv0: i_sel_row = i_row
@@ -966,17 +964,6 @@ class Strokes_Logic:
             bmvs.append(cur_bmvs)
             bmv0 = bme_other_bmv(bme0, bmv0)
             bmv1 = bme_other_bmv(bme1, bmv1)
-
-            # bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle0, bmv0)
-            # if i_row == 0: bmvp, bmvn = bmvn, bmvp
-            # vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
-            # bme_angle = vec_screenspace_angle(vpn)
-            # along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-            # fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
-            # cur_bmvs = [bmv0]
-            # for t in fitted[1:]:
-            #     co = raycast_point_valid_sources(self.context, t, world=False)
-            #     cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
         print(llc, nverts)
         print(len(bmvs), len(bmvs[0]))
