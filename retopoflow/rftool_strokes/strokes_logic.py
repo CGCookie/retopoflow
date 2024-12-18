@@ -256,11 +256,11 @@ def get_longest_strip_cycle(bmes):
     longest_strip1 = strips[-2] if len(strips) >= 2 else None
     longest_cycle = cycles[-1] if cycles else None
 
-    print(f'{strips=}')
-    print(f'{cycles=}')
-    print(f'{longest_strip0=}')
-    print(f'{longest_strip1=}')
-    print(f'{longest_cycle=}')
+    # print(f'{strips=}')
+    # print(f'{cycles=}')
+    # print(f'{longest_strip0=}')
+    # print(f'{longest_strip1=}')
+    # print(f'{longest_cycle=}')
 
     return (longest_strip0, longest_strip1, longest_cycle)
 
@@ -333,11 +333,11 @@ class Strokes_Logic:
     def insert(self):
         # TODO: reproject stroke2D and recompute length2D
 
-        print(f'INSERT:')
-        print(f'    {self.is_cycle=} {bool(self.longest_cycle)=}')
-        print(f'    {self.snap_sel0=}  {self.snap_sel1=}')
-        print(f'    {bool(self.longest_strip0)=} {bool(self.longest_strip1)=}')
-        print(f'    {self.snap_sel00=} {self.snap_sel01=}  {self.snap_sel10=} {self.snap_sel11=}')
+        # print(f'INSERT:')
+        # print(f'    {self.is_cycle=} {bool(self.longest_cycle)=}')
+        # print(f'    {self.snap_sel0=}  {self.snap_sel1=}')
+        # print(f'    {bool(self.longest_strip0)=} {bool(self.longest_strip1)=}')
+        # print(f'    {self.snap_sel00=} {self.snap_sel01=}  {self.snap_sel10=} {self.snap_sel11=}')
 
         if self.is_cycle:
             if not self.longest_cycle:
@@ -356,7 +356,7 @@ class Strokes_Logic:
                 if self.snap_sel00 or self.snap_sel10:
                     self.insert_strip_T()
                 else:
-                    self.insert_quad_equals()
+                    self.insert_strip_equals()
             else:
                 self.insert_strip()
 
@@ -394,7 +394,6 @@ class Strokes_Logic:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
         nverts = nspans + 1
-        print(f'Inserting strip: {nspans=} {nverts=}')
 
         bmvs = []
         for iv in range(nverts):
@@ -430,7 +429,6 @@ class Strokes_Logic:
         nspans = max(3, nspans)
         nverts = nspans
 
-        print(f'Inserting cycle: {nspans=} {nverts=}')
         bmvs = [
             self.bm.verts.new(self.find_point3D(iv / nverts))
             for iv in range(nverts)
@@ -490,6 +488,7 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
+        # build spans
         bme_pre = self.longest_cycle[-1]
         accum_dist = 0
         bmvs = [[] for i in range(nverts)]
@@ -508,6 +507,8 @@ class Strokes_Logic:
 
             accum_dist += bme_length(bme_cur)
             bme_pre = bme_cur
+
+        # fill in quads
         bmfs = []
         for i in range(nverts-1):
             for j in range(llc):
@@ -528,7 +529,7 @@ class Strokes_Logic:
         self.cut_count = nspans
 
 
-    def insert_quad_equals(self, *, prep_only=False):
+    def insert_strip_equals(self, *, prep_only=False):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -591,6 +592,7 @@ class Strokes_Logic:
         if self.snap_bmv1:
             bmesh.ops.pointmerge(self.bm, verts=[bmvs[-1][-1], self.snap_bmv1], merge_co=self.snap_bmv1.co)
 
+        # fill in quads
         bmfs = []
         for i in range(nverts-1):
             for j in range(llc):
@@ -617,7 +619,6 @@ class Strokes_Logic:
 
         # make sure stroke and selected strip share first point at index 0
         if self.snap_sel10:
-            print('reversing')
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
@@ -635,20 +636,14 @@ class Strokes_Logic:
         nverts = nspans + 1
 
         # create template
-        template = [
-            self.find_point2D(iv / (nverts - 1))
-            for iv in range(nverts)
-        ]
-
+        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
         # get orientation of stroke to selected strip
         vx = Vector((1, 0))
         bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
         pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
         vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
         template_len = vstroke.length
-        print(f'{vpn=} {vstroke=}')
         angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
-        print(math.degrees(vec_screenspace_angle(vpn)), math.degrees(vec_screenspace_angle(vstroke)), math.degrees(angle))
 
         # use template to build spans
         bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
@@ -661,7 +656,6 @@ class Strokes_Logic:
                 vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
                 bme_angle = vec_screenspace_angle(vpn)
                 along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-                print(math.degrees(bme_angle), math.degrees(bme_angle + angle), along, along*template_len)
                 fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
                 cur_bmvs = [bmv0]
                 for t in fitted[1:]:
@@ -679,6 +673,7 @@ class Strokes_Logic:
             bmv0 = bme_other_bmv(bme, bmv0)
         i_sel_row = next(i for (i, r) in enumerate(bmvs) if r[0] == self.snap_bmv0)
 
+        # fill in quads
         bmfs = []
         for i in range(llc):
             for j in range(nverts - 1):
@@ -707,13 +702,13 @@ class Strokes_Logic:
 
         # make sure stroke and selected cycle share first point at index 0
         if self.snap_sel1:
-            print('reversing')
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
             self.snap_sel0, self.snap_sel1 = self.snap_sel1, self.snap_sel0
 
         # rotate cycle so bme[1] and bme[2] have hovered vert
+        # note: if rotated to bme[0] and bme[-1], there might be ambiguity in which side comes first
         idx = next((i for (i, bme) in enumerate(self.longest_cycle) if self.snap_bmv0 in bme.verts), None)
         idx = (idx - 1) % len(self.longest_cycle)
         self.longest_cycle = self.longest_cycle[idx:] + self.longest_cycle[:idx]
@@ -730,23 +725,16 @@ class Strokes_Logic:
         nverts = nspans + 1
 
         # create template
-        template = [
-            self.find_point2D(iv / (nverts - 1))
-            for iv in range(nverts)
-        ]
-
+        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
         # get orientation of stroke to selected cycle
         vx = Vector((1, 0))
         bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle, self.snap_bmv0)
         pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
         vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
         template_len = vstroke.length
-        print(f'{vpn=} {vstroke=}')
         angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
-        print(math.degrees(vec_screenspace_angle(vpn)), math.degrees(vec_screenspace_angle(vstroke)), math.degrees(angle))
 
         # use template to build spans
-        print('using template to build spans')
         bmv0 = bme_unshared_bmv(self.longest_cycle[0], self.longest_cycle[1])
         bmvs = []
         for i_row, bme in enumerate(self.longest_cycle):
@@ -756,7 +744,6 @@ class Strokes_Logic:
             vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
             bme_angle = vec_screenspace_angle(vpn)
             along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-            print(math.degrees(bme_angle), math.degrees(bme_angle + angle), along, along*template_len)
             fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
             cur_bmvs = [bmv0]
             for t in fitted[1:]:
@@ -766,6 +753,7 @@ class Strokes_Logic:
             bmv0 = bme_other_bmv(bme, bmv0)
         i_sel_row = next(i for (i, r) in enumerate(bmvs) if r[0] == self.snap_bmv0)
 
+        # fill in quads
         bmfs = []
         for i0 in range(llc):
             i1 = (i0 + 1) % len(self.longest_cycle)
@@ -822,8 +810,6 @@ class Strokes_Logic:
             for iv in range(1, nverts - 1)
         ]
         template_length = (self.find_point2D(1) - pt2D).length
-        print(template, template_length)
-        print(self.stroke2D[0], self.stroke2D[-1])
 
         # use template to build spans
         bmvs = []
@@ -843,7 +829,6 @@ class Strokes_Logic:
             if bmv0 == self.snap_bmv0: i_sel_row = i_row
             for offset in template:
                 co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
-                print(pt0 + offset*scale, co)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -851,8 +836,7 @@ class Strokes_Logic:
             bmv0 = bme_other_bmv(bme0, bmv0)
             bmv1 = bme_other_bmv(bme1, bmv1)
 
-        print(bmvs)
-
+        # fill in quads
         bmfs = []
         for i in range(llc):
             for j in range(nverts - 1):
