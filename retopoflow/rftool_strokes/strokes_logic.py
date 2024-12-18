@@ -348,12 +348,9 @@ class Strokes_Logic:
             if self.snap_sel0 or self.snap_sel1:
                 self.insert_cycle_T()
             elif self.longest_strip0:
-                if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1):
-                    if (self.snap_sel00 and self.snap_sel11) or (self.snap_sel01 and self.snap_sel10):
-                        self.insert_strip_I()
-                        return
-
-                if self.snap_sel00 or self.snap_sel10:
+                if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1) and ((self.snap_sel00 and self.snap_sel11) or (self.snap_sel01 and self.snap_sel10)):
+                    self.insert_strip_I()
+                elif self.snap_sel00 or self.snap_sel10:
                     self.insert_strip_T()
                 else:
                     self.insert_strip_equals()
