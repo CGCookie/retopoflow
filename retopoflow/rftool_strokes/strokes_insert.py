@@ -23,11 +23,13 @@ import math
 import time
 import bpy
 from math import isnan
+from typing import List
 
 from contextlib import contextmanager
 
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_tri_2d
+from bmesh.types import BMEdge, BMVert
 
 from ..rftool import RFTool
 from ..rfwidget import RFWidget
@@ -750,25 +752,23 @@ class Strokes_Insert():
                                     self.rfcontext.new_edge([v0, v1])
                 prev = cur
 
-            edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
-            edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
+            def _merge_side_verts(edges: List[BMEdge], vert: BMVert, patch_verts: List[BMVert]):
+                if not edges: return
+                side_verts: List[BMVert] = get_strip_verts(edges)
+                if len(side_verts) < 2:
+                    return
+                if side_verts[1] == vert: side_verts.reverse()
+                for svert, pvert in zip(side_verts[1:], patch_verts[1:]):
+                    co = svert.co
+                    pvert.merge(svert)
+                    pvert.co = co
+                    self.rfcontext.clean_duplicate_bmedges(pvert)
 
-            if edges0:
-                side_verts = get_strip_verts(edges0)
-                if side_verts[1] == verts[0]: side_verts.reverse()
-                for a,b in zip(side_verts[1:], patch[0][1:]):
-                    co = a.co
-                    b.merge(a)
-                    b.co = co
-                    self.rfcontext.clean_duplicate_bmedges(b)
-            if edges1:
-                side_verts = get_strip_verts(edges1)
-                if side_verts[1] == verts[-1]: side_verts.reverse()
-                for a,b in zip(side_verts[1:], patch[-1][1:]):
-                    co = a.co
-                    b.merge(a)
-                    b.co = co
-                    self.rfcontext.clean_duplicate_bmedges(b)
+            edges0: List[BMEdge] = [e for e in edges0 if e.is_valid] if edges0 else None
+            edges1: List[BMEdge] = [e for e in edges1 if e.is_valid] if edges1 else None
+
+            _merge_side_verts(edges0, verts[0], patch[0])
+            _merge_side_verts(edges1, verts[-1], patch[-1])
 
             nedges = [
                 v0.shared_edge(v1)
