@@ -75,31 +75,41 @@ notes:
 
 Implemented:
 
-             :  Nothing    Opposite   Extend Out
-             :  Selected   Side       Selected
--------------+------------------------------------------------------
-             :             Equals      T-shaped     I-shaped
--------------+------------------------------------------------------
-             :    ╎        =======     ===O===      ===O===
-             :    ╎        + + + +     + +╎+ +      + +╎+ +
-     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +
-      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +
-             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===
--------------+------------------------------------------------------
+             :  Nothing    Opposite   Extend Out    Connect     Connect
+             :  Selected   Side       Selected      Sides       Selected
+-------------+--------------------------------------------------------------------------
+             :             Equals      T-shaped     I-shaped    D-shaped
+-------------+--------------------------------------------------------------------------
+             :    ╎        =======     ===O===      ===O===     O=====O
+             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
+     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
+      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
+             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===     C╌╌╌╌╌C
+-------------+--------------------------------------------------------------------------
              :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ╔═════╗
              :  ╎   ╎      ╎+ + +╎     ++ + ++      ║+ + +║
      Cycle/  :  ╎   ╎      ╎++@++╎     +++@+++      ║++@╌╌║
    Annulus:  :  ╎   ╎      ╎+ + +╎     ++ ╎ ++      ║+ + +║
           :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +╎+        ╚═════╝
--------------+------------------------------------------------------
+-------------+--------------------------------------------------------------------------
 
 
 Not Implemented (yet):
 
-    O-shape   D-shape
-    X=====O   O-----C
-    ǁ + + |   ǁ + + |
-    X=====O   O-----C
+    O-shape
+    X=====O
+    ǁ + + |
+    X=====O
+
+
+Connect     ...
+Corners     ...
+L-shaped    ...
+======O     ...
+|+ + +╎     ...
+|+ + +╎     ...
+|+ + +╎     ...
+O╌╌╌╌╌C     ...
 
 
 Questions/Thoughts:
@@ -138,6 +148,23 @@ def find_closest_point(points, is_cycle, p):
         if not closest_p or d < closest_d:
             (closest_p, closest_d) = (pt, d)
     return closest_p
+
+def find_sharpest_indices(points, *, sharp_radius_percent=0.10, second_radius_percent=0.20):
+    npoints = len(points)
+    length = sum((p1-p0).length for (p0,p1) in iter_pairs(points, False))
+    radius = sharp_radius_percent * length  # distance to travel before estimating sharpness
+    second_radius = second_radius_percent * length
+    sharps = []
+    for i, pt in enumerate(points):
+        pt0 = next((p for p in points[i::-1] if (pt - p).length >= radius), None)
+        pt1 = next((p for p in points[i:]    if (pt - p).length >= radius), None)
+        if pt0 and pt1:
+            sharpness = ((pt0 - pt).normalized()).dot((pt - pt1).normalized())
+            sharps += [(i, sharpness)]
+    sharps.sort(key=lambda s: s[1])
+    i0 = sharps[0][0]
+    i1 = next((i1 for (i1,_) in sharps if (points[i0] - points[i1]).length >= second_radius), i0)
+    return (min(i0, i1), max(i0, i1))
 
 def compute_n(points):
     p0 = points[0]
@@ -374,7 +401,12 @@ class Strokes_Logic:
                 if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1) and ((self.snap_bmv0_strip0 and self.snap_bmv1_strip1) or (self.snap_bmv0_strip1 and self.snap_bmv1_strip0)):
                     self.insert_strip_I()
                 elif self.snap_bmv0_strip0 or self.snap_bmv1_strip0:
-                    self.insert_strip_T()
+                    if self.snap_bmv0_strip0 and self.snap_bmv1_strip0:
+                        self.insert_strip_D()
+                    # elif is_L:
+                    #     self.insert_strip_L()
+                    else:
+                        self.insert_strip_T()
                 else:
                     self.insert_strip_equals()
             else:
@@ -990,3 +1022,88 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[i_sel_row])
         self.cut_count = nspans
 
+
+    def insert_strip_D(self):
+        llc = len(self.longest_strip0)
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        # make sure stroke and selected strip point in same direction
+        v_stroke = self.stroke3D[-1] - self.stroke3D[0]
+        if llc == 1:
+            sel_bmv0, sel_bmv1 = self.longest_strip0[0].verts
+            v_selected = sel_bmv1.co - sel_bmv0.co
+        else:
+            co0 = bme_midpoint(self.longest_strip0[0])
+            co1 = bme_midpoint(self.longest_strip0[-1])
+            v_selected = co1 - co0
+        if v_stroke.dot(v_selected) < 0:
+            # pointing opposite directions
+            print('REVERSING!!!!!!!!!!!!!!!!')
+            self.stroke2D.reverse()
+            self.stroke3D.reverse()
+
+        # find two corners, which are the sharpest points
+        idx0, idx1 = find_sharpest_indices(self.stroke2D)
+        stroke0, stroke1, stroke2 = self.stroke2D[:idx0], self.stroke2D[idx0:idx1], self.stroke2D[idx1:]
+        stroke2.reverse()
+        length0 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke0, False))
+        length1 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke1, False))
+        length2 = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2, False))
+
+        # determine number of spans
+        match self.span_insert_mode:
+            case 'BRUSH':
+                nspans = round(min(length0, length2) / (2 * self.radius))
+            case 'FIXED':
+                nspans = self.fixed_span_count
+            case 'AVERAGE':
+                l0 = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[:idx0], False))
+                l2 = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[idx1:], False))
+                nspans = round(min(l0, l2) / self.average_length)
+            case _:
+                assert False, f'Unhandled {self.span_insert_mode=}'
+        nspans = max(1, nspans)
+        nverts = nspans + 1
+
+        # create templates
+        template0 = [find_point_at(stroke0, False, length0, iv / (nverts-1)) for iv in range(nverts)]
+        template2 = [find_point_at(stroke2, False, length2, iv / (nverts-1)) for iv in range(nverts)]
+
+        # build spans
+        bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
+        bmvs = []
+        for i, bme in enumerate(self.longest_strip0 + [None]):
+            v = i / llc
+            pt0 = self.project_bmv(bmv0)
+            pt1 = find_point_at(stroke1, False, length1, v)
+            fitted0 = fit_template2D(template0, pt0, target=pt1)
+            fitted2 = fit_template2D(template2, pt0, target=pt1)
+            cur_bmvs = [bmv0]
+            for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
+                p = lerp(p0, p2, v)
+                co = raycast_point_valid_sources(self.context, p, world=False)
+                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            bmvs.append(cur_bmvs)
+            if not bme: break
+            bmv0 = bme_other_bmv(bme, bmv0)
+
+        # fill in quads
+        bmfs = []
+        for i in range(llc):
+            for j in range(nverts - 1):
+                bmv00 = bmvs[i+0][j+0]
+                bmv01 = bmvs[i+0][j+1]
+                bmv10 = bmvs[i+1][j+0]
+                bmv11 = bmvs[i+1][j+1]
+                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmfs.append(bmf)
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
+
+
+        self.cut_count = nspans
+
+
+def lerp(p0, p1, v):
+    return p0 + (p1 - p0) * v
