@@ -322,22 +322,22 @@ class Strokes_Logic:
         self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
         self.snap_bmv1 = self.bmv_closest(self.bm.verts, self.stroke3D[-1])
         # cycle
-        self.snap_sel0 = self.snap_bmv0 and self.longest_cycle and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle)
-        self.snap_sel1 = self.snap_bmv1 and self.longest_cycle and any(self.snap_bmv1 in bme.verts for bme in self.longest_cycle)
+        self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle)
+        self.snap_bmv1_cycle0 = self.snap_bmv1 and self.longest_cycle and any(self.snap_bmv1 in bme.verts for bme in self.longest_cycle)
         # strip
-        self.snap_sel00 = self.snap_bmv0 and self.longest_strip0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0)
-        self.snap_sel10 = self.snap_bmv1 and self.longest_strip0 and any(self.snap_bmv1 in bme.verts for bme in self.longest_strip0)
-        self.snap_sel01 = self.snap_bmv0 and self.longest_strip1 and any(self.snap_bmv0 in bme.verts for bme in self.longest_strip1)
-        self.snap_sel11 = self.snap_bmv1 and self.longest_strip1 and any(self.snap_bmv1 in bme.verts for bme in self.longest_strip1)
+        self.snap_bmv0_strip0 = self.snap_bmv0 and self.longest_strip0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0)
+        self.snap_bmv1_strip0 = self.snap_bmv1 and self.longest_strip0 and any(self.snap_bmv1 in bme.verts for bme in self.longest_strip0)
+        self.snap_bmv0_strip1 = self.snap_bmv0 and self.longest_strip1 and any(self.snap_bmv0 in bme.verts for bme in self.longest_strip1)
+        self.snap_bmv1_strip1 = self.snap_bmv1 and self.longest_strip1 and any(self.snap_bmv1 in bme.verts for bme in self.longest_strip1)
 
     def insert(self):
         # TODO: reproject stroke2D and recompute length2D
 
         # print(f'INSERT:')
         # print(f'    {self.is_cycle=} {bool(self.longest_cycle)=}')
-        # print(f'    {self.snap_sel0=}  {self.snap_sel1=}')
+        # print(f'    {self.snap_bmv0_cycle0=}  {self.snap_bmv1_cycle0=}')
         # print(f'    {bool(self.longest_strip0)=} {bool(self.longest_strip1)=}')
-        # print(f'    {self.snap_sel00=} {self.snap_sel01=}  {self.snap_sel10=} {self.snap_sel11=}')
+        # print(f'    {self.snap_bmv0_strip0=} {self.snap_bmv0_strip1=}  {self.snap_bmv1_strip0=} {self.snap_bmv1_strip1=}')
 
         if self.is_cycle:
             if not self.longest_cycle:
@@ -345,12 +345,12 @@ class Strokes_Logic:
             else:
                 self.insert_cycle_equals()
         else:
-            if self.snap_sel0 or self.snap_sel1:
+            if self.snap_bmv0_cycle0 or self.snap_bmv1_cycle0:
                 self.insert_cycle_T()
             elif self.longest_strip0:
-                if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1) and ((self.snap_sel00 and self.snap_sel11) or (self.snap_sel01 and self.snap_sel10)):
+                if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1) and ((self.snap_bmv0_strip0 and self.snap_bmv1_strip1) or (self.snap_bmv0_strip1 and self.snap_bmv1_strip0)):
                     self.insert_strip_I()
-                elif self.snap_sel00 or self.snap_sel10:
+                elif self.snap_bmv0_strip0 or self.snap_bmv1_strip0:
                     self.insert_strip_T()
                 else:
                     self.insert_strip_equals()
@@ -615,11 +615,11 @@ class Strokes_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected strip share first point at index 0
-        if self.snap_sel10:
+        if self.snap_bmv1_strip0:
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_sel00, self.snap_sel10 = self.snap_sel10, self.snap_sel00
+            self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
 
         # determine number of spans
         match self.span_insert_mode:
@@ -698,11 +698,11 @@ class Strokes_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected cycle share first point at index 0
-        if self.snap_sel1:
+        if self.snap_bmv1_cycle0:
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_sel0, self.snap_sel1 = self.snap_sel1, self.snap_sel0
+            self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
 
         # rotate cycle so bme[1] and bme[2] have hovered vert
         # note: if rotated to bme[0] and bme[-1], there might be ambiguity in which side comes first
@@ -777,12 +777,12 @@ class Strokes_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected strip share first point at index 0
-        if self.snap_sel01:
+        if self.snap_bmv0_strip1:
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_sel00, self.snap_sel01 = self.snap_sel01, self.snap_sel00
-            self.snap_sel10, self.snap_sel11 = self.snap_sel11, self.snap_sel10
+            self.snap_bmv0_strip0, self.snap_bmv0_strip1 = self.snap_bmv0_strip1, self.snap_bmv0_strip0
+            self.snap_bmv1_strip0, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv1_strip0
 
         v0 = bme_midpoint(self.longest_strip0[-1]) - bme_midpoint(self.longest_strip0[0])
         v1 = bme_midpoint(self.longest_strip1[-1]) - bme_midpoint(self.longest_strip1[0])
