@@ -274,7 +274,13 @@ class RFVert(BMElemWrapper):
             print(f'Caught Exception while trying to merge')
             print(e)
             print(f'Will try more robust merge')
-            return self.merge_robust(other)
+            try:
+                bmv = self.merge_robust(other)
+                return bmv
+            except Exception as e:
+                print('Robust merge failed as well')
+                print(e)
+                return None
 
     def merge_robust(self, other):
         if not (self.is_valid and other.is_valid):
