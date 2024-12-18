@@ -313,6 +313,7 @@ class Strokes_Logic:
             # len(bme.link_faces) < 2
             # not is_manifold() ==> len(bme.link_faces) != 2 which includes edges with 3+ faces :(
         ]
+        self.average_length = (sum(bme_length(bme) for bme in self.sel_edges) / len(self.sel_edges)) if self.sel_edges else 0
         self.longest_strip0, self.longest_strip1, self.longest_cycle = get_longest_strip_cycle(self.sel_edges)
         self.longest_strip0_length = sum(bme_length(bme) for bme in self.longest_strip0) if self.longest_strip0 else None
         self.longest_strip1_length = sum(bme_length(bme) for bme in self.longest_strip1) if self.longest_strip1 else None
@@ -383,7 +384,7 @@ class Strokes_Logic:
 
     def insert_strip(self, *, prep_only=False):
         match self.span_insert_mode:
-            case 'BRUSH':
+            case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
@@ -417,7 +418,7 @@ class Strokes_Logic:
 
     def insert_cycle(self, *, prep_only=False):
         match self.span_insert_mode:
-            case 'BRUSH':
+            case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
@@ -480,6 +481,8 @@ class Strokes_Logic:
                 nspans = round((pt0 - pt1).length / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round((closest_pt0 - closest_pt1).length / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -556,6 +559,14 @@ class Strokes_Logic:
                 nspans = round(closest_distance2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'AVERAGE':
+                closest_distance3D = min(
+                    (s - bmv.co).length
+                    for s in self.stroke3D
+                    for bme in self.longest_strip0
+                    for bmv in bme.verts
+                )
+                nspans = round(closest_distance3D / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -627,6 +638,8 @@ class Strokes_Logic:
                 nspans = round(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round(self.length3D / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -716,6 +729,8 @@ class Strokes_Logic:
                 nspans = round(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round(self.length3D / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
@@ -795,6 +810,8 @@ class Strokes_Logic:
                 nspans = round(self.length2D / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round(self.length3D / self.average_length)
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)

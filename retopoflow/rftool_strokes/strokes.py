@@ -178,8 +178,9 @@ class RFOperator_Strokes(RFOperator):
         name='Strokes Span Insert Mode',
         description='Controls span count when inserting',
         items=[
-            ('BRUSH', 'Brush Size', 'Insert spans based on brush size', 0),
-            ('FIXED', 'Fixed',      'Insert fixed number of spans',     1),
+            ('BRUSH',   'Brush Size', 'Insert spans based on brush size', 0),
+            ('FIXED',   'Fixed',      'Insert fixed number of spans',     1),
+            ('AVERAGE', 'Average',    'Insert spans based on average length of selected edges (fallback: brush size)', 2),
         ],
         default='BRUSH',
     )
