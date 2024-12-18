@@ -263,6 +263,13 @@ def get_longest_strip_cycle(bmes):
     longest_cycle0 = cycles[-1] if ncycles >= 1 else None
     longest_cycle1 = cycles[-2] if ncycles >= 2 else None
 
+    if longest_strip0 and longest_strip1 and len(longest_strip0) == len(longest_strip1):
+        if sum(bme_length(bme) for bme in longest_strip0) < sum(bme_length(bme) for bme in longest_strip1):
+            longest_strip0, longest_strip1 = longest_strip1, longest_strip0
+    if longest_cycle0 and longest_cycle1 and len(longest_cycle0) == len(longest_cycle1):
+        if sum(bme_length(bme) for bme in longest_cycle0) < sum(bme_length(bme) for bme in longest_cycle1):
+            longest_cycle0, longest_cycle1 = longest_cycle1, longest_cycle0
+
     # print(f'{strips=}')
     # print(f'{cycles=}')
     # print(f'{longest_strip0=}')
@@ -838,7 +845,7 @@ class Strokes_Logic:
         pt2D = self.find_point2D(0)
         template = [
             self.find_point2D(iv / (nverts - 1)) - pt2D
-            for iv in range(1, nverts - 1)
+            for iv in range(nverts)
         ]
         template_length = (self.find_point2D(1) - pt2D).length
 
@@ -855,14 +862,16 @@ class Strokes_Logic:
         for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
             pt0 = self.project_bmv(bmv0)
             pt1 = self.project_bmv(bmv1)
-            scale = (pt1 - pt0).length / template_length
+            fitted = fit_template2D(template, pt0, target=pt1)
+            #scale = (pt1 - pt0).length / template_length
             cur_bmvs = [bmv0]
-            if bmv0 == self.snap_bmv0: i_sel_row = i_row
-            for offset in template:
-                co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
+            for t in fitted[1:-1]:
+                # co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
+                co = raycast_point_valid_sources(self.context, t, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
+            if bmv0 == self.snap_bmv0: i_sel_row = i_row
             if not bme0: break
             bmv0 = bme_other_bmv(bme0, bmv0)
             bmv1 = bme_other_bmv(bme1, bmv1)
