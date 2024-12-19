@@ -117,13 +117,20 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             'is_cycle':          is_cycle,
             'span_insert_mode':  span_insert_mode,
             'cut_count':         initial_cut_count,
+            'show_count':        True,
             'extrapolate':       extrapolate_mode,
+            'show_extrapolate':  True,
         }
         bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode)
 
-    # def draw(self, context):
-    #     layout = self.layout
-    #     layout.prop(self, 'extrapolate_mode')
+    def draw(self, context):
+        layout = self.layout
+
+        if RFOperator_Stroke_Insert.stroke_data['show_count']:
+            layout.prop(self, 'cut_count', text='Spans')
+
+        if RFOperator_Stroke_Insert.stroke_data['show_extrapolate']:
+            layout.prop(self, 'extrapolate_mode')
 
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
@@ -143,6 +150,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         if data['initial']:
             self.cut_count = logic.cut_count
             data['cut_count'] = self.cut_count
+            data['show_count'] = (logic.cut_count != -1)
             data['initial'] = False
         else:
             data['extrapolate'] = self.extrapolate_mode
