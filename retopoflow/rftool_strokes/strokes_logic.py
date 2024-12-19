@@ -332,8 +332,11 @@ class Strokes_Logic:
         self.span_insert_mode = span_insert_mode
         self.fixed_span_count = fixed_span_count
         self.extrapolate = extrapolate
+        self.cut_count = -1
 
-        self.cut_count = None
+        self.show_action = ''
+        self.show_count = True
+        self.show_extrapolate = True
 
         self.process_stroke()
         self.process_selected()
@@ -498,7 +501,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs)
+
         self.cut_count = nspans
+        self.show_action = 'Strip'
+        self.show_count = True
+        self.show_extrapolate = False
 
     def insert_cycle(self):
         match self.span_insert_mode:
@@ -523,7 +530,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs)
+
         self.cut_count = nspans
+        self.show_action = 'Cycle'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     ##############################################################################
@@ -610,7 +621,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[-1])
+
         self.cut_count = nspans
+        self.show_action = 'Equals-cycle'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     def insert_strip_equals(self):
@@ -702,7 +717,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[-1])
+
         self.cut_count = nspans
+        self.show_action = 'Equals-strip'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     def insert_strip_T(self):
@@ -785,7 +804,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[i_sel_row])
+
         self.cut_count = nspans
+        self.show_action = 'T-strip'
+        self.show_count = True
+        self.show_extrapolate = True
 
     def insert_cycle_T(self):
         '''
@@ -870,7 +893,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[i_sel_row])
+
         self.cut_count = nspans
+        self.show_action = 'T-cycle'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     def insert_strip_I(self):
@@ -956,7 +983,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[i_sel_row])
+
         self.cut_count = nspans
+        self.show_action = 'I-strip'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     def insert_cycle_I(self):
@@ -1050,7 +1081,11 @@ class Strokes_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[i_sel_row])
+
         self.cut_count = nspans
+        self.show_action = 'I-cycle'
+        self.show_count = True
+        self.show_extrapolate = False
 
 
     def insert_strip_D(self):
@@ -1132,6 +1167,9 @@ class Strokes_Logic:
         check_bmf_normals(fwd, bmfs)
 
         self.cut_count = nspans
+        self.show_action = 'D-strip'
+        self.show_count = True
+        self.show_extrapolate = False
 
     def insert_strip_L(self):
         # fallback to insert_strip_T if we cannot make L-shape work
@@ -1140,6 +1178,8 @@ class Strokes_Logic:
         if   self.snap_bmv0_sel and self.snap_bmv1_nosel: pass
         elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
         else: return self.insert_strip_T()
+
+        if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-1]): return self.insert_strip_T()
 
         # see if we can crawl along boundary from bmv1 and reach opposite end of longest_strip0 from bmv0
         # find opposite end of strip from bmv0
@@ -1156,6 +1196,7 @@ class Strokes_Logic:
         path, processing = {}, [self.snap_bmv1]
         while processing and opposite not in path:
             bmv = processing.pop(0)
+            if bmv == self.snap_bmv0: return self.insert_strip_T()
             for bme in bmv.link_edges:
                 if bme.is_wire or bme.is_boundary:
                     bmv_ = bme_other_bmv(bme, bmv)
@@ -1218,4 +1259,6 @@ class Strokes_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
-        self.cut_count = -1  # cannot change
+        self.show_action = 'L-strip'
+        self.show_extrapolate = False
+        self.show_count = False

@@ -112,6 +112,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode):
         RFOperator_Stroke_Insert.stroke_data = {
             'initial':           True,
+            'action':            '',
             'radius':            radius,
             'stroke3D':          stroke3D,
             'is_cycle':          is_cycle,
@@ -125,12 +126,22 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
 
     def draw(self, context):
         layout = self.layout
+        data = RFOperator_Stroke_Insert.stroke_data
 
-        if RFOperator_Stroke_Insert.stroke_data['show_count']:
-            layout.prop(self, 'cut_count', text='Spans')
+        if data['action']:
+            row = layout.row(align=True)
+            row.label(text=f'Inserted')
+            row.label(text=data['action'])
 
-        if RFOperator_Stroke_Insert.stroke_data['show_extrapolate']:
-            layout.prop(self, 'extrapolate_mode')
+        if data['show_count']:
+            row = layout.row(align=True)
+            row.label(text='Spans')
+            row.prop(self, 'cut_count', text='')
+
+        if data['show_extrapolate']:
+            row = layout.row(align=True)
+            row.label(text='Extrapolate')
+            row.prop(self, 'extrapolate_mode', text='')
 
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
@@ -147,11 +158,14 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             data['cut_count'] if data['initial'] else self.cut_count,
             self.extrapolate_mode,
         )
+
         if data['initial']:
             self.cut_count = logic.cut_count
             data['cut_count'] = self.cut_count
-            data['show_count'] = (logic.cut_count != -1)
             data['initial'] = False
+            data['show_count'] = logic.show_count
+            data['show_extrapolate'] = logic.show_extrapolate
+            data['action'] = logic.show_action
         else:
             data['extrapolate'] = self.extrapolate_mode
 
