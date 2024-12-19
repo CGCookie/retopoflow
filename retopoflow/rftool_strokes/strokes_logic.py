@@ -66,11 +66,11 @@ Table of Implemented:
 -------------+--------------------------------------------------------------------------
              :             Equals      T-shaped     I-shaped    D-shaped    L-shaped
 -------------+--------------------------------------------------------------------------
-             :    ╎        =======     ===O===      ===O===     O=====O     ======O
-             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
-     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
-      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
-             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===     C╌╌╌╌╌C     O╌╌╌╌╌C
+             :    ╎        ═══════     ═══O═══      ═══O═══     O═════O     ╤═════O
+             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
+     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
+      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
+             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ═══O═══     C╌╌╌╌╌C     O╌╌╌╌╌C
 -------------+--------------------------------------------------------------------------
              :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ╔═════╗
              :  ╎   ╎      ╎+╔═╗+╎     ++╔═╗++      ║+╔═╗+║
@@ -82,8 +82,8 @@ Table of Implemented:
 Key:
      ╎╌ stroke
      C  corner in stroke (based on sharpness of stroke)
-     ǁ= selected boundary or wire edges
-     |- unselected boundary or wire edges
+     ǁ═ selected boundary or wire edges
+     │─ unselected boundary or wire edges
      O  vertex under stroke
      +  inserted verts (interpolated from selection and stroke)
 
@@ -94,11 +94,11 @@ notes:
 Not Implemented (yet):
 
     O-shape
-    ======O
-    | + + ╎
-    | + + ╎
-    | + + ╎
-    ======O
+    ╤═════O
+    │ + + ╎
+    │ + + ╎
+    │ + + ╎
+    ╧═════O
 
 
 Questions/Thoughts:
