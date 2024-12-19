@@ -59,21 +59,7 @@ import time
 from itertools import chain
 
 r'''
-need to determine shape of extrusion
-key: ╎╌ stroke
-     C  corner in stroke (roughly 90° angle, but not easy to detect.  what if the stroke loops over itself?)
-     ǁ= selected boundary or wire edges
-     @  selected cycle
-     |- unselected boundary or wire edges
-     O  vertex under stroke
-     X  corner vertex (edges change direction)
-     +  inserted verts (interpolated from selection and stroke)
-notes:
-- vertex under stroke must be at beginning or ending of stroke
-- vertices are "under stroke" if they are selected or if "Snap Stroke to Unselected" is enabled
-
-
-Implemented:
+Table of Implemented:
 
              :  Nothing    Opposite   Extend Out    Connect     Connect     Connect
              :  Selected   Side       Selected      Sides       Selected    Corners
@@ -87,27 +73,41 @@ Implemented:
              :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===     C╌╌╌╌╌C     O╌╌╌╌╌C
 -------------+--------------------------------------------------------------------------
              :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ╔═════╗
-             :  ╎   ╎      ╎+ + +╎     ++ + ++      ║+ + +║
-     Cycle/  :  ╎   ╎      ╎++@++╎     +++@+++      ║++@╌╌║
-   Annulus:  :  ╎   ╎      ╎+ + +╎     ++ ╎ ++      ║+ + +║
-          :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +╎+        ╚═════╝
+             :  ╎   ╎      ╎+╔═╗+╎     ++╔═╗++      ║+╔═╗+║
+     Cycle/  :  ╎   ╎      ╎+║ ║+╎     ++║ ║╌╌      ║+║ ║╌║
+   Annulus:  :  ╎   ╎      ╎+╚═╝+╎     ++╚═╝++      ║+╚═╝+║
+          :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +++        ╚═════╝
 -------------+--------------------------------------------------------------------------
+
+Key:
+     ╎╌ stroke
+     C  corner in stroke (based on sharpness of stroke)
+     ǁ= selected boundary or wire edges
+     |- unselected boundary or wire edges
+     O  vertex under stroke
+     +  inserted verts (interpolated from selection and stroke)
+
+notes:
+- only considering vertices under ends of stroke (beginning/ending), not in the middle
 
 
 Not Implemented (yet):
 
     O-shape
-    X=====O
-    ǁ + + |
-    X=====O
+    ======O
+    | + + ╎
+    | + + ╎
+    | + + ╎
+    ======O
 
 
 Questions/Thoughts:
 
+- D-strip, L-strip, and O-shape are all very similar, especially if left side of L is required to be selected
+    - could we simplify by detecting how many corners are in selected strip?
 - What if I-shaped did not required both sides (top/bottom) to be selected?
     - What if only one side is selected?
     - What if neither side is required to be selected?
-- I-shape for Annulus (inner and outer cycles selected)
 - Control how the two are spanned??
     - Can rotate stroke-cycle?
 
