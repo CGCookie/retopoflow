@@ -64,7 +64,7 @@ Table of Implemented:
              :  Nothing    Opposite   Extend Out    Connect     Connect     Connect
              :  Selected   Side       Selected      Sides       Selected    Corners
 -------------+--------------------------------------------------------------------------
-             :             Equals      T-shaped     I-shaped    D-shaped    L-shaped
+             :             Equals      T-shaped     I-shaped    C-shaped    L-shaped
 -------------+--------------------------------------------------------------------------
              :    ╎        ═══════     ═══O═══      ═══O═══     O═════O     ╤═════O
              :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
@@ -434,7 +434,7 @@ class Strokes_Logic:
                     self.insert_strip_I()
                 elif self.snap_bmv0_strip0 or self.snap_bmv1_strip0:
                     if self.snap_bmv0_strip0 and self.snap_bmv1_strip0:
-                        self.insert_strip_D()
+                        self.insert_strip_C()
                     elif (self.snap_bmv0_sel and self.snap_bmv1_nosel) or (self.snap_bmv0_nosel and self.snap_bmv1_sel):
                         self.insert_strip_L()
                     else:
@@ -1088,7 +1088,7 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
 
-    def insert_strip_D(self):
+    def insert_strip_C(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -1167,7 +1167,7 @@ class Strokes_Logic:
         check_bmf_normals(fwd, bmfs)
 
         self.cut_count = nspans
-        self.show_action = 'D-strip'
+        self.show_action = 'C-strip'
         self.show_count = True
         self.show_extrapolate = False
 
