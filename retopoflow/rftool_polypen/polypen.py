@@ -231,7 +231,7 @@ class RFTool_PolyPen(RFTool_Base):
         # cls.reseter['context.tool_settings.double_threshold'] = 0.01
         # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
-        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, True]
+        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
     def deactivate(cls, context):
