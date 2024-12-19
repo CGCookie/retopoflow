@@ -75,16 +75,16 @@ notes:
 
 Implemented:
 
-             :  Nothing    Opposite   Extend Out    Connect     Connect
-             :  Selected   Side       Selected      Sides       Selected
+             :  Nothing    Opposite   Extend Out    Connect     Connect     Connect
+             :  Selected   Side       Selected      Sides       Selected    Corners
 -------------+--------------------------------------------------------------------------
-             :             Equals      T-shaped     I-shaped    D-shaped
+             :             Equals      T-shaped     I-shaped    D-shaped    L-shaped
 -------------+--------------------------------------------------------------------------
-             :    ╎        =======     ===O===      ===O===     O=====O
-             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
-     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
-      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎
-             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===     C╌╌╌╌╌C
+             :    ╎        =======     ===O===      ===O===     O=====O     ======O
+             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
+     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
+      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     |+ + +╎
+             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ===O===     C╌╌╌╌╌C     O╌╌╌╌╌C
 -------------+--------------------------------------------------------------------------
              :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ╔═════╗
              :  ╎   ╎      ╎+ + +╎     ++ + ++      ║+ + +║
@@ -100,16 +100,6 @@ Not Implemented (yet):
     X=====O
     ǁ + + |
     X=====O
-
-
-Connect     ...
-Corners     ...
-L-shaped    ...
-======O     ...
-|+ + +╎     ...
-|+ + +╎     ...
-|+ + +╎     ...
-O╌╌╌╌╌C     ...
 
 
 Questions/Thoughts:
@@ -166,6 +156,20 @@ def find_sharpest_indices(points, *, sharp_radius_percent=0.10, second_radius_pe
     i1 = next((i1 for (i1,_) in sharps if (points[i0] - points[i1]).length >= second_radius), i0)
     return (min(i0, i1), max(i0, i1))
 
+def find_sharpest_index(points, *, sharp_radius_percent=0.10):
+    npoints = len(points)
+    length = sum((p1-p0).length for (p0,p1) in iter_pairs(points, False))
+    radius = sharp_radius_percent * length  # distance to travel before estimating sharpness
+    sharps = []
+    for i, pt in enumerate(points):
+        pt0 = next((p for p in points[i::-1] if (pt - p).length >= radius), None)
+        pt1 = next((p for p in points[i:]    if (pt - p).length >= radius), None)
+        if pt0 and pt1:
+            sharpness = ((pt0 - pt).normalized()).dot((pt - pt1).normalized())
+            sharps += [(i, sharpness)]
+    sharps.sort(key=lambda s: s[1])
+    return sharps[0][0]
+
 def compute_n(points):
     p0 = points[0]
     return sum((
@@ -185,7 +189,8 @@ def bme_unshared_bmv(bme, bme_other):
     return bmv0 if bmv1 in bme_other.verts else bmv1
 def bmes_share_bmv(bme0, bme1):
     return bool(set(bme0.verts) & set(bme1.verts))
-
+def bmvs_shared_bme(bmv0, bmv1):
+    return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bme_vector(bme):
     return (bmv1.co - bmv0.co)
 def bme_length(bme):
@@ -206,6 +211,13 @@ def bmes_get_prevnext_bmvs(bmes, bmv):
         return bmv, bme_other_bmv(bme, bmv)
     else:
         return bme_other_bmv(bme, bmv), bmv
+def get_strip_bmvs(strip, bmv_start):
+    bmv = bmv_start
+    bmvs = [bmv]
+    for bme in strip:
+        bmv = bme_other_bmv(bme, bmv)
+        bmvs.append(bmv)
+    return bmvs
 
 def check_bmf_normals(fwd, bmfs):
     for bmf in bmfs:
@@ -377,6 +389,23 @@ class Strokes_Logic:
         self.snap_bmv0_strip1 = self.snap_bmv0 and self.longest_strip1 and any(self.snap_bmv0 in bme.verts for bme in self.longest_strip1)
         self.snap_bmv1_strip1 = self.snap_bmv1 and self.longest_strip1 and any(self.snap_bmv1 in bme.verts for bme in self.longest_strip1)
 
+        # used for L-strip, only considering longest strip
+        self.snap_bmv0_sel   = self.snap_bmv0 and     self.snap_bmv0_strip0
+        self.snap_bmv1_sel   = self.snap_bmv1 and     self.snap_bmv1_strip0
+        self.snap_bmv0_nosel = self.snap_bmv0 and not self.snap_bmv0_strip0
+        self.snap_bmv1_nosel = self.snap_bmv1 and not self.snap_bmv1_strip0
+
+    def reverse_stroke(self):
+        self.stroke2D.reverse()
+        self.stroke3D.reverse()
+        self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
+        self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
+        self.snap_bmv0_cycle1, self.snap_bmv1_cycle1 = self.snap_bmv1_cycle1, self.snap_bmv0_cycle1
+        self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
+        self.snap_bmv0_strip1, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv0_strip1
+        self.snap_bmv0_sel, self.snap_bmv1_sel = self.snap_bmv1_sel, self.snap_bmv0_sel
+        self.snap_bmv0_nosel, self.snap_bmv1_nosel = self.snap_bmv1_nosel, self.snap_bmv0_nosel
+
     def insert(self):
         # TODO: reproject stroke2D and recompute length2D
 
@@ -403,8 +432,8 @@ class Strokes_Logic:
                 elif self.snap_bmv0_strip0 or self.snap_bmv1_strip0:
                     if self.snap_bmv0_strip0 and self.snap_bmv1_strip0:
                         self.insert_strip_D()
-                    # elif is_L:
-                    #     self.insert_strip_L()
+                    elif (self.snap_bmv0_sel and self.snap_bmv1_nosel) or (self.snap_bmv0_nosel and self.snap_bmv1_sel):
+                        self.insert_strip_L()
                     else:
                         self.insert_strip_T()
                 else:
@@ -428,7 +457,8 @@ class Strokes_Logic:
         return p.xy if p else None
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(pt3D)
-        bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+        # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+        bmvs = [bmv for bmv in bmvs if (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
         if not bmvs: return None
         return min(bmvs, key=lambda bmv: (bmv.co - pt3D).length_squared)
 
@@ -1080,7 +1110,7 @@ class Strokes_Logic:
             fitted2 = fit_template2D(template2, pt0, target=pt1)
             cur_bmvs = [bmv0]
             for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
-                p = lerp(p0, p2, v)
+                p = lerp(v, p0, p2)
                 co = raycast_point_valid_sources(self.context, p, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             bmvs.append(cur_bmvs)
@@ -1101,9 +1131,91 @@ class Strokes_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
-
         self.cut_count = nspans
 
+    def insert_strip_L(self):
+        # fallback to insert_strip_T if we cannot make L-shape work
+        M, Mi = self.matrix_world, self.matrix_world_inv
 
-def lerp(p0, p1, v):
-    return p0 + (p1 - p0) * v
+        if   self.snap_bmv0_sel and self.snap_bmv1_nosel: pass
+        elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
+        else: return self.insert_strip_T()
+
+        # see if we can crawl along boundary from bmv1 and reach opposite end of longest_strip0 from bmv0
+        # find opposite end of strip from bmv0
+        if len(self.longest_strip0) == 1:
+            strip_t = self.longest_strip0[:]
+            opposite = bme_other_bmv(strip_t[0], self.snap_bmv0)
+        else:
+            if self.snap_bmv0 in self.longest_strip0[0].verts:
+                strip_t = self.longest_strip0[::-1]
+            else:
+                strip_t = self.longest_strip0[:]
+            opposite = bme_unshared_bmv(strip_t[0], strip_t[1])
+        # crawl from bmv1 along boundary
+        path, processing = {}, [self.snap_bmv1]
+        while processing and opposite not in path:
+            bmv = processing.pop(0)
+            for bme in bmv.link_edges:
+                if bme.is_wire or bme.is_boundary:
+                    bmv_ = bme_other_bmv(bme, bmv)
+                    if bmv_ not in path:
+                        path[bmv_] = bmv
+                        processing.append(bmv_)
+        if opposite not in path: return self.insert_strip_T()
+        strip_l = []
+        cur = opposite
+        while cur != self.snap_bmv1:
+            next_bmv = path[cur]
+            strip_l.append(bmvs_shared_bme(cur, next_bmv))
+            cur = next_bmv
+        llc_tb, llc_lr = len(strip_t)+1, len(strip_l)+1
+        # strip_t is path from opposite to start of stroke, and strip_l is path from opposite to end of stroke
+
+        # split stroke into two sides
+        idx = find_sharpest_index(self.stroke2D)
+        stroke_r, stroke_b = self.stroke2D[:idx], self.stroke2D[idx:]
+        stroke_b.reverse()
+        length_r = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke_r, False))
+        length_b = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke_b, False))
+
+        # create templates
+        strip_t_bmvs = get_strip_bmvs(strip_t, opposite)
+        strip_l_bmvs = get_strip_bmvs(strip_l, opposite)
+        template_t = [self.project_bmv(bmv) for bmv in strip_t_bmvs]
+        template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
+        template_b = [find_point_at(stroke_b, False, length_b, iv / (llc_tb-1)) for iv in range(llc_tb)]
+        template_r = [find_point_at(stroke_r, False, length_r, iv / (llc_lr-1)) for iv in range(llc_lr)]
+
+        # build spans
+        bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
+        for i_tb in range(llc_tb):
+            pt, pb = template_t[i_tb], template_b[i_tb]
+            fitted_l = fit_template2D(template_l, pt, target=pb)
+            fitted_r = fit_template2D(template_r, pt, target=pb)
+            for i_lr in range(llc_lr):
+                if i_tb == 0:
+                    bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
+                elif i_lr == 0:
+                    bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
+                else:
+                    v = i_tb / (llc_tb - 1)
+                    p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
+                    co = raycast_point_valid_sources(self.context, p, world=False)
+                    bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
+
+        # fill in quads
+        bmfs = []
+        for i in range(llc_lr - 1):
+            for j in range(llc_tb - 1):
+                bmv00 = bmvs[i+0][j+0]
+                bmv01 = bmvs[i+0][j+1]
+                bmv10 = bmvs[i+1][j+0]
+                bmv11 = bmvs[i+1][j+1]
+                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmfs.append(bmf)
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
+
+        self.cut_count = -1  # cannot change

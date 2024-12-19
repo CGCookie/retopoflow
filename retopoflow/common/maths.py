@@ -87,7 +87,6 @@ def vector_to_bvec4(v):
 def lerp(f, m, M): return m + f * (M - m)
 
 
-
 # return point on line segment where x/y/z is 0
 # used for splitting line segments that cross mirror plane
 def dir01(pt0, pt1): return (v := pt1 - pt0) / v.length
