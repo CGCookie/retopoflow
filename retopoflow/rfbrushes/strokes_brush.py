@@ -51,6 +51,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.timerhandler import TimerHandler
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
@@ -104,6 +105,8 @@ class RFBrush_Strokes(RFBrush_Base):
         self.stroke_far = False    # True when stroke has gone "far enough" away to consider cycle
         self.stroke_cycle = False  # True when stroke has formed a cycle with self
         self.operator = None
+
+        self.timer = None
 
     def set_operator(self, operator, context):
         # this is called whenever operator using brush is started
@@ -176,6 +179,8 @@ class RFBrush_Strokes(RFBrush_Base):
                 self.stroke_far = False
                 self.stroke_cycle = False
 
+                self.timer = TimerHandler(120, context=context, enabled=True)
+
             elif event.value == 'RELEASE':
                 if self.is_stroking():
                     self.stroke += [Point2D(mouse)]
@@ -186,12 +191,15 @@ class RFBrush_Strokes(RFBrush_Base):
                     self.snap_bmv0 = None
                     self.snap_bmv1 = None
 
+                    self.timer.stop()
+                    self.timer = None
+
             context.area.tag_redraw()
 
-        if self.mouse and event.type != 'MOUSEMOVE':
+        if self.mouse and event.type not in {'MOUSEMOVE','TIMER'}:
             return
 
-        if self.is_stroking():
+        if self.is_stroking(): # and event.type == 'TIMER':
             pre = self.stroke[-1]
             cur = Point2D(mouse)
             pt = pre + (cur - pre) * RFBrush_Strokes.stroke_smooth
