@@ -346,7 +346,7 @@ class RFCore:
     def handle_undo_post(*args, **kwargs):
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
-        print(f'handle_undo_post({args}, {kwargs})')
+        # print(f'handle_undo_post({args}, {kwargs})')
         RFOperator.active_operator().reset()
 
 RFOperator.RFCore = RFCore
