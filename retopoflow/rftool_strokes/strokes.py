@@ -54,7 +54,7 @@ from ...addon_common.common.reseter import Reseter
 
 from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles
 
-from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 
 @execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans', options={'INTERNAL'})
@@ -317,25 +317,30 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
-        # RFOperator_Translate_BoundaryLoop,
+        RFOperator_Translate_ScreenSpace,
     )
 
     def draw_settings(context, layout, tool):
-        props = tool.operator_properties(RFOperator_Strokes.bl_idname)
+        props_strokes = tool.operator_properties(RFOperator_Strokes.bl_idname)
+        props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
+
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Spans:")
-            layout.prop(props, 'span_insert_mode', text='')
-            if props.span_insert_mode == 'FIXED':
-                layout.prop(props, 'initial_cut_count', text="Count")
-            layout.prop(props, 'extrapolate_mode', text='')
+            layout.prop(props_strokes, 'span_insert_mode', text='')
+            if props_strokes.span_insert_mode == 'FIXED':
+                layout.prop(props_strokes, 'initial_cut_count', text="Count")
+            layout.prop(props_strokes, 'extrapolate_mode', text='')
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Spans")
             if panel:
-                panel.prop(props, 'span_insert_mode', text='Method')
-                if props.span_insert_mode == 'FIXED':
-                    panel.prop(props, 'initial_cut_count', text="Count")
-                panel.prop(props, 'extrapolate_mode', text='Extrapolate')
+                panel.prop(props_strokes, 'span_insert_mode', text='Method')
+                if props_strokes.span_insert_mode == 'FIXED':
+                    panel.prop(props_strokes, 'initial_cut_count', text="Count")
+                panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolate')
+
+        layout.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
+        layout.prop(props_translate, 'distance2d')
 
     @classmethod
     def activate(cls, context):
