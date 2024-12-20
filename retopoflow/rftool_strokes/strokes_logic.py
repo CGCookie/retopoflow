@@ -91,15 +91,6 @@ notes:
 - only considering vertices under ends of stroke (beginning/ending), not in the middle
 
 
-Not Implemented (yet):
-
-    O-shape
-    ╤═════O
-    │ + + ╎
-    │ + + ╎
-    │ + + ╎
-    ╧═════O
-
 
 Questions/Thoughts:
 
