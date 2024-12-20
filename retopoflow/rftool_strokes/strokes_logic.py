@@ -252,6 +252,7 @@ def vecs_screenspace_angle(v0, v1):
     return a
 
 def get_boundary_cycle(bmv_start):
+    if not bmv_start: return None
     cycle = None
     for bme in bmv_start.link_edges:
         if bme.hide: continue
