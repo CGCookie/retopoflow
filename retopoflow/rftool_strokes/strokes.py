@@ -57,7 +57,7 @@ from .strokes_logic import Strokes_Logic
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 
-@execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans')
+@execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans', options={'INTERNAL'})
 def strokes_spans_decrease(context):
     last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
     if last_op != RFOperator_Stroke_Insert.bl_label: return
@@ -66,7 +66,7 @@ def strokes_spans_decrease(context):
     bpy.ops.ed.undo()
     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'])
 
-@execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans')
+@execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans', options={'INTERNAL'})
 def strokes_spans_increase(context):
     last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
     if last_op != RFOperator_Stroke_Insert.bl_label: return

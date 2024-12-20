@@ -283,18 +283,18 @@ def invoke_operator(name, label, **kwargs):
         return fn
     return get
 
-def execute_operator(name, label):
+def execute_operator(name, label, **kwargs):
     idname = name.lower()
     def get(fn):
-        create_operator(name, idname, label, fn_exec=fn)
+        create_operator(name, idname, label, fn_exec=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
         return fn
     return get
 
-def modal_operator(name, label):
+def modal_operator(name, label, **kwargs):
     idname = name.lower()
     def get(fn):
-        create_operator(name, idname, label, fn_exec=fn)
+        create_operator(name, idname, label, fn_exec=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
         return fn
     return get
