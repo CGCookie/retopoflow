@@ -251,8 +251,8 @@ def vecs_screenspace_angle(v0, v1):
     if a < -180: a = -(a - 180)
     return a
 
-def get_longest_strip_cycle(bmes):
-    if not bmes: return (None, None, None, None)
+def get_boundary_strips_cycles(bmes):
+    if not bmes: return ([], [])
 
     bmes = set(bmes)
 
@@ -295,8 +295,15 @@ def get_longest_strip_cycle(bmes):
 
     strips.sort(key=lambda strip:len(strip))
     cycles.sort(key=lambda cycle:len(cycle))
-    nstrips = len(strips)
-    ncycles = len(cycles)
+
+    return (strips, cycles)
+
+
+def get_longest_strip_cycle(bmes):
+    if not bmes: return (None, None, None, None)
+
+    strips, cycles = get_boundary_strips_cycles(bmes)
+    nstrips, ncycles = len(strips), len(cycles)
 
     longest_strip0 = strips[-1] if nstrips >= 1 else None
     longest_strip1 = strips[-2] if nstrips >= 2 else None

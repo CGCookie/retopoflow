@@ -146,6 +146,13 @@ class RFOperator(bpy.types.Operator):
         self.last_op = None
         self.working_area = context.area
         self.working_window = context.window
+
+        if hasattr(self, 'draw_postpixel_overlay'):
+            wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+            self._draw_postpixel_overlay = space.draw_handler_add(self.draw_postpixel_overlay, (context,), 'WINDOW', 'POST_PIXEL')
+        else:
+            self._draw_postpixel_overlay = None
+
         self.init(context, event)
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
@@ -201,6 +208,11 @@ class RFOperator(bpy.types.Operator):
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
             type(self)._is_running = False
+
+        if ret in {'CANCELLED', 'FINISHED'}:
+            if self._draw_postpixel_overlay:
+                wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+                space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
 
         return ret
 
