@@ -696,7 +696,6 @@ class Strokes_Logic:
             bmvs.append(cur_bmvs)
             if not bme: break
             bmv0 = bme_other_bmv(bme, bmv0)
-        i_sel_row = next(i for (i, r) in enumerate(bmvs) if r[0] == self.snap_bmv0)
 
         # fill in quads
         bmfs = []
@@ -715,10 +714,10 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[i_sel_row])
+        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'T-strip'
+        self.show_action = 'T-Strip'
         self.show_count = True
         self.show_extrapolate = True
 
@@ -784,7 +783,6 @@ class Strokes_Logic:
 
             bmvs.append(cur_bmvs)
             bmv0 = bme_other_bmv(bme, bmv0)
-        i_sel_row = next(i for (i, r) in enumerate(bmvs) if r[0] == self.snap_bmv0)
 
         # fill in quads
         bmfs = []
@@ -804,10 +802,10 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[i_sel_row])
+        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'T-cycle'
+        self.show_action = 'T-Cycle'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -817,7 +815,9 @@ class Strokes_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke starts on longest strip
+        i_select = -1
         if self.snap_bmv0_strip1:
+            i_select = 0
             self.stroke2D.reverse()
             self.stroke3D.reverse()
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
@@ -894,10 +894,10 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[i_sel_row])
+        bmops.select_iter(self.bm, [row[i_select] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'I-strip'
+        self.show_action = 'I-Strip'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -955,13 +955,11 @@ class Strokes_Logic:
         bmvs = []
         bmv0 = bme_unshared_bmv(self.longest_cycle0[0], self.longest_cycle0[1])
         bmv1 = bme_unshared_bmv(self.longest_cycle1[0], self.longest_cycle1[1])
-        i_sel_row = 0
-        for i_row, (bme0, bme1) in enumerate(zip(self.longest_cycle0, self.longest_cycle1)):
+        for (bme0, bme1) in zip(self.longest_cycle0, self.longest_cycle1):
             pt0, pt1 = self.project_bmv(bmv0), self.project_bmv(bmv1)
             scale = (pt1 - pt0).length / template_length
             fitted = fit_template2D(template, pt0, target=pt1)
             cur_bmvs = [bmv0]
-            if bmv0 == self.snap_bmv0: i_sel_row = i_row
             for t in fitted[1:-1]:
                 co = raycast_point_valid_sources(self.context, t, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
@@ -970,9 +968,10 @@ class Strokes_Logic:
             bmv0 = bme_other_bmv(bme0, bmv0)
             bmv1 = bme_other_bmv(bme1, bmv1)
 
-        print(llc, nverts)
-        print(len(bmvs), len(bmvs[0]))
-
+        row0, row1 = [row[0].co for row in bmvs], [row[-1].co for row in bmvs]
+        mid0, mid1 = sum(row0, Vector((0,0,0))) / len(row0), sum(row1, Vector((0,0,0))) / len(row1)
+        rad0, rad1 = max(row0, key=lambda pt:(mid0 - pt).length), max(row1, key=lambda pt:(mid1 - pt).length)
+        i_larger = 0 if rad0 > rad1 else -1
 
         # fill in quads
         bmfs = []
@@ -992,10 +991,10 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[i_sel_row])
+        bmops.select_iter(self.bm, [row[i_larger] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'I-cycle'
+        self.show_action = 'I-Cycle'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -1078,8 +1077,12 @@ class Strokes_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
+        # select bottom row
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
+
         self.cut_count = nspans
-        self.show_action = 'C-strip'
+        self.show_action = 'C-Strip'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -1171,7 +1174,11 @@ class Strokes_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
-        self.show_action = 'L-strip'
+        # select bottom row
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs[-1])
+
+        self.show_action = 'L-Strip'
         self.show_extrapolate = False
         self.show_count = False
 
@@ -1301,7 +1308,11 @@ class Strokes_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
-        self.show_action = 'Equals-strip'
+        # select bottom row
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmvs[-1])
+
+        self.show_action = 'Equals-Strip'
         self.show_extrapolate = False
         self.cut_count = llc_lr - 1
         self.show_count = not strip_l_bmvs and not strip_r_bmvs
