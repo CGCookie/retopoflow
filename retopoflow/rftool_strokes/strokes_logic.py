@@ -303,6 +303,7 @@ def get_longest_strip_cycle(bmes):
     if not bmes: return (None, None, None, None)
 
     strips, cycles = get_boundary_strips_cycles(bmes)
+
     nstrips, ncycles = len(strips), len(cycles)
 
     longest_strip0 = strips[-1] if nstrips >= 1 else None
@@ -313,15 +314,10 @@ def get_longest_strip_cycle(bmes):
     if longest_strip0 and longest_strip1 and len(longest_strip0) == len(longest_strip1):
         if sum(bme_length(bme) for bme in longest_strip0) < sum(bme_length(bme) for bme in longest_strip1):
             longest_strip0, longest_strip1 = longest_strip1, longest_strip0
+
     if longest_cycle0 and longest_cycle1 and len(longest_cycle0) == len(longest_cycle1):
         if sum(bme_length(bme) for bme in longest_cycle0) < sum(bme_length(bme) for bme in longest_cycle1):
             longest_cycle0, longest_cycle1 = longest_cycle1, longest_cycle0
-
-    # print(f'{strips=}')
-    # print(f'{cycles=}')
-    # print(f'{longest_strip0=}')
-    # print(f'{longest_strip1=}')
-    # print(f'{longest_cycle=}')
 
     return (longest_strip0, longest_strip1, longest_cycle0, longest_cycle1)
 

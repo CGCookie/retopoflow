@@ -52,7 +52,7 @@ from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
 
-from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles
+from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles, bme_midpoint
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
@@ -196,20 +196,18 @@ class RFOperator_Strokes_Overlay(RFOperator):
             bm, _ = get_bmesh_emesh(context)
             sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) if bme.is_wire or bme.is_boundary ]
             strips, cycles = get_boundary_strips_cycles(sel_bmes)
-            strips = [{bmv for bme in strip for bmv in bme.verts} for strip in strips]
-            cycles = [{bmv for bme in cycle for bmv in bme.verts} for cycle in cycles]
-            strips = [[bmv.co for bmv in strip] for strip in strips]
-            cycles = [[bmv.co for bmv in cycle] for cycle in cycles]
+            strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
+            cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
             self.selected_boundaries = (strips, cycles)
 
         # draw info about each selected boundary strip
-        for (lbl, off, boundaries) in zip(['Strip', 'Cycle'], [-1, 0], self.selected_boundaries):
+        for (lbl, boundaries) in zip(['Strip', 'Cycle'], self.selected_boundaries):
             for boundary in boundaries:
                 mid = sum(boundary, Vector((0,0,0))) / len(boundary)
                 midpt = min(boundary, key=lambda pt:(pt-mid).length)
                 pos = location_3d_to_region_2d(rgn, r3d, M @ midpt)
                 if not pos: continue
-                text = f'{lbl}: {len(boundary)+off}'
+                text = f'{lbl}: {len(boundary)}'
                 tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                 pos -= Vector((tw / 2, -th / 2))
                 Drawing.text_draw2D(text, pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
@@ -346,6 +344,7 @@ class RFTool_Strokes(RFTool_Base):
     def activate(cls, context):
         cls.reseter = Reseter('Strokes')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = True
+        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
         bpy.ops.retopoflow.strokes_overlay('INVOKE_DEFAULT')
 
