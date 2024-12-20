@@ -546,7 +546,7 @@ class Strokes_Logic:
 
 
     ##############################################################################
-    # basic bridging insertions
+    # cycle bridging insertions
 
     def insert_cycle_equals(self):
         assert self.is_cycle
@@ -636,91 +636,6 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
 
-    def insert_strip_T(self):
-        llc = len(self.longest_strip0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
-
-        # make sure stroke and selected strip share first point at index 0
-        if self.snap_bmv1_strip0:
-            self.stroke2D.reverse()
-            self.stroke3D.reverse()
-            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
-
-        # determine number of spans
-        match self.span_insert_mode:
-            case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
-            case 'FIXED':
-                nspans = self.fixed_span_count
-            case 'AVERAGE':
-                nspans = round(self.length3D / self.average_length)
-            case _:
-                assert False, f'Unhandled {self.span_insert_mode=}'
-        nspans = max(1, nspans)
-        nverts = nspans + 1
-
-        # create template
-        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
-        # get orientation of stroke to selected strip
-        vx = Vector((1, 0))
-        bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
-        pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
-        vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
-        template_len = vstroke.length
-        angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
-
-        # use template to build spans
-        bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
-        bmvs = []
-        for i_row, bme in enumerate(self.longest_strip0 + [None]):
-            pt = self.project_bmv(bmv0)
-
-            if self.extrapolate == 'ADAPT':
-                bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
-                vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
-                bme_angle = vec_screenspace_angle(vpn)
-                along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-                fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
-                cur_bmvs = [bmv0]
-                for t in fitted[1:]:
-                    co = raycast_point_valid_sources(self.context, t, world=False)
-                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
-            else:
-                cur_bmvs = [bmv0]
-                offset0 = template[0]
-                for offset in template[1:]:
-                    co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
-                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
-
-            bmvs.append(cur_bmvs)
-            if not bme: break
-            bmv0 = bme_other_bmv(bme, bmv0)
-
-        # fill in quads
-        bmfs = []
-        for i in range(llc):
-            for j in range(nverts - 1):
-                bmv00 = bmvs[i+0][j+0]
-                bmv01 = bmvs[i+0][j+1]
-                bmv10 = bmvs[i+1][j+0]
-                bmv11 = bmvs[i+1][j+1]
-                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
-                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmfs.append(bmf)
-
-        fwd = Mi @ view_forward_direction(self.context)
-        check_bmf_normals(fwd, bmfs)
-
-        # select newly created geometry
-        bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
-
-        self.cut_count = nspans
-        self.show_action = 'T-Strip'
-        self.show_count = True
-        self.show_extrapolate = True
-
     def insert_cycle_T(self):
         '''
         forced on: adapt extrapolation
@@ -808,99 +723,6 @@ class Strokes_Logic:
         self.show_action = 'T-Cycle'
         self.show_count = True
         self.show_extrapolate = False
-
-
-    def insert_strip_I(self):
-        llc = len(self.longest_strip0)
-        M, Mi = self.matrix_world, self.matrix_world_inv
-
-        # make sure stroke starts on longest strip
-        i_select = -1
-        if self.snap_bmv0_strip1:
-            i_select = 0
-            self.stroke2D.reverse()
-            self.stroke3D.reverse()
-            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_bmv0_strip0, self.snap_bmv0_strip1 = self.snap_bmv0_strip1, self.snap_bmv0_strip0
-            self.snap_bmv1_strip0, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv1_strip0
-
-        v0 = bme_midpoint(self.longest_strip0[-1]) - bme_midpoint(self.longest_strip0[0])
-        v1 = bme_midpoint(self.longest_strip1[-1]) - bme_midpoint(self.longest_strip1[0])
-        if v1.dot(v0) < 0:
-            self.longest_strip1.reverse()
-
-        # determine number of spans
-        match self.span_insert_mode:
-            case 'BRUSH':
-                nspans = round(self.length2D / (2 * self.radius))
-            case 'FIXED':
-                nspans = self.fixed_span_count
-            case 'AVERAGE':
-                nspans = round(self.length3D / self.average_length)
-            case _:
-                assert False, f'Unhandled {self.span_insert_mode=}'
-        nspans = max(1, nspans)
-        nverts = nspans + 1
-
-        # create template
-        pt2D = self.find_point2D(0)
-        template = [
-            self.find_point2D(iv / (nverts - 1)) - pt2D
-            for iv in range(nverts)
-        ]
-        template_length = (self.find_point2D(1) - pt2D).length
-
-        # use template to build spans
-        bmvs = []
-        if llc > 1:
-            bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1])
-            bmv1 = bme_unshared_bmv(self.longest_strip1[0], self.longest_strip1[1])
-        else:
-            bme0, bme1 = self.longest_strip0[0], self.longest_strip1[0]
-            bmv0 = bme0.verts[0]
-            bmv1 = bme1.verts[0] if bme_vector(bme0).dot(bme_vector(bme1)) > 0 else bme1.verts[1]
-        i_sel_row = 0
-        for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
-            pt0 = self.project_bmv(bmv0)
-            pt1 = self.project_bmv(bmv1)
-            fitted = fit_template2D(template, pt0, target=pt1)
-            #scale = (pt1 - pt0).length / template_length
-            cur_bmvs = [bmv0]
-            for t in fitted[1:-1]:
-                # co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
-                co = raycast_point_valid_sources(self.context, t, world=False)
-                cur_bmvs.append(self.bm.verts.new(co) if co else None)
-            cur_bmvs.append(bmv1)
-            bmvs.append(cur_bmvs)
-            if bmv0 == self.snap_bmv0: i_sel_row = i_row
-            if not bme0: break
-            bmv0 = bme_other_bmv(bme0, bmv0)
-            bmv1 = bme_other_bmv(bme1, bmv1)
-
-        # fill in quads
-        bmfs = []
-        for i in range(llc):
-            for j in range(nverts - 1):
-                bmv00 = bmvs[i+0][j+0]
-                bmv01 = bmvs[i+0][j+1]
-                bmv10 = bmvs[i+1][j+0]
-                bmv11 = bmvs[i+1][j+1]
-                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
-                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmfs.append(bmf)
-
-        fwd = Mi @ view_forward_direction(self.context)
-        check_bmf_normals(fwd, bmfs)
-
-        # select newly created geometry
-        bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [row[i_select] for row in bmvs])
-
-        self.cut_count = nspans
-        self.show_action = 'I-Strip'
-        self.show_count = True
-        self.show_extrapolate = False
-
 
     def insert_cycle_I(self):
         llc = len(self.longest_cycle0)
@@ -999,6 +821,188 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
 
+    ##############################################################################
+    # strip bridging insertions
+
+
+    def insert_strip_T(self):
+        llc = len(self.longest_strip0)
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        # make sure stroke and selected strip share first point at index 0
+        if self.snap_bmv1_strip0:
+            self.stroke2D.reverse()
+            self.stroke3D.reverse()
+            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
+            self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
+
+        # determine number of spans
+        match self.span_insert_mode:
+            case 'BRUSH':
+                nspans = round(self.length2D / (2 * self.radius))
+            case 'FIXED':
+                nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round(self.length3D / self.average_length)
+            case _:
+                assert False, f'Unhandled {self.span_insert_mode=}'
+        nspans = max(1, nspans)
+        nverts = nspans + 1
+
+        # create template
+        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
+        # get orientation of stroke to selected strip
+        vx = Vector((1, 0))
+        bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
+        pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
+        vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
+        template_len = vstroke.length
+        angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
+
+        # use template to build spans
+        bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
+        bmvs = []
+        for i_row, bme in enumerate(self.longest_strip0 + [None]):
+            pt = self.project_bmv(bmv0)
+
+            if self.extrapolate == 'ADAPT':
+                bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
+                vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+                bme_angle = vec_screenspace_angle(vpn)
+                along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
+                fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
+                cur_bmvs = [bmv0]
+                for t in fitted[1:]:
+                    co = raycast_point_valid_sources(self.context, t, world=False)
+                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            else:
+                cur_bmvs = [bmv0]
+                offset0 = template[0]
+                for offset in template[1:]:
+                    co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
+                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
+
+            bmvs.append(cur_bmvs)
+            if not bme: break
+            bmv0 = bme_other_bmv(bme, bmv0)
+
+        # fill in quads
+        bmfs = []
+        for i in range(llc):
+            for j in range(nverts - 1):
+                bmv00 = bmvs[i+0][j+0]
+                bmv01 = bmvs[i+0][j+1]
+                bmv10 = bmvs[i+1][j+0]
+                bmv11 = bmvs[i+1][j+1]
+                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
+
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
+
+        self.cut_count = nspans
+        self.show_action = 'T-Strip'
+        self.show_count = True
+        self.show_extrapolate = True
+
+
+    def insert_strip_I(self):
+        llc = len(self.longest_strip0)
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        # make sure stroke starts on longest strip
+        i_select = -1
+        if self.snap_bmv0_strip1:
+            i_select = 0
+            self.stroke2D.reverse()
+            self.stroke3D.reverse()
+            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
+            self.snap_bmv0_strip0, self.snap_bmv0_strip1 = self.snap_bmv0_strip1, self.snap_bmv0_strip0
+            self.snap_bmv1_strip0, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv1_strip0
+
+        v0 = bme_midpoint(self.longest_strip0[-1]) - bme_midpoint(self.longest_strip0[0])
+        v1 = bme_midpoint(self.longest_strip1[-1]) - bme_midpoint(self.longest_strip1[0])
+        if v1.dot(v0) < 0:
+            self.longest_strip1.reverse()
+
+        # determine number of spans
+        match self.span_insert_mode:
+            case 'BRUSH':
+                nspans = round(self.length2D / (2 * self.radius))
+            case 'FIXED':
+                nspans = self.fixed_span_count
+            case 'AVERAGE':
+                nspans = round(self.length3D / self.average_length)
+            case _:
+                assert False, f'Unhandled {self.span_insert_mode=}'
+        nspans = max(1, nspans)
+        nverts = nspans + 1
+
+        # create template
+        pt2D = self.find_point2D(0)
+        template = [
+            self.find_point2D(iv / (nverts - 1)) - pt2D
+            for iv in range(nverts)
+        ]
+        template_length = (self.find_point2D(1) - pt2D).length
+
+        # use template to build spans
+        bmvs = []
+        if llc > 1:
+            bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1])
+            bmv1 = bme_unshared_bmv(self.longest_strip1[0], self.longest_strip1[1])
+        else:
+            bme0, bme1 = self.longest_strip0[0], self.longest_strip1[0]
+            bmv0 = bme0.verts[0]
+            bmv1 = bme1.verts[0] if bme_vector(bme0).dot(bme_vector(bme1)) > 0 else bme1.verts[1]
+        i_sel_row = 0
+        for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
+            pt0 = self.project_bmv(bmv0)
+            pt1 = self.project_bmv(bmv1)
+            fitted = fit_template2D(template, pt0, target=pt1)
+            #scale = (pt1 - pt0).length / template_length
+            cur_bmvs = [bmv0]
+            for t in fitted[1:-1]:
+                # co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
+                co = raycast_point_valid_sources(self.context, t, world=False)
+                cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            cur_bmvs.append(bmv1)
+            bmvs.append(cur_bmvs)
+            if bmv0 == self.snap_bmv0: i_sel_row = i_row
+            if not bme0: break
+            bmv0 = bme_other_bmv(bme0, bmv0)
+            bmv1 = bme_other_bmv(bme1, bmv1)
+
+        # fill in quads
+        bmfs = []
+        for i in range(llc):
+            for j in range(nverts - 1):
+                bmv00 = bmvs[i+0][j+0]
+                bmv01 = bmvs[i+0][j+1]
+                bmv10 = bmvs[i+1][j+0]
+                bmv11 = bmvs[i+1][j+1]
+                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmfs.append(bmf)
+
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
+
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, [row[i_select] for row in bmvs])
+
+        self.cut_count = nspans
+        self.show_action = 'I-Strip'
+        self.show_count = True
+        self.show_extrapolate = False
+
+
     def insert_strip_C(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
@@ -1085,6 +1089,7 @@ class Strokes_Logic:
         self.show_action = 'C-Strip'
         self.show_count = True
         self.show_extrapolate = False
+
 
     def insert_strip_L(self):
         # fallback to insert_strip_T if we cannot make L-shape work
