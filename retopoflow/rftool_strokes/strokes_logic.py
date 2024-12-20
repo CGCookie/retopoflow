@@ -72,11 +72,11 @@ Table of Implemented:
       Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
              :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ═══O═══     C╌╌╌╌╌C     O╌╌╌╌╌C
 -------------+--------------------------------------------------------------------------
-             :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ╔═════╗
-             :  ╎   ╎      ╎+╔═╗+╎     ++╔═╗++      ║+╔═╗+║
-     Cycle/  :  ╎   ╎      ╎+║ ║+╎     ++║ ║╌╌      ║+║ ║╌║
-   Annulus:  :  ╎   ╎      ╎+╚═╝+╎     ++╚═╝++      ║+╚═╝+║
-          :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +++        ╚═════╝
+             :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ┌─────┐
+             :  ╎   ╎      ╎+╔═╗+╎     ++╔═╗++      │+╔═╗+│
+     Cycle/  :  ╎   ╎      ╎+║ ║+╎     ++║ O╌╌      │+║ O╌O
+   Annulus:  :  ╎   ╎      ╎+╚═╝+╎     ++╚═╝++      │+╚═╝+│
+          :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +++        └─────┘
 -------------+--------------------------------------------------------------------------
 
 Key:
@@ -430,23 +430,15 @@ class Strokes_Logic:
     def reverse_stroke(self):
         self.stroke2D.reverse()
         self.stroke3D.reverse()
-        self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
+        self.snap_bmv0,        self.snap_bmv1        = self.snap_bmv1,        self.snap_bmv0
         self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
         self.snap_bmv0_cycle1, self.snap_bmv1_cycle1 = self.snap_bmv1_cycle1, self.snap_bmv0_cycle1
         self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
         self.snap_bmv0_strip1, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv0_strip1
-        self.snap_bmv0_sel, self.snap_bmv1_sel = self.snap_bmv1_sel, self.snap_bmv0_sel
-        self.snap_bmv0_nosel, self.snap_bmv1_nosel = self.snap_bmv1_nosel, self.snap_bmv0_nosel
+        self.snap_bmv0_sel,    self.snap_bmv1_sel    = self.snap_bmv1_sel,    self.snap_bmv0_sel
+        self.snap_bmv0_nosel,  self.snap_bmv1_nosel  = self.snap_bmv1_nosel,  self.snap_bmv0_nosel
 
     def insert(self):
-        # TODO: reproject stroke2D and recompute length2D
-
-        # print(f'INSERT:')
-        # print(f'    {self.is_cycle=} {bool(self.longest_cycle0)=}')
-        # print(f'    {self.snap_bmv0_cycle0=}  {self.snap_bmv1_cycle0=}')
-        # print(f'    {bool(self.longest_strip0)=} {bool(self.longest_strip1)=}')
-        # print(f'    {self.snap_bmv0_strip0=} {self.snap_bmv0_strip1=}  {self.snap_bmv1_strip0=} {self.snap_bmv1_strip1=}')
-
         if self.is_cycle:
             if not self.longest_cycle0:
                 self.insert_cycle()
@@ -665,12 +657,9 @@ class Strokes_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected cycle share first point at index 0
-        if self.snap_bmv1_cycle0:
-            self.stroke2D.reverse()
-            self.stroke3D.reverse()
-            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
+        if self.snap_bmv1_cycle0: self.reverse_stroke()
 
+        # bridge if stroke ended on another compatible cycle
         cycle1 = get_boundary_cycle(self.snap_bmv1)
         if cycle1 and len(cycle1) == llc:
             self.longest_cycle1 = cycle1
