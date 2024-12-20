@@ -44,6 +44,8 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     @classmethod
     def deactivate(cls, context): pass
 
+    @classmethod
+    def depsgraph_update(cls): pass
 
     ###########################################################
 

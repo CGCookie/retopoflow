@@ -172,6 +172,76 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         return {'FINISHED'}
 
 
+class RFOperator_Strokes_Overlay(RFOperator):
+    bl_idname = 'retopoflow.strokes_overlay'
+    bl_label = 'Strokes: Selected Overlay'
+    bl_description = 'Overlays info about selected boundary edges'
+    bl_options = { 'INTERNAL' }
+
+    def init(self, context, event):
+        wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+        self.selected_boundaries = None
+        self.depsgraph_version   = None
+        self._draw_postpixel_always = space.draw_handler_add(self.draw_postpixel_always, (context,), 'WINDOW', 'POST_PIXEL')
+
+    def update(self, context, event):
+        if self.RFCore.selected_RFTool_idname != RFOperator_Strokes.bl_idname:
+            wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+            space.draw_handler_remove(self._draw_postpixel_always, 'WINDOW')
+            return {'CANCELLED'}
+
+        return {'PASS_THROUGH'}
+
+    def project_pt(self, pt):
+        p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
+        return p.xy if p else None
+    def project_bmv(self, bmv):
+        p = self.project_pt(bmv.co)
+        return p.xy if p else None
+
+    def draw_postpixel_always(self, context):
+        self.matrix_world = context.edit_object.matrix_world
+        self.matrix_world_inv = self.matrix_world.inverted()
+        self.rgn, self.r3d = context.region, context.region_data
+
+        if self.depsgraph_version != self.RFCore.depsgraph_version:
+            self.depsgraph_version = self.RFCore.depsgraph_version
+
+            # find selected boundary strips
+            bm, _ = get_bmesh_emesh(context)
+            touched = set()
+            processed = []
+            for bme in bmops.get_all_selected_bmedges(bm):
+                if bme in touched: continue
+                if not (bme.is_boundary or bme.is_wire): continue
+                touching, processing = {bme}, [bme]
+                while processing:
+                    bme = processing.pop()
+                    bmes = [
+                        bme_ for bmv in bme.verts for bme_ in bmv.link_edges
+                        if bme_.select and not bme_.hide and bme_ not in touching and (bme_.is_boundary or bme_.is_wire)
+                    ]
+                    processing += bmes
+                    touching.update(bmes)
+                processed += [touching]
+                touched |= touching
+            self.selected_boundaries = [
+                [ bmv.co for bme in boundary for bmv in bme.verts ]
+                for boundary in processed
+            ]
+
+        # draw info about each selected boundary strip
+        for boundary in self.selected_boundaries:
+            mid = sum(boundary, Vector((0,0,0))) / len(boundary)
+            midpt = min(boundary, key=lambda pt:(pt-mid).length)
+            pos = self.project_pt(midpt)
+            if not pos: continue
+            text = f'{len(boundary)//2}'
+            tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
+            pos -= Vector((tw / 2, -th / 2))
+            Drawing.text_draw2D(text, pos, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
+
+
 class RFOperator_Strokes(RFOperator):
     bl_idname = 'retopoflow.strokes'
     bl_label = 'Strokes'
@@ -258,10 +328,6 @@ class RFOperator_Strokes(RFOperator):
         #       however, need a way to not hardcode LEFTMOUSE!
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
-    def draw_postpixel(self, context):
-        # self.logic.draw(context)
-        pass
-
 
 
 class RFTool_Strokes(RFTool_Base):
@@ -303,6 +369,7 @@ class RFTool_Strokes(RFTool_Base):
         cls.reseter = Reseter('Strokes')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = True
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
+        bpy.ops.retopoflow.strokes_overlay('INVOKE_DEFAULT')
 
     @classmethod
     def deactivate(cls, context):

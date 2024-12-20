@@ -245,7 +245,8 @@ class RFOperator(bpy.types.Operator):
     def draw_preview(self, context): pass
     def draw_postview(self, context): pass
     def draw_postpixel(self, context): pass
-
+    @classmethod
+    def depsgraph_update(cls): pass
 
 
 def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set()):

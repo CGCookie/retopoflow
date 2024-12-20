@@ -1262,6 +1262,7 @@ class Strokes_Logic:
         if not template_l: template_l = [lerp(i/(llc_lr-1), pt_tl, pt_bl) for i in range(llc_lr)]
         if not template_r: template_r = [lerp(i/(llc_lr-1), pt_tr, pt_br) for i in range(llc_lr)]
 
+        ######################
         # build spans
         bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
         for i_tb in range(llc_tb):
@@ -1278,6 +1279,7 @@ class Strokes_Logic:
                     co = raycast_point_valid_sources(self.context, p, world=False)
                     bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
 
+        ######################
         # fill in quads
         bmfs = []
         for i in range(llc_lr - 1):

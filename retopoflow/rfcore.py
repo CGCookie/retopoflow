@@ -63,6 +63,7 @@ class RFCore:
     is_running     = False  # RFCore modal operator is running
     is_controlling = False  # RFCore is top modal operator
     event_mouse    = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
+    depsgraph_version = 0
 
     default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
     selected_RFTool_idname = None               # currently selected RFTool, but might not be active
@@ -322,11 +323,17 @@ class RFCore:
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
-        print(f'RFCore.handle_despgraph_update: {args=} {kwargs=}')
+        RFCore.depsgraph_version += 1
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
         #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
-        pass
+
+        selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
+        selected_RFTool.depsgraph_update()
+        brush = selected_RFTool.rf_brush
+        if brush: brush.depsgraph_update()
+        RFOperator.tickle(bpy.context)
+
 
     @staticmethod
     def handle_redo_post(*args, **kwargs):

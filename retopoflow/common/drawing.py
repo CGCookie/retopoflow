@@ -31,6 +31,7 @@ from typing import List
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4, Color
+from ...addon_common.common.fontmanager import FontManager as fm
 from ...addon_common.common.maths import Point, Normal, Direction, Frame, Point2D
 from ...addon_common.common.utils import iter_pairs
 
@@ -106,6 +107,7 @@ class Drawing:
         del Drawing._draw
 
     # draw circle in screen space
+    @staticmethod
     def draw2D_circle(context, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         area = context.area
@@ -144,6 +146,7 @@ class Drawing:
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
 
+    @staticmethod
     def draw2D_linestrip(context, points, color0, *, color1=None, width=1, stipple=None, offset=0):
         gpu.state.blend_set('ALPHA')
         if color1 is None: color1 = (*color0[:3], 0)
@@ -197,6 +200,120 @@ class Drawing:
     #         batch_2D_point.draw(shader_2D_point)
     #     gpu.shader.unbind()
 
+    fontsize = None
+    last_font_key = None
+    line_cache = {}
+    size_cache = {}
+
+    @staticmethod
+    def set_font_size(fontsize, fontid=None, force=False):
+        if fontid is None: fontid = fm._last_fontid
+        else: fontid = fm.load(fontid)
+        fontsize_prev = Drawing.fontsize
+        fontsize, fontsize_scaled = int(fontsize), int(Drawing.scale(int(fontsize)))
+        cache_key = (fontid, fontsize_scaled)
+        if Drawing.last_font_key == cache_key and not force: return fontsize_prev
+        fm.size(fontsize_scaled, fontid=fontid)
+        if cache_key not in Drawing.line_cache:
+            # cache away useful details about font (line height, line base)
+            # dprint('Caching new scaled font size:', cache_key)
+            all_chars = ''.join([
+                'abcdefghijklmnopqrstuvwxyz',
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                '0123456789',
+                '!@#$%%^&*()`~[}{]/?=+\\|-_\'",<.>',
+                'ΑαΒβΓγΔδΕεΖζΗηΘθΙιΚκΛλΜμΝνΞξΟοΠπΡρΣσςΤτΥυΦφΧχΨψΩω',
+            ])
+            all_caps = all_chars.upper()
+            Drawing.line_cache[cache_key] = {
+                'line height': math.ceil(fm.dimensions(all_chars, fontid=fontid)[1] + Drawing.scale(4)),
+                'line base': math.ceil(fm.dimensions(all_caps, fontid=fontid)[1]),
+            }
+        info = Drawing.line_cache[cache_key]
+        Drawing.line_height = info['line height']
+        Drawing.line_base = info['line base']
+        Drawing.fontid = fontid
+        Drawing.fontsize = fontsize
+        Drawing.fontsize_scaled = fontsize_scaled
+        Drawing.last_font_key = cache_key
+
+        return fontsize_prev
+
+    @staticmethod
+    def get_text_size_info(text, item, fontsize=None, fontid=None):
+        if fontsize or fontid: size_prev = Drawing.set_font_size(fontsize, fontid=fontid)
+
+        if text is None: text, lines = '', []
+        elif type(text) is list: text, lines = '\n'.join(text), text
+        else: text, lines = text, text.splitlines()
+
+        fontid = fm.load(fontid)
+        key = (text, Drawing.fontsize_scaled, fontid)
+        # key = (text, Drawing.fontsize_scaled, Drawing.font_id)
+        if key not in Drawing.size_cache:
+            d = {}
+            if not text:
+                d['width'] = 0
+                d['height'] = 0
+                d['line height'] = Drawing.line_height
+            else:
+                get_width = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[0])
+                get_height = lambda t: math.ceil(fm.dimensions(t, fontid=fontid)[1])
+                d['width'] = max(get_width(l) for l in lines)
+                d['height'] = get_height(text)
+                d['line height'] = Drawing.line_height * len(lines)
+            Drawing.size_cache[key] = d
+            if False:
+                print('')
+                print('--------------------------------------')
+                print('> computed new size')
+                print('>   key: %s' % str(key))
+                print('>   size: %s' % str(d))
+                print('--------------------------------------')
+                print('')
+        if fontsize: Drawing.set_font_size(size_prev, fontid=fontid)
+        return Drawing.size_cache[key][item]
+
+    @staticmethod
+    def get_text_width(text, fontsize=None, fontid=None):
+        return Drawing.get_text_size_info(text, 'width', fontsize=fontsize, fontid=fontid)
+    @staticmethod
+    def get_text_height(text, fontsize=None, fontid=None):
+        return Drawing.get_text_size_info(text, 'height', fontsize=fontsize, fontid=fontid)
+    @staticmethod
+    def get_line_height(text=None, fontsize=None, fontid=None):
+        return Drawing.get_text_size_info(text, 'line height', fontsize=fontsize, fontid=fontid)
+
+    @staticmethod
+    def text_color_set(color, fontid):
+        if color is not None: fm.color(color, fontid=fontid)
+
+    @staticmethod
+    def text_draw2D(text, pos, *, color=None, dropshadow=None, fontsize=None, fontid=None, lineheight=True):
+        if fontsize: size_prev = Drawing.set_font_size(fontsize, fontid=fontid)
+
+        lines = str(text).splitlines()
+        l,t = round(pos[0]),round(pos[1])
+        lh,lb = Drawing.line_height,Drawing.line_base
+
+        if dropshadow:
+            Drawing.text_draw2D(text, (l+1,t-1), color=dropshadow, fontsize=fontsize, fontid=fontid, lineheight=lineheight)
+
+        gpustate.blend('ALPHA')
+        Drawing.text_color_set(color, fontid)
+        for line in lines:
+            fm.draw(line, xyz=(l, t - lb, 0), fontid=fontid)
+            t -= lh if lineheight else Drawing.get_text_height(line)
+
+        if fontsize: Drawing.set_font_size(size_prev, fontid=fontid)
+
+    @staticmethod
+    def text_draw2D_simple(text, pos:Point2D):
+        l,t = round(pos[0]),round(pos[1])
+        lb = Drawing.line_base
+        fm.draw_simple(text, xyz=(l, t - lb, 0))
+
+Drawing.set_font_size(12)
 
 # ######################################################################################################
 # # The following classes mimic the immediate mode for (old-school way of) drawing geometry
