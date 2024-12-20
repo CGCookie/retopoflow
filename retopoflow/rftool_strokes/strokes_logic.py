@@ -672,7 +672,7 @@ class Strokes_Logic:
             self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
 
         cycle1 = get_boundary_cycle(self.snap_bmv1)
-        if len(cycle1) == llc:
+        if cycle1 and len(cycle1) == llc:
             self.longest_cycle1 = cycle1
             self.insert_cycle_I()
             return
