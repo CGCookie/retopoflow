@@ -213,12 +213,11 @@ class RFOperator_Strokes_Overlay(RFOperator):
                 ]
                 processing += bmes
                 touching.update(bmes)
-            processed += [touching]
+            bmvs = { bmv for bme in touching for bmv in bme.verts }
+            processed.append([bmv.co for bmv in bmvs])
             touched |= touching
-        self.selected_boundaries = [
-            [ bmv.co for bme in boundary for bmv in bme.verts ]
-            for boundary in processed
-        ]
+
+        self.selected_boundaries = processed
 
     def draw_postpixel_always(self, context):
         M = context.edit_object.matrix_world
@@ -232,7 +231,7 @@ class RFOperator_Strokes_Overlay(RFOperator):
             midpt = min(boundary, key=lambda pt:(pt-mid).length)
             pos = location_3d_to_region_2d(rgn, r3d, M @ midpt)
             if not pos: continue
-            text = f'{len(boundary)//2}'
+            text = f'{len(boundary)-1}'
             tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
             pos -= Vector((tw / 2, -th / 2))
             Drawing.text_draw2D(text, pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
