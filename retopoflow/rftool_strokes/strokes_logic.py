@@ -251,6 +251,30 @@ def vecs_screenspace_angle(v0, v1):
     if a < -180: a = -(a - 180)
     return a
 
+def get_boundary_cycle(bmv_start):
+    cycle = None
+    for bme in bmv_start.link_edges:
+        if bme.hide: continue
+        if not bme.is_wire and not bme.is_boundary: continue
+        bmv = bmv_start
+        current = []
+        while True:
+            current += [bme]
+            bmv_next = bme_other_bmv(bme, bmv)
+            if bmv_next == bmv_start:
+                # found cycle!
+                if not cycle or len(current) < len(cycle):
+                    cycle = current
+                break
+            bme_next = next((
+                bme_ for bme_ in bmv_next.link_edges
+                if bme_ != bme and not bme_.hide and (bme_.is_wire or bme_.is_boundary)
+            ), None)
+            if not bme_next: break
+            bmv = bmv_next
+            bme = bme_next
+    return cycle
+
 def get_boundary_strips_cycles(bmes):
     if not bmes: return ([], [])
 
@@ -646,6 +670,12 @@ class Strokes_Logic:
             self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
             self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
 
+        cycle1 = get_boundary_cycle(self.snap_bmv1)
+        if len(cycle1) == llc:
+            self.longest_cycle1 = cycle1
+            self.insert_cycle_I()
+            return
+
         # rotate cycle so bme[1] and bme[2] have hovered vert
         # note: if rotated to bme[0] and bme[-1], there might be ambiguity in which side comes first
         idx = next((i for (i, bme) in enumerate(self.longest_cycle0) if self.snap_bmv0 in bme.verts), None)
@@ -726,11 +756,7 @@ class Strokes_Logic:
 
         # make sure stroke starts on longest cycle
         if self.snap_bmv0_cycle1:
-            self.stroke2D.reverse()
-            self.stroke3D.reverse()
-            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_bmv0_cycle0, self.snap_bmv0_cycle1 = self.snap_bmv0_cycle1, self.snap_bmv0_cycle0
-            self.snap_bmv1_cycle0, self.snap_bmv1_cycle1 = self.snap_bmv1_cycle1, self.snap_bmv1_cycle0
+            self.reverse_stroke()
 
         # make sure cycles are oriented the same
         mids0 = [bme_midpoint(bme) for bme in self.longest_cycle0]
