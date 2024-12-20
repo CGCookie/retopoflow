@@ -1214,8 +1214,8 @@ class Strokes_Logic:
             return bmvs
 
         # find left and right sides
-        template_l, template_r = None, None
-        strip_l_bmvs, strip_r_bmvs = None, None
+        template_l, strip_l_bmvs = None, None
+        template_r, strip_r_bmvs = None, None
         if self.snap_bmv0_nosel: strip_l_bmvs = crawl_boundary(bmv_tl, self.snap_bmv0)
         if self.snap_bmv1_nosel: strip_r_bmvs = crawl_boundary(bmv_tr, self.snap_bmv1)
         if strip_l_bmvs and strip_r_bmvs:
@@ -1224,7 +1224,7 @@ class Strokes_Logic:
                 template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
                 llc_lr = len(strip_l_bmvs)
             else:
-                strip_l_bmv, strip_r_bmvs = None, None
+                strip_l_bmvs, strip_r_bmvs = None, None
         elif strip_l_bmvs and not strip_r_bmvs:
             template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
             llc_lr = len(strip_l_bmvs)
