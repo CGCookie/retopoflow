@@ -260,13 +260,14 @@ class RFBrush_Strokes(RFBrush_Base):
         self.hit_z = Vec(rmat @ Direction.Z)
         self.hit_rmat = rmat
 
-    def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
-        #if context.area not in self.mouse_areas: return
+    def draw_adjust(self, context):
+        center2D = self.center2D
+        r = self.radius
+        co = self.outer_color
+        Drawing.draw2D_circle(context, center2D, r, co, width=1)
 
-        gpustate.blend('ALPHA')
-
-        if not RFOperator_StrokesBrush_Adjust.is_active() and self.mouse:
+    def draw_stroke(self, context):
+        if self.mouse:
             if (not self.is_stroking() and self.snap_bmv0) or (self.is_stroking() and self.snap_bmv1):
                 Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
             elif self.stroke_cycle:
@@ -295,16 +296,23 @@ class RFBrush_Strokes(RFBrush_Base):
                     p2d = location_3d_to_region_2d(context.region, context.region_data, co)
                     Drawing.draw2D_linestrip(context, [Point2D(self.mouse), p2d], self.snap_color, width=2)
 
+    def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
+        #if context.area not in self.mouse_areas: return
+
+        gpustate.blend('ALPHA')
+
         if RFOperator_StrokesBrush_Adjust.is_active():
-            center2D = self.center2D
-            r = self.radius
-            co = self.outer_color
-            Drawing.draw2D_circle(context, center2D, r, co, width=1)
+            self.draw_adjust(context)
+        else:
+            self.draw_stroke(context)
 
     def draw_postview(self, context):
         if not self.RFCore.is_current_area(context): return
         if context.area not in self.mouse_areas: return
+
         if RFOperator_StrokesBrush_Adjust.is_active(): return
+
         self._update(context)
         if not self.hit: return
 

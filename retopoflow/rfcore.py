@@ -174,6 +174,7 @@ class RFCore:
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
+        bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
 
         for s in iter_all_view3d_spaces():
             RFCore.reseter['s.overlay.show_retopology'] = True
@@ -222,9 +223,9 @@ class RFCore:
         # blender does not recognize them as invalid (bm.is_valid still True)
         get_object_bmesh.cache.clear()
 
-        # bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
-        # bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
-        # bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
+        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
+        bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
+        bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
 
         space = bpy.types.SpaceView3D
         space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
@@ -319,21 +320,21 @@ class RFCore:
         if brush:
             brush.draw_postpixel(context)
 
-    # NOTE: THIS IS CURRENTLY NOT BEING USED!
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
+        print(f'RFCore.handle_despgraph_update: {args=} {kwargs=}')
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
         #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
         pass
-    # NOTE: THIS IS CURRENTLY NOT BEING USED!
+
     @staticmethod
     def handle_redo_post(*args, **kwargs):
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
         # print(f'handle_redo_post({args}, {kwargs})')
         RFOperator.active_operator().reset()
-    # NOTE: THIS IS CURRENTLY NOT BEING USED!
+
     @staticmethod
     def handle_undo_post(*args, **kwargs):
         if not RFOperator.active_operator(): return
