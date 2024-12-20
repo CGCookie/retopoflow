@@ -196,6 +196,9 @@ class RFOperator(bpy.types.Operator):
                 print(f'RFOperator.modal: Unhandled Exception Caught in self.finish: {e}')
                 Debugger.print_exception()
                 ret = {'CANCELLED'}
+            if self._draw_postpixel_overlay:
+                wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+                space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
             if RFOperator.active_operator() != self:
                 print(f'RFOperator: currently finishing operator is not top??')
                 print(self)
@@ -208,11 +211,6 @@ class RFOperator(bpy.types.Operator):
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
             type(self)._is_running = False
-
-        if ret in {'CANCELLED', 'FINISHED'}:
-            if self._draw_postpixel_overlay:
-                wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
-                space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
 
         return ret
 

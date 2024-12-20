@@ -179,11 +179,11 @@ class RFOperator_Strokes_Overlay(RFOperator):
     bl_options = { 'INTERNAL' }
 
     def init(self, context, event):
-        self.depsgraph_version   = None
+        self.depsgraph_version = None
 
     def update(self, context, event):
-        still_running = (self.RFCore.selected_RFTool_idname == RFOperator_Strokes.bl_idname)
-        return {'PASS_THROUGH'} if still_running else {'CANCELLED'}
+        is_done = (self.RFCore.selected_RFTool_idname != RFOperator_Strokes.bl_idname)
+        return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self, context):
         M = context.edit_object.matrix_world
