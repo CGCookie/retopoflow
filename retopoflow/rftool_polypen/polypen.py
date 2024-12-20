@@ -168,17 +168,22 @@ class RFOperator_PolyPen(RFOperator):
         # print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
         self.tickle(context)
+        self.done = False
 
     def reset(self):
         self.logic.reset()
 
     def update(self, context, event):
-        self.logic.update(context, event, self.insert_mode, self.quad_stability)
-
         if not event.ctrl:
-            # print(F'LEAVING POLYPEN')
+            self.done = True
+        if self.done:
+            if not self.is_active():
+                # wait until we're active (could happen when transforming)
+                return {'PASS_THROUGH'}
             self.logic.cleanup()
             return {'FINISHED'}
+
+        self.logic.update(context, event, self.insert_mode, self.quad_stability)
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
             self.logic.commit(context, event)
