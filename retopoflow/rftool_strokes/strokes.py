@@ -245,7 +245,7 @@ class RFOperator_Strokes(RFOperator):
             ('FIXED',   'Fixed',      'Insert fixed number of spans',     1),
             ('AVERAGE', 'Average',    'Insert spans based on average length of selected edges (fallback: brush size)', 2),
         ],
-        default='BRUSH',
+        default='AVERAGE',
     )
 
     initial_cut_count: bpy.props.IntProperty(
