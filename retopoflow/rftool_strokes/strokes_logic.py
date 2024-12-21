@@ -881,7 +881,7 @@ class Strokes_Logic:
                     self.insert_strip_I()
                     return
             if len(strips) == 2:
-                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][-1])), self.project_pt(bme_midpoint(strips[1][-1]))
+                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][0])), self.project_pt(bme_midpoint(strips[1][1]))
                 if vec01.dot(pt0_end) > vec01.dot(pt1_end):
                     strips = [strips[1], strips[0]]
                 if len(strips[0]) >= count0 and len(strips[1]) >= count1:
