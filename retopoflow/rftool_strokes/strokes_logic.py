@@ -184,7 +184,7 @@ def bmes_share_bmv(bme0, bme1):
 def bmvs_shared_bme(bmv0, bmv1):
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bme_vector(bme):
-    return (bmv1.co - bmv0.co)
+    return (bme.verts[1].co - bme.verts[0].co)
 def bme_length(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co - bmv1.co).length
@@ -864,7 +864,13 @@ class Strokes_Logic:
         strips = get_boundary_strips(self.snap_bmv1)
         if strips: print([len(s) for s in strips])
         if strips:
-            vec01 = self.project_pt(bme_midpoint(self.longest_strip0[-1])) - self.project_pt(bme_midpoint(self.longest_strip0[0]))
+            if len(self.longest_strip0) == 1:
+                if self.snap_bmv0 == self.longest_strip0[0].verts[0]:
+                    vec01 = self.project_pt(self.longest_strip0[0].verts[1].co) - self.project_pt(self.longest_strip0[0].verts[0].co)
+                else:
+                    vec01 = self.project_pt(self.longest_strip0[0].verts[0].co) - self.project_pt(self.longest_strip0[0].verts[1].co)
+            else:
+                vec01 = self.project_pt(bme_midpoint(self.longest_strip0[-1])) - self.project_pt(bme_midpoint(self.longest_strip0[0]))
             inds = [i for (i,bme) in enumerate(self.longest_strip0) if bme in self.snap_bmv0.link_edges]
             if len(inds) == 1:
                 if inds[0] == 0: count0, count1 = 0, llc
