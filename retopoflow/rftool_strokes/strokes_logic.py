@@ -267,6 +267,31 @@ def get_boundary_cycle(bmv_start):
             bme = bme_next
     return cycle
 
+def get_boundary_strips(bmv_start):
+    if not bmv_start: return None
+    strips = []
+    for bme in bmv_start.link_edges:
+        if bme.hide: continue
+        if not bme.is_wire and not bme.is_boundary: continue
+        bmv = bmv_start
+        current = []
+        while True:
+            current += [bme]
+            bmv_next = bme_other_bmv(bme, bmv)
+            if bmv_next == bmv_start:
+                # found cycle!
+                return [current, current[::-1]]
+            bmes_next = [
+                bme_ for bme_ in bmv_next.link_edges
+                if bme_ != bme and not bme_.hide and (bme_.is_wire or bme_.is_boundary)
+            ]
+            if len(bmes_next) != 1:
+                break
+            bmv = bmv_next
+            bme = bmes_next[0]
+        strips.append(current)
+    return strips
+
 def get_boundary_strips_cycles(bmes):
     if not bmes: return ([], [])
 
@@ -827,17 +852,43 @@ class Strokes_Logic:
     ##############################################################################
     # strip bridging insertions
 
-
     def insert_strip_T(self):
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # make sure stroke and selected strip share first point at index 0
         if self.snap_bmv1_strip0:
-            self.stroke2D.reverse()
-            self.stroke3D.reverse()
-            self.snap_bmv0, self.snap_bmv1 = self.snap_bmv1, self.snap_bmv0
-            self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
+            self.reverse_stroke()
+
+        # bridge if stroke ended on another compatible cycle
+        strips = get_boundary_strips(self.snap_bmv1)
+        if strips: print([len(s) for s in strips])
+        if strips:
+            vec01 = self.project_pt(bme_midpoint(self.longest_strip0[-1])) - self.project_pt(bme_midpoint(self.longest_strip0[0]))
+            inds = [i for (i,bme) in enumerate(self.longest_strip0) if bme in self.snap_bmv0.link_edges]
+            if len(inds) == 1:
+                if inds[0] == 0: count0, count1 = 0, llc
+                else: count0, count1 = llc, 0
+            else: count0, count1 = inds[0] + 1, llc - inds[0] - 1
+            print(inds, count0, count1, count0+count1, llc)
+            if len(strips) == 1 and min(count0, count1) == 0:
+                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][-1])), self.project_pt(bme_midpoint(strips[0][0]))
+                strip = strips[0]
+                if vec01.dot(pt0_end) > vec01.dot(pt1_end):
+                    strip = strips[0][::-1]
+                if len(strip) >= max(count0, count1):
+                    self.longest_strip1 = strips[0]
+                    self.insert_strip_I()
+                    return
+            if len(strips) == 2:
+                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][-1])), self.project_pt(bme_midpoint(strips[1][-1]))
+                if vec01.dot(pt0_end) > vec01.dot(pt1_end):
+                    strips = [strips[1], strips[0]]
+                if len(strips[0]) >= count0 and len(strips[1]) >= count1:
+                    self.longest_strip1 = strips[0][:count0][::-1] + strips[1][:count1]
+                    self.insert_strip_I()
+                    return
+
 
         # determine number of spans
         match self.span_insert_mode:
