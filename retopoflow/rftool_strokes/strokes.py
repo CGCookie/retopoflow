@@ -48,7 +48,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
+from ...addon_common.common.maths import Color, Frame, clamp
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
 
@@ -57,23 +57,41 @@ from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles, bme_midpoi
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 
-@execute_operator('strokes_insert_decreased', 'Reinsert stroke with decreased spans', options={'INTERNAL'})
+@execute_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', options={'INTERNAL'})
 def strokes_spans_decrease(context):
     last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
     if last_op != RFOperator_Stroke_Insert.bl_label: return
     data = RFOperator_Stroke_Insert.stroke_data
     data['cut_count'] = max(1, data['cut_count'] - 1)
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
 
-@execute_operator('strokes_insert_increased', 'Reinsert stroke with increased spans', options={'INTERNAL'})
+@execute_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', options={'INTERNAL'})
 def strokes_spans_increase(context):
     last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
     if last_op != RFOperator_Stroke_Insert.bl_label: return
     data = RFOperator_Stroke_Insert.stroke_data
     data['cut_count'] += 1
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+
+@execute_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
+def strokes_shift_decrease(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['bridging_offset'] -= 1
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+
+@execute_operator('strokes_insert_shift_increased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
+def strokes_shift_increase(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['bridging_offset'] += 1
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
 
 
 class RFOperator_Stroke_Insert(RFOperator_Execute):
@@ -83,8 +101,10 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     rf_keymaps = [
-        ('retopoflow.strokes_insert_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_spans_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_spans_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_shift_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
+        ('retopoflow.strokes_insert_shift_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
     ]
 
     extrapolate_mode: bpy.props.EnumProperty(
@@ -106,6 +126,12 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         max=256,
     )
 
+    bridging_offset: bpy.props.IntProperty(
+        name='Bridging Offset',
+        description='Shift where bridging happens',
+        default=0,
+    )
+
     stroke_data = None
 
     @staticmethod
@@ -121,6 +147,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             'show_count':        True,
             'extrapolate':       extrapolate_mode,
             'show_extrapolate':  True,
+            'bridging_offset':   0,
         }
         bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode)
 
@@ -143,6 +170,11 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             row.label(text='Extrapolate')
             row.prop(self, 'extrapolate_mode', text='')
 
+        if data['show_bridging_offset']:
+            row = layout.row(align=True)
+            row.label(text='Shift')
+            row.prop(self, 'bridging_offset', text='')
+
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
         stroke3D = [pt for pt in data['stroke3D'] if pt]
@@ -157,6 +189,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             data['span_insert_mode'] if data['initial'] else 'FIXED',
             data['cut_count'] if data['initial'] else self.cut_count,
             self.extrapolate_mode,
+            data['bridging_offset'] if data['initial'] else self.bridging_offset,
         )
 
         if data['initial']:
@@ -166,8 +199,13 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             data['show_count'] = logic.show_count
             data['show_extrapolate'] = logic.show_extrapolate
             data['action'] = logic.show_action
+            self.bridging_offset = logic.bridging_offset
+            data['bridging_offset'] = self.bridging_offset
+            data['show_bridging_offset'] = logic.show_bridging_offset
         else:
             data['extrapolate'] = self.extrapolate_mode
+            self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
+            data['bridging_offset'] = self.bridging_offset
 
         return {'FINISHED'}
 
@@ -279,7 +317,15 @@ class RFOperator_Strokes(RFOperator):
 
     def process_stroke(self, context, radius, stroke2D, is_cycle, snap_bmv0, snap_bmv1):
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
-        RFOperator_Stroke_Insert.strokes_insert(context, radius, stroke3D, is_cycle, self.span_insert_mode, self.initial_cut_count, self.extrapolate_mode)
+        RFOperator_Stroke_Insert.strokes_insert(
+            context,
+            radius,
+            stroke3D,
+            is_cycle,
+            self.span_insert_mode,
+            self.initial_cut_count,
+            self.extrapolate_mode,
+        )
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'}:

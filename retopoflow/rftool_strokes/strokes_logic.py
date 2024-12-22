@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
@@ -49,7 +50,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Color, Frame, closest_point_segment
+from ...addon_common.common.maths import Color, Frame, closest_point_segment, clamp
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs
@@ -339,7 +340,6 @@ def get_boundary_strips_cycles(bmes):
 
     return (strips, cycles)
 
-
 def get_longest_strip_cycle(bmes):
     if not bmes: return (None, None, None, None)
 
@@ -365,7 +365,7 @@ def get_longest_strip_cycle(bmes):
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate):
+    def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -378,10 +378,14 @@ class Strokes_Logic:
         self.fixed_span_count = fixed_span_count
         self.extrapolate = extrapolate
         self.cut_count = -1
+        self.bridging_offset = bridging_offset
+        self.min_bridging_offset = 0
+        self.max_bridging_offset = 0
 
         self.show_action = ''
         self.show_count = True
         self.show_extrapolate = True
+        self.show_bridging_offset = False
 
         self.process_stroke()
         self.process_selected()
@@ -420,6 +424,14 @@ class Strokes_Logic:
         self.longest_strip1_length = sum(bme_length(bme) for bme in self.longest_strip1) if self.longest_strip1 else None
         self.longest_cycle0_length = sum(bme_length(bme) for bme in self.longest_cycle0) if self.longest_cycle0 else None
         self.longest_cycle1_length = sum(bme_length(bme) for bme in self.longest_cycle1) if self.longest_cycle1 else None
+        # make strips point up
+        def fix_strip(strip):
+            if not strip or len(strip) <= 1: return
+            bmv0, bmv1 = bme_unshared_bmv(strip[0], strip[1]), bmes_shared_bmv(strip[0], strip[1])
+            p0, p1 = self.project_bmv(bmv0), self.project_bmv(bmv1)
+            if p0.y > p1.y: strip.reverse()
+        fix_strip(self.longest_strip0)
+        fix_strip(self.longest_strip1)
 
     def process_snapped(self):
         self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
@@ -849,6 +861,61 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
 
+    # ##############################################################################
+    # # generalized bridging
+
+    # def bridge(self, top=None, *, bottom=None, left=None, right=None, select=None, lr_cycle=False):
+    #     '''
+    #     each side (top, bottom, left, right) can be either a list of bmvs or template as 2D points
+    #     top must not be None
+    #     select is a string to indicate which side to leave selected at end (None=leave all unselected)
+    #     if lc_cycle is True, connect left and right sides to create an annulus
+    #     '''
+
+    #     assert top
+
+    #     nverts_tb, nverts_lr = len(top), None
+    #     top_template = [self.project_bmv(bmv) for bmv in top] if isinstance(top[0], BMVert) else top
+
+    #     ...
+
+    #     ######################
+    #     # build spans
+    #     bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
+    #     for i_tb in range(llc_tb):
+    #         pt, pb = template_t[i_tb], template_b[i_tb]
+    #         fitted_l = fit_template2D(template_l, pt, target=pb)
+    #         fitted_r = fit_template2D(template_r, pt, target=pb)
+    #         for i_lr in range(llc_lr):
+    #             if   i_tb == 0        and strip_l_bmvs: bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
+    #             elif i_tb == llc_tb-1 and strip_r_bmvs: bmvs[i_lr][i_tb] = strip_r_bmvs[i_lr]
+    #             elif i_lr == 0:                         bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
+    #             else:
+    #                 v = i_tb / (llc_tb - 1)
+    #                 p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
+    #                 co = raycast_point_valid_sources(self.context, p, world=False)
+    #                 bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
+
+    #     ######################
+    #     # fill in quads
+    #     bmfs = []
+    #     for i in range(llc_lr - 1):
+    #         for j in range(llc_tb - 1):
+    #             bmv00 = bmvs[i+0][j+0]
+    #             bmv01 = bmvs[i+0][j+1]
+    #             bmv10 = bmvs[i+1][j+0]
+    #             bmv11 = bmvs[i+1][j+1]
+    #             if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+    #             bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+    #             bmfs.append(bmf)
+    #     fwd = Mi @ view_forward_direction(self.context)
+    #     check_bmf_normals(fwd, bmfs)
+
+    #     # select bottom row
+    #     bmops.deselect_all(self.bm)
+    #     bmops.select_iter(self.bm, bmvs[-1])
+
+
     ##############################################################################
     # strip bridging insertions
 
@@ -862,38 +929,49 @@ class Strokes_Logic:
 
         # bridge if stroke ended on another compatible cycle
         strips = get_boundary_strips(self.snap_bmv1)
-        if strips: print([len(s) for s in strips])
-        if strips:
-            if len(self.longest_strip0) == 1:
-                if self.snap_bmv0 == self.longest_strip0[0].verts[0]:
-                    vec01 = self.project_pt(self.longest_strip0[0].verts[1].co) - self.project_pt(self.longest_strip0[0].verts[0].co)
-                else:
-                    vec01 = self.project_pt(self.longest_strip0[0].verts[0].co) - self.project_pt(self.longest_strip0[0].verts[1].co)
-            else:
-                vec01 = self.project_pt(bme_midpoint(self.longest_strip0[-1])) - self.project_pt(bme_midpoint(self.longest_strip0[0]))
+        if strips and len(strips) in {1, 2}:
+            # determine where on selected stroke crossed
             inds = [i for (i,bme) in enumerate(self.longest_strip0) if bme in self.snap_bmv0.link_edges]
             if len(inds) == 1:
                 if inds[0] == 0: count0, count1 = 0, llc
-                else: count0, count1 = llc, 0
-            else: count0, count1 = inds[0] + 1, llc - inds[0] - 1
-            print(inds, count0, count1, count0+count1, llc)
-            if len(strips) == 1 and min(count0, count1) == 0:
-                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][-1])), self.project_pt(bme_midpoint(strips[0][0]))
-                strip = strips[0]
-                if vec01.dot(pt0_end) > vec01.dot(pt1_end):
-                    strip = strips[0][::-1]
-                if len(strip) >= max(count0, count1):
-                    self.longest_strip1 = strips[0]
-                    self.insert_strip_I()
-                    return
-            if len(strips) == 2:
-                pt0_end, pt1_end = self.project_pt(bme_midpoint(strips[0][0])), self.project_pt(bme_midpoint(strips[1][1]))
-                if vec01.dot(pt0_end) > vec01.dot(pt1_end):
+                else:            count0, count1 = llc, 0
+            else:                count0, count1 = inds[0] + 1, llc - (inds[0] + 1)
+
+            # make sure strips and selected are pointing in same direction
+            if len(self.longest_strip0) == 1:
+                if self.snap_bmv0 == self.longest_strip0[0].verts[0]:
+                    pt00 = self.project_pt(self.longest_strip0[0].verts[0].co)
+                    pt01 = self.project_pt(self.longest_strip0[0].verts[1].co)
+                else:
+                    pt00 = self.project_pt(self.longest_strip0[0].verts[1].co)
+                    pt01 = self.project_pt(self.longest_strip0[0].verts[0].co)
+            else:
+                pt00 = self.project_pt(bme_midpoint(self.longest_strip0[0]))
+                pt01 = self.project_pt(bme_midpoint(self.longest_strip0[1]))
+            vec01 = pt01 - pt00
+            if len(strips) == 1:
+                strips = [[], strips[0]] if count0 == 0 else [strips[0], []]
+            elif len(strips) == 2:
+                bmv0, bmv1 = bme_unshared_bmv(strips[0][0], strips[1][0]), bme_unshared_bmv(strips[1][0], strips[0][0])
+                pt10, pt11 = self.project_bmv(bmv0), self.project_bmv(bmv1)
+                if vec01.dot(pt10 - pt00) > vec01.dot(pt11 - pt00):
                     strips = [strips[1], strips[0]]
-                if len(strips[0]) >= count0 and len(strips[1]) >= count1:
-                    self.longest_strip1 = strips[0][:count0][::-1] + strips[1][:count1]
-                    self.insert_strip_I()
-                    return
+
+            if len(strips[0]) >= count0 and len(strips[1]) >= count1:
+                strip0, strip1 = strips[0], strips[1]
+                max0 = len(strip0) - count0
+                max1 = len(strip1) - count1
+                self.min_bridging_offset = -max1
+                self.max_bridging_offset = max0
+                self.show_bridging_offset = True
+                self.bridging_offset = clamp(self.bridging_offset, self.min_bridging_offset, self.max_bridging_offset)
+                full_strip = strip0[::-1] + strip1
+                idx = len(strip0) - self.bridging_offset
+                strip = full_strip[idx-count0:idx+count1]
+                assert len(strip) == llc
+                self.longest_strip1 = strip
+                self.insert_strip_I()
+                return
 
 
         # determine number of spans
