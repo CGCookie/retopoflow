@@ -1376,6 +1376,19 @@ class Strokes_Logic:
         if self.snap_bmv0_nosel: strip_l_bmvs = crawl_boundary(bmv_tl, self.snap_bmv0)
         if self.snap_bmv1_nosel: strip_r_bmvs = crawl_boundary(bmv_tr, self.snap_bmv1)
         if strip_l_bmvs and strip_r_bmvs:
+            ll, lr = len(strip_l_bmvs), len(strip_r_bmvs)
+            if ll > lr:
+                # shorten left side
+                d = ll - lr
+                strip_l_bmvs = strip_l_bmvs[:-d]
+                template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
+                ll = lr
+            elif lr > ll:
+                # shorten right side
+                d = lr - ll
+                strip_r_bmvs = strip_r_bmvs[:-d]
+                template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
+                lr = ll
             if len(strip_l_bmvs) == len(strip_r_bmvs):
                 template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
                 template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
