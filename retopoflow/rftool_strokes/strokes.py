@@ -183,6 +183,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
 
         logic = Strokes_Logic(
             context,
+            data['initial'],
             data['radius'],
             stroke3D,
             data['is_cycle'],
@@ -193,8 +194,6 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         )
 
         if data['initial']:
-            self.cut_count = logic.cut_count
-            data['cut_count'] = self.cut_count
             data['initial'] = False
             data['show_count'] = logic.show_count
             data['show_extrapolate'] = logic.show_extrapolate
@@ -206,6 +205,8 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             data['extrapolate'] = self.extrapolate_mode
             self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
             data['bridging_offset'] = self.bridging_offset
+        self.cut_count = logic.cut_count
+        data['cut_count'] = self.cut_count
 
         return {'FINISHED'}
 

@@ -365,7 +365,7 @@ def get_longest_strip_cycle(bmes):
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset):
+    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -377,7 +377,7 @@ class Strokes_Logic:
         self.span_insert_mode = span_insert_mode
         self.fixed_span_count = fixed_span_count
         self.extrapolate = extrapolate
-        self.cut_count = -1
+        self.cut_count = None if initial else fixed_span_count
         self.bridging_offset = bridging_offset
         self.min_bridging_offset = 0
         self.max_bridging_offset = 0
@@ -1357,7 +1357,7 @@ class Strokes_Logic:
                 bmv = processing.pop(0)
                 if bmv == bmv_from: break
                 for bme in bmv.link_edges:
-                    if bme.is_wire or bme.is_boundary:
+                    if not bme.hide and (bme.is_wire or bme.is_boundary):
                         bmv_ = bme_other_bmv(bme, bmv)
                         if bmv_ not in path:
                             path[bmv_] = bmv
@@ -1368,37 +1368,59 @@ class Strokes_Logic:
             while bmv:
                 bmvs.append(bmv)
                 bmv = path[bmv]
-            return bmvs
+            l = len(bmvs)
+            bmv = bmvs[-1]
+            while True:
+                bmvs_next = [bme_other_bmv(bme, bmv) for bme in bmv.link_edges if not bme.hide and (bme.is_wire or bme.is_boundary)]
+                bmvs_next = [bmv_ for bmv_ in bmvs_next if bmv_ not in bmvs]
+                if len(bmvs_next) != 1:
+                    break
+                bmv = bmvs_next[0]
+                bmvs += [bmv]
+            return (l, bmvs)
 
         # find left and right sides
         template_l, strip_l_bmvs = None, None
         template_r, strip_r_bmvs = None, None
-        if self.snap_bmv0_nosel: strip_l_bmvs = crawl_boundary(bmv_tl, self.snap_bmv0)
-        if self.snap_bmv1_nosel: strip_r_bmvs = crawl_boundary(bmv_tr, self.snap_bmv1)
+        if self.snap_bmv0_nosel: il, strip_l_bmvs = crawl_boundary(bmv_tl, self.snap_bmv0)
+        if self.snap_bmv1_nosel: ir, strip_r_bmvs = crawl_boundary(bmv_tr, self.snap_bmv1)
         if strip_l_bmvs and strip_r_bmvs:
-            ll, lr = len(strip_l_bmvs), len(strip_r_bmvs)
-            if ll > lr:
-                # shorten left side
-                d = ll - lr
-                strip_l_bmvs = strip_l_bmvs[:-d]
-                template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
-                ll = lr
-            elif lr > ll:
-                # shorten right side
-                d = lr - ll
-                strip_r_bmvs = strip_r_bmvs[:-d]
-                template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
-                lr = ll
-            if len(strip_l_bmvs) == len(strip_r_bmvs):
-                template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
-                template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
-                llc_lr = len(strip_l_bmvs)
+            if self.cut_count is not None:
+                ll = max(1, min(self.cut_count, len(strip_l_bmvs)-1))
+                lr = max(1, min(self.cut_count, len(strip_r_bmvs)-1))
+                ll, lr = min(ll, lr), min(ll, lr)
+                self.cut_count = ll
             else:
-                strip_l_bmvs, strip_r_bmvs = None, None
+                ll, lr = min(il, ir)-1, min(il, ir)-1
+            strip_l_bmvs, strip_r_bmvs = strip_l_bmvs[:ll+1], strip_r_bmvs[:lr+1]
+            template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
+            template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
+            template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
+            llc_lr = len(strip_l_bmvs)
         elif strip_l_bmvs and not strip_r_bmvs:
+            if self.cut_count is not None:
+                ll = max(1, min(self.cut_count, len(strip_l_bmvs)-1))
+                self.cut_count = ll
+            else:
+                ll = il - 1
+            pt_prev = self.project_bmv(strip_l_bmvs[il-1])
+            strip_l_bmvs = strip_l_bmvs[:ll+1]
+            pt_next = self.project_bmv(strip_l_bmvs[-1])
+            vec_diff = pt_next - pt_prev
+            template_b = [pt+vec_diff for pt in template_b]
             template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
             llc_lr = len(strip_l_bmvs)
         elif strip_r_bmvs and not strip_l_bmvs:
+            if self.cut_count is not None:
+                lr = max(1, min(self.cut_count, len(strip_r_bmvs)-1))
+                self.cut_count = lr
+            else:
+                lr = ir - 1
+            pt_prev = self.project_bmv(strip_r_bmvs[ir-1])
+            strip_r_bmvs = strip_r_bmvs[:lr+1]
+            pt_next = self.project_bmv(strip_r_bmvs[-1])
+            vec_diff = pt_next - pt_prev
+            template_b = [pt+vec_diff for pt in template_b]
             template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
             llc_lr = len(strip_r_bmvs)
         if not template_l and not template_r:
@@ -1471,4 +1493,4 @@ class Strokes_Logic:
         self.show_action = 'Equals-Strip'
         self.show_extrapolate = False
         self.cut_count = llc_lr - 1
-        self.show_count = not strip_l_bmvs and not strip_r_bmvs
+        self.show_count = True # not strip_l_bmvs and not strip_r_bmvs
