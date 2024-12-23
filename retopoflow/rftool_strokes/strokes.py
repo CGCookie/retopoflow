@@ -183,32 +183,36 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(data['stroke3D'], data['is_cycle']))
         if length3D == 0: return {'CANCELLED'}
 
-        logic = Strokes_Logic(
-            context,
-            data['initial'],
-            data['radius'],
-            stroke3D,
-            data['is_cycle'],
-            data['span_insert_mode'] if data['initial'] else 'FIXED',
-            data['cut_count'] if data['initial'] else self.cut_count,
-            self.extrapolate_mode,
-            data['bridging_offset'] if data['initial'] else self.bridging_offset,
-        )
+        try:
+            logic = Strokes_Logic(
+                context,
+                data['initial'],
+                data['radius'],
+                stroke3D,
+                data['is_cycle'],
+                data['span_insert_mode'] if data['initial'] else 'FIXED',
+                data['cut_count'] if data['initial'] else self.cut_count,
+                self.extrapolate_mode,
+                data['bridging_offset'] if data['initial'] else self.bridging_offset,
+            )
 
-        if data['initial']:
-            data['initial'] = False
-            data['show_count'] = logic.show_count
-            data['show_extrapolate'] = logic.show_extrapolate
-            data['action'] = logic.show_action
-            self.bridging_offset = logic.bridging_offset
-            data['bridging_offset'] = self.bridging_offset
-            data['show_bridging_offset'] = logic.show_bridging_offset
-        else:
-            data['extrapolate'] = self.extrapolate_mode
-            self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
-            data['bridging_offset'] = self.bridging_offset
-        self.cut_count = logic.cut_count
-        data['cut_count'] = self.cut_count
+            if data['initial']:
+                data['initial'] = False
+                data['show_count'] = logic.show_count
+                data['show_extrapolate'] = logic.show_extrapolate
+                data['action'] = logic.show_action
+                self.bridging_offset = logic.bridging_offset
+                data['bridging_offset'] = self.bridging_offset
+                data['show_bridging_offset'] = logic.show_bridging_offset
+            else:
+                data['extrapolate'] = self.extrapolate_mode
+                self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
+                data['bridging_offset'] = self.bridging_offset
+            self.cut_count = logic.cut_count
+            data['cut_count'] = self.cut_count
+        except Exception as e:
+            print(f'{type(self).__name__}.execute: Caught Exception {e}')
+            return {'CANCELLED'}
 
         return {'FINISHED'}
 
