@@ -172,14 +172,16 @@ class RFBrush_Strokes(RFBrush_Base):
         if self.operator and self.operator.is_active():
             if not self.nearest:
                 self.reset_nearest(context)
-            self.nearest.update(context, self.hit_pl, filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire), distance2d=self.snap_distance)
-            if not self.is_stroking():
-                self.snap_bmv0 = self.nearest.bmv
-                self.snap_bmv1 = None
-            elif self.snap_bmv0 != self.nearest.bmv:
-                self.snap_bmv1 = self.nearest.bmv
-            else:
-                self.snap_bmv1 = None
+            hit = raycast_valid_sources(context, mouse)
+            if hit:
+                self.nearest.update(context, hit['co_local'], filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire), distance2d=self.snap_distance)
+                if not self.is_stroking():
+                    self.snap_bmv0 = self.nearest.bmv
+                    self.snap_bmv1 = None
+                elif self.snap_bmv0 != self.nearest.bmv:
+                    self.snap_bmv1 = self.nearest.bmv
+                else:
+                    self.snap_bmv1 = None
 
         if event.type == 'LEFTMOUSE':
             if event.value == 'PRESS':
