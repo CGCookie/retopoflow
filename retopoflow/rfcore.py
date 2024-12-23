@@ -41,6 +41,7 @@ from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Act
 from .rftool_contours.contours import RFTool_Contours
 from .rftool_polypen.polypen   import RFTool_PolyPen
 from .rftool_strokes.strokes   import RFTool_Strokes
+from .rftool_tweak.tweak       import RFTool_Tweak
 from .rftool_relax.relax       import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
