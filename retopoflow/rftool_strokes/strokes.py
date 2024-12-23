@@ -51,6 +51,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame, clamp
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.utils import iter_pairs
 
 from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles, bme_midpoint
 
@@ -178,8 +179,9 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
         stroke3D = [pt for pt in data['stroke3D'] if pt]
-        if not stroke3D:
-            return {'CANCELLED'}
+        if not stroke3D: return {'CANCELLED'}
+        length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(data['stroke3D'], data['is_cycle']))
+        if length3D == 0: return {'CANCELLED'}
 
         logic = Strokes_Logic(
             context,

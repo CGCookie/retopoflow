@@ -145,6 +145,17 @@ class RFBrush_Strokes(RFBrush_Base):
             self.reset()
             return
 
+        if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
+            self.stroke = None
+            self.stroke_cycle = None
+            self.nearest = None
+            self.snap_bmv0 = None
+            self.snap_bmv1 = None
+            if self.timer: self.timer.stop()
+            self.timer = None
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+
         if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
         if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
 
