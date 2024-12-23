@@ -306,7 +306,7 @@ class PP_Logic:
         # draw previsualization
         if not self.mouse: return
         if not self.hit: return
-        if not self.bm.is_valid: return
+        if not self.bm or not self.bm.is_valid: return
         if not self.nearest or not self.nearest.is_valid: return
         if not self.nearest_bme or not self.nearest_bme.is_valid: return
 
