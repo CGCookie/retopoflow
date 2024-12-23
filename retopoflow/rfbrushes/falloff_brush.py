@@ -88,6 +88,10 @@ def create_falloff_brush(idname, label, **kwargs):
 
         operator = None
 
+        @classmethod
+        def set_operator(cls, operator):
+            cls.operator = operator
+
         def init(self):
             self.mouse = None
             self.hit = False
@@ -100,8 +104,6 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit_z = None
             self.hit_rmat = None
 
-        def set_operator(self, operator):
-            RFBrush_Falloff.operator = operator
 
         def get_scaled_radius(self):
             return self.hit_scale * self.radius

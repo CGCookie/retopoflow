@@ -68,8 +68,12 @@ from ...addon_common.common.timerhandler import TimerHandler
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
-RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush('tweak_brush', 'Tweak Brush', fill_color=Color.from_ints(229, 137,  26, 255))
-rfbrush_tweak = RFBrush_Tweak()
+RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
+    'tweak_brush',
+    'Tweak Brush',
+    radius=100,
+    fill_color=Color.from_ints(229, 137,  26, 255),
+)
 
 class RFOperator_Tweak(RFOperator):
     bl_idname = "retopoflow.tweak"
@@ -85,21 +89,21 @@ class RFOperator_Tweak(RFOperator):
     rf_status = ['LMB: Tweak']
 
     brush_radius: wrap_property(
-        rfbrush_tweak, 'radius', 'int',
+        RFBrush_Tweak, 'radius', 'int',
         name='Radius',
         description='Radius of Brush',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
-        rfbrush_tweak, 'falloff', 'float',
+        RFBrush_Tweak, 'falloff', 'float',
         name='Falloff',
         description='Falloff of Brush',
         min=0.00,
         max=100.00,
     )
     brush_strength: wrap_property(
-        rfbrush_tweak, 'strength', 'float',
+        RFBrush_Tweak, 'strength', 'float',
         name='Strength',
         description='Strength of Brush',
         min=0.01,
@@ -183,8 +187,6 @@ class RFOperator_Tweak(RFOperator):
         if not self.RFCore.is_current_area(context): return
         # self.logic.draw(context)
 
-rfbrush_tweak.set_operator(RFOperator_Tweak)
-
 
 class RFTool_Tweak(RFTool_Base):
     bl_idname = "retopoflow.tweak"
@@ -194,7 +196,8 @@ class RFTool_Tweak(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.tweak'
 
-    rf_brush = rfbrush_tweak
+    rf_brush = RFBrush_Tweak()
+    rf_brush.set_operator(RFOperator_Tweak)
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Tweak,

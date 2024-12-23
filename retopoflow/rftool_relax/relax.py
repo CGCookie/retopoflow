@@ -69,7 +69,6 @@ from .relax_logic import Relax_Logic
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush('relax_brush', 'Relax Brush')
-rfbrush_relax = RFBrush_Relax()
 
 class RFOperator_Relax(RFOperator):
     bl_idname = "retopoflow.relax"
@@ -85,21 +84,21 @@ class RFOperator_Relax(RFOperator):
     rf_status = ['LMB: Relax']
 
     brush_radius: wrap_property(
-        rfbrush_relax, 'radius', 'int',
+        RFBrush_Relax, 'radius', 'int',
         name='Radius',
         description='Radius of Brush',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
-        rfbrush_relax, 'falloff', 'float',
+        RFBrush_Relax, 'falloff', 'float',
         name='Falloff',
         description='Falloff of Brush',
         min=0.00,
         max=100.00,
     )
     brush_strength: wrap_property(
-        rfbrush_relax, 'strength', 'float',
+        RFBrush_Relax, 'strength', 'float',
         name='Strength',
         description='Strength of Brush',
         min=0.01,
@@ -193,7 +192,7 @@ class RFOperator_Relax(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
-        self.logic = Relax_Logic(context, event, rfbrush_relax, self)
+        self.logic = Relax_Logic(context, event, RFTool_Relax.rfbrush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
 
@@ -202,7 +201,7 @@ class RFOperator_Relax(RFOperator):
         pass
 
     def update(self, context, event):
-        self.logic.update(context, event, rfbrush_relax, self)
+        self.logic.update(context, event, RFTool_Relax.rfbrush, self)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}
@@ -227,8 +226,6 @@ class RFOperator_Relax(RFOperator):
         if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
 
-rfbrush_relax.set_operator(RFOperator_Relax)
-
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
@@ -238,7 +235,8 @@ class RFTool_Relax(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.relax'
 
-    rf_brush = rfbrush_relax
+    rf_brush = RFBrush_Relax()
+    rf_brush.set_operator(RFOperator_Relax)
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Relax,
