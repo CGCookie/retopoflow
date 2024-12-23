@@ -105,8 +105,8 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     rf_keymaps = [
         ('retopoflow.strokes_insert_spans_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
         ('retopoflow.strokes_insert_spans_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_shift_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
-        ('retopoflow.strokes_insert_shift_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
+        ('retopoflow.strokes_insert_shift_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1}, None),
+        ('retopoflow.strokes_insert_shift_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1}, None),
     ]
 
     extrapolate_mode: bpy.props.EnumProperty(
