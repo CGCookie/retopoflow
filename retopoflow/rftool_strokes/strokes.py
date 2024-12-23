@@ -25,7 +25,7 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rfbrushes.strokes_brush import RFBrush_Strokes, RFOperator_StrokesBrush_Adjust
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world
+from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -54,7 +54,7 @@ from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, 
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs
 
-from .strokes_logic import Strokes_Logic, get_boundary_strips_cycles, bme_midpoint
+from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 

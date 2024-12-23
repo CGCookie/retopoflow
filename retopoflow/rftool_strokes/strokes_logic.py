@@ -26,7 +26,18 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert
+from ..common.bmesh import (
+    get_bmesh_emesh,
+    nearest_bmv_world, nearest_bme_world, NearestBMVert,
+    bme_midpoint, get_boundary_strips_cycles,
+    bme_other_bmv,
+    bmes_shared_bmv,
+    bme_unshared_bmv,
+    bmes_share_bmv,
+    bmvs_shared_bme,
+    bme_vector,
+    bme_length,
+)
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -171,29 +182,6 @@ def compute_n(points):
         for (p1,p2) in zip(points[1:-1], points[2:])
     ), Vector((0,0,0))).normalized()
 
-def is_bmv_end(bmv, bmes):
-    return len(set(bmv.link_edges) & bmes) != 2
-def bme_other_bmv(bme, bmv):
-    bmv0, bmv1 = bme.verts
-    return bmv0 if bmv1 == bmv else bmv1
-def bmes_shared_bmv(bme0, bme1):
-    return next(iter(set(bme0.verts) & set(bme1.verts)), None)
-def bme_unshared_bmv(bme, bme_other):
-    bmv0, bmv1 = bme.verts
-    return bmv0 if bmv1 in bme_other.verts else bmv1
-def bmes_share_bmv(bme0, bme1):
-    return bool(set(bme0.verts) & set(bme1.verts))
-def bmvs_shared_bme(bmv0, bmv1):
-    return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
-def bme_vector(bme):
-    return (bme.verts[1].co - bme.verts[0].co)
-def bme_length(bme):
-    bmv0,bmv1 = bme.verts
-    return (bmv0.co - bmv1.co).length
-def bme_midpoint(bme):
-    bmv0,bmv1 = bme.verts
-    return (bmv0.co + bmv1.co) / 2
-
 def bmes_get_prevnext_bmvs(bmes, bmv):
     # find bmes that have bmv, keep order!
     fbmes = [bme for bme in bmes if bmv in bme.verts]
@@ -293,53 +281,6 @@ def get_boundary_strips(bmv_start):
             bme = bmes_next[0]
         strips.append(current)
     return strips
-
-def get_boundary_strips_cycles(bmes):
-    if not bmes: return ([], [])
-
-    bmes = set(bmes)
-
-    strips, cycles = [], []
-
-    # first start with bmvert ends to find strips
-    bmv_ends = { bmv for bme in bmes for bmv in bme.verts if is_bmv_end(bmv, bmes) }
-    while True:
-        current_strip = []
-        bmv = next(( bmv for bme in bmes for bmv in bme.verts if bmv in bmv_ends ), None)
-        if not bmv: break
-        bme = None
-        while True:
-            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
-            current_strip += [bme]
-            bmv = bme_other_bmv(bme, bmv)
-            if bmv in bmv_ends: break
-        bmes -= set(current_strip)
-        strips += [current_strip]
-
-    # some of the strips may actually be cycles...
-    for strip in list(strips):
-        if len(strip) > 3 and bmes_share_bmv(strip[0], strip[-1]):
-            strips.remove(strip)
-            cycles.append(strip)
-
-    # any bmedges still in bmes _should_ be part of cycles
-    while True:
-        current_cycle = []
-        bmv = next(( bmv for bme in bmes for bmv in bme.verts ), None)
-        if not bmv: break
-        bme = None
-        while True:
-            bme = next(iter(set(bmv.link_edges) & bmes - {bme}), None)
-            if not bme or bme in current_cycle: break
-            current_cycle += [bme]
-            bmv = bme_other_bmv(bme, bmv)
-        bmes -= set(current_cycle)
-        cycles += [current_cycle]
-
-    strips.sort(key=lambda strip:len(strip))
-    cycles.sort(key=lambda cycle:len(cycle))
-
-    return (strips, cycles)
 
 def get_longest_strip_cycle(bmes):
     if not bmes: return (None, None, None, None)

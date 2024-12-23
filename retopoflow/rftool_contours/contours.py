@@ -24,7 +24,8 @@ import bmesh
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world
+from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, bme_midpoint, get_boundary_strips_cycles
+from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction
 from ..common.operator import (
@@ -97,6 +98,47 @@ class RFOperator_Contours(RFOperator):
         self.logic.draw(context)
 
 
+class RFOperator_Contours_Overlay(RFOperator):
+    bl_idname = 'retopoflow.contours_overlay'
+    bl_label = 'Contours: Selected Overlay'
+    bl_description = 'Overlays info about selected boundary edges'
+    bl_options = { 'INTERNAL' }
+
+    def init(self, context, event):
+        self.depsgraph_version = None
+
+    def update(self, context, event):
+        is_done = (self.RFCore.selected_RFTool_idname != RFOperator_Contours.bl_idname)
+        return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
+
+    def draw_postpixel_overlay(self, context):
+        M = context.edit_object.matrix_world
+        rgn, r3d = context.region, context.region_data
+
+        if self.depsgraph_version != self.RFCore.depsgraph_version:
+            self.depsgraph_version = self.RFCore.depsgraph_version
+
+            # find selected boundary strips
+            bm, _ = get_bmesh_emesh(context)
+            sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) if bme.is_wire or bme.is_boundary ]
+            strips, cycles = get_boundary_strips_cycles(sel_bmes)
+            strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
+            cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
+            self.selected_boundaries = (strips, cycles)
+
+        # draw info about each selected boundary strip
+        for (lbl, boundaries) in zip(['Strip', 'Cycle'], self.selected_boundaries):
+            for boundary in boundaries:
+                mid = sum(boundary, Vector((0,0,0))) / len(boundary)
+                midpt = min(boundary, key=lambda pt:(pt-mid).length)
+                pos = location_3d_to_region_2d(rgn, r3d, M @ midpt)
+                if not pos: continue
+                text = f'{lbl}: {len(boundary)}'
+                tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
+                pos -= Vector((tw / 2, -th / 2))
+                Drawing.text_draw2D(text, pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
+
+
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
     bl_label = "RetopoFlow Contours"
@@ -128,6 +170,7 @@ class RFTool_Contours(RFTool_Base):
         cls.reseter = Reseter('Contours')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = False
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+        bpy.ops.retopoflow.contours_overlay('INVOKE_DEFAULT')
 
     @classmethod
     def deactivate(cls, context):
