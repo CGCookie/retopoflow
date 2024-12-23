@@ -201,7 +201,7 @@ class RFOperator_Relax(RFOperator):
         pass
 
     def update(self, context, event):
-        self.logic.update(context, event, RFTool_Relax.rf_brush, self)
+        self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}

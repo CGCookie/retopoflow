@@ -46,6 +46,10 @@ class Relax_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.mouse = None
+
+        self.brush = brush
+        self.relax = relax
+
         # self.reset()
         # self.update(context, event, None, 1.00)
         self.bm, self.em = get_bmesh_emesh(context)
@@ -61,11 +65,14 @@ class Relax_Logic:
                 if not bme.is_manifold
             ]
 
-    def update(self, context, event, brush, relax):
+    def update(self, context, event):
         if event.type != 'TIMER': return
 
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
+
+        brush = self.brush
+        relax = self.relax
 
         # gather options
         opt_mask_boundary   = relax.mask_boundary

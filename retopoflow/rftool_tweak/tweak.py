@@ -64,7 +64,7 @@ from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, 
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.timerhandler import TimerHandler
 
-#from .relax_logic import Relax_Logic
+from .tweak_logic import Tweak_Logic
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
@@ -153,25 +153,26 @@ class RFOperator_Tweak(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
-        # self.logic = Relax_Logic(context, event, rfbrush_relax, self)
+        self.logic = Tweak_Logic(context, event, RFTool_Tweak.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
 
     def reset(self):
-        # self.logic.reset()
         pass
 
     def update(self, context, event):
-        # self.logic.update(context, event, rfbrush_tweak, self)
+        self.logic.update(context, event)
 
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}
 
         if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
             # Should this undo or just stop?
+            bpy.ops.ed.undo()
             return {'CANCELLED'}
         if event.type == 'ESC' and event.value == 'PRESS':
             # Should this undo or just stop?
+            bpy.ops.ed.undo()
             return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
