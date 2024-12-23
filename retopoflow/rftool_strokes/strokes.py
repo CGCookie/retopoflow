@@ -38,7 +38,7 @@ from ..common.drawing import (
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp
+from ..common.maths import view_forward_direction, lerp, lerp_map
 from ..common.operator import (
     invoke_operator, execute_operator,
     RFOperator, RFOperator_Execute, RFRegisterClass,
@@ -48,6 +48,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
+from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Color, Frame, clamp
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
@@ -65,7 +66,7 @@ def strokes_spans_decrease(context):
     data = RFOperator_Stroke_Insert.stroke_data
     data['cut_count'] = max(1, data['cut_count'] - 1)
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
 
 @execute_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', options={'INTERNAL'})
 def strokes_spans_increase(context):
@@ -74,7 +75,7 @@ def strokes_spans_increase(context):
     data = RFOperator_Stroke_Insert.stroke_data
     data['cut_count'] += 1
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
 
 @execute_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
 def strokes_shift_decrease(context):
@@ -83,7 +84,7 @@ def strokes_shift_decrease(context):
     data = RFOperator_Stroke_Insert.stroke_data
     data['bridging_offset'] -= 1
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
 
 @execute_operator('strokes_insert_shift_increased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
 def strokes_shift_increase(context):
@@ -92,7 +93,7 @@ def strokes_shift_increase(context):
     data = RFOperator_Stroke_Insert.stroke_data
     data['bridging_offset'] += 1
     bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'])
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
 
 
 class RFOperator_Stroke_Insert(RFOperator_Execute):
@@ -133,10 +134,27 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
         default=0,
     )
 
+    smoothness: bpy.props.FloatProperty(
+        name='Smoothness',
+        description='Bridging smoothness',
+        default=0.0,
+        min=-0.5,
+        soft_min=0.0,
+        soft_max=1.0,
+        max=1.5,
+    )
+    profile: bpy.props.FloatProperty(
+        name='Profile',
+        description='Bridging profile',
+        default=0.0,
+        min=-0.5,
+        max=1.0,
+    )
+
     stroke_data = None
 
     @staticmethod
-    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode):
+    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode, initial_smoothness, initial_profile):
         RFOperator_Stroke_Insert.stroke_data = {
             'initial':           True,
             'action':            '',
@@ -149,8 +167,12 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             'extrapolate':       extrapolate_mode,
             'show_extrapolate':  True,
             'bridging_offset':   0,
+            'show_bridging_offset': False,
+            'show_smoothness':    False,
+            'smoothness':        initial_smoothness,
+            'profile':           initial_profile,
         }
-        bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode)
+        bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode, smoothness=initial_smoothness, profile=initial_profile)
 
     def draw(self, context):
         layout = self.layout
@@ -176,6 +198,14 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             row.label(text='Shift')
             row.prop(self, 'bridging_offset', text='')
 
+        if data['show_smoothness']:
+            row = layout.row(align=True)
+            row.label(text='Smoothness')
+            row.prop(self, 'smoothness', text='')
+            row = layout.row(align=True)
+            row.label(text='Profile')
+            row.prop(self, 'profile', text='')
+
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
         stroke3D = [pt for pt in data['stroke3D'] if pt]
@@ -194,6 +224,8 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
                 data['cut_count'] if data['initial'] else self.cut_count,
                 self.extrapolate_mode,
                 data['bridging_offset'] if data['initial'] else self.bridging_offset,
+                self.smoothness,
+                self.profile,
             )
 
             if data['initial']:
@@ -204,17 +236,21 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
                 self.bridging_offset = logic.bridging_offset
                 data['bridging_offset'] = self.bridging_offset
                 data['show_bridging_offset'] = logic.show_bridging_offset
+                data['show_smoothness'] = logic.show_smoothness
             else:
                 data['extrapolate'] = self.extrapolate_mode
                 self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
                 data['bridging_offset'] = self.bridging_offset
             self.cut_count = logic.cut_count
             data['cut_count'] = self.cut_count
+            data['smoothness'] = self.smoothness
+            data['profile'] = self.profile
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
             #       recently added stroke!
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
+            debugger.print_exception()
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -314,6 +350,23 @@ class RFOperator_Strokes(RFOperator):
         default='FLAT',
     )
 
+    initial_smoothness: bpy.props.FloatProperty(
+        name='Initial Smoothness',
+        description='Bridging smoothness',
+        default=0.0,
+        min=-0.5,
+        soft_min=0.0,
+        soft_max=1.0,
+        max=1.5,
+    )
+    initial_profile: bpy.props.FloatProperty(
+        name='Initial Profile',
+        description='Bridging profile',
+        default=0.0,
+        min=-0.5,
+        max=1.0,
+    )
+
 
     def init(self, context, event):
         RFTool_Strokes.rf_brush.set_operator(self)
@@ -337,6 +390,8 @@ class RFOperator_Strokes(RFOperator):
             self.span_insert_mode,
             self.initial_cut_count,
             self.extrapolate_mode,
+            self.initial_smoothness,
+            self.initial_profile,
         )
 
     def update(self, context, event):
@@ -393,6 +448,8 @@ class RFTool_Strokes(RFTool_Base):
                 if props_strokes.span_insert_mode == 'FIXED':
                     panel.prop(props_strokes, 'initial_cut_count', text="Count")
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolate')
+                panel.prop(props_strokes, 'initial_smoothness', text='Smoothness')
+                panel.prop(props_strokes, 'initial_profile', text='Profile')
 
         layout.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
         layout.prop(props_translate, 'distance2d')

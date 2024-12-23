@@ -85,6 +85,9 @@ def vector_to_bvec4(v):
     return Vector((*v.xyz, 0))
 
 def lerp(f, m, M): return m + f * (M - m)
+def lerp_map(v, vm, vM, m, M):
+    f = (v - vm) / (vM - vm)
+    return m + f * (M - m)
 
 
 # return point on line segment where x/y/z is 0

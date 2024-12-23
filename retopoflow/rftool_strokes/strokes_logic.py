@@ -39,7 +39,7 @@ from ..common.drawing import (
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp
+from ..common.maths import view_forward_direction, lerp, lerp_map
 from ..common.operator import (
     invoke_operator, execute_operator,
     RFOperator, RFRegisterClass,
@@ -48,9 +48,10 @@ from ..common.operator import (
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
+from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Color, Frame, closest_point_segment, clamp
+from ...addon_common.common.maths import Color, Frame, closest_point_segment, segment2D_intersection
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs
@@ -365,7 +366,7 @@ def get_longest_strip_cycle(bmes):
 
 
 class Strokes_Logic:
-    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset):
+    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset, smoothness, profile):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -381,11 +382,14 @@ class Strokes_Logic:
         self.bridging_offset = bridging_offset
         self.min_bridging_offset = 0
         self.max_bridging_offset = 0
+        self.smoothness = smoothness
+        self.profile = profile
 
         self.show_action = ''
         self.show_count = True
         self.show_extrapolate = True
         self.show_bridging_offset = False
+        self.show_smoothness = False
 
         self.process_stroke()
         self.process_selected()
@@ -1336,17 +1340,23 @@ class Strokes_Logic:
         if len(self.longest_strip0) > 1:
             bmv_tl = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1])
             bmv_tr = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
+            bmv_tl1 = bmes_shared_bmv(self.longest_strip0[0], self.longest_strip0[1])
+            bmv_tr1 = bmes_shared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
         else:
             bmv_tl, bmv_tr = self.longest_strip0[0].verts
+            bmv_tl1 = bmv_tr
+            bmv_tr1 = bmv_tl
 
         # build template for top edge (selected strip)
         strip_t_bmvs = get_strip_bmvs(self.longest_strip0, bmv_tl)
         llc_tb = len(strip_t_bmvs)
         template_t = [self.project_bmv(bmv) for bmv in strip_t_bmvs]
 
-        # make sure stroke points in same direction
+        # make sure stroke points in correct direction, otherwise generated geo will twist and self-intersect
         vec_tltr, vec_tls0, vec_tls1 = bmv_tr.co - bmv_tl.co, self.stroke3D[0] - bmv_tl.co, self.stroke3D[-1] - bmv_tl.co
-        if vec_tltr.dot(vec_tls0) > vec_tltr.dot(vec_tls1): self.reverse_stroke()
+        if segment2D_intersection(self.project_bmv(bmv_tl), self.stroke2D[0], self.project_bmv(bmv_tr), self.stroke2D[-1]):
+            self.reverse_stroke()
+        #if vec_tltr.dot(vec_tls0) > vec_tltr.dot(vec_tls1): self.reverse_stroke()
 
         # build template for bottom edge (stroke)
         template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
@@ -1450,9 +1460,61 @@ class Strokes_Logic:
             nspans = max(1, nspans)
             llc_lr = nspans + 1
         pt_tl, pt_tr = self.project_bmv(bmv_tl), self.project_bmv(bmv_tr)
-        pt_bl, pt_br = self.stroke2D[0], self.stroke2D[1]
-        if not template_l: template_l = [lerp(i/(llc_lr-1), pt_tl, pt_bl) for i in range(llc_lr)]
-        if not template_r: template_r = [lerp(i/(llc_lr-1), pt_tr, pt_br) for i in range(llc_lr)]
+        pt_tl1, pt_tr1 = self.project_bmv(bmv_tl1), self.project_bmv(bmv_tr1)
+        pt_bl, pt_br = self.stroke2D[0], self.stroke2D[-1]
+        if len(template_b) == 1:
+            pt_bl1 = pt_br
+            pt_br1 = pt_bl
+        else:
+            pt_bl1 = template_b[1]
+            pt_br1 = template_b[-2]
+        profile = lerp_map(self.profile, -1.0, 1.0, 0.33 - 0.67, 0.33 + 0.67)
+        if not template_l:
+            pt_lt, pt_lb = lerp(profile, pt_tl, pt_bl), lerp(profile, pt_bl, pt_tl)
+            vec_lt, vec_lb = (pt_lt - pt_tl), (pt_lb - pt_bl)
+            dir_lt, dir_lb = vec_lt.normalized(), vec_lb.normalized()
+            vec_t, vec_b = pt_tl1 - pt_tl, pt_bl1 - pt_bl
+            dir_t_ortho, dir_b_ortho = Vector((-vec_t.y, vec_t.x)).normalized(), Vector((-vec_b.y, vec_b.x)).normalized()
+            if (pt_br - pt_tl).dot(dir_t_ortho) < 0: dir_t_ortho.negate()
+            if (pt_tr - pt_bl).dot(dir_b_ortho) < 0: dir_b_ortho.negate()
+            angle_t = math.asin(dir_lt.x * dir_t_ortho.y - dir_lt.y * dir_t_ortho.x) * self.smoothness
+            angle_b = math.asin(dir_lb.x * dir_b_ortho.y - dir_lb.y * dir_b_ortho.x) * self.smoothness
+            vec_lt = Vector((
+                vec_lt.x * math.cos(angle_t) - vec_lt.y * math.sin(angle_t),
+                vec_lt.x * math.sin(angle_t) + vec_lt.y * math.cos(angle_t),
+            ))
+            vec_lb = Vector((
+                vec_lb.x * math.cos(angle_b) - vec_lb.y * math.sin(angle_b),
+                vec_lb.x * math.sin(angle_b) + vec_lb.y * math.cos(angle_b),
+            ))
+            pt_lt, pt_lb = pt_tl + vec_lt, pt_bl + vec_lb
+            #template_l = [lerp(i/(llc_lr-1), pt_tl, pt_bl) for i in range(llc_lr)]
+            template_l = [interpolate_cubic(pt_tl, pt_lt, pt_lb, pt_bl, i/(llc_lr-1)) for i in range(llc_lr)]
+            self.show_smoothness = True
+        if not template_r:
+            pt_rt, pt_rb = lerp(profile, pt_tr, pt_br), lerp(profile, pt_br, pt_tr)
+            vec_rt, vec_rb = (pt_rt - pt_tr), (pt_rb - pt_br)
+            dir_rt, dir_rb = vec_rt.normalized(), vec_rb.normalized()
+            dir_t, dir_b = (pt_tr1 - pt_tr).normalized(), (pt_br1 - pt_br).normalized()
+            dir_t_ortho, dir_b_ortho = Vector((-dir_t.y, dir_t.x)).normalized(), Vector((-dir_b.y, dir_b.x)).normalized()
+            if (pt_bl - pt_tr).dot(dir_t_ortho) < 0: dir_t_ortho.negate()
+            if (pt_tl - pt_br).dot(dir_b_ortho) < 0: dir_b_ortho.negate()
+            angle_t = math.asin(dir_rt.x * dir_t_ortho.y - dir_rt.y * dir_t_ortho.x)
+            angle_b = math.asin(dir_rb.x * dir_b_ortho.y - dir_rb.y * dir_b_ortho.x)
+            angle_t *= self.smoothness
+            angle_b *= self.smoothness
+            vec_rt = Vector((
+                vec_rt.x * math.cos(angle_t) - vec_rt.y * math.sin(angle_t),
+                vec_rt.x * math.sin(angle_t) + vec_rt.y * math.cos(angle_t),
+            ))
+            vec_rb = Vector((
+                vec_rb.x * math.cos(angle_b) - vec_rb.y * math.sin(angle_b),
+                vec_rb.x * math.sin(angle_b) + vec_rb.y * math.cos(angle_b),
+            ))
+            pt_rt, pt_rb = pt_tr + vec_rt, pt_br + vec_rb
+            # template_r = [lerp(i/(llc_lr-1), pt_tr, pt_br) for i in range(llc_lr)]
+            template_r = [interpolate_cubic(pt_tr, pt_rt, pt_rb, pt_br, i/(llc_lr-1)) for i in range(llc_lr)]
+            self.show_smoothness = True
 
         ######################
         # build spans
