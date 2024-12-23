@@ -211,6 +211,9 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             self.cut_count = logic.cut_count
             data['cut_count'] = self.cut_count
         except Exception as e:
+            # TODO: revisit how this issue (#1376) is handled.
+            #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
+            #       recently added stroke!
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             return {'CANCELLED'}
 
