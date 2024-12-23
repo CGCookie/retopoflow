@@ -307,11 +307,13 @@ class RFOperator_Strokes(RFOperator):
 
 
     def init(self, context, event):
-        RFTool_Strokes.rf_brush.set_operator(self, context)
+        RFTool_Strokes.rf_brush.set_operator(self)
+        RFTool_Strokes.rf_brush.reset_nearest(context)
         self.tickle(context)
 
     def finish(self, context):
         RFTool_Strokes.rf_brush.set_operator(None, context)
+        RFTool_Strokes.rf_brush.reset_nearest(context)
 
     def reset(self):
         RFTool_Strokes.rf_brush.reset()

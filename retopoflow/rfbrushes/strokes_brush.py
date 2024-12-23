@@ -108,12 +108,11 @@ class RFBrush_Strokes(RFBrush_Base):
 
         self.timer = None
 
-    def set_operator(self, operator, context):
+    def set_operator(self, operator):
         # this is called whenever operator using brush is started
         # note: artist just used another operator, so the data likely changed.
         #       reset nearest info so that we can rebuild structure!
         self.operator = operator
-        self.reset_nearest(context)
 
     def reset(self):
         self.nearest = None

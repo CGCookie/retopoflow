@@ -29,9 +29,9 @@ class RFBrush_Base:
         return RFBrush_Base._subclasses[cls]
 
     _instances = set()
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         RFBrush_Base._instances.add(self)
-        self.init()
+        self.init(*args, **kwargs)
     def __del__(self):
         RFBrush_Base._instances.remove(self)
 

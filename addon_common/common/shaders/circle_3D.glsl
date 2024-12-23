@@ -93,6 +93,6 @@ void main() {
 
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(options.color * vec4(1.0,1.0,1.0,alpha));
-    gl_FragDepth = mix(depth_near(), depth_far(), gl_FragCoord.z);
+    gl_FragDepth = mix(depth_near(), depth_far(), (1.0 + gl_FragCoord.z) / 2.0);
 }
 
