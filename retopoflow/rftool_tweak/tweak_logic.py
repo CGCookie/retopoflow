@@ -63,8 +63,6 @@ class Tweak_Logic:
 
         self.verts = None
 
-        bpy.ops.ed.undo_push(message='Tweak')
-
     def project_pt(self, pt):
         p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
         return p.xy if p else None

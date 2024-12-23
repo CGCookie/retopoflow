@@ -50,14 +50,11 @@ class Relax_Logic:
         self.brush = brush
         self.relax = relax
 
-        # self.reset()
-        # self.update(context, event, None, 1.00)
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
         self._time = time.time()
-        bpy.ops.ed.undo_push(message='Relax')
-        self._boundary = []
 
+        self._boundary = []
         if relax.mask_boundary == 'SLIDE':
             self._boundary = [
                 (bme.verts[0].co, bme.verts[1].co)

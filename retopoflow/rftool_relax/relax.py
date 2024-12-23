@@ -76,7 +76,7 @@ class RFOperator_Relax(RFOperator):
     bl_description = 'Relax the vertex positions to smooth out topology'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = set()
+    bl_options = {'UNDO'}
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),

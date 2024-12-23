@@ -81,7 +81,7 @@ class RFOperator_Tweak(RFOperator):
     bl_description = 'Tweak the vertex positions'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = set()
+    bl_options = {'UNDO'}
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
