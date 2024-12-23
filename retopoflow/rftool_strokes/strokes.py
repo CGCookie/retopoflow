@@ -95,6 +95,24 @@ def strokes_shift_increase(context):
     bpy.ops.ed.undo()
     bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
 
+@execute_operator('strokes_insert_smoothness_decreased', 'Reinsert stroke with less smoothed', options={'INTERNAL'})
+def strokes_smoothness_decrease(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['smoothness'] -= 0.25
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
+
+@execute_operator('strokes_insert_smoothness_increased', 'Reinsert stroke with more smoothed spans', options={'INTERNAL'})
+def strokes_smoothness_increase(context):
+    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+    if last_op != RFOperator_Stroke_Insert.bl_label: return
+    data = RFOperator_Stroke_Insert.stroke_data
+    data['smoothness'] += 0.25
+    bpy.ops.ed.undo()
+    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smoothness=data['smoothness'], profile=data['profile'])
+
 
 class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_idname = 'retopoflow.strokes_insert'
@@ -103,10 +121,12 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     rf_keymaps = [
-        ('retopoflow.strokes_insert_spans_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_spans_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_shift_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1}, None),
-        ('retopoflow.strokes_insert_shift_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1}, None),
+        ('retopoflow.strokes_insert_spans_increased',      {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_spans_decreased',      {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
+        ('retopoflow.strokes_insert_shift_increased',      {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1}, None),
+        ('retopoflow.strokes_insert_shift_decreased',      {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1}, None),
+        ('retopoflow.strokes_insert_smoothness_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
+        ('retopoflow.strokes_insert_smoothness_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
     ]
 
     extrapolate_mode: bpy.props.EnumProperty(
