@@ -137,7 +137,7 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
     smoothness: bpy.props.FloatProperty(
         name='Smoothness',
         description='Bridging smoothness',
-        default=0.0,
+        default=1.0,
         min=-0.5,
         soft_min=0.0,
         soft_max=1.0,
@@ -353,7 +353,7 @@ class RFOperator_Strokes(RFOperator):
     initial_smoothness: bpy.props.FloatProperty(
         name='Initial Smoothness',
         description='Bridging smoothness',
-        default=0.0,
+        default=1.0,
         min=-0.5,
         soft_min=0.0,
         soft_max=1.0,
