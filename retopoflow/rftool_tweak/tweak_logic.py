@@ -57,9 +57,7 @@ class Tweak_Logic:
         self.collect_verts(context, event)
 
     def collect_boundary(self):
-        if self.tweak.mask_boundary != 'SLIDE':
-            self._boundary = []
-            return
+        if self.tweak.mask_boundary != 'SLIDE': return
         self._boundary = [
             (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
             for bme in self.bm.edges
@@ -67,11 +65,10 @@ class Tweak_Logic:
         ]
 
     def collect_verts(self, context, event):
-        mouse = Vector(mouse_from_event(event))
-        hit = raycast_valid_sources(context, mouse)
-        if not hit:
-            self.verts = []
-            return
+        self.verts = []
+        self.mouse = Vector(mouse_from_event(event))
+        hit = raycast_valid_sources(context, self.mouse)
+        if not hit: return
 
         def is_bmvert_hidden(bmv, *, factor=0.999):
             nonlocal context
@@ -86,7 +83,6 @@ class Tweak_Logic:
 
         radius2D = self.brush.radius
         radius3D = self.brush.get_scaled_radius()
-        verts = []
         for bmv in self.bm.verts:
             if bmv.hide: continue
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
@@ -96,14 +92,12 @@ class Tweak_Logic:
             if self.tweak.mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
             if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
             if self.tweak.mask_selected == 'ONLY' and not bmv.select: continue
-            verts.append((
+            self.verts.append((
                 bmv,
                 Vector(bmv.co),
                 self.project_bmv(bmv),
                 self.brush.get_strength_Point(self.matrix_world @ bmv.co),
             ))
-        self.verts = verts
-        self.mouse = mouse
 
     def cancel(self, context):
         if not self.verts: return
