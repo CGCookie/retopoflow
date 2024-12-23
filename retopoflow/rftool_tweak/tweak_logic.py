@@ -53,15 +53,57 @@ class Tweak_Logic:
         self.bm.faces.ensure_lookup_table()
         self._time = time.time()
 
-        self._boundary = []
-        if tweak.mask_boundary == 'SLIDE':
-            self._boundary = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-                for bme in self.bm.edges
-                if not bme.is_manifold
-            ]
+        self.collect_boundary()
+        self.collect_verts(context, event)
 
-        self.verts = None
+    def collect_boundary(self):
+        if self.tweak.mask_boundary != 'SLIDE':
+            self._boundary = []
+            return
+        self._boundary = [
+            (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+            for bme in self.bm.edges
+            if not bme.is_manifold
+        ]
+
+    def collect_verts(self, context, event):
+        mouse = Vector(mouse_from_event(event))
+        hit = raycast_valid_sources(context, mouse)
+        if not hit:
+            self.verts = []
+            return
+
+        def is_bmvert_hidden(bmv, *, factor=0.999):
+            nonlocal context
+            point = self.matrix_world @ point_to_bvec4(bmv.co)
+            hit = raycast_valid_sources(context, point)
+            if not hit: return False
+            ray_e = hit['ray_world'][0]
+            return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
+        def is_bmvert_on_symmetry_plane(bmv):
+            # TODO: IMPLEMENT!
+            return False
+
+        radius2D = self.brush.radius
+        radius3D = self.brush.get_scaled_radius()
+        verts = []
+        for bmv in self.bm.verts:
+            if bmv.hide: continue
+            # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
+            if (bmv.co - hit['co_local']).length > radius3D: continue
+            if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
+            if self.tweak.mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
+            if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
+            if self.tweak.mask_selected == 'ONLY' and not bmv.select: continue
+            verts.append((
+                bmv,
+                Vector(bmv.co),
+                self.project_bmv(bmv),
+                self.brush.get_strength_Point(self.matrix_world @ bmv.co),
+            ))
+        self.verts = verts
+        self.mouse = mouse
 
     def cancel(self, context):
         if not self.verts: return
@@ -78,42 +120,9 @@ class Tweak_Logic:
         return p.xy if p else None
 
     def update(self, context, event):
+        if not self.verts: return
+
         mouse = Vector(mouse_from_event(event))
-
-        if self.verts is None:
-            hit = raycast_valid_sources(context, mouse)
-            if not hit: return
-
-            def is_bmvert_hidden(bmv, *, factor=0.999):
-                nonlocal context
-                point = self.matrix_world @ point_to_bvec4(bmv.co)
-                hit = raycast_valid_sources(context, point)
-                if not hit: return False
-                ray_e = hit['ray_world'][0]
-                return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
-            def is_bmvert_on_symmetry_plane(bmv):
-                # TODO: IMPLEMENT!
-                return False
-
-            radius = self.brush.get_scaled_radius()
-            verts = []
-            for bmv in self.bm.verts:
-                if bmv.hide: continue
-                if (bmv.co - hit['co_local']).length > radius: continue
-                if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
-                if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-                if self.tweak.mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
-                if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
-                if self.tweak.mask_selected == 'ONLY' and not bmv.select: continue
-                verts.append((
-                    bmv,
-                    Vector(bmv.co),
-                    self.project_bmv(bmv),
-                    self.brush.get_strength_Point(self.matrix_world @ bmv.co),
-                ))
-            self.verts = verts
-            self.mouse = mouse
-
         delta = mouse - self.mouse
 
         for (bmv, co, xy, strength) in self.verts:
