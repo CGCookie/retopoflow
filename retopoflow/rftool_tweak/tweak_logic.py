@@ -63,6 +63,13 @@ class Tweak_Logic:
 
         self.verts = None
 
+    def cancel(self, context):
+        if not self.verts: return
+        for (bmv, co, _, _) in self.verts:
+            bmv.co = co
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
     def project_pt(self, pt):
         p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
         return p.xy if p else None
@@ -72,10 +79,11 @@ class Tweak_Logic:
 
     def update(self, context, event):
         mouse = Vector(mouse_from_event(event))
-        hit = raycast_valid_sources(context, mouse)
-        if not hit: return
 
         if self.verts is None:
+            hit = raycast_valid_sources(context, mouse)
+            if not hit: return
+
             def is_bmvert_hidden(bmv, *, factor=0.999):
                 nonlocal context
                 point = self.matrix_world @ point_to_bvec4(bmv.co)

@@ -54,6 +54,8 @@ class Relax_Logic:
         self.bm.faces.ensure_lookup_table()
         self._time = time.time()
 
+        self.prev = {}
+
         self._boundary = []
         if relax.mask_boundary == 'SLIDE':
             self._boundary = [
@@ -61,6 +63,13 @@ class Relax_Logic:
                 for bme in self.bm.edges
                 if not bme.is_manifold
             ]
+
+    def cancel(self, context):
+        for (bmv, co) in self.prev.items():
+            bmv.co = co
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
 
     def update(self, context, event):
         if event.type != 'TIMER': return
@@ -277,6 +286,7 @@ class Relax_Logic:
 
             # update
             for bmv in displace:
+                if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
                 co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv]) * mult
 
                 # TODO: IMPLEMENT!

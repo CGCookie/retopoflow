@@ -76,7 +76,7 @@ class RFOperator_Relax(RFOperator):
     bl_description = 'Relax the vertex positions to smooth out topology'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = {'UNDO'}
+    bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
@@ -206,11 +206,9 @@ class RFOperator_Relax(RFOperator):
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             return {'FINISHED'}
 
-        if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
+        if event.value == 'PRESS' and event.type in {'RIGHTMOUSE', 'ESC'}:
             # Should this undo or just stop?
-            return {'CANCELLED'}
-        if event.type == 'ESC' and event.value == 'PRESS':
-            # Should this undo or just stop?
+            self.logic.cancel(context)
             return {'CANCELLED'}
 
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
