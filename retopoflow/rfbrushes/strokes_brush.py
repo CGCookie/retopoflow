@@ -183,13 +183,14 @@ class RFBrush_Strokes(RFBrush_Base):
 
         if event.type == 'LEFTMOUSE':
             if event.value == 'PRESS':
-                self.mouse = mouse
-                self.mousedown = mouse
-                self.stroke = [Point2D(mouse)]
-                self.stroke_far = False
-                self.stroke_cycle = False
+                if raycast_valid_sources(context, self.mouse):
+                    self.mouse = mouse
+                    self.mousedown = mouse
+                    self.stroke = [Point2D(mouse)]
+                    self.stroke_far = False
+                    self.stroke_cycle = False
 
-                self.timer = TimerHandler(120, context=context, enabled=True)
+                    self.timer = TimerHandler(120, context=context, enabled=True)
 
             elif event.value == 'RELEASE':
                 if self.is_stroking():
