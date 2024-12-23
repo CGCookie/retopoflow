@@ -43,14 +43,15 @@ from ...addon_common.common.maths import closest_point_segment, Point
 class Tweak_Logic:
     def __init__(self, context, event, brush, tweak):
         self.context, self.rgn, self.r3d = context, context.region, context.region_data
+
+        self.bm, self.em = get_bmesh_emesh(context)
+        self.bm.faces.ensure_lookup_table()
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
 
         self.brush = brush
         self.tweak = tweak
 
-        self.bm, self.em = get_bmesh_emesh(context)
-        self.bm.faces.ensure_lookup_table()
         self._time = time.time()
 
         self.collect_boundary()
@@ -67,6 +68,7 @@ class Tweak_Logic:
     def collect_verts(self, context, event):
         self.verts = []
         self.mouse = Vector(mouse_from_event(event))
+
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
 
@@ -81,8 +83,8 @@ class Tweak_Logic:
             # TODO: IMPLEMENT!
             return False
 
-        radius2D = self.brush.radius
-        radius3D = self.brush.get_scaled_radius()
+        # right now, falloff brush works in 3D... should switch to 2D?
+        radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
         for bmv in self.bm.verts:
             if bmv.hide: continue
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue

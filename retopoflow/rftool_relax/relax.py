@@ -68,7 +68,12 @@ from .relax_logic import Relax_Logic
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
-RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush('relax_brush', 'Relax Brush')
+RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
+    'relax_brush',
+    'Relax Brush',
+    radius=200,
+    fill_color=Color.from_ints(0, 135, 255, 255),
+)
 
 class RFOperator_Relax(RFOperator):
     bl_idname = "retopoflow.relax"
