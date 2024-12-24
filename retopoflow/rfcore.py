@@ -97,7 +97,7 @@ class RFCore:
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         # bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
-        bpy.types.VIEW3D_MT_add.append(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
 
         RFCore._is_registered = True
 
