@@ -1,9 +1,9 @@
 {
     "name": "RetopoFlow 4",
-    "short name": "RF 4.0.0α",
+    "short name": "RF 4.0.2α",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
     "author": "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version": "4.0.0",
+    "version": "4.0.2",
     "release": "alpha",
     "source": "Blender Market",
     "blender hard minimum version": "3.6.7",
