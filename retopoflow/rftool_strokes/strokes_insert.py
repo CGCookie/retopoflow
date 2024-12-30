@@ -624,105 +624,91 @@ class Strokes_Insert():
         else:
             self.rfcontext.undo_push('extrude strip')
 
-        # get selected edges that we can extrude
+        # Get selected edges that we can extrude.
         edges = self.get_edges_for_extrude()
-        sel_verts = { v for e in edges for v in e.verts }
+        sel_verts = {v for e in edges for v in e.verts}
 
         self.rfcontext.get_accel_visible(force=True)
 
         s0, s1 = stroke[0], stroke[-1]
-        sd = s1 - s0
+        stroke_dir = (s1 - s0).normalized()
 
-        # check if verts near stroke ends connect to any of the selected strips
-        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
-        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
+        # Find vertices near stroke ends.
+        bmv0,_ = self.rfcontext.accel_nearest2D_vert(point=s0, max_dist=options['strokes merge dist'])
+        bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist'])
         if not options['strokes snap stroke'] and bmv0 and not bmv0.select: bmv0 = None
         if not options['strokes snap stroke'] and bmv1 and not bmv1.select: bmv1 = None
+
+        # Find edge strips connected to end vertices.
         edges0 = walk_to_corner(bmv0, edges) if bmv0 else []
         edges1 = walk_to_corner(bmv1, edges) if bmv1 else []
         edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
         edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
+
+        # Verify edge strips have same length if they exist.
         if edges0 and edges1 and len(edges0) != len(edges1):
             self.rfcontext.alert_user(
-                'Edge strips near ends of stroke have different counts.  Make sure your stroke is accurate.'
+                'Edge strips near ends of stroke have different counts. Make sure your stroke is accurate.'
             )
             return
-        if edges0:
-            self.strip_crosses = len(edges0)
-            self.strip_edges = True
-        if edges1:
-            self.strip_crosses = len(edges1)
-            self.strip_edges = True
-        # TODO: set best and ensure that best connects edges0 and edges1
 
-        # check all strips for best "scoring"
+        # Set cross count based on existing edge strips.
+        if edges0: self.strip_crosses, self.strip_edges = len(edges0), True
+        if edges1: self.strip_crosses, self.strip_edges = len(edges1), True
+
+        # Find best edge strip to extrude from.
         best = None
-        best_score = None
+        best_score = float('inf')
         for edge_strip in find_edge_strips(edges):
             verts = get_strip_verts(edge_strip)
             p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
             if not p0 or not p1: continue
-            pd = p1 - p0
-            dot = pd.x * sd.x + pd.y * sd.y
-            if dot < 0:
-                edge_strip.reverse()
-                p0, p1, pd, dot = p1, p0, -pd, -dot
-            score = ((s0 - p0).length + (s1 - p1).length) #* (1 - dot)
-            if not best or score < best_score:
+            
+            strip_dir = (p1 - p0).normalized()
+            alignment = abs(strip_dir.dot(stroke_dir))
+            dist_score = ((s0 - p0).length + (s1 - p1).length)
+            score = dist_score * (1.1 - alignment)  # Favor aligned strips
+            
+            if score < best_score:
                 best = edge_strip
                 best_score = score
 
         if not best:
             self.rfcontext.alert_user(
-                'Could not determine which edge strip to extrude from.  Make sure your selection is accurate.'
+                'Could not determine which edge strip to extrude from. Make sure your selection is accurate.'
             )
             return
 
-        if len(best) == 1:
-            # special case where reversing the edge strip will NOT prevent twisted faces
-            verts = best[0].verts
-            p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
-            if p0 and p1:
-                pd = p1 - p0
-                dot = pd.x * sd.x + pd.y * sd.y
-                if dot < 0:
-                    # reverse stroke!
-                    stroke.reverse()
-                    s0, s1 = s1, s0
-                    sd = -sd
-
-        # tessellate stroke to match edge
+        # Get vertices and ensure proper direction.
         edges = best
         verts = get_strip_verts(edges)
-        edge_lens = [
-            (Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length
-            for e in edges
-        ]
-        strip_len = sum(edge_lens)
+        p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
+        if (p1 - p0).dot(stroke_dir) < 0:
+            verts.reverse()
+            edges.reverse()
 
+        # Create proportional stroke points.
+        edge_lens = [(Point_to_Point2D(e.verts[0].co) - Point_to_Point2D(e.verts[1].co)).length for e in edges]
+        strip_len = sum(edge_lens)
         if strip_len == 0:
-            self.rfcontext.alert_user(
-                'The length of the strip is zero. Please ensure that the stroke is valid and try again.'
-            )
+            self.rfcontext.alert_user('The length of the strip is zero.')
             return
 
-        avg_len = strip_len / len(edges)
         per_lens = [l / strip_len for l in edge_lens]
         percentages = [0] + [max(0, min(1, s)) for (w, s) in iter_running_sum(per_lens)]
         nstroke = restroke(stroke, percentages)
-        assert len(nstroke) == len(verts), f'Tessellated stroke ({len(nstroke)}) does not match vert count ({len(verts)})'
-
-        # average distance between stroke and strip
-        p0, p1 = Point_to_Point2D(verts[0].co), Point_to_Point2D(verts[-1].co)
-        avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
-        if isnan(avg_dist):
-            self.rfcontext.alert_user(
-                'Could not determine distance between stroke and selected strip.  Please try again.'
-            )
+        
+        if len(nstroke) != len(verts):
+            self.rfcontext.alert_user('Stroke points do not match vertex count.')
             return
 
-        # determine cross count
+        # Calculate number of crosses.
         if self.strip_crosses is None:
+            avg_dist = ((p0 - s0).length + (p1 - s1).length) / 2
+            if isnan(avg_dist):
+                self.rfcontext.alert_user('Could not determine extrusion distance.')
+                return
+            
             if options['strokes span insert mode'] == 'Brush Size':
                 self.strip_crosses = max(math.ceil(avg_dist / (2 * self.rfwidgets['brush'].radius)), 2)
             else:
@@ -730,52 +716,63 @@ class Strokes_Insert():
         crosses = self.strip_crosses + 1
 
         with self.defer_recomputing_while():
-            # extrude!
+            # Create the extrusion.
             patch = []
-            prev, last = None, []
-            for (v0, p1) in zip(verts, nstroke):
+            prev = None
+            last = []
+            
+            # Create vertices
+            for v0, target in zip(verts, nstroke):
                 p0 = Point_to_Point2D(v0.co)
-                cur = [v0] + [
-                    self.rfcontext.new2D_vert_point(p0 + (p1-p0) * (c / (crosses-1)))
-                    for c in range(1, crosses)
+                offset = target - p0
+                
+                # Create row of vertices
+                row = [v0] + [
+                    self.rfcontext.new2D_vert_point(p0 + offset * (i / (crosses-1)))
+                    for i in range(1, crosses)
                 ]
-                patch += [cur]
-                last.append(cur[-1])
+                patch.append(row)
+                last.append(row[-1])
+                
+                # Create faces with previous row
                 if prev:
                     for i in range(crosses-1):
-                        nface = [prev[i+0], cur[i+0], cur[i+1], prev[i+1]]
-                        if all(nface):
-                            self.rfcontext.new_face(nface)
+                        quad = [prev[i], prev[i+1], row[i+1], row[i]]
+                        if all(quad) and len(set(quad)) == 4:  # Ensure no duplicate verts
+                            self.rfcontext.new_face(quad)
                         else:
-                            for v0,v1 in iter_pairs(nface, True):
-                                if v0 and v1 and not v0.share_edge(v1):
-                                    self.rfcontext.new_edge([v0, v1])
-                prev = cur
+                            # Create edges if face creation fails
+                            for v1, v2 in iter_pairs(quad, True):
+                                if v1 and v2 and not v1.share_edge(v2):
+                                    self.rfcontext.new_edge([v1, v2])
+                prev = row
 
-            def _merge_side_verts(edges: List[BMEdge], vert: BMVert, patch_verts: List[BMVert]):
-                if not edges: return
-                side_verts: List[BMVert] = get_strip_verts(edges)
-                if len(side_verts) < 2:
-                    return
-                if side_verts[1] == vert: side_verts.reverse()
-                for svert, pvert in zip(side_verts[1:], patch_verts[1:]):
-                    co = svert.co
-                    pvert.merge(svert)
-                    pvert.co = co
-                    self.rfcontext.clean_duplicate_bmedges(pvert)
+            # Merge with existing geometry at ends.
+            def _merge_strip(strip_edges, start_vert, patch_verts):
+                if not strip_edges: return
+                strip_verts = get_strip_verts(strip_edges)
+                if len(strip_verts) < 2: return
+                
+                # Ensure proper orientation.
+                if strip_verts[1] == start_vert:
+                    strip_verts.reverse()
+                
+                # Merge corresponding vertices.
+                for sv, pv in zip(strip_verts[1:], patch_verts[1:]):
+                    if sv and pv:
+                        co = sv.co
+                        pv.merge(sv)
+                        pv.co = co
+                        self.rfcontext.clean_duplicate_bmedges(pv)
 
-            edges0: List[BMEdge] = [e for e in edges0 if e.is_valid] if edges0 else None
-            edges1: List[BMEdge] = [e for e in edges1 if e.is_valid] if edges1 else None
+            edges0 = [e for e in edges0 if e.is_valid] if edges0 else None
+            edges1 = [e for e in edges1 if e.is_valid] if edges1 else None
+            
+            _merge_strip(edges0, verts[0], patch[0])
+            _merge_strip(edges1, verts[-1], patch[-1])
 
-            _merge_side_verts(edges0, verts[0], patch[0])
-            _merge_side_verts(edges1, verts[-1], patch[-1])
-
-            nedges = [
-                v0.shared_edge(v1)
-                for (v0, v1) in iter_pairs(last, wrap=False)
-                if v0 and v1
-            ]
-
+            # Select the newly created edge strip.
+            nedges = [v0.shared_edge(v1) for v0, v1 in iter_pairs(last, wrap=False) if v0 and v1]
             self.rfcontext.select(nedges)
             self.just_created = True
 
