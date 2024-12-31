@@ -282,6 +282,9 @@ class RFOperator_Strokes_Overlay(RFOperator):
         return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
     def draw_postpixel_overlay(self, context):
+        is_done = (self.RFCore.selected_RFTool_idname != RFOperator_Strokes.bl_idname)
+        if is_done: return
+
         M = context.edit_object.matrix_world
         rgn, r3d = context.region, context.region_data
 

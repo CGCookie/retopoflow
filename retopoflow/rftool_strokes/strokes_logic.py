@@ -1074,7 +1074,7 @@ class Strokes_Logic:
             v_selected = co1 - co0
         if v_stroke.dot(v_selected) < 0:
             # pointing opposite directions
-            print('REVERSING!!!!!!!!!!!!!!!!')
+            # print('REVERSING!!!!!!!!!!!!!!!!')
             self.stroke2D.reverse()
             self.stroke3D.reverse()
 

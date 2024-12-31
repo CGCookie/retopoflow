@@ -200,9 +200,10 @@ class RFOperator(bpy.types.Operator):
                 wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
                 space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
             if RFOperator.active_operator() != self:
-                print(f'RFOperator: currently finishing operator is not top??')
-                print(self)
-                print(RFOperator.active_operators)
+                # print(f'RFOperator: currently finishing operator is not top??')
+                # print(self)
+                # print(RFOperator.active_operators)
+                pass
             RFOperator.active_operators.remove(self)
             context.workspace.status_text_set(None)
             for area in context.screen.areas: area.tag_redraw()

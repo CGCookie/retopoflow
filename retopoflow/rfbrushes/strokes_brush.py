@@ -154,7 +154,7 @@ class RFBrush_Strokes(RFBrush_Base):
             if self.timer: self.timer.stop()
             self.timer = None
             context.area.tag_redraw()
-            return {'CANCELLED'}
+            return
 
         if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
         if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
