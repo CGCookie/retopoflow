@@ -20,56 +20,28 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import bmesh
-from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from ..rftool_base import RFTool_Base
-from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
-    nearest_bmv_world, nearest_bme_world, NearestBMVert,
     bme_midpoint, get_boundary_strips_cycles,
     bme_other_bmv,
     bmes_shared_bmv,
     bme_unshared_bmv,
-    bmes_share_bmv,
     bmvs_shared_bme,
     bme_vector,
     bme_length,
 )
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
-from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp, lerp_map
-from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
-)
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
+from ..common.raycast import raycast_point_valid_sources
+from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common import gpustate
 from ...addon_common.common.bezier import interpolate_cubic
-from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Color, Frame, closest_point_segment, segment2D_intersection
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
-from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.maths import closest_point_segment, segment2D_intersection
+from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 import math
-import time
-from itertools import chain
 
 r'''
 Table of Implemented:

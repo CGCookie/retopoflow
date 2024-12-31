@@ -20,37 +20,23 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import bmesh
-from mathutils import Vector, Matrix
+from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rfbrushes.strokes_brush import RFBrush_Strokes, RFOperator_StrokesBrush_Adjust
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, bme_midpoint, get_boundary_strips_cycles
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
+from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
+from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp, lerp_map
+from ..common.raycast import raycast_point_valid_sources
 from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFOperator_Execute, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
+    execute_operator,
+    RFOperator, RFOperator_Execute,
+    chain_rf_keymaps,
 )
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Color, Frame, clamp
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
+from ...addon_common.common.maths import clamp
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs
 
@@ -59,6 +45,7 @@ from .strokes_logic import Strokes_Logic
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from functools import wraps
+
 
 stroke_keymaps = []  # used to collect redo shortcuts
 class RFOperator_Stroke_Insert(RFOperator_Execute):
