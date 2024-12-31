@@ -58,76 +58,16 @@ from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
+from functools import wraps
 
-@execute_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', options={'INTERNAL'})
-def strokes_spans_decrease(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['cut_count'] = max(1, data['cut_count'] - 1)
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-@execute_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', options={'INTERNAL'})
-def strokes_spans_increase(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['cut_count'] += 1
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-@execute_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
-def strokes_shift_decrease(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['bridging_offset'] -= 1
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-@execute_operator('strokes_insert_shift_increased', 'Reinsert stroke with shifted spans', options={'INTERNAL'})
-def strokes_shift_increase(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['bridging_offset'] += 1
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-@execute_operator('strokes_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', options={'INTERNAL'})
-def strokes_smooth_angle_decrease(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['smooth_angle'] -= 0.25
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-@execute_operator('strokes_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', options={'INTERNAL'})
-def strokes_smooth_angle_increase(context):
-    last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-    if last_op != RFOperator_Stroke_Insert.bl_label: return
-    data = RFOperator_Stroke_Insert.stroke_data
-    data['smooth_angle'] += 0.25
-    bpy.ops.ed.undo()
-    bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=data['extrapolate'], cut_count=data['cut_count'], bridging_offset=data['bridging_offset'], smooth_angle=data['smooth_angle'], smooth_density0=data['smooth_density0'], smooth_density1=data['smooth_density1'])
-
-
+stroke_keymaps = []  # used to collect redo shortcuts
 class RFOperator_Stroke_Insert(RFOperator_Execute):
     bl_idname = 'retopoflow.strokes_insert'
     bl_label = 'Strokes: Insert new stroke'
     bl_description = 'Insert edge strips and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    rf_keymaps = [
-        ('retopoflow.strokes_insert_spans_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_spans_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, None),
-        ('retopoflow.strokes_insert_shift_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1}, None),
-        ('retopoflow.strokes_insert_shift_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1}, None),
-        ('retopoflow.strokes_insert_smooth_angle_increased', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1}, None),
-        ('retopoflow.strokes_insert_smooth_angle_decreased', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, None),
-    ]
+    rf_keymaps = stroke_keymaps  # must point to stroke_keymaps, which is filled in by redo_ fns below...
 
     extrapolate_mode: bpy.props.EnumProperty(
         name='Strokes Extrapolate Mode',
@@ -201,34 +141,41 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             'smooth_density0':    initial_smooth_density0,
             'smooth_density1':    initial_smooth_density1,
         }
-        bpy.ops.retopoflow.strokes_insert('INVOKE_DEFAULT', True, extrapolate_mode=extrapolate_mode, smooth_angle=initial_smooth_angle, smooth_density0=initial_smooth_density0, smooth_density1=initial_smooth_density1)
+        bpy.ops.retopoflow.strokes_insert(
+            'INVOKE_DEFAULT', True,
+            extrapolate_mode=extrapolate_mode,
+            smooth_angle=initial_smooth_angle,
+            smooth_density0=initial_smooth_density0,
+            smooth_density1=initial_smooth_density1,
+        )
 
     def draw(self, context):
         layout = self.layout
-        colflow = layout.grid_flow(row_major=True, columns=2)
+        grid = layout.grid_flow(row_major=True, columns=2)
         data = RFOperator_Stroke_Insert.stroke_data
 
         if data['action']:
-            colflow.label(text=f'Inserted')
-            colflow.label(text=data['action'])
+            grid.label(text=f'Inserted')
+            grid.label(text=data['action'])
 
         if data['show_count']:
-            colflow.label(text='Spans')
-            colflow.prop(self, 'cut_count', text='')
+            grid.label(text='Spans')
+            grid.prop(self, 'cut_count', text='')
 
         if data['show_extrapolate']:
-            colflow.label(text='Extrapolate')
-            colflow.prop(self, 'extrapolate_mode', text='')
+            grid.label(text='Extrapolate')
+            grid.prop(self, 'extrapolate_mode', text='')
 
         if data['show_bridging_offset']:
-            colflow.label(text='Shift')
-            colflow.prop(self, 'bridging_offset', text='')
+            grid.label(text='Shift')
+            grid.prop(self, 'bridging_offset', text='')
 
         if data['show_smoothness']:
-            colflow.label(text='Angle')
-            colflow.prop(self, 'smooth_angle', text='')
-            colflow.label(text='Density')
-            row = colflow.row(align=True)
+            grid.label(text='Angle')
+            grid.prop(self, 'smooth_angle', text='')
+
+            grid.label(text='Density')
+            row = grid.row(align=True)
             row.prop(self, 'smooth_density0', text='')
             row.prop(self, 'smooth_density1', text='')
 
@@ -282,6 +229,58 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
             return {'CANCELLED'}
 
         return {'FINISHED'}
+
+    @staticmethod
+    def create_redo_operator(idname, description, keymap):
+        # add keymap to RFOperator_Stroke_Insert.rf_keymaps (note: still creating RFOperator_Stroke_Insert, so using stroke_keymaps as proxy)
+        stroke_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        def wrapper(fn):
+            @execute_operator(idname, description, options={'INTERNAL'})
+            @wraps(fn)
+            def wrapped(context):
+                last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+                if last_op != RFOperator_Stroke_Insert.bl_label: return
+
+                data = RFOperator_Stroke_Insert.stroke_data
+
+                fn(context, data)
+
+                bpy.ops.ed.undo()
+                bpy.ops.retopoflow.strokes_insert(
+                    'INVOKE_DEFAULT', True,
+                    extrapolate_mode=data['extrapolate'],
+                    cut_count=data['cut_count'],
+                    bridging_offset=data['bridging_offset'],
+                    smooth_angle=data['smooth_angle'],
+                    smooth_density0=data['smooth_density0'],
+                    smooth_density1=data['smooth_density1'],
+                )
+            return wrapped
+        return wrapper
+
+    @create_redo_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    def decrease_spans(context, data):
+        data['cut_count'] -= 1
+
+    @create_redo_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    def increase_spans(context, data):
+        data['cut_count'] += 1
+
+    @create_redo_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
+    def decrease_shift(context, data):
+        data['bridging_offset'] -= 1
+
+    @create_redo_operator('strokes_insert_shift_increased', 'Reinsert stroke with shifted spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1})
+    def increase_shift(context, data):
+        data['bridging_offset'] += 1
+
+    @create_redo_operator('strokes_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    def decrease_smooth_angle(context, data):
+        data['smooth_angle'] -= 0.25
+
+    @create_redo_operator('strokes_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    def increase_smooth_angle(context, data):
+        data['smooth_angle'] += 0.25
 
 
 class RFOperator_Strokes_Overlay(RFOperator):

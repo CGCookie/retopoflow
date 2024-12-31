@@ -200,6 +200,12 @@ def get_boundary_strips_cycles(bmes):
     strips.sort(key=lambda strip:len(strip))
     cycles.sort(key=lambda cycle:len(cycle))
 
+    # try to have strips point in the same direction
+    for strip in strips:
+        if len(strip) == 1: continue
+        v = bme_midpoint(strip[-1]) - bme_midpoint(strip[0])
+        if v.x + v.y + v.z < 0: strip.reverse()
+
     return (strips, cycles)
 
 
