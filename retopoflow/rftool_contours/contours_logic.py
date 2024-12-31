@@ -311,7 +311,8 @@ class Contours_Logic:
                 ]
                 center2 = sum(pts2d, Vector((0,0))) / len(pts2d)
                 radius2 = max((pt2d - center2).length for pt2d in pts2d)
-                dist2 = (self.mousemiddle - center2).length
+                middle = location_3d_to_region_2d(context.region, context.region_data, self.plane.o)
+                dist2 = (middle - center2).length
                 if dist3 > radius3 or dist2 > radius2: continue
                 edge_ring = set()
                 cyclic_ring = False

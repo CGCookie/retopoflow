@@ -288,6 +288,13 @@ class RFOperator_Strokes_Overlay(RFOperator):
         M = context.edit_object.matrix_world
         rgn, r3d = context.region, context.region_data
 
+        def get_label_pos(label, boundary):
+            if label == 'Strip':
+                mid = sum(boundary, Vector((0,0,0))) / len(boundary)
+                return min(boundary, key=lambda pt:(pt-mid).length)
+            top = max(boundary, key=lambda pt:location_3d_to_region_2d(rgn, r3d, M@pt).y)
+            return top
+
         if self.depsgraph_version != self.RFCore.depsgraph_version:
             self.depsgraph_version = self.RFCore.depsgraph_version
 
@@ -302,9 +309,8 @@ class RFOperator_Strokes_Overlay(RFOperator):
         # draw info about each selected boundary strip
         for (lbl, boundaries) in zip(['Strip', 'Cycle'], self.selected_boundaries):
             for boundary in boundaries:
-                mid = sum(boundary, Vector((0,0,0))) / len(boundary)
-                midpt = min(boundary, key=lambda pt:(pt-mid).length)
-                pos = location_3d_to_region_2d(rgn, r3d, M @ midpt)
+                lbl_pos = get_label_pos(lbl, boundary)
+                pos = location_3d_to_region_2d(rgn, r3d, M @ lbl_pos)
                 if not pos: continue
                 text = f'{lbl}: {len(boundary)}'
                 tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
