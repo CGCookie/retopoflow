@@ -131,12 +131,18 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             'smooth_density0':    initial_smooth_density0,
             'smooth_density1':    initial_smooth_density1,
         }
+        RFOperator_Stroke_Insert.strokes_reinsert(context)
+    @staticmethod
+    def strokes_reinsert(context):
+        data = RFOperator_Stroke_Insert.stroke_data
         bpy.ops.retopoflow.strokes_insert(
             'INVOKE_DEFAULT', True,
-            extrapolate_mode=extrapolate_mode,
-            smooth_angle=initial_smooth_angle,
-            smooth_density0=initial_smooth_density0,
-            smooth_density1=initial_smooth_density1,
+            extrapolate_mode=data['extrapolate'],
+            cut_count=data['cut_count'],
+            bridging_offset=data['bridging_offset'],
+            smooth_angle=data['smooth_angle'],
+            smooth_density0=data['smooth_density0'],
+            smooth_density1=data['smooth_density1'],
         )
 
     def draw(self, context):
@@ -231,21 +237,9 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
                 if last_op != RFOperator_Stroke_Insert.bl_label: return
-
-                data = RFOperator_Stroke_Insert.stroke_data
-
-                fn(context, data)
-
+                fn(context, RFOperator_Stroke_Insert.stroke_data)
                 bpy.ops.ed.undo()
-                bpy.ops.retopoflow.strokes_insert(
-                    'INVOKE_DEFAULT', True,
-                    extrapolate_mode=data['extrapolate'],
-                    cut_count=data['cut_count'],
-                    bridging_offset=data['bridging_offset'],
-                    smooth_angle=data['smooth_angle'],
-                    smooth_density0=data['smooth_density0'],
-                    smooth_density1=data['smooth_density1'],
-                )
+                RFOperator_Stroke_Insert.strokes_reinsert(context)
             return wrapped
         return wrapper
 
