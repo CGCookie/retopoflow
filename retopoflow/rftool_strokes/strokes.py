@@ -47,14 +47,17 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 from functools import wraps
 
 
-stroke_keymaps = []  # used to collect redo shortcuts
-class RFOperator_Stroke_Insert(RFOperator_Execute):
+class RFOperator_Stroke_Insert_Keymaps:
+    # used to collect redo shortcuts, which is filled in by redo_ fns below...
+    # note: cannot use RFOperator_Stroke_Insert.rf_keymaps, because RFOperator_Stroke_Insert
+    #       is not yet created!
+    rf_keymaps = []
+
+class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Execute):
     bl_idname = 'retopoflow.strokes_insert'
     bl_label = 'Strokes: Insert new stroke'
     bl_description = 'Insert edge strips and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
-
-    rf_keymaps = stroke_keymaps  # must point to stroke_keymaps, which is filled in by redo_ fns below...
 
     extrapolate_mode: bpy.props.EnumProperty(
         name='Strokes Extrapolate Mode',
@@ -219,8 +222,9 @@ class RFOperator_Stroke_Insert(RFOperator_Execute):
 
     @staticmethod
     def create_redo_operator(idname, description, keymap):
-        # add keymap to RFOperator_Stroke_Insert.rf_keymaps (note: still creating RFOperator_Stroke_Insert, so using stroke_keymaps as proxy)
-        stroke_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        # add keymap to RFOperator_Stroke_Insert.rf_keymaps
+        # note: still creating RFOperator_Stroke_Insert, so using RFOperator_Stroke_Insert_Keymaps.rf_keymaps
+        RFOperator_Stroke_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
         def wrapper(fn):
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
