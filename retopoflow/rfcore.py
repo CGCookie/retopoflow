@@ -25,7 +25,6 @@ import bl_ui
 
 import random
 
-from ..addon_common.hive.hive import Hive
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.reseter import Reseter
 from .common.bmesh import get_object_bmesh
@@ -137,7 +136,6 @@ class RFCore:
     def draw_menu_items(self, context):
         if context.mode != 'OBJECT': return
         self.layout.separator()
-        # self.layout.label(text=f'{Hive.get("name")}')
         RFCore_NewTarget_Cursor.draw_menu_item(self, context)
         RFCore_NewTarget_Active.draw_menu_item(self, context)
 
@@ -479,7 +477,7 @@ class RFCORE_PT_Panel(RFRegisterClass, bpy.types.Panel):
             layout = self.layout
             layout.separator()
             row = layout.row(align=True)
-            row.label(text=f'{Hive.get("short name")}')
+            row.label(text=f'RetopoFlow')
             row.operator('retopoflow.newtarget_cursor', text="", icon='CURSOR')
             row.operator('retopoflow.newtarget_active', text="", icon='MOD_MESHDEFORM')
 

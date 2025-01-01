@@ -219,7 +219,7 @@ class RFOperator_Contours(RFOperator):
 
 
 RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
-    RFOperator_Contours.bl_idname,
+    'retopoflow.contours',  # must match RFTool_base.bl_idname
     'contours_overlay',
     'Contours Selected Overlay',
     False,
