@@ -14,17 +14,17 @@
 # see https://ftp.gnu.org/old-gnu/Manuals/make-3.79.1/html_chapter/make_6.html
 
 # scripts
-HIVE_VAL          = $(shell pwd)/scripts/get_hive_value.py
+BLINFO_VAL        = $(shell pwd)/scripts/get_blinfo_value.py
 DEBUG_CLEANUP     = $(shell pwd)/addon_common/scripts/strip_debugging.py
 UPDATE_COPYRIGHT  = $(shell pwd)/addon_common/scripts/update_copyright_date.py
 DOCS_REBUILD      = $(shell pwd)/scripts/prep_help_for_online.py
 CREATE_THUMBNAILS = $(shell pwd)/scripts/create_thumbnails.py
 BLENDER           = ~/software/blender/blender
 
-# name, version, and release are pulled from hive.json file
-NAME    = "$(shell $(HIVE_VAL) name)"
-VERSION = "$(shell $(HIVE_VAL) version)"
-RELEASE = "$(shell $(HIVE_VAL) release)"
+# name, version, and release are pulled from bl_info in __init__.py file
+NAME    = "$(shell $(BLINFO_VAL) name)"
+VERSION = "$(shell $(BLINFO_VAL) version)"
+RELEASE = "$(shell $(BLINFO_VAL) warning Official)"
 
 VVERSION = "v$(VERSION)"
 ifeq ($(RELEASE), "official")
@@ -51,7 +51,7 @@ ZIP_BM            = $(NAME)_$(ZIP_VERSION)-BlenderMarket.zip
 
 info:
 	@echo "Information:"
-	@echo "  "$(NAME)" "$(ZIP_VERSION)
+	@echo "  Product:      "$(NAME)" "$(ZIP_VERSION)
 	@echo "  Build Path:   "$(BUILD_DIR)
 	@echo "  Folder:       "$(NAME)
 	@echo "  Install Path: "$(INSTALL_DIR)

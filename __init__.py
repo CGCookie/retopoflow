@@ -19,24 +19,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-
-# initialize deep debugging as early as possible
-# from .addon_common.terminal.deepdebug import DeepDebug
-# DeepDebug.init(
-#     fn_debug='RetopoFlow_debug.txt',
-#     clear=True,                         # clear deep debugging file every Blender session
-#     enable_only_once=True,              # only allow this feature to be enabled for one session
-# )
-
-
-
-#################################################################################################################################
-# NOTE: the following lines are automatically updated based on hive.json
-#       if "warning" is present (not commented out), a warning icon will show in add-ons list
 bl_info = {
     "name":         "RetopoFlow 4",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
-    "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
+    "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, JF Matheu, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (4, 0, 0),
     "version":      (4, 0, 2),
     "doc_url":      "https://docs.retopoflow.com",
@@ -45,11 +31,6 @@ bl_info = {
     "category":     "3D View",
     "warning":      "Alpha",
 }
-
-# update bl_info above based on hive data
-from .addon_common.hive.hive import Hive
-Hive.update_bl_info(bl_info, __file__)
-
 
 import bpy
 
@@ -66,10 +47,11 @@ if bpy.app.background:
         title='RetopoFlow', margin=' ', sides='double', color='black', highlight='blue',
     )
 
-elif bpy.app.version < Hive.get_version('blender hard minimum version'):
+elif bpy.app.version < bl_info['blender']:
+    vM,vm,vr = bl_info['blender']
     term_printer.boxed(
         f'Blender version does not meet hard requirements',
-        f'Minimum Blender Version: {Hive.get("blender hard minimum version")}',
+        f'Minimum Blender Version: {vM}.{vm}.{vr}',
         f'Skipping any further initialization',
         title='RetopoFlow', margin=' ', sides='double', color='black', highlight='red',
     )
