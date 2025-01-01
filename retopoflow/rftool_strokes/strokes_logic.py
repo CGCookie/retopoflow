@@ -499,7 +499,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs)
 
         self.cut_count = nspans
-        self.show_action = 'Cycle'
+        self.show_action = 'Loop'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -590,7 +590,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
         self.cut_count = nspans
-        self.show_action = 'Equals-cycle'
+        self.show_action = 'Equals-Loop'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -682,7 +682,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[-1] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'T-Cycle'
+        self.show_action = 'T-Loop'
         self.show_count = True
         self.show_extrapolate = False
 
@@ -774,7 +774,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, [row[i_larger] for row in bmvs])
 
         self.cut_count = nspans
-        self.show_action = 'I-Cycle'
+        self.show_action = 'I-Loop'
         self.show_count = True
         self.show_extrapolate = False
 

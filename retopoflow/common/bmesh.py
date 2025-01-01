@@ -136,6 +136,12 @@ def bme_midpoint(bme):
 def bme_other_bmv(bme, bmv):
     bmv0, bmv1 = bme.verts
     return bmv0 if bmv1 == bmv else bmv1
+def bme_other_bmf(bme, bmf):
+    return next((bmf_ for bmf_ in bme.link_faces if bmf_ != bmf), None)
+def bmes_share_bmv(bme0, bme1):
+    a0,a1 = bme0.verts
+    b0,b1 = bme1.verts
+    return (a0==b0) or (a0==b1) or (a1==b0) or (a1==b1)
 def bmes_shared_bmv(bme0, bme1):
     return next(iter(set(bme0.verts) & set(bme1.verts)), None)
 def bme_unshared_bmv(bme, bme_other):
@@ -151,6 +157,21 @@ def bme_length(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co - bmv1.co).length
 
+def bmf_midpoint(bmf):
+    return sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
+def bmf_radius(bmf):
+    mid = bmf_midpoint(bmf)
+    return max((bmv.co - mid).length for bmv in bmf.verts)
+def bmf_midpoint_radius(bmf):
+    mid = bmf_midpoint(bmf)
+    rad = max((bmv.co - mid).length for bmv in bmf.verts)
+    return (mid, rad)
+
+def bmf_is_quad(bmf):
+    return len(bmf.edges) == 4
+
+def quad_bmf_opposite_bme(bmf, bme):
+    return next(bme_ for bme_ in bmf.edges if not bmes_share_bmv(bme, bme_))
 
 def is_bmv_end(bmv, bmes):
     return len(set(bmv.link_edges) & bmes) != 2

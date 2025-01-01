@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import os
 import time
+import math
 import bmesh
 from itertools import chain
 from collections import defaultdict
@@ -36,7 +37,7 @@ from ..common.bmesh import (
     NearestBMVert, NearestBMEdge,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
     shared_bmv, crossed_quad,
-    bme_other_bmv,
+    bme_other_bmv, bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
     find_selected_cycle_or_path,
 )
@@ -98,6 +99,9 @@ class Contours_Logic:
         self.show_span_count = False
 
         try:
+            self.process_source()
+            if not self.cut_info: return
+            self.process_target()
             self.insert()
         except Exception as e:
             print(f'Exception caught: {e}')
@@ -272,207 +276,238 @@ class Contours_Logic:
             'mirror_clipped_loop': mirror_clipped_loop,
         }
 
-
-    def insert(self):
-        vertex_count = self.span_count
-        plane_cut = self.plane
-        context = self.context
-
+    def process_source(self):
+        # TODO: MOVE THIS CODE INTO generate_cut_info() ABOVE
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
         hit_bm = get_object_bmesh(hit_obj)
         hit_bmf = hit_bm.faces[self.hit['face_index']]
+        self.cut_info = self.generate_cut_info(self.context, self.plane, hit_obj, hit_bmf)
+        if not self.cut_info: return
+        self.points       = self.cut_info['points']
+        self.cyclic       = self.cut_info['cyclic']
+        self.plane_fit    = self.cut_info['plane_fit']
+        self.circle_fit   = self.cut_info['circle_fit']
+        self.path_length  = self.cut_info['path_length']
 
-        cut_info = self.generate_cut_info(context, plane_cut, hit_obj, hit_bmf)
-        if not cut_info: return
-        points       = cut_info['points']
-        cyclic       = cut_info['cyclic']
-        plane_fit    = cut_info['plane_fit']
-        circle_fit   = cut_info['circle_fit']
-        path_length  = cut_info['path_length']
-        if cut_info['mirror_clipped_loop']:
+    def process_target(self):
+        # did we hit current geometry and need to insert an edge loop?
+        self.edge_ring = None
+        self.cyclic_ring = False
+        self.sel_path = None
+        self.sel_cyclic = False
+        self.bridge = None
+
+        if not self.bm.verts: return
+
+        self.edge_ring = set()
+
+        M = self.matrix_world
+        rgn, r3d = self.rgn, self.r3d
+        po3 = self.plane.o
+        po2 = location_3d_to_region_2d(rgn, r3d, po3)
+
+        #################################################################################
+        # determine if cutting existing geometry by:
+        # - find quad-only bmface that crosses the plane and is under mouse
+        # - walk around geometry to find edges that should be cut
+        hit_co3 = self.hit['co_local']
+        hit_co2 = location_3d_to_region_2d(rgn, r3d, self.hit['co_world'])  # same as mouse unless view changes
+        inf = float('inf')
+        plane_fit = self.plane_fit
+        def distance_to_hit(bmf):
+            if not bmf_is_quad(bmf): return inf
+            center3, radius3 = bmf_midpoint_radius(bmf)
+            dist3 = (hit_co3 - center3).length
+            if dist3 > radius3: return inf
+            center2 = location_3d_to_region_2d(rgn, r3d, M @ center3)
+            return (hit_co2 - center2).length
+        bmf = min(self.bm.faces, default=None, key=distance_to_hit)
+        if bmf and math.isfinite(distance_to_hit(bmf)):
+            # hit bmface!
+            self.edge_ring = set()
+            self.cyclic_ring = False
+            first_attempt = True
+            for bme in bmf.edges:
+                if not plane_fit.bme_crosses(bme): continue  # ignore edges that do not cross plane
+                pre_bmf = bmf
+                while True:
+                    if bme in self.edge_ring:
+                        if first_attempt: self.cyclic_ring = True
+                        break
+                    self.edge_ring.add(bme)
+                    next_bmf = bme_other_bmf(bme, pre_bmf)
+                    if not next_bmf or not bmf_is_quad(next_bmf): break
+                    bme = quad_bmf_opposite_bme(next_bmf, bme)
+                    pre_bmf = next_bmf
+                first_attempt = False
+            # update cyclic to match cut-into geometry
+            # TODO: DO NOT OVERRIDE THIS HERE...
+            self.cyclic = self.cyclic_ring
+
+        # should we bridge with currently selected geometry?
+        self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3)
+        self.bridge = bool(self.sel_path) and (self.cyclic == self.sel_cyclic)
+
+    def insert(self):
+        if self.edge_ring:
+            # cut in new edge loop
+            self.insert_edge_ring()
+        elif self.bridge:
+            # extrude selection to cut
+            self.insert_bridge()
+        else:
+            self.insert_new_cut()
+        bmops.flush_selection(self.bm, self.em)
+
+    def insert_edge_ring(self):
+        bmeloops = {
+            bme_
+            for bme in self.edge_ring
+            for bmf in bme.link_faces
+            for bme_ in bmf.edges
+        } - self.edge_ring
+        # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, bmeloops)
+        nbmelems = bmesh.ops.subdivide_edgering(self.bm, edges=list(self.edge_ring), cuts=1)['faces']
+        nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
+
+        self.finish_edgering_bridge(nbmelems, nbmvs)
+        if self.cyclic:
+            self.action = 'Loop Cut'
+        else:
+            self.action = 'Strip Cut'
+
+    def insert_bridge(self):
+        nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
+        nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
+
+        self.finish_edgering_bridge(nbmelems, nbmvs)
+        if self.cyclic:
+            self.action = 'Bridging Loop'
+        else:
+            self.action = 'Bridging Strip'
+
+    def finish_edgering_bridge(self, nbmelems, nbmvs):
+        plane_fit = self.plane_fit
+        circle_fit = self.circle_fit
+        points = self.points
+
+        # compute useful statistics about newly created geometry
+        npoints = [Point(bmv.co) for bmv in nbmvs]
+        nplane_fit = Plane.fit_to_points(npoints)
+        ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
+
+        # compute xforms to roughly move new geometry to match cut
+        # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
+        # the two axes of two planes might not align....  although they _should_ if we're bridging
+        R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
+        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
+        T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
+        T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
+        xform = T1 @ R @ S @ T0
+        # transform all points, then snap to surface
+        for bmv in nbmvs:
+            npt = xform @ bvec_to_point(bmv.co)
+            npt_world = point_to_bvec3(self.matrix_world @ npt)
+            npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
+            npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            # should find closest point in points?
+            bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
+
+        if not self.cyclic:
+            # snap ends
+            if self.edge_ring:
+                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 2]
+            else:
+                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
+
+            if len(bmv_ends) != 2:
+                print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
+            else:
+                bmv0, bmv1 = bmv_ends
+                co0, co1 = bmv0.co, bmv1.co
+                pt0, pt1 = self.points[0], self.points[-1]
+                if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
+                    bmv0.co, bmv1.co = pt0, pt1
+                else:
+                    bmv0.co, bmv1.co = pt1, pt0
+
+        # make sure face normals are correct.  cannot do this earlier, because
+        # faces have no defined normal (verts overlap)
+        nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
+        ensure_correct_normals(self.bm, nbmfs)
+
+        # select newly created geometry
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, nbmvs)
+
+
+    def insert_new_cut(self):
+        path_length = self.path_length
+        points = self.points
+
+        vertex_count = self.span_count
+        if self.cut_info['mirror_clipped_loop']:
             # update vertex count, because the loop crosses mirror
             vertex_count = vertex_count // 2 + 1
 
-        # did we hit current geometry and need to insert an edge loop?
-        edge_ring = None
-        if self.bm.verts:
-            # find bmedges that cross the plane
-            edge_ring = set()
-            bmes = { bme for bme in self.bm.edges if plane_fit.edge_crosses((bme.verts[0].co, bme.verts[1].co)) }
-            for bmf in (bmf for bme in bmes for bmf in bme.link_faces):
-                if len(bmf.edges) != 4: continue
-                center3 = sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
-                radius3 = max((bmv.co - center3).length for bmv in bmf.verts)
-                dist3 = (self.hit['co_local'] - center3).length
-                pts2d = [
-                    location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
-                    for bmv in bmf.verts
-                ]
-                center2 = sum(pts2d, Vector((0,0))) / len(pts2d)
-                radius2 = max((pt2d - center2).length for pt2d in pts2d)
-                middle = location_3d_to_region_2d(context.region, context.region_data, self.plane.o)
-                dist2 = (middle - center2).length
-                if dist3 > radius3 or dist2 > radius2: continue
-                edge_ring = set()
-                cyclic_ring = False
-                first_attempt = True
-                for bme in {bme for bme in bmf.edges if bme in bmes}:
-                    pre_bmf = bmf
-                    while True:
-                        if bme in edge_ring:
-                            if first_attempt:
-                                cyclic_ring = True
-                            break
-                        edge_ring.add(bme)
-                        next_bmf = next((bmf for bmf in bme.link_faces if bmf != pre_bmf), None)
-                        if not next_bmf or len(next_bmf.edges) != 4: break
-                        bme = next(bme_ for bme_ in next_bmf.edges if not shared_bmv(bme, bme_))
-                        pre_bmf = next_bmf
-                    first_attempt = False
-                break
-            if edge_ring:
-                cyclic = cyclic_ring
-                print(f'{len(edge_ring)=} {cyclic=}')
-
-        # should we bridge with currently selected geometry?
-        sel_path, sel_cyclic = find_selected_cycle_or_path(self.bm, self.hit['co_local'])
-        bridge = sel_path and (cyclic == sel_cyclic)
-
-        ####################################################################################################
-        # create new geometry!
-
-        if bridge or edge_ring:
-            if edge_ring:
-                # cut in new edge loop
-                bmeloops = {
-                    bme_
-                    for bme in edge_ring
-                    for bmf in bme.link_faces
-                    for bme_ in bmf.edges
-                } - edge_ring
-                # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
-                bmops.deselect_all(self.bm)
-                bmops.select_iter(self.bm, bmeloops)
-                nbmelems = bmesh.ops.subdivide_edgering(self.bm, edges=list(edge_ring), cuts=1)['faces']
-                nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
-                npoints = [Point(bmv.co) for bmv in nbmvs]
-
-            elif bridge:
-                # extrude selection to cut
-                nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=sel_path)['geom']
-                nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
-                npoints = [Point(bmv.co) for bmv in nbmvs]
-
+        # find pts for new geometry
+        # note: might need to take a few attempts due to numerical precision
+        segment_count = vertex_count if self.cyclic else (vertex_count - 1)
+        true_segment_length = path_length / segment_count
+        factor_min, factor_max = 0.8, 1.2
+        for _ in range(100):
+            factor = (factor_min + factor_max) / 2
+            segment_length = true_segment_length * factor
+            dist, npts = 0, []
+            for pt0, pt1 in iter_pairs(points, self.cyclic):
+                v = pt1 - pt0
+                l = v.length
+                if dist > l:
+                    dist -= l
+                    continue
+                d = v / l
+                pt = pt0
+                while dist <= l:
+                    pt = pt + d * dist
+                    npts.append(pt)
+                    l -= dist
+                    dist = segment_length
+            if not self.cyclic: npts.append(points[-1])
+            diff = vertex_count - len(npts)
+            if diff == 0:
+                error = sum((pt0-pt1).length - true_segment_length for (pt0, pt1) in iter_pairs(points, self.cyclic))
+                (factor_min, factor_max) = (factor_min, factor) if error < 0 else (factor, factor_max)
             else:
-                assert False, f'Contours: should never reach here'
+                (factor_min, factor_max) = (factor_min, factor) if diff > 0 else (factor, factor_max)
 
-            # compute useful statistics about newly created geometry
-            nplane_fit = Plane.fit_to_points(npoints)
-            ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
+        # create geometry!
+        nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
+        bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, self.cyclic)]
 
-            # compute xforms to roughly move new geometry to match cut
-            # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
-            # the two axes of two planes might not align....  although they _should_ if we're bridging
-            R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
-            S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
-            T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
-            T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
-            xform = T1 @ R @ S @ T0
-            # transform all points, then snap to surface
-            for bmv in nbmvs:
-                npt = xform @ bvec_to_point(bmv.co)
-                npt_world = point_to_bvec3(self.matrix_world @ npt)
-                npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-                npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
-                # should find closest point in points?
-                bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
-
-            if not cyclic:
-                # snap ends
-                if edge_ring:
-                    bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 2]
+        if not self.cyclic:
+            # snap ends
+            bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_edges) == 1]
+            if len(bmv_ends) != 2:
+                print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
+            else:
+                bmv0, bmv1 = bmv_ends
+                co0, co1 = bmv0.co, bmv1.co
+                pt0, pt1 = points[0], points[-1]
+                if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
+                    bmv0.co, bmv1.co = pt0, pt1
                 else:
-                    bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_faces) == 1]
-                if len(bmv_ends) != 2:
-                    print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
-                else:
-                    bmv0, bmv1 = bmv_ends
-                    co0, co1 = bmv0.co, bmv1.co
-                    pt0, pt1 = points[0], points[-1]
-                    if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
-                        bmv0.co, bmv1.co = pt0, pt1
-                    else:
-                        bmv0.co, bmv1.co = pt1, pt0
+                    bmv0.co, bmv1.co = pt1, pt0
 
-            # make sure face normals are correct.  cannot do this earlier, because
-            # faces have no defined normal (verts overlap)
-            nbmfs = [bmelem for bmelem in nbmelems if type(bmelem) is BMFace]
-            ensure_correct_normals(self.bm, nbmfs)
-
-            select_now = nbmvs
-            select_later = []
-
+        if self.cyclic:
+            self.action = 'New Loop'
         else:
-            # find pts for new geometry
-            # note: might need to take a few attempts due to numerical precision
-            segment_count = vertex_count if cyclic else (vertex_count - 1)
-            true_segment_length = path_length / segment_count
-            factor_min, factor_max = 0.8, 1.2
-            for _ in range(100):
-                factor = (factor_min + factor_max) / 2
-                segment_length = true_segment_length * factor
-                dist, npts = 0, []
-                for pt0, pt1 in iter_pairs(points, cyclic):
-                    v = pt1 - pt0
-                    l = v.length
-                    if dist > l:
-                        dist -= l
-                        continue
-                    d = v / l
-                    pt = pt0
-                    while dist <= l:
-                        pt = pt + d * dist
-                        npts.append(pt)
-                        l -= dist
-                        dist = segment_length
-                if not cyclic: npts.append(points[-1])
-                diff = vertex_count - len(npts)
-                if diff == 0:
-                    error = sum((pt0-pt1).length - true_segment_length for (pt0, pt1) in iter_pairs(points, cyclic))
-                    (factor_min, factor_max) = (factor_min, factor) if error < 0 else (factor, factor_max)
-                else:
-                    (factor_min, factor_max) = (factor_min, factor) if diff > 0 else (factor, factor_max)
+            self.action = 'New Strip'
+        self.show_span_count = True
 
-            # create geometry!
-            nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]
-            select_now = list(nbmvs)
-            select_later = []
-            bmes = [self.bm.edges.new((bmv0, bmv1)) for (bmv0, bmv1) in iter_pairs(nbmvs, cyclic)]
-
-            if not cyclic:
-                # snap ends
-                bmv_ends = [bmv for bmv in nbmvs if len(bmv.link_edges) == 1]
-                if len(bmv_ends) != 2:
-                    print(f'CONTOURS WARNING: FOUND {len(bmv_ends)} ENDS ON NON-CYCLIC PATH!?')
-                else:
-                    bmv0, bmv1 = bmv_ends
-                    co0, co1 = bmv0.co, bmv1.co
-                    pt0, pt1 = points[0], points[-1]
-                    if (co0 - pt0).length + (co1 - pt1).length < (co0 - pt1).length + (co1 - pt0).length:
-                        bmv0.co, bmv1.co = pt0, pt1
-                    else:
-                        bmv0.co, bmv1.co = pt1, pt0
-
-            self.action = 'Cut'
-            self.show_span_count = True
-
+        # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, select_now)
-        bmops.select_later_iter(self.bm, select_later)
-
-        bmops.flush_selection(self.bm, self.em)
-        bmesh.update_edit_mesh(self.em)
-        #bpy.ops.ed.undo_push(message='Contours new cut')
-
+        bmops.select_iter(self.bm, nbmvs)
 

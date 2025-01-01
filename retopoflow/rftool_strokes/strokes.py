@@ -307,7 +307,7 @@ class RFOperator_Strokes_Overlay(RFOperator):
             self.selected_boundaries = (strips, cycles)
 
         # draw info about each selected boundary strip
-        for (lbl, boundaries) in zip(['Strip', 'Cycle'], self.selected_boundaries):
+        for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
             for boundary in boundaries:
                 lbl_pos = get_label_pos(lbl, boundary)
                 pos = location_3d_to_region_2d(rgn, r3d, M @ lbl_pos)

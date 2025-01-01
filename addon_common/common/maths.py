@@ -800,6 +800,10 @@ class Plane(Entity3D):
         # points on opposite sides of plane, might be parallel to plane...
         return self.line_intersection(p0, p1)
 
+    def bme_crosses(self, bme):
+        bmv0, bmv1 = bme.verts
+        return self.edge_crosses((bmv0.co, bmv1.co))
+
     def edge_crosses(self, points):
         p0, p1 = points
         s0, s1 = self.side(p0), self.side(p1)
