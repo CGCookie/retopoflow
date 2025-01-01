@@ -26,12 +26,24 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
+from ..common.maths import point_to_bvec4
+from ..common.raycast import raycast_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
+
+def is_point_hidden(context, pt, *, factor=0.999):
+    M = context.edit_object.matrix_world
+    point = M @ point_to_bvec4(pt)
+    hit = raycast_valid_sources(context, point)
+    if not hit: return False
+    ray_e = hit['ray_world'][0]
+    return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
 
 
 def get_label_pos(context, label, boundary):
     M = context.edit_object.matrix_world
     rgn, r3d = context.region, context.region_data
+
+    boundary = [pt for pt in boundary if not is_point_hidden(context, pt)]
 
     match label:
         case 'Strip':
@@ -75,7 +87,8 @@ def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_bounda
                 # find selected boundary strips
                 bm, _ = get_bmesh_emesh(context)
                 sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
-                if only_boundary:
+                any_boundary = any(bme.is_wire or bme.is_boundary for bme in sel_bmes)
+                if any_boundary or only_boundary:
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
                 strips, cycles = get_boundary_strips_cycles(sel_bmes)
                 strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
