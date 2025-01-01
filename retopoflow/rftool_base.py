@@ -25,6 +25,7 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     bl_space_type = 'VIEW_3D'
     bl_context_mode = 'EDIT_MESH'
     rf_brush = None
+    rf_overlay = None
 
     _subclasses = []
     def __init_subclass__(cls, **kwargs):

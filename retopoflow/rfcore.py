@@ -154,7 +154,10 @@ class RFCore:
             if prev_selected_RFTool_idname:
                 RFTools[prev_selected_RFTool_idname].deactivate(context)
             if RFCore.selected_RFTool_idname:
-                RFTools[RFCore.selected_RFTool_idname].activate(context)
+                rftool = RFTools[RFCore.selected_RFTool_idname]
+                rftool.activate(context)
+                if rftool.rf_overlay:
+                    rftool.rf_overlay.activate()
 
         if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
             RFCore.stop()

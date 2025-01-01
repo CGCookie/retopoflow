@@ -36,7 +36,7 @@ from ..common.bmesh import (
     clean_select_layers,
     NearestBMVert, NearestBMEdge,
     has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
-    shared_bmv, crossed_quad,
+    crossed_quad,
     bme_other_bmv, bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
     find_selected_cycle_or_path,
@@ -99,19 +99,23 @@ class Contours_Logic:
         self.show_span_count = False
 
         try:
-            self.process_source()
-            if not self.cut_info: return
+            if not self.process_source(): return
             self.process_target()
             self.insert()
         except Exception as e:
             print(f'Exception caught: {e}')
             debugger.print_exception()
 
-    def generate_cut_info(self, context, plane_cut, hit_obj, hit_bmf):
+    def process_source(self):
         '''
         generates cut info of high-res mesh (hit_obj) starting at hit_bmf
         '''
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
         M = hit_obj.matrix_world
+        hit_bm = get_object_bmesh(hit_obj)
+        hit_bmf = hit_bm.faces[self.hit['face_index']]
 
         # TODO: walk from hit_bmf to find bmf that crosses plane_cut
 
@@ -200,7 +204,7 @@ class Contours_Logic:
         path, cyclic = find_cycle_or_path()
         if len(path) < 2:
             print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
-            return None
+            return False
 
         ####################################################################################################
         # find points in order
@@ -258,7 +262,7 @@ class Contours_Logic:
 
         if len(points) < 3:
             print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
-            return None
+            return False
 
 
         ####################################################################################################
@@ -267,28 +271,14 @@ class Contours_Logic:
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
-        return {
-            'points': points,
-            'cyclic': cyclic,
-            'plane_fit': plane_fit,
-            'circle_fit': circle_fit,
-            'path_length': path_length,
-            'mirror_clipped_loop': mirror_clipped_loop,
-        }
+        self.points = points
+        self.cyclic = cyclic
+        self.plane_fit = plane_fit
+        self.circle_fit = circle_fit
+        self.path_length = path_length
+        self.mirror_clipped_loop = mirror_clipped_loop
 
-    def process_source(self):
-        # TODO: MOVE THIS CODE INTO generate_cut_info() ABOVE
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
-        hit_bm = get_object_bmesh(hit_obj)
-        hit_bmf = hit_bm.faces[self.hit['face_index']]
-        self.cut_info = self.generate_cut_info(self.context, self.plane, hit_obj, hit_bmf)
-        if not self.cut_info: return
-        self.points       = self.cut_info['points']
-        self.cyclic       = self.cut_info['cyclic']
-        self.plane_fit    = self.cut_info['plane_fit']
-        self.circle_fit   = self.cut_info['circle_fit']
-        self.path_length  = self.cut_info['path_length']
+        return True
 
     def process_target(self):
         # did we hit current geometry and need to insert an edge loop?
@@ -449,7 +439,7 @@ class Contours_Logic:
         points = self.points
 
         vertex_count = self.span_count
-        if self.cut_info['mirror_clipped_loop']:
+        if self.mirror_clipped_loop:
             # update vertex count, because the loop crosses mirror
             vertex_count = vertex_count // 2 + 1
 

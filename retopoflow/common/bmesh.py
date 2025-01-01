@@ -99,12 +99,6 @@ def verts_to_triangles(count):
 def bme_other_bmv(bme, bmv):
     return next((bmv_ for bmv_ in bme.verts if bmv_ != bmv), None)
 
-def shared_bmv(bme0, bme1):
-    bmv0, bmv1 = bme0.verts
-    if bmv0 in bme1.verts: return bmv0
-    if bmv1 in bme1.verts: return bmv1
-    return None
-
 def crossed_quad(pt0, pt1, pt2, pt3):
     v01 = pt1 - pt0
     v12 = pt2 - pt1

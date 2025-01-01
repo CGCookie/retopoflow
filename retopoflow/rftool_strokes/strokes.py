@@ -22,7 +22,10 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+
 from ..rfbrushes.strokes_brush import RFBrush_Strokes, RFOperator_StrokesBrush_Adjust
+from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
+
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
@@ -268,56 +271,6 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         data['smooth_angle'] += 0.25
 
 
-class RFOperator_Strokes_Overlay(RFOperator):
-    bl_idname = 'retopoflow.strokes_overlay'
-    bl_label = 'Strokes: Selected Overlay'
-    bl_description = 'Overlays info about selected boundary edges'
-    bl_options = { 'INTERNAL' }
-
-    def init(self, context, event):
-        self.depsgraph_version = None
-
-    def update(self, context, event):
-        is_done = (self.RFCore.selected_RFTool_idname != RFOperator_Strokes.bl_idname)
-        return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
-
-    def draw_postpixel_overlay(self, context):
-        is_done = (self.RFCore.selected_RFTool_idname != RFOperator_Strokes.bl_idname)
-        if is_done: return
-
-        M = context.edit_object.matrix_world
-        rgn, r3d = context.region, context.region_data
-
-        def get_label_pos(label, boundary):
-            if label == 'Strip':
-                mid = sum(boundary, Vector((0,0,0))) / len(boundary)
-                return min(boundary, key=lambda pt:(pt-mid).length)
-            top = max(boundary, key=lambda pt:location_3d_to_region_2d(rgn, r3d, M@pt).y)
-            return top
-
-        if self.depsgraph_version != self.RFCore.depsgraph_version:
-            self.depsgraph_version = self.RFCore.depsgraph_version
-
-            # find selected boundary strips
-            bm, _ = get_bmesh_emesh(context)
-            sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) if bme.is_wire or bme.is_boundary ]
-            strips, cycles = get_boundary_strips_cycles(sel_bmes)
-            strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
-            cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
-            self.selected_boundaries = (strips, cycles)
-
-        # draw info about each selected boundary strip
-        for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
-            for boundary in boundaries:
-                lbl_pos = get_label_pos(lbl, boundary)
-                pos = location_3d_to_region_2d(rgn, r3d, M @ lbl_pos)
-                if not pos: continue
-                text = f'{lbl}: {len(boundary)}'
-                tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
-                pos -= Vector((tw / 2, -th / 2))
-                Drawing.text_draw2D(text, pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
-
-
 class RFOperator_Strokes(RFOperator):
     bl_idname = 'retopoflow.strokes'
     bl_label = 'Strokes'
@@ -442,6 +395,14 @@ class RFOperator_Strokes(RFOperator):
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
+RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
+    RFOperator_Strokes.bl_idname,
+    'strokes_overlay',
+    'Strokes Selected Overlay',
+    True,
+)
+
+
 
 class RFTool_Strokes(RFTool_Base):
     bl_idname = "retopoflow.strokes"
@@ -452,6 +413,7 @@ class RFTool_Strokes(RFTool_Base):
     bl_operator = 'retopoflow.strokes'
 
     rf_brush = RFBrush_Strokes()
+    rf_overlay = RFOperator_Strokes_Overlay
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Strokes,
@@ -491,7 +453,6 @@ class RFTool_Strokes(RFTool_Base):
         cls.reseter['context.tool_settings.use_mesh_automerge'] = True
         cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
-        bpy.ops.retopoflow.strokes_overlay('INVOKE_DEFAULT')
 
     @classmethod
     def deactivate(cls, context):
