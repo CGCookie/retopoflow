@@ -30,7 +30,7 @@ from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 
-def is_point_hidden(context, pt, *, factor=0.999):
+def is_point_hidden(context, pt, *, factor=0.95):
     M = context.edit_object.matrix_world
     point = M @ point_to_bvec4(pt)
     hit = raycast_valid_sources(context, point)
@@ -44,6 +44,7 @@ def get_label_pos(context, label, boundary):
     rgn, r3d = context.region, context.region_data
 
     boundary = [pt for pt in boundary if not is_point_hidden(context, pt)]
+    if len(boundary) == 0: return None
 
     match label:
         case 'Strip':
@@ -87,13 +88,16 @@ def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_bounda
                 # find selected boundary strips
                 bm, _ = get_bmesh_emesh(context)
                 sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
-                any_boundary = any(bme.is_wire or bme.is_boundary for bme in sel_bmes)
-                if any_boundary or only_boundary:
+                if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
+                    # filter selected edges to only boundaries
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
-                strips, cycles = get_boundary_strips_cycles(sel_bmes)
-                strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
-                cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
-                self.selected_boundaries = (strips, cycles)
+                if len(sel_bmes) < 1000:
+                    strips, cycles = get_boundary_strips_cycles(sel_bmes)
+                    strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
+                    cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
+                    self.selected_boundaries = (strips, cycles)
+                else:
+                    self.selected_boundaries = ([], [])
 
             # draw info about each selected boundary strip
             for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
