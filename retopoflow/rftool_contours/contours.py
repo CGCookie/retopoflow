@@ -172,11 +172,11 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
     def decrease_spans(context, data):
-        data['twist'] -= 5
+        if data['show_twist']: data['twist'] -= 5
 
     @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
     def increase_spans(context, data):
-        data['twist'] += 5
+        if data['show_twist']: data['twist'] += 5
 
 
 

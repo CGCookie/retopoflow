@@ -391,7 +391,7 @@ class Contours_Logic:
 
         self.finish_edgering_bridge(nbmelems, nbmvs)
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
-        self.show_twist = True
+        self.show_twist = self.cyclic
 
     def insert_bridge(self):
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
@@ -399,7 +399,7 @@ class Contours_Logic:
 
         self.finish_edgering_bridge(nbmelems, nbmvs)
         self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
-        self.show_twist = True
+        self.show_twist = self.cyclic
 
     def finish_edgering_bridge(self, nbmelems, nbmvs):
         plane_fit = self.plane_fit
