@@ -421,19 +421,19 @@ class Contours_Logic:
         RT = Matrix.Rotation(math.radians(self.twist), 4, plane_fit.n)
         T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
         xform = T1 @ RT @ R @ S @ T0
-        # transform all points, then snap to surface
+        # transform points
         for bmv in nbmvs:
-            npt = xform @ bvec_to_point(bmv.co)
-            npt_world = point_to_bvec3(self.matrix_world @ npt)
+            bmv.co = point_to_bvec3(xform @ bvec_to_point(bmv.co))
+
+        # snap to surface
+        for bmv in nbmvs:
+            npt_local = bvec_to_point(bmv.co)
+            npt_world = point_to_bvec3(self.matrix_world @ npt_local)
             npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
             npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
-            # should find closest point in points?
             closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
             bmv.co = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
 
-            # bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
-
-            # bmv.co = self.matrix_world_inv @ npt_world
 
         if not self.cyclic:
             # snap ends
