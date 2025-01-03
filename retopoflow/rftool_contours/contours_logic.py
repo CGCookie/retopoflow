@@ -50,6 +50,7 @@ from ..common.operator import (
 from ..common.maths import (
     bvec_to_point, point_to_bvec3, vector_to_bvec3,
     pt_x0, pt_y0, pt_z0,
+    lerp,
 )
 from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources,
@@ -84,7 +85,7 @@ from ..common.drawing import (
 
 
 class Contours_Logic:
-    def __init__(self, context, initial, hit, plane, span_count):
+    def __init__(self, context, initial, hit, plane, span_count, twist):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -97,6 +98,8 @@ class Contours_Logic:
         self.action = ''
         self.span_count = span_count
         self.show_span_count = False
+        self.twist = twist % 360
+        self.show_twist = False
 
         try:
             if not self.process_source(): return
@@ -108,7 +111,7 @@ class Contours_Logic:
 
     def process_source(self):
         '''
-        generates cut info of high-res mesh (hit_obj) starting at hit_bmf
+        gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
         '''
         context = self.context
         plane_cut = self.plane
@@ -119,33 +122,34 @@ class Contours_Logic:
 
         # TODO: walk from hit_bmf to find bmf that crosses plane_cut
 
+
         ####################################################################################################
         # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
         # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
+
         def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
         def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
         def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
         def bme_intersect_plane(bme):
-            bmv0, bmv1 = bme.verts
-            co0, co1 = M @ bmv0.co, M @ bmv1.co
+            co0, co1 = (M @ bmv.co for bmv in bme.verts)
             s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
             if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
-            f = s0 / (s0 - s1)
-            return co0 + (co1 - co0) * f
+            return co0 + (co1 - co0) * (s0 / (s0 - s1))
         def intersect_plane(bmelem):
             fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
             return fn(bmelem)
+
         bmf_graph = {}
         bmf_intersections = defaultdict(dict)
         working = { hit_bmf }
         while working:
             bmf = working.pop()
-            if bmf in bmf_graph: continue
+            if bmf in bmf_graph: continue  # already processed
             bmf_graph[bmf] = set()
             for bmelem in chain(bmf.verts, bmf.edges):
                 co = intersect_plane(bmelem)
                 if not co: continue
-                bmfs = set(bmelem.link_faces)
+                bmfs = set(bmelem.link_faces) - {bmf}
                 working |= bmfs
                 bmf_graph[bmf] |= bmfs
                 bmf_intersections[bmf][bmelem] = co
@@ -155,14 +159,17 @@ class Contours_Logic:
 
         ####################################################################################################
         # find longest cycle or path in bmf_graph
+
         def find_cycle_or_path():
             longest_path = []
             longest_cycle = []
 
             start_bmfs = {
                 bmf for bmf in bmf_intersections
-                if any(type(bmelem) is BMVert for bmelem in bmf_intersections[bmf])
-                or any(type(bmelem) is BMEdge and len(bmelem.link_faces) == 1 for bmelem in bmf_intersections[bmf])
+                if any(
+                    (type(bmelem) is BMVert) or (type(bmelem) is BMEdge and len(bmelem.link_faces) == 1)
+                    for bmelem in bmf_intersections[bmf]
+                )
             }
             if not start_bmfs: start_bmfs = set(bmf_graph.keys())
 
@@ -206,8 +213,10 @@ class Contours_Logic:
             print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
             return False
 
+
         ####################################################################################################
         # find points in order
+
         points = []
         def add_path_end(bmf):
             bmelem = next((
@@ -218,12 +227,25 @@ class Contours_Logic:
         if not cyclic: points += add_path_end(path[0])
         points += [
             self.matrix_world_inv @ bmf_intersections[bmf0][bmf1]
-            for (bmf0, bmf1) in iter_pairs(path, False)
+            for (bmf0, bmf1) in iter_pairs(path, cyclic)
         ]
         if not cyclic: points += add_path_end(path[-1])
 
+
+        ####################################################################################################
+        # subdivide for better circle-fitting
+        subdiv = 10
+        points = [
+            pt
+            for (p0, p1) in iter_pairs(points, cyclic)
+            for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
+        ]
+
+
+
         ####################################################################################################
         # handle cutting across mirror planes
+
         mirror_clipped_loop = False
         if has_mirror_x(context) and any(pt.x < 0 for pt in points):
             # NOTE: considers ONLY the positive x side of mirror!
@@ -267,16 +289,17 @@ class Contours_Logic:
 
         ####################################################################################################
         # compute useful statistics about points
+
         plane_fit = Plane.fit_to_points(points)
         circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
         path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
 
-        self.points = points
-        self.cyclic = cyclic
-        self.plane_fit = plane_fit
-        self.circle_fit = circle_fit
-        self.path_length = path_length
-        self.mirror_clipped_loop = mirror_clipped_loop
+        self.points = points                            # points where cut crosses source (target space)
+        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
 
         return True
 
@@ -351,33 +374,31 @@ class Contours_Logic:
         bmops.flush_selection(self.bm, self.em)
 
     def insert_edge_ring(self):
+        # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
+        # select only the edges on either side of cut
         bmeloops = {
             bme_
             for bme in self.edge_ring
             for bmf in bme.link_faces
             for bme_ in bmf.edges
         } - self.edge_ring
-        # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmeloops)
         nbmelems = bmesh.ops.subdivide_edgering(self.bm, edges=list(self.edge_ring), cuts=1)['faces']
+        # newly created verts will not be selected
         nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
 
         self.finish_edgering_bridge(nbmelems, nbmvs)
-        if self.cyclic:
-            self.action = 'Loop Cut'
-        else:
-            self.action = 'Strip Cut'
+        self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
+        self.show_twist = True
 
     def insert_bridge(self):
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
         self.finish_edgering_bridge(nbmelems, nbmvs)
-        if self.cyclic:
-            self.action = 'Bridging Loop'
-        else:
-            self.action = 'Bridging Strip'
+        self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
+        self.show_twist = True
 
     def finish_edgering_bridge(self, nbmelems, nbmvs):
         plane_fit = self.plane_fit
@@ -387,16 +408,18 @@ class Contours_Logic:
         # compute useful statistics about newly created geometry
         npoints = [Point(bmv.co) for bmv in nbmvs]
         nplane_fit = Plane.fit_to_points(npoints)
+        if plane_fit.n.dot(nplane_fit.n) < 0: nplane_fit.n.negate()  # make sure both planes are oriented the same
         ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
 
         # compute xforms to roughly move new geometry to match cut
         # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
         # the two axes of two planes might not align....  although they _should_ if we're bridging
-        R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
-        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
         T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
+        S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
+        R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
+        RT = Matrix.Rotation(math.radians(self.twist), 4, plane_fit.n)
         T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
-        xform = T1 @ R @ S @ T0
+        xform = T1 @ RT @ R @ S @ T0
         # transform all points, then snap to surface
         for bmv in nbmvs:
             npt = xform @ bvec_to_point(bmv.co)
@@ -404,7 +427,12 @@ class Contours_Logic:
             npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
             npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
             # should find closest point in points?
-            bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
+            closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
+            bmv.co = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
+
+            # bmv.co = min(((pt, (pt-npt_local_snapped).length) for pt in points), key=lambda ptd:ptd[1])[0]
+
+            # bmv.co = self.matrix_world_inv @ npt_world
 
         if not self.cyclic:
             # snap ends
@@ -438,40 +466,62 @@ class Contours_Logic:
         path_length = self.path_length
         points = self.points
 
-        vertex_count = self.span_count
+        segment_count = self.span_count
+        vertex_count = self.span_count if self.cyclic else self.span_count + 1
         if self.mirror_clipped_loop:
             # update vertex count, because the loop crosses mirror
             vertex_count = vertex_count // 2 + 1
 
         # find pts for new geometry
         # note: might need to take a few attempts due to numerical precision
-        segment_count = vertex_count if self.cyclic else (vertex_count - 1)
         true_segment_length = path_length / segment_count
         factor_min, factor_max = 0.8, 1.2
-        for _ in range(100):
+        best_npts = None
+        for _ in range(10):
             factor = (factor_min + factor_max) / 2
             segment_length = true_segment_length * factor
             dist, npts = 0, []
             for pt0, pt1 in iter_pairs(points, self.cyclic):
-                v = pt1 - pt0
-                l = v.length
-                if dist > l:
-                    dist -= l
+                vec01 = pt1 - pt0
+                len01 = vec01.length
+                if dist > len01:
+                    dist -= len01
                     continue
-                d = v / l
+                dir01 = vec01 / len01
                 pt = pt0
-                while dist <= l:
-                    pt = pt + d * dist
+                while dist <= len01:
+                    pt = pt + dir01 * dist
                     npts.append(pt)
-                    l -= dist
+                    len01 -= dist
                     dist = segment_length
+                dist -= len01
             if not self.cyclic: npts.append(points[-1])
-            diff = vertex_count - len(npts)
-            if diff == 0:
-                error = sum((pt0-pt1).length - true_segment_length for (pt0, pt1) in iter_pairs(points, self.cyclic))
-                (factor_min, factor_max) = (factor_min, factor) if error < 0 else (factor, factor_max)
+
+            if len(npts) == vertex_count:
+                # found exact number of verts!
+                best_npts = npts
+                final_dist = (npts[0] - npts[-1]).length if self.cyclic else (npts[-1] - npts[-2]).length
+                if final_dist < true_segment_length:
+                    # last segment is too short; take shorter steps
+                    factor_min, factor_max = factor_min, factor
+                else:
+                    # last segment is too long; take longer steps
+                    factor_min, factor_max = factor, factor_max
+                # error = sum((pt0-pt1).length - true_segment_length for (pt0, pt1) in iter_pairs(points, self.cyclic))
+                # (factor_min, factor_max) = (factor_min, factor) if error < 0 else (factor, factor_max)
+            elif len(npts) < vertex_count:
+                # too few points found; need more points
+                # reduce factor to take smaller steps
+                factor_min, factor_max = factor_min, factor
             else:
-                (factor_min, factor_max) = (factor_min, factor) if diff > 0 else (factor, factor_max)
+                # too many points found (which is ok); try finding fewer points
+                # increase factor to take larger steps
+                factor_min, factor_max = factor, factor_max
+                if not best_npts or len(npts) <= len(best_npts):
+                    best_npts = npts
+        npts = best_npts
+        assert npts, f'Could not find enough points!?'
+        assert len(npts) >= vertex_count
 
         # create geometry!
         nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]

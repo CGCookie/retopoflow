@@ -68,6 +68,11 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
         min=3,
         max=100,
     )
+    twist: bpy.props.IntProperty(
+        name='Rotate Cut',
+        description='Rotate cut',
+        default=0,
+    )
 
     contours_data = None
 
@@ -80,6 +85,8 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
             'plane':           plane,
             'show_span_count': False,
             'span_count':      initial_span_count,
+            'show_twist':      False,
+            'twist':           0,
         }
         RFOperator_Contours_Insert.contours_reinsert(context)
 
@@ -89,6 +96,7 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
         bpy.ops.retopoflow.contours_insert(
             'INVOKE_DEFAULT', True,
             span_count=data['span_count'],
+            twist=data['twist'],
         )
 
     def draw(self, context):
@@ -104,6 +112,10 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
             grid.label(text=f'Spans')
             grid.prop(self, 'span_count', text='')
 
+        if data['show_twist']:
+            grid.label(text=f'Twist')
+            grid.prop(self, 'twist', text='')
+
     def execute(self, context):
         data = RFOperator_Contours_Insert.contours_data
         try:
@@ -113,12 +125,16 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
                 data['hit'],
                 data['plane'],
                 data['span_count'] if data['initial'] else self.span_count,
+                self.twist,
             )
             if data['initial']:
                 data['initial'] = False
             data['action'] = logic.action
             data['show_span_count'] = logic.show_span_count
             data['span_count'] = logic.span_count
+            # self.twist = logic.twist
+            data['show_twist'] = logic.show_twist
+            data['twist'] = self.twist
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -153,6 +169,14 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
     def increase_spans(context, data):
         data['span_count'] += 1
+
+    @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    def decrease_spans(context, data):
+        data['twist'] -= 5
+
+    @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    def increase_spans(context, data):
+        data['twist'] += 5
 
 
 
