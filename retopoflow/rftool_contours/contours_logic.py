@@ -240,6 +240,7 @@ class Contours_Logic:
             for (p0, p1) in iter_pairs(points, cyclic)
             for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
         ]
+        if not cyclic: points += add_path_end(path[-1])
 
 
 
