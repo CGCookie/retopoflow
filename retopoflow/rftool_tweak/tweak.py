@@ -212,6 +212,9 @@ class RFTool_Tweak(RFTool_Base):
             layout.prop(props, 'brush_radius')
             layout.prop(props, 'brush_falloff')
             layout.prop(props, 'brush_strength')
+            layout.prop(props, 'mask_selected', text="Selected")
+            layout.prop(props, 'mask_boundary', text="Boundary")
+            layout.prop(props, 'mask_occluded', text="Occluded")
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='tweak_brush_panel', default_closed=False)
             header.label(text="Brush")
@@ -223,10 +226,10 @@ class RFTool_Tweak(RFTool_Base):
             header, panel = layout.panel(idname='tweak_masking_panel', default_closed=False)
             header.label(text="Masking")
             if panel:
+                panel.prop(props, 'mask_selected', text="Selected")
                 panel.prop(props, 'mask_boundary', text="Boundary")
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 panel.prop(props, 'mask_occluded', text="Occluded")
-                panel.prop(props, 'mask_selected', text="Selected")
 
         else:
             print(f'RFTool_Tweak.draw_settings: {context.region.type=}')

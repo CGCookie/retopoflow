@@ -218,14 +218,27 @@ class RFTool_PolyPen(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        # layout.label(text="PolyPen")
         props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
-        layout.prop(props_polypen, 'insert_mode')
-        if props_polypen.insert_mode == 'QUAD-ONLY':
-            layout.prop(props_polypen, 'quad_stability', slider=True)
-        layout.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
-        layout.prop(props_translate, 'distance2d')
+
+        if context.region.type == 'TOOL_HEADER':
+            layout.prop(props_polypen, 'insert_mode', text='Insert')
+            if props_polypen.insert_mode == 'QUAD-ONLY':
+                layout.prop(props_polypen, 'quad_stability', slider=True)
+            layout.label(text="Tweak:")
+            layout.prop(props_translate, 'distance2d')
+        else:
+            header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)
+            header.label(text="Insert")
+            if panel:
+                panel.prop(props_polypen, 'insert_mode', text='Method')
+                if props_polypen.insert_mode == 'QUAD-ONLY':
+                    panel.prop(props_polypen, 'quad_stability', slider=True)
+            header, panel = layout.panel(idname='polypen_general_panel', default_closed=False)
+            header.label(text="Tweak")
+            if panel:
+                panel.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
+                panel.prop(props_translate, 'distance2d')
 
     @classmethod
     def activate(cls, context):

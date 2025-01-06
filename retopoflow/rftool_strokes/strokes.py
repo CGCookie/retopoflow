@@ -428,24 +428,38 @@ class RFTool_Strokes(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Spans:")
-            layout.prop(props_strokes, 'span_insert_mode', text='')
+            row = layout.row(align=True)
+            row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
-                layout.prop(props_strokes, 'initial_cut_count', text="Count")
-            layout.prop(props_strokes, 'extrapolate_mode', text='')
+                row.prop(props_strokes, 'initial_cut_count', text="")
+            layout.prop(props_strokes, 'extrapolate_mode', expand=True)
+            layout.label(text="Smoothing:")
+            layout.prop(props_strokes, 'initial_smooth_angle', text='')
+            layout.label(text="Spacing:")
+            row = layout.row(align=True)
+            row.prop(props_strokes, 'initial_smooth_density0', text='')
+            row.prop(props_strokes, 'initial_smooth_density1', text='')
+            layout.label(text="Tweak:")
+            layout.prop(props_translate, 'distance2d')
+            # layout.prop(context.tool_settings, 'use_mesh_automerge', text='')
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Spans")
             if panel:
-                panel.prop(props_strokes, 'span_insert_mode', text='Method')
+                panel.prop(props_strokes, 'span_insert_mode', text='Count')
                 if props_strokes.span_insert_mode == 'FIXED':
-                    panel.prop(props_strokes, 'initial_cut_count', text="Count")
-                panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolate')
-                panel.prop(props_strokes, 'initial_smooth_angle', text='Angle')
-                panel.prop(props_strokes, 'initial_smooth_density0', text='Density')
-                panel.prop(props_strokes, 'initial_smooth_density1', text='Density')
-
-        layout.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
-        layout.prop(props_translate, 'distance2d')
+                    panel.prop(props_strokes, 'initial_cut_count', text=" ")
+                row = panel.row()
+                row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation', expand=True)
+                panel.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
+                col = panel.column(align=True)
+                col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
+                col.prop(props_strokes, 'initial_smooth_density1', text='End')
+            header, panel = layout.panel(idname='strokes_general_panel', default_closed=False)
+            header.label(text="Tweak")
+            if panel:
+                panel.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
+                panel.prop(props_translate, 'distance2d')
 
     @classmethod
     def activate(cls, context):
