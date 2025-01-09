@@ -662,7 +662,7 @@ class FrameBuffer:
         self._tex_depth = gpu.types.GPUTexture((self._width, self._height), format='DEPTH_COMPONENT32F')
 
         self._framebuffer = gpu.types.GPUFrameBuffer(
-            color_slots={ 'texture': self._tex_color },
+            color_slots=(self._tex_color, ),
             depth_slot=self._tex_depth,
         )
 
