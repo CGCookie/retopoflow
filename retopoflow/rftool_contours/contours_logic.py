@@ -123,26 +123,19 @@ class Contours_Logic:
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
 
-        center = Vector((self.circle_hit[0], self.circle_hit[1], 0))
-        radius = 1.0 # float(self.circle_hit[2])
+        center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
         nsamples = 100
-        points_plane = [
-            center + radius * Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0))
+        dirs_plane = [
+            Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0, 0))
             for d in range(nsamples)
         ]
-        # points_world = [
-        #     nearest_point_valid_sources(self.context, self.plane.l2w_point(pt_plane), world=True)
-        #     for pt_plane in points_plane
-        # ]
 
-        center_world = plane_cut.l2w_point(center)
-        def ray_to(pt_plane):
-            pt_world = plane_cut.l2w_point(pt_plane)
-            dir_world = (pt_world - center_world).normalized()
-            return (center_world, Vector((*dir_world, 0.0)))
+        center_world = plane_cut.l2w_point(center_plane)
+        dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
+        rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
         points_world = [
-            raycast_ray_valid_sources(self.context, ray_to(pt_plane), world=True)
-            for pt_plane in points_plane
+            raycast_ray_valid_sources(self.context, ray_world, world=True)
+            for ray_world in rays_world
         ]
 
         points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]

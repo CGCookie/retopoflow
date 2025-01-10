@@ -707,6 +707,10 @@ class Plane(Entity3D):
         return self.frame.w2l_point(p)
     def l2w_point(self, p: Point):
         return self.frame.l2w_point(p)
+    def w2l_direction(self, d: Direction):
+        return self.frame.w2l_direction(d)
+    def l2w_direction(self, d: Direction):
+        return self.frame.l2w_direction(d)
 
     def polygon_intersects(self, points: List[Point]):
         return abs(sum(self.side(p) for p in points)) != len(points)

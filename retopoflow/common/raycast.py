@@ -193,7 +193,7 @@ def raycast_ray_valid_sources(context, ray_world, *, world=True):
         Mi = M.inverted()
         ray_local = (
             Mi @ ray_world[0],
-            (Mi @ ray_world[1]).normalized(),
+            (Mi @ vector_to_bvec4(ray_world[1])).normalized(),
         )
         result, co, normal, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
         if not result: continue
