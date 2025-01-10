@@ -58,7 +58,7 @@ def get_label_pos(context, label, boundary):
             assert False, f'Unhandled {label=}'
 
 
-def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_boundary):
+def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
     class RFOperator_LoopStrip_Selection_Overlay(RFOperator):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
@@ -76,7 +76,7 @@ def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_bounda
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             return {'CANCELLED'} if is_done else {'PASS_THROUGH'}
 
-        def draw_postpixel_overlay(self, context):
+        def draw_postpixel_overlay(self):
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
 
@@ -86,7 +86,7 @@ def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_bounda
                 self.depsgraph_version = self.RFCore.depsgraph_version
 
                 # find selected boundary strips
-                bm, _ = get_bmesh_emesh(context)
+                bm, _ = get_bmesh_emesh(bpy.context)
                 sel_bmes = [ bme for bme in bmops.get_all_selected_bmedges(bm) ]
                 if only_boundary or any(bme.is_wire or bme.is_boundary for bme in sel_bmes):
                     # filter selected edges to only boundaries
@@ -102,11 +102,12 @@ def create_loopstrip_selection_overlay(rftool_idname, idname, label, only_bounda
             # draw info about each selected boundary strip
             for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
                 for boundary in boundaries:
-                    lbl_pos = get_label_pos(context, lbl, boundary)
+                    lbl_pos = get_label_pos(bpy.context, lbl, boundary)
                     if not lbl_pos: continue
                     text = f'{lbl}: {len(boundary)}'
                     tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                     lbl_pos -= Vector((tw / 2, -th / 2))
                     Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
+    RFOperator_LoopStrip_Selection_Overlay.__name__ = opname
 
     return RFOperator_LoopStrip_Selection_Overlay

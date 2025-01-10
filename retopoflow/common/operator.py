@@ -149,7 +149,7 @@ class RFOperator(bpy.types.Operator):
 
         if hasattr(self, 'draw_postpixel_overlay'):
             wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
-            self._draw_postpixel_overlay = space.draw_handler_add(self.draw_postpixel_overlay, (context,), 'WINDOW', 'POST_PIXEL')
+            self._draw_postpixel_overlay = space.draw_handler_add(self.draw_postpixel_overlay, (), 'WINDOW', 'POST_PIXEL')
         else:
             self._draw_postpixel_overlay = None
 
@@ -199,6 +199,7 @@ class RFOperator(bpy.types.Operator):
             if self._draw_postpixel_overlay:
                 wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
                 space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
+                self._draw_postpixel_overlay = None
             if RFOperator.active_operator() != self:
                 # print(f'RFOperator: currently finishing operator is not top??')
                 # print(self)

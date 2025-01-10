@@ -396,6 +396,7 @@ class RFOperator_Strokes(RFOperator):
 
 
 RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
+    'RFOperator_Strokes_Selection_Overlay',
     'retopoflow.strokes',  # must match RFTool_base.bl_idname
     'strokes_overlay',
     'Strokes Selected Overlay',
