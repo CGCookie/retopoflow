@@ -54,7 +54,7 @@ from ..common.maths import (
 )
 from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources,
-    nearest_point_valid_sources, nearest_normal_valid_sources,
+    nearest_point_valid_sources, nearest_normal_valid_sources, raycast_ray_valid_sources,
     size2D_to_size,
     vec_forward,
     mouse_from_event,
@@ -68,6 +68,7 @@ from ...addon_common.common.maths import (
     Point2D, Point, Normal, Vector, Plane,
     closest_point_segment,
 )
+from ...addon_common.common.profiler import time_it
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs, rotate_cycle
 from ...addon_common.ext.circle_fit import hyperLSQ
@@ -85,15 +86,17 @@ from ..common.drawing import (
 
 
 class Contours_Logic:
-    def __init__(self, context, initial, hit, plane, span_count, twist):
+    def __init__(self, context, initial, hit, plane, span_count, twist, circle_hit, process_source_method):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.context, self.rgn, self.r3d = context, context.region, context.region_data
 
-        self.plane = plane
+        self.plane = plane            # world space
         self.hit = hit
+        self.circle_hit = circle_hit  # plane space
+        self.process_source_method = process_source_method
 
         self.action = ''
         self.span_count = span_count
@@ -110,6 +113,77 @@ class Contours_Logic:
             debugger.print_exception()
 
     def process_source(self):
+        if self.process_source_method == 'fast':
+            return self.process_source_fast()
+        return self.process_source_walk()
+
+    def process_source_fast(self):
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+
+        center = Vector((self.circle_hit[0], self.circle_hit[1], 0))
+        radius = 1.0 # float(self.circle_hit[2])
+        nsamples = 100
+        points_plane = [
+            center + radius * Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0))
+            for d in range(nsamples)
+        ]
+        # points_world = [
+        #     nearest_point_valid_sources(self.context, self.plane.l2w_point(pt_plane), world=True)
+        #     for pt_plane in points_plane
+        # ]
+
+        center_world = plane_cut.l2w_point(center)
+        def ray_to(pt_plane):
+            pt_world = plane_cut.l2w_point(pt_plane)
+            dir_world = (pt_world - center_world).normalized()
+            return (center_world, Vector((*dir_world, 0.0)))
+        points_world = [
+            raycast_ray_valid_sources(self.context, ray_to(pt_plane), world=True)
+            for pt_plane in points_plane
+        ]
+
+        points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
+        cyclic = True
+        mirror_clipped_loop = False
+
+        ####################################################################################################
+        # compute useful statistics about points
+
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        self.points = points                            # points where cut crosses source (target space)
+        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
+
+    def process_source_cuts(self):
+        hit_bm = get_object_bmesh(hit_obj)
+        hit_bmf = hit_bm.faces[self.hit['face_index']]
+
+        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
+        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
+        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
+        def bme_intersect_plane(bme):
+            co0, co1 = (M @ bmv.co for bmv in bme.verts)
+            s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
+            if (s0 < 0 and s1 < 0) or (s0 > 0 and s1 > 0): return None
+            return co0 + (co1 - co0) * (s0 / (s0 - s1))
+        def intersect_plane(bmelem):
+            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
+            return fn(bmelem)
+
+        cut_bmes = [bme for bme in hit_bm.edges if bme_intersect_plane(bme)]
+
+    def process_source_walk(self):
         '''
         gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
         '''
@@ -424,6 +498,24 @@ class Contours_Logic:
         # transform points
         for bmv in nbmvs:
             bmv.co = point_to_bvec3(xform @ bvec_to_point(bmv.co))
+
+        # find closest points between new target and cut source
+        best = None
+        for bmv in nbmvs:
+            npt_local = bvec_to_point(bmv.co)
+            npt_world = point_to_bvec3(self.matrix_world @ npt_local)
+            npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
+            npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
+            closest_pt = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
+            dist = (npt_local - closest_pt).length
+            if best and best['dist'] <= dist: continue
+            best = {
+                'bmv': bmv,
+                'closest_pt': closest_pt,
+                'dist': dist,
+            }
+        print(f'{best=}')
 
         # snap to surface
         for bmv in nbmvs:

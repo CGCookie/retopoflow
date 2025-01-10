@@ -67,6 +67,8 @@ def ray_from_mouse(context, event):
     )
 
 def ray_from_point(context, point):
+    # if point is 2d, treat as being in screen space
+    # if 3d, treat as world space
     if not context.region_data: return (None, None)
     if len(point) > 2:
         point = location_3d_to_region_2d(context.region, context.region_data, point)
@@ -120,8 +122,8 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context, point_world):
-    ray_world = ray_from_point(context, point_world)
+def raycast_valid_sources(context, point):
+    ray_world = ray_from_point(context, point)
 
     # print(f'raycast_valid_sources {ray_world=}')
     if ray_world[0] is None: return None
@@ -176,8 +178,11 @@ def raycast_valid_sources(context, point_world):
     #     hit = Mi @ hit
     # return hit.xyz
 
-def raycast_point_valid_sources(context, point_world, *, world=True):
+def raycast_point_valid_sources(context, point_world, **kwargs):
     ray_world = ray_from_point(context, point_world)
+    return raycast_ray_valid_sources(context, ray_world, **kwargs)
+
+def raycast_ray_valid_sources(context, ray_world, *, world=True):
     if ray_world[0] is None: return None
 
     best_hit = None

@@ -42,11 +42,13 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.reseter import Reseter
+from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 from .contours_logic import Contours_Logic
 from functools import wraps
+import itertools
 
 
 class RFOperator_Contours_Insert_Keymaps:
@@ -73,30 +75,41 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
         description='Rotate cut',
         default=0,
     )
+    process_source_method: bpy.props.EnumProperty(
+        name='Process Source Method',
+        description="Source processing method",
+        items=[
+            ('fast', 'Fast', 'Process source approximately (fast)'),
+            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow)'),
+        ],
+    )
 
     contours_data = None
 
     @staticmethod
-    def contours_insert(context, hit, plane, initial_span_count):
+    def insert(context, hit, plane, circle_hit, initial_span_count, process_source_method):
         RFOperator_Contours_Insert.contours_data = {
             'initial':         True,
             'action':          '',
             'hit':             hit,
             'plane':           plane,
+            'circle_hit':      circle_hit,
             'show_span_count': False,
             'span_count':      initial_span_count,
             'show_twist':      False,
             'twist':           0,
+            'process_source_method': process_source_method,
         }
-        RFOperator_Contours_Insert.contours_reinsert(context)
+        RFOperator_Contours_Insert.reinsert(context)
 
     @staticmethod
-    def contours_reinsert(context):
+    def reinsert(context):
         data = RFOperator_Contours_Insert.contours_data
         bpy.ops.retopoflow.contours_insert(
             'INVOKE_DEFAULT', True,
             span_count=data['span_count'],
             twist=data['twist'],
+            process_source_method=data['process_source_method'],
         )
 
     def draw(self, context):
@@ -116,6 +129,9 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
             grid.label(text=f'Twist')
             grid.prop(self, 'twist', text='')
 
+        grid.label(text=f'Method')
+        grid.prop(self, 'process_source_method', text='')
+
     def execute(self, context):
         data = RFOperator_Contours_Insert.contours_data
         try:
@@ -126,6 +142,8 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
                 data['plane'],
                 data['span_count'] if data['initial'] else self.span_count,
                 self.twist,
+                data['circle_hit'],
+                self.process_source_method,
             )
             if data['initial']:
                 data['initial'] = False
@@ -158,7 +176,7 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
                 if last_op != RFOperator_Contours_Insert.bl_label: return
                 fn(context, RFOperator_Contours_Insert.contours_data)
                 bpy.ops.ed.undo()
-                RFOperator_Contours_Insert.contours_reinsert(context)
+                RFOperator_Contours_Insert.reinsert(context)
             return wrapped
         return wrapper
 
@@ -210,6 +228,26 @@ class RFOperator_Contours(RFOperator):
         min=3,
         max=100,
     )
+    sample_points: bpy.props.IntProperty(
+        name='Samples',
+        default=100,
+        min=10,
+        max=1000,
+    )
+    sample_width: bpy.props.FloatProperty(
+        name='Sample Width',
+        default=0.75,
+        min=0.10,
+        max=1.00,
+    )
+    initial_process_source_method: bpy.props.EnumProperty(
+        name='Process Source Method',
+        description="Source processing method",
+        items=[
+            ('fast', 'Fast', 'Process source approximately (fast)'),
+            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow)'),
+        ],
+    )
 
     def init(self, context, event):
         RFTool_Contours.rf_brush.set_operator(self)
@@ -221,8 +259,18 @@ class RFOperator_Contours(RFOperator):
     def reset(self):
         RFTool_Contours.rf_brush.reset()
 
-    def process_cut(self, context, hit, plane):
-        RFOperator_Contours_Insert.contours_insert(context, hit, plane, self.initial_span_count)
+    def v_to_point(self, v, mouse0, mouse1):
+        v = (4 * self.sample_width) * (v / 2)**3 + 0.5
+        return mouse0 + (mouse1 - mouse0) * v
+
+    def process_cut(self, context, hit, plane, mouse0, mouse1):
+        n = self.sample_points // 2
+        other0 = list(itertools.takewhile(lambda h: hit is not None, [ raycast_valid_sources(context, self.v_to_point(-v / n, mouse0, mouse1)) for v in range(0,n+1)]))
+        other1 = list(itertools.takewhile(lambda h: hit is not None, [ raycast_valid_sources(context, self.v_to_point(+v / n, mouse0, mouse1)) for v in range(1,n+0)]))
+        points     = [ hit['co_world'] for hit in itertools.chain(other0[::-1], other1) if hit ]
+        circle_hit = hyperLSQ([list(plane.w2l_point(pt).xy) for pt in points])
+
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.initial_span_count, self.initial_process_source_method)
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'}:
@@ -243,6 +291,7 @@ class RFOperator_Contours(RFOperator):
 
 
 RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
+    'RFOperator_Contours_Selection_Overlay',
     'retopoflow.contours',  # must match RFTool_base.bl_idname
     'contours_overlay',
     'Contours Selected Overlay',
@@ -274,11 +323,20 @@ class RFTool_Contours(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text='Cut:')
             layout.prop(props_contours, 'initial_span_count')
+            layout.prop(props_contours, 'initial_process_source_method', text=f'')
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Cut")
             if panel:
                 panel.prop(props_contours, 'initial_span_count')
+
+            layout.prop(props_contours, 'initial_process_source_method', text=f'Method')
+            if props_contours.initial_process_source_method == 'fast':
+                header, panel = layout.panel(idname='contours_process_source', default_closed=True)
+                header.label(text='Fast Properties')
+                if panel:
+                    panel.prop(props_contours, 'sample_points', text=f'Samples')
+                    panel.prop(props_contours, 'sample_width', text=f'Width')
 
     @classmethod
     def activate(cls, context):

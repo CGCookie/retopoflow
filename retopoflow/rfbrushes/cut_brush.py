@@ -37,7 +37,6 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ..common.operator import (
     invoke_operator, execute_operator,
@@ -112,7 +111,7 @@ class RFBrush_Cut(RFBrush_Base):
                 elif event.value == 'RELEASE' and self.is_stroking():
                     if self.hit and (self.mouse - self.mousedown).length > 0:
                         plane = Plane(self.hit['co_world'], plane_normal_from_points(context, self.mousedown, self.mouse))
-                        self.operator.process_cut(context, self.hit, plane)
+                        self.operator.process_cut(context, self.hit, plane, self.mousedown, self.mouse)
                     self.reset()
                 context.area.tag_redraw()
 
@@ -148,3 +147,6 @@ class RFBrush_Cut(RFBrush_Base):
             draw.point_size(8)
             draw.color(RFBrush_Cut.hit_circle_color if self.hit else RFBrush_Cut.miss_circle_color)
             draw.vertex(pm)
+
+            draw.vertex(self.operator.v_to_point(-1, self.mousedown, self.mouse))
+            draw.vertex(self.operator.v_to_point(+1, self.mousedown, self.mouse))
