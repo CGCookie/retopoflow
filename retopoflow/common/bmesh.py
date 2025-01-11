@@ -446,7 +446,7 @@ class NearestBMEdge:
             all(bme.is_valid for bme in self.loose_bmes),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10):
+    def update(self, context, co, *, distance=1.84467e19, distance2d=10, ignore_selected=True):
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
@@ -459,7 +459,8 @@ class NearestBMEdge:
         bmes = []
         if bme_idx is not None: bmes += [self.loose_bmes[bme_idx]]
         if bmf_idx is not None: bmes += self.bm.faces[bmf_idx].edges
-        bmes = [bme for bme in bmes if not any(bmv.select for bmv in bme.verts)]
+        if ignore_selected:
+            bmes = [bme for bme in bmes if not any(bmv.select for bmv in bme.verts)]
         if not bmes: return
 
         inf = float('inf')

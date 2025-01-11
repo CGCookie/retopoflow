@@ -172,7 +172,7 @@ class PP_Logic:
         if self.nearest.bmv:
             self.hit = Vector(self.nearest.bmv.co)
 
-        self.nearest_bme.update(context, self.hit)
+        self.nearest_bme.update(context, self.hit, ignore_selected=False)
 
 
         ###########################################################################################
@@ -189,6 +189,11 @@ class PP_Logic:
             else:
                 self.state = PP_Action.VERT
             return
+
+        if self.nearest_bme.bme:
+            if self.nearest_bme.bme.select and not self.nearest_bme.bme.hide:
+                self.state = PP_Action.EDGE_VERT
+                return
 
         if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
             if not self.nearest.bmv and self.nearest_bme.bme:
