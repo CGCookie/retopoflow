@@ -255,6 +255,10 @@ class RFCore:
         return context.area == RFCore.running_in_areas[0] if RFCore.running_in_areas else False
 
     @staticmethod
+    def is_top_modal(context):
+        return context.window.modal_operators[0].name == 'RetopoFlow Core'
+
+    @staticmethod
     def handle_draw_cursor(context, mouse):
         if not RFCore.is_running:
             # print('NOT RUNNING ANYMORE')

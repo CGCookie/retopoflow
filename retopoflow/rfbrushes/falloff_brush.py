@@ -92,6 +92,10 @@ def create_falloff_brush(idname, label, **kwargs):
         def set_operator(cls, operator):
             cls.operator = operator
 
+        @classmethod
+        def is_top_modal(cls, context):
+            return context.window.modal_operators[0].name == cls.operator.bl_label
+
         def init(self):
             self.mouse = None
             self.hit = False
@@ -186,6 +190,7 @@ def create_falloff_brush(idname, label, **kwargs):
         def draw_postview(self, context):
             if context.area not in self.mouse_areas: return
             if RFOperator_FalloffBrush_Adjust.is_active(): return
+            if not (self.RFCore.is_top_modal(context) or self.is_top_modal(context)): return
             # print(f'RFBrush_Falloff.draw_postview {random()}')
             # print(f'RFBrush_Falloff.draw_postview {self.hit=}')
             self._update(context)
