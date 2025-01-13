@@ -31,6 +31,27 @@ class Reseter:
     def __del__(self):
         self.reset()
 
+    def store(self, key, *, depth=1):
+        if key in self._previous: return
+
+        frame = inspect.currentframe()
+        for _ in range(depth): frame = frame.f_back
+        f_globals, f_locals = dict(frame.f_globals), dict(frame.f_locals)
+
+        tkey = type(key)
+        if tkey is str:
+            pvalue = eval(f'{key}', f_globals, f_locals)
+        elif tkey is tuple:
+            o, a = key
+            f_locals['__o'] = o
+            pvalue = eval(f'__o.{a}', f_globals, f_locals)
+
+        if type(pvalue) is bpy_prop_array:
+            pvalue = list(pvalue)
+
+        # print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
+        self._previous[key] = ( pvalue, f_globals, f_locals )
+
     def _setter(self, key, value):
         _, f_globals, f_locals = self._previous[key]
         if type(value) is str: value = f'"{value}"'
@@ -45,24 +66,7 @@ class Reseter:
             except: pass
 
     def __setitem__(self, key, value):
-        if key not in self._previous:
-            frame = inspect.currentframe().f_back
-            f_globals, f_locals = dict(frame.f_globals), dict(frame.f_locals)
-
-            tkey = type(key)
-            if tkey is str:
-                pvalue = eval(f'{key}', f_globals, f_locals)
-            elif tkey is tuple:
-                o, a = key
-                f_locals['__o'] = o
-                pvalue = eval(f'__o.{a}', f_globals, f_locals)
-
-            if type(pvalue) is bpy_prop_array:
-                pvalue = list(pvalue)
-
-            # print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
-            self._previous[key] = ( pvalue, f_globals, f_locals )
-
+        self.store(key, depth=2)
         self._setter(key, value)
 
     def __delitem__(self, key):

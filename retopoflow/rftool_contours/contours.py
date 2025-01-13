@@ -342,6 +342,7 @@ class RFTool_Contours(RFTool_Base):
     def activate(cls, context):
         cls.reseter = Reseter('Contours')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = False
+        cls.reseter.store('context.tool_settings.snap_elements_base')
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
 
     @classmethod

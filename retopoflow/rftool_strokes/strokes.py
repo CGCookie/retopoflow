@@ -467,6 +467,7 @@ class RFTool_Strokes(RFTool_Base):
         cls.reseter = Reseter('Strokes')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = True
         cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.reseter.store('context.tool_settings.snap_elements_base')
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
 
     @classmethod

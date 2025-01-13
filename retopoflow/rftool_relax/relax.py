@@ -301,6 +301,7 @@ class RFTool_Relax(RFTool_Base):
         cls.reseter = Reseter('Relax')
         cls.reseter['context.tool_settings.use_mesh_automerge'] = False
         # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
+        cls.reseter.store('context.tool_settings.snap_elements_base')
         cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
 
     @classmethod
