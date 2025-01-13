@@ -222,7 +222,7 @@ class RFOperator_Contours(RFOperator):
     rf_status = ['LMB: Insert']
 
     initial_span_count: bpy.props.IntProperty(
-        name='Initial Count',
+        name='Count',
         description='Number of vertices to create in a new cut',
         default=8,
         min=3,
@@ -241,12 +241,13 @@ class RFOperator_Contours(RFOperator):
         max=1.00,
     )
     initial_process_source_method: bpy.props.EnumProperty(
-        name='Process Source Method',
-        description="Source processing method",
+        name='Processing Method',
+        description="How Contours processes the source meshes to determine the new perimeter loop",
         items=[
             ('fast', 'Fast', 'Process source approximately (fast)'),
             ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow)'),
         ],
+        default='walk',
     )
 
     def init(self, context, event):
