@@ -53,7 +53,6 @@ from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, 
 from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.timerhandler import TimerHandler
 
-from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 
 #########################################################
@@ -196,7 +195,8 @@ class RFBrush_Strokes(RFBrush_Base):
 
             elif event.value == 'RELEASE':
                 if self.is_stroking():
-                    self.stroke += [Point2D(mouse)]
+                    # only add final mouse position if it is over source
+                    if raycast_valid_sources(context, mouse): self.stroke += [Point2D(mouse)]
                     self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
                     self.stroke = None
                     self.stroke_cycle = None
