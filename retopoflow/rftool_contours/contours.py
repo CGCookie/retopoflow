@@ -321,20 +321,19 @@ class RFTool_Contours(RFTool_Base):
         props_contours = tool.operator_properties(RFOperator_Contours.bl_idname)
 
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text='Cut:')
+            layout.label(text='Insert:')
             layout.prop(props_contours, 'initial_span_count')
             layout.prop(props_contours, 'initial_process_source_method', text=f'')
+            if props_contours.initial_process_source_method == 'fast':
+                layout.prop(props_contours, 'sample_points', text=f'Samples')
+                layout.prop(props_contours, 'sample_width', text=f'Width')
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
-            header.label(text="Cut")
+            header.label(text="Insert")
             if panel:
                 panel.prop(props_contours, 'initial_span_count')
-
-            layout.prop(props_contours, 'initial_process_source_method', text=f'Method')
-            if props_contours.initial_process_source_method == 'fast':
-                header, panel = layout.panel(idname='contours_process_source', default_closed=True)
-                header.label(text='Fast Properties')
-                if panel:
+                panel.prop(props_contours, 'initial_process_source_method', text=f'Method')
+                if props_contours.initial_process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
 

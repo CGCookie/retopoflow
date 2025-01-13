@@ -225,6 +225,7 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
+            layout.separator()
             layout.label(text="Tweak:")
             layout.prop(props_translate, 'distance2d')
         else:

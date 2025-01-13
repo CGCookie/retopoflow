@@ -428,24 +428,25 @@ class RFTool_Strokes(RFTool_Base):
         props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
 
         if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Spans:")
+            layout.label(text="Insert:")
             row = layout.row(align=True)
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
                 row.prop(props_strokes, 'initial_cut_count', text="")
             layout.prop(props_strokes, 'extrapolate_mode', expand=True)
-            layout.label(text="Smoothing:")
-            layout.prop(props_strokes, 'initial_smooth_angle', text='')
-            layout.label(text="Spacing:")
+            #layout.label(text="Smoothing:")
+            layout.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
+            #layout.label(text="Spacing:")
             row = layout.row(align=True)
-            row.prop(props_strokes, 'initial_smooth_density0', text='')
+            row.prop(props_strokes, 'initial_smooth_density0', text='Spacing')
             row.prop(props_strokes, 'initial_smooth_density1', text='')
+            layout.separator()
             layout.label(text="Tweak:")
             layout.prop(props_translate, 'distance2d')
             # layout.prop(context.tool_settings, 'use_mesh_automerge', text='')
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
-            header.label(text="Spans")
+            header.label(text="Insert")
             if panel:
                 panel.prop(props_strokes, 'span_insert_mode', text='Count')
                 if props_strokes.span_insert_mode == 'FIXED':

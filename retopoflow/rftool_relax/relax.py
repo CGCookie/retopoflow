@@ -257,9 +257,11 @@ class RFTool_Relax(RFTool_Base):
             layout.prop(props, 'brush_radius')
             layout.prop(props, 'brush_falloff')
             layout.prop(props, 'brush_strength')
+            layout.separator()
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
             layout.prop(props, 'mask_occluded', text="Occluded")
+
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
             header.label(text="Brush")
