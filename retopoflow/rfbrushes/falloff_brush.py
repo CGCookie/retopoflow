@@ -200,6 +200,7 @@ def create_falloff_brush(idname, label, **kwargs):
 
             ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
             p, n = self.hit_p, self.hit_n
+            p -= view_forward_direction(context) * (context.space_data.overlay.retopology_offset * 2)
             ro = self.radius * self.hit_scale
             ri = ro * ff
             rm, rd = (ro + ri) / 2.0, (ro - ri)
