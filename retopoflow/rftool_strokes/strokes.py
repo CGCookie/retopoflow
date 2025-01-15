@@ -58,12 +58,12 @@ class RFOperator_Stroke_Insert_Keymaps:
 
 class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Execute):
     bl_idname = 'retopoflow.strokes_insert'
-    bl_label = 'Strokes: Insert new stroke'
+    bl_label = 'Insert Stroke'
     bl_description = 'Insert edge strips and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     extrapolate_mode: bpy.props.EnumProperty(
-        name='Strokes Extrapolate Mode',
+        name='Extrapolation',
         description='Controls how the strokes is extrapolated across selected edges',
         items=[
             ('FLAT',  'Flat',  'No changes to stroke', 0),
@@ -88,8 +88,8 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
     )
 
     smooth_angle: bpy.props.FloatProperty(
-        name='Angle',
-        description='Smoothing angle',
+        name='Smoothing',
+        description='Factor for how much smoothing is applied to the interpolated loops. Zero is linear.',
         default=1.0,
         min=-0.5,
         soft_min=0.0,
@@ -98,15 +98,15 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
     )
 
     smooth_density0: bpy.props.FloatProperty(
-        name='Density 0',
-        description='Smoothing density 0',
+        name='Spacing Start',
+        description='Spacing of the interpolated loops near the start of the stroke',
         default=0.5,
         min=0.0,
         max=1.0,
     )
     smooth_density1: bpy.props.FloatProperty(
-        name='Density 1',
-        description='Smoothing density 1',
+        name='Spacing End',
+        description='Spacing of the interpolated loops near the end of the stroke',
         default=0.5,
         min=0.0,
         max=1.0,
@@ -158,11 +158,11 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             grid.label(text=data['action'])
 
         if data['show_count']:
-            grid.label(text='Spans')
+            grid.label(text='Count')
             grid.prop(self, 'cut_count', text='')
 
         if data['show_extrapolate']:
-            grid.label(text='Extrapolate')
+            grid.label(text='Extrapolation')
             grid.prop(self, 'extrapolate_mode', text='')
 
         if data['show_bridging_offset']:
@@ -170,10 +170,10 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             grid.prop(self, 'bridging_offset', text='')
 
         if data['show_smoothness']:
-            grid.label(text='Angle')
+            grid.label(text='Smoothing')
             grid.prop(self, 'smooth_angle', text='')
 
-            grid.label(text='Density')
+            grid.label(text='Spacing')
             row = grid.row(align=True)
             row.prop(self, 'smooth_density0', text='')
             row.prop(self, 'smooth_density1', text='')
@@ -296,8 +296,8 @@ class RFOperator_Strokes(RFOperator):
 
 
     span_insert_mode: bpy.props.EnumProperty(
-        name='Strokes Span Insert Mode',
-        description='Controls span count when inserting',
+        name='Span Count Method',
+        description='Controls the number of spans when inserting',
         items=[
             ('BRUSH',   'Brush Size', 'Insert spans based on brush size', 0),
             ('FIXED',   'Fixed',      'Insert fixed number of spans',     1),
@@ -315,7 +315,7 @@ class RFOperator_Strokes(RFOperator):
     )
 
     extrapolate_mode: bpy.props.EnumProperty(
-        name='Strokes Extrapolate Mode',
+        name='Extrapolation',
         description='Controls how the strokes is extrapolated across selected edges',
         items=[
             ('FLAT',  'Flat',  'No changes to stroke', 0),
@@ -325,7 +325,7 @@ class RFOperator_Strokes(RFOperator):
     )
 
     initial_smooth_angle: bpy.props.FloatProperty(
-        name='Initial Angle Smoothness',
+        name='Initial Smoothing',
         description='Smoothing angle',
         default=1.0,
         min=-0.5,
@@ -335,15 +335,16 @@ class RFOperator_Strokes(RFOperator):
     )
 
     initial_smooth_density0: bpy.props.FloatProperty(
-        name='Initial Density Smoothness 0',
-        description='Smoothing density 0',
+        name='Initial Start Spacing',
+        description='Initial spacing of the interpolated loops near the start of the stroke',
         default=0.5,
         min=0.0,
         max=1.0,
     )
+
     initial_smooth_density1: bpy.props.FloatProperty(
-        name='Initial Density Smoothness 1',
-        description='Smoothing density 1',
+        name='Initial End Spacing',
+        description='Initial spacing of the interpolated loops near the end of the stroke',
         default=0.5,
         min=0.0,
         max=1.0,
