@@ -753,6 +753,26 @@ class RetopoFlow_Target:
     def new_face(self, verts):
         return self.rftarget.new_face(verts)
 
+    def merge_vertices(self, vert1, vert2, merge_point: str = 'CENTER'):
+        """
+        Merge two vertices together
+        
+        Args:
+            vert1: First RFVert
+            vert2: Second RFVert
+            merge_point: Merge location ('CENTER', 'FIRST', or 'LAST')
+        """
+        if not vert1 or not vert2: return None
+        if not vert1.is_valid or not vert2.is_valid: return None
+
+        # Perform the merge in the target
+        ret = self.rftarget.merge_vertices(vert1, vert2, merge_point)
+        self.update_verts_faces([ret])
+        return ret
+    
+    def remove_by_distance(self, verts, dist):
+        return self.rftarget.remove_by_distance(verts, dist)
+
     def bridge_vertloop(self, vloop0, vloop1, connected):
         assert len(vloop0) == len(vloop1), "loops must have same vertex counts"
         faces = []

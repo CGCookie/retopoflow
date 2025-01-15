@@ -1742,6 +1742,45 @@ class RFTarget(RFMesh):
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
 
+    def merge_vertices(self, vert1, vert2, merge_point: str = 'CENTER'):
+        """
+        Merge two vertices together at specified position
+
+        Args:
+            vert1: First RFVert to merge
+            vert2: Second RFVert to merge
+            merge_point: Merge location ('CENTER', 'FIRST', or 'LAST')
+        Returns:
+            RFVert: The resulting merged vertex
+        """
+        bmv1 = self._unwrap(vert1)
+        bmv2 = self._unwrap(vert2)
+
+        # Get the merge position and normal
+        if merge_point == 'CENTER':
+            pos = (bmv1.co + bmv2.co) / 2
+            norm = (bmv1.normal + bmv2.normal).normalized()
+        elif merge_point == 'FIRST':
+            pos = bmv1.co
+            norm = bmv1.normal
+        else:  # LAST
+            pos = bmv2.co
+            norm = bmv2.normal
+
+        # Use bmesh ops to merge the verts
+        pointmerge(
+            self.bme,
+            verts=[bmv1, bmv2],
+            merge_co=pos
+        )
+
+        # Update the normal
+        bmv1.normal = norm
+        self.bme.normal_update()
+        
+        # Return wrapped vert
+        return self._wrap_bmvert(bmv1)
+
     def holes_fill(self, edges, sides):
         edges = list(map(self._unwrap, edges))
         ret = holes_fill(self.bme, edges=edges, sides=sides)
@@ -1967,6 +2006,10 @@ class RFTarget(RFMesh):
 
     def remove_selected_doubles(self, dist):
         remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
+        self.dirty()
+
+    def remove_by_distance(self, verts, dist):
+        remove_doubles(self.bme, verts=[self._unwrap(v) for v in verts], dist=dist)
         self.dirty()
 
     def flip_face_normals(self):
