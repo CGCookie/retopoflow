@@ -129,6 +129,9 @@ class RFOperator(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        # make sure RFCore is running
+        if not RFOperator.RFCore.is_running: return False
+
         if not context.edit_object: return False
         if context.edit_object.type != 'MESH': return False
 
@@ -142,10 +145,17 @@ class RFOperator(bpy.types.Operator):
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
         context.window_manager.modal_handler_add(self)
-        context.workspace.status_text_set(lambda header, context: self.status(header, context))
+        def status(header, context):
+            try:
+                self.status(header, context)
+            except Exception as e:
+                print(f'Caught exception while trying to set status {e}')
+                context.workspace.status_text_set(None)
+        context.workspace.status_text_set(status)
         self.last_op = None
         self.working_area = context.area
         self.working_window = context.window
+        self._stop = False
 
         if hasattr(self, 'draw_postpixel_overlay'):
             wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
@@ -157,37 +167,51 @@ class RFOperator(bpy.types.Operator):
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
+    def stop(self):
+        if self._stop: return
+        self._stop = True
+        if self._draw_postpixel_overlay:
+            wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+            space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
+            self._draw_postpixel_overlay = None
+        bpy.context.workspace.status_text_set(None)
+        if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+
     def modal(self, context, event):
-        RFOperator.RFCore.is_controlling = True
-        if RFOperator.tickled:
-            # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
-            # handle tickle event (which will remove tickle timer / handler)
-            RFOperator.tickled()
-
-        RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
-
-        last_op = ops[-1] if (ops := context.window_manager.operators) else None
-        if self.last_op != last_op:
-            self.reset()
-            self.last_op = last_op
-            context.area.tag_redraw()
-
-        if not context.area:
-            # this can happen if an area is fullscreened :(
-            ret = {'CANCELLED'}
-        elif context.mode != 'EDIT_MESH':
-            # this can happen if undoing back into OBJECT mode
+        # print(f'{RFOperator.RFCore.is_running=}')
+        if not RFOperator.RFCore.is_running or self._stop:
             ret = {'CANCELLED'}
         else:
-            try:
-                ret = self.update(context, event)
-            except KeyboardInterrupt as e:
-                print(f'RFOperator.modal: Caught KeyboardInterrupt Exception in self.update: {e}')
+            RFOperator.RFCore.is_controlling = True
+            if RFOperator.tickled:
+                # we were tickled by another RF operator (ex: Translate finished when using PolyPen)
+                # handle tickle event (which will remove tickle timer / handler)
+                RFOperator.tickled()
+
+            RFOperator.RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+
+            last_op = ops[-1] if (ops := context.window_manager.operators) else None
+            if self.last_op != last_op:
+                self.reset()
+                self.last_op = last_op
+                context.area.tag_redraw()
+
+            if not context.area:
+                # this can happen if an area is fullscreened :(
                 ret = {'CANCELLED'}
-            except Exception as e:
-                print(f'RFOperator.modal: Unhandled Exception Caught in self.update: {e}')
-                Debugger.print_exception()
+            elif context.mode != 'EDIT_MESH':
+                # this can happen if undoing back into OBJECT mode
                 ret = {'CANCELLED'}
+            else:
+                try:
+                    ret = self.update(context, event)
+                except KeyboardInterrupt as e:
+                    print(f'RFOperator.modal: Caught KeyboardInterrupt Exception in self.update: {e}')
+                    ret = {'CANCELLED'}
+                except Exception as e:
+                    print(f'RFOperator.modal: Unhandled Exception Caught in self.update: {e}')
+                    Debugger.print_exception()
+                    ret = {'CANCELLED'}
 
         if ret & {'FINISHED', 'CANCELLED'}:
             try:
@@ -205,7 +229,7 @@ class RFOperator(bpy.types.Operator):
                 # print(self)
                 # print(RFOperator.active_operators)
                 pass
-            RFOperator.active_operators.remove(self)
+            if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
             context.workspace.status_text_set(None)
             for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()
