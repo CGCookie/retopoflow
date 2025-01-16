@@ -178,10 +178,10 @@ class RFCore:
         RFCore.is_controlling = True
 
         wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
-        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor,   (context,), 'VIEW_3D', 'WINDOW')
-        RFCore._handle_preview     = space.draw_handler_add(RFCore.handle_preview,   (context,), 'WINDOW', 'PRE_VIEW')
-        RFCore._handle_postview    = space.draw_handler_add(RFCore.handle_postview,  (context,), 'WINDOW', 'POST_VIEW')
-        RFCore._handle_postpixel   = space.draw_handler_add(RFCore.handle_postpixel, (context,), 'WINDOW', 'POST_PIXEL')
+        RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor,   (context, context.area), 'VIEW_3D', 'WINDOW')
+        RFCore._handle_preview     = space.draw_handler_add(RFCore.handle_preview,   (context, context.area), 'WINDOW', 'PRE_VIEW')
+        RFCore._handle_postview    = space.draw_handler_add(RFCore.handle_postview,  (context, context.area), 'WINDOW', 'POST_VIEW')
+        RFCore._handle_postpixel   = space.draw_handler_add(RFCore.handle_postpixel, (context, context.area), 'WINDOW', 'POST_PIXEL')
         # tag_redraw_all('CC ui_start', only_tag=False)
 
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
@@ -250,17 +250,25 @@ class RFCore:
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
 
-        space = bpy.types.SpaceView3D
-        space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
-        space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
-        space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
-
-        wm = bpy.types.WindowManager
-        wm.draw_cursor_remove(RFCore._handle_draw_cursor)
+        RFCore.remove_handlers()
 
         RFCore.running_in_areas.clear()
 
         RFCore.reseter.reset()
+
+    @staticmethod
+    def remove_handlers():
+        print(f'RFCore.remove_handlers')
+        space = bpy.types.SpaceView3D
+        wm = bpy.types.WindowManager
+        if RFCore._handle_preview:   space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
+        if RFCore._handle_postview:  space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
+        if RFCore._handle_postpixel: space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
+        if RFCore._handle_draw_cursor: wm.draw_cursor_remove(RFCore._handle_draw_cursor)
+        RFCore._handle_preview = None
+        RFCore._handle_postview = None
+        RFCore._handle_postpixel = None
+        RFCore._handle_draw_cursor = None
 
     @staticmethod
     def handle_update(context, event):
@@ -279,7 +287,10 @@ class RFCore:
         return context.window.modal_operators[0].name == 'RetopoFlow Core'
 
     @staticmethod
-    def handle_draw_cursor(context, mouse):
+    def handle_draw_cursor(context, area, mouse):
+        if len(area.spaces) == 0:
+            RFCore.remove_handlers()
+            return
         if not RFCore.is_running:
             # print('NOT RUNNING ANYMORE')
             return
@@ -321,7 +332,10 @@ class RFCore:
 
 
     @staticmethod
-    def handle_preview(context):
+    def handle_preview(context, area):
+        if len(area.spaces) == 0:
+            RFCore.remove_handlers()
+            return
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return
@@ -331,7 +345,11 @@ class RFCore:
             print(f'Caught exception while trying to draw preview {e}')
             RFCore.restart()
     @staticmethod
-    def handle_postview(context):
+    def handle_postview(context, area):
+        if len(area.spaces) == 0:
+            RFCore.remove_handlers()
+            return
+        # print(f'handle_postview {len(area.spaces)}')
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return
         if RFOperator.active_operator():
@@ -352,7 +370,10 @@ class RFCore:
             brush.draw_postview(context)
 
     @staticmethod
-    def handle_postpixel(context):
+    def handle_postpixel(context, area):
+        if len(area.spaces) == 0:
+            RFCore.remove_handlers()
+            return
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return
         if RFOperator.active_operator():
