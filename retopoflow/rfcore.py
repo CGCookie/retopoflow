@@ -23,9 +23,11 @@ import bpy
 import bmesh
 import bl_ui
 
+import time
 import random
 
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
+from ..addon_common.common.debug import debugger
 from ..addon_common.common.reseter import Reseter
 from .common.bmesh import get_object_bmesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
@@ -79,7 +81,7 @@ class RFCore:
 
     @staticmethod
     def register():
-        # print(f'REGISTER')
+        print(f'RFCore.register')
         if RFCore._is_registered:
             # print(f'  ALREADY REGISTERED!!')
             return
@@ -102,10 +104,11 @@ class RFCore:
 
     @staticmethod
     def unregister():
-        # print(f'UNREGISTER')
+        print(f'RFCore.unregister')
         if not RFCore._is_registered:
-            # print(f'  ALREADY UNREGISTERED!!')
+            print(f'  ALREADY UNREGISTERED!!')
             return
+        RFCore._is_registered = False
 
         if not bpy.context.workspace:
             # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
@@ -115,7 +118,11 @@ class RFCore:
             # RFTool is active, so switch away first!
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
 
-        RFCore.stop()
+        try:
+            RFCore.stop()
+        except ReferenceError as e:
+            print(f'Caught ReferenceError while trying to unregister')
+            debugger.print_exception()
 
         bpy.types.VIEW3D_MT_add.remove(RFCore.draw_menu_items)
         # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
@@ -130,7 +137,6 @@ class RFCore:
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
 
-        RFCore._is_registered = False
 
     @staticmethod
     def draw_menu_items(self, context):
@@ -155,7 +161,11 @@ class RFCore:
                 rftool = RFTools[RFCore.selected_RFTool_idname]
                 rftool.activate(context)
                 if rftool.rf_overlay:
-                    rftool.rf_overlay.activate()
+                    try:
+                        rftool.rf_overlay.activate()
+                    except Exception as e:
+                        print(f'Caught exception while trying to activate overlay {e}')
+                        RFCore.restart()
 
         if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
             RFCore.stop()
@@ -178,6 +188,7 @@ class RFCore:
         bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
+        bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
 
         for s in iter_all_view3d_spaces():
             RFCore.reseter['s.overlay.show_retopology'] = True
@@ -218,14 +229,23 @@ class RFCore:
     @staticmethod
     def stop():
         if not RFCore.is_running: return
+        print(f'Stopping RFCore')
         RFCore.is_running = False
         RFCore.event_mouse = None
         RFCore.is_controlling = False
+
+        try:
+            for rfop in RFOperator.active_operators:
+                rfop.stop()
+        except ReferenceError as e:
+            print(f'Caught ReferenceError while trying to stop active RetopoFlow operators')
+            debugger.print_exception()
 
         # clean up cache, otherwise old bmesh objects may become invalid even if
         # blender does not recognize them as invalid (bm.is_valid still True)
         get_object_bmesh.cache.clear()
 
+        bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
@@ -304,12 +324,27 @@ class RFCore:
     def handle_preview(context):
         if not RFOperator.active_operator(): return
         if not RFCore.is_controlling: return
-        RFOperator.active_operator().draw_preview(context)
+        if not RFCore.is_running: return
+        try:
+            RFOperator.active_operator().draw_preview(context)
+        except Exception as e:
+            print(f'Caught exception while trying to draw preview {e}')
+            RFCore.restart()
     @staticmethod
     def handle_postview(context):
         if not RFCore.is_controlling: return
+        if not RFCore.is_running: return
         if RFOperator.active_operator():
-            RFOperator.active_operator().draw_postview(context)
+            try:
+                RFOperator.active_operator().draw_postview(context)
+            except ReferenceError as e:
+                print(f'Caught ReferenceError while trying to draw postview {e}')
+                debugger.print_exception()
+                RFCore.stop()
+            except Exception as e:
+                print(f'Caught exception while trying to draw postview {e}')
+                debugger.print_exception()
+                RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         brush = selected_RFTool.rf_brush
@@ -319,8 +354,13 @@ class RFCore:
     @staticmethod
     def handle_postpixel(context):
         if not RFCore.is_controlling: return
+        if not RFCore.is_running: return
         if RFOperator.active_operator():
-            RFOperator.active_operator().draw_postpixel(context)
+            try:
+                RFOperator.active_operator().draw_postpixel(context)
+            except Exception as e:
+                print(f'Caught exception while trying to draw postpixel {e}')
+                RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         brush = selected_RFTool.rf_brush
@@ -329,6 +369,10 @@ class RFCore:
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
+        if not RFCore.selected_RFTool_idname:
+            # this can happen when Blender is closing
+            return
+
         RFCore.depsgraph_version += 1
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
@@ -340,6 +384,19 @@ class RFCore:
         if brush: brush.depsgraph_update()
         RFOperator.tickle(bpy.context)
 
+    @staticmethod
+    def handle_load_pre(path_blend):
+        # switch away from RF
+        print(f'LOAD PRE!!')
+        # find 3D view area
+        for area in bpy.context.screen.areas:
+            if area.type != 'VIEW_3D': continue
+            for rgn in area.regions:
+                if rgn.type != 'WINDOW': continue
+                with bpy.context.temp_override(area=area, region=rgn):
+                    print(f'switching tool')
+                    bpy.ops.wm.tool_set_by_id(name='builtin.select')
+        RFCore.stop()
 
     @staticmethod
     def handle_redo_post(*args, **kwargs):
