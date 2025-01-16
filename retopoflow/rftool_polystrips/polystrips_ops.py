@@ -298,6 +298,20 @@ class PolyStrips_Ops:
                 edges0.append(bme1)
                 edges1.append(bme2)
             if len(strip0) < 3: return
+
+            # Check if this is an island strip.
+            # aka if all verts/edges from the selected strip are
+            # exclusively linked to verts/edges of the selected strip.
+            all_verts = set(strip0 + strip1)
+            all_edges = set(edges0 + edges1 + bmes)
+            is_island = True
+            for v in all_verts:
+                for e in v.link_edges:
+                    if e not in all_edges:
+                        is_island = False
+                        break
+                if not is_island: break
+
             pts0,pts1 = [v.co for v in strip0],[v.co for v in strip1]
             lengths0,lengths1 = [e.length for e in edges0],[e.length for e in edges1]
             #length0,length1 = sum(lengths0),sum(lengths1)
@@ -321,7 +335,12 @@ class PolyStrips_Ops:
                 nonlocal nverts
                 if count is not None: ncount = count
                 else: ncount = ccount + delta
-                if ncount < 1:
+
+                # Prevent island strips from being reduced to 1!
+                if is_island and ncount < 2:
+                    self.count_data['delta adjust'] = max(self.count_data['delta adjust'], 2 - ncount)
+                    ncount = 2
+                elif not is_island and ncount < 1:
                     self.count_data['delta adjust'] = max(self.count_data['delta adjust'], 1 - ncount)
                     ncount = 1
                 ncount = max(1, ncount)
