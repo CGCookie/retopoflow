@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Relax | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="Relax" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/relax.html" />
+<meta property="og:url" content="http://localhost:4000/relax.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Relax" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Relax","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/relax.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <!--
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+        -->
+
+        <ul>
+          <li><a href="index.html">Welcome</a></li>
+          <li><a href="installation.html">Installation</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">RetopoFlow Mode</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
+          <li><a href="strokes.html">Strokes</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
+          <li><a href="symmetry.html">Symmetry</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="limitations.html">Limitations</a></li>
+          <li><a href="debugging.html">Debugging</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
+          <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="-relax"><img src="/images/relax-icon.png" alt="" /> Relax</h1>
+
+<!--
+Quick Shortcut: <code>Z</code>
+-->
+
+<p>The Relax Brush tool allows you to easily and interactively smooth out vertex positions while keeping them on the surface of the source mesh.</p>
+
+<h2 id="transforming">Transforming</h2>
+
+<p>To use the Relax Brush, simply <code class="language-plaintext highlighter-rouge">Left Click Drag</code> on vertices. Which vertices are affected can be controlled in the <strong>Masking</strong> settings.</p>
+
+<h2 id="brush-settings">Brush Settings</h2>
+
+<ul>
+  <li><strong>Radius</strong> controls the size of the brush and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">F</code></li>
+  <li><strong>Strength</strong> controls how much the brush effects the geometry and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">Shift F</code></li>
+  <li><strong>Falloff</strong> controls how much the strength of the brush is feathered near the edges and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">Ctrl F</code></li>
+</ul>
+
+<!--
+These options can also be stored as presets in the Brush Options panel.
+To quickly switch between presets, use the <code>Shift+Q</code>, <code>~</code> pie menu.
+-->
+
+<h2 id="masking-settings">Masking Settings</h2>
+
+<p>The Relax Brush has several options to control which vertices are moved and how.</p>
+
+<p><strong>Boundary</strong></p>
+<ul>
+  <li><strong>Exclude</strong> does not affect vertices along the mesh boundary.</li>
+  <li><strong>Slide</strong> moves vertices along boundary but only by sliding them along the boundary loop.</li>
+  <li><strong>Include</strong> moves all vertices under the brush including those along the boundary.</li>
+</ul>
+
+<!--
+### Symmetry
+- **Exclude**: Do not affect vertices along the symmetry plane.
+- **Slide**: Tweak vertices along boundary but only by sliding them along the symmetry plane.
+- **Include**: Tweak all vertices under the brush including those along the symmetry plane.
+-->
+
+<p><strong>Selected</strong></p>
+<ul>
+  <li><strong>Exclude</strong> moves only unselected vertices.</li>
+  <li><strong>Only</strong> moves only selected vertices.</li>
+  <li><strong>All</strong> moves all vertices within brush regardless of selection.</li>
+</ul>
+
+<p><strong>Occluded</strong></p>
+<ul>
+  <li><strong>Exclude</strong> moves only unoccluded vertices.</li>
+  <li><strong>Include</strong> moves all vertices within brush regardless of occlusion.</li>
+</ul>
+
+<h2 id="algorithm-settings">Algorithm Settings</h2>
+
+<p><strong>Iterations</strong> determines how many times the relax algorithm is run per update. A higher value leads to more agressive smoothing. It is recommended to try increasing the brush strength before increasing this setting.</p>
+
+<p><strong>Strength</strong> multiplies how much each iteration affects the result.</p>
+
+<p><strong>Average Edge Lengths</strong> enables adjusting the length of edges to move towards the average edge length under the brush.</p>
+
+<p><strong>Average Face Radius</strong> enables adjusting the length of edges so that each face’s radius moves towards the average of all face radii under the brush.</p>
+
+<p><strong>Average Face Angles</strong> enables moving vertices so that the angle of each corner of each face moves towards the same value.</p>
+
+<p><strong>Average Face Lengths</strong> enables adjusting the length of edges to move towards the average length of all edges that share the same face. This option is still experimental and can cause faces to flip.</p>
+
+<p><strong>Straighten Edges</strong> enables moving vertices so that their edge loops straighten out.</p>
+
+<p><strong>Correct Flipped Faces</strong> attempts to make sure the direction of the face normals under the brush are consistent.</p>
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>

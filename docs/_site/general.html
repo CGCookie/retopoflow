@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>RetopoFlow Mode | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="RetopoFlow Mode" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/general.html" />
+<meta property="og:url" content="http://localhost:4000/general.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="RetopoFlow Mode" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"RetopoFlow Mode","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/general.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <!--
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+        -->
+
+        <ul>
+          <li><a href="index.html">Welcome</a></li>
+          <li><a href="installation.html">Installation</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">RetopoFlow Mode</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
+          <li><a href="strokes.html">Strokes</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
+          <li><a href="symmetry.html">Symmetry</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="limitations.html">Limitations</a></li>
+          <li><a href="debugging.html">Debugging</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
+          <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="retopoflow-mode">RetopoFlow Mode</h1>
+<p>In previous versions, RetopoFlow tools were only accessable in a special mode that was completely seperated from the rest of Blender. Since RetopoFlow 4, these tools have been integrated tightly into Edit Mode. However, switching to one of the RetopoFlow tools does still enter you into a type of mode that is specifically set up for retopology.</p>
+
+<p>Entering a RetopoFlow tool will adjust Blender’s settings for:</p>
+<ul>
+  <li>The selection mode</li>
+  <li>The retopology overlay</li>
+  <li>Snapping</li>
+  <li>Auto-merging Vertices</li>
+  <li>Showing object origins</li>
+</ul>
+
+<p>Switching out of a RetopoFlow tool will restore all of your previous settings.</p>
+
+<h2 id="terminology">Terminology</h2>
+
+<table>
+  <tbody>
+    <tr>
+      <td>Source Object(s)</td>
+      <td>:</td>
+      <td>The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode)</td>
+    </tr>
+    <tr>
+      <td>Retopology Object</td>
+      <td>:</td>
+      <td>The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Any mesh object that is visible and not the active retopolgoy object is considered a source object.
+This means that you can hide or move objects to different scenes to change which source objects will be retopologized.</p>
+
+<h2 id="selection">Selection</h2>
+
+<p>Selection in RetopoFlow tools follows Blender’s selection paradigm as much as possible.</p>
+
+<p>The main difference is when using the brush-based tools like Tweak and Relax. In those, selection cannot be done with <code class="language-plaintext highlighter-rouge">LMB</code> (left mouse button) because that action is already used to apply the brush. Instead, you can use other Blender hotkeys like <code class="language-plaintext highlighter-rouge">Shift LMB</code> to toggle select, <code class="language-plaintext highlighter-rouge">B</code> to box select, or <code class="language-plaintext highlighter-rouge">Ctrl RMB drag</code> to lasso select.</p>
+
+<p>Also, since <code class="language-plaintext highlighter-rouge">Ctrl LMB</code> is already used for creating new geometry in the other tools, Blender’s Pick Shortest Path operator is not accessable with that hotkey. However, you can still use <code class="language-plaintext highlighter-rouge">Shift Ctrl LMB</code> to the same effect.</p>
+
+<p>The tools in RetopoFlow can be used in any selection mode, but are generally more useful in some than others. For example, PolyPen expects to connect to edges and verts but not faces, so switching to PolyPen enables both edge and vert selection and disables face selection. All tools have a preferred selection mode that is set automatically when switching to the tool.</p>
+
+<h2 id="altered-operators">Altered Operators</h2>
+
+<p>RetopoFlow has slightly altered versions of a few Blender operators in order to make them more useful for retopology.</p>
+
+<ul>
+  <li>Translate (<code class="language-plaintext highlighter-rouge">G</code>) has been modified slighly to improve snapping behavior, but you should not need to think about this and can use it just like Blender’s Translate.</li>
+</ul>
+
+<h2 id="common-settings">Common Settings</h2>
+
+<p>The insert tools share the same <strong>Tweak</strong> settings for how big the selection hitbox is, whether vertices are auto-merged, and how big the auto-merge threshold is while using <code class="language-plaintext highlighter-rouge">Left Mouse Drag</code> on geometry to tweak it. These settings are not the same as the Tweak Brush tool settings.</p>
+
+<p>Brush tools have the same <strong>Brush</strong> settings, though they are not shared across the tools. That way, you can use a small Tweak brush with a large Relax brush if you prefer.</p>
+
+<ul>
+  <li><strong>Radius</strong> controls the size of the brush and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">F</code></li>
+  <li><strong>Strength</strong> controls how much the brush effects the geometry and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">Shift F</code></li>
+  <li><strong>Falloff</strong> controls how much the strength of the brush is feathered near the edges and can be adjusted with the hotkey <code class="language-plaintext highlighter-rouge">Ctrl F</code></li>
+</ul>
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>

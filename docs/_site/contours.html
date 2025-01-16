@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Contours | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="Contours" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/contours.html" />
+<meta property="og:url" content="http://localhost:4000/contours.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Contours" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Contours","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/contours.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <!--
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+        -->
+
+        <ul>
+          <li><a href="index.html">Welcome</a></li>
+          <li><a href="installation.html">Installation</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">RetopoFlow Mode</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
+          <li><a href="strokes.html">Strokes</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
+          <li><a href="symmetry.html">Symmetry</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="limitations.html">Limitations</a></li>
+          <li><a href="debugging.html">Debugging</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
+          <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="-contours"><img src="/images/contours-icon.png" alt="" /> Contours</h1>
+
+<p>The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
+For example, it’s ideal for organic forms such as arms, fingers, legs, tentacles, tails, horns, etc.</p>
+
+<h2 id="inserting">Inserting</h2>
+
+<p>The tool works by drawing strokes perpendicular to the form to create loops that define the contour of the shape.</p>
+
+<p>Hold <code class="language-plaintext highlighter-rouge">Ctrl</code> and <code class="language-plaintext highlighter-rouge">Left Mouse Drag</code> across the source geometry to cretate a new cut. The source geometry under the center of the stroke is what gets evaluated. You may draw strokes in any order, from any direction.</p>
+
+<ul>
+  <li>If there is no retopology geometry selected or under the stroke, a new loop will be created.</li>
+  <li>If the stroke is over existing geometry, a new cut will be inserted similar to a loop cut.</li>
+  <li>If there is a loop selected, a new loop will be created and connected to the selection if possible.</li>
+</ul>
+
+<p>After you create a new loop but before that loop is connected to any other geometry (including another loop), you can adjust the number of vertices in the loop by scrolling with <code class="language-plaintext highlighter-rouge">Ctrl Mouse Wheel</code>.</p>
+
+<h2 id="settings">Settings</h2>
+
+<p><strong>Count</strong> is the number of vertices that will be created when adding a new loop that is not connected to any geometry. When extruding or cutting existing geometry, the new loop will have the same number of vertices as the adjacent loops.</p>
+
+<p><strong>Method</strong> is how Contours calculates the shape of the source mesh in order to create a new loop around it.</p>
+<ul>
+  <li>
+    <p><strong>Walk</strong> calculates the faces under the stroke one by one until it complets a loop, ensuring that the shape is fully preserved. This can be slow on extremely dense meshes, and does not work on non-manifold geometry, but is still quite fast and gives the best results in the vast majority of cases. It works great for complex shapes like fingers, where screen-space or raycasting algorithms tend to fail.</p>
+  </li>
+  <li>
+    <p><strong>Fast</strong> [?]</p>
+  </li>
+</ul>
+
+<h2 id="selecting">Selecting</h2>
+
+<p>The default selection mode for Contours is Vertex + Edge because it is helpful to be able to quickly select edges and loops while also clearly seeing the number and position of the newly creted vertices.</p>
+
+<h2 id="transforming">Transforming</h2>
+
+<p>You can quickly slide loops around by simply clicking and dragging on an edge. [Not working yet]</p>
+
+<p>To rotate or twist a loop around the surface of the source, use the hotkey <code class="language-plaintext highlighter-rouge">Alt R</code>. [Not working yet]</p>
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>

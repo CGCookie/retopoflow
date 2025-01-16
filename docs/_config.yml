@@ -1,4 +1,5 @@
 # theme: jekyll-theme-tactile
+# theme: just-the-docs
 theme: jekyll-theme-minimal
 title: RetopoFlow
 description: A suite of retopology tools for Blender

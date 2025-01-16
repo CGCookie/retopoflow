@@ -16,42 +16,52 @@
     <div class="wrapper">
       <header>
         <h1><a href="{{ "/" | absolute_url }}">{{ site.title | default: site.github.repository_name }}</a></h1>
-
+        <!--
         {% if site.logo %}
           <img src="{{site.logo | relative_url}}" alt="Logo" />
         {% endif %}
 
         <p>{{ site.description | default: site.github.project_tagline }}</p>
+        -->
 
         <ul>
-          <li><a href="table_of_contents.html">Table of Contents</a></li>
-          <li><a href="welcome.html">Welcome</a></li>
-          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="index.html">Welcome</a></li>
+          <li><a href="installation.html">Installation</a></li>
           <li><a href="quick_start.html">Quick Start</a></li>
         </ul>
 
         <ul>
-          <li><a href="general.html">General</a></li>
+          <li><a href="general.html">RetopoFlow Mode</a></li>
         </ul>
 
         <ul>
-          <li><a href="select.html">Select</a></li>
           <li><a href="contours.html">Contours</a></li>
-          <li><a href="polystrips.html">PolyStrips</a></li>
+          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
           <li><a href="strokes.html">Strokes</a></li>
-          <li><a href="patches.html">Patches</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="knife.html">Knife</a></li>
-          <li><a href="loops.html">Loops</a></li>
           <li><a href="tweak.html">Tweak</a></li>
           <li><a href="relax.html">Relax</a></li>
         </ul>
 
         <ul>
+          <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
+          <li><a href="symmetry.html">Symmetry</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
-          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+          <li><a href="limitations.html">Limitations</a></li>
+          <li><a href="debugging.html">Debugging</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
+          <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
         </ul>
 
       </header>

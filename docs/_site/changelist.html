@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Change List | RetopoFlow</title>
+<meta name="generator" content="Jekyll v3.9.5" />
+<meta property="og:title" content="Change List" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A suite of retopology tools for Blender" />
+<meta property="og:description" content="A suite of retopology tools for Blender" />
+<link rel="canonical" href="http://localhost:4000/changelist.html" />
+<meta property="og:url" content="http://localhost:4000/changelist.html" />
+<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Change List" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Change List","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/changelist.html"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <!--[if lt IE 9]>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <!--
+        
+          <img src="/images/retopoflow_3_feature.png" alt="Logo" />
+        
+
+        <p>A suite of retopology tools for Blender</p>
+        -->
+
+        <ul>
+          <li><a href="index.html">Welcome</a></li>
+          <li><a href="installation.html">Installation</a></li>
+          <li><a href="quick_start.html">Quick Start</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="general.html">RetopoFlow Mode</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
+          <li><a href="strokes.html">Strokes</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="polypen.html">PolyPen</a></li>
+          <li><a href="tweak.html">Tweak</a></li>
+          <li><a href="relax.html">Relax</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
+          <li><a href="symmetry.html">Symmetry</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="faq.html">FAQs</a></li>
+          <li><a href="changelist.html">Change List</a></li>
+          <li><a href="limitations.html">Limitations</a></li>
+          <li><a href="debugging.html">Debugging</a></li>
+        </ul>
+
+        <ul>
+          <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+          <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
+          <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
+          <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
+          <li><a href="https://twitter.com/RetopoFlow" target="_blank">Twitter</a></li>
+        </ul>
+
+      </header>
+      <section>
+
+      <h1 id="change-list">Change List</h1>
+
+<p>This document contains details about what has changed in RetopoFlow since version 2.x.</p>
+
+<h3 id="400-unreleased">4.0.0 (unreleased)</h3>
+
+<ul>
+  <li>A complete rewrite of RetopoFlow to integrate the tools into Blender’s Edit Mode</li>
+</ul>
+
+<h3 id="343">3.4.3</h3>
+
+<ul>
+  <li>Fixed text rendering bug</li>
+  <li>Fixed GPU Capabilities bug with Blender 4.1</li>
+  <li>Fixed Blender UI becoming unresponsive after starting RF</li>
+</ul>
+
+<h3 id="342">3.4.2</h3>
+
+<ul>
+  <li>Worked around issue of “locking” Blender interface on Windows machines with Blender &gt;3.6</li>
+  <li>Strokes now shows counts for selected verts, selected edges, new spans, new loops</li>
+  <li>Improved clarity for target geometry that is pinned, seam, non-manifold</li>
+  <li>Disabling visualization of pinned or seam geometry will disable pinning</li>
+  <li>Added keymap for marking/clearing seams, confirming quick tools</li>
+  <li>Added keymap for confirming quick tools</li>
+  <li>Added Merge options to Delete / Dissolve pie menu</li>
+  <li>Many minor bug fixes</li>
+</ul>
+
+<h3 id="341">3.4.1</h3>
+
+<ul>
+  <li>Improved visualization and editing when working on “wrong” side of symmetry</li>
+  <li>Fixed bridging bug with Strokes</li>
+  <li>Fixed many bugs</li>
+  <li>Improved general PolyPen performance</li>
+  <li>UI drawing uses framebuffers again (UI performance)</li>
+  <li>Warns when geometry is on “wrong” side of symmetry</li>
+  <li>General code cleanup, refactor, and optimizations</li>
+</ul>
+
+<h3 id="340">3.4.0</h3>
+
+<p>This version of RetopoFlow requires Blender 3.6 or later.</p>
+
+<ul>
+  <li>Blender
+    <ul>
+      <li>Removed dependence on deprecated <code class="language-plaintext highlighter-rouge">bgl</code> module</li>
+      <li>Added support for Metal</li>
+      <li>Improved general feedback and error handling during startup process</li>
+      <li>Improved indication of warnings in Blender menu</li>
+      <li>Added button to continue editing with active mesh as target</li>
+      <li>Improved handling of when Blender version is outside requirements</li>
+    </ul>
+  </li>
+  <li>Performance
+    <ul>
+      <li>Improved navigating and selecting</li>
+      <li>Improved performance of all tools</li>
+    </ul>
+  </li>
+  <li>Select: added new tool to do box selection</li>
+  <li>General: added simple rip and rip fill</li>
+  <li>Contours
+    <ul>
+      <li>Fixed crashing bug when cutting across non-manifold edge</li>
+      <li>Fixed bug when cancelling cut</li>
+    </ul>
+  </li>
+  <li>Strokes: consistent fixed span/segment count for all insertions</li>
+  <li>Knife: fixed bug when using where no source geometry exists</li>
+  <li>Tweak: added raycast/snap modes to work in screen or world space</li>
+  <li>Auto Save
+    <ul>
+      <li>Fixed and improved reporting, recovery, and other operations</li>
+      <li>Auto save is delayed until current action is finished</li>
+    </ul>
+  </li>
+  <li>Input
+    <ul>
+      <li>Added keymaps to select all linked, roll view, increase vertex count (Contours, PolyStrips, etc.) with <code class="language-plaintext highlighter-rouge">plus</code> key</li>
+      <li>Fixed NDOF and trackpad</li>
+    </ul>
+  </li>
+  <li>Mirror: preliminary work to mirror actions to “correct” side of symmetry plane(s)</li>
+  <li>Debug: deep debugging for capturing terminal output to a file</li>
+  <li>Hive: improved integration</li>
+  <li>General
+    <ul>
+      <li>Fixed visual bug when matcaps are not installed. Light and Dark themes now use built-in matcaps</li>
+      <li>Ray casts ignores source geometry that is clipped (near clip only) or culled (backface)</li>
+      <li>Brush size (PolyStrips, Strokes, Relax, Smooth) is more consistent across screen</li>
+      <li>Fixed many smaller bugs</li>
+      <li>Restructured, refactored, and cleaned code base</li>
+      <li>Auto saves will make a few attempts before alerting of failure</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="330">3.3.0</h3>
+
+<ul>
+  <li>New undo system</li>
+  <li>New recovery system</li>
+  <li>Revamped action system</li>
+  <li>Added button to open online documents for Warning Details</li>
+  <li>Improved error handling at startup</li>
+  <li>Refactored large sections and cleaned code</li>
+  <li>Removed code for Blender 2.79 and earlier</li>
+  <li>Reorganized file structure</li>
+  <li>Improved Hive integration</li>
+  <li>Added option to keep viewport orbit center when nothing is selected</li>
+  <li>Added options to control Tweak/Relax brush alpha</li>
+  <li>Fixed disappearing text on detail UI elements at certain Blender UI scales</li>
+  <li>Fixed crash when exiting RetopoFlow after starting in wireframe mode</li>
+  <li>Fixed issue where selected but hidden geometry could get deleted</li>
+  <li>Turning off shading optimization now restores original shading settings</li>
+  <li>General code improvement</li>
+</ul>
+
+<h3 id="329">3.2.9</h3>
+
+<ul>
+  <li>Fixed bug where scaling of target and viewport changes with save/undo</li>
+  <li>Fixed rare bug in PolyPen</li>
+</ul>
+
+<h3 id="328">3.2.8</h3>
+
+<ul>
+  <li>Fixed bug where checkedness of alert checkboxes is not saved</li>
+  <li>Fixed bug with Stroke snapping distance</li>
+</ul>
+
+<h3 id="327">3.2.7</h3>
+
+<ul>
+  <li>Fixed bug when pressing MMB while moving geometry with LMB</li>
+  <li>Significantly improved Auto Save and Auto Save recovery</li>
+  <li>Added quick bail if unexpected exceptions occur to prevent work loss</li>
+  <li>Temp mesh is used when updating to prevent work loss</li>
+  <li>PolyPen now has option to adjust distance for inserting vertex into edge</li>
+  <li>Fixed issue where loose verts and edges are unselectable</li>
+  <li>Fixed issue with crashing when using tablet</li>
+  <li>Improved auto adjustment of view clipping</li>
+  <li>Improved stability of Strokes and PolyPen</li>
+  <li>Added option for snapping to geometry while using Strokes instead of using brush radius</li>
+  <li>Checking for invalid characters in add-on folder name</li>
+  <li>Improved and debugged UI code</li>
+  <li>Removed RetopoFlow menu from all modes other than Object and Mesh Edit</li>
+  <li>Moved version number from the menu title to the menu header</li>
+</ul>
+
+<h3 id="326">3.2.6</h3>
+
+<ul>
+  <li>Vertex pinning and unpinning, where pinned vertices cannot be moved</li>
+  <li>Seam edges can be pinned</li>
+  <li>Option to hide mouse cursor when moving geometry</li>
+  <li>Keymap editor improvements: shows keys for done and toggle UI, added Blender passthrough, fixed many bugs</li>
+  <li>Fixed bug where modifier key states would be out of sync if pressed or unpressed while changing view</li>
+  <li>Added auto clip adjustment setting, which adjusts clip settings based on view position and distance to bbox of sources</li>
+  <li>Fixed visualization bug where depth test wasn’t always enabled and depth range might not be [0,1]</li>
+  <li>Added check for and button to select vertices that are on the “wrong” side of symmetry planes.</li>
+  <li>Fixed many bugs and cleaned up code</li>
+</ul>
+
+<h3 id="325">3.2.5</h3>
+
+<ul>
+  <li>Worked around a major crashing bug in Blender 3.0 and 3.1</li>
+  <li>Overhauled RetopoFlow’s Blender menu, by adding custom icons to buttons, improving the wording, buttons to online help documents, buttons to updater</li>
+  <li>Modifier keys (i.e., <code class="language-plaintext highlighter-rouge">Ctrl</code>, <code class="language-plaintext highlighter-rouge">Shift</code>, <code class="language-plaintext highlighter-rouge">Alt</code>, <code class="language-plaintext highlighter-rouge">OSKey</code>) now show OSX-specific symbols (i.e., <code class="language-plaintext highlighter-rouge">^</code>, <code class="language-plaintext highlighter-rouge">⇧</code>, <code class="language-plaintext highlighter-rouge">⌥</code>, <code class="language-plaintext highlighter-rouge">⌘</code>) for better readability on OSX machines</li>
+  <li>Improved keymap editor</li>
+  <li>Minor improvements for smaller screens</li>
+  <li>Started working on improvements for error reporting</li>
+  <li>Started refactoring code for major changes to Blender 3.0+ API, such as removing dependence on the deprecated <code class="language-plaintext highlighter-rouge">bgl</code> module</li>
+  <li>Many bug fixes</li>
+  <li>General cleaning up of old code and adding comments</li>
+</ul>
+
+<h3 id="324">3.2.4</h3>
+
+<ul>
+  <li>Fixed visual bug that affected machines with Apple’s M1 processor (issue #915)</li>
+</ul>
+
+<h3 id="323">3.2.3</h3>
+
+<ul>
+  <li>Worked around a bug with Apple M1 MacBook Pro / Intel graphics card where Blender would crash on load</li>
+  <li>Warn if a source or the target has non-invertible transformation matrix</li>
+  <li>Minor change due to Blender 3.0 deprecating <code class="language-plaintext highlighter-rouge">blf.KERNING_DEFAULT</code></li>
+</ul>
+
+<h3 id="322">3.2.2</h3>
+
+<ul>
+  <li>Fixed major updater bug</li>
+  <li>Fixed bug where Brush Falloff with <code class="language-plaintext highlighter-rouge">Ctrl+F</code> was not working</li>
+</ul>
+
+<h3 id="321">3.2.1</h3>
+
+<ul>
+  <li>Fixed issue where normals are not computed correctly after applying symmetry</li>
+  <li>Added shortcuts to increase and decrease brush radius for Tweak and Relax</li>
+  <li>Fixed scrolling UI with trackpad</li>
+  <li>Minor fixes across several tools (Contours, PolyStrips, Loops, Strokes, Relax, Tweak)</li>
+  <li>Broad and general maintenance (code refactoring, cleaning, and commenting)</li>
+  <li>Minor UI/UX improvements</li>
+</ul>
+
+<h3 id="320">3.2.0</h3>
+
+<ul>
+  <li>Added builtin Keymap Editor (prototype)</li>
+  <li>Significantly improved performance of tools with large target meshes!</li>
+  <li>Target mesh visualization will now split (under the hood) when working on a small portion, improving feedback performance for some actions</li>
+  <li>Shortest path selection keymap default changed from <code class="language-plaintext highlighter-rouge">Shift+Alt+LMB/RMB+Double</code> to <code class="language-plaintext highlighter-rouge">Ctrl+Shift+LMB/RMB+Click</code> to better match Blender</li>
+  <li>Added ability to hide/reveal target mesh geometry</li>
+  <li>Added button to recalculate normals in the Target Cleaning panel</li>
+  <li>Added ability to Collapse Edges &amp; Faces from delete/dissolve/collapse menu</li>
+  <li>Tweak and Relax can now slide vertices along a boundary</li>
+  <li>New Plane Symmetry Visualization setting, which is now default for better performance</li>
+  <li>Added selection options to help with selecting hard-to-get vertices</li>
+  <li>Improved Updater System</li>
+  <li>General code cleanup and refactoring</li>
+  <li>Works in Blender 2.83.0–3.0.0alpha (as of 2021.06.21)</li>
+  <li>Many bug fixes and UX improvements</li>
+</ul>
+
+<h3 id="310">3.1.0</h3>
+
+<ul>
+  <li>Knife is a new tool for cutting into existing geometry!</li>
+  <li>Selection painting now selects geometry along shortest path from where mouse was first pressed to the geometry nearest current mouse position</li>
+  <li>Tools are much more responsive when working on targets with high geometry counts</li>
+  <li>Loops, Tweak, and Relax now have quick shortcuts</li>
+  <li>The tools pie menu is now <code class="language-plaintext highlighter-rouge">Q</code> as well as <code class="language-plaintext highlighter-rouge">~</code> to help reduce finger gymnastics</li>
+  <li>Major UI performance improvements from redesign and reimplementation of underlying UI system</li>
+  <li>Improved smart selection and added actions for selecting geometry along shortest path</li>
+  <li>Added button to push target vertices along normal before snapping to fix vertices snapping to inner source surfaces</li>
+  <li>Added updater system for updating to specific branches or commits</li>
+  <li>Added actions for hiding or revealing target geometry</li>
+  <li>Added button on help system to view help documents in web browser and to open FAQ</li>
+  <li>Added Blender operator for creating new target mesh based on active source mesh</li>
+  <li>Visualizing non-manifold edges and detached vertices</li>
+  <li>Many bug fixes and UX improvements</li>
+</ul>
+
+<h3 id="302">3.0.2</h3>
+
+<ul>
+  <li>Tweak/Relax: added brush presets</li>
+  <li>Symmetry: added button to apply symmetry, improved visualization</li>
+  <li>PolyStrips/Strokes: brush settings now remain through sessions</li>
+  <li>Strokes: added span insert modes (fixed, brush size) and brush size adjustment</li>
+  <li>Improved ability to select geometry</li>
+  <li>Added edge flow smooth feature</li>
+  <li>Several bug fixes and UX improvements</li>
+</ul>
+
+<h3 id="301">3.0.1</h3>
+
+<ul>
+  <li>PolyPen: added ability to move edge with drag after inserting new quad (before releasing insert)</li>
+  <li>Strokes: added a simple visualization to show how a stroke will connect to hovered existing geometry.  Still a work-in-progress!</li>
+  <li>Dissolving edges now dissolves verts (similar to Blender)</li>
+  <li>Tweak/Relax: brushes now do not become fully opaque (nor fully transparent) when strength is set to 1 (or 0)</li>
+  <li>Patches: improved code to detect good candidates for bridging two I-strips</li>
+  <li>PolyPen: PP-specific pie menu now shown in help doc</li>
+  <li>Added quit confirmation dialog when using <code>Tab</code>.  This dialog can be disabled.</li>
+  <li>Added Delete/Dissolve pie menu using <code>Ctrl+Backspace</code>, <code>Ctrl+Delete</code>, <code>Ctrl+X</code></li>
+  <li>Other miscellaneous bug fixes</li>
+</ul>
+
+<h3 id="300">3.0.0</h3>
+
+<ul>
+  <li>Left-mouse select is now a thing!</li>
+  <li>Mouse dragging, clicking, and double-clicking are now possible actions.</li>
+  <li>Some of the keymaps for some tools have changed to allow for LMB-select.</li>
+  <li>The target mesh is what you are currently editing (Edit Mode), and the source meshes are any other visible mesh.</li>
+  <li>RF now automatically detects many common mesh errors, such as vertices with invalid coordinates and inward-facing normals.</li>
+  <li>Some RF tools have improved options.</li>
+  <li>Major UI and UX improvements, including: tooltips, labels, help docs, gizmo rendering, minimizing main tool window</li>
+  <li>Improved consistency across all tools</li>
+  <li>Tools refresh faster when in middle of editing</li>
+  <li>Code optimization, cleanup, and refactoring</li>
+  <li>Reworked Auto Save and Save to be more intuitive and handle errors better</li>
+  <li>Works in Blender 2.8x and 2.9x</li>
+  <li>Fixed many issues</li>
+</ul>
+
+
+      </section>
+      <footer>
+        <p><small>Hosted on GitHub Pages. Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="/assets/js/scale.fix.js"></script>
+    
+  </body>
+</html>
