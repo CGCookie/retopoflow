@@ -64,17 +64,17 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
 
     extrapolate_mode: bpy.props.EnumProperty(
         name='Extrapolation',
-        description='Controls how the strokes is extrapolated across selected edges',
+        description='Controls how the new perpendicular edges are extrapolated from the selected edges',
         items=[
-            ('FLAT',  'Flat',  'No changes to stroke', 0),
-            ('ADAPT', 'Adapt', 'Adapt stroke to the angle of edges', 1),
+            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
+            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
         ],
         default='FLAT',
     )
 
     cut_count: bpy.props.IntProperty(
         name='Count',
-        description='Number of vertices to create in a new cut',
+        description='Number of vertices or loops to create in a new stroke',
         default=8,
         min=1,
         soft_max=32,
@@ -83,7 +83,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
 
     bridging_offset: bpy.props.IntProperty(
         name='Bridging Offset',
-        description='Shift where bridging happens',
+        description='Shift which edges the bridge is connected to',
         default=0,
     )
 
@@ -308,7 +308,7 @@ class RFOperator_Strokes(RFOperator):
 
     initial_cut_count: bpy.props.IntProperty(
         name='Initial Count',
-        description='Number of vertices to create in a new cut',
+        description='Number of vertices or loops to create in a new stroke',
         default=8,
         min=1,
         max=100,
@@ -316,17 +316,17 @@ class RFOperator_Strokes(RFOperator):
 
     extrapolate_mode: bpy.props.EnumProperty(
         name='Extrapolation',
-        description='Controls how the strokes is extrapolated across selected edges',
+        description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
-            ('FLAT',  'Flat',  'No changes to stroke', 0),
-            ('ADAPT', 'Adapt', 'Adapt stroke to the angle of edges', 1),
+            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
+            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
         ],
         default='FLAT',
     )
 
     initial_smooth_angle: bpy.props.FloatProperty(
         name='Initial Smoothing',
-        description='Smoothing angle',
+        description='Factor for how much smoothing is applied to the interpolated loops when creating Equals Strips and I Strips. Zero is linear.',
         default=1.0,
         min=-0.5,
         soft_min=0.0,
