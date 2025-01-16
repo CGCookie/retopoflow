@@ -255,8 +255,8 @@ class RFTool_Relax(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Brush:")
             layout.prop(props, 'brush_radius')
-            layout.prop(props, 'brush_falloff')
             layout.prop(props, 'brush_strength')
+            layout.prop(props, 'brush_falloff')
             layout.separator()
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
@@ -267,8 +267,8 @@ class RFTool_Relax(RFTool_Base):
             header.label(text="Brush")
             if panel:
                 panel.prop(props, 'brush_radius')
-                panel.prop(props, 'brush_falloff')
                 panel.prop(props, 'brush_strength')
+                panel.prop(props, 'brush_falloff')
 
             header, panel = layout.panel(idname='relax_algorithm_panel', default_closed=False)
             header.label(text="Algorithm")
