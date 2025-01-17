@@ -956,7 +956,9 @@ class RetopoFlow_Target:
             *edges, *(bme for bmf in faces for bme in bmf.edges),      *(bme for bmv in verts for bme in bmv.link_edges),
             *faces, *(bmf for bmv in verts for bmf in bmv.link_faces), *(bmf for bme in edges for bmf in bme.link_faces),
         }
-        for e in hide_elems: e.hide = True
+        for e in hide_elems:
+            e.select = False  # Fix #1265. Hiding part of the mesh breaks orbit around selection.
+            e.hide = True
         self.dirty()
 
     def hide_visible(self):
