@@ -1256,9 +1256,13 @@ class Strokes_Logic:
             bmv_tr = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
             bmv_tl1 = bmes_shared_bmv(self.longest_strip0[0], self.longest_strip0[1])
             bmv_tr1 = bmes_shared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
-            i0 = len(self.longest_strip0) // 2
-            bmv_tmid0 = bme_unshared_bmv(self.longest_strip0[i0], self.longest_strip0[i0+1])
-            bmv_tmid1 = bmes_shared_bmv(self.longest_strip0[i0], self.longest_strip0[i0+1])
+            if len(self.longest_strip0) % 2 == 0:
+                i0 = len(self.longest_strip0) // 2 - 1
+            else:
+                i0 = len(self.longest_strip0) // 2
+            i1 = i0 + 1
+            bmv_tmid0 = bme_unshared_bmv(self.longest_strip0[i0], self.longest_strip0[i1])
+            bmv_tmid1 = bmes_shared_bmv(self.longest_strip0[i0], self.longest_strip0[i1])
         else:
             bmv_tl, bmv_tr = self.longest_strip0[0].verts
             bmv_tl1 = bmv_tr
@@ -1391,8 +1395,9 @@ class Strokes_Logic:
             pt_bl1 = template_b[1]
             pt_br1 = template_b[-2]
             i0 = len(template_b) // 2
+            i1 = min(i0 + 1, len(template_b) -1)
             pt_bmid0 = template_b[i0]
-            pt_bmid1 = template_b[i0+1]
+            pt_bmid1 = template_b[i1]
         vec_tmid, vec_bmid = pt_tmid1 - pt_tmid0, pt_bmid1 - pt_bmid0
         vec_tbmid = pt_bmid0 - pt_tmid0
         negate = (Vector((vec_tmid.y, -vec_tmid.x)).dot(vec_tbmid) < 0)

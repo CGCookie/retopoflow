@@ -313,6 +313,7 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
 
 def invoke_operator(name, label, **kwargs):
     idname = name.lower()
+    if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
     def get(fn):
         create_operator(name, idname, label, fn_invoke=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
@@ -321,6 +322,7 @@ def invoke_operator(name, label, **kwargs):
 
 def execute_operator(name, label, **kwargs):
     idname = name.lower()
+    if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
     def get(fn):
         create_operator(name, idname, label, fn_exec=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
@@ -329,6 +331,7 @@ def execute_operator(name, label, **kwargs):
 
 def modal_operator(name, label, **kwargs):
     idname = name.lower()
+    if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
     def get(fn):
         create_operator(name, idname, label, fn_exec=fn, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'

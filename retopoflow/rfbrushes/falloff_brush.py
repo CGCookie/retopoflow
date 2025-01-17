@@ -199,8 +199,8 @@ def create_falloff_brush(idname, label, **kwargs):
             fillscale = Color((1, 1, 1, lerp(self.strength, self.brush_min_alpha, self.brush_max_alpha)))
 
             ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
-            p, n = self.hit_p, self.hit_n
-            # p -= view_forward_direction(context) * (context.space_data.overlay.retopology_offset * 2)
+            p = self.hit_p - self.hit_ray[1].xyz * (1.5 * context.space_data.overlay.retopology_offset)
+            n = self.hit_n
             ro = self.radius * self.hit_scale
             ri = ro * ff
             rm, rd = (ro + ri) / 2.0, (ro - ri)
