@@ -68,6 +68,8 @@ from .tweak_logic import Tweak_Logic
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
+from ..rfoperators.mesh_cleanup import draw_cleanup_panel
+
 RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'tweak_brush',
     'Tweak Brush',
@@ -232,6 +234,8 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props, 'mask_boundary', text="Boundary")
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 panel.prop(props, 'mask_occluded', text="Occluded")
+
+            draw_cleanup_panel(layout)
 
         else:
             print(f'RFTool_Tweak.draw_settings: {context.region.type=}')

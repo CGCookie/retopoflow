@@ -68,6 +68,8 @@ from .relax_logic import Relax_Logic
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
+from ..rfoperators.mesh_cleanup import draw_cleanup_panel
+
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
     'Relax Brush',
@@ -292,6 +294,8 @@ class RFTool_Relax(RFTool_Base):
                 panel.prop(props, 'mask_boundary', text="Boundary")
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 panel.prop(props, 'mask_occluded', text="Occluded")
+
+            draw_cleanup_panel(layout)
 
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')

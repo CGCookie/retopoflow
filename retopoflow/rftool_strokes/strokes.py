@@ -46,6 +46,7 @@ from ...addon_common.common.utils import iter_pairs
 from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..rfoperators.mesh_cleanup import draw_cleanup_panel
 
 from functools import wraps
 
@@ -463,6 +464,7 @@ class RFTool_Strokes(RFTool_Base):
             if panel:
                 panel.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
                 panel.prop(props_translate, 'distance2d')
+            draw_cleanup_panel(layout)
 
     @classmethod
     def activate(cls, context):

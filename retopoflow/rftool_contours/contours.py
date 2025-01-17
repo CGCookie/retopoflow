@@ -45,6 +45,7 @@ from ...addon_common.common.reseter import Reseter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+from ..rfoperators.mesh_cleanup import draw_cleanup_panel
 
 from .contours_logic import Contours_Logic
 from functools import wraps
@@ -337,6 +338,7 @@ class RFTool_Contours(RFTool_Base):
                 if props_contours.initial_process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
+            draw_cleanup_panel(layout)
 
     @classmethod
     def activate(cls, context):
