@@ -24,7 +24,7 @@ import bmesh
 import bpy
 import gpu
 from bmesh.types import BMVert, BMEdge, BMFace
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 
@@ -348,9 +348,10 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
         # TODO: not respecting the mirror modifier clip setting!
 
         self.highlight = set()
-        for bmv, co2d_orig in zip(self.bmvs, self.bmvs_co2d_orig):
-            co = nearest_point_valid_sources(context, co2d_orig + self.delta, world=False)
-            bmv.co = co
+        for bmv, co_orig, co2d_orig in zip(self.bmvs, self.bmvs_co_orig, self.bmvs_co2d_orig):
+            co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, co_orig)
+            co = nearest_point_valid_sources(context, co, world=True)
+            bmv.co = self.matrix_world_inv @ co
 
         self.update_normals(context, event)
 
