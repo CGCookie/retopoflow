@@ -218,6 +218,10 @@ class RFTool_Tweak(RFTool_Base):
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
             layout.prop(props, 'mask_occluded', text="Occluded")
+            layout.separator()
+            row = layout.row(align=True)
+            row.popover('RF_PT_MeshCleanup', text='Clean Up')
+            row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
 
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='tweak_brush_panel', default_closed=False)

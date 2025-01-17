@@ -37,6 +37,7 @@ from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
+from .rfoperators.mesh_cleanup import RFMenu_PT_MeshCleanup
 
 # NOTE: import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
@@ -91,6 +92,7 @@ class RFCore:
         RFOperator.register_all()
         RFOperator_Execute.register_all()
         RFRegisterClass.register_all()
+        bpy.utils.register_class(RFMenu_PT_MeshCleanup)
 
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
@@ -136,6 +138,7 @@ class RFCore:
         RFOperator_Execute.unregister_all()
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
+        bpy.utils.unregister_class(RFMenu_PT_MeshCleanup)
 
 
     @staticmethod

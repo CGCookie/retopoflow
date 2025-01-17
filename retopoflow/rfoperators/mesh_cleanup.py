@@ -118,8 +118,22 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
 
         return {'FINISHED'}
 
+
+def draw_cleanup_options(layout):
+    layout.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+
 def draw_cleanup_panel(layout):
     header, panel = layout.panel(idname='retopoflow_cleanup_panel', default_closed=True)
     header.label(text="Clean Up")
     if panel:
-        panel.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+        draw_cleanup_options(panel)
+
+
+class RFMenu_PT_MeshCleanup(bpy.types.Panel):
+    bl_label = "Mesh Clean Up"
+    bl_idname = "RF_PT_MeshCleanup"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+
+    def draw(self, context):
+        draw_cleanup_options(self.layout)

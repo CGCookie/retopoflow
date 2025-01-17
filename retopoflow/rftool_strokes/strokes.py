@@ -445,7 +445,10 @@ class RFTool_Strokes(RFTool_Base):
             layout.separator()
             layout.label(text="Tweak:")
             layout.prop(props_translate, 'distance2d')
-            # layout.prop(context.tool_settings, 'use_mesh_automerge', text='')
+            layout.separator()
+            row = layout.row(align=True)
+            row.popover('RF_PT_MeshCleanup', text='Clean Up')
+            row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Insert")

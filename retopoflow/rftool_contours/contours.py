@@ -329,6 +329,10 @@ class RFTool_Contours(RFTool_Base):
             if props_contours.initial_process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
+            layout.separator()
+            row = layout.row(align=True)
+            row.popover('RF_PT_MeshCleanup', text='Clean Up')
+            row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")

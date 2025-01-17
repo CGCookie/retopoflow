@@ -58,7 +58,8 @@ elif bpy.app.version < bl_info['blender']:
 
 else:
     from .retopoflow.rfcore import RFCore
-    def register():   RFCore.register()
+    def register():
+        RFCore.register()
     def unregister():
         try:
             print(f'Unregistering RetopoFlow...')
@@ -68,5 +69,3 @@ else:
             from .addon_common.common.debug import debugger
             print(f'Caught ReferenceError while trying to unregister RetopoFlow')
             debugger.print_exception()
-
-
