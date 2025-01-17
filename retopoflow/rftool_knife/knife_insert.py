@@ -268,6 +268,10 @@ class Knife_Insert():
                 # Get intersection points between cut line and geometry
                 Point_to_Point2D = self.rfcontext.Point_to_Point2D
                 knife_start = self.knife_start or Point_to_Point2D(next(iter(self.sel_verts)).co)
+                if knife_start is None:
+                    self.rfcontext.undo_cancel()    # remove undo, because no geometry was changed
+                    self.knife_start = self.actions.mouse
+                    return
                 knife_start_face = self.rfcontext.accel_nearest2D_face(point=knife_start, max_dist=options['knife snap dist'])[0]
                 crosses = self._get_crosses(knife_start, self.actions.mouse)
                 # add additional point if mouse is hovering a face or edge
