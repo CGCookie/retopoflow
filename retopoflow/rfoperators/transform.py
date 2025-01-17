@@ -68,7 +68,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'G',         'value': 'PRESS'}, None),
+        (f'{bl_idname}_selected', {'type': 'G',         'value': 'PRESS'}, None),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
@@ -86,6 +86,13 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
         default=True,
     )
+
+    @staticmethod
+    @execute_operator(f'{bl_idname}_selected', f'{bl_label} Selected')
+    def grab_selected(context):
+        idname = RFOperator_Translate_ScreenSpace.bl_idname.split('.')[1]
+        op = getattr(bpy.ops.retopoflow, f'{idname}')
+        op('INVOKE_DEFAULT', move_hovered=False)
 
 
     def init(self, context, event):
