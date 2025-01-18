@@ -72,20 +72,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     rf_label = "Clean Up Mesh"
 
     def draw(self, context):
-        props = bpy.context.scene.retopoflow_mesh_cleanup
-        layout = self.layout
-        col = layout.column()
-        col.use_property_split = True
-        col.use_property_decorate = False
-        col.prop(props, 'merge_by_distance')
-        row = col.row()
-        row.enabled = props.merge_by_distance
-        row.prop(props, 'merge_threshold', text='Threshold')
-        col.separator()
-        col.prop(props, 'push_and_snap', text='Snap to Surface')
-        col.prop(props, 'delete_loose')
-        col.prop(props, 'fill_holes')
-        col.prop(props, 'recalculate_normals')
+        draw_cleanup_options(self.layout, draw_button=False)
 
     def execute(self, context):
         props = bpy.context.scene.retopoflow_mesh_cleanup
@@ -127,27 +114,30 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         return {'FINISHED'}
 
 
-def draw_cleanup_options(layout):
+def draw_cleanup_options(layout, draw_button=True):
     props = bpy.context.scene.retopoflow_mesh_cleanup
     col = layout.column()
     col.use_property_split = True
     col.use_property_decorate = False
+
+    row = col.row(heading='Merge')
+    row.prop(props, 'merge_by_distance', text='By Distance')
+    row = col.row()
+    row.enabled = props.merge_by_distance
+    row.prop(props, 'merge_threshold', text='Threshold')
+    col.separator()
+
     row = col.row(heading='Delete')
     row.prop(props, 'delete_loose', text='Loose')
     row = col.row(heading='Fill')
     row.prop(props, 'fill_holes', text='Holes')
-    row = col.row(heading='Merge')
-    row.prop(props, 'merge_by_distance', text='By Distance')
-    if props.merge_by_distance:
-        row = col.row()
-        row.enabled = props.merge_by_distance
-        row.prop(props, 'merge_threshold', text='Threshold')
     row = col.row(heading='Recalculate')
     row.prop(props, 'recalculate_normals', text='Normals')
     row = col.row(heading='Snap')
-    row.prop(props, 'push_and_snap', text='To Surface')
-    col.separator()
-    col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+    row.prop(props, 'push_and_snap', text='To Source')
+    if draw_button:
+        col.separator()
+        col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
 
 
 def draw_cleanup_panel(layout):
