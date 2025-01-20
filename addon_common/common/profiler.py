@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Williamson, and Patrick Moore
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from functools import wraps
 import os
 import time
 import inspect
@@ -346,3 +347,13 @@ def time_it(label=None, *, prefix='', infix=' ', enabled=True):
         print(f'{prefix}{delta:0.4f} {label}{infix}')
 
 
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+        print('func:%r took: %2.4f sec' % \
+          (f.__name__, te-ts))
+        return result
+    return wrap
