@@ -963,23 +963,35 @@ class RFMesh():
         return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
 
     def visible_edges(self, is_visible, verts=None, edges=None):
+        edges = self.bme.edges if edges is None else map(self._unwrap, edges)
+
         is_valid = RFMesh.fn_is_valid
-        is_vert_vis = self._gen_is_vis(is_visible)
 
         # Edge is visible if ANY of its vertices are visible
-        is_edge_vis = lambda bme: (
-            is_valid(bme) and 
-            any(is_vert_vis(bmv) for bmv in bme.verts)
-        )
+        if verts:
+            verts = set(map(self._unwrap, verts))
+            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in verts for bmv in bme.verts)
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
 
-        edges = self.bme.edges if edges is None else map(self._unwrap, edges)
+            is_edge_vis = lambda bme: (
+                is_valid(bme) and 
+                any(is_vert_vis(bmv) for bmv in bme.verts)
+            )
+
         return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     def visible_faces(self, is_visible, verts=None, faces=None):
         is_valid = RFMesh.fn_is_valid
-        is_vert_vis = self._gen_is_vis(is_visible)
-        is_face_vis = lambda bme: is_valid(bme) and all(bmv in verts for bmv in bme.verts)
-        verts = set(filter(is_vert_vis, self.bme.verts) if verts is None else filter(is_valid, map(self._unwrap, verts)))
+
+        # Get visible vertices first
+        if verts:
+            verts = set(map(self._unwrap, verts))
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
+            verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+
+        is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
         faces = self.bme.faces if faces is None else map(self._unwrap, faces)
         return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
 
