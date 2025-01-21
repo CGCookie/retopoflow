@@ -54,7 +54,7 @@ class RFProps(bpy.types.PropertyGroup):
 
 def register():
     bpy.utils.register_class(RFProps)
-    bpy.types.WindowManager.retopoflow = bpy.props.PointerProperty(type=RFProps)
+    bpy.types.Scene.retopoflow = bpy.props.PointerProperty(type=RFProps)
 
 def unregister():
     bpy.utils.unregister_class(RFProps)

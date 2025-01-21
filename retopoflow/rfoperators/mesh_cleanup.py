@@ -39,7 +39,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         draw_cleanup_options(self.layout, draw_button=False)
 
     def execute(self, context):
-        props = bpy.context.window_manager.retopoflow
+        props = bpy.context.scene.retopoflow
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
@@ -79,7 +79,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
 
 
 def draw_cleanup_options(layout, draw_button=True):
-    props = bpy.context.window_manager.retopoflow
+    props = bpy.context.scene.retopoflow
     col = layout.column()
     col.use_property_split = True
     col.use_property_decorate = False
