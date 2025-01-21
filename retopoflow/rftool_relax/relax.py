@@ -68,7 +68,9 @@ from .relax_logic import Relax_Logic
 
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
-from ..rfoperators.mesh_cleanup import draw_cleanup_panel
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..rfpanels.masking_panel import draw_masking_panel
+from ..rfpanels.relax_algorithm_panel import draw_relax_algo_panel
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
@@ -259,11 +261,14 @@ class RFTool_Relax(RFTool_Base):
             layout.prop(props, 'brush_radius')
             layout.prop(props, 'brush_strength')
             layout.prop(props, 'brush_falloff')
-            layout.separator()
+            layout.popover('RF_PT_RelaxAlgorithm')
+            #layout.popover('RF_PT_Masking')
+            layout.separator(type='LINE')
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
+            # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
             layout.prop(props, 'mask_occluded', text="Occluded")
-            layout.separator()
+            layout.separator(type='LINE')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
@@ -275,30 +280,8 @@ class RFTool_Relax(RFTool_Base):
                 panel.prop(props, 'brush_radius')
                 panel.prop(props, 'brush_strength')
                 panel.prop(props, 'brush_falloff')
-
-            header, panel = layout.panel(idname='relax_algorithm_panel', default_closed=False)
-            header.label(text="Algorithm")
-            if panel:
-                panel.prop(props, 'algorithm_iterations',            text="Iterations")
-                panel.prop(props, 'algorithm_strength',              text="Strength")
-                col = panel.column(heading="Average")
-                col.prop(props, 'algorithm_average_edge_lengths',  text='Edge Lengths')
-                col.prop(props, 'algorithm_average_face_radius',   text='Face Radius')
-                col.prop(props, 'algorithm_average_face_angles',   text='Face Angles')
-                col.prop(props, 'algorithm_average_face_lengths',  text='Face Lengths')
-                col = panel.column(heading="Straighten")
-                col.prop(props, 'algorithm_straighten_edges',      text='Edges')
-                col = panel.column(heading="Correct")
-                col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
-
-            header, panel = layout.panel(idname='relax_masking_panel', default_closed=False)
-            header.label(text="Masking")
-            if panel:
-                panel.prop(props, 'mask_selected', text="Selected")
-                panel.prop(props, 'mask_boundary', text="Boundary")
-                # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-                panel.prop(props, 'mask_occluded', text="Occluded")
-
+            draw_relax_algo_panel(layout, context)
+            draw_masking_panel(layout, context)
             draw_cleanup_panel(layout)
 
         else:

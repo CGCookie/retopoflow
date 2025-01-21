@@ -50,7 +50,8 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
-from ..rfoperators.mesh_cleanup import draw_cleanup_panel
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..rfpanels.tweak_panel import draw_tweak_panel
 
 from .polypen_logic import PP_Logic
 
@@ -226,10 +227,8 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
-            layout.separator()
-            layout.label(text="Tweak:")
-            layout.prop(props_translate, 'distance2d')
-            layout.separator()
+            layout.separator(type='LINE')
+            layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
@@ -240,11 +239,7 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
-            header, panel = layout.panel(idname='polypen_general_panel', default_closed=False)
-            header.label(text="Tweak")
-            if panel:
-                panel.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
-                panel.prop(props_translate, 'distance2d')
+            draw_tweak_panel(layout, context)
             draw_cleanup_panel(layout)
 
     @classmethod

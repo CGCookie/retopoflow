@@ -38,6 +38,7 @@ from .rfbrush_base import RFBrush_Base
 
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from .rfoperators import mesh_cleanup
+from .rfpanels import mesh_cleanup_panel, tweak_panel, masking_panel, relax_algorithm_panel
 
 # NOTE: import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
@@ -93,6 +94,10 @@ class RFCore:
         RFOperator_Execute.register_all()
         RFRegisterClass.register_all()
         mesh_cleanup.register()
+        mesh_cleanup_panel.register()
+        tweak_panel.register()
+        masking_panel.register()
+        relax_algorithm_panel.register()
 
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
@@ -139,6 +144,10 @@ class RFCore:
         RFOperator.unregister_all()
         RFTool_Base.unregister_all()
         mesh_cleanup.unregister()
+        mesh_cleanup_panel.unregister()
+        tweak_panel.unregister()
+        masking_panel.unregister()
+        relax_algorithm_panel.unregister()
 
 
     @staticmethod

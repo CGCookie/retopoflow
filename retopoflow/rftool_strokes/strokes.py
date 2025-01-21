@@ -46,7 +46,9 @@ from ...addon_common.common.utils import iter_pairs
 from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
-from ..rfoperators.mesh_cleanup import draw_cleanup_panel
+
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..rfpanels.tweak_panel import draw_tweak_panel
 
 from functools import wraps
 
@@ -442,10 +444,8 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(align=True)
             row.prop(props_strokes, 'initial_smooth_density0', text='Spacing')
             row.prop(props_strokes, 'initial_smooth_density1', text='')
-            layout.separator()
-            layout.label(text="Tweak:")
-            layout.prop(props_translate, 'distance2d')
-            layout.separator()
+            layout.separator(type='LINE')
+            layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
@@ -462,11 +462,7 @@ class RFTool_Strokes(RFTool_Base):
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
                 col.prop(props_strokes, 'initial_smooth_density1', text='End')
-            header, panel = layout.panel(idname='strokes_general_panel', default_closed=False)
-            header.label(text="Tweak")
-            if panel:
-                panel.prop(context.tool_settings, 'use_mesh_automerge', text='Auto Merge')
-                panel.prop(props_translate, 'distance2d')
+            draw_tweak_panel(layout, context)
             draw_cleanup_panel(layout)
 
     @classmethod
