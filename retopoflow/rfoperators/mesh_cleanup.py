@@ -21,44 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy, bmesh
 
-from pprint import pprint
-
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
-
-class RFProps_MeshCleanup(bpy.types.PropertyGroup):
-    push_and_snap: bpy.props.BoolProperty(
-        name='Push and Snap',
-        default=True
-    )
-    push_distance: bpy.props.FloatProperty(
-        name='Push Distance',
-        default=0.001,
-        min=0
-    )
-    merge_by_distance: bpy.props.BoolProperty(
-        name='Merge by Distance',
-        default=True
-    )
-    merge_threshold: bpy.props.FloatProperty(
-        name='Merge Threshold',
-        precision=4,
-        default=0.0001,
-        step=0.1,
-        min=0
-    )
-    delete_loose: bpy.props.BoolProperty(
-        name='Delete Loose Verts',
-        default=True
-    )
-    fill_holes: bpy.props.BoolProperty(
-        name='Fill Holes',
-        default=True
-    )
-    recalculate_normals: bpy.props.BoolProperty(
-        name='Recalculate Normals',
-        default=True
-    )
 
 
 class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
@@ -75,7 +39,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         draw_cleanup_options(self.layout, draw_button=False)
 
     def execute(self, context):
-        props = bpy.context.scene.retopoflow_mesh_cleanup
+        props = bpy.context.window_manager.retopoflow
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
@@ -88,21 +52,21 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         edges = [ e for e in bm.edges if e.select and not e.hide ]
         faces = [ f for f in bm.faces if f.select and not f.hide ]
 
-        if props.merge_by_distance:
-            bmesh.ops.remove_doubles(bm, verts=verts, dist=props.merge_threshold)
+        if props.cleaning_use_merge:
+            bmesh.ops.remove_doubles(bm, verts=verts, dist=props.cleaning_merge_threshold)
 
-        if props.delete_loose:
+        if props.cleaning_use_delete_loose:
             for v in bm.verts:
                 if not v.link_edges:
                     bm.verts.remove(v)
 
-        if props.fill_holes:
+        if props.cleaning_use_fill_holes:
             bmesh.ops.holes_fill(bm, edges=edges, sides=4)
 
-        if props.recalculate_normals:
+        if props.cleaning_use_recalculate_normals:
             bmesh.ops.recalc_face_normals(bm, faces=faces)
 
-        if props.push_and_snap:
+        if props.cleaning_use_snap:
             for v in bm.verts:
                 v.co = nearest_point_valid_sources(context, v.co)
 
@@ -115,38 +79,26 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
 
 
 def draw_cleanup_options(layout, draw_button=True):
-    props = bpy.context.scene.retopoflow_mesh_cleanup
+    props = bpy.context.window_manager.retopoflow
     col = layout.column()
     col.use_property_split = True
     col.use_property_decorate = False
 
     row = col.row(heading='Merge')
-    row.prop(props, 'merge_by_distance', text='By Distance')
+    row.prop(props, 'cleaning_use_merge', text='By Distance')
     row = col.row()
-    row.enabled = props.merge_by_distance
-    row.prop(props, 'merge_threshold', text='Threshold')
+    row.enabled = props.cleaning_use_merge
+    row.prop(props, 'cleaning_merge_threshold', text='Threshold')
     col.separator()
 
     row = col.row(heading='Delete')
-    row.prop(props, 'delete_loose', text='Loose')
+    row.prop(props, 'cleaning_use_delete_loose', text='Loose')
     row = col.row(heading='Fill')
-    row.prop(props, 'fill_holes', text='Holes')
+    row.prop(props, 'cleaning_use_fill_holes', text='Holes')
     row = col.row(heading='Recalculate')
-    row.prop(props, 'recalculate_normals', text='Normals')
+    row.prop(props, 'cleaning_use_recalculate_normals', text='Normals')
     row = col.row(heading='Snap')
-    row.prop(props, 'push_and_snap', text='To Source')
+    row.prop(props, 'cleaning_use_snap', text='To Source')
     if draw_button:
         col.separator()
         col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
-
-
-classes = [RFProps_MeshCleanup]
-
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    bpy.types.Scene.retopoflow_mesh_cleanup = bpy.props.PointerProperty(type=RFProps_MeshCleanup)
-
-def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
