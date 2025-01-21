@@ -38,7 +38,7 @@ from .rfbrush_base import RFBrush_Base
 
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from . import rfprops
-from .rfpanels import mesh_cleanup_panel, tweak_panel, masking_panel, relax_algorithm_panel
+from .rfpanels import mesh_cleanup_panel, masking_panel, relax_algorithm_panel, tweaking_panel
 
 # NOTE: import order determines tool order
 from .rftool_contours.contours import RFTool_Contours
@@ -95,7 +95,7 @@ class RFCore:
         RFRegisterClass.register_all()
         rfprops.register()
         mesh_cleanup_panel.register()
-        tweak_panel.register()
+        tweaking_panel.register()
         masking_panel.register()
         relax_algorithm_panel.register()
 
@@ -145,7 +145,7 @@ class RFCore:
         RFTool_Base.unregister_all()
         rfprops.unregister()
         mesh_cleanup_panel.unregister()
-        tweak_panel.unregister()
+        tweaking_panel.unregister()
         masking_panel.unregister()
         relax_algorithm_panel.unregister()
 

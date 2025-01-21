@@ -23,7 +23,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
-def draw_tweak_options(layout, context):
+def draw_tweaking_options(layout, context):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
     props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
 
@@ -37,11 +37,11 @@ def draw_tweak_options(layout, context):
     row.enabled = context.scene.tool_settings.use_mesh_automerge
     row.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')
 
-def draw_tweak_panel(layout, context):
+def draw_tweaking_panel(layout, context):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
     header.label(text="Tweaking")
     if panel:
-        draw_tweak_options(panel, context)
+        draw_tweaking_options(panel, context)
 
 class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_label = "Tweaking"
@@ -50,7 +50,7 @@ class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_tweak_options(self.layout, context)
+        draw_tweaking_options(self.layout, context)
 
 def register():
     bpy.utils.register_class(RFMenu_PT_TweakCommon)

@@ -51,7 +51,7 @@ from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweak_panel import draw_tweak_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel
 
 from .polypen_logic import PP_Logic
 
@@ -239,7 +239,7 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
-            draw_tweak_panel(layout, context)
+            draw_tweaking_panel(layout, context)
             draw_cleanup_panel(layout)
 
     @classmethod

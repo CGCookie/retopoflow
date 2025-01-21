@@ -48,7 +48,7 @@ from .strokes_logic import Strokes_Logic
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
-from ..rfpanels.tweak_panel import draw_tweak_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel
 
 from functools import wraps
 
@@ -462,7 +462,7 @@ class RFTool_Strokes(RFTool_Base):
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
                 col.prop(props_strokes, 'initial_smooth_density1', text='End')
-            draw_tweak_panel(layout, context)
+            draw_tweaking_panel(layout, context)
             draw_cleanup_panel(layout)
 
     @classmethod
