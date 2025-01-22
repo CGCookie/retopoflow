@@ -68,7 +68,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (f'{bl_idname}_selected', {'type': 'G',         'value': 'PRESS'}, None),
+        (f'{bl_idname}_grab', {'type': 'G',         'value': 'PRESS'}, None),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
@@ -78,13 +78,18 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
         default=True,
     )
+    used_keyboard: bpy.props.BoolProperty(
+        name='Used Keyboard',
+        description='Set as true if the user hit a hotkey to transform rather than used the mouse',
+        default=False,
+    )
 
     @staticmethod
-    @execute_operator(f'{bl_idname}_selected', f'{bl_label} Selected')
+    @execute_operator(f'{bl_idname}_grab', f'{bl_label} Grab')
     def grab_selected(context):
         idname = RFOperator_Translate_ScreenSpace.bl_idname.split('.')[1]
         op = getattr(bpy.ops.retopoflow, f'{idname}')
-        op('INVOKE_DEFAULT', move_hovered=False)
+        op('INVOKE_DEFAULT', used_keyboard=True)
 
 
     def init(self, context, event):
@@ -95,7 +100,12 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
 
-        if self.move_hovered:
+        if self.used_keyboard:
+            move_hovered = self.move_hovered and context.scene.retopoflow.tweaking_move_hovered_keyboard
+        else:
+            move_hovered = self.move_hovered and context.scene.retopoflow.tweaking_move_hovered_mouse
+
+        if move_hovered:
             hit = raycast_valid_sources(context, mouse_from_event(event))
             if hit:
                 co = hit['co_local']
