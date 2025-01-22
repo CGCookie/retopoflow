@@ -70,6 +70,7 @@ from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.masking_panel import draw_masking_panel
+from ..common.interface import line_separator
 
 RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'tweak_brush',
@@ -216,12 +217,12 @@ class RFTool_Tweak(RFTool_Base):
             layout.prop(props, 'brush_strength')
             layout.prop(props, 'brush_falloff')
             #layout.popover('RF_PT_Masking')
-            layout.separator(type='LINE')
+            line_separator(layout)
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
             # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
             layout.prop(props, 'mask_occluded', text="Occluded")
-            layout.separator(type='LINE')
+            line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')

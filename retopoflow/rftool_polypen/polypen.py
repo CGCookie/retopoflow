@@ -50,8 +50,10 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..common.interface import line_separator
 
 from .polypen_logic import PP_Logic
 
@@ -221,13 +223,12 @@ class RFTool_PolyPen(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
-        props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
 
         if context.region.type == 'TOOL_HEADER':
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
-            layout.separator(type='LINE')
+            line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')

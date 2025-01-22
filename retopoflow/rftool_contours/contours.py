@@ -45,7 +45,9 @@ from ...addon_common.common.reseter import Reseter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..common.interface import line_separator
 
 from .contours_logic import Contours_Logic
 from functools import wraps
@@ -329,7 +331,7 @@ class RFTool_Contours(RFTool_Base):
             if props_contours.initial_process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
-            layout.separator(type='LINE')
+            line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
