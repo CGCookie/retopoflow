@@ -49,7 +49,7 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
-from ..common.interface import line_separator
+from ..common.interface import draw_line_separator
 
 from functools import wraps
 
@@ -445,7 +445,7 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(align=True)
             row.prop(props_strokes, 'initial_smooth_density0', text='Spacing')
             row.prop(props_strokes, 'initial_smooth_density1', text='')
-            line_separator(layout)
+            draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')

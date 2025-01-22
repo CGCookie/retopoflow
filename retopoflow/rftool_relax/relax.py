@@ -71,7 +71,7 @@ from ..rfbrushes.falloff_brush import create_falloff_brush
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.masking_panel import draw_masking_panel
 from ..rfpanels.relax_algorithm_panel import draw_relax_algo_panel
-from ..common.interface import line_separator
+from ..common.interface import draw_line_separator
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
@@ -264,12 +264,12 @@ class RFTool_Relax(RFTool_Base):
             layout.prop(props, 'brush_falloff')
             layout.popover('RF_PT_RelaxAlgorithm')
             #layout.popover('RF_PT_Masking')
-            line_separator(layout)
+            draw_line_separator(layout)
             layout.prop(props, 'mask_selected', text="Selected")
             layout.prop(props, 'mask_boundary', text="Boundary")
             # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
             layout.prop(props, 'mask_occluded', text="Occluded")
-            line_separator(layout)
+            draw_line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
