@@ -190,7 +190,7 @@ class RFOperator_Tweak(RFOperator):
 
 class RFTool_Tweak(RFTool_Base):
     bl_idname = "retopoflow.tweak"
-    bl_label = "RetopoFlow Tweak"
+    bl_label = "Tweak"
     bl_description = "Tweak the vertex positions"
     bl_icon = get_path_to_blender_icon('tweak')
     bl_widget = None
