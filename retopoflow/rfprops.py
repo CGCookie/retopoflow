@@ -51,6 +51,26 @@ class RFProps(bpy.types.PropertyGroup):
         default=True
     )
 
+    """ Global tweaking properties """
+    tweaking_distance: bpy.props.IntProperty(
+        name='Select Distance',
+        description='Distance on screen to select geometry',
+        subtype='PIXEL',
+        default=15,
+        min=1,
+        max=100,
+    )
+    tweaking_move_hovered_mouse: bpy.props.BoolProperty(
+        name='Mouse Auto Select',
+        description=('Selects the geometry under the cursor, if any, before transforming using the mouse'),
+        default=True,
+    )
+    tweaking_move_hovered_keyboard: bpy.props.BoolProperty(
+        name='Keyboard Auto Select',
+        description=('Selects the geometry under the cursor, if any, before transforming using keyboard shortcuts'),
+        default=False,
+    )
+
 
 def register():
     bpy.utils.register_class(RFProps)

@@ -25,12 +25,18 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 def draw_tweaking_options(layout, context):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+    props_global = context.scene.retopoflow
     props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
 
     layout.use_property_split = True
+    layout.use_property_decorate = False
 
     layout.label(text='Selection')
-    layout.prop(props_translate, 'distance2d', text='Distance')
+    row = layout.row(heading='Mouse')
+    row.prop(props_global, 'tweaking_move_hovered_mouse', text='Auto Select')
+    row = layout.row(heading='Keyboard')
+    row.prop(props_global, 'tweaking_move_hovered_keyboard', text='Auto Select')
+    layout.prop(props_global, 'tweaking_distance', text='Distance')
     layout.label(text='Auto Merge')
     layout.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
     row = layout.row()

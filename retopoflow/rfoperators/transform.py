@@ -73,14 +73,6 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
 
-    distance2d: bpy.props.IntProperty(
-        name='Select Distance',
-        description='Distance on screen to select geometry',
-        default=15,
-        min=1,
-        max=100,
-    )
-
     move_hovered: bpy.props.BoolProperty(
         name='Select and Move Hovered',
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
@@ -107,8 +99,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
             hit = raycast_valid_sources(context, mouse_from_event(event))
             if hit:
                 co = hit['co_local']
-                self.nearest_bmv.update(context, co, distance2d=self.distance2d)
-                self.nearest_bme.update(context, co, distance2d=self.distance2d)
+                distance2d = context.scene.retopoflow.tweaking_distance
+                self.nearest_bmv.update(context, co, distance2d=distance2d)
+                self.nearest_bme.update(context, co, distance2d=distance2d)
                 # bmesh.geometry.intersect_face_point(face, point)
                 # select hovered geometry
                 nearest_bmelem = self.nearest_bmv.bmv or self.nearest_bme.bme  #or self.nearest.bmf
