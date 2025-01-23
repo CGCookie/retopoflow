@@ -19,22 +19,11 @@ Created by Jonathan Denning, Jonathan Williamson
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import re
-import random
-from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan, isfinite
-from typing import List
+from math import sqrt, ceil, sqrt, isfinite
 from itertools import chain
-from concurrent.futures import ProcessPoolExecutor
-
-import gpu
-from mathutils import Matrix, Vector, Quaternion
-from bmesh.types import BMVert
-from mathutils.geometry import intersect_line_plane, intersect_point_tri
 
 from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec, mid
 
-from .colors import colorname_to_color
-from .decorators import stats_wrapper, blender_version_wrapper
 from .profiler import profiler, time_it
 
 from ..terminal import term_printer
@@ -100,15 +89,18 @@ class Accel2D:
         # collect all involved pts so we can find bbox
         with time_it('collect', enabled=Accel2D.DEBUG):
             bbox = BBox2D()
+            # Pre-calculate Point_to_Point2Ds results for verts to avoid repeated calls
+            vert_points = {v: list(Point_to_Point2Ds(v.co, v.normal)) for v in verts}
+            
             with time_it('collect verts', enabled=Accel2D.DEBUG):
-                bbox.insert_points(pt for v in verts for pt in Point_to_Point2Ds(v.co, v.normal))
+                for v in verts:
+                    bbox.insert_points(vert_points[v])
+            
             with time_it('collect edges and faces', enabled=Accel2D.DEBUG):
-                bbox.insert_points(
-                    pt
-                    for ef in chain(edges, faces)
-                    for ef_pts in zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
-                    for pt in ef_pts
-                )
+                for ef in chain(edges, faces):
+                    ef_points = [vert_points[v] for v in ef.verts if v in vert_points]
+                    for ef_pts in zip(*ef_points):
+                        bbox.insert_points(ef_pts)
         if bbox.count == 0:
             bbox.insert(Point2D((0,0)))
 
@@ -135,16 +127,39 @@ class Accel2D:
 
         # inserting edges and faces
         with time_it('insert edges and faces', enabled=Accel2D.DEBUG):
+            # Pre-compute ij coordinates for all points
+            ij_cache = {}
+            for v, points in vert_points.items():
+                ij_cache[v] = [self.compute_ij(pt) for pt in points]
+            
+            # Insert edges
             for e in edges:
-                self._insert_edge(e)
+                # Get cached points for both vertices of the edge
+                v0_points = ij_cache.get(e.verts[0], None)
+                if v0_points is None: continue
+                v1_points = ij_cache.get(e.verts[1], None)
+                if v1_points is None: continue
+
+                # For each pair of corresponding points
+                for (i0, j0), (i1, j1) in zip(v0_points, v1_points):
+                    mini, minj = min(i0, i1), min(j0, j1)
+                    maxi, maxj = max(i0, i1), max(j0, j1)
+                    for i in range(mini, maxi + 1):
+                        for j in range(minj, maxj + 1):
+                            self._put((i, j), e)
+            
+            # Insert faces
             for ef in faces:
-                ef_pts_list = zip(*[Point_to_Point2Ds(v.co, v.normal) for v in ef.verts])
-                for ef_pts in ef_pts_list:
+                ef_ij_list = zip(*[ij_cache[v] for v in ef.verts if v in ij_cache])
+                for ef_ijs in ef_ij_list:
                     tot_inserted += 1
-                    bbox2 = BBox2D((self.compute_ij(pt) for pt in ef_pts))
-                    mini, minj, maxi, maxj = int(bbox2.mx), int(bbox2.my), int(bbox2.Mx), int(bbox2.My)
+                    mini = min(ij[0] for ij in ef_ijs)
+                    minj = min(ij[1] for ij in ef_ijs)
+                    maxi = max(ij[0] for ij in ef_ijs)
+                    maxj = max(ij[1] for ij in ef_ijs)
                     sizei, sizej = maxi - mini + 1, maxj - minj + 1
-                    if (spread := sizei*sizej) > max_spread[0]: max_spread = (spread, sizei, sizej)
+                    if (spread := sizei*sizej) > max_spread[0]:
+                        max_spread = (spread, sizei, sizej)
                     for i in range(mini, maxi + 1):
                         for j in range(minj, maxj + 1):
                             self._put((i, j), ef)
