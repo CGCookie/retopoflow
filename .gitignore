@@ -1,6 +1,11 @@
 # VSCode specific
 .vscode/
 
+# Cython specific
+retopoflow/cy/*.html
+retopoflow/cy/*.cpp
+retopoflow/cy/*.c
+
 # do not include the CG Cookie built indicator file
 .cgcookie
 
@@ -11,6 +16,10 @@ __pycache__/
 
 # C extensions
 *.so
+
+# But include our specific Cython compiled files
+!retopoflow/cy/*.so
+!retopoflow/cy/*.pyd
 
 # Distribution / packaging
 .Python
