@@ -57,7 +57,7 @@ jobs:
         path: retopoflow/cy/rfmesh_visibility*.*
         retention-days: 7
 
-  combine:
+  commit-files:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -68,19 +68,15 @@ jobs:
       with:
         path: artifacts
 
-    - name: Prepare release
+    - name: Copy compiled files to cy folder
       run: |
-        mkdir -p release/retopoflow/cy
-        # Only copy the compiled files (.so and .pyd), force overwrite with -f
-        find artifacts -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f {} release/retopoflow/cy/ \;
+        mkdir -p retopoflow/cy
+        find artifacts -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f {} retopoflow/cy/ \;
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      with:
-        files: release/retopoflow/cy/*
-        name: Cython Extensions ${{ github.sha }}
-        tag_name: cython-build-${{ github.sha }}
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add retopoflow/cy/*.so retopoflow/cy/*.pyd
+        git commit -m "Update compiled Cython extensions [skip ci]" || echo "No changes to commit"
+        git push
