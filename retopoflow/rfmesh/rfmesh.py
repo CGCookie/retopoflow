@@ -49,14 +49,22 @@ from ...addon_common.common.hasher import hash_object, Hasher
 from ...addon_common.common.utils import min_index, UniqueCounter, iter_pairs, accumulate_last, deduplicate_list, has_duplicates
 from ...addon_common.common.decorators import stats_wrapper, blender_version_wrapper
 from ...addon_common.common.debug import dprint
-from ...addon_common.common.profiler import profiler, time_it
+from ...addon_common.common.profiler import profiler, time_it, timing
 from ...addon_common.terminal import term_printer
+
+from ...addon_common.common.useractions import Actions
 
 from ...config.options import options
 
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 )
+
+try:
+    from ..cy.rfmesh_visibility import compute_visible_vertices
+    USE_CYTHON = True
+except ImportError:
+    USE_CYTHON = False
 
 
 class RFMesh():
@@ -957,43 +965,242 @@ class RFMesh():
             return is_visible(p, n) or is_visible(p + m * n, n)
         return is_vis
 
-    def visible_verts(self, is_visible, verts=None):
-        is_vis = self._gen_is_vis(is_visible)
-        verts = self.bme.verts if verts is None else map(self._unwrap, verts)
-        return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
+    def _gen_is_vis_fast(self, screen_margin=0) -> callable:
+        # Get mesh data
+        matrix_world = self.obj.matrix_world
+        matrix_normal = matrix_world.inverted_safe().transposed().to_3x3()
+        
+        # Get view parameters
+        actions = Actions.get_instance(None)
+        if actions is None:
+            raise Exception("No actions instance found")
+        r3d = actions.r3d
+        view_matrix = r3d.view_matrix
+        proj_matrix = r3d.window_matrix @ view_matrix
 
-    def visible_edges(self, is_visible, verts=None, edges=None):
-        edges = self.bme.edges if edges is None else map(self._unwrap, edges)
-
-        is_valid = RFMesh.fn_is_valid
-
-        # Edge is visible if ANY of its vertices are visible
-        if verts:
-            verts = set(map(self._unwrap, verts))
-            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in verts for bmv in bme.verts)
+        # Get view direction based on view type
+        if r3d.is_perspective:
+            view_position = r3d.view_matrix.inverted().translation
         else:
-            is_vert_vis = self._gen_is_vis(is_visible)
+            view_vector = r3d.view_matrix.inverted().col[2].xyz
 
-            is_edge_vis = lambda bme: (
-                is_valid(bme) and 
-                any(is_vert_vis(bmv) for bmv in bme.verts)
+        vis_func = RFMesh.fn_is_valid_revealed
+
+        def _check_vert_vis(v: RFVert | BMVert) -> bool:
+            if not vis_func(v):
+                return False
+
+            # Get world space position and normal
+            world_pos = matrix_world @ v.co
+            world_normal = (matrix_normal @ v.normal).normalized()
+
+            # Check normal direction relative to view
+            if r3d.is_perspective:
+                view_dir = (world_pos - view_position).normalized()
+            else:
+                view_dir = view_vector
+
+            # Skip if normal is facing away (dot product > 0 means angle > 90°)
+            if world_normal.dot(view_dir) > 0:
+                return False
+
+            # Project point to screen space
+            screen_pos = proj_matrix @ world_pos.to_4d()
+            if screen_pos.w <= 0.0:  # Behind camera
+                return False
+
+            # Perform perspective divide
+            screen_pos = screen_pos.to_3d() / screen_pos.w
+
+            # Check if point is within view bounds (including margin)
+            if abs(screen_pos.x) > 1 + screen_margin or \
+            abs(screen_pos.y) > 1 + screen_margin:
+                return False
+
+            return True
+
+        return _check_vert_vis
+
+    @timing
+    def visible_verts(self, is_visible, verts=None):
+        if USE_CYTHON:
+            # NEW - faster - METHOD. :D
+            if verts is None or len(verts) == 0:
+                if len(self.bme.verts) == 0:
+                    return set()
+                try:
+                    self.bme.verts[0]
+                except IndexError:
+                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
+                    self.bme.verts.ensure_lookup_table()
+                verts = self.bme.verts
+
+            '''is_vis = self._gen_is_vis()
+            return {bmv for bmv in verts if is_vis(bmv)}'''
+
+            return self.get_visible_vertices(verts)
+
+        else:
+            # OLD - slower - METHOD. D:
+            is_vis = self._gen_is_vis(is_visible)
+            verts = self.bme.verts if verts is None else map(self._unwrap, verts)
+            return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
+
+    @timing
+    def get_visible_vertices(self, verts, screen_margin=0):
+        """
+        Get list of visible vertex indices for an object in the current 3D view.
+        """
+        with time_it("prepare data", enabled=True):
+            # Get mesh data
+            mesh = self.obj.data
+            matrix_world = np.array(self.obj.matrix_world, dtype=np.float32)
+            matrix_normal = np.array(self.obj.matrix_world.inverted_safe().transposed().to_3x3(), dtype=np.float32)
+            
+            # Get view parameters
+            actions = Actions.get_instance(None)
+            if actions is None:
+                raise Exception("No actions instance found")
+            r3d = actions.r3d
+            
+            # Pre-compute matrices and view parameters
+            view_matrix = r3d.view_matrix
+            proj_matrix = np.array(r3d.window_matrix @ view_matrix, dtype=np.float32)
+            is_perspective = r3d.is_perspective
+            
+            if is_perspective:
+                view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
+            else:
+                view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
+            
+            # Get mesh vertex data pointers
+            vert_ptr = mesh.vertices[0].as_pointer()
+            norm_ptr = mesh.vertex_normals[0].as_pointer()
+            num_vertices = len(mesh.vertices)
+            
+            # Determine if we're processing all vertices or a subset
+            vert_indices = np.array([v.index for v in verts], dtype=np.int32)
+            process_all_verts = len(mesh.vertices) == len(verts)
+
+        with time_it("compute visible vertices (Cython):", enabled=True):
+            # TODO: Add timing for Cython code. DONE.
+            # Run Cython computation
+            vis_verts = compute_visible_vertices(
+                vert_ptr,
+                norm_ptr, 
+                num_vertices,
+                process_all_verts,
+                vert_indices,
+                matrix_world,
+                matrix_normal,
+                proj_matrix,
+                view_pos,
+                is_perspective,
+                float(1 + screen_margin),
+                list(verts),
+                RFVert
             )
 
-        return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
+        return vis_verts  # {self._wrap_bmvert(bmv) for bmv in vis_verts}
 
-    def visible_faces(self, is_visible, verts=None, faces=None):
-        is_valid = RFMesh.fn_is_valid
+        # Convert indices back to vertex set
+        if len(visible_indices) == 0:
+            return set()
+        with time_it("convert indices to vertex set", enabled=True):
+            if isinstance(verts[0], RFVert):
+                return {verts[i] for i in visible_indices}
+            else:
+                return {self._wrap_bmvert(verts[i]) for i in visible_indices}
 
-        # Get visible vertices first
-        if verts:
-            verts = set(map(self._unwrap, verts))
+    @timing
+    def visible_edges(self, is_visible, verts=None, edges=None):
+        if USE_CYTHON:
+            if edges is None or len(edges) == 0:
+                if len(self.bme.edges) == 0:
+                    return set()
+                try:
+                    self.bme.edges[0]
+                except IndexError:
+                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
+                    self.bme.edges.ensure_lookup_table()
+                edges = map(self._wrap_bmedge, self.bme.edges)
+
+            is_valid = RFMesh.fn_is_valid
+
+            # Edge is visible if ANY of its vertices are visible
+            if verts is None:
+                verts = self.visible_verts(None)
+            return set([bme for bme in edges if is_valid(bme) and\
+                (bme.verts[0] in verts or bme.verts[1] in verts)])
+            
+            '''
+            is_vis = self._gen_is_vis()
+            
+            return {bme for bme in edges if is_valid(bme) and\
+                (is_vis(bme.verts[0]) or is_vis(bme.verts[1]))}
+            '''
         else:
-            is_vert_vis = self._gen_is_vis(is_visible)
-            verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+            is_valid = RFMesh.fn_is_valid
 
-        is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
-        faces = self.bme.faces if faces is None else map(self._unwrap, faces)
-        return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
+            # Get visible vertices first
+            if verts:
+                vis_verts = set(map(self._unwrap, verts))
+            else:
+                is_vert_vis = self._gen_is_vis(is_visible)
+                vis_verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+
+            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in vis_verts for bmv in bme.verts)
+            edges = self.bme.edges if edges is None else map(self._unwrap, edges)
+            return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
+
+    @timing
+    def visible_faces(self, is_visible, verts=None, faces=None):
+        if USE_CYTHON:
+            if faces is None or len(faces) == 0:
+                if len(self.bme.faces) == 0:
+                    return set()
+                try:
+                    self.bme.faces[0]
+                except IndexError:
+                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
+                    self.bme.faces.ensure_lookup_table()
+                faces = map(self._wrap_bmface, self.bme.faces)
+
+            is_valid = RFMesh.fn_is_valid
+
+            # Edge is visible if ANY of its vertices are visible
+            if verts is None:
+                verts = self.visible_verts(None)
+
+            def _check_face_verts_vis(face: RFFace) -> bool:
+                # iterate with break if any vert is visible.
+                for bmv in face.verts:
+                    if bmv in verts:
+                        return True
+                return False
+
+            return set([face for face in faces if is_valid(face) and _check_face_verts_vis(face)])
+            '''
+            
+            is_vis = self._gen_is_vis()
+            return {face for face in faces if is_valid(face) and\
+                (is_vis(face.verts[0]) or is_vis(face.verts[2]) or\
+                is_vis(face.verts[1]) or is_vis(face.verts[3]))}
+            '''
+
+        else:
+            is_valid = RFMesh.fn_is_valid
+
+            # Get visible vertices first
+            if verts:
+                verts = set(map(self._unwrap, verts))
+            else:
+                is_vert_vis = self._gen_is_vis(is_visible)
+                verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+
+            is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
+            faces = self.bme.faces if faces is None else map(self._unwrap, faces)
+            return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
 
 
     ##########################################################
