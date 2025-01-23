@@ -1,0 +1,85 @@
+name: Build Cython Extensions
+
+on:
+  push:
+    paths:
+      - 'retopoflow/cy/*.pyx'
+      - 'cy_setup.py'
+      - '.github/workflows/build_cython.yml'
+  pull_request:
+    paths:
+      - 'retopoflow/cy/*.pyx'
+      - 'cy_setup.py'
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install cython numpy setuptools wheel
+
+    - name: Build Cython extensions
+      run: python cy_setup.py build_ext --inplace
+
+    - name: Rename compiled extensions
+      shell: bash
+      run: |
+        cd retopoflow/cy
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          echo "Windows build - keeping original name"
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          mv rfmesh_visibility*.so rfmesh_visibility.cpython-311-darwin-$(uname -m).so
+        elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          mv rfmesh_visibility*.so rfmesh_visibility.cpython-311-linux-$(uname -m).so
+        fi
+
+    - name: Upload compiled extension
+      uses: actions/upload-artifact@v3
+      with:
+        name: compiled-extension-${{ matrix.os }}
+        path: retopoflow/cy/rfmesh_visibility*.*
+        retention-days: 7
+
+  combine:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Prepare release
+      run: |
+        mkdir -p release/retopoflow/cy
+        cp -r artifacts/*/* release/retopoflow/cy/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      with:
+        files: release/retopoflow/cy/*
+        name: Cython Extensions ${{ github.sha }}
+        tag_name: cython-build-${{ github.sha }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
