@@ -32,7 +32,7 @@ from mathutils.geometry import intersect_line_line_2d as intersect_segment_segme
 from ...config.options import visualization, options, retopoflow_datablocks
 from ...addon_common.common.debug import dprint, Debugger
 from ...addon_common.common.decorators import timed_call
-from ...addon_common.common.profiler import profiler, time_it
+from ...addon_common.common.profiler import profiler, time_it, timing
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
@@ -190,6 +190,7 @@ class RetopoFlow_Target:
         accel_data = self._generate_accel_data_struct(**kwargs)
         return accel_data.accel
 
+    @timing
     def _generate_accel_data_struct(self, *, selected_only=None, force=False):
         target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
@@ -250,11 +251,11 @@ class RetopoFlow_Target:
                 edges = self.get_unselected_edges()
                 faces = self.get_unselected_faces()
 
-        with time_it('getting visible geometry', enabled=False):
+        with time_it('getting visible geometry', enabled=True):
             accel_data.verts = self.visible_verts(verts=verts)
             accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
             accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
-        with time_it('building accel struct', enabled=False):
+        with time_it('building accel struct', enabled=True):
             accel_data.accel = Accel2D(
                 f'RFTarget visible geometry ({selected_only=})',
                 accel_data.verts,
