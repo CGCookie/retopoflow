@@ -21,13 +21,13 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy, bmesh
 
-from ..common.operator import RFOperator_Execute
+from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
 from ..preferences import RF_Prefs
 
 
-class RFOperator_MeshCleanup(bpy.types.Operator):
+class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.meshcleanup"
     bl_label = "Clean Up Mesh"
     bl_description = "A handy macro for quicly running several retopology cleanup operations at once"
@@ -79,9 +79,3 @@ class RFOperator_MeshCleanup(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
         return {'FINISHED'}
-
-def register():
-    bpy.utils.register_class(RFOperator_MeshCleanup)
-
-def unregister():
-    bpy.utils.unregister_class(RFOperator_MeshCleanup)
