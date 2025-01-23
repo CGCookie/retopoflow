@@ -1,3 +1,6 @@
+# VSCode specific
+.vscode/
+
 # do not include the CG Cookie built indicator file
 .cgcookie
 
