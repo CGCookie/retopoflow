@@ -71,7 +71,8 @@ jobs:
     - name: Prepare release
       run: |
         mkdir -p release/retopoflow/cy
-        cp -r artifacts/*/* release/retopoflow/cy/
+        # Only copy the compiled files (.so and .pyd), force overwrite with -f
+        find artifacts -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f {} release/retopoflow/cy/ \;
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
