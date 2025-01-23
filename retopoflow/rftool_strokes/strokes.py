@@ -463,8 +463,8 @@ class RFTool_Strokes(RFTool_Base):
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
                 col.prop(props_strokes, 'initial_smooth_density1', text='End')
-            draw_tweaking_panel(layout, context)
-            draw_cleanup_panel(layout)
+            draw_tweaking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
 
     @classmethod
     def activate(cls, context):

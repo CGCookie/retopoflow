@@ -234,8 +234,8 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props, 'brush_radius')
                 panel.prop(props, 'brush_strength')
                 panel.prop(props, 'brush_falloff')
-            draw_masking_panel(layout, context)
-            draw_cleanup_panel(layout)
+            draw_masking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
 
         else:
             print(f'RFTool_Tweak.draw_settings: {context.region.type=}')

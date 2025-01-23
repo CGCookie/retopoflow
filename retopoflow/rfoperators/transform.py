@@ -33,6 +33,7 @@ import time
 from typing import List
 from enum import Enum
 
+from ..preferences import RF_Prefs
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, NearestBMEdge
 from ..common.bmesh import nearest_bmv_world, nearest_bme_world
@@ -100,16 +101,17 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
 
+        props = RF_Prefs.get_prefs(context)
         if self.used_keyboard:
-            move_hovered = self.move_hovered and context.scene.retopoflow.tweaking_move_hovered_keyboard
+            move_hovered = self.move_hovered and props.tweaking_move_hovered_keyboard
         else:
-            move_hovered = self.move_hovered and context.scene.retopoflow.tweaking_move_hovered_mouse
+            move_hovered = self.move_hovered and props.tweaking_move_hovered_mouse
 
         if move_hovered:
             hit = raycast_valid_sources(context, mouse_from_event(event))
             if hit:
                 co = hit['co_local']
-                distance2d = context.scene.retopoflow.tweaking_distance
+                distance2d = props.tweaking_distance
                 self.nearest_bmv.update(context, co, distance2d=distance2d)
                 self.nearest_bme.update(context, co, distance2d=distance2d)
                 # bmesh.geometry.intersect_face_point(face, point)

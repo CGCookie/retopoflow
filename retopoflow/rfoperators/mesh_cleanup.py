@@ -21,11 +21,13 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy, bmesh
 
-from ..common.operator import RFRegisterClass
+from ..common.operator import RFOperator_Execute
 from ..common.raycast import nearest_point_valid_sources
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
+from ..preferences import RF_Prefs
 
 
-class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
+class RFOperator_MeshCleanup(bpy.types.Operator):
     bl_idname = "retopoflow.meshcleanup"
     bl_label = "Clean Up Mesh"
     bl_description = "A handy macro for quicly running several retopology cleanup operations at once"
@@ -34,12 +36,13 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     rf_label = "Clean Up Mesh"
+    RFCore = None
 
     def draw(self, context):
-        draw_cleanup_options(self.layout, draw_button=False)
+        draw_cleanup_options(context, self.layout, draw_operators=False)
 
     def execute(self, context):
-        props = bpy.context.scene.retopoflow
+        props = RF_Prefs.get_prefs(context)
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
@@ -77,28 +80,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
 
         return {'FINISHED'}
 
+def register():
+    bpy.utils.register_class(RFOperator_MeshCleanup)
 
-def draw_cleanup_options(layout, draw_button=True):
-    props = bpy.context.scene.retopoflow
-    col = layout.column()
-    col.use_property_split = True
-    col.use_property_decorate = False
-
-    row = col.row(heading='Merge')
-    row.prop(props, 'cleaning_use_merge', text='By Distance')
-    row = col.row()
-    row.enabled = props.cleaning_use_merge
-    row.prop(props, 'cleaning_merge_threshold', text='Threshold')
-    col.separator()
-
-    row = col.row(heading='Delete')
-    row.prop(props, 'cleaning_use_delete_loose', text='Loose')
-    row = col.row(heading='Fill')
-    row.prop(props, 'cleaning_use_fill_holes', text='Holes')
-    row = col.row(heading='Recalculate')
-    row.prop(props, 'cleaning_use_recalculate_normals', text='Normals')
-    row = col.row(heading='Snap')
-    row.prop(props, 'cleaning_use_snap', text='To Source')
-    if draw_button:
-        col.separator()
-        col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+def unregister():
+    bpy.utils.unregister_class(RFOperator_MeshCleanup)

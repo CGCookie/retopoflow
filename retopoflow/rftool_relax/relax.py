@@ -281,9 +281,9 @@ class RFTool_Relax(RFTool_Base):
                 panel.prop(props, 'brush_radius')
                 panel.prop(props, 'brush_strength')
                 panel.prop(props, 'brush_falloff')
-            draw_relax_algo_panel(layout, context)
-            draw_masking_panel(layout, context)
-            draw_cleanup_panel(layout)
+            draw_relax_algo_panel(context, layout)
+            draw_masking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
 
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')

@@ -21,33 +21,35 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
-from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..preferences import RF_Prefs
 
-def draw_tweaking_options(layout, context):
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-    props_global = context.scene.retopoflow
-    props_translate = tool.operator_properties(RFOperator_Translate_ScreenSpace.bl_idname)
 
-    layout.use_property_split = True
-    layout.use_property_decorate = False
+def draw_tweaking_options(context, layout):
+    props = RF_Prefs.get_prefs(context)
 
-    layout.label(text='Selection')
-    row = layout.row(heading='Mouse')
-    row.prop(props_global, 'tweaking_move_hovered_mouse', text='Auto Select')
-    row = layout.row(heading='Keyboard')
-    row.prop(props_global, 'tweaking_move_hovered_keyboard', text='Auto Select')
-    layout.prop(props_global, 'tweaking_distance', text='Distance')
-    layout.label(text='Auto Merge')
-    layout.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
-    row = layout.row()
+    grid = layout.grid_flow(even_columns=True, even_rows=True)
+    grid.use_property_split = True
+    grid.use_property_decorate = False
+
+    col = grid.column()
+    col.label(text='Selection')
+    row = col.row(heading='Mouse')
+    row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
+    row = col.row(heading='Keyboard')
+    row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
+    col.prop(props, 'tweaking_distance', text='Distance')
+    col = grid.column()
+    col.label(text='Auto Merge')
+    col.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
+    row = col.row()
     row.enabled = context.scene.tool_settings.use_mesh_automerge
     row.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')
 
-def draw_tweaking_panel(layout, context):
+def draw_tweaking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
     header.label(text="Tweaking")
     if panel:
-        draw_tweaking_options(panel, context)
+        draw_tweaking_options(context, panel)
 
 class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_label = "Tweaking"
@@ -56,7 +58,7 @@ class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_tweaking_options(self.layout, context)
+        draw_tweaking_options(context, self.layout)
 
 def register():
     bpy.utils.register_class(RFMenu_PT_TweakCommon)

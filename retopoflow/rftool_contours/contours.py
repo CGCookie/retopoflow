@@ -344,7 +344,7 @@ class RFTool_Contours(RFTool_Base):
                 if props_contours.initial_process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
-            draw_cleanup_panel(layout)
+            draw_cleanup_panel(context, layout)
 
     @classmethod
     def activate(cls, context):

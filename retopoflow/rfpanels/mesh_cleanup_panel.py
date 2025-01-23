@@ -21,14 +21,42 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
-from ..rfoperators.mesh_cleanup import draw_cleanup_options
 
 
-def draw_cleanup_panel(layout):
+def draw_cleanup_options(context, layout, draw_operators=True):
+    from ..preferences import RF_Prefs
+    props = RF_Prefs.get_prefs(context)
+
+    grid = layout.grid_flow(even_columns=False, even_rows=False)
+    grid.use_property_split = True
+    grid.use_property_decorate = False
+
+    col = grid.column()
+    row = col.row(heading='Merge')
+    row.prop(props, 'cleaning_use_merge', text='By Distance')
+    row = col.row()
+    row.enabled = props.cleaning_use_merge
+    row.prop(props, 'cleaning_merge_threshold', text='Threshold')
+
+    col = grid.column()
+    row = col.row(heading='Delete')
+    row.prop(props, 'cleaning_use_delete_loose', text='Loose')
+    row = col.row(heading='Fill')
+    row.prop(props, 'cleaning_use_fill_holes', text='Holes')
+    row = col.row(heading='Recalculate')
+    row.prop(props, 'cleaning_use_recalculate_normals', text='Normals')
+    row = col.row(heading='Snap')
+    row.prop(props, 'cleaning_use_snap', text='To Source')
+    if draw_operators:
+        col.separator()
+        col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+
+
+def draw_cleanup_panel(context, layout):
     header, panel = layout.panel(idname='retopoflow_cleanup_panel', default_closed=True)
     header.label(text="Clean Up")
     if panel:
-        draw_cleanup_options(panel)
+        draw_cleanup_options(context, panel)
 
 
 class RFMenu_PT_MeshCleanup(bpy.types.Panel):
@@ -38,7 +66,7 @@ class RFMenu_PT_MeshCleanup(bpy.types.Panel):
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_cleanup_options(self.layout)
+        draw_cleanup_options(context, self.layout)
 
 
 def register():

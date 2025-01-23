@@ -350,5 +350,3 @@ def wrap_property(cls, propname, proptype, **kwargs):
             return bpy.props.EnumProperty(get=getter, set=setter, **kwargs)
         case _:
             assert False, f'Unhandled property type {proptype} for {cls}.{propname}'
-
-

@@ -233,6 +233,7 @@ class RFTool_PolyPen(RFTool_Base):
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
+
         else:
             header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)
             header.label(text="Insert")
@@ -240,8 +241,8 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
-            draw_tweaking_panel(layout, context)
-            draw_cleanup_panel(layout)
+            draw_tweaking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
 
     @classmethod
     def activate(cls, context):
