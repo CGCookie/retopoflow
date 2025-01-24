@@ -345,13 +345,17 @@ class Contours_Loop:
             return
         if is_opposite: n0 = -n0
 
-        # issue #659
-        angle = 0 if n0.length_squared == 0 or n1.length_squared == 0 else n0.angle(n1)
+        # Check for zero-length normals.
+        if n0.length_squared == 0 or n1.length_squared == 0:
+            self.set_vert_loop(vert_loop, 0)
+            return
+
+        angle = n0.angle(n1)
         q = Quaternion(n0.cross(n1), angle)
 
         # rotate to align "topmost" vertex
         rel_pos = [Vec(q @ (to_point(p) - self.frame.o)) for p in vert_loop]
-        rot_by,offset = other.get_index_of_top(rel_pos)
+        rot_by, offset = other.get_index_of_top(rel_pos)
         vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         offset = (offset * self.circumference / other.circumference)
         self.set_vert_loop(vert_loop, offset)
