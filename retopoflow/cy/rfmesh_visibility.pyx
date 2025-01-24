@@ -146,6 +146,7 @@ cpdef object compute_visible_vertices(
 
     # Create result set directly
     cdef object result_set = set()
+    cdef object vert = None
     cdef list verts = verts_list
     cdef object vert_wrapper = rfvert_class  # Store the class
     
@@ -178,6 +179,8 @@ cpdef object compute_visible_vertices(
     # Fill the set with wrapped visible vertices
     for i in range(num_vertices):
         if visible[i]:
-            PySet_Add(result_set, vert_wrapper(verts[i]))
-    
+            vert = verts[i]
+            if vert.is_valid and not vert.hide:
+                PySet_Add(result_set, vert_wrapper(vert))
+
     return result_set
