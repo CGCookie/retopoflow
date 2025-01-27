@@ -36,9 +36,9 @@ DeepDebug.init(
 bl_info = {
     "name":         "RetopoFlow",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
-    "author":       "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
+    "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart, JF Matheu",
     "blender":      (3, 6, 0),
-    "version":      (3, 4, 4),
+    "version":      (3, 4, 5),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",
