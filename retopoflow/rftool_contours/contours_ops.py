@@ -335,7 +335,7 @@ class Contours_Ops:
         self.rfcontext.undo_push('fill')
         cl_pos = Contours_Loop(loop0, True)
         cl_neg = Contours_Loop(loop1, True)
-        cl_neg.align_to(cl_pos)
+        cl_neg.align_to_with_perpendiculars(cl_pos)
         faces = self.rfcontext.bridge_vertloop(cl_neg.verts, cl_pos.verts, True)
         #self.dirty()
         #self.rfcontext.select(faces)

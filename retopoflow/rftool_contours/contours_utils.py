@@ -356,6 +356,83 @@ class Contours_Loop:
         offset = (offset * self.circumference / other.circumference)
         self.set_vert_loop(vert_loop, offset)
 
+    def align_to_with_perpendiculars(self, other: 'Contours_Loop'):
+        """
+        Aligns the current contour loop to another contour loop based on the median vector of
+        perpendiculars from each vertex to the next and previous vertices. This method aims to
+        minimize the angle between the median vector and the vector to the corresponding vertex
+        in the other loop for a more accurate alignment.
+
+        Parameters:
+            other (Contours_Loop): The contour loop to align to.
+
+        Returns:
+            None: The method modifies the current contour loop in place.
+        """
+        n0, n1 = self.get_normal(), other.get_normal()
+        is_opposite = n0.dot(n1) < 0
+        vert_loop = list(reversed(self.verts)) if is_opposite else self.verts
+        if not self.connected:
+            self.set_vert_loop(vert_loop, 0)
+            return
+        if is_opposite: n0 = -n0
+
+        # Check for zero-length normals.
+        if n0.length_squared == 0 or n1.length_squared == 0:
+            self.set_vert_loop(vert_loop, 0)
+            return
+
+        # Rotate to align based on normal.
+        angle = n0.angle(n1)
+        q = Quaternion(n0.cross(n1), angle)
+
+        # Rotate to align "topmost" vertex.
+        rel_pos = [Vec(q @ (to_point(p) - self.frame.o)) for p in vert_loop]
+        rot_by,offset = other.get_index_of_top(rel_pos)
+        vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
+        offset = (offset * self.circumference / other.circumference)
+
+        # Alignment based on perpendiculars!
+        best_rotation = vert_loop
+        best_score = float('inf')
+
+        for i in range(len(vert_loop)):
+            current_rotation = vert_loop[i:] + vert_loop[:i]
+            total_angle = 0
+
+            for j in range(len(current_rotation)):
+                v0 = to_point(current_rotation[j])
+                v1 = to_point(other.verts[j])
+
+                # Get previous and next vertices.
+                prev_v = to_point(current_rotation[j - 1]) if j > 0 else to_point(current_rotation[-1])
+                next_v = to_point(current_rotation[(j + 1) % len(current_rotation)])
+
+                # Calculate perpendicular vectors.
+                perp_prev = (v0 - prev_v).normalized().cross(n0).normalized()
+                perp_next = (next_v - v0).normalized().cross(n0).normalized()
+
+                # Median vector between the 2 perpendicular vectors.
+                median_vector = (perp_prev + perp_next).normalized()
+
+                # Vector from current stroke vertex to the other stroke vertex.
+                target_vector = (v1 - v0).normalized()
+
+                # Angle between the median vector and the target vector.
+                angle_between = median_vector.angle(target_vector)
+                total_angle += angle_between
+
+            # Average angle for the current rotation to determine the best score.
+            avg_angle = total_angle / len(current_rotation)
+
+            if avg_angle < best_score:
+                best_score = avg_angle
+                best_rotation = current_rotation
+
+        # Update to the "best rotation" found.
+        vert_loop = best_rotation
+        self.set_vert_loop(vert_loop, offset)
+
     def get_closest_point(self, point):
         point = to_point(point)
         cp,cd = None,None
