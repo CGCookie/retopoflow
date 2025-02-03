@@ -22,11 +22,11 @@ Created by Jonathan Denning, Jonathan Lampel
 from bpy.types import bpy_prop_array
 import inspect
 
-class Reseter:
+class Resetter:
     def __init__(self, label=None):
         self._label = label
         self._previous = {}
-        # print(f'Reseter: new {self._label}')
+        # print(f'Resetter: new {self._label}')
 
     def __del__(self):
         self.reset()
@@ -49,7 +49,7 @@ class Reseter:
         if type(pvalue) is bpy_prop_array:
             pvalue = list(pvalue)
 
-        # print(f'Reseter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
+        # print(f'Resetter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
         self._previous[key] = ( pvalue, f_globals, f_locals )
 
     def _setter(self, key, value):
@@ -71,7 +71,7 @@ class Reseter:
 
     def __delitem__(self, key):
         value, _, _ = self._previous[key]
-        # print(f'Reseter {self._label}: reset {key} <- {value} ({type(value)})')
+        # print(f'Resetter {self._label}: reset {key} <- {value} ({type(value)})')
         self._setter(key, value)
         del self._previous[key]
 
@@ -79,5 +79,5 @@ class Reseter:
         keys = list(self._previous.keys())
         for key in keys:
             del self[key]
-        # print(f'Reseter: reset {self._label} {keys}')
+        # print(f'Resetter: reset {self._label} {keys}')
 

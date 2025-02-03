@@ -40,7 +40,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import clamp
-from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
 from .strokes_logic import Strokes_Logic
@@ -468,12 +468,12 @@ class RFTool_Strokes(RFTool_Base):
 
     @classmethod
     def activate(cls, context):
-        cls.reseter = Reseter('Strokes')
-        cls.reseter['context.tool_settings.use_mesh_automerge'] = True
-        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
-        cls.reseter.store('context.tool_settings.snap_elements_base')
-        cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
+        cls.resetter = Resetter('Strokes')
+        cls.resetter['context.tool_settings.use_mesh_automerge'] = True
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.resetter.store('context.tool_settings.snap_elements_base')
+        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
 
     @classmethod
     def deactivate(cls, context):
-        cls.reseter.reset()
+        cls.resetter.reset()

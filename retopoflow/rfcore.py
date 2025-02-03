@@ -28,7 +28,7 @@ import random
 
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
-from ..addon_common.common.reseter import Reseter
+from ..addon_common.common.resetter import Resetter
 from .common.bmesh import get_object_bmesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
@@ -73,7 +73,7 @@ class RFCore:
     default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
     selected_RFTool_idname = None               # currently selected RFTool, but might not be active
     running_in_areas       = []                 # areas that RFCore operator is currently running in
-    reseter                = Reseter('RFCore')  # helper for resetting bpy settings to original settings
+    resetter                = Resetter('RFCore')  # helper for resetting bpy settings to original settings
 
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
@@ -204,17 +204,17 @@ class RFCore:
         bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
 
         for s in iter_all_view3d_spaces():
-            RFCore.reseter['s.overlay.show_retopology'] = True
-            RFCore.reseter['s.overlay.show_object_origins'] = False
-        RFCore.reseter['context.scene.tool_settings.use_snap'] = True
-        RFCore.reseter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
-        RFCore.reseter['context.scene.tool_settings.use_snap_self'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_edit'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_nonedit'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_selectable'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_translate'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_rotate'] = True
-        RFCore.reseter['context.scene.tool_settings.use_snap_scale'] = True
+            RFCore.resetter['s.overlay.show_retopology'] = True
+            RFCore.resetter['s.overlay.show_object_origins'] = False
+        RFCore.resetter['context.scene.tool_settings.use_snap'] = True
+        RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
+        RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_edit'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_nonedit'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_selectable'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
+        RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
 
         try:
             bpy.ops.retopoflow.core()
@@ -267,7 +267,7 @@ class RFCore:
 
         RFCore.running_in_areas.clear()
 
-        RFCore.reseter.reset()
+        RFCore.resetter.reset()
 
     @staticmethod
     def remove_handlers():

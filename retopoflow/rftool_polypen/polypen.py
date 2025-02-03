@@ -42,7 +42,7 @@ from ..common.raycast import raycast_point_valid_sources
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
@@ -248,14 +248,14 @@ class RFTool_PolyPen(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
-        cls.reseter = Reseter("PolyPen")
-        cls.reseter['context.tool_settings.use_mesh_automerge'] = True
-        # cls.reseter['context.tool_settings.double_threshold'] = 0.01
-        # cls.reseter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
-        cls.reseter.store('context.tool_settings.snap_elements_base')
-        cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
-        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.resetter = Resetter("PolyPen")
+        cls.resetter['context.tool_settings.use_mesh_automerge'] = True
+        # cls.resetter['context.tool_settings.double_threshold'] = 0.01
+        # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
+        cls.resetter.store('context.tool_settings.snap_elements_base')
+        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
     def deactivate(cls, context):
-        cls.reseter.reset()
+        cls.resetter.reset()

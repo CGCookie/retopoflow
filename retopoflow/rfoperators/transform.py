@@ -42,7 +42,6 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4

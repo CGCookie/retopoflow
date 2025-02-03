@@ -69,7 +69,6 @@ from ...addon_common.common.maths import (
     closest_point_segment,
 )
 from ...addon_common.common.profiler import time_it
-from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.utils import iter_pairs, rotate_cycle
 from ...addon_common.ext.circle_fit import hyperLSQ
 from ..common.drawing import (

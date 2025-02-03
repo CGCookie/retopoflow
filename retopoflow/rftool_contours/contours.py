@@ -41,7 +41,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.reseter import Reseter
+from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
@@ -348,12 +348,12 @@ class RFTool_Contours(RFTool_Base):
 
     @classmethod
     def activate(cls, context):
-        cls.reseter = Reseter('Contours')
-        cls.reseter['context.tool_settings.use_mesh_automerge'] = False
-        cls.reseter.store('context.tool_settings.snap_elements_base')
-        cls.reseter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
-        cls.reseter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.resetter = Resetter('Contours')
+        cls.resetter['context.tool_settings.use_mesh_automerge'] = False
+        cls.resetter.store('context.tool_settings.snap_elements_base')
+        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
     def deactivate(cls, context):
-        cls.reseter.reset()
+        cls.resetter.reset()

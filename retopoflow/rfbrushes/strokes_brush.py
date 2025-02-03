@@ -50,7 +50,6 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
-from ...addon_common.common.reseter import Reseter
 from ...addon_common.common.timerhandler import TimerHandler
 
 
