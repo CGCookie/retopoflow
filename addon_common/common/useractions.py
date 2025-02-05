@@ -174,6 +174,10 @@ trackpad_actions = {
     'MOUSEROTATE', 'MOUSESMARTZOOM',
 }
 
+nav_actions = {
+    'ALT+MIDDLEMOUSE',
+}
+
 modifier_actions = {
     'OSKEY',
     'LEFT_CTRL', 'LEFT_SHIFT', 'LEFT_ALT',
@@ -331,7 +335,7 @@ class Actions:
         self.keymaps_blender_operators = Dict(get_default_fn=list)
 
         # fill in universal and action keymaps
-        self.keymaps_universal['navigate'] = trackpad_actions | ndof_actions
+        self.keymaps_universal['navigate'] = trackpad_actions | ndof_actions | nav_actions
         for group in blender_operator_keymaps:
             group_name, blenderops = group['name'], group['operators']
 
