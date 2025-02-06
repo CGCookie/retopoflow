@@ -314,15 +314,21 @@ class Knife_Insert():
                     if type(e) is RFVert:
                         cur = e
                     else:
-                        cur = self.rfcontext.new2D_vert_point(p)
-                        if type(e) is RFEdge:
-                            eo,bmv = e.split()
-                            if cur:
-                                cur.merge(bmv)
-                            else:
-                                cur = bmv
-                        elif type(e) is RFFace:
-                            pass
+                        # Check for existing vertex at current cross location before creating new one!
+                        existing_vert = self.rfcontext.accel_nearest2D_vert(point=p, max_dist=self.rfcontext.drawing.scale(0.001))[0]
+                        if existing_vert:
+                            cur = existing_vert
+                        else:
+                            cur = self.rfcontext.new2D_vert_point(p)
+                            if type(e) is RFEdge:
+                                eo,bmv = e.split()
+                                if cur:
+                                    cur.merge(bmv)
+                                else:
+                                    cur = bmv
+                            elif type(e) is RFFace:
+                                pass
+
                     if prev:
                         cur_faces = set(cur.link_faces)
                         cur_under = cur_faces
@@ -383,14 +389,22 @@ class Knife_Insert():
         v01 = Vec2D(p1 - p0)
         lv01 = max(v01.length, 0.00001)
         d01 = v01 / lv01
+
         def add(p, e):
             if e in touched: return
+            # Check if there's already a vertex very close to this point.
+            closest_vert = self.rfcontext.accel_nearest2D_vert(point=p, max_dist=dist)[0]
+            if closest_vert:
+                p = Point_to_Point2D(closest_vert.co)
+                e = closest_vert
             p.freeze()
             touched.add(e)
             crosses.add((p, e, d01.dot(p - p0) / lv01))
+
         p0v = self.rfcontext.accel_nearest2D_vert(point=p0, max_dist=options['knife snap dist'])[0]
         if p0v and not p0v.link_edges:
             add(p0, p0v)
+
         for e in self.vis_edges:
             if e in self.skip_edges:
                 continue
