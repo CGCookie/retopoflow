@@ -51,7 +51,7 @@ from ..common.drawing import (
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, size2D_to_size_point, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
@@ -151,7 +151,8 @@ def create_falloff_brush(idname, label, **kwargs):
             hit = raycast_valid_sources(context, self.mouse)
             # print(f'  {hit=}')
             if not hit: return
-            scale = size2D_to_size(context, hit['distance'])
+            #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])
+            scale = size2D_to_size(context, hit['distance'], pt=self.mouse)
             # print(f'  {scale=}')
             if scale is None: return
 

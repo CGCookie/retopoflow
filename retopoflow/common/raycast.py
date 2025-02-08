@@ -48,15 +48,95 @@ def point2D_to_point(context, xy, depth:float):
     r = ray_from_point(context, xy)
     return (r[0] + r[1] * depth) if r[0] and r[1] else None
 
-def size2D_to_size(context, depth3D):
-    # note: scaling then unscaling helps with numerical instability when clip_start is small
+def size2D_to_size_point(context, point_screen, depth_location):
+    # this function is not working correctly...
     w, h = context.region.width * 0.5, context.region.height * 0.5
+    # note: scaling then unscaling helps with numerical instability when clip_start is small
     scale = min(w, h)
     # find center of screen
-    xy0, xy1 = Vector((w, h)), Vector((w + scale, h))
-    p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
+    xy0, xy1 = Vector(point_screen), Vector((point_screen[0] + scale, point_screen[1]))
+    p3d0 = region_2d_to_location_3d(context.region, context.region_data, xy0, depth_location)
+    p3d1 = region_2d_to_location_3d(context.region, context.region_data, xy1, depth_location)
     if not p3d0 or not p3d1: return None
     return (p3d0 - p3d1).length / scale
+
+def prettyprint_matrices(*args, format='% 7.3f'):
+    # assuming all matrices and labels are same size!!
+    # assuming all values are -100 < v < 100
+    # https://en.wikipedia.org/wiki/Box-drawing_characters
+    count = len(args) // 2
+    labels   = args[0::2]
+    matrices = args[1::2]
+    l = len(matrices[0])
+    spc = ' ' * len(labels[0])
+
+    line = []
+    for j in range(count):
+        w = len(matrices[j])
+        line.append(spc + '┌' + (' '*(w*8-1)) + ' ┐')
+    print('  '.join(line))
+
+    for i in range(l):
+        line = []
+        for j in range(count):
+            label, M = labels[j], matrices[j]
+            lbl = label if i==(l-1)//2 else spc
+            vals = ' '.join(format%v for v in M[i])
+            line.append(lbl + '│' + vals + ' │')
+        print('  '.join(line))
+
+    line = []
+    for j in range(count):
+        w = len(matrices[j])
+        line.append(spc + '└' + (' '*(w*8-1)) + ' ┘')
+    print('  '.join(line))
+
+def size2D_to_size(context, depth3D, *, pt=None):
+    w, h = context.region.width * 0.5, context.region.height * 0.5
+    scale = min(w, h)
+    if False:
+        # TODO: come back to this.  this is an attempt to improve this function, but there's still something off...
+        if not pt:
+            pt = Vector((w, h, 0, 1))
+        else:
+            pt = Vector((pt[0], pt[1], 0, 1))
+        r3d = getattr(context, 'region_data', None)
+        if not r3d: return None
+        # MVP = P @ V @ M    MV = V @ M    P = MVP @ MV^-1
+        MVP  = r3d.perspective_matrix
+        MVPi = MVP.inverted()
+        MV   = r3d.view_matrix
+        MVi  = MV.inverted()
+        P    = MVP @ MVi
+        W = r3d.window_matrix
+        depth2d = P @ Vector((0, 0, depth3D, 1))
+        depth = depth2d.z / depth2d.w
+        print()
+        prettyprint_matrices("MVP = ", MVP, ' MV = ', MV, '  P = ', P)
+        o = min(w, h)
+        xy2_0 = pt + Vector((0, 0, depth, 1))  # Vector((w, h, depth, 1))
+        xy2_1 = pt + Vector((o, 0, depth, 1))  # Vector((w + o, h, depth, 1))
+        xy3_0 = MVPi @ xy2_0
+        xy3_1 = MVPi @ xy2_1
+        xy3_0 = xy3_0.xyz / xy3_0.w
+        xy3_1 = xy3_1.xyz / xy3_1.w
+        d = (xy3_0 - xy3_1).length / o
+        print(f'{d=}')
+        return d # / scale
+    # note: scaling then unscaling helps with numerical instability when clip_start is small
+    # find center of screen
+    xy = Vector((w, h))
+    xy0, xy1 = Vector((w - scale, h)), Vector((w + scale, h))
+    xy2, xy3 = Vector((w, h - scale)), Vector((w, h + scale))
+    p3d = point2D_to_point(context, xy, depth3D)
+    p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
+    p3d2, p3d3 = point2D_to_point(context, xy2, depth3D), point2D_to_point(context, xy3, depth3D)
+    if not p3d or not p3d0 or not p3d1 or not p3d2 or not p3d3: return None
+    # if not p3d0 or not p3d1: return None
+    d0, d1 = (p3d0 - p3d).length, (p3d1 - p3d).length
+    d2, d3 = (p3d2 - p3d).length, (p3d3 - p3d).length
+    # print(f'{d0} {d1} {d2} {d3}')
+    return (d0 + d1 + d2 + d3) / 4 / scale
 
 def ray_from_mouse(context, event):
     mouse = (event.mouse_region_x, event.mouse_region_y)
