@@ -61,8 +61,8 @@ from ...addon_common.common.timerhandler import TimerHandler
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_strokes_brush(idname, label, **kwargs):
-    class RFBrush_Strokes(RFBrush_Base):
+def create_stroke_brush(idname, label, **kwargs):
+    class RFBrush_Stroke(RFBrush_Base):
         # brush settings
         radius = kwargs.get('radius', 40)
 
@@ -217,7 +217,7 @@ def create_strokes_brush(idname, label, **kwargs):
             if self.is_stroking(): # and event.type == 'TIMER':
                 pre = self.stroke[-1]
                 cur = Point2D(mouse)
-                pt = pre + (cur - pre) * RFBrush_Strokes.stroke_smooth
+                pt = pre + (cur - pre) * RFBrush_Stroke.stroke_smooth
                 if raycast_valid_sources(context, pt):
                     self.stroke += [pt]
                 if (self.stroke[0] - self.stroke[-1]).length > Drawing.scale(self.far_distance):
@@ -225,7 +225,7 @@ def create_strokes_brush(idname, label, **kwargs):
                 if self.stroke_far and not self.snap_bmv0 and not self.snap_bmv1:
                     self.stroke_cycle = (self.stroke[0] - self.stroke[-1]).length < Drawing.scale(self.snap_distance)
 
-            if self.operator.is_active() or RFOperator_StrokesBrush_Adjust.is_active():
+            if self.operator.is_active() or RFOperator_StrokeBrush_Adjust.is_active():
                 # artist is actively stroking or adjusting brush properties, so always consider us inside if we're in the same area
                 active_op = RFOperator.active_operator()
                 mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
@@ -250,7 +250,7 @@ def create_strokes_brush(idname, label, **kwargs):
             if context.area not in self.mouse_areas: return
             self.hit = False
             if not self.mouse: return
-            # print(f'RFBrush_Strokes.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+            # print(f'RFBrush_Stroke.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
             hit = raycast_valid_sources(context, self.mouse)
             # print(f'  {hit=}')
             if not hit: return
@@ -319,7 +319,7 @@ def create_strokes_brush(idname, label, **kwargs):
 
             gpustate.blend('ALPHA')
 
-            if RFOperator_StrokesBrush_Adjust.is_active():
+            if RFOperator_StrokeBrush_Adjust.is_active():
                 self.draw_adjust(context)
             else:
                 self.draw_stroke(context)
@@ -328,7 +328,7 @@ def create_strokes_brush(idname, label, **kwargs):
             if not self.RFCore.is_current_area(context): return
             if context.area not in self.mouse_areas: return
 
-            if RFOperator_StrokesBrush_Adjust.is_active(): return
+            if RFOperator_StrokeBrush_Adjust.is_active(): return
 
             self._update(context)
             if not self.hit: return
@@ -356,11 +356,11 @@ def create_strokes_brush(idname, label, **kwargs):
             gpustate.depth_mask(True)
 
 
-    class RFOperator_StrokesBrush_Adjust(RFOperator):
+    class RFOperator_StrokeBrush_Adjust(RFOperator):
         '''
         Handles resizing of Strokes Brush
         '''
-        bl_idname = f'retopoflow.{idname}' # strokes_brush_radius
+        bl_idname = f'retopoflow.{idname}' # stroke_brush_radius
         bl_label = label
         bl_description = f'Adjust radius of {label}'
         bl_space_type = 'VIEW_3D'
@@ -376,21 +376,21 @@ def create_strokes_brush(idname, label, **kwargs):
         def can_init(self, context, event):
             return not any(
                 instance.is_stroking()
-                for instance in RFBrush_Strokes.get_instances()
+                for instance in RFBrush_Stroke.get_instances()
             )
 
         def init(self, context, event):
             dist = self.radius_to_dist()
-            self.prev_radius = RFBrush_Strokes.radius
+            self.prev_radius = RFBrush_Stroke.radius
             self._change_pre = dist
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-            RFBrush_Strokes.center2D = mouse - Vec2D((dist, 0))
+            RFBrush_Stroke.center2D = mouse - Vec2D((dist, 0))
             context.area.tag_redraw()
 
         def dist_to_radius(self, d):
-            RFBrush_Strokes.radius = max(5, int(d))
+            RFBrush_Stroke.radius = max(5, int(d))
         def radius_to_dist(self):
-            return RFBrush_Strokes.radius
+            return RFBrush_Stroke.radius
 
         def update(self, context, event):
             if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
@@ -404,11 +404,11 @@ def create_strokes_brush(idname, label, **kwargs):
 
             if event.type == 'MOUSEMOVE':
                 mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-                dist = (RFBrush_Strokes.center2D - mouse).length
+                dist = (RFBrush_Stroke.center2D - mouse).length
                 self.dist_to_radius(dist)
                 context.area.tag_redraw()
                 return {'PASS_THROUGH'}
 
             return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
 
-    return (RFBrush_Strokes, RFOperator_StrokesBrush_Adjust)
+    return (RFBrush_Stroke, RFOperator_StrokeBrush_Adjust)
