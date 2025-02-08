@@ -23,7 +23,7 @@ import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
-from ..rfbrushes.strokes_brush import RFBrush_Strokes, RFOperator_StrokesBrush_Adjust
+from ..rfbrushes.strokes_brush import create_strokes_brush
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
@@ -52,6 +52,13 @@ from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..common.interface import draw_line_separator
 
 from functools import wraps
+
+
+RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_strokes_brush(
+    'strokes_brush',
+    'Strokes Brush',
+    radius=40,
+)
 
 
 class RFOperator_Stroke_Insert_Keymaps:

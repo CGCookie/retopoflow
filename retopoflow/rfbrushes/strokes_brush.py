@@ -61,350 +61,354 @@ from ...addon_common.common.timerhandler import TimerHandler
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-class RFBrush_Strokes(RFBrush_Base):
-    # brush settings
-    radius = 40
-    snap_distance  = 10  # pixel distance when to consider snapping to vert or stroke end (cycle)
-    far_distance   = 20  # mouse must move this far away from stroke start to start considering cycle
+def create_strokes_brush(idname, label, **kwargs):
+    class RFBrush_Strokes(RFBrush_Base):
+        # brush settings
+        radius = kwargs.get('radius', 40)
 
-    # brush visualization settings
-    outer_color     = Color((1,1,1,1))
-    below_alpha     = Color((1,1,1,0.25))
-    inner_color     = Color((1,1,1,0.10))
-    miss_color      = Color.from_ints(192,  30,  30, 128)
-    stroke_color    = Color.from_ints(255, 255,   0, 255)
-    snap_color      = Color.from_ints(255, 255,   0, 255)
-    cycle_color     = Color.from_ints(255, 255,   0, 255)
-    push_above      = 0.01
-    shrink_below    = 0.80
-    stroke_smooth   = 0.15  # [0,1], lower => more smoothing
+        snap_distance  = 10  # pixel distance when to consider snapping to vert or stroke end (cycle)
+        far_distance   = 20  # mouse must move this far away from stroke start to start considering cycle
 
-    # hack to know which areas the mouse is in
-    mouse_areas = set()  # TODO: make sure this actually works with multiple areas / quad
+        # brush visualization settings
+        outer_color     = Color((1,1,1,1))
+        below_alpha     = Color((1,1,1,0.25))
+        inner_color     = Color((1,1,1,0.10))
+        miss_color      = Color.from_ints(192,  30,  30, 128)
+        stroke_color    = Color.from_ints(255, 255,   0, 255)
+        snap_color      = Color.from_ints(255, 255,   0, 255)
+        cycle_color     = Color.from_ints(255, 255,   0, 255)
+        push_above      = 0.01
+        shrink_below    = 0.80
+        stroke_smooth   = 0.15  # [0,1], lower => more smoothing
 
-    def init(self):
-        self.mouse = None
+        # hack to know which areas the mouse is in
+        mouse_areas = set()  # TODO: make sure this actually works with multiple areas / quad
 
-        self.hit = False
-        self.hit_p = None
-        self.hit_n = None
-        self.hit_pl = None
-        self.hit_scale = None
-        self.hit_depth = None
-        self.hit_x = None
-        self.hit_y = None
-        self.hit_z = None
-        self.hit_rmat = None
+        def init(self):
+            self.mouse = None
 
-        self.nearest = None
-        self.snap_bmv0 = None
-        self.snap_bmv1 = None
+            self.hit = False
+            self.hit_p = None
+            self.hit_n = None
+            self.hit_pl = None
+            self.hit_scale = None
+            self.hit_depth = None
+            self.hit_x = None
+            self.hit_y = None
+            self.hit_z = None
+            self.hit_rmat = None
 
-        self.stroke = None
-        self.stroke_far = False    # True when stroke has gone "far enough" away to consider cycle
-        self.stroke_cycle = False  # True when stroke has formed a cycle with self
-        self.operator = None
-
-        self.timer = None
-
-    def set_operator(self, operator):
-        # this is called whenever operator using brush is started
-        # note: artist just used another operator, so the data likely changed.
-        #       reset nearest info so that we can rebuild structure!
-        self.operator = operator
-
-    def reset(self):
-        self.nearest = None
-        self.snap_bmv0 = None
-        self.snap_bmv1 = None
-
-    def reset_nearest(self, context):
-        if self.operator:
-            self.matrix_world = context.edit_object.matrix_world
-            self.matrix_world_inv = self.matrix_world.inverted()
-            self.bm, self.em = get_bmesh_emesh(context)
-            self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
-        else:
-            self.matrix_world = None
-            self.matrix_world_inv = None
-            self.bm, self.em = None, None
-            self.nearest = None
-
-        self.snap_bmv0 = None
-        self.snap_bmv1 = None
-
-    def get_scaled_radius(self):
-        return self.hit_scale * self.radius
-
-    def is_stroking(self):
-        return self.stroke is not None
-
-    def update(self, context, event):
-        if not self.RFCore.is_current_area(context):
-            self.reset()
-            return
-
-        if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-            self.stroke = None
-            self.stroke_cycle = None
             self.nearest = None
             self.snap_bmv0 = None
             self.snap_bmv1 = None
-            if self.timer: self.timer.stop()
+
+            self.stroke = None
+            self.stroke_far = False    # True when stroke has gone "far enough" away to consider cycle
+            self.stroke_cycle = False  # True when stroke has formed a cycle with self
+            self.operator = None
+
             self.timer = None
-            context.area.tag_redraw()
-            return
 
-        if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
-        if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
+        def set_operator(self, operator):
+            # this is called whenever operator using brush is started
+            # note: artist just used another operator, so the data likely changed.
+            #       reset nearest info so that we can rebuild structure!
+            self.operator = operator
 
-        if not self.is_stroking():
-            if not event.ctrl or not self.operator:
-                if self.mouse:
-                    self.mouse = None
-                    self.hit = False
+        def reset(self):
+            self.nearest = None
+            self.snap_bmv0 = None
+            self.snap_bmv1 = None
+
+        def reset_nearest(self, context):
+            if self.operator:
+                self.matrix_world = context.edit_object.matrix_world
+                self.matrix_world_inv = self.matrix_world.inverted()
+                self.bm, self.em = get_bmesh_emesh(context)
+                self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+            else:
+                self.matrix_world = None
+                self.matrix_world_inv = None
+                self.bm, self.em = None, None
+                self.nearest = None
+
+            self.snap_bmv0 = None
+            self.snap_bmv1 = None
+
+        def get_scaled_radius(self):
+            return self.hit_scale * self.radius
+
+        def is_stroking(self):
+            return self.stroke is not None
+
+        def update(self, context, event):
+            if not self.RFCore.is_current_area(context):
+                self.reset()
+                return
+
+            if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
+                self.stroke = None
+                self.stroke_cycle = None
+                self.nearest = None
+                self.snap_bmv0 = None
+                self.snap_bmv1 = None
+                if self.timer: self.timer.stop()
+                self.timer = None
+                context.area.tag_redraw()
+                return
+
+            if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
+            if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
+
+            if not self.is_stroking():
+                if not event.ctrl or not self.operator:
+                    if self.mouse:
+                        self.mouse = None
+                        self.hit = False
+                        context.area.tag_redraw()
+                    return
+
+            mouse = mouse_from_event(event)
+
+            if self.operator and self.operator.is_active():
+                if not self.nearest:
+                    self.reset_nearest(context)
+                hit = raycast_valid_sources(context, mouse)
+                if hit:
+                    self.nearest.update(context, hit['co_local'], filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire), distance2d=self.snap_distance)
+                    if not self.is_stroking():
+                        self.snap_bmv0 = self.nearest.bmv
+                        self.snap_bmv1 = None
+                    elif self.snap_bmv0 != self.nearest.bmv:
+                        self.snap_bmv1 = self.nearest.bmv
+                    else:
+                        self.snap_bmv1 = None
+
+            if event.type == 'LEFTMOUSE':
+                if event.value == 'PRESS':
+                    if raycast_valid_sources(context, self.mouse):
+                        self.mouse = mouse
+                        self.mousedown = mouse
+                        self.stroke = [Point2D(mouse)]
+                        self.stroke_far = False
+                        self.stroke_cycle = False
+
+                        self.timer = TimerHandler(120, context=context, enabled=True)
+
+                elif event.value == 'RELEASE':
+                    if self.is_stroking():
+                        # only add final mouse position if it is over source
+                        if raycast_valid_sources(context, mouse): self.stroke += [Point2D(mouse)]
+                        self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
+                        self.stroke = None
+                        self.stroke_cycle = None
+                        self.nearest = None
+                        self.snap_bmv0 = None
+                        self.snap_bmv1 = None
+
+                        self.timer.stop()
+                        self.timer = None
+
+                context.area.tag_redraw()
+
+            if self.mouse and event.type not in {'MOUSEMOVE','TIMER'}:
+                return
+
+            if self.is_stroking(): # and event.type == 'TIMER':
+                pre = self.stroke[-1]
+                cur = Point2D(mouse)
+                pt = pre + (cur - pre) * RFBrush_Strokes.stroke_smooth
+                if raycast_valid_sources(context, pt):
+                    self.stroke += [pt]
+                if (self.stroke[0] - self.stroke[-1]).length > Drawing.scale(self.far_distance):
+                    self.stroke_far = True
+                if self.stroke_far and not self.snap_bmv0 and not self.snap_bmv1:
+                    self.stroke_cycle = (self.stroke[0] - self.stroke[-1]).length < Drawing.scale(self.snap_distance)
+
+            if self.operator.is_active() or RFOperator_StrokesBrush_Adjust.is_active():
+                # artist is actively stroking or adjusting brush properties, so always consider us inside if we're in the same area
+                active_op = RFOperator.active_operator()
+                mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
+            else:
+                mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
+
+            if not mouse_inside:
+                if context.area in self.mouse_areas:
+                    # we were inside this area, but not anymore.  tag for redraw to remove brush
+                    self.mouse_areas.remove(context.area)
                     context.area.tag_redraw()
                 return
 
-        mouse = mouse_from_event(event)
+            if context.area not in self.mouse_areas:
+                # we were outside this area before, but now we're in
+                self.mouse_areas.add(context.area)
 
-        if self.operator and self.operator.is_active():
-            if not self.nearest:
-                self.reset_nearest(context)
-            hit = raycast_valid_sources(context, mouse)
-            if hit:
-                self.nearest.update(context, hit['co_local'], filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire), distance2d=self.snap_distance)
-                if not self.is_stroking():
-                    self.snap_bmv0 = self.nearest.bmv
-                    self.snap_bmv1 = None
-                elif self.snap_bmv0 != self.nearest.bmv:
-                    self.snap_bmv1 = self.nearest.bmv
+            self.mouse = mouse
+            context.area.tag_redraw()
+
+        def _update(self, context):
+            if context.area not in self.mouse_areas: return
+            self.hit = False
+            if not self.mouse: return
+            # print(f'RFBrush_Strokes.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
+            hit = raycast_valid_sources(context, self.mouse)
+            # print(f'  {hit=}')
+            if not hit: return
+            scale_below = size2D_to_size(context, hit['distance'])
+            scale_above = size2D_to_size(context, hit['distance'] - self.push_above)
+            # print(f'  {scale=}')
+            if not scale_below or not scale_above: return
+
+            n = hit['no_local']
+            rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
+
+            self.hit = True
+            self.hit_ray = hit['ray_world']
+            self.hit_scale_below = scale_below
+            self.hit_scale_above = scale_above
+            self.hit_p = hit['co_world']
+            self.hit_n = hit['no_world']
+            self.hit_pl = hit['co_local']
+            self.hit_depth = hit['distance']
+            self.hit_x = Vec(rmat @ Direction.X)
+            self.hit_y = Vec(rmat @ Direction.Y)
+            self.hit_z = Vec(rmat @ Direction.Z)
+            self.hit_rmat = rmat
+
+        def draw_adjust(self, context):
+            center2D = self.center2D
+            r = self.radius
+            co = self.outer_color
+            Drawing.draw2D_circle(context, center2D, r, co, width=1)
+
+        def draw_stroke(self, context):
+            if self.mouse:
+                if (not self.is_stroking() and self.snap_bmv0) or (self.is_stroking() and self.snap_bmv1):
+                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
+                elif self.stroke_cycle:
+                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.cycle_color, width=1)
+                elif self.hit:
+                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.inner_color, width=1)
                 else:
-                    self.snap_bmv1 = None
+                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.miss_color, width=1)
 
-        if event.type == 'LEFTMOUSE':
-            if event.value == 'PRESS':
-                if raycast_valid_sources(context, self.mouse):
-                    self.mouse = mouse
-                    self.mousedown = mouse
-                    self.stroke = [Point2D(mouse)]
-                    self.stroke_far = False
-                    self.stroke_cycle = False
+            if self.operator and self.operator.is_active() and self.is_stroking():
+                Drawing.draw2D_linestrip(context, self.stroke, self.stroke_color, width=2, stipple=[5,5])
+                if self.stroke_cycle:
+                    Drawing.draw2D_linestrip(context, [self.stroke[0], self.stroke[-1]], self.cycle_color, width=2)
 
-                    self.timer = TimerHandler(120, context=context, enabled=True)
-
-            elif event.value == 'RELEASE':
+            if self.nearest:
                 if self.is_stroking():
-                    # only add final mouse position if it is over source
-                    if raycast_valid_sources(context, mouse): self.stroke += [Point2D(mouse)]
-                    self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
-                    self.stroke = None
-                    self.stroke_cycle = None
-                    self.nearest = None
-                    self.snap_bmv0 = None
-                    self.snap_bmv1 = None
+                    if self.snap_bmv0 and self.snap_bmv0.is_valid:
+                        co = self.matrix_world @ self.snap_bmv0.co
+                        p2d = location_3d_to_region_2d(context.region, context.region_data, co)
+                        Drawing.draw2D_linestrip(context, [self.stroke[0], p2d], self.snap_color, width=2)
+                    if self.snap_bmv1 and self.snap_bmv1.is_valid:
+                        co = self.matrix_world @ self.snap_bmv1.co
+                        p2d = location_3d_to_region_2d(context.region, context.region_data, co)
+                        Drawing.draw2D_linestrip(context, [self.stroke[-1], p2d], self.snap_color, width=2)
+                else:
+                    if self.mouse and self.snap_bmv0 and self.snap_bmv0.is_valid:
+                        co = self.matrix_world @ self.snap_bmv0.co
+                        p2d = location_3d_to_region_2d(context.region, context.region_data, co)
+                        Drawing.draw2D_linestrip(context, [Point2D(self.mouse), p2d], self.snap_color, width=2)
 
-                    self.timer.stop()
-                    self.timer = None
+        def draw_postpixel(self, context):
+            if not self.RFCore.is_current_area(context): return
+            #if context.area not in self.mouse_areas: return
 
-            context.area.tag_redraw()
+            gpustate.blend('ALPHA')
 
-        if self.mouse and event.type not in {'MOUSEMOVE','TIMER'}:
-            return
-
-        if self.is_stroking(): # and event.type == 'TIMER':
-            pre = self.stroke[-1]
-            cur = Point2D(mouse)
-            pt = pre + (cur - pre) * RFBrush_Strokes.stroke_smooth
-            if raycast_valid_sources(context, pt):
-                self.stroke += [pt]
-            if (self.stroke[0] - self.stroke[-1]).length > Drawing.scale(self.far_distance):
-                self.stroke_far = True
-            if self.stroke_far and not self.snap_bmv0 and not self.snap_bmv1:
-                self.stroke_cycle = (self.stroke[0] - self.stroke[-1]).length < Drawing.scale(self.snap_distance)
-
-        if self.operator.is_active() or RFOperator_StrokesBrush_Adjust.is_active():
-            # artist is actively stroking or adjusting brush properties, so always consider us inside if we're in the same area
-            active_op = RFOperator.active_operator()
-            mouse_inside = (context.area == active_op.working_area) and (context.window == active_op.working_window)
-        else:
-            mouse_inside = (0 <= mouse[0] < context.area.width) and (0 <= mouse[1] < context.area.height)
-
-        if not mouse_inside:
-            if context.area in self.mouse_areas:
-                # we were inside this area, but not anymore.  tag for redraw to remove brush
-                self.mouse_areas.remove(context.area)
-                context.area.tag_redraw()
-            return
-
-        if context.area not in self.mouse_areas:
-            # we were outside this area before, but now we're in
-            self.mouse_areas.add(context.area)
-
-        self.mouse = mouse
-        context.area.tag_redraw()
-
-    def _update(self, context):
-        if context.area not in self.mouse_areas: return
-        self.hit = False
-        if not self.mouse: return
-        # print(f'RFBrush_Strokes.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-        hit = raycast_valid_sources(context, self.mouse)
-        # print(f'  {hit=}')
-        if not hit: return
-        scale_below = size2D_to_size(context, hit['distance'])
-        scale_above = size2D_to_size(context, hit['distance'] - self.push_above)
-        # print(f'  {scale=}')
-        if not scale_below or not scale_above: return
-
-        n = hit['no_local']
-        rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
-
-        self.hit = True
-        self.hit_ray = hit['ray_world']
-        self.hit_scale_below = scale_below
-        self.hit_scale_above = scale_above
-        self.hit_p = hit['co_world']
-        self.hit_n = hit['no_world']
-        self.hit_pl = hit['co_local']
-        self.hit_depth = hit['distance']
-        self.hit_x = Vec(rmat @ Direction.X)
-        self.hit_y = Vec(rmat @ Direction.Y)
-        self.hit_z = Vec(rmat @ Direction.Z)
-        self.hit_rmat = rmat
-
-    def draw_adjust(self, context):
-        center2D = self.center2D
-        r = self.radius
-        co = self.outer_color
-        Drawing.draw2D_circle(context, center2D, r, co, width=1)
-
-    def draw_stroke(self, context):
-        if self.mouse:
-            if (not self.is_stroking() and self.snap_bmv0) or (self.is_stroking() and self.snap_bmv1):
-                Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
-            elif self.stroke_cycle:
-                Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.cycle_color, width=1)
-            elif self.hit:
-                Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.inner_color, width=1)
+            if RFOperator_StrokesBrush_Adjust.is_active():
+                self.draw_adjust(context)
             else:
-                Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.miss_color, width=1)
+                self.draw_stroke(context)
 
-        if self.operator and self.operator.is_active() and self.is_stroking():
-            Drawing.draw2D_linestrip(context, self.stroke, self.stroke_color, width=2, stipple=[5,5])
-            if self.stroke_cycle:
-                Drawing.draw2D_linestrip(context, [self.stroke[0], self.stroke[-1]], self.cycle_color, width=2)
+        def draw_postview(self, context):
+            if not self.RFCore.is_current_area(context): return
+            if context.area not in self.mouse_areas: return
 
-        if self.nearest:
-            if self.is_stroking():
-                if self.snap_bmv0 and self.snap_bmv0.is_valid:
-                    co = self.matrix_world @ self.snap_bmv0.co
-                    p2d = location_3d_to_region_2d(context.region, context.region_data, co)
-                    Drawing.draw2D_linestrip(context, [self.stroke[0], p2d], self.snap_color, width=2)
-                if self.snap_bmv1 and self.snap_bmv1.is_valid:
-                    co = self.matrix_world @ self.snap_bmv1.co
-                    p2d = location_3d_to_region_2d(context.region, context.region_data, co)
-                    Drawing.draw2D_linestrip(context, [self.stroke[-1], p2d], self.snap_color, width=2)
-            else:
-                if self.mouse and self.snap_bmv0 and self.snap_bmv0.is_valid:
-                    co = self.matrix_world @ self.snap_bmv0.co
-                    p2d = location_3d_to_region_2d(context.region, context.region_data, co)
-                    Drawing.draw2D_linestrip(context, [Point2D(self.mouse), p2d], self.snap_color, width=2)
+            if RFOperator_StrokesBrush_Adjust.is_active(): return
 
-    def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
-        #if context.area not in self.mouse_areas: return
+            self._update(context)
+            if not self.hit: return
 
-        gpustate.blend('ALPHA')
+            pb, n = self.hit_p, self.hit_n
+            ra = self.radius * self.hit_scale_above
+            rb = self.radius * self.hit_scale_below
+            rt = (2 + 4 * (1 - abs(self.hit_n.dot(self.hit_ray[1])))) * self.hit_scale_above
+            co = self.outer_color
+            pa = pb - self.push_above * self.hit_ray[1].xyz # * context.region_data.view_distance
 
-        if RFOperator_StrokesBrush_Adjust.is_active():
-            self.draw_adjust(context)
-        else:
-            self.draw_stroke(context)
+            gpustate.blend('ALPHA')
+            gpustate.depth_mask(False)
 
-    def draw_postview(self, context):
-        if not self.RFCore.is_current_area(context): return
-        if context.area not in self.mouse_areas: return
+            # draw below
+            gpustate.depth_test('GREATER')
+            Drawing.draw3D_circle(context, pb, rb, co * self.below_alpha, n=n, width=rt)
 
-        if RFOperator_StrokesBrush_Adjust.is_active(): return
+            # draw above
+            gpustate.depth_test('LESS_EQUAL')
+            Drawing.draw3D_circle(context, pa, ra, co, n=n, width=rt)
 
-        self._update(context)
-        if not self.hit: return
-
-        pb, n = self.hit_p, self.hit_n
-        ra = self.radius * self.hit_scale_above
-        rb = self.radius * self.hit_scale_below
-        rt = (2 + 4 * (1 - abs(self.hit_n.dot(self.hit_ray[1])))) * self.hit_scale_above
-        co = self.outer_color
-        pa = pb - self.push_above * self.hit_ray[1].xyz # * context.region_data.view_distance
-
-        gpustate.blend('ALPHA')
-        gpustate.depth_mask(False)
-
-        # draw below
-        gpustate.depth_test('GREATER')
-        Drawing.draw3D_circle(context, pb, rb, co * self.below_alpha, n=n, width=rt)
-
-        # draw above
-        gpustate.depth_test('LESS_EQUAL')
-        Drawing.draw3D_circle(context, pa, ra, co, n=n, width=rt)
-
-        # reset
-        gpustate.depth_test('LESS_EQUAL')
-        gpustate.depth_mask(True)
+            # reset
+            gpustate.depth_test('LESS_EQUAL')
+            gpustate.depth_mask(True)
 
 
-class RFOperator_StrokesBrush_Adjust(RFOperator):
-    '''
-    Handles resizing of Strokes Brush
-    '''
-    bl_idname = 'retopoflow.strokes_brush_radius'
-    bl_label = 'Adjust Strokes Brush Radius'
-    bl_description = 'Adjust radius of strokes brush'
-    bl_space_type = 'VIEW_3D'
-    bl_space_type = 'TOOLS'
-    bl_options = set()
+    class RFOperator_StrokesBrush_Adjust(RFOperator):
+        '''
+        Handles resizing of Strokes Brush
+        '''
+        bl_idname = f'retopoflow.{idname}' # strokes_brush_radius
+        bl_label = label
+        bl_description = f'Adjust radius of {label}'
+        bl_space_type = 'VIEW_3D'
+        bl_space_type = 'TOOLS'
+        bl_options = set()
 
-    rf_keymaps = [
-        (bl_idname, {'type': 'F', 'value': 'PRESS'}, None),  #, 'ctrl': False, 'shift': False
-    ]
-    rf_status = ['LMB: Commit', 'RMB: Cancel']
+        rf_keymaps = [
+            # bl_idname
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, None),  #, 'ctrl': False, 'shift': False
+        ]
+        rf_status = ['LMB: Commit', 'RMB: Cancel']
 
-    def can_init(self, context, event):
-        return not any(
-            instance.is_stroking()
-            for instance in RFBrush_Strokes.get_instances()
-        )
+        def can_init(self, context, event):
+            return not any(
+                instance.is_stroking()
+                for instance in RFBrush_Strokes.get_instances()
+            )
 
-    def init(self, context, event):
-        dist = self.radius_to_dist()
-        self.prev_radius = RFBrush_Strokes.radius
-        self._change_pre = dist
-        mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-        RFBrush_Strokes.center2D = mouse - Vec2D((dist, 0))
-        context.area.tag_redraw()
-
-    def dist_to_radius(self, d):
-        RFBrush_Strokes.radius = max(5, int(d))
-    def radius_to_dist(self):
-        return RFBrush_Strokes.radius
-
-    def update(self, context, event):
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            return {'FINISHED'}
-        if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-            self.dist_to_radius(self._change_pre)
-            return {'CANCELLED'}
-        if event.type == 'ESC' and event.value == 'PRESS':
-            self.dist_to_radius(self._change_pre)
-            return {'CANCELLED'}
-
-        if event.type == 'MOUSEMOVE':
+        def init(self, context, event):
+            dist = self.radius_to_dist()
+            self.prev_radius = RFBrush_Strokes.radius
+            self._change_pre = dist
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-            dist = (RFBrush_Strokes.center2D - mouse).length
-            self.dist_to_radius(dist)
+            RFBrush_Strokes.center2D = mouse - Vec2D((dist, 0))
             context.area.tag_redraw()
-            return {'PASS_THROUGH'}
 
-        return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
+        def dist_to_radius(self, d):
+            RFBrush_Strokes.radius = max(5, int(d))
+        def radius_to_dist(self):
+            return RFBrush_Strokes.radius
 
+        def update(self, context, event):
+            if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+                return {'FINISHED'}
+            if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
+                self.dist_to_radius(self._change_pre)
+                return {'CANCELLED'}
+            if event.type == 'ESC' and event.value == 'PRESS':
+                self.dist_to_radius(self._change_pre)
+                return {'CANCELLED'}
+
+            if event.type == 'MOUSEMOVE':
+                mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
+                dist = (RFBrush_Strokes.center2D - mouse).length
+                self.dist_to_radius(dist)
+                context.area.tag_redraw()
+                return {'PASS_THROUGH'}
+
+            return {'RUNNING_MODAL'} # allow other operators, such as UNDO!!!
+
+    return (RFBrush_Strokes, RFOperator_StrokesBrush_Adjust)

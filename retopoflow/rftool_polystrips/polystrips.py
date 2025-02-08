@@ -23,7 +23,7 @@ import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
-from ..rfbrushes.strokes_brush import RFBrush_Strokes, RFOperator_PolyStripsBrush_Adjust
+from ..rfbrushes.strokes_brush import create_strokes_brush
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
@@ -43,7 +43,7 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
-from .strokes_logic import Strokes_Logic
+from .polystrips_logic import PolyStrips_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
@@ -53,6 +53,11 @@ from ..common.interface import draw_line_separator
 
 from functools import wraps
 
+RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_strokes_brush(
+    'polystrips_brush',
+    'PolyStrips Brush',
+    radius=40,
+)
 
 class RFOperator_PolyStrips_Insert_Keymaps:
     # used to collect redo shortcuts, which is filled in by redo_ fns below...
@@ -190,7 +195,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         if length3D == 0: return {'CANCELLED'}
 
         try:
-            logic = Strokes_Logic(
+            logic = PolyStrips_Logic(
                 context,
                 data['initial'],
                 data['radius'],
@@ -401,8 +406,8 @@ class RFOperator_PolyStrips(RFOperator):
 
 
 RFOperator_PolyStrips_Overlay = create_loopstrip_selection_overlay(
+    'retopoflow_polystrips',  # must match RFTool_base.bl_idname
     'RFOperator_PolyStrips_Selection_Overlay',
-    'retopoflow.polystrips',  # must match RFTool_base.bl_idname
     'polystrips_overlay',
     'PolyStrips Selected Overlay',
     True,
@@ -424,7 +429,7 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyStrips,
         RFOperator_PolyStrips_Insert,
-        RFOperator_PolyStripsBrush_Adjust,
+        RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate_ScreenSpace,
     )
 
