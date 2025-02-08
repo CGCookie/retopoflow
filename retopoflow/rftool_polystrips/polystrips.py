@@ -124,24 +124,24 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     stroke_data = None
 
     @staticmethod
-    def polystrips_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode, initial_smooth_angle, initial_smooth_density0, initial_smooth_density1):
+    def polystrips_insert(context, radius, stroke3D, is_cycle):
         RFOperator_PolyStrips_Insert.stroke_data = {
             'initial':           True,
             'action':            '',
             'radius':            radius,
             'stroke3D':          stroke3D,
             'is_cycle':          is_cycle,
-            'span_insert_mode':  span_insert_mode,
-            'cut_count':         initial_cut_count,
-            'show_count':        True,
-            'extrapolate':       extrapolate_mode,
-            'show_extrapolate':  True,
-            'bridging_offset':   0,
-            'show_bridging_offset': False,
-            'show_smoothness':    False,
-            'smooth_angle':       initial_smooth_angle,
-            'smooth_density0':    initial_smooth_density0,
-            'smooth_density1':    initial_smooth_density1,
+            # 'span_insert_mode':  span_insert_mode,
+            # 'cut_count':         initial_cut_count,
+            # 'show_count':        True,
+            # 'extrapolate':       extrapolate_mode,
+            # 'show_extrapolate':  True,
+            # 'bridging_offset':   0,
+            # 'show_bridging_offset': False,
+            # 'show_smoothness':    False,
+            # 'smooth_angle':       initial_smooth_angle,
+            # 'smooth_density0':    initial_smooth_density0,
+            # 'smooth_density1':    initial_smooth_density1,
         }
         RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
     @staticmethod
@@ -149,12 +149,12 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         data = RFOperator_PolyStrips_Insert.stroke_data
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            extrapolate_mode=data['extrapolate'],
-            cut_count=data['cut_count'],
-            bridging_offset=data['bridging_offset'],
-            smooth_angle=data['smooth_angle'],
-            smooth_density0=data['smooth_density0'],
-            smooth_density1=data['smooth_density1'],
+            # extrapolate_mode=data['extrapolate'],
+            # cut_count=data['cut_count'],
+            # bridging_offset=data['bridging_offset'],
+            # smooth_angle=data['smooth_angle'],
+            # smooth_density0=data['smooth_density0'],
+            # smooth_density1=data['smooth_density1'],
         )
 
     def draw(self, context):
@@ -166,26 +166,26 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             grid.label(text=f'Inserted')
             grid.label(text=data['action'])
 
-        if data['show_count']:
-            grid.label(text='Count')
-            grid.prop(self, 'cut_count', text='')
+        # if data['show_count']:
+        #     grid.label(text='Count')
+        #     grid.prop(self, 'cut_count', text='')
 
-        if data['show_extrapolate']:
-            grid.label(text='Extrapolation')
-            grid.prop(self, 'extrapolate_mode', text='')
+        # if data['show_extrapolate']:
+        #     grid.label(text='Extrapolation')
+        #     grid.prop(self, 'extrapolate_mode', text='')
 
-        if data['show_bridging_offset']:
-            grid.label(text='Shift')
-            grid.prop(self, 'bridging_offset', text='')
+        # if data['show_bridging_offset']:
+        #     grid.label(text='Shift')
+        #     grid.prop(self, 'bridging_offset', text='')
 
-        if data['show_smoothness']:
-            grid.label(text='Smoothing')
-            grid.prop(self, 'smooth_angle', text='')
+        # if data['show_smoothness']:
+        #     grid.label(text='Smoothing')
+        #     grid.prop(self, 'smooth_angle', text='')
 
-            grid.label(text='Spacing')
-            row = grid.row(align=True)
-            row.prop(self, 'smooth_density0', text='')
-            row.prop(self, 'smooth_density1', text='')
+        #     grid.label(text='Spacing')
+        #     row = grid.row(align=True)
+        #     row.prop(self, 'smooth_density0', text='')
+        #     row.prop(self, 'smooth_density1', text='')
 
     def execute(self, context):
         data = RFOperator_PolyStrips_Insert.stroke_data
@@ -201,33 +201,27 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
                 data['radius'],
                 stroke3D,
                 data['is_cycle'],
-                data['span_insert_mode'] if data['initial'] else 'FIXED',
-                data['cut_count'] if data['initial'] else self.cut_count,
-                self.extrapolate_mode,
-                data['bridging_offset'] if data['initial'] else self.bridging_offset,
-                self.smooth_angle,
-                self.smooth_density0,
-                self.smooth_density1,
             )
 
             if data['initial']:
                 data['initial'] = False
-                data['show_count'] = logic.show_count
-                data['show_extrapolate'] = logic.show_extrapolate
-                data['action'] = logic.show_action
-                self.bridging_offset = logic.bridging_offset
-                data['bridging_offset'] = self.bridging_offset
-                data['show_bridging_offset'] = logic.show_bridging_offset
-                data['show_smoothness'] = logic.show_smoothness
+                # data['show_count'] = logic.show_count
+                # data['show_extrapolate'] = logic.show_extrapolate
+                # data['action'] = logic.show_action
+                # self.bridging_offset = logic.bridging_offset
+                # data['bridging_offset'] = self.bridging_offset
+                # data['show_bridging_offset'] = logic.show_bridging_offset
+                # data['show_smoothness'] = logic.show_smoothness
             else:
-                data['extrapolate'] = self.extrapolate_mode
-                self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
-                data['bridging_offset'] = self.bridging_offset
-            self.cut_count = logic.cut_count
-            data['cut_count'] = self.cut_count
-            data['smooth_angle'] = self.smooth_angle
-            data['smooth_density0'] = self.smooth_density0
-            data['smooth_density1'] = self.smooth_density1
+                pass
+                # data['extrapolate'] = self.extrapolate_mode
+                # self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
+                # data['bridging_offset'] = self.bridging_offset
+            # self.cut_count = logic.cut_count
+            # data['cut_count'] = self.cut_count
+            # data['smooth_angle'] = self.smooth_angle
+            # data['smooth_density0'] = self.smooth_density0
+            # data['smooth_density1'] = self.smooth_density1
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -304,62 +298,6 @@ class RFOperator_PolyStrips(RFOperator):
     rf_status = ['LMB: Insert']
 
 
-    span_insert_mode: bpy.props.EnumProperty(
-        name='Span Count Method',
-        description='Controls the number of spans when inserting',
-        items=[
-            ('BRUSH',   'Brush Size', 'Insert spans based on brush size', 0),
-            ('FIXED',   'Fixed',      'Insert fixed number of spans',     1),
-            ('AVERAGE', 'Average',    'Insert spans based on average length of selected edges (fallback: brush size)', 2),
-        ],
-        default='AVERAGE',
-    )
-
-    initial_cut_count: bpy.props.IntProperty(
-        name='Initial Count',
-        description='Number of vertices or loops to create in a new stroke',
-        default=8,
-        min=1,
-        max=100,
-    )
-
-    extrapolate_mode: bpy.props.EnumProperty(
-        name='Extrapolation',
-        description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
-        items=[
-            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
-            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
-        ],
-        default='FLAT',
-    )
-
-    initial_smooth_angle: bpy.props.FloatProperty(
-        name='Initial Smoothing',
-        description='Factor for how much smoothing is applied to the interpolated loops when creating Equals Strips and I Strips. Zero is linear.',
-        default=1.0,
-        min=-0.5,
-        soft_min=0.0,
-        soft_max=1.0,
-        max=1.5,
-    )
-
-    initial_smooth_density0: bpy.props.FloatProperty(
-        name='Initial Start Spacing',
-        description='Initial spacing of the interpolated loops near the start of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-
-    initial_smooth_density1: bpy.props.FloatProperty(
-        name='Initial End Spacing',
-        description='Initial spacing of the interpolated loops near the end of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-
-
     def init(self, context, event):
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
@@ -379,12 +317,6 @@ class RFOperator_PolyStrips(RFOperator):
             radius,
             stroke3D,
             is_cycle,
-            self.span_insert_mode,
-            self.initial_cut_count,
-            self.extrapolate_mode,
-            self.initial_smooth_angle,
-            self.initial_smooth_density0,
-            self.initial_smooth_density1,
         )
 
     def update(self, context, event):
@@ -440,17 +372,6 @@ class RFTool_PolyStrips(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
             row = layout.row(align=True)
-            row.prop(props_polystrips, 'span_insert_mode', text='')
-            if props_polystrips.span_insert_mode == 'FIXED':
-                row.prop(props_polystrips, 'initial_cut_count', text="")
-            layout.prop(props_polystrips, 'extrapolate_mode', expand=True)
-            #layout.label(text="Smoothing:")
-            layout.prop(props_polystrips, 'initial_smooth_angle', text='Smoothing')
-            #layout.label(text="Spacing:")
-            row = layout.row(align=True)
-            row.prop(props_polystrips, 'initial_smooth_density0', text='Spacing')
-            row.prop(props_polystrips, 'initial_smooth_density1', text='')
-            draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
@@ -459,15 +380,7 @@ class RFTool_PolyStrips(RFTool_Base):
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_polystrips, 'span_insert_mode', text='Count')
-                if props_polystrips.span_insert_mode == 'FIXED':
-                    panel.prop(props_polystrips, 'initial_cut_count', text=" ")
-                row = panel.row()
-                row.prop(props_polystrips, 'extrapolate_mode', text='Extrapolation', expand=True)
-                panel.prop(props_polystrips, 'initial_smooth_angle', text='Smoothing')
-                col = panel.column(align=True)
-                col.prop(props_polystrips, 'initial_smooth_density0', text='Spacing Start')
-                col.prop(props_polystrips, 'initial_smooth_density1', text='End')
+                pass
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
 

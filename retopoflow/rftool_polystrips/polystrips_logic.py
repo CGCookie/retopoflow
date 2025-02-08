@@ -46,7 +46,7 @@ import math
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset, smooth_angle, smooth_density0, smooth_density1):
+    def __init__(self, context, initial, radius, stroke3D, is_cycle):
         pass
         # self.bm, self.em = get_bmesh_emesh(context)
         # bmops.flush_selection(self.bm, self.em)
