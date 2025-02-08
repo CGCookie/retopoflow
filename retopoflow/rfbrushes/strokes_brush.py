@@ -71,9 +71,10 @@ class RFBrush_Strokes(RFBrush_Base):
     outer_color     = Color((1,1,1,1))
     below_alpha     = Color((1,1,1,0.25))
     inner_color     = Color((1,1,1,0.10))
-    stroke_color    = Color.from_ints(255,255,0,255)
-    snap_color      = Color.from_ints(255,255,0,255)
-    cycle_color     = Color.from_ints(255,255,0,255)
+    miss_color      = Color.from_ints(192,  30,  30, 128)
+    stroke_color    = Color.from_ints(255, 255,   0, 255)
+    snap_color      = Color.from_ints(255, 255,   0, 255)
+    cycle_color     = Color.from_ints(255, 255,   0, 255)
     push_above      = 0.01
     shrink_below    = 0.80
     stroke_smooth   = 0.15  # [0,1], lower => more smoothing
@@ -284,8 +285,10 @@ class RFBrush_Strokes(RFBrush_Base):
                 Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
             elif self.stroke_cycle:
                 Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.cycle_color, width=1)
-            else:
+            elif self.hit:
                 Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.inner_color, width=1)
+            else:
+                Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.miss_color, width=1)
 
         if self.operator and self.operator.is_active() and self.is_stroking():
             Drawing.draw2D_linestrip(context, self.stroke, self.stroke_color, width=2, stipple=[5,5])
