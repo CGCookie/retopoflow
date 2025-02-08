@@ -71,56 +71,6 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     bl_description = 'Insert quad strip'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    extrapolate_mode: bpy.props.EnumProperty(
-        name='Extrapolation',
-        description='Controls how the new perpendicular edges are extrapolated from the selected edges',
-        items=[
-            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
-            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
-        ],
-        default='FLAT',
-    )
-
-    cut_count: bpy.props.IntProperty(
-        name='Count',
-        description='Number of vertices or loops to create in a new stroke',
-        default=8,
-        min=1,
-        soft_max=32,
-        max=256,
-    )
-
-    bridging_offset: bpy.props.IntProperty(
-        name='Bridging Offset',
-        description='Shift which edges the bridge is connected to',
-        default=0,
-    )
-
-    smooth_angle: bpy.props.FloatProperty(
-        name='Smoothing',
-        description='Factor for how much smoothing is applied to the interpolated loops. Zero is linear.',
-        default=1.0,
-        min=-0.5,
-        soft_min=0.0,
-        soft_max=1.0,
-        max=1.5,
-    )
-
-    smooth_density0: bpy.props.FloatProperty(
-        name='Spacing Start',
-        description='Spacing of the interpolated loops near the start of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-    smooth_density1: bpy.props.FloatProperty(
-        name='Spacing End',
-        description='Spacing of the interpolated loops near the end of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-
     stroke_data = None
 
     @staticmethod
@@ -131,17 +81,6 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             'radius':            radius,
             'stroke3D':          stroke3D,
             'is_cycle':          is_cycle,
-            # 'span_insert_mode':  span_insert_mode,
-            # 'cut_count':         initial_cut_count,
-            # 'show_count':        True,
-            # 'extrapolate':       extrapolate_mode,
-            # 'show_extrapolate':  True,
-            # 'bridging_offset':   0,
-            # 'show_bridging_offset': False,
-            # 'show_smoothness':    False,
-            # 'smooth_angle':       initial_smooth_angle,
-            # 'smooth_density0':    initial_smooth_density0,
-            # 'smooth_density1':    initial_smooth_density1,
         }
         RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
     @staticmethod
@@ -149,12 +88,6 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         data = RFOperator_PolyStrips_Insert.stroke_data
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            # extrapolate_mode=data['extrapolate'],
-            # cut_count=data['cut_count'],
-            # bridging_offset=data['bridging_offset'],
-            # smooth_angle=data['smooth_angle'],
-            # smooth_density0=data['smooth_density0'],
-            # smooth_density1=data['smooth_density1'],
         )
 
     def draw(self, context):
@@ -165,27 +98,6 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         if data['action']:
             grid.label(text=f'Inserted')
             grid.label(text=data['action'])
-
-        # if data['show_count']:
-        #     grid.label(text='Count')
-        #     grid.prop(self, 'cut_count', text='')
-
-        # if data['show_extrapolate']:
-        #     grid.label(text='Extrapolation')
-        #     grid.prop(self, 'extrapolate_mode', text='')
-
-        # if data['show_bridging_offset']:
-        #     grid.label(text='Shift')
-        #     grid.prop(self, 'bridging_offset', text='')
-
-        # if data['show_smoothness']:
-        #     grid.label(text='Smoothing')
-        #     grid.prop(self, 'smooth_angle', text='')
-
-        #     grid.label(text='Spacing')
-        #     row = grid.row(align=True)
-        #     row.prop(self, 'smooth_density0', text='')
-        #     row.prop(self, 'smooth_density1', text='')
 
     def execute(self, context):
         data = RFOperator_PolyStrips_Insert.stroke_data
@@ -205,23 +117,8 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
 
             if data['initial']:
                 data['initial'] = False
-                # data['show_count'] = logic.show_count
-                # data['show_extrapolate'] = logic.show_extrapolate
-                # data['action'] = logic.show_action
-                # self.bridging_offset = logic.bridging_offset
-                # data['bridging_offset'] = self.bridging_offset
-                # data['show_bridging_offset'] = logic.show_bridging_offset
-                # data['show_smoothness'] = logic.show_smoothness
             else:
                 pass
-                # data['extrapolate'] = self.extrapolate_mode
-                # self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
-                # data['bridging_offset'] = self.bridging_offset
-            # self.cut_count = logic.cut_count
-            # data['cut_count'] = self.cut_count
-            # data['smooth_angle'] = self.smooth_angle
-            # data['smooth_density0'] = self.smooth_density0
-            # data['smooth_density1'] = self.smooth_density1
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -249,29 +146,29 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             return wrapped
         return wrapper
 
-    @create_redo_operator('polystrips_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
-    def decrease_spans(context, data):
-        data['cut_count'] -= 1
+    # @create_redo_operator('polystrips_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    # def decrease_spans(context, data):
+    #     data['cut_count'] -= 1
 
-    @create_redo_operator('polystrips_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
-    def increase_spans(context, data):
-        data['cut_count'] += 1
+    # @create_redo_operator('polystrips_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    # def increase_spans(context, data):
+    #     data['cut_count'] += 1
 
-    @create_redo_operator('polystrips_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
-    def decrease_shift(context, data):
-        data['bridging_offset'] -= 1
+    # @create_redo_operator('polystrips_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
+    # def decrease_shift(context, data):
+    #     data['bridging_offset'] -= 1
 
-    @create_redo_operator('polystrips_insert_shift_increased', 'Reinsert stroke with shifted spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1})
-    def increase_shift(context, data):
-        data['bridging_offset'] += 1
+    # @create_redo_operator('polystrips_insert_shift_increased', 'Reinsert stroke with shifted spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1})
+    # def increase_shift(context, data):
+    #     data['bridging_offset'] += 1
 
-    @create_redo_operator('polystrips_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
-    def decrease_smooth_angle(context, data):
-        data['smooth_angle'] -= 0.25
+    # @create_redo_operator('polystrips_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    # def decrease_smooth_angle(context, data):
+    #     data['smooth_angle'] -= 0.25
 
-    @create_redo_operator('polystrips_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    def increase_smooth_angle(context, data):
-        data['smooth_angle'] += 0.25
+    # @create_redo_operator('polystrips_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    # def increase_smooth_angle(context, data):
+    #     data['smooth_angle'] += 0.25
 
 
 class RFOperator_PolyStrips(RFOperator):
@@ -337,13 +234,13 @@ class RFOperator_PolyStrips(RFOperator):
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
-RFOperator_PolyStrips_Overlay = create_loopstrip_selection_overlay(
-    'retopoflow_polystrips',  # must match RFTool_base.bl_idname
-    'RFOperator_PolyStrips_Selection_Overlay',
-    'polystrips_overlay',
-    'PolyStrips Selected Overlay',
-    True,
-)
+# RFOperator_PolyStrips_Overlay = create_loopstrip_selection_overlay(
+#     'retopoflow_polystrips',  # must match RFTool_base.bl_idname
+#     'RFOperator_PolyStrips_Selection_Overlay',
+#     'polystrips_overlay',
+#     'PolyStrips Selected Overlay',
+#     True,
+# )
 
 
 
@@ -356,7 +253,7 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_operator = 'retopoflow.polystrips'
 
     rf_brush = RFBrush_Strokes()
-    rf_overlay = RFOperator_PolyStrips_Overlay
+    # rf_overlay = RFOperator_PolyStrips_Overlay
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyStrips,
