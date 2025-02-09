@@ -71,54 +71,34 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     bl_description = 'Insert quad strip'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    stroke_data = None
+    logic = None
 
     @staticmethod
-    def polystrips_insert(context, radius, stroke3D, is_cycle):
-        RFOperator_PolyStrips_Insert.stroke_data = {
-            'initial':           True,
-            'action':            '',
-            'radius':            radius,
-            'stroke3D':          stroke3D,
-            'is_cycle':          is_cycle,
-        }
-        RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
+    def polystrips_insert(context, radius2D, stroke3D, is_cycle):
+        RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
+            context,
+            radius2D,
+            stroke3D,
+            is_cycle,
+        )
+        bpy.ops.retopoflow.polystrips_insert('INVOKE_DEFAULT', True)
+
     @staticmethod
     def polystrips_reinsert(context):
-        data = RFOperator_PolyStrips_Insert.stroke_data
-        bpy.ops.retopoflow.polystrips_insert(
-            'INVOKE_DEFAULT', True,
-        )
+        bpy.ops.retopoflow.polystrips_insert('INVOKE_DEFAULT', True)
 
     def draw(self, context):
         layout = self.layout
         grid = layout.grid_flow(row_major=True, columns=2)
-        data = RFOperator_PolyStrips_Insert.stroke_data
+        logic = RFOperator_PolyStrips_Insert.logic
 
-        if data['action']:
+        if logic.action:
             grid.label(text=f'Inserted')
-            grid.label(text=data['action'])
+            grid.label(text=logic.action)
 
     def execute(self, context):
-        data = RFOperator_PolyStrips_Insert.stroke_data
-        stroke3D = [pt for pt in data['stroke3D'] if pt]
-        if not stroke3D: return {'CANCELLED'}
-        length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(data['stroke3D'], data['is_cycle']))
-        if length3D == 0: return {'CANCELLED'}
-
         try:
-            logic = PolyStrips_Logic(
-                context,
-                data['initial'],
-                data['radius'],
-                stroke3D,
-                data['is_cycle'],
-            )
-
-            if data['initial']:
-                data['initial'] = False
-            else:
-                pass
+            RFOperator_PolyStrips_Insert.logic.create(context)
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -140,7 +120,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
                 if last_op != RFOperator_PolyStrips_Insert.bl_label: return
-                fn(context, RFOperator_PolyStrips_Insert.stroke_data)
+                fn(context, RFOperator_PolyStrips_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
             return wrapped
@@ -207,11 +187,11 @@ class RFOperator_PolyStrips(RFOperator):
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
 
-    def process_stroke(self, context, radius, stroke2D, is_cycle, snap_bmv0, snap_bmv1):
+    def process_stroke(self, context, radius2D, stroke2D, is_cycle, snap_bmv0, snap_bmv1):
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
         RFOperator_PolyStrips_Insert.polystrips_insert(
             context,
-            radius,
+            radius2D,
             stroke3D,
             is_cycle,
         )
