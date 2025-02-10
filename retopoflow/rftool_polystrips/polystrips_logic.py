@@ -159,6 +159,8 @@ class PolyStrips_Logic:
             bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
             bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
             bmfs += [ bmf ]
+        fwd = Mi @ view_forward_direction(self.context)
+        check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
