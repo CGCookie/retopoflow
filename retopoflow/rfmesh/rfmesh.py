@@ -1051,9 +1051,13 @@ class RFMesh():
         """
         Get list of visible vertex indices for an object in the current 3D view.
         """
+        # Add check for empty mesh
+        mesh = self.obj.data
+        if len(mesh.vertices) == 0:
+            return set()  # Return empty set if no vertices exist
+
         with time_it("prepare data", enabled=True):
             # Get mesh data
-            mesh = self.obj.data
             matrix_world = np.array(self.obj.matrix_world, dtype=np.float32)
             matrix_normal = np.array(self.obj.matrix_world.inverted_safe().transposed().to_3x3(), dtype=np.float32)
             
