@@ -89,7 +89,7 @@ class PolyStrips_Logic:
 
         # initialize options
         self.action = ''  # will be filled in later
-        self.count  = 10   # TODO: use radius and stroke length to determine initial count
+        self.count = max(2, math.ceil(self.length2D / radius2D))
 
     def create(self, context):
         self.update_context(context)
@@ -110,7 +110,13 @@ class PolyStrips_Logic:
         self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
         self.forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
         self.forwards += [ self.forwards[-1] ]
-        self.rights = [ f.cross(n).normalize() for (f, n) in zip(self.forwards, self.normals) ]
+        # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
+        self.backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
+        self.backwards = [ self.backwards[0] ] + self.backwards
+        self.rights = [
+            (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
+            for (b, f, n) in zip(self.backwards, self.forwards, self.normals)
+        ]
 
         bmvs = [[], []]
 
