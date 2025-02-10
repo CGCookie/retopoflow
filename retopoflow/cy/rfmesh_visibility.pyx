@@ -15,11 +15,8 @@ from cython cimport Py_ssize_t
 np.import_array()  # Initialize NumPy C-API
 
 from libc.stdint cimport uintptr_t
-from libc.stdlib cimport malloc, free
 from libc.math cimport sqrt, fabs
 from cython.parallel cimport parallel, prange
-from cpython.ref cimport PyObject
-from cpython.set cimport PySet_Add, PySet_New
 
 ctypedef float real_t
 ctypedef np.float32_t DTYPE_t
@@ -125,7 +122,7 @@ cdef int _compute_visible_vertices_nogil(
 
     return num_visible
 
-cpdef np.ndarray[np.uint8_t, ndim=1] compute_visible_vertices( # object
+cpdef np.ndarray[np.uint8_t, ndim=1] compute_visible_vertices(
     uintptr_t vert_ptr,
     uintptr_t norm_ptr,
     int num_vertices,
@@ -136,20 +133,12 @@ cpdef np.ndarray[np.uint8_t, ndim=1] compute_visible_vertices( # object
     np.ndarray[DTYPE_t, ndim=2] proj_matrix,
     np.ndarray[DTYPE_t, ndim=1] view_pos,
     bint is_perspective,
-    DTYPE_t margin_check,
-    # object verts_list,  # List of BMVerts
-    # object rfvert_class,  # RFVert class type
+    DTYPE_t margin_check
 ):
     # Cast pointers to our vertex data structure
     cdef float* positions = <float*>vert_ptr
     cdef float* normals = <float*>norm_ptr
 
-    # Create result set directly
-    cdef object result_set = set()
-    # cdef object vert = None
-    # cdef list verts = verts_list
-    # cdef object vert_wrapper = rfvert_class  # Store the class
-    
     # Create visibility array
     cdef np.ndarray[np.uint8_t, ndim=1] visible_np = np.zeros(num_vertices, dtype=np.uint8)
     cdef unsigned char* visible = <unsigned char*>visible_np.data
@@ -177,12 +166,3 @@ cpdef np.ndarray[np.uint8_t, ndim=1] compute_visible_vertices( # object
     )
 
     return visible_np
-
-    # Fill the set with wrapped visible vertices
-    for i in range(num_vertices):
-        if visible[i] and verts[i]:
-            vert = verts[i]
-            if vert.is_valid and not vert.hide:
-                PySet_Add(result_set, vert_wrapper(vert))
-
-    return result_set
