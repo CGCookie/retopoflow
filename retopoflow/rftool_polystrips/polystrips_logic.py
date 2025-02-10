@@ -90,7 +90,9 @@ class PolyStrips_Logic:
 
         # initialize options
         self.action = ''  # will be filled in later
-        self.count = max(2, math.ceil(self.length2D / radius2D))
+        self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)
+        self.width = self.length3D / (self.count * 2 - 1)
+        print(f'{self.length2D=} {self.radius2D=} {self.length3D=} {self.count=} {self.width=}')
 
     @property
     def count(self): return self._count
@@ -130,21 +132,22 @@ class PolyStrips_Logic:
         p, pn = self.points[0], self.points[1]
         f, r = self.forwards[0], self.rights[0]
         d = (pn - p).length
-        bmvs[0] += [ self.bm.verts.new(p + r * d - f * d) ]
-        bmvs[1] += [ self.bm.verts.new(p - r * d - f * d) ]
+        w = self.width
+        bmvs[0] += [ self.bm.verts.new(p + r * w - f * d) ]
+        bmvs[1] += [ self.bm.verts.new(p - r * w - f * d) ]
         # along stroke
         for i in range(1, self.npoints, 2):
             pp, p, pn = self.points[i-1:i+2]
             r = self.rights[i]
             d = ((pp - p).length + (pn - p).length) / 2
-            bmvs[0] += [ self.bm.verts.new(p + r * d) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * d) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * w) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * w) ]
         # ending of stroke
         p, pp = self.points[-1], self.points[-2]
         f, r = self.forwards[-1], self.rights[-1]
         d = (pp - p).length
-        bmvs[0] += [ self.bm.verts.new(p + r * d + f * d) ]
-        bmvs[1] += [ self.bm.verts.new(p - r * d + f * d) ]
+        bmvs[0] += [ self.bm.verts.new(p + r * w + f * d) ]
+        bmvs[1] += [ self.bm.verts.new(p - r * w + f * d) ]
 
         # snap newly created bmverts to source
         for bmv in chain(bmvs[0], bmvs[1]):

@@ -80,6 +80,11 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         min=2,
         max=256,
     )
+    width: bpy.props.FloatProperty(
+        name='Width',
+        description='Width of quad strip',
+        min=0.0001,
+    )
 
     @staticmethod
     def polystrips_insert(context, radius2D, stroke3D, is_cycle):
@@ -92,6 +97,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
             cut_count=RFOperator_PolyStrips_Insert.logic.count,
+            width=RFOperator_PolyStrips_Insert.logic.width,
         )
 
     @staticmethod
@@ -99,6 +105,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
             cut_count=RFOperator_PolyStrips_Insert.logic.count,
+            width=RFOperator_PolyStrips_Insert.logic.width,
         )
 
     def draw(self, context):
@@ -112,10 +119,13 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
 
         grid.label(text=f'Count')
         grid.prop(self, 'cut_count', text='')
+        grid.label(text=f'Width')
+        grid.prop(self, 'width', text='')
 
     def execute(self, context):
         try:
             RFOperator_PolyStrips_Insert.logic.count = self.cut_count
+            RFOperator_PolyStrips_Insert.logic.width = self.width
             RFOperator_PolyStrips_Insert.logic.create(context)
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
@@ -151,6 +161,14 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     @create_redo_operator('polystrips_insert_cut_count_increased', 'Reinsert quad strip with increased count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
     def increase_cut_count(context, logic):
         logic.count += 1
+
+    @create_redo_operator('polystrips_insert_width_decreased', 'Reinsert quad strip with decreased width', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    def decrease_cut_count(context, logic):
+        logic.width *= 0.95
+
+    @create_redo_operator('polystrips_insert_width_increased', 'Reinsert quad strip with increased width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    def increase_cut_count(context, logic):
+        logic.width /= 0.95
 
 
 class RFOperator_PolyStrips(RFOperator):
