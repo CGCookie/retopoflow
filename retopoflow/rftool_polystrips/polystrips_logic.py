@@ -110,7 +110,7 @@ class PolyStrips_Logic:
         self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
         self.forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
         self.forwards += [ self.forwards[-1] ]
-        self.rights = [ f.cross(n) for (f, n) in zip(self.forwards, self.normals) ]
+        self.rights = [ f.cross(n).normalize() for (f, n) in zip(self.forwards, self.normals) ]
 
         bmvs = [[], []]
 
