@@ -45,9 +45,19 @@ jobs:
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
           echo "Windows build - keeping original name"
         elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-          mv rfmesh_visibility*.so rfmesh_visibility.cpython-311-darwin-$(uname -m).so
+          # First remove target if it exists
+          rm -f rfmesh_visibility.cpython-311-darwin-$(uname -m).so
+          # Then move the file
+          for f in rfmesh_visibility*.so; do
+            mv "$f" rfmesh_visibility.cpython-311-darwin-$(uname -m).so
+          done
         elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-          mv rfmesh_visibility*.so rfmesh_visibility.cpython-311-linux-$(uname -m).so
+          # First remove target if it exists
+          rm -f rfmesh_visibility.cpython-311-linux-$(uname -m).so
+          # Then move the file
+          for f in rfmesh_visibility*.so; do
+            mv "$f" rfmesh_visibility.cpython-311-linux-$(uname -m).so
+          done
         fi
 
     - name: Upload compiled extension
