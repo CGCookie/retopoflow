@@ -153,31 +153,6 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         logic.count += 1
 
 
-    # @create_redo_operator('polystrips_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
-    # def decrease_spans(context, data):
-    #     data['cut_count'] -= 1
-
-    # @create_redo_operator('polystrips_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
-    # def increase_spans(context, data):
-    #     data['cut_count'] += 1
-
-    # @create_redo_operator('polystrips_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
-    # def decrease_shift(context, data):
-    #     data['bridging_offset'] -= 1
-
-    # @create_redo_operator('polystrips_insert_shift_increased', 'Reinsert stroke with shifted spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1})
-    # def increase_shift(context, data):
-    #     data['bridging_offset'] += 1
-
-    # @create_redo_operator('polystrips_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
-    # def decrease_smooth_angle(context, data):
-    #     data['smooth_angle'] -= 0.25
-
-    # @create_redo_operator('polystrips_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    # def increase_smooth_angle(context, data):
-    #     data['smooth_angle'] += 0.25
-
-
 class RFOperator_PolyStrips(RFOperator):
     bl_idname = 'retopoflow.polystrips'
     bl_label = 'PolyStrips'
@@ -292,7 +267,7 @@ class RFTool_PolyStrips(RFTool_Base):
     def activate(cls, context):
         cls.resetter = Resetter('PolyStrips')
         cls.resetter['context.tool_settings.use_mesh_automerge'] = True
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, True]
         cls.resetter.store('context.tool_settings.snap_elements_base')
         cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
 
