@@ -67,10 +67,10 @@ cdef int _compute_visible_vertices_nogil(
 ) noexcept nogil:
     cdef:
         Py_ssize_t i, idx, vi, j, k
-        real_t world_pos[3]
-        real_t world_normal[3]
-        real_t view_dir[3]
-        real_t screen_pos[4]
+        real_t[3] world_pos
+        real_t[3] world_normal
+        real_t[3] view_dir
+        real_t[4] screen_pos
         int num_visible = 0
     
     with parallel():
@@ -125,7 +125,7 @@ cdef int _compute_visible_vertices_nogil(
 
     return num_visible
 
-cpdef object compute_visible_vertices(
+cpdef np.ndarray[np.uint8_t, ndim=1] compute_visible_vertices( # object
     uintptr_t vert_ptr,
     uintptr_t norm_ptr,
     int num_vertices,
@@ -137,8 +137,8 @@ cpdef object compute_visible_vertices(
     np.ndarray[DTYPE_t, ndim=1] view_pos,
     bint is_perspective,
     DTYPE_t margin_check,
-    object verts_list,  # List of BMVerts
-    object rfvert_class,  # RFVert class type
+    # object verts_list,  # List of BMVerts
+    # object rfvert_class,  # RFVert class type
 ):
     # Cast pointers to our vertex data structure
     cdef float* positions = <float*>vert_ptr
@@ -146,9 +146,9 @@ cpdef object compute_visible_vertices(
 
     # Create result set directly
     cdef object result_set = set()
-    cdef object vert = None
-    cdef list verts = verts_list
-    cdef object vert_wrapper = rfvert_class  # Store the class
+    # cdef object vert = None
+    # cdef list verts = verts_list
+    # cdef object vert_wrapper = rfvert_class  # Store the class
     
     # Create visibility array
     cdef np.ndarray[np.uint8_t, ndim=1] visible_np = np.zeros(num_vertices, dtype=np.uint8)
@@ -176,9 +176,11 @@ cpdef object compute_visible_vertices(
         visible,
     )
 
+    return visible_np
+
     # Fill the set with wrapped visible vertices
     for i in range(num_vertices):
-        if visible[i]:
+        if visible[i] and verts[i]:
             vert = verts[i]
             if vert.is_valid and not vert.hide:
                 PySet_Add(result_set, vert_wrapper(vert))

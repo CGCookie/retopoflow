@@ -1056,6 +1056,8 @@ class RFMesh():
         if len(mesh.vertices) == 0:
             return set()  # Return empty set if no vertices exist
 
+        verts_list = list(verts) if isinstance(verts, set) else verts
+
         with time_it("prepare data", enabled=True):
             # Get mesh data
             matrix_world = np.array(self.obj.matrix_world, dtype=np.float32)
@@ -1081,15 +1083,13 @@ class RFMesh():
             vert_ptr = mesh.vertices[0].as_pointer()
             norm_ptr = mesh.vertex_normals[0].as_pointer()
             num_vertices = len(mesh.vertices)
-            
-            # Determine if we're processing all vertices or a subset
-            vert_indices = np.array([v.index for v in verts], dtype=np.int32)
-            process_all_verts = len(mesh.vertices) == len(verts)
+
+            # Create mapping from vertex index to position in verts_list
+            vert_indices = np.array([v.index for v in verts_list], dtype=np.int32)
+            process_all_verts = len(mesh.vertices) == len(verts_list)
 
         with time_it("compute visible vertices (Cython):", enabled=True):
-            # TODO: Add timing for Cython code. DONE.
-            # Run Cython computation
-            vis_verts = compute_visible_vertices(
+            visible_flags = compute_visible_vertices(
                 vert_ptr,
                 norm_ptr, 
                 num_vertices,
@@ -1100,21 +1100,21 @@ class RFMesh():
                 proj_matrix,
                 view_pos,
                 is_perspective,
-                float(1 + screen_margin),
-                list(verts),
-                RFVert
+                float(1 + screen_margin)
             )
 
-        return vis_verts  # {self._wrap_bmvert(bmv) for bmv in vis_verts}
-
-        # Convert indices back to vertex set
-        if len(visible_indices) == 0:
+        # Convert visibility flags to vertex set
+        if len(visible_flags) == 0:
             return set()
+
         with time_it("convert indices to vertex set", enabled=True):
-            if isinstance(verts[0], RFVert):
-                return {verts[i] for i in visible_indices}
-            else:
-                return {self._wrap_bmvert(verts[i]) for i in visible_indices}
+            # Create mapping from vertex index to verts_list position
+            vert_idx_to_pos = {v.index: i for i, v in enumerate(verts_list)}
+            # Get indices where visible_flags is 1
+            visible_indices = np.where(visible_flags)[0]
+            # Convert vertex indices to verts_list positions
+            visible_positions = [vert_idx_to_pos[i] for i in visible_indices if i in vert_idx_to_pos]
+            return {verts_list[i] for i in visible_positions}
 
     @timing
     def visible_edges(self, is_visible, verts=None, edges=None):
