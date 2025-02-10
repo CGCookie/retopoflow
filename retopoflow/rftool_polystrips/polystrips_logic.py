@@ -62,6 +62,7 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.utils import iter_pairs
 
 import math
+from itertools import chain
 
 
 r'''
@@ -91,6 +92,11 @@ class PolyStrips_Logic:
         self.action = ''  # will be filled in later
         self.count = max(2, math.ceil(self.length2D / radius2D))
 
+    @property
+    def count(self): return self._count
+    @count.setter
+    def count(self, v): self._count = max(2, int(v))
+
     def create(self, context):
         self.update_context(context)
 
@@ -118,26 +124,31 @@ class PolyStrips_Logic:
             for (b, f, n) in zip(self.backwards, self.forwards, self.normals)
         ]
 
+        # create bmverts
         bmvs = [[], []]
-
+        # beginning of stroke
         p, pn = self.points[0], self.points[1]
         f, r = self.forwards[0], self.rights[0]
         d = (pn - p).length
         bmvs[0] += [ self.bm.verts.new(p + r * d - f * d) ]
         bmvs[1] += [ self.bm.verts.new(p - r * d - f * d) ]
-
+        # along stroke
         for i in range(1, self.npoints, 2):
             pp, p, pn = self.points[i-1:i+2]
             r = self.rights[i]
             d = ((pp - p).length + (pn - p).length) / 2
             bmvs[0] += [ self.bm.verts.new(p + r * d) ]
             bmvs[1] += [ self.bm.verts.new(p - r * d) ]
-
+        # ending of stroke
         p, pp = self.points[-1], self.points[-2]
         f, r = self.forwards[-1], self.rights[-1]
         d = (pp - p).length
         bmvs[0] += [ self.bm.verts.new(p + r * d + f * d) ]
         bmvs[1] += [ self.bm.verts.new(p - r * d + f * d) ]
+
+        # snap newly created bmverts to source
+        for bmv in chain(bmvs[0], bmvs[1]):
+            bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
 
         bmfs = []
         for i in range(0, len(bmvs[0])-1):

@@ -73,6 +73,14 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
 
     logic = None
 
+    cut_count: bpy.props.IntProperty(
+        name='Count',
+        description='Number of vertices to create in a new quad strip',
+        default=8,
+        min=2,
+        max=256,
+    )
+
     @staticmethod
     def polystrips_insert(context, radius2D, stroke3D, is_cycle):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
@@ -81,11 +89,17 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             stroke3D,
             is_cycle,
         )
-        bpy.ops.retopoflow.polystrips_insert('INVOKE_DEFAULT', True)
+        bpy.ops.retopoflow.polystrips_insert(
+            'INVOKE_DEFAULT', True,
+            cut_count=RFOperator_PolyStrips_Insert.logic.count,
+        )
 
     @staticmethod
     def polystrips_reinsert(context):
-        bpy.ops.retopoflow.polystrips_insert('INVOKE_DEFAULT', True)
+        bpy.ops.retopoflow.polystrips_insert(
+            'INVOKE_DEFAULT', True,
+            cut_count=RFOperator_PolyStrips_Insert.logic.count,
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -96,8 +110,12 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             grid.label(text=f'Inserted')
             grid.label(text=logic.action)
 
+        grid.label(text=f'Count')
+        grid.prop(self, 'cut_count', text='')
+
     def execute(self, context):
         try:
+            RFOperator_PolyStrips_Insert.logic.count = self.cut_count
             RFOperator_PolyStrips_Insert.logic.create(context)
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
@@ -125,6 +143,15 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
                 RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
             return wrapped
         return wrapper
+
+    @create_redo_operator('polystrips_insert_cut_count_decreased', 'Reinsert quad strip with decreased count', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    def decrease_cut_count(context, logic):
+        logic.count -= 1
+
+    @create_redo_operator('polystrips_insert_cut_count_increased', 'Reinsert quad strip with increased count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    def increase_cut_count(context, logic):
+        logic.count += 1
+
 
     # @create_redo_operator('polystrips_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
     # def decrease_spans(context, data):
