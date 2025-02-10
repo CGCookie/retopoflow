@@ -388,7 +388,7 @@ class Contours_Loop:
 
         # Rotate to align "topmost" vertex.
         rel_pos = [Vec(q @ (to_point(p) - self.frame.o)) for p in vert_loop]
-        rot_by,offset = other.get_index_of_top(rel_pos)
+        rot_by, offset = other.get_index_of_top(rel_pos)
         vert_loop = vert_loop[rot_by:] + vert_loop[:rot_by]
         offset = (offset * self.circumference / other.circumference)
 
