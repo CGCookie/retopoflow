@@ -113,9 +113,26 @@ class PolyPen(RFTool, PolyPen_Insert):
     @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
     def update_nearest(self):
-        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(max_dist=options['polypen merge dist'], selected_only=True)
-        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['polypen merge dist'], selected_only=True)
-        self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(max_dist=options['polypen merge dist'], selected_only=True)
+        # Get/Cache acceleration structure first!
+        vis_accel = self.rfcontext.get_accel_visible(selected_only=True)
+        if not vis_accel: return
+        
+        # Then use the cached acceleration structure for all nearest queries (vert, edge, face).
+        self.nearest_vert,_ = self.rfcontext.accel_nearest2D_vert(
+            max_dist=options['polypen merge dist'], 
+            selected_only=True,
+            vis_accel=vis_accel
+        )
+        self.nearest_edge,_ = self.rfcontext.accel_nearest2D_edge(
+            max_dist=options['polypen merge dist'],
+            selected_only=True,
+            vis_accel=vis_accel
+        )
+        self.nearest_face,_ = self.rfcontext.accel_nearest2D_face(
+            max_dist=options['polypen merge dist'],
+            selected_only=True,
+            vis_accel=vis_accel
+        )
         self.nearest_geom = self.nearest_vert or self.nearest_edge or self.nearest_face
 
     @FSM.on_state('main', 'enter')
