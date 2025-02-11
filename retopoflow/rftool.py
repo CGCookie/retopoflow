@@ -50,6 +50,9 @@ class RFTool:
     '''
     registry = []
 
+    # Class-level flag to control recomputing during initialization
+    defer_recomputing = False
+
     def __init_subclass__(cls, *args, **kwargs):
         global rftools
 

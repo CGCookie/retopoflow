@@ -36,10 +36,25 @@ from ..rftool import RFTool
 from ...config.options import options
 
 class RetopoFlow_Tools:
+
     def setup_rftools(self):
         self.rftool = None
+
+        # Set class-level flag before creating any tools
+        RFTool.defer_recomputing = True
+
+        # Init tools
         self.rftools = [rftool(self) for rftool in RFTool.registry]
+
         self._rftool_return = None
+
+        # Now allow computations
+        RFTool.defer_recomputing = False
+
+        # Force update on the tool that will be active
+        # starting_tool = next((t for t in self.rftools if t.name == options['starting tool']), self.rftools[0])
+        # if hasattr(starting_tool, 'update'):
+        #     starting_tool.update()
 
     def reset_rftool(self):
         self.rftool._reset()

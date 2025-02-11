@@ -307,6 +307,24 @@ class Contours_Ops:
 
         self.rfcontext.select(edges)
 
+        # Get mirror axes.
+        mirror_axes = []
+        mirror_mod = self.rfcontext.rftarget.mirror_mod
+        if mirror_mod:
+            if mirror_mod.x: mirror_axes.append(('x', 0))
+            if mirror_mod.y: mirror_axes.append(('y', 1))
+            if mirror_mod.z: mirror_axes.append(('z', 2))
+
+        # Post-process: snap vertices to symmetry plane if very close.
+        if mirror_mod:
+            for v in verts:
+                co = v.co
+                for axis, idx in mirror_axes:
+                    # If very close to mirror plane (within 0.0001), snap to it.
+                    if abs(co[idx]) < 0.0001:
+                        co[idx] = 0.0
+                v.co = co
+
         if perform_nonmanifold_check is None or perform_nonmanifold_check:
             if options['contours non-manifold check'] and not connected and (verts[0].co - verts[-1].co).length < 0.01:
                 opt_nonmanifold = '''options['contours non-manifold check']'''
@@ -315,6 +333,22 @@ class Contours_Ops:
                     '',
                     '''<label><input type="checkbox" checked="BoundBool(opt_nonmanifold)">Perform this check</label>'''
                 ]), level='warning')
+
+        # If one of the endpoints is snapped to the symmetry plane and the other is not,
+        # and symmetry is enabled, then snap endpoints to symmetry planes.
+        if (verts[0].co - verts[-1].co).length > 0.0001 and mirror_axes:
+            # Snap first and last vertices
+            v0, v1 = verts[0], verts[-1]
+            co0, co1 = v0.co, v1.co
+            for i in range(2):
+                if co0[i] == 0.0 and co1[i] != 0.0:
+                    co1[i] = 0.0
+                elif co0[i] != 0.0 and co1[i] == 0.0:
+                    co0[i] = 0.0
+                else:
+                    continue
+            v0.co = co0
+            v1.co = co1
 
     @RFTool.dirty_when_done
     def fill(self):
@@ -335,7 +369,7 @@ class Contours_Ops:
         self.rfcontext.undo_push('fill')
         cl_pos = Contours_Loop(loop0, True)
         cl_neg = Contours_Loop(loop1, True)
-        cl_neg.align_to(cl_pos)
+        cl_neg.align_to_with_perpendiculars(cl_pos)
         faces = self.rfcontext.bridge_vertloop(cl_neg.verts, cl_pos.verts, True)
         #self.dirty()
         #self.rfcontext.select(faces)

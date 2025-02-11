@@ -171,16 +171,29 @@ class RetopoFlow_UI_Alert:
             bpy.ops.wm.url_open(url=url)
 
         if msghash:
-            ui_checker = UI_Element.DETAILS(classes='issue-checker', open=True)
+            ui_checker: UI_Element = UI_Element.DETAILS(classes='issue-checker', open=True)
             UI_Element.SUMMARY(innerText='Report an issue', parent=ui_checker)
-            ui_label = UI_Element.ARTICLE(classes='mdown', parent=ui_checker)
-            ui_buttons = UI_Element.DIV(parent=ui_checker, classes='action-buttons')
+            ui_label: UI_Element = UI_Element.ARTICLE(classes='mdown', parent=ui_checker)
+            ui_buttons: UI_Element = UI_Element.DIV(parent=ui_checker, classes='action-buttons')
 
-            ui_label.set_markdown(mdown='Checking reported issues...')
+            ui_label.set_markdown(mdown='We are checking reported issues,\n\nPlease wait a moment...')
+
+            # Create all buttons upfront.
+            btn_kwargs = {
+                'parent': ui_buttons,
+                'classes': 'action fourth-size',
+                'disabled': True,  # all buttons start disabled
+            }
+            btn_screenshot: UI_Element  = UI_Element.BUTTON(innerText='Screenshot', on_mouseclick=screenshot,  title='Save a screenshot of Blender', **btn_kwargs)
+            btn_similar: UI_Element     = UI_Element.BUTTON(innerText='Similar',    on_mouseclick=search,      title='Search the RetopoFlow Issue Tracker for similar issues', **btn_kwargs)
+            btn_issues: UI_Element      = UI_Element.BUTTON(innerText='All Issues', on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker', **btn_kwargs)
+            btn_action: UI_Element      = UI_Element.BUTTON(innerText='Report',     on_mouseclick=report,      title='Report a new issue on the RetopoFlow Issue Tracker', **btn_kwargs)
+
+            all_buttons: list[UI_Element] = [btn_screenshot, btn_similar, btn_issues, btn_action]
 
             def check_github():
-                nonlocal win, ui_buttons
-                buttons = 4
+                nonlocal btn_action, all_buttons
+
                 try:
                     if self.GitHub_checks < self.GitHub_limit:
                         self.GitHub_checks += 1
@@ -215,25 +228,24 @@ class RetopoFlow_UI_Alert:
                             else:
                                 print('GitHub: Already solved!')
                                 ui_label.set_markdown('This issue appears to have been solved already!\n\nAn updated RetopoFlow should fix this issue.')
-                            def go():
-                                bpy.ops.wm.url_open(url=issueurl)
-                            UI_Element.BUTTON(innerText='Open', on_mouseclick=go, title='Open this issue on the RetopoFlow Issue Tracker', classes='fifth-size', parent=ui_buttons)
-                            buttons = 5
+
+                            # Configure button as Open
+                            btn_action.innerText = 'Open'
+                            btn_action.title = 'Open this issue on the RetopoFlow Issue Tracker'
+                            btn_action.on_mouseclick = lambda url=issueurl: bpy.ops.wm.url_open(url=url)
                     else:
                         ui_label.set_markdown('Could not run the check.\n\nPlease consider reporting it so we can fix it.')
                 except Exception as e:
                     ui_label.set_markdown('Sorry, but we could not reach the RetopoFlow Isssues Tracker.\n\nClick the Similar button to search for similar issues.')
-                    pass
                     print('Caught exception while trying to pull issues from GitHub')
                     print(f'URL: "{url}"')
                     print(e)
                     # ignore for now
                     pass
-                size = 'fourth-size' if buttons==4 else 'fifth-size'
-                UI_Element.BUTTON(innerText='Screenshot', classes=f'action {size}', parent=ui_buttons, on_mouseclick=screenshot,  title='Save a screenshot of Blender')
-                UI_Element.BUTTON(innerText='Similar',    classes=f'action {size}', parent=ui_buttons, on_mouseclick=search,      title='Search the RetopoFlow Issue Tracker for similar issues')
-                UI_Element.BUTTON(innerText='All Issues', classes=f'action {size}', parent=ui_buttons, on_mouseclick=open_issues, title='Open RetopoFlow Issue Tracker')
-                UI_Element.BUTTON(innerText='Report',     classes=f'action {size}', parent=ui_buttons, on_mouseclick=report,      title='Report a new issue on the RetopoFlow Issue Tracker')
+
+                # Enable all buttons
+                for btn in all_buttons:
+                    btn.disabled = False
 
             executor = ThreadPoolExecutor()
             executor.submit(check_github)

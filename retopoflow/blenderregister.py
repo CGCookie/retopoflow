@@ -600,6 +600,7 @@ if import_succeeded:
         return False
     def is_addon_folder_valid(context):
         # remove .retopoflow
+        if __package__.startswith('bl_ext'): return True
         path = re.sub(r'\.retopoflow$', '', __package__)
         bad_chars = set(re.sub(r'[a-zA-Z0-9_]', '', path))
         if not bad_chars: return True
@@ -612,6 +613,20 @@ if import_succeeded:
     elif not configoptions.retopoflow_product['cgcookie built']:  rf_label_extra = " (self)"
     elif     configoptions.retopoflow_product['github']:          rf_label_extra = " (github)"
     elif     configoptions.retopoflow_product['blender market']:  rf_label_extra = ""
+
+
+    expand_help_op = create_toggle_operator(
+        'expand_help',
+        'Expand Help and Support',
+        'Expand Help and Support Panel',
+        BoundBool('''options['expand help panel']'''),
+    )
+    expand_advanced_op = create_toggle_operator(
+        'expand_advanced',
+        'Expand Advanced',
+        'Expand Advanced RetopoFlow Panel',
+        BoundBool('''options['expand advanced panel']'''),
+    )
 
     @add_to_registry
     class VIEW3D_PT_RetopoFlow(Panel):
@@ -638,18 +653,156 @@ if import_succeeded:
                 else:
                     self.layout.popover('VIEW3D_PT_RetopoFlow')
 
+        def draw_rf_version(self, context, layout):
+            row = layout.row()
+            row.label(text=f'RetopoFlow {configoptions.retopoflow_product["version"]}{rf_label_extra}')
+            if cookiecutter.is_broken:
+                row.label(text=f'BROKEN')
+
+        def draw_start_edit(self, context, layout):
+            if is_editing_target(context):
+                if False:
+                    # currently editing target, so show RF tools
+                    for c in RF_tool_classes:
+                        layout.operator(c.bl_idname, text=c.rf_starting_tool, icon_value=c.icon_id)
+                else:
+                    col = layout.column(align=True)
+                    col.operator('cgcookie.retopoflow')
+
+                    buttons = col.grid_flow(
+                        row_major=True,
+                        columns=int(len(RF_tool_classes) / 2),
+                        even_columns=True, even_rows=True,
+                        align=True,
+                    )
+                    for c in RF_tool_classes:
+                        buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
+
+        def draw_start_object(self, context, layout):
+            if not is_editing_target(context):
+                row = layout.row(align=True)
+                col = row.column()
+                col.label(text='Start New')
+                col = row.column()
+                col.operator('cgcookie.retopoflow_newtarget_cursor', text='From Cursor', icon='PIVOT_CURSOR')
+                col.operator('cgcookie.retopoflow_newtarget_active', text='From Active', icon='OBJECT_DATA')
+
+                row = layout.row(align=True)
+                col = row.column()
+                col.label(text='Continue')
+                col = row.column()
+                col.operator('cgcookie.retopoflow_continue_active', text='Edit Active', icon='MESH_DATA') # icon='EDITMODE_HLT' or 'MOD_DATA_TRANSFER'
+
+        def draw_help(self, context, layout):
+            row = layout.row(align=True)
+            row.label(text='Help and Support')
+            icon = 'TRIA_UP' if options['expand help panel'] else 'TRIA_DOWN'
+            row.operator(expand_help_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand help panel'])
+
+            if not options['expand help panel']: return
+            
+            box = layout.box()
+
+            col = box.column(align=True)
+
+            row = col.row(align=True)
+            row.label(text='Quick Start Guide')
+            row.operator('cgcookie.retopoflow_help_quickstartguide', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_quickstartguide', text='', icon='URL')
+
+            row = col.row(align=True)
+            row.label(text='Welcome Message')
+            row.operator('cgcookie.retopoflow_help_welcomemessage', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_welcomemessage', text='', icon='URL')
+
+            row = col.row(align=True)
+            row.label(text='Table of Contents')
+            row.operator('cgcookie.retopoflow_help_tableofcontents', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_tableofcontents', text='', icon='URL')
+
+            row = col.row(align=True)
+            row.label(text='FAQ')
+            row.operator('cgcookie.retopoflow_help_faq', text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_faq', text='', icon='URL')
+
+            # col.separator()
+            # col.operator('cgcookie.retopoflow_web_online_main', icon='HELP')
+
+            col.separator()
+            col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
+
+        def draw_advanced(self, context, layout):
+            row = layout.row(align=True)
+            row.label(text='Advanced')
+            icon = 'TRIA_UP' if options['expand advanced panel'] else 'TRIA_DOWN'
+            row.operator(expand_advanced_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand advanced panel'])
+
+            if not options['expand advanced panel']: return
+            box = layout.box()
+
+            # KEYMAP EDITOR
+            row = box.row(align=True)
+            row.label(text='Keymap Editor')
+            row.operator('cgcookie.retopoflow_keymapeditor',        text='', icon='PREFERENCES')
+            row.operator('cgcookie.retopoflow_help_keymapeditor',   text='', icon='HELP')
+            row.operator('cgcookie.retopoflow_online_keymapeditor', text='', icon='URL')
+
+            # DEEP DEBUGGER
+            if DeepDebug.can_be_enabled():
+                col = box.column()
+                row = col.row(align=True)
+                row.label(text='Deep Debugging')
+                if DeepDebug.is_enabled():
+                    row.operator('cgcookie.retopoflow_disabledebugging', text='', icon='CHECKBOX_HLT') #'X')
+                else:
+                    row.operator('cgcookie.retopoflow_enabledebugging', text='', icon='CHECKBOX_DEHLT') #'X')
+                row.operator('cgcookie.retopoflow_help_debugging',      text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_debugging',    text='', icon='URL')
+                if DeepDebug.needs_restart():
+                    col.label(text='Restart Blender to finish', icon='BLENDER')
+                elif DeepDebug.is_enabled():
+                    row = col.row(align=True)
+                    row.label(text='', icon='DOT')
+                    row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
+                elif DeepDebug.path_debug_backup().exists():
+                    row = col.row(align=True)
+                    row.label(text='', icon='DOT')
+                    row.operator('cgcookie.retopoflow_opendebugging',    text='Open', icon='TEXT')
+                    row.operator('cgcookie.retopoflow_cleardebugging',   text='Clear', icon='X')
+
+            # ADDON UPDATER
+            col = box.column(align=True)
+            row = col.row(align=True)
+            row.label(text='Updater')
+            if configoptions.retopoflow_product['git version']:
+                col.label(text='Use Git to Pull latest updates', icon='DOT')
+            else:
+                row.operator('cgcookie.retopoflow_updater_check_now',    text='', icon='FILE_REFRESH')
+                row.operator('cgcookie.retopoflow_updater_update_now',   text='', icon="IMPORT")
+                row.operator('cgcookie.retopoflow_updater',              text='', icon='SETTINGS')
+                row.operator('cgcookie.retopoflow_help_updatersystem',   text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
+
+
         def draw(self, context):
             layout = self.layout
-            layout.label(text=f'RetopoFlow {configoptions.retopoflow_product["version"]}{rf_label_extra}')
-            if cookiecutter.is_broken:
-                layout.label(text=f'BROKEN')
 
+            self.draw_rf_version(context, layout)
+            layout.separator()
+            self.draw_start_edit(context, layout)
+            self.draw_start_object(context, layout)
+            layout.separator()
+            self.draw_help(context, layout)
+            layout.separator()
+            self.draw_advanced(context, layout)
+
+ 
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'WARNINGS!'
+        bl_label = 'Warnings'
 
         debug_all_warnings = False
 
@@ -800,11 +953,12 @@ if import_succeeded:
 
             # show button for more warning details
             row = layout.row(align=True)
-            row.label(text='See details on these warnings')
+            row.label(text='See warning details')
             row.operator('cgcookie.retopoflow_help_warningdetails', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_warningdetails', text='', icon='URL')
+   
 
-
+    """
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_EditMesh(Panel):
         bl_space_type = 'VIEW_3D'
@@ -836,6 +990,9 @@ if import_succeeded:
                 for c in RF_tool_classes:
                     buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
 
+    """
+    
+    """
     @add_to_registry
     class VIEW3D_PT_ReteopoFlow_ObjectMode(Panel):
         bl_space_type = 'VIEW_3D'
@@ -859,31 +1016,27 @@ if import_succeeded:
             row.label(text='New')
             row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
             row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
+    """
 
-    expand_help_op = create_toggle_operator(
-        'expand_help',
-        'Expand Help and Support',
-        'Expand Help and Support Panel',
-        BoundBool('''options['expand help panel']'''),
-    )
-
+    """
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_HelpAndSupport(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Help and Support'
+        bl_label = ''
 
         def draw(self, context):
             layout = self.layout
 
             row = layout.row(align=True)
-            row.label(text='Expand...')
-            row.operator(expand_help_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=options['expand help panel'])
+            row.label(text='Help and Support')
+            icon = 'TRIA_UP' if options['expand help panel'] else 'TRIA_DOWN'
+            row.operator(expand_help_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand help panel'])
 
             if not options['expand help panel']: return
+            
             box = layout.box()
-
 
             col = box.column(align=True)
 
@@ -912,28 +1065,23 @@ if import_succeeded:
 
             col.separator()
             col.operator('cgcookie.retopoflow_web_blendermarket', icon_value=BlenderIcon.icon_id('blendermarket.png')) # icon='URL'
+    """
 
-
-    expand_advanced_op = create_toggle_operator(
-        'expand_advanced',
-        'Expand Advanced',
-        'Expand Advanced RetopoFlow Panel',
-        BoundBool('''options['expand advanced panel']'''),
-    )
-
+    """
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Advanced(Panel):
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'HEADER'
         bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-        bl_label = 'Advanced'
+        bl_label = ''
 
         def draw(self, context):
             layout = self.layout
 
             row = layout.row(align=True)
-            row.label(text='Expand...')
-            row.operator(expand_advanced_op.bl_idname, text='', icon='DOWNARROW_HLT', depress=options['expand advanced panel'])
+            row.label(text='Advanced')
+            icon = 'TRIA_UP' if options['expand advanced panel'] else 'TRIA_DOWN'
+            row.operator(expand_advanced_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand advanced panel'])
 
             if not options['expand advanced panel']: return
             box = layout.box()
@@ -980,52 +1128,50 @@ if import_succeeded:
                 row.operator('cgcookie.retopoflow_updater',              text='', icon='SETTINGS')
                 row.operator('cgcookie.retopoflow_help_updatersystem',   text='', icon='HELP')
                 row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
+    """
 
-
-
-    # @add_to_registry
-    # class VIEW3D_PT_RetopoFlow_AutoSave(Panel):
-    #     bl_space_type = 'VIEW_3D'
-    #     bl_region_type = 'HEADER'
-    #     bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-    #     bl_label = 'Auto Save'
-
-    #     def draw(self, context):
-    #         layout = self.layout
-    #         layout.operator(
-    #             'cgcookie.retopoflow_recover_open',
-    #             text='Open Last Auto Save',
-    #             icon='RECOVER_LAST',
-    #         )
-    #         # if retopoflow.RetopoFlow.has_backup():
-    #         #     box.label(text=options['last auto save path'])
-
-
-    # @add_to_registry
-    # class VIEW3D_PT_RetopoFlow_Updater(Panel):
-    #     bl_space_type = 'VIEW_3D'
-    #     bl_region_type = 'HEADER'
-    #     bl_parent_id = 'VIEW3D_PT_RetopoFlow'
-    #     bl_label = 'Updater'
-
-    #     def draw(self, context):
-    #         layout = self.layout
-    #         if configoptions.retopoflow_product['git version']:
-    #             box = layout.box().column(align=True)
-    #             box.label(text='RetopoFlow under Git control') #, icon='DOT')
-    #             box.label(text='Use Git to Pull latest updates') #, icon='DOT')
-    #             # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-    #         else:
-    #             col = layout.column(align=True)
-    #             col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
-    #             col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT")
-
-    #             col.separator()
-    #             row = col.row(align=True)
-    #             row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
-    #             row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
-    #             row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
-
+    """
+    @add_to_registry
+    class VIEW3D_PT_RetopoFlow_AutoSave(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Auto Save
+        def draw(self, context):
+            layout = self.layout
+            layout.operator(
+                'cgcookie.retopoflow_recover_open',
+                text='Open Last Auto Save',
+                icon='RECOVER_LAST',
+            )
+            # if retopoflow.RetopoFlow.has_backup():
+            #     box.label(text=options['last auto save path'])
+    """
+    
+    """
+    @add_to_registry
+    class VIEW3D_PT_RetopoFlow_Updater(Panel):
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'HEADER'
+        bl_parent_id = 'VIEW3D_PT_RetopoFlow'
+        bl_label = 'Updater
+        def draw(self, context):
+            layout = self.layout
+            if configoptions.retopoflow_product['git version']:
+                box = layout.box().column(align=True)
+                box.label(text='RetopoFlow under Git control') #, icon='DOT')
+                box.label(text='Use Git to Pull latest updates') #, icon='DOT')
+                # col.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+            else:
+                col = layout.column(align=True)
+                col.operator('cgcookie.retopoflow_updater_check_now', text='Check for updates', icon='FILE_REFRESH')
+                col.operator('cgcookie.retopoflow_updater_update_now', text='Update now', icon="IMPORT"
+                col.separator()
+                row = col.row(align=True)
+                row.operator('cgcookie.retopoflow_updater', text='Updater System', icon='SETTINGS')
+                row.operator('cgcookie.retopoflow_help_updatersystem', text='', icon='HELP')
+                row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
+    """
 
 
 if not import_succeeded:
@@ -1093,13 +1239,11 @@ if not import_succeeded:
             box.operator('cgcookie.retopoflow_web_blendermarket', icon='URL')
 
 
-def register(bl_info):
+def register():
     for cls in RF_classes: bpy.utils.register_class(cls)
-    if import_succeeded: updater.register(bl_info)
     bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 
-def unregister(bl_info):
+def unregister():
     if import_succeeded: ImagePreloader.quit()
     bpy.types.VIEW3D_MT_editor_menus.remove(VIEW3D_PT_RetopoFlow.draw_popover)
-    if import_succeeded: updater.unregister()
     for cls in reversed(RF_classes): bpy.utils.unregister_class(cls)

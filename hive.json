@@ -1,8 +1,8 @@
 {
     "name": "RetopoFlow",
     "description": "A suite of retopology tools for Blender through a unified retopology mode",
-    "author": "Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "version": "3.4.3",
+    "author": "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart, JF Matheu",
+    "version": "3.4.5",
     "release": "official",
     "source": "Blender Market",
     "blender hard minimum version": "3.5.1",

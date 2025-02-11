@@ -963,18 +963,35 @@ class RFMesh():
         return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
 
     def visible_edges(self, is_visible, verts=None, edges=None):
-        is_valid = RFMesh.fn_is_valid
-        is_vert_vis = self._gen_is_vis(is_visible)
-        is_edge_vis = lambda bme: is_valid(bme) and all(bmv in verts for bmv in bme.verts)
-        verts = set(filter(is_vert_vis, self.bme.verts) if verts is None else filter(is_valid, map(self._unwrap, verts)))
         edges = self.bme.edges if edges is None else map(self._unwrap, edges)
+
+        is_valid = RFMesh.fn_is_valid
+
+        # Edge is visible if ANY of its vertices are visible
+        if verts:
+            verts = set(map(self._unwrap, verts))
+            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in verts for bmv in bme.verts)
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
+
+            is_edge_vis = lambda bme: (
+                is_valid(bme) and 
+                any(is_vert_vis(bmv) for bmv in bme.verts)
+            )
+
         return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     def visible_faces(self, is_visible, verts=None, faces=None):
         is_valid = RFMesh.fn_is_valid
-        is_vert_vis = self._gen_is_vis(is_visible)
-        is_face_vis = lambda bme: is_valid(bme) and all(bmv in verts for bmv in bme.verts)
-        verts = set(filter(is_vert_vis, self.bme.verts) if verts is None else filter(is_valid, map(self._unwrap, verts)))
+
+        # Get visible vertices first
+        if verts:
+            verts = set(map(self._unwrap, verts))
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
+            verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+
+        is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
         faces = self.bme.faces if faces is None else map(self._unwrap, faces)
         return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
 
@@ -1714,6 +1731,8 @@ class RFTarget(RFMesh):
         return rfv
 
     def new_edge(self, verts):
+        if not all(verts):
+            return None
         verts = [self._unwrap(v) for v in verts]
         bme = self.bme.edges.new(verts)
         return self._wrap_bmedge(bme)
@@ -1736,6 +1755,45 @@ class RFTarget(RFMesh):
         bmf = self.bme.faces.new(nverts)
         self.update_face_normal(bmf)
         return self._wrap_bmface(bmf)
+
+    def merge_vertices(self, vert1, vert2, merge_point: str = 'CENTER'):
+        """
+        Merge two vertices together at specified position
+
+        Args:
+            vert1: First RFVert to merge
+            vert2: Second RFVert to merge
+            merge_point: Merge location ('CENTER', 'FIRST', or 'LAST')
+        Returns:
+            RFVert: The resulting merged vertex
+        """
+        bmv1 = self._unwrap(vert1)
+        bmv2 = self._unwrap(vert2)
+
+        # Get the merge position and normal
+        if merge_point == 'CENTER':
+            pos = (bmv1.co + bmv2.co) / 2
+            norm = (bmv1.normal + bmv2.normal).normalized()
+        elif merge_point == 'FIRST':
+            pos = bmv1.co
+            norm = bmv1.normal
+        else:  # LAST
+            pos = bmv2.co
+            norm = bmv2.normal
+
+        # Use bmesh ops to merge the verts
+        pointmerge(
+            self.bme,
+            verts=[bmv1, bmv2],
+            merge_co=pos
+        )
+
+        # Update the normal
+        bmv1.normal = norm
+        self.bme.normal_update()
+        
+        # Return wrapped vert
+        return self._wrap_bmvert(bmv1)
 
     def holes_fill(self, edges, sides):
         edges = list(map(self._unwrap, edges))
@@ -1962,6 +2020,10 @@ class RFTarget(RFMesh):
 
     def remove_selected_doubles(self, dist):
         remove_doubles(self.bme, verts=[bmv for bmv in self.bme.verts if bmv.select], dist=dist)
+        self.dirty()
+
+    def remove_by_distance(self, verts, dist):
+        remove_doubles(self.bme, verts=[self._unwrap(v) for v in verts], dist=dist)
         self.dirty()
 
     def flip_face_normals(self):

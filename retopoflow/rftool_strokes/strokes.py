@@ -222,6 +222,7 @@ class Strokes(RFTool, Strokes_Insert):
     @RFTool.once_per_frame
     @FSM.onlyinstate('main')
     def update_hover_edge(self):
+        if RFTool.defer_recomputing: return
         self.hovering_sel_edge,_ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 
 

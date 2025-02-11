@@ -83,48 +83,55 @@ class BMElemWrapper:
     def __init__(self, bmelem):
         self.bmelem = bmelem
 
-    def __repr__(self):
-        return f'<{"" if self.bmelem.is_valid else "XXX_"}{type(self).__name__}: {repr(self.bmelem)}>'
+    def __repr__(self) -> str:
+        return f'<{"" if self.is_valid else "XXX_"}{type(self).__name__}: {repr(self.bmelem)}>'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.bmelem)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if other is None:
             return False
         if isinstance(other, BMElemWrapper):
             return self.bmelem == other.bmelem
         return self.bmelem == other
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
 
+    def __bool__(self) -> bool:
+        return self.is_valid
+
     @property
-    def hide(self):
+    def is_valid(self) -> bool:
+        return self.bmelem and self.bmelem.is_valid
+
+    @property
+    def hide(self) -> bool:
         return self.bmelem.hide
 
     @hide.setter
-    def hide(self, v):
+    def hide(self, v) -> None:
         self.bmelem.hide = v
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self.bmelem.index
 
     @index.setter
-    def index(self, v):
+    def index(self, v) -> None:
         self.bmelem.index = v
 
     @property
-    def select(self):
+    def select(self) -> bool:
         return self.bmelem.select and not self.bmelem.hide
 
     @select.setter
-    def select(self, v):
+    def select(self, v) -> None:
         self.bmelem.select = v
 
     @property
-    def unselect(self):
+    def unselect(self) -> bool:
         return not self.bmelem.select and not self.bmelem.hide
 
     @property
@@ -274,7 +281,13 @@ class RFVert(BMElemWrapper):
             print(f'Caught Exception while trying to merge')
             print(e)
             print(f'Will try more robust merge')
-            return self.merge_robust(other)
+            try:
+                bmv = self.merge_robust(other)
+                return bmv
+            except Exception as e:
+                print('Robust merge failed as well')
+                print(e)
+                return None
 
     def merge_robust(self, other):
         if not (self.is_valid and other.is_valid):

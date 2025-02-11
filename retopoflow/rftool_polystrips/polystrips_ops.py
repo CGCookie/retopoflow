@@ -148,10 +148,23 @@ class PolyStrips_Ops:
         stroke = process_stroke_filter(stroke)
         stroke = process_stroke_source(stroke, self.rfcontext.raycast_sources_Point2D, self.rfcontext.is_point_on_mirrored_side)
 
+        # Check if stroke is cyclic
+        cyclic = False
+        if len(stroke) > 2:
+            cyclic = (stroke[0] - stroke[-1]).length < radius
+            cyclic &= any((s - stroke[0]).length > 2.0 * radius for s in stroke)
+
+        dprint("PolyStrip is cyclic?", cyclic)
+
         from_edge = None
+        first_edge = None
+        last_edge = None
+        is_cyclic = False
+
         while len(stroke) > 2:
-            # get stroke segment to work on
-            from_edge,cstroke,to_edge,cont,stroke = process_stroke_get_next(stroke, from_edge, vis_edges2D)
+            # Get next stroke segment
+            from_edge, cstroke, to_edge, cont, stroke, cyclic = process_stroke_get_next(stroke, from_edge, vis_edges2D)
+            is_cyclic |= cyclic  # Track if this is a cyclic stroke
 
             # filter cstroke to contain unique points
             while True:
@@ -203,36 +216,58 @@ class PolyStrips_Ops:
 
             # compute number of quads
             nquads = int(((nmarks-markoff0-markoff1) + 1) / 2)
+            if is_cyclic:
+                nquads -= 1
+
             dprint('nmarks = %d, markoff0 = %d, markoff1 = %d, nquads = %d' % (nmarks, markoff0, markoff1, nquads))
 
-            if from_edge and to_edge and nquads == 1:
-                if from_edge.share_vert(to_edge):
-                    create_face_in_l(from_edge, to_edge)
-                    continue
+            # Store first edge for cyclic case
+            if first_edge is None:
+                first_edge = from_edge
+                if from_edge is None:
+                    pt,tn,pe = mark_info(marks, 0)
+                    first_edge = create_edge(pt, -tn, radius, pe)
 
-            # add edges
+            # Create edges and faces
             if from_edge is None:
-                # create from_edge
-                dprint('creating from_edge')
                 pt,tn,pe = mark_info(marks, 0)
                 from_edge = create_edge(pt, -tn, radius, pe)
             else:
                 new_geom += list(from_edge.link_faces)
 
-            if to_edge is None:
-                dprint('creating to_edge')
+            if to_edge is None and not (is_cyclic and not cont):
                 pt,tn,pe = mark_info(marks, nmarks-1)
                 to_edge = create_edge(pt, tn, radius, pe)
-            else:
+                if to_edge and not is_cyclic:
+                    new_geom += list(to_edge.link_faces)
+            elif to_edge:
                 new_geom += list(to_edge.link_faces)
 
             for iquad in range(1, nquads):
-                #print('creating edge')
                 pt,tn,pe = mark_info(marks, iquad*2+markoff0-1)
                 bme = create_edge(pt, tn, 0.0, pe)
                 bmf = create_face(from_edge, bme)
                 from_edge = bme
-            bmf = create_face(from_edge, to_edge)
+
+            # Create final face
+            if is_cyclic and not cont:
+                # Connect last edge to first edge
+                bmf = create_face(from_edge, first_edge)
+                if bmf:
+                    new_geom.append(bmf)
+                    # Add connecting edges to new_geom
+                    new_geom += [e for e in bmf.edges if e not in new_geom]
+                    
+                    verts_to_merge = list({v for ef in new_geom if ef.is_valid for v in ef.verts})
+                    self.rfcontext.remove_by_distance(
+                        verts_to_merge,
+                        0.0001
+                    )
+
+                    # Update geometry list to remove merged elements
+                    new_geom = [g for g in new_geom if g.is_valid]
+            elif not is_cyclic:
+                bmf = create_face(from_edge, to_edge)
 
             from_edge = to_edge if cont else None
 
@@ -263,6 +298,20 @@ class PolyStrips_Ops:
                 edges0.append(bme1)
                 edges1.append(bme2)
             if len(strip0) < 3: return
+
+            # Check if this is an island strip.
+            # aka if all verts/edges from the selected strip are
+            # exclusively linked to verts/edges of the selected strip.
+            all_verts = set(strip0 + strip1)
+            all_edges = set(edges0 + edges1 + bmes)
+            is_island = True
+            for v in all_verts:
+                for e in v.link_edges:
+                    if e not in all_edges:
+                        is_island = False
+                        break
+                if not is_island: break
+
             pts0,pts1 = [v.co for v in strip0],[v.co for v in strip1]
             lengths0,lengths1 = [e.length for e in edges0],[e.length for e in edges1]
             #length0,length1 = sum(lengths0),sum(lengths1)
@@ -286,7 +335,12 @@ class PolyStrips_Ops:
                 nonlocal nverts
                 if count is not None: ncount = count
                 else: ncount = ccount + delta
-                if ncount < 1:
+
+                # Prevent island strips from being reduced to 1!
+                if is_island and ncount < 2:
+                    self.count_data['delta adjust'] = max(self.count_data['delta adjust'], 2 - ncount)
+                    ncount = 2
+                elif not is_island and ncount < 1:
                     self.count_data['delta adjust'] = max(self.count_data['delta adjust'], 1 - ncount)
                     ncount = 1
                 ncount = max(1, ncount)

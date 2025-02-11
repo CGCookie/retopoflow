@@ -119,6 +119,7 @@ class Loops(RFTool, Loops_Insert):
     @RFTool.not_while_navigating
     @FSM.onlyinstate('main')
     def update_hover(self):
+        if RFTool.defer_recomputing: return
         self.hovering_edge, _     = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'])
         self.hovering_sel_edge, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['action dist'], selected_only=True)
 

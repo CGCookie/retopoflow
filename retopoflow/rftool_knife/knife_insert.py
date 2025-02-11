@@ -51,6 +51,9 @@ from ...config.options import options, themes
 
 
 class Knife_Insert():
+    skip_edges: set = set()
+    split_edge_vert = None
+
     @RFTool.on_quickswitch_start
     def quickswitch_start(self):
         self.quickswitch = True
@@ -217,10 +220,12 @@ class Knife_Insert():
 
     @RFTool.dirty_when_done
     def _insert(self):
+        # Get nearest geometry
         bmv, _ = self.rfcontext.accel_nearest2D_vert(max_dist=options['knife snap dist'])
         bme, _ = self.rfcontext.accel_nearest2D_edge(max_dist=options['knife snap dist'])
         bmf, _ = self.rfcontext.accel_nearest2D_face(max_dist=options['knife snap dist'])
 
+        # Determine if starting new cut or continuing existing one
         if self.knife_start is None and len(self.sel_verts) == 0:
             next_state = 'knife start'
         elif bme and any(v.select for v in bme.verts):
@@ -229,12 +234,17 @@ class Knife_Insert():
         else:
             next_state = 'knife cut'
 
+        # Handle different cutting states
         match next_state:
             case 'knife start':
+                self.split_edge_vert = None
+                self.skip_edges = set()
+                # Starting new cut - handle vertex/edge/face creation
                 if bmv:
                     # just select the hovered vert
                     self.rfcontext.select(bmv)
                 elif bme:
+                    # clicking on an edge
                     # split the hovered edge
                     bmv = self.rfcontext.new2D_vert_mouse()
                     if not bmv:
@@ -243,6 +253,9 @@ class Knife_Insert():
                     bme0,bmv2 = bme.split()
                     bmv.merge(bmv2)
                     self.rfcontext.select(bmv)
+                    self.skip_edges.add(bme)
+                    self.skip_edges.add(bme0)
+                    self.split_edge_vert = (bmv, self.actions.mouse)
                 elif bmf:
                     # add point at mouse
                     bmv = self.rfcontext.new2D_vert_mouse()
@@ -260,8 +273,14 @@ class Knife_Insert():
                 return 'move'
 
             case 'knife cut':
+                # Continuing existing cut - handle intersections and splits
+                # Get intersection points between cut line and geometry
                 Point_to_Point2D = self.rfcontext.Point_to_Point2D
                 knife_start = self.knife_start or Point_to_Point2D(next(iter(self.sel_verts)).co)
+                if knife_start is None:
+                    self.rfcontext.undo_cancel()    # remove undo, because no geometry was changed
+                    self.knife_start = self.actions.mouse
+                    return
                 knife_start_face = self.rfcontext.accel_nearest2D_face(point=knife_start, max_dist=options['knife snap dist'])[0]
                 crosses = self._get_crosses(knife_start, self.actions.mouse)
                 # add additional point if mouse is hovering a face or edge
@@ -270,6 +289,7 @@ class Knife_Insert():
                     if dist_to_last > self.rfcontext.drawing.scale(options['knife snap dist']):
                         crosses += [(self.actions.mouse, bmf, None)]
                 elif bme:
+                    # clicking on an edge
                     dist_to_last = (crosses[-1][0] - self.actions.mouse).length if crosses else float('inf')
                     if dist_to_last > self.rfcontext.drawing.scale(options['knife snap dist']):
                         crosses += [(self.actions.mouse, bme, None)]
@@ -279,24 +299,36 @@ class Knife_Insert():
                     self.knife_start = self.actions.mouse
                     return
 
-                prev = None
+                prev = self.split_edge_vert[0] if self.split_edge_vert else None
                 pre_e = -1
-                pre_p = None
+                pre_p = self.split_edge_vert[1] if self.split_edge_vert else None
                 unfaced_verts = []
                 bmfs_to_shatter = set()
+
+                self.split_edge_vert = None
+                self.skip_edges = set()
+
+                # Create new geometry at intersections
                 for p,e,d in crosses:
+                    # Create vertices and split edges/faces as needed
                     if type(e) is RFVert:
                         cur = e
                     else:
-                        cur = self.rfcontext.new2D_vert_point(p)
-                        if type(e) is RFEdge:
-                            eo,bmv = e.split()
-                            if cur:
-                                cur.merge(bmv)
-                            else:
-                                cur = bmv
-                        elif type(e) is RFFace:
-                            pass
+                        # Check for existing vertex at current cross location before creating new one!
+                        existing_vert = self.rfcontext.accel_nearest2D_vert(point=p, max_dist=self.rfcontext.drawing.scale(0.001))[0]
+                        if existing_vert:
+                            cur = existing_vert
+                        else:
+                            cur = self.rfcontext.new2D_vert_point(p)
+                            if type(e) is RFEdge:
+                                eo,bmv = e.split()
+                                if cur:
+                                    cur.merge(bmv)
+                                else:
+                                    cur = bmv
+                            elif type(e) is RFFace:
+                                pass
+
                     if prev:
                         cur_faces = set(cur.link_faces)
                         cur_under = cur_faces
@@ -307,9 +339,9 @@ class Knife_Insert():
                         if not pre_under:
                             pre_under = {self.rfcontext.accel_nearest2D_face(point=pre_p, max_dist=options['knife snap dist'])[0]}
                         bmfs_to_shatter |= cur_under | pre_under
-                        if cur_under & pre_under and not prev.share_edge(cur):
+                        if cur_under & pre_under and not prev.share_edge(cur) and (prev.co-cur.co).length > 0.000001:
                             nedge = self.rfcontext.new_edge([prev, cur])
-                        if cur_faces & pre_faces and not cur.share_edge(prev):
+                        if cur_faces & pre_faces and not cur.share_edge(prev) and (prev.co-cur.co).length > 0.000001:
                             face = next(iter(cur_faces & pre_faces))
                             try:
                                 face.split(prev, cur)
@@ -344,7 +376,10 @@ class Knife_Insert():
         return
 
 
+    # Find intersections between cut line and existing geometry
     def _get_crosses(self, p0, p1):
+        # Calculate intersections between line segment p0-p1 and visible edges
+        # Returns list of (point, intersected_element, distance) tuples
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
         dist = self.rfcontext.drawing.scale(options['knife snap dist'])
         crosses = set()
@@ -354,18 +389,43 @@ class Knife_Insert():
         v01 = Vec2D(p1 - p0)
         lv01 = max(v01.length, 0.00001)
         d01 = v01 / lv01
+
         def add(p, e):
             if e in touched: return
+            # Check if there's already a vertex very close to this point.
+            closest_vert = self.rfcontext.accel_nearest2D_vert(point=p, max_dist=dist)[0]
+            if closest_vert:
+                p = Point_to_Point2D(closest_vert.co)
+                e = closest_vert
             p.freeze()
             touched.add(e)
             crosses.add((p, e, d01.dot(p - p0) / lv01))
+
         p0v = self.rfcontext.accel_nearest2D_vert(point=p0, max_dist=options['knife snap dist'])[0]
         if p0v and not p0v.link_edges:
             add(p0, p0v)
+
         for e in self.vis_edges:
+            if e in self.skip_edges:
+                continue
             v0, v1 = e.verts
             c0, c1 = Point_to_Point2D(v0.co), Point_to_Point2D(v1.co)
+            
+            # Skip invalid/degenerate edges
+            if (c0-c1).length < 0.000001: continue
+                
+            # Calculate intersection with a small epsilon to handle floating point precision
             i = intersect2d_segment_segment(p0, p1, c0, c1)
+            if i:
+                # Verify intersection point is actually on both segments
+                ip = Point2D(i)
+                on_p0p1 = (ip-p0).dot(p1-p0) >= -0.000001 and (ip-p1).dot(p0-p1) >= -0.000001
+                on_c0c1 = (ip-c0).dot(c1-c0) >= -0.000001 and (ip-c1).dot(c0-c1) >= -0.000001
+                if on_p0p1 and on_c0c1:
+                    add(ip, e)
+                    continue
+                    
+            # Existing snap checks
             clc0 = closest2d_point_segment(c0, p0, p1)
             clc1 = closest2d_point_segment(c1, p0, p1)
             clp0 = closest2d_point_segment(p0, c0, c1)
@@ -378,13 +438,17 @@ class Knife_Insert():
         crosses = sorted(crosses, key=lambda cross: cross[2])
         return crosses
 
+    ''' Drawing functions for visualization. '''
+
     def draw_crosses(self, crosses):
+        # Draw intersection points
         with Globals.drawing.draw(CC_2D_POINTS) as draw:
             for p,e,d in crosses:
                 draw.color(themes['active'] if type(e) is RFVert else themes['new'])
                 draw.vertex(p)
 
     def draw_lines(self, coords, poly_alpha=0.2):
+        # Draw preview lines and polygons
         line_color = themes['new']
         poly_color = [line_color[0], line_color[1], line_color[2], line_color[3] * poly_alpha]
         l = len(coords)

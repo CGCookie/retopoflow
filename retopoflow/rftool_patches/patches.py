@@ -124,6 +124,7 @@ class Patches(RFTool):
     @RFTool.on_target_change
     def update(self):
         if self.defer_recomputing: return
+        if RFTool.defer_recomputing: return
         self.rfcontext.get_accel_visible()
         self.crosses = None
         self._recompute()

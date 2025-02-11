@@ -152,6 +152,17 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
     curve_distance, curve_threshold = 25.0, math.cos(60.0 * math.pi/180.0)
     discontinuity_distance = 10.0
 
+    # Check if stroke is cyclic
+    cyclic = False
+    if len(stroke) > 2:
+        cyclic = (stroke[0] - stroke[-1]).length < discontinuity_distance
+        cyclic &= any((s - stroke[0]).length > 2.0 * discontinuity_distance for s in stroke)
+
+    if cyclic and from_edge is None:
+        # For the first segment of a cyclic stroke, return the full stroke
+        # and indicate it's cyclic via the last True parameter
+        return (None, stroke, None, False, [], True)
+
     def compute_cosangle_at_index(idx):
         nonlocal stroke
         if idx >= len(stroke): return 1.0
@@ -173,17 +184,20 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
         cosangle = dprev.dot(dnext)
         return cosangle
 
+    # Normal stroke processing for non-cyclic or subsequent cyclic segments
     for i0 in range(1, len(stroke)-1):
         i1 = i0 + 1
         p0,p1 = stroke[i0],stroke[i1]
 
-        # check for discontinuity
-        if (p0-p1).length > discontinuity_distance:
-            dprint('frag: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
-            return (from_edge, stroke[:i1], None, False, stroke[i1:])
+        # check for discontinuity (skip if we're at the cyclic connection)
+        if not (cyclic and i1 == len(stroke)-1):
+            if (p0-p1).length > discontinuity_distance:
+                dprint('frag: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+                return (from_edge, stroke[:i1], None, False, stroke[i1:])
 
-        # check for self-intersection
-        for j0 in range(i0+3, len(stroke)-1):
+        # check for self-intersection (skip last segment if cyclic)
+        end_range = len(stroke)-1 if cyclic else len(stroke)-1
+        for j0 in range(i0+3, end_range):
             q0,q1 = stroke[j0],stroke[j0+1]
             p = intersect_line_line_2d(p0,p1, q0,q1)
             if not p: continue
@@ -196,24 +210,25 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
             p = intersect_line_line_2d(p0,p1, q0,q1)
             if not p: continue
             dprint('edge: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
-            return (from_edge, stroke[:i1], bme, True, stroke[i1:])
+            return (from_edge, stroke[:i1], bme, True, stroke[i1:], False)
 
-        # check for strong angles
-        cosangle = compute_cosangle_at_index(i0)
-        if cosangle > curve_threshold: continue
-        # found a strong angle, but there may be a stronger angle coming up...
-        minangle = cosangle
-        for i0_plus in range(i0+1, len(stroke)):
-            p0_plus = stroke[i0_plus]
-            if (p0-p0_plus).length > curve_distance: break
-            minangle = min(compute_cosangle_at_index(i0_plus), minangle)
-            if minangle < cosangle: break
-        if minangle < cosangle: continue
-        dprint('bend: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
-        return (from_edge, stroke[:i1], None, False, stroke[i1:])
+        # check for strong angles (skip last check if cyclic)
+        if not (cyclic and i1 >= len(stroke)-2):
+            cosangle = compute_cosangle_at_index(i0)
+            if cosangle > curve_threshold: continue
+            # found a strong angle, but there may be a stronger angle coming up...
+            minangle = cosangle
+            for i0_plus in range(i0+1, len(stroke)):
+                p0_plus = stroke[i0_plus]
+                if (p0-p0_plus).length > curve_distance: break
+                minangle = min(compute_cosangle_at_index(i0_plus), minangle)
+                if minangle < cosangle: break
+            if minangle < cosangle: continue
+            dprint('bend: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
+            return (from_edge, stroke[:i1], None, False, stroke[i1:], False)
 
     dprint('full: %d %d' % (len(stroke), len(stroke)))
-    return (from_edge, stroke, None, False, [])
+    return (from_edge, stroke, None, False, [], False)
 
 def process_stroke_get_marks(stroke, at_dists):
     marks = []

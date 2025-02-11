@@ -103,22 +103,30 @@ class RetopoFlow_Blender_Save:
             space = get_view3d_space()
             r3d = space.region_3d
             normalize_opts = sessionoptions['normalize']
+
             # scale view
             orig_view = normalize_opts['view']
             r3d.view_distance = orig_view['distance']
             r3d.view_location = Vector(orig_view['location'])
+
             # scale clip start and end
             orig_clip = normalize_opts['clip distances']
             space.clip_start = orig_clip['start']
             space.clip_end   = orig_clip['end']
+
             # scale meshes
             prev_factor = normalize_opts['mesh scaling factor']
-            M = (Matrix.Identity(3) * (1.0 / prev_factor)).to_4x4()
+            M = Matrix.Scale(1.0 / prev_factor, 4)
             sources = RetopoFlow_Blender_Objects.get_sources()
             target = RetopoFlow_Blender_Objects.get_target()
             for obj in chain(sources, [target]):
                 if not obj: continue
+                rot = obj.rotation_euler.copy()  # store original rotation
                 obj.matrix_world = M @ obj.matrix_world
+               # Restore rotation if there is a mismatch (#1367),
+               # likely due to object being rotated while is was hidden from the viewport.
+                if obj.rotation_euler != rot:
+                    obj.rotation_euler = rot
 
             if target:
                 try:
