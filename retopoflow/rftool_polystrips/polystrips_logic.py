@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..common.bmesh import (
     get_bmesh_emesh,
@@ -58,6 +59,7 @@ from ...addon_common.common.maths import (
     segment2D_intersection,
     clamp,
     Direction,
+    closest_points_segments,
 )
 from ...addon_common.common.utils import iter_pairs
 
@@ -92,7 +94,6 @@ class PolyStrips_Logic:
         self.action = ''  # will be filled in later
         self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)
         self.width = self.length3D / (self.count * 2 - 1)
-        print(f'{self.length2D=} {self.radius2D=} {self.length3D=} {self.count=} {self.width=}')
 
     @property
     def count(self): return self._count
@@ -101,11 +102,14 @@ class PolyStrips_Logic:
 
     def create(self, context):
         self.update_context(context)
+        bvh = self.bvh
 
         # TODO: Remove this limitation!
         if self.is_cycle:
             print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
             return
+
+        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # compute number of samples to make on stroke
         self.npoints = self.count + (self.count - 1)
@@ -113,7 +117,8 @@ class PolyStrips_Logic:
             find_point_at(self.stroke3D, self.is_cycle, (i / (self.npoints - 1)))
             for i in range(self.npoints)
         ]
-        M, Mi = self.matrix_world, self.matrix_world_inv
+        # print(f'start: {bvh.find_nearest(Mi @ self.points[0])}')
+        # print(f'end:   {bvh.find_nearest(Mi @ self.points[-1])}')
         self.points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in self.points ]
         self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
         self.forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
@@ -127,14 +132,23 @@ class PolyStrips_Logic:
         ]
 
         # create bmverts
+        w = self.width
         bmvs = [[], []]
         # beginning of stroke
         p, pn = self.points[0], self.points[1]
         f, r = self.forwards[0], self.rights[0]
-        d = (pn - p).length
-        w = self.width
-        bmvs[0] += [ self.bm.verts.new(p + r * w - f * d) ]
-        bmvs[1] += [ self.bm.verts.new(p - r * w - f * d) ]
+        if self.snap0:
+            bme = self.bm.edges[self.snap0[1]]
+            bmv0, bmv1 = bme.verts[0], bme.verts[1]
+            co0, co1 = M @ bmv0.co, M @ bmv1.co
+            if r.dot(co1 - co0) > 0:
+                bmv0, bmv1 = bmv1, bmv0
+            bmvs[0] += [bmv0]
+            bmvs[1] += [bmv1]
+        else:
+            d = (pn - p).length
+            bmvs[0] += [ self.bm.verts.new(p + r * w - f * d) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * w - f * d) ]
         # along stroke
         for i in range(1, self.npoints, 2):
             pp, p, pn = self.points[i-1:i+2]
@@ -145,13 +159,26 @@ class PolyStrips_Logic:
         # ending of stroke
         p, pp = self.points[-1], self.points[-2]
         f, r = self.forwards[-1], self.rights[-1]
-        d = (pp - p).length
-        bmvs[0] += [ self.bm.verts.new(p + r * w + f * d) ]
-        bmvs[1] += [ self.bm.verts.new(p - r * w + f * d) ]
+        if self.snap1:
+            bme = self.bm.edges[self.snap1[1]]
+            bmv0, bmv1 = bme.verts[0], bme.verts[1]
+            co0, co1 = M @ bmv0.co, M @ bmv1.co
+            if r.dot(co1 - co0) > 0:
+                bmv0, bmv1 = bmv1, bmv0
+            bmvs[0] += [bmv0]
+            bmvs[1] += [bmv1]
+        else:
+            d = (pp - p).length
+            bmvs[0] += [ self.bm.verts.new(p + r * w + f * d) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * w + f * d) ]
 
         # snap newly created bmverts to source
         for bmv in chain(bmvs[0], bmvs[1]):
             bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
+
+        # must happen _BEFORE_ faces are created!
+        bmvs_snap0 = list(self.bm.faces[self.snap0[0]].verts) if self.snap0 else []
+        bmvs_snap1 = list(self.bm.faces[self.snap1[0]].verts) if self.snap1 else []
 
         bmfs = []
         for i in range(0, len(bmvs[0])-1):
@@ -164,7 +191,7 @@ class PolyStrips_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[0] + bmvs[1])
+        bmops.select_iter(self.bm, bmvs[0] + bmvs[1] + bmvs_snap0 + bmvs_snap1)
 
         bmops.flush_selection(self.bm, self.em)
 
@@ -180,10 +207,62 @@ class PolyStrips_Logic:
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
+        self.bm.verts.ensure_lookup_table()
+        self.bm.edges.ensure_lookup_table()
+        self.bm.faces.ensure_lookup_table()
+        self.bvh = BVHTree.FromBMesh(self.bm)
+
 
     def process_stroke(self):
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        # determine if stroke crosses any edges
+        faces = {}
+        for bmf in self.bm.faces:
+            bmf_cos = [M @ bmv.co for bmv in bmf.verts]
+            bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
+            bmf_radius = max((co - bmf_center).length for co in bmf_cos)
+            for i, (pt0, pt1) in enumerate(iter_pairs(self.stroke3D, self.is_cycle)):
+                vpt = pt1 - pt0
+                lpt2 = vpt.dot(vpt)
+                # determine if stroke is going in or out based on stroke segment points
+                in0 = (pt0 - bmf_center).length < bmf_radius
+                in1 = (pt1 - bmf_center).length < bmf_radius
+                if in0 == in1: continue
+                for bme in bmf.edges:
+                    bmv0, bmv1 = bme.verts
+                    co0, co1 = M @ bmv0.co, M @ bmv1.co
+                    vco = co1 - co0
+                    lco2 = vco.dot(vco)
+                    co01, pt01 = closest_points_segments(co0, co1, pt0, pt1)
+                    vclosest = pt01 - co01
+                    lclosest2 = vclosest.dot(vclosest)
+                    if faces.get((bmf.index, in1), (None, None, float('inf')))[-1] > lclosest2:
+                        faces[(bmf.index, in1)] = (bme.index, i, lclosest2)
+        self.crossings = []
+        self.snap0 = None
+        self.snap1 = None
+        for (bmfidx, going_in), (bmeidx, stidx, dist) in faces.items():
+            self.crossings += [(stidx, going_in, bmfidx, bmeidx)]
+        self.crossings.sort(key=lambda p: p[0])
+        if self.crossings:
+            i0, i1 = 0, len(self.stroke3D)
+            if self.crossings[0][1]:
+                # ignore stroke after stidx
+                i1 = self.crossings[0][0]
+                self.snap1 = (self.crossings[0][2], self.crossings[0][3])
+            else:
+                # ignore stroke up to stidx
+                i0 = self.crossings[0][0]
+                self.snap0 = (self.crossings[0][2], self.crossings[0][3])
+                if len(self.crossings) >= 2:
+                    i1 = self.crossings[1][0]
+                    self.snap1 = (self.crossings[1][2], self.crossings[1][3])
+            self.stroke3D = self.stroke3D[i0:i1]
+
         # project 3D stroke points to screen
         self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D if pt]
+
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))

@@ -2071,6 +2071,28 @@ def closest_point_segment(pt:Point, p0:Point, p1:Point):
     p.freeze()
     return p
 
+# https://zalo.github.io/blog/closest-point-between-segments/
+def constrain_point_segment(pt, a, b):
+    vab = b - a
+    t = vab.dot(pt - a) / vab.dot(vab)
+    return a + (b - a) * clamp(t, 0, 1)
+def closest_points_segments(a0, a1, b0, b1):
+    vb01 = b1 - b0
+    l2vb01 = vb01.dot(vb01)
+    if l2vb01 == 0:
+        apt = closest_point_segment(b0, a0, a1)
+        return (apt, b0)
+    a0p = a0 - vb01 * (vb01.dot(a0-b0) / l2vb01)
+    a1p = a1 - vb01 * (vb01.dot(a1-b0) / l2vb01)
+    va01p = a1p - a0p
+    t = va01p.dot(b0 - a0p) / va01p.dot(va01p)
+    if a0p == a1p: t = 0
+    atob = a0 + (a1 - b0) * clamp(t, 0, 1)
+    btoa = constrain_point_segment(atob, b0, b1)
+    atob = constrain_point_segment(btoa, a0, a1)
+    return (atob, btoa)
+
+
 
 if __name__ == '__main__':
     # run tests
