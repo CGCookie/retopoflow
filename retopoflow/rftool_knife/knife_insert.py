@@ -51,8 +51,22 @@ from ...config.options import options, themes
 
 
 class Knife_Insert():
+    USE_CROSSES_CACHE = True
+    
     skip_edges: set = set()
     split_edge_vert = None
+
+    @property
+    def _crosses_cache(self):
+        """Property to get the cached crosses if available, else returns None."""
+        if not self.USE_CROSSES_CACHE: return None
+        return getattr(self, '_cached_crosses', None)
+
+    @_crosses_cache.setter
+    def _crosses_cache(self, value):
+        """Property setter to update the crosses cache."""
+        if not self.USE_CROSSES_CACHE: return
+        self._cached_crosses = value
 
     @RFTool.on_quickswitch_start
     def quickswitch_start(self):
@@ -378,6 +392,14 @@ class Knife_Insert():
 
     # Find intersections between cut line and existing geometry
     def _get_crosses(self, p0, p1):
+        # Check if 'crosses' for the same segment (p0->p1) has been cached.
+        if self.USE_CROSSES_CACHE and hasattr(self, '_crosses_cache') and self._crosses_cache is not None:
+            cp0, cp1, cached_crosses = self._crosses_cache
+            if cp0 == p0 and cp1 == p1:
+                # print('get_crosses! cached')
+                return cached_crosses
+
+        # print('get_crosses! not cached')
         # Calculate intersections between line segment p0-p1 and visible edges
         # Returns list of (point, intersected_element, distance) tuples
         Point_to_Point2D = self.rfcontext.Point_to_Point2D
@@ -436,6 +458,9 @@ class Knife_Insert():
             elif (clp1 - p1).length <= dist: add(clp1, e)
             elif i:                          add(Point2D(i), e)
         crosses = sorted(crosses, key=lambda cross: cross[2])
+        
+        # Cache the computed crosses for later use by _insert and draw_postpixel
+        self._crosses_cache = (p0, p1, crosses)
         return crosses
 
     ''' Drawing functions for visualization. '''
