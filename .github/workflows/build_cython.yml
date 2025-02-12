@@ -47,79 +47,17 @@ jobs:
     - name: Build Cython extensions
       shell: bash
       env:
-        ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || '' }}
-        CC: ${{ matrix.target == 'intel' && 'gcc -arch x86_64' || 'gcc' }}
-        CXX: ${{ matrix.target == 'intel' && 'g++ -arch x86_64' || 'g++' }}
+        ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || matrix.target == 'native' && '-arch arm64' || '' }}
       run: |
-        if [ "${{ matrix.os }}" == "macos-latest" ] && [ "${{ matrix.target }}" == "intel" ]; then
-          # Install Rosetta 2 if needed
-          softwareupdate --install-rosetta --agree-to-license || true
-          
-          # Use homebrew to install cross-compilation tools
-          brew install gcc
-          
-          python -m pip install --upgrade pip
-          python -m pip install cython numpy setuptools wheel
-        fi
+        python -m pip install --upgrade pip
+        python -m pip install cython numpy setuptools wheel
         python cy_setup.py build_ext --inplace
 
-    - name: Rename compiled extensions
+    - name: List compiled extensions
       shell: bash
       run: |
         cd retopoflow/cy
-        echo "Files before renaming:"
-        ls -la *.so || ls -la *.pyd
-        
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          echo "Windows build - keeping original names"
-        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-          # Set architecture based on build target
-          if [ "${{ matrix.target }}" == "intel" ]; then
-            arch="x86_64"
-          elif [ "${{ matrix.target }}" == "native" ]; then
-            arch=$(uname -m)
-          fi
-          echo "Target architecture: ${arch}"
-          # Process all .so files
-          for f in *.so; do
-            if [ -f "$f" ]; then
-              base_name="${f%.cpython*}"
-              target_name="${base_name}.cpython-311-darwin-${arch}.so"
-              # Only rename if the file doesn't already have the correct name
-              if [ "$f" != "$target_name" ]; then
-                echo "Renaming $f to $target_name"
-                # First remove target if it exists
-                rm -f "$target_name"
-                # Then move the file
-                mv "$f" "$target_name"
-              else
-                echo "File $f already has correct name"
-              fi
-            fi
-          done
-        elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-          arch=$(uname -m)
-          echo "Linux architecture: ${arch}"
-          # Process all .so files
-          for f in *.so; do
-            if [ -f "$f" ]; then
-              base_name="${f%.cpython*}"
-              target_name="${base_name}.cpython-311-linux-${arch}.so"
-              # Only rename if the file doesn't already have the correct name
-              if [ "$f" != "$target_name" ]; then
-                echo "Renaming $f to $target_name"
-                # First remove target if it exists
-                rm -f "$target_name"
-                # Then move the file
-                mv "$f" "$target_name"
-              else
-                echo "File $f already has correct name"
-              fi
-            fi
-          done
-        fi
-        
-        echo "Files after renaming:"
+        echo "Compiled files:"
         ls -la *.so || ls -la *.pyd
 
     - name: Upload compiled extensions
