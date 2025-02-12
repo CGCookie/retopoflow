@@ -132,7 +132,9 @@ class PolyStrips_Logic:
         ]
 
         # create bmverts
-        w = self.width
+        w0 = self.snap0[2]/2 if self.snap0 else self.width
+        w1 = self.snap1[2]/2 if self.snap1 else self.width
+        wm = self.width
         bmvs = [[], []]
         # beginning of stroke
         p, pn = self.points[0], self.points[1]
@@ -147,13 +149,18 @@ class PolyStrips_Logic:
             bmvs[1] += [bmv1]
         else:
             d = (pn - p).length
-            bmvs[0] += [ self.bm.verts.new(p + r * w - f * d) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * w - f * d) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * wm - f * d) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * wm - f * d) ]
         # along stroke
-        for i in range(1, self.npoints, 2):
+        for i in range(1, len(self.points)-1, 2):
             pp, p, pn = self.points[i-1:i+2]
             r = self.rights[i]
             d = ((pp - p).length + (pn - p).length) / 2
+            v = 2 * i / (len(self.points) - 1)
+            if v < 1:
+                w = w0 + (wm - w0) * v
+            else:
+                w = wm + (w1 - wm) * (v-1)
             bmvs[0] += [ self.bm.verts.new(p + r * w) ]
             bmvs[1] += [ self.bm.verts.new(p - r * w) ]
         # ending of stroke
@@ -169,8 +176,8 @@ class PolyStrips_Logic:
             bmvs[1] += [bmv1]
         else:
             d = (pp - p).length
-            bmvs[0] += [ self.bm.verts.new(p + r * w + f * d) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * w + f * d) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * wm + f * d) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * wm + f * d) ]
 
         # snap newly created bmverts to source
         for bmv in chain(bmvs[0], bmvs[1]):
@@ -237,27 +244,28 @@ class PolyStrips_Logic:
                     co01, pt01 = closest_points_segments(co0, co1, pt0, pt1)
                     vclosest = pt01 - co01
                     lclosest2 = vclosest.dot(vclosest)
-                    if faces.get((bmf.index, in1), (None, None, float('inf')))[-1] > lclosest2:
-                        faces[(bmf.index, in1)] = (bme.index, i, lclosest2)
+                    if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
+                        faces[(bmf.index, in1)] = (bme.index, math.sqrt(lco2), i, lclosest2)
         self.crossings = []
         self.snap0 = None
         self.snap1 = None
-        for (bmfidx, going_in), (bmeidx, stidx, dist) in faces.items():
-            self.crossings += [(stidx, going_in, bmfidx, bmeidx)]
+        for (bmfidx, going_in), (bmeidx, bmelen, stidx, dist) in faces.items():
+            self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmelen)]
         self.crossings.sort(key=lambda p: p[0])
         if self.crossings:
+            print(self.crossings)
             i0, i1 = 0, len(self.stroke3D)
             if self.crossings[0][1]:
                 # ignore stroke after stidx
                 i1 = self.crossings[0][0]
-                self.snap1 = (self.crossings[0][2], self.crossings[0][3])
+                self.snap1 = (self.crossings[0][2], self.crossings[0][3], self.crossings[0][4])
             else:
                 # ignore stroke up to stidx
                 i0 = self.crossings[0][0]
-                self.snap0 = (self.crossings[0][2], self.crossings[0][3])
+                self.snap0 = (self.crossings[0][2], self.crossings[0][3], self.crossings[0][4])
                 if len(self.crossings) >= 2:
                     i1 = self.crossings[1][0]
-                    self.snap1 = (self.crossings[1][2], self.crossings[1][3])
+                    self.snap1 = (self.crossings[1][2], self.crossings[1][3], self.crossings[1][4])
             self.stroke3D = self.stroke3D[i0:i1]
 
         # project 3D stroke points to screen
