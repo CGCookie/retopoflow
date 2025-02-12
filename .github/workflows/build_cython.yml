@@ -41,16 +41,18 @@ jobs:
         python -m pip install cython numpy setuptools wheel
 
     - name: Build Cython extensions
+      shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
       env:
         ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || '' }}
       run: |
-        if [ "${{ matrix.os }}" == "macos-latest" ] && [ "${{ matrix.target }}" == "intel" ]; then
+        ${{ matrix.os != 'windows-latest' && format(
+        'if [ "{0}" == "macos-latest" ] && [ "{1}" == "intel" ]; then
           PYTHON_CROSSENV=$(pwd)/crossenv
           python -m pip install crossenv
           python -m crossenv $(which python3) $PYTHON_CROSSENV
           source $PYTHON_CROSSENV/bin/activate
           python -m pip install cython numpy setuptools wheel
-        fi
+        fi', matrix.os, matrix.target) || '' }}
         python cy_setup.py build_ext --inplace
 
     - name: Rename compiled extensions
