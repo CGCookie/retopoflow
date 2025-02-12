@@ -61,7 +61,11 @@ from .rfmesh_wrapper import (
 )
 
 try:
-    from ..cy.bmesh_visibility import compute_visible_vertices
+    from ..cy.bmesh_visibility import (
+        compute_visible_vertices,
+        get_visible_edges_from_verts_vis_cache,
+        get_visible_faces_from_verts_vis_cache
+    )
     USE_CYTHON = True
 except ImportError:
     USE_CYTHON = False
@@ -1022,7 +1026,7 @@ class RFMesh():
         return _check_vert_vis
 
     @timing
-    def visible_verts(self, is_visible, verts=None):
+    def visible_verts(self, is_visible, verts=None, cache_indices: bool = False):
         if USE_CYTHON:
             # NEW - faster - METHOD. :D
             if verts is None or len(verts) == 0:
@@ -1038,7 +1042,7 @@ class RFMesh():
             '''is_vis = self._gen_is_vis()
             return {bmv for bmv in verts if is_vis(bmv)}'''
 
-            return self.get_visible_vertices(verts)
+            return self.get_visible_vertices(verts, cache_indices=cache_indices)
 
         else:
             # OLD - slower - METHOD. D:
@@ -1047,7 +1051,7 @@ class RFMesh():
             return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
 
     @timing
-    def get_visible_vertices(self, verts, screen_margin=0):
+    def get_visible_vertices(self, verts, screen_margin=0, cache_indices: bool = False):
         """
         Get list of visible vertex indices for an object in the current 3D view.
         """
@@ -1099,7 +1103,8 @@ class RFMesh():
                 proj_matrix,
                 view_pos,
                 is_perspective,
-                float(1 + screen_margin)
+                float(1 + screen_margin),
+                cache_indices
             )
 
         ''' # rfmesh_visibility.pyx
@@ -1132,32 +1137,42 @@ class RFMesh():
         '''
 
     @timing
-    def visible_edges(self, is_visible, verts=None, edges=None):
+    def visible_edges(self, is_visible, verts=None, edges=None, use_cache: bool = False):
         if USE_CYTHON:
-            if edges is None or len(edges) == 0:
-                if len(self.bme.edges) == 0:
-                    return set()
+            if use_cache:
                 try:
                     self.bme.edges[0]
                 except IndexError:
                     # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
                     self.bme.edges.ensure_lookup_table()
-                edges = map(self._wrap_bmedge, self.bme.edges)
+                edges = get_visible_edges_from_verts_vis_cache(self.bme) #, list(edges))
+                return edges
 
-            is_valid = RFMesh.fn_is_valid
+            else:
+                if edges is None or len(edges) == 0:
+                    if len(self.bme.edges) == 0:
+                        return set()
+                    try:
+                        self.bme.edges[0]
+                    except IndexError:
+                        # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
+                        self.bme.edges.ensure_lookup_table()
+                    edges = map(self._wrap_bmedge, self.bme.edges)
 
-            # Edge is visible if ANY of its vertices are visible
-            if verts is None:
-                verts = self.visible_verts(None)
-            return set([bme for bme in edges if is_valid(bme) and\
-                (bme.verts[0] in verts or bme.verts[1] in verts)])
-            
-            '''
-            is_vis = self._gen_is_vis()
-            
-            return {bme for bme in edges if is_valid(bme) and\
-                (is_vis(bme.verts[0]) or is_vis(bme.verts[1]))}
-            '''
+                is_valid = RFMesh.fn_is_valid
+
+                # Edge is visible if ANY of its vertices are visible
+                if verts is None:
+                    verts = self.visible_verts(None)
+                return set([bme for bme in edges if is_valid(bme) and\
+                    (bme.verts[0] in verts or bme.verts[1] in verts)])
+                
+                '''
+                is_vis = self._gen_is_vis()
+                
+                return {bme for bme in edges if is_valid(bme) and\
+                    (is_vis(bme.verts[0]) or is_vis(bme.verts[1]))}
+                '''
         else:
             is_valid = RFMesh.fn_is_valid
 
@@ -1173,39 +1188,49 @@ class RFMesh():
             return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     @timing
-    def visible_faces(self, is_visible, verts=None, faces=None):
+    def visible_faces(self, is_visible, verts=None, faces=None, use_cache: bool = False):
         if USE_CYTHON:
-            if faces is None or len(faces) == 0:
-                if len(self.bme.faces) == 0:
-                    return set()
+            if use_cache:
                 try:
                     self.bme.faces[0]
                 except IndexError:
                     # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
                     self.bme.faces.ensure_lookup_table()
-                faces = map(self._wrap_bmface, self.bme.faces)
+                faces = get_visible_faces_from_verts_vis_cache(self.bme) #, list(faces))
+                return faces
 
-            is_valid = RFMesh.fn_is_valid
+            else:
+                if faces is None or len(faces) == 0:
+                    if len(self.bme.faces) == 0:
+                        return set()
+                    try:
+                        self.bme.faces[0]
+                    except IndexError:
+                        # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
+                        self.bme.faces.ensure_lookup_table()
+                    faces = map(self._wrap_bmface, self.bme.faces)
 
-            # Edge is visible if ANY of its vertices are visible
-            if verts is None:
-                verts = self.visible_verts(None)
+                is_valid = RFMesh.fn_is_valid
 
-            def _check_face_verts_vis(face: RFFace) -> bool:
-                # iterate with break if any vert is visible.
-                for bmv in face.verts:
-                    if bmv in verts:
-                        return True
-                return False
+                # Edge is visible if ANY of its vertices are visible
+                if verts is None:
+                    verts = self.visible_verts(None)
 
-            return set([face for face in faces if is_valid(face) and _check_face_verts_vis(face)])
-            '''
-            
-            is_vis = self._gen_is_vis()
-            return {face for face in faces if is_valid(face) and\
-                (is_vis(face.verts[0]) or is_vis(face.verts[2]) or\
-                is_vis(face.verts[1]) or is_vis(face.verts[3]))}
-            '''
+                def _check_face_verts_vis(face: RFFace) -> bool:
+                    # iterate with break if any vert is visible.
+                    for bmv in face.verts:
+                        if bmv in verts:
+                            return True
+                    return False
+
+                return set([face for face in faces if is_valid(face) and _check_face_verts_vis(face)])
+                '''
+                
+                is_vis = self._gen_is_vis()
+                return {face for face in faces if is_valid(face) and\
+                    (is_vis(face.verts[0]) or is_vis(face.verts[2]) or\
+                    is_vis(face.verts[1]) or is_vis(face.verts[3]))}
+                '''
 
         else:
             is_valid = RFMesh.fn_is_valid

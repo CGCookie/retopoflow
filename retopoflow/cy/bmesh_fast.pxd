@@ -56,7 +56,7 @@ cdef struct BMLoop:
 cdef struct BMFace:
     BMHeader head
     void* l_first  # BMLoop*
-    int len
+    int len  # number of vertices in the face
     float[3] no
     short mat_nr
     # short _pad[3]  # Commented out as it's commented in original

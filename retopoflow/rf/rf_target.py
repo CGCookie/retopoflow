@@ -252,9 +252,9 @@ class RetopoFlow_Target:
                 faces = self.get_unselected_faces()
 
         with time_it('getting visible geometry', enabled=True):
-            accel_data.verts = self.visible_verts(verts=verts)
-            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
-            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
+            accel_data.verts = self.visible_verts(verts=verts, cache_indices=True)
+            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts, use_cache=True)
+            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts, use_cache=True)
         with time_it('building accel struct', enabled=True):
             accel_data.accel = Accel2D(
                 f'RFTarget visible geometry ({selected_only=})',
@@ -478,9 +478,9 @@ class RetopoFlow_Target:
     #######################################
     # get visible geometry
 
-    def visible_verts(self, verts=None):             return self.rftarget.visible_verts(self.gen_is_visible(), verts=verts)
-    def visible_edges(self, verts=None, edges=None): return self.rftarget.visible_edges(self.gen_is_visible(), verts=verts, edges=edges)
-    def visible_faces(self, verts=None, faces=None): return self.rftarget.visible_faces(self.gen_is_visible(), verts=verts, faces=faces)
+    def visible_verts(self, verts=None, cache_indices: bool = False):             return self.rftarget.visible_verts(self.gen_is_visible(), verts=verts, cache_indices=cache_indices)
+    def visible_edges(self, verts=None, edges=None, use_cache: bool = False): return self.rftarget.visible_edges(self.gen_is_visible(), verts=verts, edges=edges, use_cache=use_cache)
+    def visible_faces(self, verts=None, faces=None, use_cache: bool = False): return self.rftarget.visible_faces(self.gen_is_visible(), verts=verts, faces=faces, use_cache=use_cache)
     def visible_geom(self): return (verts := self.visible_verts()), self.visible_edges(verts=verts), self.visible_faces(verts=verts)
 
     def nonvisible_verts(self):             return self.rftarget.visible_verts(self.gen_is_nonvisible())
