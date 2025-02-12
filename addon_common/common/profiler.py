@@ -353,7 +353,7 @@ def timing(f):
         ts = time.time()
         result = f(*args, **kw)
         te = time.time()
-        print('func:%r took: %2.4f sec' % \
+        print('func:%r took: %2.5f sec' % \
           (f.__name__, te-ts))
         return result
     return wrap
