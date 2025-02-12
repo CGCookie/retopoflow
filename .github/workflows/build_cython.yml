@@ -26,8 +26,10 @@ jobs:
         include:
           - os: macos-latest
             target: native
+            compile_target: arm64
           - os: macos-latest
             target: intel
+            compile_target: x86_64
 
     steps:
     - uses: actions/checkout@v3
@@ -75,7 +77,6 @@ jobs:
           if [ "${{ matrix.target }}" == "intel" ]; then
             arch="x86_64"
           elif [ "${{ matrix.target }}" == "native" ]; then
-            # For native builds, use the actual architecture
             arch=$(uname -m)
           fi
           echo "Target architecture: ${arch}"
@@ -83,10 +84,17 @@ jobs:
           for f in *.so; do
             if [ -f "$f" ]; then
               base_name="${f%.cpython*}"
-              # First remove target if it exists
-              rm -f "${base_name}.cpython-311-darwin-${arch}.so"
-              # Then move the file
-              mv "$f" "${base_name}.cpython-311-darwin-${arch}.so"
+              target_name="${base_name}.cpython-311-darwin-${arch}.so"
+              # Only rename if the file doesn't already have the correct name
+              if [ "$f" != "$target_name" ]; then
+                echo "Renaming $f to $target_name"
+                # First remove target if it exists
+                rm -f "$target_name"
+                # Then move the file
+                mv "$f" "$target_name"
+              else
+                echo "File $f already has correct name"
+              fi
             fi
           done
         elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
@@ -96,10 +104,17 @@ jobs:
           for f in *.so; do
             if [ -f "$f" ]; then
               base_name="${f%.cpython*}"
-              # First remove target if it exists
-              rm -f "${base_name}.cpython-311-linux-${arch}.so"
-              # Then move the file
-              mv "$f" "${base_name}.cpython-311-linux-${arch}.so"
+              target_name="${base_name}.cpython-311-linux-${arch}.so"
+              # Only rename if the file doesn't already have the correct name
+              if [ "$f" != "$target_name" ]; then
+                echo "Renaming $f to $target_name"
+                # First remove target if it exists
+                rm -f "$target_name"
+                # Then move the file
+                mv "$f" "$target_name"
+              else
+                echo "File $f already has correct name"
+              fi
             fi
           done
         fi
