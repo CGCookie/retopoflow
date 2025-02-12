@@ -28,6 +28,8 @@ def build_for_architecture(arch):
         # Don't add -arch flag directly to compile/link args
         if 'ARCHFLAGS' not in os.environ:
             os.environ['ARCHFLAGS'] = f'-arch {arch}'
+        # Set platform tag for proper naming
+        os.environ['PLAT_NAME'] = f'darwin-{arch}'
 
     shared_ext_kwargs = {
         'extra_compile_args': extra_compile_args,
@@ -68,6 +70,13 @@ def build_for_architecture(arch):
                             }),
         zip_safe=False,
     )
+
+    if platform.system() == 'Darwin':
+        # find all compiled files and rename them to include the platform tag
+        for file in os.listdir("retopoflow/cy"):
+            if file.endswith('darwin.so'):
+                os.rename(f"retopoflow/cy/{file}", f"retopoflow/cy/{file.split('.')[0]}-{os.environ['PLAT_NAME']}.so")
+
 
 def main():
     system = platform.system()
