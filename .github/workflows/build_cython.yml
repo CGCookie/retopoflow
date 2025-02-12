@@ -71,9 +71,11 @@ jobs:
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
           echo "Windows build - keeping original names"
         elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          # Set architecture based on build target
           if [ "${{ matrix.target }}" == "intel" ]; then
             arch="x86_64"
-          else
+          elif [ "${{ matrix.target }}" == "native" ]; then
+            # For native builds, use the actual architecture
             arch=$(uname -m)
           fi
           echo "Target architecture: ${arch}"
