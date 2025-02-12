@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - 'retopoflow/cy/*.pyx'
+      - 'retopoflow/cy/*.pxd'
       - 'cy_setup.py'
       - '.github/workflows/build_cython.yml'
   pull_request:
     paths:
       - 'retopoflow/cy/*.pyx'
+      - 'retopoflow/cy/*.pxd'
       - 'cy_setup.py'
   workflow_dispatch:  # Allows manual triggering
 
@@ -64,13 +66,15 @@ jobs:
       run: |
         cd retopoflow/cy
         echo "Compiled files:"
-        ls -la rfmesh_visibility*.so || ls -la rfmesh_visibility*.pyd
+        ls -la *.so || ls -la *.pyd
 
-    - name: Upload compiled extension
+    - name: Upload compiled extensions
       uses: actions/upload-artifact@v4
       with:
-        name: compiled-extension-${{ matrix.os }}
-        path: retopoflow/cy/rfmesh_visibility*.*
+        name: compiled-extensions-${{ matrix.os }}
+        path: |
+          retopoflow/cy/*.so
+          retopoflow/cy/*.pyd
         retention-days: 7
 
   commit-files:
