@@ -61,7 +61,7 @@ from .rfmesh_wrapper import (
 )
 
 try:
-    from ..cy.rfmesh_visibility import compute_visible_vertices
+    from ..cy.bmesh_visibility import compute_visible_vertices
     USE_CYTHON = True
 except ImportError:
     USE_CYTHON = False
@@ -1056,8 +1056,6 @@ class RFMesh():
         if len(mesh.vertices) == 0:
             return set()  # Return empty set if no vertices exist
 
-        verts_list = list(verts) if isinstance(verts, set) else verts
-
         with time_it("prepare data", enabled=True):
             # Get mesh data
             matrix_world = np.array(self.obj.matrix_world, dtype=np.float32)
@@ -1078,7 +1076,10 @@ class RFMesh():
                 view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
             else:
                 view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
-            
+
+            ''' # rfmesh_visibility.pyx
+            verts_list = list(verts) if isinstance(verts, set) else verts
+
             # Get mesh vertex data pointers
             vert_ptr = mesh.vertices[0].as_pointer()
             norm_ptr = mesh.vertex_normals[0].as_pointer()
@@ -1087,8 +1088,21 @@ class RFMesh():
             # Create mapping from vertex index to position in verts_list
             vert_indices = np.array([v.index for v in verts_list], dtype=np.int32)
             process_all_verts = len(mesh.vertices) == len(verts_list)
+            '''
 
         with time_it("compute visible vertices (Cython):", enabled=True):
+            return compute_visible_vertices(
+                self.bme,
+                list(verts),  # RF's BMVert
+                matrix_world,
+                matrix_normal,
+                proj_matrix,
+                view_pos,
+                is_perspective,
+                float(1 + screen_margin)
+            )
+
+        ''' # rfmesh_visibility.pyx
             visible_flags = compute_visible_vertices(
                 vert_ptr,
                 norm_ptr, 
@@ -1102,7 +1116,7 @@ class RFMesh():
                 is_perspective,
                 float(1 + screen_margin)
             )
-
+        
         # Convert visibility flags to vertex set
         if len(visible_flags) == 0:
             return set()
@@ -1115,6 +1129,7 @@ class RFMesh():
             # Convert vertex indices to verts_list positions
             visible_positions = [vert_idx_to_pos[i] for i in visible_indices if i in vert_idx_to_pos]
             return {verts_list[i] for i in visible_positions}
+        '''
 
     @timing
     def visible_edges(self, is_visible, verts=None, edges=None):
