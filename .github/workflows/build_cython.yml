@@ -63,6 +63,9 @@ jobs:
       shell: bash
       run: |
         cd retopoflow/cy
+        echo "Files before renaming:"
+        ls -la rfmesh_visibility*.so || ls -la rfmesh_visibility*.pyd
+        
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
           echo "Windows build - keeping original name"
         elif [ "${{ matrix.os }}" == "macos-latest" ]; then
@@ -71,19 +74,13 @@ jobs:
           else
             arch=$(uname -m)
           fi
-          # First remove target if it exists
-          rm -f rfmesh_visibility.cpython-311-darwin-${arch}.so
-          # Then move the file
-          for f in rfmesh_visibility*.so; do
-            mv "$f" rfmesh_visibility.cpython-311-darwin-${arch}.so
-          done
+          echo "Target architecture: ${arch}"
+          echo "Current file(s):"
+          ls -la rfmesh_visibility*.so
         elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-          # First remove target if it exists
-          rm -f rfmesh_visibility.cpython-311-linux-$(uname -m).so
-          # Then move the file
-          for f in rfmesh_visibility*.so; do
-            mv "$f" rfmesh_visibility.cpython-311-linux-$(uname -m).so
-          done
+          echo "Linux architecture: $(uname -m)"
+          echo "Current file(s):"
+          ls -la rfmesh_visibility*.so
         fi
 
     - name: Upload compiled extension
