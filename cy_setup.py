@@ -3,24 +3,32 @@ from Cython.Build import cythonize
 import numpy as np
 import sys
 import platform
+import os
 
 # Platform-specific compiler flags
 compiler_flags = {
     'Windows': ['/O2'],
-    'Darwin': ['-O3', '-stdlib=libc++'],  # macOS
+    'Darwin': ['-O3'],  # macOS
     'Linux': ['-O3'],
 }
 
 # Get the current platform
 current_platform = platform.system()
 
+# Base compiler flags
+extra_compile_args = compiler_flags.get(current_platform, ['-O3'])
+
+# Handle macOS cross-compilation
+if current_platform == 'Darwin' and os.environ.get('ARCHFLAGS'):
+    extra_compile_args.extend(os.environ['ARCHFLAGS'].split())
+
 shared_ext_kwargs = {
-    'extra_compile_args': compiler_flags.get(current_platform, ['-O3']),
+    'extra_compile_args': extra_compile_args,
     'language': 'c++'
 }
 
 if current_platform == 'Darwin':
-    shared_ext_kwargs['extra_link_args'] = ['-stdlib=libc++']
+    shared_ext_kwargs['extra_link_args'] = extra_compile_args
 
 np_ext_kwargs = {
     "include_dirs": [np.get_include()],
@@ -33,6 +41,11 @@ ext_modules = [
         sources=["retopoflow/cy/rfmesh_visibility.pyx"],
         **shared_ext_kwargs,
         **np_ext_kwargs
+    ),
+    Extension(
+        "retopoflow.cy.bmesh_fast",
+        sources=["retopoflow/cy/bmesh_fast.pyx"],
+        **shared_ext_kwargs
     )
 ]
 

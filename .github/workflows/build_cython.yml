@@ -41,15 +41,20 @@ jobs:
         python -m pip install cython numpy setuptools wheel
 
     - name: Build Cython extensions
-      shell: bash  # Simplified - bash works on all platforms in GitHub Actions
+      shell: bash
       env:
         ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || '' }}
+        CC: ${{ matrix.target == 'intel' && 'gcc -arch x86_64' || 'gcc' }}
+        CXX: ${{ matrix.target == 'intel' && 'g++ -arch x86_64' || 'g++' }}
       run: |
         if [ "${{ matrix.os }}" == "macos-latest" ] && [ "${{ matrix.target }}" == "intel" ]; then
-          PYTHON_CROSSENV=$(pwd)/crossenv
-          python -m pip install crossenv
-          python -m crossenv $(which python3) $PYTHON_CROSSENV
-          source $PYTHON_CROSSENV/bin/activate
+          # Install Rosetta 2 if needed
+          softwareupdate --install-rosetta --agree-to-license || true
+          
+          # Use homebrew to install cross-compilation tools
+          brew install gcc
+          
+          python -m pip install --upgrade pip
           python -m pip install cython numpy setuptools wheel
         fi
         python cy_setup.py build_ext --inplace
