@@ -61,11 +61,48 @@ jobs:
         fi
         python cy_setup.py build_ext --inplace
 
-    - name: List compiled extensions
+    - name: Rename compiled extensions
       shell: bash
       run: |
         cd retopoflow/cy
-        echo "Compiled files:"
+        echo "Files before renaming:"
+        ls -la *.so || ls -la *.pyd
+        
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          echo "Windows build - keeping original names"
+        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+          if [ "${{ matrix.target }}" == "intel" ]; then
+            arch="x86_64"
+          else
+            arch=$(uname -m)
+          fi
+          echo "Target architecture: ${arch}"
+          # Process all .so files
+          for f in *.so; do
+            if [ -f "$f" ]; then
+              base_name="${f%.cpython*}"
+              # First remove target if it exists
+              rm -f "${base_name}.cpython-311-darwin-${arch}.so"
+              # Then move the file
+              mv "$f" "${base_name}.cpython-311-darwin-${arch}.so"
+            fi
+          done
+        elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+          arch=$(uname -m)
+          echo "Linux architecture: ${arch}"
+          # Process all .so files
+          for f in *.so; do
+            if [ -f "$f" ]; then
+              base_name="${f%.cpython*}"
+              # First remove target if it exists
+              rm -f "${base_name}.cpython-311-linux-${arch}.so"
+              # Then move the file
+              mv "$f" "${base_name}.cpython-311-linux-${arch}.so"
+            fi
+          done
+        fi
+        
+        echo "Files after renaming:"
         ls -la *.so || ls -la *.pyd
 
     - name: Upload compiled extensions
