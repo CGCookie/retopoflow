@@ -43,8 +43,8 @@ ext_modules = [
         **np_ext_kwargs
     ),
     Extension(
-        "retopoflow.cy.bmesh_fast",
-        sources=["retopoflow/cy/bmesh_fast.pyx"],
+        "retopoflow.cy.bmesh_utils",
+        sources=["retopoflow/cy/bmesh_utils.pyx"],
         **shared_ext_kwargs
     )
 ]
