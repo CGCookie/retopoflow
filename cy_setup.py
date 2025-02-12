@@ -24,12 +24,10 @@ def build_for_architecture(arch):
     
     # Add architecture flags only for macOS
     if platform.system() == 'Darwin' and arch:
+        # Let ARCHFLAGS environment variable handle the architecture
+        # Don't add -arch flag directly to compile/link args
         if 'ARCHFLAGS' not in os.environ:
             os.environ['ARCHFLAGS'] = f'-arch {arch}'
-        if 'MACOSX_DEPLOYMENT_TARGET' not in os.environ:
-            os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.15'  # minimum macOS version
-        extra_compile_args.append(f'-arch {arch}')
-        extra_link_args.append(f'-arch {arch}')
 
     shared_ext_kwargs = {
         'extra_compile_args': extra_compile_args,
