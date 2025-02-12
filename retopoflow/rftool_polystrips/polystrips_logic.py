@@ -88,7 +88,7 @@ class PolyStrips_Logic:
         self.is_cycle = is_cycle
 
         # process stroke data, such as projecting and computing length
-        self.process_stroke()
+        self.process_stroke(context)
 
         # initialize options
         self.action = ''  # will be filled in later
@@ -132,8 +132,8 @@ class PolyStrips_Logic:
         ]
 
         # create bmverts
-        w0 = self.snap0[2]/2 if self.snap0 else self.width
-        w1 = self.snap1[2]/2 if self.snap1 else self.width
+        w0 = self.snap0[3] if self.snap0 else self.width
+        w1 = self.snap1[3] if self.snap1 else self.width
         wm = self.width
         bmvs = [[], []]
         # beginning of stroke
@@ -220,7 +220,7 @@ class PolyStrips_Logic:
         self.bvh = BVHTree.FromBMesh(self.bm)
 
 
-    def process_stroke(self):
+    def process_stroke(self, context):
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # determine if stroke crosses any edges
@@ -245,28 +245,49 @@ class PolyStrips_Logic:
                     vclosest = pt01 - co01
                     lclosest2 = vclosest.dot(vclosest)
                     if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
-                        faces[(bmf.index, in1)] = (bme.index, math.sqrt(lco2), i, lclosest2)
+                        bme_center = (co0 + co1) / 2
+                        faces[(bmf.index, in1)] = (bme.index, bme_center, math.sqrt(lco2) / 2, i, lclosest2)
         self.crossings = []
         self.snap0 = None
         self.snap1 = None
-        for (bmfidx, going_in), (bmeidx, bmelen, stidx, dist) in faces.items():
-            self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmelen)]
+        for (bmfidx, going_in), (bmeidx, bmectr, bmelen, stidx, dist) in faces.items():
+            self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmectr, bmelen)]
         self.crossings.sort(key=lambda p: p[0])
         if self.crossings:
-            print(self.crossings)
+            # print(self.crossings)
             i0, i1 = 0, len(self.stroke3D)
             if self.crossings[0][1]:
                 # ignore stroke after stidx
                 i1 = self.crossings[0][0]
-                self.snap1 = (self.crossings[0][2], self.crossings[0][3], self.crossings[0][4])
+                self.snap1 = self.crossings[0][2:]
             else:
                 # ignore stroke up to stidx
                 i0 = self.crossings[0][0]
-                self.snap0 = (self.crossings[0][2], self.crossings[0][3], self.crossings[0][4])
+                self.snap0 = self.crossings[0][2:]
                 if len(self.crossings) >= 2:
                     i1 = self.crossings[1][0]
-                    self.snap1 = (self.crossings[1][2], self.crossings[1][3], self.crossings[1][4])
+                    self.snap1 = self.crossings[1][2:]
             self.stroke3D = self.stroke3D[i0:i1]
+
+        # warp stroke to better fit snapped geo
+        if self.snap0 or self.snap1:
+            if self.snap0 and not self.snap1:
+                offset = self.snap0[2] - self.stroke3D[0]
+                self.stroke3D = [ pt + offset for pt in self.stroke3D ]
+            elif not self.snap0 and self.snap1:
+                offset = self.snap1[2] - self.stroke3D[-1]
+                self.stroke3D = [ pt + offset for pt in self.stroke3D ]
+            else:
+                csnap = (self.snap0[2] + self.snap1[2]) / 2
+                ssnap = (self.snap0[2] - self.snap1[2]).length
+                cstroke = (self.stroke3D[0] + self.stroke3D[-1]) / 2
+                sstroke = (self.stroke3D[0] - self.stroke3D[-1]).length
+                off = csnap - cstroke
+                scale = ssnap / sstroke
+                self.stroke3D = [
+                    nearest_point_valid_sources(context, ((pt - cstroke) * scale + csnap))
+                    for pt in self.stroke3D
+                ]
 
         # project 3D stroke points to screen
         self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D if pt]
