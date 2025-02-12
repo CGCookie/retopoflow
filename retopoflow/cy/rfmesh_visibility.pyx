@@ -21,11 +21,6 @@ from cython.parallel cimport parallel, prange
 ctypedef float real_t
 ctypedef np.float32_t DTYPE_t
 
-# Structure definitions
-cdef struct VertexData:
-    float* positions
-    float* normals
-    int num_vertices
 
 cdef inline real_t vec3_dot(const real_t* a, const real_t* b) noexcept nogil:
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
