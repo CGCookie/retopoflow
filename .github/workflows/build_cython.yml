@@ -59,29 +59,12 @@ jobs:
         fi
         python cy_setup.py build_ext --inplace
 
-    - name: Rename compiled extensions
+    - name: List compiled extensions
       shell: bash
       run: |
         cd retopoflow/cy
-        echo "Files before renaming:"
+        echo "Compiled files:"
         ls -la rfmesh_visibility*.so || ls -la rfmesh_visibility*.pyd
-        
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          echo "Windows build - keeping original name"
-        elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-          if [ "${{ matrix.target }}" == "intel" ]; then
-            arch="x86_64"
-          else
-            arch=$(uname -m)
-          fi
-          echo "Target architecture: ${arch}"
-          echo "Current file(s):"
-          ls -la rfmesh_visibility*.so
-        elif [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-          echo "Linux architecture: $(uname -m)"
-          echo "Current file(s):"
-          ls -la rfmesh_visibility*.so
-        fi
 
     - name: Upload compiled extension
       uses: actions/upload-artifact@v4
