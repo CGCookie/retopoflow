@@ -24,7 +24,7 @@ from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from ..rfbrushes.stroke_brush import create_stroke_brush
-from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
+from ..rfoverlays.quadstrip_selection_overlay import create_quadstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
@@ -53,6 +53,7 @@ from ..rfpanels.display_panel import draw_display_panel
 from ..common.interface import draw_line_separator
 
 from functools import wraps
+
 
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'polystrips_brush',
@@ -253,14 +254,13 @@ class RFOperator_PolyStrips(RFOperator):
         return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
-# RFOperator_PolyStrips_Overlay = create_loopstrip_selection_overlay(
-#     'retopoflow_polystrips',  # must match RFTool_base.bl_idname
-#     'RFOperator_PolyStrips_Selection_Overlay',
-#     'polystrips_overlay',
-#     'PolyStrips Selected Overlay',
-#     True,
-# )
-
+RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
+    'RFOperator_PolyStrips_Selection_Overlay',
+    'retopoflow.polystrips',  # must match RFTool_base.bl_idname
+    'polystrips_overlay',
+    'PolyStrips Selected Overlay',
+    True,
+)
 
 
 class RFTool_PolyStrips(RFTool_Base):
@@ -272,7 +272,7 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_operator = 'retopoflow.polystrips'
 
     rf_brush = RFBrush_Strokes()
-    # rf_overlay = RFOperator_PolyStrips_Overlay
+    rf_overlay = RFOperator_PolyStrips_Overlay
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyStrips,
@@ -307,7 +307,7 @@ class RFTool_PolyStrips(RFTool_Base):
     def activate(cls, context):
         cls.resetter = Resetter('PolyStrips')
         cls.resetter['context.tool_settings.use_mesh_automerge'] = True
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, True]
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [False, False, True]
         cls.resetter.store('context.tool_settings.snap_elements_base')
         cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
 

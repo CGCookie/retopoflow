@@ -41,7 +41,6 @@ from .raycast import nearest_normal_valid_sources
 
 from .drawing import Drawing
 
-
 def get_bmesh_emesh(context, *, ensure_lookup_tables=False):
     em = context.edit_object.data
     bm = bmesh.from_edit_mesh(em)
