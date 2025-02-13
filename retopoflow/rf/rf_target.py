@@ -310,7 +310,7 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if self.actions.mouse == self.actions.mouse_prev:
+            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)
@@ -335,7 +335,7 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if self.actions.mouse == self.actions.mouse_prev:
+            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)
@@ -360,7 +360,7 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if self.actions.mouse == self.actions.mouse_prev:
+            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)
