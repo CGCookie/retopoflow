@@ -36,7 +36,7 @@ def draw_display_options(context, layout):
     col.separator()
     col = grid.column()
     col.prop(theme, 'face_retopology', text='Overlay')
-    col.prop(props, 'highlight_color', text='Highlight')
+    #col.prop(props, 'highlight_color', text='Highlight')
 
 
 def draw_display_panel(context, layout):
