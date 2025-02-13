@@ -237,6 +237,8 @@ class Point2D(Vector, Entity2D):
 
     def __eq__(self, other):
         ''' Check if this Point2D is equal to another Point2D '''
+        if isinstance(other, (list, tuple, Vector)) and len(other) == 2:
+            return self.x == other[0] and self.y == other[1]
         if not isinstance(other, Point2D):
             return NotImplemented
         return self.x == other.x and self.y == other.y
