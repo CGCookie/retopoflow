@@ -154,6 +154,43 @@ def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
         def is_stroking(self):
             return self.stroke is not None
 
+        def update_snap(self, context, mouse):
+            if not self.operator or not self.operator.is_active(): return
+
+            if snap_any and not (self.nearest_bmv or self.nearest_bmf):
+                self.reset_nearest(context)
+
+            hit = raycast_valid_sources(context, mouse)
+            if not hit: return
+
+            if self.nearest_bmv:
+                self.nearest_bmv.update(
+                    context,
+                    hit['co_local'],
+                    filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire),
+                    distance2d=self.snap_distance,
+                )
+                if not self.is_stroking():
+                    self.snap_bmv0 = self.nearest_bmv.bmv
+                    self.snap_bmv1 = None
+                elif self.snap_bmv0 != self.nearest_bmv.bmv:
+                    self.snap_bmv1 = self.nearest_bmv.bmv
+                else:
+                    self.snap_bmv1 = None
+
+            if self.nearest_bmf:
+                self.nearest_bmf.update(
+                    context,
+                    hit['co_local'],
+                    filter_fn=(lambda bmf:any(len(bme.link_faces)==1 for bme in bmf.edges)),
+                )
+                if not self.is_stroking():
+                    self.snap_bmf0 = self.nearest_bmf.bmf
+                    self.snap_bmf1 = None
+                else:
+                    self.snap_bmf1 = self.nearest_bmf.bmf
+
+
         def update(self, context, event):
             if not self.RFCore.is_current_area(context):
                 self.reset()
@@ -182,39 +219,10 @@ def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
                         context.area.tag_redraw()
                     return
 
+            # mouse and self.mouse will be the same as long as we hit a source
+            # otherwise, mouse is current spot and self.mouse is last spot we hit
             mouse = mouse_from_event(event)
-
-            if self.operator and self.operator.is_active():
-                if snap_any and not (self.nearest_bmv or self.nearest_bmf):
-                    self.reset_nearest(context)
-                hit = raycast_valid_sources(context, mouse)
-                if hit:
-                    if self.nearest_bmv:
-                        self.nearest_bmv.update(
-                            context,
-                            hit['co_local'],
-                            filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire),
-                            distance2d=self.snap_distance,
-                        )
-                        if not self.is_stroking():
-                            self.snap_bmv0 = self.nearest_bmv.bmv
-                            self.snap_bmv1 = None
-                        elif self.snap_bmv0 != self.nearest_bmv.bmv:
-                            self.snap_bmv1 = self.nearest_bmv.bmv
-                        else:
-                            self.snap_bmv1 = None
-                    if self.nearest_bmf:
-                        self.nearest_bmf.update(
-                            context,
-                            hit['co_local'],
-                            filter_fn=(lambda bmf:any(len(bme.link_faces)==1 for bme in bmf.edges)),
-                        )
-                        if not self.is_stroking():
-                            self.snap_bmf0 = self.nearest_bmf.bmf
-                            self.snap_bmf1 = None
-                        else:
-                            self.snap_bmf1 = self.nearest_bmf.bmf
-                        print(self.snap_bmf0, self.snap_bmf1)
+            self.update_snap(context, mouse)
 
             if event.type == 'LEFTMOUSE':
                 if event.value == 'PRESS':
@@ -231,7 +239,13 @@ def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
                     if self.is_stroking():
                         # only add final mouse position if it is over source
                         if raycast_valid_sources(context, mouse): self.stroke += [Point2D(mouse)]
-                        self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
+                        self.operator.process_stroke(
+                            context,
+                            self.radius,
+                            self.stroke,
+                            self.stroke_cycle,
+                            [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
+                        )
                         self.stroke = None
                         self.stroke_cycle = None
                         self.reset()

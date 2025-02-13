@@ -375,7 +375,8 @@ class RFOperator_Strokes(RFOperator):
     def reset(self):
         RFTool_Strokes.rf_brush.reset()
 
-    def process_stroke(self, context, radius, stroke2D, is_cycle, snap_bmv0, snap_bmv1):
+    def process_stroke(self, context, radius, stroke2D, is_cycle, snapped_geo):
+        snap_bmv0, snap_bmv1 = snapped_geo[0]
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
         RFOperator_Stroke_Insert.strokes_insert(
             context,
