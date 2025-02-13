@@ -93,6 +93,7 @@ class PolyStrips_Logic:
         # initialize options
         self.action = ''  # will be filled in later
         self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)
+        self.count_min = 3 if (self.snap0 and self.snap1) else 2
         self.width = self.length3D / (self.count * 2 - 1)
 
     @property
@@ -102,6 +103,9 @@ class PolyStrips_Logic:
 
     def create(self, context):
         self.update_context(context)
+
+        self.count = max(self.count, self.count_min)
+
         bvh = self.bvh
 
         # TODO: Remove this limitation!
@@ -112,7 +116,8 @@ class PolyStrips_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         # compute number of samples to make on stroke
-        self.npoints = self.count + (self.count - 1)
+        count = (self.count - 1) if self.snap0 and self.snap1 else self.count
+        self.npoints = count + (count - 1)
         self.points = [
             find_point_at(self.stroke3D, self.is_cycle, (i / (self.npoints - 1)))
             for i in range(self.npoints)
@@ -152,7 +157,9 @@ class PolyStrips_Logic:
             bmvs[0] += [ self.bm.verts.new(p + r * wm - f * d) ]
             bmvs[1] += [ self.bm.verts.new(p - r * wm - f * d) ]
         # along stroke
-        for i in range(1, len(self.points)-1, 2):
+        i_start = 2 if (self.snap0 or self.snap1) else 1
+        i_end = len(self.points) - (2 if (self.snap0 or self.snap1) else 1)
+        for i in range(i_start, i_end, 2):
             pp, p, pn = self.points[i-1:i+2]
             r = self.rights[i]
             d = ((pp - p).length + (pn - p).length) / 2
@@ -246,7 +253,8 @@ class PolyStrips_Logic:
                     lclosest2 = vclosest.dot(vclosest)
                     if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
                         bme_center = (co0 + co1) / 2
-                        faces[(bmf.index, in1)] = (bme.index, bme_center, math.sqrt(lco2) / 2, i, lclosest2)
+                        bme_len = math.sqrt(lco2) / 2
+                        faces[(bmf.index, in1)] = (bme.index, bme_center, bme_len, i, lclosest2)
         self.crossings = []
         self.snap0 = None
         self.snap1 = None

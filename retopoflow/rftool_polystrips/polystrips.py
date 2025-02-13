@@ -128,6 +128,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             RFOperator_PolyStrips_Insert.logic.count = self.cut_count
             RFOperator_PolyStrips_Insert.logic.width = self.width
             RFOperator_PolyStrips_Insert.logic.create(context)
+            self.cut_count = RFOperator_PolyStrips_Insert.logic.count
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
