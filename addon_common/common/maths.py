@@ -175,6 +175,10 @@ class Point2D(Vector, Entity2D):
     def __repr__(self):
         return self.__str__()
 
+    def __hash__(self):
+        ''' Return a hash based on the x and y coordinates. '''
+        return hash((self.x, self.y))
+
     def __iter__(self):
         return iter([self.x, self.y])
 
@@ -321,6 +325,10 @@ class Point(Vector, Entity3D):
 
     def __repr__(self):
         return self.__str__()
+    
+    def __hash__(self):
+        ''' Return a hash based on the x, y, and z coordinates. '''
+        return hash((self.x, self.y, self.z))
 
     def __add__(self, other):
         t = type(other)
