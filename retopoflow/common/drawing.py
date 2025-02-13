@@ -167,6 +167,27 @@ class Drawing:
             offset += (p1 - p0).length
         gpu.shader.unbind()
 
+    def draw2D_lines(context, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
+        gpu.state.blend_set('ALPHA')
+        if color1 is None: color1 = (*color0[:3], 0)
+        width = Drawing.scale(width)
+        stipple = [Drawing.scale(v) for v in stipple] if stipple else [1.0, 0.0]
+        offset = Drawing.scale(offset)
+        shader_2D_lineseg.bind()
+        ubos_2D_lineseg.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_2D_lineseg.options.color0 = color0
+        ubos_2D_lineseg.options.color1 = color1
+        ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
+        for i in range(len(points)//2):
+            p0,p1 = points[i*2:i*2+2]
+            if p0 is None or p1 is None: continue
+            ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
+        gpu.shader.unbind()
+
     @staticmethod
     def draw2D_points(context, points, color, *, radius=1, border=0, borderColor=None):
         gpu.state.blend_set('ALPHA')

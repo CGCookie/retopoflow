@@ -275,15 +275,16 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     location_3d_to_region_2d(rgn, r3d, M @ curve.eval(v / 20))
                     for v in range(21)
                 ]
-                Drawing.draw2D_linestrip(context, pts, (0.1, 1.0, 0.1, 0.5), width=2)
+                Drawing.draw2D_linestrip(context, pts, (1.0, 1.0, 0.0, 0.5), width=2, stipple=[5,5])
                 pts = [
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p0),
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p1),
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p2),
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p3),
                 ]
-                Drawing.draw2D_points(context, pts, (1.0, 1.0, 0.1, 1.0), radius=8)
-                Drawing.draw2D_linestrip(context, pts, (1.0, 1.0, 0.1, 0.5), width=1)
+                Drawing.draw2D_points(context, [pts[0], pts[3]], (1.0, 1.0, 1.0, 1.0), radius=16, border=2, borderColor=(0,0,0,0.5))
+                Drawing.draw2D_points(context, [pts[1], pts[2]], (0.0, 0.0, 0.0, 0.75), radius=16, border=2, borderColor=(1,1,1,0.5))
+                Drawing.draw2D_lines(context, pts, (1.0, 1.0, 1.0, 0.5), width=2)
 
     RFOperator_QuadStrip_Selection_Overlay.__name__ = opname
 
