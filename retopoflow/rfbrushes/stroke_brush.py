@@ -25,7 +25,6 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..preferences import RF_Prefs
 from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMFace
 from ..common.drawing import (
     Drawing,
