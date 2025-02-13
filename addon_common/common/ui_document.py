@@ -344,7 +344,11 @@ class UI_Document:
     
     @property
     def is_hovering_any_element(self) -> bool:
-        return self._under_mouse is not None and self._under_mouse.can_hover
+        # If _under_mouse is None or if it equals the document itself (the root container),
+        # then no interactive element is really being hovered.
+        if self._under_mouse is None or self._under_mouse == self._body:
+            return False
+        return True
 
     def handle_mousemove(self, ui_element=None):
         ui_element = ui_element or self._under_mouse

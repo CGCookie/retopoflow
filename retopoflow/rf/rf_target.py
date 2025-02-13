@@ -43,6 +43,8 @@ from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..rfmesh.rfmesh import RFSource, RFTarget
 from ..rfmesh.rfmesh_render import RFMeshRender
 
+from .event_blocker import is_outside_working_area
+
 
 class RetopoFlow_Target:
     '''
@@ -310,7 +312,9 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
+            if self.actions.is_idle:
+                return (None, None)
+            if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)
@@ -335,7 +339,9 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
+            if self.actions.is_idle:
+                return (None, None)
+            if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)
@@ -360,7 +366,9 @@ class RetopoFlow_Target:
         if point is None:
             if self.actions.is_navigating:
                 return (None, None)
-            if (self.actions.mouse_delta_moving and not self.actions.mousedown):
+            if self.actions.is_idle:
+                return (None, None)
+            if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
         xy = self.get_point2D(point)

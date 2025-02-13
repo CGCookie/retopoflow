@@ -422,13 +422,18 @@ class Actions:
         self.mousedown_middle = None    # mouse position when MMB was pressed
         self.mousedown_right  = None    # mouse position when RMB was pressed
         self.mousedown_drag   = False   # is user dragging?
-        self.mouse_delta      = 100000  # mouse movement delta
-        self._mouse_delta_point = None  # reference point for mouse movement delta
-        self.mouse_delta_moving = False # is mouse moving based on delta threshold?
         self.mouse_win        = (0, 0)  # mouse position in window coordinates
 
         # indicates if currently navigating
         self.is_navigating = False
+
+        # New idle-state logic (accumulated distance)
+        self.mouse_start = None  # Clear the accumulated starting point
+        self.mouse_delta = 0       # Initialize the cumulative movement
+        self.is_idle = True        # Mark the action as idle following the reset
+
+        # Timer events: update our idle state if no new movement occurred for 0.2 sec.
+        self.last_move_time = time.time()
 
     def call_action_operator(self, action, *args, **kwargs):
         ops_props = self.keymaps_blender_operators[action]
@@ -483,7 +488,8 @@ class Actions:
         self.oskey = event.oskey
 
         # handle completely ignorable actions (if any)
-        if event_type in ignore_actions: return
+        if event_type in ignore_actions:
+            return
 
         if fn_debug and event_type not in nonprintable_actions:
             fn_debug('update start', event_type=event_type, event_value=event.value)
@@ -492,38 +498,55 @@ class Actions:
         if event_type in modifier_actions:
             return
 
-        # handle timer event
+        # handle timer event: note that when idle (no mouse motion) the timer is running.
         if self.timer:
             time_cur = time.time()
             self.time_delta = self.time_last - time_cur
             self.time_last = time_cur
+            # If more than 0.2 seconds have passed without a movement,
+            # assume the mouse is idle, and reset the starting point for new motion.
+            if time_cur - self.last_move_time > 0.2:
+                self.is_idle = True
+                self.mouse_start = None
+                self.mouse_delta = 0
             return
 
         self.is_navigating = False
 
         # handle mouse move event
         if self.mousemove:
-            self.mouse_win = (event.mouse_x, event.mouse_y)
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
-            if self._mouse_delta_point is None:
-                # Init reference point.
-                self._mouse_delta_point = self.mouse
-            elif self.mouse_prev is not None:
-                self.mouse_delta = (self.mouse - self._mouse_delta_point).length
-                # Mouse moved enough.
-                if self.mouse_delta > 3:
-                    # Refresh reference point.
-                    self._mouse_delta_point = self.mouse
-                    self.mouse_delta_moving = True
-                else:
-                    self.mouse_delta_moving = False
+            self.mouse_win = (event.mouse_x, event.mouse_y)
+
+            # --- New idle-state logic (accumulated distance) ---
+            # Instead of comparing just the difference from last frame,
+            # we use a cumulative measure, starting at the first movement.
+
+            # Record the time of this movement.
+            self.last_move_time = time.time()
+            if self.mouse_start is None:
+                # Start accumulating movement from this point.
+                self.mouse_start = self.mouse.copy()
+            # Compute cumulative movement relative to the starting point.
+            self.mouse_delta = (self.mouse - self.mouse_start).length
+            
+            # Now mark idle if no buttons are pressed, no drag is occurring, and the
+            # cumulative movement since the last reset point is less than the threshold.
+            self.is_idle = (
+                (not self.now_pressed)
+                and (not self.mousedown_drag)
+                and (self.mouse_delta < 3)
+            )
 
             if not self.mousedown:
                 self.mousedown_drag = False
                 return
-            if self.mousedown_drag: return
-            if (self.mouse - self.mousedown).length <= bprefs.mouse_drag(): return
+            if self.mousedown_drag:
+                return
+            # Use the same threshold (using bprefs.mouse_drag() if defined) or hard-code 3 pixels.
+            if (self.mouse - self.mousedown).length <= bprefs.mouse_drag():
+                return
 
             self.mousedown_drag = True
             # can user drag non-mouse keys??
@@ -557,7 +580,8 @@ class Actions:
         mouse_event = event_type in mousebutton_actions and not self.is_navigating
         if mouse_event:
             if pressed:
-                if self.mouse_lastb != event_type: self.mousedown_drag = False
+                if self.mouse_lastb != event_type:
+                    self.mousedown_drag = False
                 self.mousedown = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
                 if   event_type == 'LEFTMOUSE':   self.mousedown_left   = self.mousedown
                 elif event_type == 'MIDDLEMOUSE': self.mousedown_middle = self.mousedown
@@ -574,6 +598,7 @@ class Actions:
         if pressed:
             # if event_type not in self.now_pressed:
             #     self.just_pressed = ftype
+            #     self.just_pressed = ftype
             self.just_pressed = ftype
             if 'WHEELUPMOUSE' in ftype or 'WHEELDOWNMOUSE' in ftype:
                 # mouse wheel actions have no release, so handle specially
@@ -584,11 +609,14 @@ class Actions:
         else:
             if event_type in self.now_pressed:
                 if event_type in mousebutton_actions and not self.mousedown_drag:
-                    _,_,deltatime = self.get_last_press_time(event_type)
+                    _, _, deltatime = self.get_last_press_time(event_type)
                     single = (deltatime > bprefs.mouse_doubleclick()) or (self.mouse_lastb != event_type)
                     self.just_pressed = kmi_to_action(event, event_type=event_type, click=single, double_click=not single)
                 else:
                     del self.now_pressed[event_type]
+
+        if self.just_pressed or self.now_pressed:
+            self.is_idle = False
 
         if fn_debug and event_type not in nonprintable_actions:
             fn_debug(
@@ -598,6 +626,8 @@ class Actions:
                 just_pressed=self.just_pressed,
                 now_pressed=self.now_pressed,
                 last_pressed=self.last_pressed,
+                mouse_delta=self.mouse_delta,
+                is_idle=self.is_idle
             )
 
     def _convert(self, action):
