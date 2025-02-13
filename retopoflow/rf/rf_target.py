@@ -307,7 +307,13 @@ class RetopoFlow_Target:
         )
 
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
-        xy = self.get_point2D(point or self.actions.mouse)
+        if point is None:
+            if self.actions.is_navigating:
+                return (None, None)
+            if self.actions.mouse == self.actions.mouse_prev:
+                return (None, None)
+            point = self.actions.mouse
+        xy = self.get_point2D(point)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
@@ -326,7 +332,13 @@ class RetopoFlow_Target:
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
 
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
-        xy = self.get_point2D(point or self.actions.mouse)
+        if point is None:
+            if self.actions.is_navigating:
+                return (None, None)
+            if self.actions.mouse == self.actions.mouse_prev:
+                return (None, None)
+            point = self.actions.mouse
+        xy = self.get_point2D(point)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
@@ -345,7 +357,13 @@ class RetopoFlow_Target:
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
 
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
-        xy = self.get_point2D(point or self.actions.mouse)
+        if point is None:
+            if self.actions.is_navigating:
+                return (None, None)
+            if self.actions.mouse == self.actions.mouse_prev:
+                return (None, None)
+            point = self.actions.mouse
+        xy = self.get_point2D(point)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
