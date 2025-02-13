@@ -329,6 +329,14 @@ class Point(Vector, Entity3D):
     def __hash__(self):
         ''' Return a hash based on the x, y, and z coordinates. '''
         return hash((self.x, self.y, self.z))
+    
+    def __eq__(self, other):
+        ''' Check if this Point is equal to another Point '''
+        if isinstance(other, (list, tuple, Vector)) and len(other) == 3:
+            return self.x == other[0] and self.y == other[1] and self.z == other[2]
+        if isinstance(other, Point):
+            return self.x == other.x and self.y == other.y and self.z == other.z
+        return NotImplemented
 
     def __add__(self, other):
         t = type(other)
