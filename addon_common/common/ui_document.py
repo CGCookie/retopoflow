@@ -341,6 +341,10 @@ class UI_Document:
         self._addrem_pseudoclass('hover', remove_from=self._last_under_mouse, add_to=self._under_mouse)
         if self._last_under_mouse: self._last_under_mouse.dispatch_event('on_mouseleave')
         if self._under_mouse: self._under_mouse.dispatch_event('on_mouseenter')
+    
+    @property
+    def is_hovering_any_element(self) -> bool:
+        return self._under_mouse is not None and self._under_mouse.can_hover
 
     def handle_mousemove(self, ui_element=None):
         ui_element = ui_element or self._under_mouse

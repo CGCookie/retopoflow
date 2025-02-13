@@ -425,6 +425,7 @@ class Actions:
         self.mouse_delta      = 100000  # mouse movement delta
         self._mouse_delta_point = None  # reference point for mouse movement delta
         self.mouse_delta_moving = False # is mouse moving based on delta threshold?
+        self.mouse_win        = (0, 0)  # mouse position in window coordinates
 
         # indicates if currently navigating
         self.is_navigating = False
@@ -502,6 +503,7 @@ class Actions:
 
         # handle mouse move event
         if self.mousemove:
+            self.mouse_win = (event.mouse_x, event.mouse_y)
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
             if self._mouse_delta_point is None:
