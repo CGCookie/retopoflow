@@ -59,7 +59,7 @@ import time
 
 class RFBrush_Cut(RFBrush_Base):
     # brush visualization settings
-    hit_line_color    = Color.from_ints(255, 255,  40, 128)
+    hit_line_color    = Color.from_ints(255, 255,  0, 255)
     hit_circle_color  = Color.from_ints(255, 255, 255, 255)
     miss_line_color   = Color.from_ints(192,  30,  30, 128)
     miss_circle_color = Color.from_ints(255,  40,  40, 255)

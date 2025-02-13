@@ -25,6 +25,7 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
+from ..preferences import RF_Prefs
 from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMFace
 from ..common.drawing import (
     Drawing,
@@ -75,10 +76,10 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
         far_distance   = 20  # mouse must move this far away from stroke start to start considering cycle
 
         # brush visualization settings
-        outer_color     = Color((1,1,1,1))
+        outer_color     = Color((1,1,1,0.75))
         below_alpha     = Color((1,1,1,0.25))
         inner_color     = Color((1,1,1,0.10))
-        miss_color      = Color.from_ints(192,  30,  30, 128)
+        miss_color      = Color.from_ints(255,  0,  0, 255)
         stroke_color    = Color.from_ints(255, 255,   0, 255)
         snap_color      = Color.from_ints(255, 255,   0, 255)
         cycle_color     = Color.from_ints(255, 255,   0, 255)
