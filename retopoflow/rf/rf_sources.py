@@ -135,6 +135,8 @@ class RetopoFlow_Sources:
         return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start))
 
     def raycast_sources_mouse(self, *, correct_mirror=None, ignore_backface=None):
+        if self.actions.is_navigating or self.actions.mouse == self.actions.mouse_prev:
+            return None,None,None,None
         return self.raycast_sources_Point2D(self.actions.mouse, correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
     def raycast_sources_Point(self, xyz:Point, *, correct_mirror=None, ignore_backface=None):
