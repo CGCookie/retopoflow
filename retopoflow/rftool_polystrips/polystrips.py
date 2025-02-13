@@ -57,6 +57,7 @@ from functools import wraps
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'polystrips_brush',
     'PolyStrips Brush',
+    smoothing=0.9,
     snap=(False, False, True),
     radius=40,
 )
@@ -200,6 +201,17 @@ class RFOperator_PolyStrips(RFOperator):
     rf_status = ['LMB: Insert']
 
 
+    stroke_smoothing: bpy.props.FloatProperty(
+        name='Stroke Smoothing',
+        description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
+        get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
+        set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
+        min=0.00,
+        soft_max=0.95,
+        max=1.0,
+    )
+
+
     def init(self, context, event):
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
@@ -275,6 +287,7 @@ class RFTool_PolyStrips(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
+            layout.prop(props_polystrips, 'stroke_smoothing', text='Stroke')
             row = layout.row(align=True)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)

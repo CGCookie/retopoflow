@@ -61,7 +61,7 @@ from ...addon_common.common.timerhandler import TimerHandler
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
+def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False), **kwargs):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:
@@ -84,10 +84,17 @@ def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
         cycle_color     = Color.from_ints(255, 255,   0, 255)
         push_above      = 0.01
         shrink_below    = 0.80
-        stroke_smooth   = 0.15  # [0,1], lower => more smoothing
+        stroke_smooth   = smoothing  # [0,1], higher => more smoothing
 
         # hack to know which areas the mouse is in
         mouse_areas = set()  # TODO: make sure this actually works with multiple areas / quad
+
+        @classmethod
+        def get_stroke_smooth(cls):
+            return cls.stroke_smooth
+        @classmethod
+        def set_stroke_smooth(cls, value):
+            cls.stroke_smooth = clamp(value, 0.00, 0.99)
 
         def init(self):
             self.mouse = None
@@ -261,7 +268,7 @@ def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
             if self.is_stroking(): # and event.type == 'TIMER':
                 pre = self.stroke[-1]
                 cur = Point2D(mouse)
-                pt = pre + (cur - pre) * RFBrush_Stroke.stroke_smooth
+                pt = pre + (cur - pre) * (1.0 - RFBrush_Stroke.stroke_smooth)
                 if raycast_valid_sources(context, pt):
                     self.stroke += [pt]
                 if (self.stroke[0] - self.stroke[-1]).length > Drawing.scale(self.far_distance):
