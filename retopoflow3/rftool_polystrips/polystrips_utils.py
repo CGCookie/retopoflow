@@ -274,7 +274,7 @@ class RFTool_PolyStrips_Strip:
     def recompute_curve(self):
         pts = strip_centers(self.bmf_strip)
         self.curve = CubicBezier.create_from_points(pts)
-        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=50)
+        self.curve.tessellate_uniform(split=50)
 
     def capture_edges(self):
         self.bmes = []
@@ -292,7 +292,7 @@ class RFTool_PolyStrips_Strip:
             diffdir = halfdiff.normalized()
             center = bmvs[0].co + halfdiff
 
-            t = self.curve.approximate_t_at_point_tessellation(center, lambda p,q:(p-q).length)
+            t = self.curve.approximate_t_at_point_tessellation(center)
             pos,der = self.curve.eval(t),self.curve.eval_derivative(t).normalized()
 
             rad = halfdiff.length
@@ -304,7 +304,7 @@ class RFTool_PolyStrips_Strip:
             self.bmes += [(bme, t, rad, rot, off_cross, off_der, off_norm)]
 
     def update(self, nearest_sources_Point, raycast_sources_Point, update_face_normal):
-        self.curve.tessellate_uniform(lambda p,q:(p-q).length, split=50)
+        self.curve.tessellate_uniform(split=50)
         length = self.curve.approximate_totlength_tessellation()
         for bme,t,rad,rot,off_cross,off_der,off_norm in self.bmes:
             pos,norm,_,_ = raycast_sources_Point(self.curve.eval(t))

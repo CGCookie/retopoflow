@@ -270,8 +270,8 @@ class PolyStrips_Ops:
             max_error = min(min(lengths0),min(lengths1)) / 100.0   # arbitrary!
             spline0 = CubicBezierSpline.create_from_points([pts0], max_error, min_count_split=3)
             spline1 = CubicBezierSpline.create_from_points([pts1], max_error, min_count_split=3)
-            spline0.tessellate_uniform(lambda a,b: (a-b).length, 50)
-            spline1.tessellate_uniform(lambda a,b: (a-b).length, 50)
+            spline0.tessellate_uniform(split=50)
+            spline1.tessellate_uniform(split=50)
             len0,len1 = len(spline0), len(spline1)
             self.count_data['splines'] += [spline0, spline1]
             self.count_data['points'] += pts0 + pts1

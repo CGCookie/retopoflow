@@ -167,6 +167,25 @@ class Drawing:
             offset += (p1 - p0).length
         gpu.shader.unbind()
 
+    @staticmethod
+    def draw2D_points(context, points, color, *, radius=1, border=0, borderColor=None):
+        gpu.state.blend_set('ALPHA')
+        radius = Drawing.scale(radius)
+        border = Drawing.scale(border)
+        if borderColor is None: borderColor = (*color[:3], 0)
+        shader_2D_point.bind()
+        ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_point.options.screensize = (context.area.width, context.area.height)
+        ubos_2D_point.options.radius_border = (radius, border, 0, 0)
+        ubos_2D_point.options.color = color
+        ubos_2D_point.options.colorBorder = borderColor
+        for pt in points:
+            if not pt: continue
+            ubos_2D_point.options.center = (*pt, 0, 1)
+            ubos_2D_point.update_shader()
+            batch_2D_point.draw(shader_2D_point)
+        gpu.shader.unbind()
+
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')
     #     radius = Drawing.scale(radius)
@@ -181,23 +200,6 @@ class Drawing:
     #     ubos_2D_point.options.center = (*pt, 0, 1)
     #     ubos_2D_point.update_shader()
     #     batch_2D_point.draw(shader_2D_point)
-    #     gpu.shader.unbind()
-
-    # def draw2D_points(context, pts, color, *, radius=1, border=0, borderColor=None):
-    #     gpu.state.blend_set('ALPHA')
-    #     radius = Drawing.scale(radius)
-    #     border = Drawing.scale(border)
-    #     if borderColor is None: borderColor = (*color[:3], 0)
-    #     shader_2D_point.bind()
-    #     ubos_2D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
-    #     ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix()
-    #     ubos_2D_point.options.radius_border = (radius, border, 0, 0)
-    #     ubos_2D_point.options.color = color
-    #     ubos_2D_point.options.colorBorder = borderColor
-    #     for pt in pts:
-    #         ubos_2D_point.options.center = (*pt, 0, 1)
-    #         ubos_2D_point.update_shader()
-    #         batch_2D_point.draw(shader_2D_point)
     #     gpu.shader.unbind()
 
     fontsize = None

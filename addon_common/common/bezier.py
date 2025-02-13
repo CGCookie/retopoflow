@@ -24,7 +24,7 @@ import math
 from mathutils import Vector, Matrix
 
 from .maths import Point, Vec
-from .utils import iter_running_sum
+from .utils import iter_running_sum, iter_pairs
 
 
 def compute_quadratic_weights(t):
@@ -363,10 +363,10 @@ class CubicBezier:
 
     def get_tessellate_uniform(self, fn_dist, split=None):
         split = split or self.split_default
-        ts = [i/(split-1) for i in range(split)]
+        ts = [i / (split - 1) for i in range(split)]
         ps = [self.eval(t) for t in ts]
-        ds = [0] + [fn_dist(p, q) for p, q in zip(ps[:-1], ps[1:])]
-        return [(t, p, d) for t, p, d in zip(ts, ps, ds)]
+        ds = [0] + [fn_dist(p, q) for p, q in iter_pairs(ps, False)]
+        return [(t, p, d) for (t, p, d) in zip(ts, ps, ds)]
 
     def tessellate_uniform_points(self, segments=None):
         segments = segments or self.segments_default
@@ -382,10 +382,13 @@ class CubicBezier:
     #                                       #
     #########################################
 
-    def tessellate_uniform(self, fn_dist, split=None):
+    def tessellate_uniform(self, *, fn_dist=None, split=None):
+        if not fn_dist: fn_dist = lambda a, b: (a - b).length
+        self.fn_dist = fn_dist
         self.tessellation = self.get_tessellate_uniform(fn_dist, split=split)
 
-    def approximate_t_at_point_tessellation(self, point, fn_dist):
+    def approximate_t_at_point_tessellation(self, point):
+        fn_dist = self.fn_dist
         bd, bt = None, None
         for t, q, _ in self.tessellation:
             d = fn_dist(point, q)
@@ -539,7 +542,8 @@ class CubicBezierSpline:
     #                                       #
     #########################################
 
-    def tessellate_uniform(self, fn_dist, split=None):
+    def tessellate_uniform(self, *, fn_dist=None, split=None):
+        if not fn_dist: fn_dist = lambda a, b: (a - b).length
         self.tessellation.clear()
         for i, cb in enumerate(self.cbs):
             cb_tess = cb.get_tessellate_uniform(fn_dist, split=split)

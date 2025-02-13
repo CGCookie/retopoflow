@@ -144,6 +144,8 @@ def bmes_share_bmv(bme0, bme1):
     return bool(set(bme0.verts) & set(bme1.verts))
 def bmvs_shared_bme(bmv0, bmv1):
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
+def bmfs_shared_bme(bmf0, bmf1):
+    return next((bme for bme in bmf0.edges if bme in bmf1.edges), None)
 def bme_vector(bme):
     return (bme.verts[1].co - bme.verts[0].co)
 def bme_length(bme):

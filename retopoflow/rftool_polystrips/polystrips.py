@@ -30,7 +30,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_point_valid_sources
+from ..common.raycast import raycast_point_valid_sources, mouse_from_event
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
@@ -216,11 +216,13 @@ class RFOperator_PolyStrips(RFOperator):
     def init(self, context, event):
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
+        RFTool_PolyStrips.rf_overlay.pause_overlay = True
         self.tickle(context)
 
     def finish(self, context):
         RFTool_PolyStrips.rf_brush.set_operator(None)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
+        RFTool_PolyStrips.rf_overlay.pause_overlay = False
 
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
