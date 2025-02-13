@@ -320,7 +320,7 @@ class PP_Logic:
         props = RF_Prefs.get_prefs(context)
         highlight = props.highlight_color
 
-        color_point =               Color4((highlight[0], highlight[1], highlight[2], 0.5))
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
         color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
         color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
         color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
