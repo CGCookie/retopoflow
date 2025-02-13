@@ -422,6 +422,9 @@ class Actions:
         self.mousedown_middle = None    # mouse position when MMB was pressed
         self.mousedown_right  = None    # mouse position when RMB was pressed
         self.mousedown_drag   = False   # is user dragging?
+        self.mouse_delta      = 100000  # mouse movement delta
+        self._mouse_delta_point = None  # reference point for mouse movement delta
+        self.mouse_delta_moving = False # is mouse moving based on delta threshold?
 
         # indicates if currently navigating
         self.is_navigating = False
@@ -501,6 +504,18 @@ class Actions:
         if self.mousemove:
             self.mouse_prev = self.mouse
             self.mouse = Point2D((float(event.mouse_region_x), float(event.mouse_region_y)))
+            if self._mouse_delta_point is None:
+                # Init reference point.
+                self._mouse_delta_point = self.mouse
+            elif self.mouse_prev is not None:
+                self.mouse_delta = (self.mouse - self._mouse_delta_point).length
+                # Mouse moved enough.
+                if self.mouse_delta > 3:
+                    # Refresh reference point.
+                    self._mouse_delta_point = self.mouse
+                    self.mouse_delta_moving = True
+                else:
+                    self.mouse_delta_moving = False
 
             if not self.mousedown:
                 self.mousedown_drag = False
