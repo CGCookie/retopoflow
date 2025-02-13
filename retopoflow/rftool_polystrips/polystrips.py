@@ -89,12 +89,14 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     )
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, is_cycle):
+    def polystrips_insert(context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
             stroke3D,
             is_cycle,
+            snap_bmf0,
+            snap_bmf1,
         )
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
@@ -218,6 +220,7 @@ class RFOperator_PolyStrips(RFOperator):
             radius2D,
             stroke3D,
             is_cycle,
+            snap_bmf0, snap_bmf1,
         )
 
     def update(self, context, event):

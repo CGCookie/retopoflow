@@ -77,7 +77,7 @@ NOT HANDLING CYCLIC STROKES, YET
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D, is_cycle):
+    def __init__(self, context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -86,6 +86,8 @@ class PolyStrips_Logic:
         self.radius2D = radius2D
         self.stroke3D = [ pt for pt in stroke3D if pt ]
         self.is_cycle = is_cycle
+        self.snap_bmf0 = snap_bmf0
+        self.snap_bmf1 = snap_bmf1
 
         # process stroke data, such as projecting and computing length
         self.process_stroke(context)
@@ -229,6 +231,13 @@ class PolyStrips_Logic:
 
     def process_stroke(self, context):
         M, Mi = self.matrix_world, self.matrix_world_inv
+
+        #############################################################################
+        # TODO: change logic to use snapped bmfs so UI and logic match!
+        #       do not do the following!
+        #       still need to find which edge of each bmf is crossed, but that
+        #       should be much easier!
+        #############################################################################
 
         # determine if stroke crosses any edges
         faces = {}
