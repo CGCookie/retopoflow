@@ -19,35 +19,40 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-
 import bpy
+from ..preferences import RF_Prefs
 
-def draw_masking_options(context, layout):
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-    props = tool.operator_properties(tool.idname)
+def draw_display_options(context, layout):
+    props = RF_Prefs.get_prefs(context)
+    theme = context.preferences.themes[0]
 
-    layout.use_property_split = True
-    layout.use_property_decorate = False
+    grid = layout.grid_flow(even_columns=True, even_rows=True)
+    grid.use_property_split = True
+    grid.use_property_decorate = False
 
-    layout.prop(props, 'mask_selected', text="Selected")
-    layout.prop(props, 'mask_boundary', text="Boundary")
-    # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-    layout.prop(props, 'mask_occluded', text="Occluded")
+    col = grid.column()
+    col.prop(theme.view_3d, 'face_retopology', text='Overlay')
+    col.separator()
+    col = grid.column()
+    row = col.row(heading='Expand')
+    row.prop(props, 'expand_masking', text='Masking')
 
-def draw_masking_panel(context, layout):
-    header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
-    header.label(text="Masking")
+
+def draw_display_panel(context, layout):
+    header, panel = layout.panel(idname='display_panel_common', default_closed=True)
+    header.label(text="Display")
     if panel:
-        draw_masking_options(context, panel)
+        draw_display_options(context, panel)
+
 
 class RFMenu_PT_Masking(bpy.types.Panel):
-    bl_label = "Masking"
-    bl_idname = "RF_PT_Masking"
+    bl_label = "Display"
+    bl_idname = "RF_PT_Display"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_masking_options(context, self.layout)
+        draw_display_options(context, self.layout)
 
 def register():
     bpy.utils.register_class(RFMenu_PT_Masking)

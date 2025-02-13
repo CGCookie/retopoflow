@@ -27,7 +27,7 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     from ..preferences import RF_Prefs
     props = RF_Prefs.get_prefs(context)
 
-    grid = layout.grid_flow(even_columns=False, even_rows=False)
+    grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
 
@@ -37,6 +37,7 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     row = col.row()
     row.enabled = props.cleaning_use_merge
     row.prop(props, 'cleaning_merge_threshold', text='Threshold')
+    col.separator()
 
     col = grid.column()
     row = col.row(heading='Delete')

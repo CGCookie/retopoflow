@@ -53,6 +53,7 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.display_panel import draw_display_panel
 from ..common.interface import draw_line_separator
 
 from .polypen_logic import PP_Logic
@@ -233,6 +234,7 @@ class RFTool_PolyPen(RFTool_Base):
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
+            layout.popover('RF_PT_Display', text='', icon='OPTIONS')
 
         else:
             header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)
@@ -243,6 +245,7 @@ class RFTool_PolyPen(RFTool_Base):
                     panel.prop(props_polypen, 'quad_stability', slider=True)
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_display_panel(context, layout)
 
     @classmethod
     def activate(cls, context):

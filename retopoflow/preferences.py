@@ -30,6 +30,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
     def get_prefs(context):
         bl_idname = __name__.split('.')[0]
         return context.preferences.addons[bl_idname].preferences
+    
+    """ Display """
+    #region
+    expand_masking: bpy.props.BoolProperty(
+        name='Expand Masking Options',
+        description=(
+            'Show masking options for brush tools directly in the 3D View tool header rather than in a menu. ' 
+            'Useful when working on larger screens.'
+        ),
+        default=False,
+    )
+    #endregion
 
 
     """ Tweaking """
@@ -87,6 +99,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
+
+        from .rfpanels.display_panel import draw_display_options
+        header, panel = layout.panel(idname='display_panel_prefs', default_closed=True)
+        header.label(text="Display")
+        if panel:
+            draw_display_options(context, panel)
 
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)

@@ -39,8 +39,8 @@ def draw_tweaking_options(context, layout):
     row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
     col.prop(props, 'tweaking_distance', text='Distance')
     col = grid.column()
-    col.label(text='Auto Merge')
-    col.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
+    row = col.row(heading='Auto Merge')
+    row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
     row = col.row()
     row.enabled = context.scene.tool_settings.use_mesh_automerge
     row.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')

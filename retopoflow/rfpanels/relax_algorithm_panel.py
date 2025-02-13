@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
-def draw_relax_algo_options(layout, context):
+def draw_relax_algo_options(context, layout):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
     props = tool.operator_properties(tool.idname)
 
@@ -41,11 +41,11 @@ def draw_relax_algo_options(layout, context):
     col = layout.column(heading="Correct")
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
-def draw_relax_algo_panel(layout, context):
+def draw_relax_algo_panel(context, layout):
     header, panel = layout.panel(idname='relax_panel_algo', default_closed=False)
     header.label(text="Algorithm")
     if panel:
-        draw_relax_algo_options(panel, context)
+        draw_relax_algo_options(context, panel)
 
 class RFMenu_PT_RelaxAlgorithm(bpy.types.Panel):
     bl_label = "Algorithm"
@@ -54,7 +54,7 @@ class RFMenu_PT_RelaxAlgorithm(bpy.types.Panel):
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_relax_algo_options(self.layout, context)
+        draw_relax_algo_options(context, self.layout)
 
 def register():
     bpy.utils.register_class(RFMenu_PT_RelaxAlgorithm)

@@ -71,7 +71,10 @@ from ..rfbrushes.falloff_brush import create_falloff_brush
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.masking_panel import draw_masking_panel
 from ..rfpanels.relax_algorithm_panel import draw_relax_algo_panel
+from ..rfpanels.display_panel import draw_display_panel
 from ..common.interface import draw_line_separator
+
+from ..preferences import RF_Prefs
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
@@ -253,6 +256,7 @@ class RFTool_Relax(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(RFOperator_Relax.bl_idname)
+        prefs = RF_Prefs.get_prefs(context)
 
         # TOOL_HEADER: 3d view > toolbar
         # UI: 3d view > n-panel
@@ -263,16 +267,19 @@ class RFTool_Relax(RFTool_Base):
             layout.prop(props, 'brush_strength')
             layout.prop(props, 'brush_falloff')
             layout.popover('RF_PT_RelaxAlgorithm')
-            #layout.popover('RF_PT_Masking')
-            draw_line_separator(layout)
-            layout.prop(props, 'mask_selected', text="Selected")
-            layout.prop(props, 'mask_boundary', text="Boundary")
-            # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-            layout.prop(props, 'mask_occluded', text="Occluded")
+            if prefs.expand_masking:
+                draw_line_separator(layout)
+                layout.prop(props, 'mask_selected', text="Selected")
+                layout.prop(props, 'mask_boundary', text="Boundary")
+                # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+                layout.prop(props, 'mask_occluded', text="Occluded")
+            else:
+                layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
+            layout.popover('RF_PT_Display', text='', icon='OPTIONS')
 
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
@@ -284,6 +291,7 @@ class RFTool_Relax(RFTool_Base):
             draw_relax_algo_panel(context, layout)
             draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_display_panel(context, layout)
 
         else:
             print(f'RFTool_Relax.draw_settings: {context.region.type=}')
