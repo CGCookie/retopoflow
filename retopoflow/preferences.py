@@ -41,6 +41,14 @@ class RF_Prefs(bpy.types.AddonPreferences):
         ),
         default=False,
     )
+    highlight_color: bpy.props.FloatVectorProperty(
+        name='Highlight Color',
+        description=('The color used by the insert tools when adding new geometry'),
+        subtype='COLOR',
+        default=[1, 1, 0],
+        min=0, 
+        max=1,
+    )
     #endregion
 
 

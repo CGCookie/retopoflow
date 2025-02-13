@@ -24,18 +24,19 @@ from ..preferences import RF_Prefs
 
 def draw_display_options(context, layout):
     props = RF_Prefs.get_prefs(context)
-    theme = context.preferences.themes[0]
+    theme = context.preferences.themes[0].view_3d
 
     grid = layout.grid_flow(even_columns=True, even_rows=True)
     grid.use_property_split = True
     grid.use_property_decorate = False
 
     col = grid.column()
-    col.prop(theme.view_3d, 'face_retopology', text='Overlay')
+    row = col.row(heading='Expand')
+    row.prop(props, 'expand_masking', text='Masking Options')
     col.separator()
     col = grid.column()
-    row = col.row(heading='Expand')
-    row.prop(props, 'expand_masking', text='Masking')
+    col.prop(theme, 'face_retopology', text='Overlay')
+    col.prop(props, 'highlight_color', text='Highlight')
 
 
 def draw_display_panel(context, layout):

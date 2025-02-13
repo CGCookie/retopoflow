@@ -35,6 +35,8 @@ import time
 from enum import auto
 from typing import List
 
+from ..preferences import RF_Prefs
+
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
@@ -314,13 +316,24 @@ class PP_Logic:
         if not self.nearest or not self.nearest.is_valid: return
         if not self.nearest_bme or not self.nearest_bme.is_valid: return
 
+        theme = context.preferences.themes[0].view_3d
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
+
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 0.5))
+        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
+        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
+        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
+        color_mesh = theme.face_select
+
         if self.nearest.bmv:
             co = self.matrix_world @ self.nearest.bmv.co
             p = location_3d_to_region_2d(context.region, context.region_data, co)
             with Drawing.draw(context, CC_2D_POINTS) as draw:
                 draw.point_size(8)
-                draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
+                draw.border(width=2, color=color_point)
+                draw.color(color_border_transparent)
                 draw.vertex(p)
 
 
@@ -332,7 +345,7 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_point)
                     draw.vertex(pt)
 
             case PP_Action.EDGE_VERT:
@@ -346,19 +359,19 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     draw.vertex(pt)
 
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
                     draw.vertex(p1)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
@@ -374,11 +387,11 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     draw.vertex(pt)
 
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
                     draw.vertex(p1)
 
@@ -386,9 +399,9 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
@@ -405,18 +418,18 @@ class PP_Logic:
                     draw.point_size(8)
 
                     if not self.nearest.bmv:
-                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.color(color_border_open)
                         draw.vertex(pt)
 
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
 
                 if diff.length > Drawing.scale(8):
                     with Drawing.draw(context, CC_2D_LINES) as draw:
                         draw.line_width(2)
-                        draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
-                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+                        draw.color(color_border_open)
                         draw.vertex(p0 + d).vertex(pt - d)
 
             case PP_Action.EDGE_TRI:
@@ -433,27 +446,27 @@ class PP_Logic:
                     draw.point_size(8)
 
                     if not self.nearest.bmv:
-                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.color(color_border_open)
                         draw.vertex(pt)
 
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
                     draw.vertex(p1)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d0t).vertex(pt - d0t)
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.color(color_mesh)
                     draw.vertex(pt).vertex(p0).vertex(p1)
 
             case PP_Action.EDGE_QUAD_EDGE:
@@ -472,8 +485,8 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
                     draw.vertex(p1)
                     draw.vertex(p2)
@@ -481,18 +494,18 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     draw.vertex(p0 - d30).vertex(p3 + d30)
                     draw.vertex(p1 + d12).vertex(p2 - d12)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.color(color_mesh)
                     draw.vertex(p0).vertex(p1).vertex(p2)
                     draw.vertex(p0).vertex(p2).vertex(p3)
 
@@ -513,11 +526,11 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(8)
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     if not self.bmv2: draw.vertex(p2)
                     if not self.bmv3: draw.vertex(p3)
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_stipple)
+                    draw.border(width=2, color=color_point)
                     draw.vertex(p0)
                     draw.vertex(p1)
                     if self.bmv2: draw.vertex(p2)
@@ -525,18 +538,18 @@ class PP_Logic:
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     if v30.length > Drawing.scale(8): draw.vertex(p0 - d30).vertex(p3 + d30)
                     if v12.length > Drawing.scale(8): draw.vertex(p1 + d12).vertex(p2 - d12)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.color(color_mesh)
                     draw.vertex(p0).vertex(p1).vertex(p2)
                     draw.vertex(p0).vertex(p2).vertex(p3)
 
@@ -565,30 +578,30 @@ class PP_Logic:
                     draw.point_size(8)
 
                     if not self.nearest.bmv:
-                        draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                        draw.color(color_border_open)
                         draw.vertex(pt)
 
-                    draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
                     draw.vertex(p0)
                     draw.vertex(p1)
                     draw.vertex(p2)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
-                    draw.stipple(pattern=[5,5], offset=0, color=Color4((40/255, 255/255, 40/255, 0.0)))
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 1.0)))
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d0t).vertex(pt - d0t)
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.5)))
+                    draw.color(color_border_mesh)
                     # draw.vertex(p0 + d01).vertex(p1 - d01)
                     draw.vertex(p0 + d02).vertex(p2 - d02)
                     draw.vertex(p1 + d12).vertex(p2 - d12)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
-                    draw.color(Color4((40/255, 255/255, 40/255, 0.25)))
+                    draw.color(color_mesh)
                     draw.vertex(p0).vertex(pt).vertex(p1)
                     draw.vertex(p0).vertex(p1).vertex(p2)
 
