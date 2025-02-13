@@ -25,7 +25,7 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMFace
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -61,7 +61,12 @@ from ...addon_common.common.timerhandler import TimerHandler
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, **kwargs):
+def create_stroke_brush(idname, label, *, snap=(True,False,False), **kwargs):
+    snap_verts, snap_edges, snap_faces = snap
+    snap_any = snap_verts or snap_edges or snap_faces
+    if snap_edges:
+        print(f'WARNING: NOT HANDLING SNAPPED EDGES IN STROKE BRUSH, YET')
+
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
         radius = kwargs.get('radius', 40)
@@ -98,9 +103,8 @@ def create_stroke_brush(idname, label, **kwargs):
             self.hit_z = None
             self.hit_rmat = None
 
-            self.nearest = None
-            self.snap_bmv0 = None
-            self.snap_bmv1 = None
+            # reset snap to nearest
+            self.reset()
 
             self.stroke = None
             self.stroke_far = False    # True when stroke has gone "far enough" away to consider cycle
@@ -116,24 +120,33 @@ def create_stroke_brush(idname, label, **kwargs):
             self.operator = operator
 
         def reset(self):
-            self.nearest = None
+            self.nearest_bmv = None
             self.snap_bmv0 = None
             self.snap_bmv1 = None
+            # TODO: Implement snapping to nearest bme if needed
+            self.nearest_bmf = None
+            self.snap_bmf0 = None
+            self.snap_bmf1 = None
 
         def reset_nearest(self, context):
             if self.operator:
                 self.matrix_world = context.edit_object.matrix_world
                 self.matrix_world_inv = self.matrix_world.inverted()
                 self.bm, self.em = get_bmesh_emesh(context)
-                self.nearest = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+                if snap_verts:
+                    self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+                if snap_faces:
+                    self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv)
             else:
                 self.matrix_world = None
                 self.matrix_world_inv = None
                 self.bm, self.em = None, None
-                self.nearest = None
+                self.reset()
 
             self.snap_bmv0 = None
             self.snap_bmv1 = None
+            self.snap_bmf0 = None
+            self.snap_bmf1 = None
 
         def get_scaled_radius(self):
             return self.hit_scale * self.radius
@@ -149,9 +162,7 @@ def create_stroke_brush(idname, label, **kwargs):
             if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
                 self.stroke = None
                 self.stroke_cycle = None
-                self.nearest = None
-                self.snap_bmv0 = None
-                self.snap_bmv1 = None
+                self.reset()
                 if self.timer: self.timer.stop()
                 self.timer = None
                 context.area.tag_redraw()
@@ -159,6 +170,9 @@ def create_stroke_brush(idname, label, **kwargs):
 
             if self.snap_bmv0 and not self.snap_bmv0.is_valid: self.snap_bmv0 = None
             if self.snap_bmv1 and not self.snap_bmv1.is_valid: self.snap_bmv1 = None
+            # TODO: Implement for bme if needed
+            if self.snap_bmf0 and not self.snap_bmf0.is_valid: self.snap_bmf0 = None
+            if self.snap_bmf1 and not self.snap_bmf1.is_valid: self.snap_bmf1 = None
 
             if not self.is_stroking():
                 if not event.ctrl or not self.operator:
@@ -171,18 +185,36 @@ def create_stroke_brush(idname, label, **kwargs):
             mouse = mouse_from_event(event)
 
             if self.operator and self.operator.is_active():
-                if not self.nearest:
+                if snap_any and not (self.nearest_bmv or self.nearest_bmf):
                     self.reset_nearest(context)
                 hit = raycast_valid_sources(context, mouse)
                 if hit:
-                    self.nearest.update(context, hit['co_local'], filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire), distance2d=self.snap_distance)
-                    if not self.is_stroking():
-                        self.snap_bmv0 = self.nearest.bmv
-                        self.snap_bmv1 = None
-                    elif self.snap_bmv0 != self.nearest.bmv:
-                        self.snap_bmv1 = self.nearest.bmv
-                    else:
-                        self.snap_bmv1 = None
+                    if self.nearest_bmv:
+                        self.nearest_bmv.update(
+                            context,
+                            hit['co_local'],
+                            filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire),
+                            distance2d=self.snap_distance,
+                        )
+                        if not self.is_stroking():
+                            self.snap_bmv0 = self.nearest_bmv.bmv
+                            self.snap_bmv1 = None
+                        elif self.snap_bmv0 != self.nearest_bmv.bmv:
+                            self.snap_bmv1 = self.nearest_bmv.bmv
+                        else:
+                            self.snap_bmv1 = None
+                    if self.nearest_bmf:
+                        self.nearest_bmf.update(
+                            context,
+                            hit['co_local'],
+                            filter_fn=(lambda bmf:any(len(bme.link_faces)==1 for bme in bmf.edges)),
+                        )
+                        if not self.is_stroking():
+                            self.snap_bmf0 = self.nearest_bmf.bmf
+                            self.snap_bmf1 = None
+                        else:
+                            self.snap_bmf1 = self.nearest_bmf.bmf
+                        print(self.snap_bmf0, self.snap_bmf1)
 
             if event.type == 'LEFTMOUSE':
                 if event.value == 'PRESS':
@@ -202,9 +234,7 @@ def create_stroke_brush(idname, label, **kwargs):
                         self.operator.process_stroke(context, self.radius, self.stroke, self.stroke_cycle, self.snap_bmv0, self.snap_bmv1)
                         self.stroke = None
                         self.stroke_cycle = None
-                        self.nearest = None
-                        self.snap_bmv0 = None
-                        self.snap_bmv1 = None
+                        self.reset()
 
                         self.timer.stop()
                         self.timer = None
@@ -297,7 +327,7 @@ def create_stroke_brush(idname, label, **kwargs):
                 if self.stroke_cycle:
                     Drawing.draw2D_linestrip(context, [self.stroke[0], self.stroke[-1]], self.cycle_color, width=2)
 
-            if self.nearest:
+            if self.nearest_bmv:
                 if self.is_stroking():
                     if self.snap_bmv0 and self.snap_bmv0.is_valid:
                         co = self.matrix_world @ self.snap_bmv0.co
@@ -312,6 +342,14 @@ def create_stroke_brush(idname, label, **kwargs):
                         co = self.matrix_world @ self.snap_bmv0.co
                         p2d = location_3d_to_region_2d(context.region, context.region_data, co)
                         Drawing.draw2D_linestrip(context, [Point2D(self.mouse), p2d], self.snap_color, width=2)
+
+            if self.nearest_bmf:
+                if self.snap_bmf0 and self.snap_bmf0.is_valid:
+                    cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in self.snap_bmf0.verts]
+                    Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
+                if self.snap_bmf1 and self.snap_bmf1.is_valid:
+                    cos = [location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co) for bmv in self.snap_bmf1.verts]
+                    Drawing.draw2D_linestrip(context, cos + [cos[0]], self.snap_color, width=2)
 
         def draw_postpixel(self, context):
             if not self.RFCore.is_current_area(context): return

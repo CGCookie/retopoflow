@@ -476,3 +476,43 @@ class NearestBMEdge:
         self.bme = bme
         co2d0, co2d1 = [location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmv.co) for bmv in bme.verts]
         self.co2d = closest_point_linesegment(co2d, co2d0, co2d1)
+
+class NearestBMFace:
+    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
+        self.bm = bm
+        self.matrix = matrix
+        self.matrix_inv = matrix_inv
+        if ensure_lookup_tables:
+            self.bm.verts.ensure_lookup_table()
+            self.bm.edges.ensure_lookup_table()
+            self.bm.faces.ensure_lookup_table()
+        self.bvh = BVHTree.FromBMesh(self.bm)
+        self.bmf = None
+
+    @property
+    def is_valid(self):
+        return all((
+            self.bm.is_valid,
+            (self.bmf is None or self.bmf.is_valid),
+        ))
+
+    def update(self, context, co, *, distance=1.84467e19, distance2d=10, filter_selected=True, filter_fn=None):
+        # NOTE: distance here is local to object!!!  target object could be scaled!
+        # even stranger is if target is non-uniformly scaled
+
+        self.bmf = None
+        if not self.is_valid: return
+        if not co: return
+
+        bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh.find_nearest(co, distance) # distance=1.0
+
+        if bmf_idx is not None:
+            co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
+            bmf_co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmf_co)
+            if (co2d - bmf_co2d).length < Drawing.scale(distance2d):
+                self.bmf = self.bm.faces[bmf_idx]
+        if filter_fn and self.bmf:
+            if not filter_fn(self.bmf): self.bmf = None
+        elif filter_selected and self.bmf:
+            if self.bmf.select: self.bmf = None
+
