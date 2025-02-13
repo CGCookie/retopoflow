@@ -152,10 +152,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 print('DONE!')
                 return {'RUNNING_MODAL'}  # CONTINUE RUNNING MODAL TO EAT EVENT!
             if event.type in {'ESC', 'RIGHTMOUSE'}:
-                if self.grab['handle'] == 0: curve.p0 = self.grab['prev']
-                if self.grab['handle'] == 1: curve.p1 = self.grab['prev']
-                if self.grab['handle'] == 2: curve.p2 = self.grab['prev']
-                if self.grab['handle'] == 3: curve.p3 = self.grab['prev']
+                curve.p0, curve.p1, curve.p2, curve.p3 = self.grab['prev']
                 for bmv_idx in data:
                     bm.verts[bmv_idx].co = data[bmv_idx][2]
                 bmesh.update_edit_mesh(em)
@@ -169,16 +166,21 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             rgn, r3d = context.region, context.region_data
             M, Mi = self.grab['matrices']
             fwd = self.grab['fwd']
-            pre_edit   = self.grab['prev']
-            pre_world  = M @ pre_edit
-            pre_screen = location_3d_to_region_2d(rgn, r3d, pre_world)
-            cur_screen = pre_screen + delta
-            cur_edit   = Mi @ region_2d_to_location_3d(rgn, r3d, cur_screen, pre_world)
+
+            def xform(pt0_edit):
+                pt0_world  = M @ pt0_edit
+                pt0_screen = location_3d_to_region_2d(rgn, r3d, pt0_world)
+                pt1_screen = pt0_screen + delta
+                pt1_world  = region_2d_to_location_3d(rgn, r3d, pt1_screen, pt0_world)
+                pt1_edit   = Mi @ pt1_world
+                return pt1_edit
+
+            p0, p1, p2, p3 = self.grab['prev']
             curve = self.curves[self.grab['curve']]
-            if self.grab['handle'] == 0: curve.p0 = cur_edit
-            if self.grab['handle'] == 1: curve.p1 = cur_edit
-            if self.grab['handle'] == 2: curve.p2 = cur_edit
-            if self.grab['handle'] == 3: curve.p3 = cur_edit
+            if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0), xform(p1)
+            if self.grab['handle'] == 1: curve.p1 = xform(p1)
+            if self.grab['handle'] == 2: curve.p2 = xform(p2)
+            if self.grab['handle'] == 3: curve.p2, curve.p3 = xform(p2), xform(p3)
 
             for bmv_idx in data:
                 bmv = bm.verts[bmv_idx]
@@ -244,10 +246,11 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 pt1 = location_3d_to_region_2d(rgn, r3d, M @ curve.p1)
                 pt2 = location_3d_to_region_2d(rgn, r3d, M @ curve.p2)
                 pt3 = location_3d_to_region_2d(rgn, r3d, M @ curve.p3)
-                if (pt0 - mouse).length < d: return (i, 0, curve.p0)
-                if (pt1 - mouse).length < d: return (i, 1, curve.p1)
-                if (pt2 - mouse).length < d: return (i, 2, curve.p2)
-                if (pt3 - mouse).length < d: return (i, 3, curve.p3)
+                prev = [curve.p0, curve.p1, curve.p2, curve.p3]
+                if (pt0 - mouse).length < d: return (i, 0, prev)
+                if (pt1 - mouse).length < d: return (i, 1, prev)
+                if (pt2 - mouse).length < d: return (i, 2, prev)
+                if (pt3 - mouse).length < d: return (i, 3, prev)
             return None
 
         def draw_postpixel_overlay(self):
