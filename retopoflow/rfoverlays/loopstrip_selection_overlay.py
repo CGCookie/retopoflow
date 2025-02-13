@@ -27,16 +27,8 @@ from ..common.operator import RFOperator
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.maths import point_to_bvec4
-from ..common.raycast import raycast_valid_sources
+from ..common.raycast import is_point_hidden
 from ...addon_common.common import bmesh_ops as bmops
-
-def is_point_hidden(context, pt, *, factor=0.95):
-    M = context.edit_object.matrix_world
-    point = M @ point_to_bvec4(pt)
-    hit = raycast_valid_sources(context, point)
-    if not hit: return False
-    ray_e = hit['ray_world'][0]
-    return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
 
 
 def get_label_pos(context, label, boundary):
