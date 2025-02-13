@@ -231,6 +231,12 @@ class Point2D(Vector, Entity2D):
             c += w
         return Point2D((x / c, y / c)) if c else Point2D((0, 0))
 
+    def __eq__(self, other):
+        ''' Check if this Point2D is equal to another Point2D '''
+        if not isinstance(other, Point2D):
+            return NotImplemented
+        return self.x == other.x and self.y == other.y
+
 
 class RelPoint2D(Vector, Entity2D):
     @stats_wrapper
