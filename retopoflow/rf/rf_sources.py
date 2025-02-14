@@ -35,7 +35,7 @@ from ...addon_common.common.timerhandler import CallGovernor
 from ..rfmesh.rfmesh import RFSource
 from ..rfmesh.rfmesh_render import RFMeshRender
 
-from .event_blocker import is_outside_working_area
+from .event_blocker import block_if_idle_or_outside_working_area
 
 
 class RetopoFlow_Sources:
@@ -136,13 +136,8 @@ class RetopoFlow_Sources:
         if xy is None: return None,None,None,None
         return self.raycast_sources_Ray_all(self.Point2D_to_Ray(xy, min_dist=self.drawing.space.clip_start))
 
+    @block_if_idle_or_outside_working_area(default_return=(None,None,None,None))
     def raycast_sources_mouse(self, *, correct_mirror=None, ignore_backface=None):
-        if self.actions.is_navigating:
-            return None,None,None,None
-        if self.actions.is_idle:
-            return None,None,None,None
-        if is_outside_working_area(self):
-            return None,None,None,None
         return self.raycast_sources_Point2D(self.actions.mouse, correct_mirror=correct_mirror, ignore_backface=ignore_backface)
 
     def raycast_sources_Point(self, xyz:Point, *, correct_mirror=None, ignore_backface=None):
