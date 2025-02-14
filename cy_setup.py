@@ -61,6 +61,7 @@ def build_for_architecture(arch):
     # Automatically discover all .pyx files.
     cy_dir = "retopoflow/cy"
     ext_modules = []
+    print("Found .pyx files:", [f for f in os.listdir(cy_dir) if f.endswith('.pyx')])
     for file in os.listdir(cy_dir):
         if file.endswith('.pyx'):
             module_name = f"retopoflow.cy.{file[:-4]}"  # Remove .pyx extension.
