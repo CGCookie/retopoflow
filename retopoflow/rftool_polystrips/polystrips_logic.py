@@ -50,7 +50,15 @@ from ..common.bmesh_maths import (
     get_longest_strip_cycle,
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
-from ..common.maths import view_forward_direction, lerp, point_to_bvec3, vector_to_bvec3
+from ..common.maths import (
+    view_forward_direction,
+    lerp,
+    point_to_bvec3,
+    vector_to_bvec3,
+    point_to_bvec4,
+    distance_point_linesegment,
+    distance_point_bmedge,
+)
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
@@ -61,7 +69,7 @@ from ...addon_common.common.maths import (
     Direction,
     closest_points_segments,
 )
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.utils import iter_pairs, enumerate_reversed
 
 import math
 from itertools import chain
@@ -77,20 +85,29 @@ NOT HANDLING CYCLIC STROKES, YET
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1):
+    def __init__(self, context, radius2D, stroke3D_local, is_cycle, snap_bmf0, snap_bmf1):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
 
         # store passed parameters
+        M, Mi = self.matrix_world, self.matrix_world_inv
         self.radius2D = radius2D
-        self.stroke3D = [ pt for pt in stroke3D if pt ]
+        self.stroke3D_local = [ pt for pt in stroke3D_local if pt ]
+        self.stroke3D_world = [ (M @ pt) for pt in stroke3D_local if pt ]
         self.is_cycle = is_cycle
         self.snap_bmf0 = snap_bmf0
         self.snap_bmf1 = snap_bmf1
 
+        self.error = False
+
         # process stroke data, such as projecting and computing length
         self.process_stroke(context)
+        if self.error:
+            self.count = 0
+            self.count_min = 0
+            self.width = 0
+            return
 
         # initialize options
         self.action = ''  # will be filled in later
@@ -104,6 +121,7 @@ class PolyStrips_Logic:
     def count(self, v): self._count = max(2, int(v))
 
     def create(self, context):
+        if self.error: return
         self.update_context(context)
 
         self.count = max(self.count, self.count_min)
@@ -121,7 +139,7 @@ class PolyStrips_Logic:
         count = (self.count - 1) if self.snap0 and self.snap1 else self.count
         self.npoints = count + (count - 1)
         self.points = [
-            find_point_at(self.stroke3D, self.is_cycle, (i / (self.npoints - 1)))
+            find_point_at(self.stroke3D_local, self.is_cycle, (i / (self.npoints - 1)))
             for i in range(self.npoints)
         ]
         # print(f'start: {bvh.find_nearest(Mi @ self.points[0])}')
@@ -219,7 +237,7 @@ class PolyStrips_Logic:
         self.rgn, self.r3d = context.region, context.region_data
 
         # gather bmesh data
-        self.bm, self.em = get_bmesh_emesh(context)
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
@@ -239,79 +257,152 @@ class PolyStrips_Logic:
         #       should be much easier!
         #############################################################################
 
-        # determine if stroke crosses any edges
-        faces = {}
-        for bmf in self.bm.faces:
-            bmf_cos = [M @ bmv.co for bmv in bmf.verts]
+        i0, i1 = 0, len(self.stroke3D_local)
+        self.snap0, self.snap1 = None, None
+        if self.snap_bmf0:
+            bmf = self.snap_bmf0
+            bmf_cos = [bmv.co for bmv in bmf.verts]
             bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
             bmf_radius = max((co - bmf_center).length for co in bmf_cos)
-            for i, (pt0, pt1) in enumerate(iter_pairs(self.stroke3D, self.is_cycle)):
-                vpt = pt1 - pt0
-                lpt2 = vpt.dot(vpt)
-                # determine if stroke is going in or out based on stroke segment points
-                in0 = (pt0 - bmf_center).length < bmf_radius
-                in1 = (pt1 - bmf_center).length < bmf_radius
-                if in0 == in1: continue
-                for bme in bmf.edges:
-                    bmv0, bmv1 = bme.verts
-                    co0, co1 = M @ bmv0.co, M @ bmv1.co
-                    vco = co1 - co0
-                    lco2 = vco.dot(vco)
-                    co01, pt01 = closest_points_segments(co0, co1, pt0, pt1)
-                    vclosest = pt01 - co01
-                    lclosest2 = vclosest.dot(vclosest)
-                    if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
-                        bme_center = (co0 + co1) / 2
-                        bme_len = math.sqrt(lco2) / 2
-                        faces[(bmf.index, in1)] = (bme.index, bme_center, bme_len, i, lclosest2)
-        self.crossings = []
-        self.snap0 = None
-        self.snap1 = None
-        for (bmfidx, going_in), (bmeidx, bmectr, bmelen, stidx, dist) in faces.items():
-            self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmectr, bmelen)]
-        self.crossings.sort(key=lambda p: p[0])
-        if self.crossings:
-            # print(self.crossings)
-            i0, i1 = 0, len(self.stroke3D)
-            if self.crossings[0][1]:
-                # ignore stroke after stidx
-                i1 = self.crossings[0][0]
-                self.snap1 = self.crossings[0][2:]
-            else:
-                # ignore stroke up to stidx
-                i0 = self.crossings[0][0]
-                self.snap0 = self.crossings[0][2:]
-                if len(self.crossings) >= 2:
-                    i1 = self.crossings[1][0]
-                    self.snap1 = self.crossings[1][2:]
-            self.stroke3D = self.stroke3D[i0:i1]
+            # find the first stroke pt outside the snapped bmf
+            i0 = next((i for (i,pt) in enumerate(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
+            if i0 is None:
+                print(f'WARNING: stroke totally inside the face!')
+                self.error = True
+                return
+            # find closest edge
+            def dist(bme):
+                center = bme_midpoint(bme)
+                return min((pt - center).length for pt in self.stroke3D_local[:i0])
+            bme = min((bme for bme in bmf.edges), key=dist)
+            # bmfidx, bmeidx, bmectr, bmelen
+            self.snap0 = (
+                bmf.index,
+                bme.index,
+                bme_midpoint(bme),
+                bme_length(bme) / 2,
+            )
+        if self.snap_bmf1:
+            bmf = self.snap_bmf1
+            bmf_cos = [bmv.co for bmv in bmf.verts]
+            bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
+            bmf_radius = max((co - bmf_center).length for co in bmf_cos)
+            # find the first stroke pt outside the snapped bmf
+            i1 = next((i for (i,pt) in enumerate_reversed(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
+            if i1 is None:
+                print(f'WARNING: stroke totally inside the face!')
+                self.error = True
+                return
+            # find closest edge
+            def dist(bme):
+                center = bme_midpoint(bme)
+                return min((pt - center).length for pt in self.stroke3D_local[i1:])
+            bme = min((bme for bme in bmf.edges), key=dist)
+            self.snap1 = (
+                bmf.index,
+                bme.index,
+                bme_midpoint(bme),
+                bme_length(bme) / 2,
+            )
+        if i1 > i0:
+            i0, i1 = i0, i1
+        self.stroke3D_local = self.stroke3D_local[i0:i1+1]
 
         # warp stroke to better fit snapped geo
-        if self.snap0 or self.snap1:
-            if self.snap0 and not self.snap1:
-                offset = self.snap0[2] - self.stroke3D[0]
-                self.stroke3D = [ pt + offset for pt in self.stroke3D ]
-            elif not self.snap0 and self.snap1:
-                offset = self.snap1[2] - self.stroke3D[-1]
-                self.stroke3D = [ pt + offset for pt in self.stroke3D ]
-            else:
-                csnap = (self.snap0[2] + self.snap1[2]) / 2
-                ssnap = (self.snap0[2] - self.snap1[2]).length
-                cstroke = (self.stroke3D[0] + self.stroke3D[-1]) / 2
-                sstroke = (self.stroke3D[0] - self.stroke3D[-1]).length
-                off = csnap - cstroke
-                scale = ssnap / sstroke
-                self.stroke3D = [
-                    nearest_point_valid_sources(context, ((pt - cstroke) * scale + csnap))
-                    for pt in self.stroke3D
-                ]
+        if self.snap0 and not self.snap1:
+            offset = self.snap0[2] - self.stroke3D_local[0]
+            self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
+        elif not self.snap0 and self.snap1:
+            offset = self.snap1[2] - self.stroke3D_local[-1]
+            self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
+        elif self.snap0 and self.snap1:
+            csnap = (self.snap0[2] + self.snap1[2]) / 2
+            ssnap = (self.snap0[2] - self.snap1[2]).length
+            cstroke = (self.stroke3D_local[0] + self.stroke3D_local[-1]) / 2
+            sstroke = (self.stroke3D_local[0] - self.stroke3D_local[-1]).length
+            scale = ssnap / sstroke
+            def offset(pt): return csnap + (pt - cstroke) * scale
+            self.stroke3D_local = [
+                Mi @ nearest_point_valid_sources(context, M @ offset(pt))
+                for pt in self.stroke3D_local
+            ]
+
+
+        # # determine if stroke crosses any edges
+        # faces = {}
+        # for bmf in self.bm.faces:
+        #     bmf_cos = [M @ bmv.co for bmv in bmf.verts]
+        #     bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
+        #     bmf_radius = max((co - bmf_center).length for co in bmf_cos)
+        #     for i, (pt0, pt1) in enumerate(iter_pairs(self.stroke3D, self.is_cycle)):
+        #         vpt = pt1 - pt0
+        #         lpt2 = vpt.dot(vpt)
+        #         # determine if stroke is going in or out based on stroke segment points
+        #         in0 = (pt0 - bmf_center).length < bmf_radius
+        #         in1 = (pt1 - bmf_center).length < bmf_radius
+        #         if in0 == in1: continue
+        #         for bme in bmf.edges:
+        #             bmv0, bmv1 = bme.verts
+        #             co0, co1 = M @ bmv0.co, M @ bmv1.co
+        #             vco = co1 - co0
+        #             lco2 = vco.dot(vco)
+        #             co01, pt01 = closest_points_segments(co0, co1, pt0, pt1)
+        #             vclosest = pt01 - co01
+        #             lclosest2 = vclosest.dot(vclosest)
+        #             if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
+        #                 bme_center = (co0 + co1) / 2
+        #                 bme_len = math.sqrt(lco2) / 2
+        #                 faces[(bmf.index, in1)] = (bme.index, bme_center, bme_len, i, lclosest2)
+        # self.crossings = []
+        # self.snap0 = None
+        # self.snap1 = None
+        # for (bmfidx, going_in), (bmeidx, bmectr, bmelen, stidx, dist) in faces.items():
+        #     self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmectr, bmelen)]
+        # self.crossings.sort(key=lambda p: p[0])
+        # if self.crossings:
+        #     # print(self.crossings)
+        #     i0, i1 = 0, len(self.stroke3D)
+        #     if self.crossings[0][1]:
+        #         # ignore stroke after stidx
+        #         i1 = self.crossings[0][0]
+        #         self.snap1 = self.crossings[0][2:]
+        #     else:
+        #         # ignore stroke up to stidx
+        #         i0 = self.crossings[0][0]
+        #         self.snap0 = self.crossings[0][2:]
+        #         if len(self.crossings) >= 2:
+        #             i1 = self.crossings[1][0]
+        #             self.snap1 = self.crossings[1][2:]
+        #     self.stroke3D = self.stroke3D[i0:i1]
+
+        # # warp stroke to better fit snapped geo
+        # if self.snap0 or self.snap1:
+        #     if self.snap0 and not self.snap1:
+        #         offset = self.snap0[2] - self.stroke3D[0]
+        #         self.stroke3D = [ pt + offset for pt in self.stroke3D ]
+        #     elif not self.snap0 and self.snap1:
+        #         offset = self.snap1[2] - self.stroke3D[-1]
+        #         self.stroke3D = [ pt + offset for pt in self.stroke3D ]
+        #     else:
+        #         csnap = (self.snap0[2] + self.snap1[2]) / 2
+        #         ssnap = (self.snap0[2] - self.snap1[2]).length
+        #         cstroke = (self.stroke3D[0] + self.stroke3D[-1]) / 2
+        #         sstroke = (self.stroke3D[0] - self.stroke3D[-1]).length
+        #         off = csnap - cstroke
+        #         scale = ssnap / sstroke
+        #         self.stroke3D = [
+        #             nearest_point_valid_sources(context, ((pt - cstroke) * scale + csnap))
+        #             for pt in self.stroke3D
+        #         ]
+
+        self.stroke3D_world = [(M @ pt) for pt in self.stroke3D_local]
 
         # project 3D stroke points to screen
-        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D if pt]
+        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D_world if pt]
 
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
-        self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
+        self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D_world, self.is_cycle))
 
 
 
@@ -320,7 +411,7 @@ class PolyStrips_Logic:
     # utility functions
 
     def find_point2D(self, v):  return find_point_at(self.stroke2D, self.is_cycle, v)
-    def find_point3D(self, v):  return find_point_at(self.stroke3D, self.is_cycle, v)
+    def find_point3D(self, v):  return find_point_at(self.stroke3D_world, self.is_cycle, v)
     def project_pt(self, pt):
         p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
         return p.xy if p else None

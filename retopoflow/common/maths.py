@@ -54,9 +54,9 @@ def distance_point_linesegment(pt, p0, p1, *, min_factor=0.05, max_factor=0.95, 
     p = p0 + v01 * f
     return (pt - p).length
 
-def distance_point_bmedge(pt, bme):
+def distance_point_bmedge(pt, bme, **kwargs):
     bmv0, bmv1 = bme.verts
-    return distance_point_linesegment(pt, bmv0.co, bmv1.co)
+    return distance_point_linesegment(pt, bmv0.co, bmv1.co, **kwargs)
 
 def distance2d_point_bmedge(context, matrix, pt, bme):
     bmv0, bmv1 = bme.verts

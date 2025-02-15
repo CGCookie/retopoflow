@@ -390,6 +390,10 @@ def iter_running_sum(lw):
         s += w
         yield (w,s)
 
+def enumerate_reversed(l):
+    n = len(l)
+    yield from ((i,l[i]) for i in range(n - 1, -1, -1))
+
 def iter_pairs(items, wrap, repeat=False):
     if not items: return
     while True:

@@ -235,8 +235,8 @@ class RFCore:
         # bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.append(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
-        bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
+        bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
 
         for s in iter_all_view3d_spaces():
             RFCore.resetter['s.overlay.show_retopology'] = True
@@ -282,21 +282,26 @@ class RFCore:
         RFCore.event_mouse = None
         RFCore.is_controlling = False
 
-        try:
-            for rfop in RFOperator.active_operators:
+        for rfop in RFOperator.active_operators:
+            try:
                 rfop.stop()
-        except ReferenceError as e:
-            print(f'Caught ReferenceError while trying to stop active RetopoFlow operators')
-            debugger.print_exception()
+            except ReferenceError as e:
+                # ReferenceError likely means that Blender is shutting down
+                # we will gracefully "handle" this by ignoring it
+                pass
+            except Exception as e:
+                print(f'Caught unexpected Exception while trying to stop active RetopoFlow operators')
+                print(f'  {e}')
+                debugger.print_exception()
 
         # clean up cache, otherwise old bmesh objects may become invalid even if
         # blender does not recognize them as invalid (bm.is_valid still True)
         get_object_bmesh.cache.clear()
 
         bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
-        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
+        bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
 
         RFCore.remove_handlers()
 
@@ -307,16 +312,19 @@ class RFCore:
     @staticmethod
     def remove_handlers():
         print(f'RFCore.remove_handlers')
-        space = bpy.types.SpaceView3D
-        wm = bpy.types.WindowManager
-        if RFCore._handle_preview:   space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
-        if RFCore._handle_postview:  space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
-        if RFCore._handle_postpixel: space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
-        if RFCore._handle_draw_cursor: wm.draw_cursor_remove(RFCore._handle_draw_cursor)
-        RFCore._handle_preview = None
-        RFCore._handle_postview = None
-        RFCore._handle_postpixel = None
-        RFCore._handle_draw_cursor = None
+        wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
+        if RFCore._handle_preview:
+            space.draw_handler_remove(RFCore._handle_preview,   'WINDOW')
+            RFCore._handle_preview = None
+        if RFCore._handle_postview:
+            space.draw_handler_remove(RFCore._handle_postview,  'WINDOW')
+            RFCore._handle_postview = None
+        if RFCore._handle_postpixel:
+            space.draw_handler_remove(RFCore._handle_postpixel, 'WINDOW')
+            RFCore._handle_postpixel = None
+        if RFCore._handle_draw_cursor:
+            wm.draw_cursor_remove(RFCore._handle_draw_cursor)
+            RFCore._handle_draw_cursor = None
 
     @staticmethod
     def handle_update(context, event):
