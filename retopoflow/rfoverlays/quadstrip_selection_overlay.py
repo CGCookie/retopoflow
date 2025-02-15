@@ -74,13 +74,27 @@ def get_quadstrips(bmfs):
     return strips
 
 def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
+    paused_update = False
+    paused_overlay = False
+
     class RFOperator_QuadStrip_Selection_Overlay(RFOperator):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
         bl_options = { 'INTERNAL' }
 
-        pause_overlay = False
+        instance = None
+        hovering = None  # needed for very first start
+
+        @staticmethod
+        def pause_update(): nonlocal paused_update; paused_update = True
+        @staticmethod
+        def unpause_update(): nonlocal paused_update; paused_update = False
+
+        @staticmethod
+        def pause_overlay(): nonlocal paused_overlay; paused_overlay = True
+        @staticmethod
+        def unpause_overlay(): nonlocal paused_overlay; paused_overlay = False
 
         @staticmethod
         def activate():
@@ -88,115 +102,28 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
         def init(self, context, event):
             self.depsgraph_version = None
-            self.state = 'idle'
+            type(self).instance = self
+
+        def finish(self, context):
+            type(self).instance = None
 
         def update(self, context, event):
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return {'CANCELLED'}
-            match self.state:
-                case 'idle':
-                    return self.update_idle(context, event)
-                case 'grab':
-                    return self.update_grab(context, event)
-
-        def update_idle(self, context, event):
-            if self.pause_overlay: return {'PASS_THROUGH'}
+            if paused_overlay: return {'PASS_THROUGH'}
 
             mouse = mouse_from_event(event)
-            hovering = self.hovered_handle(context, mouse)
-            if hovering: Cursors.set('hand')
-            else:        Cursors.restore()
-
-            if hovering and event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                print('GRABBING!')
-                self.state = 'grab'
-                self.init_grab(context, event, mouse, hovering)
-                return {'RUNNING_MODAL'}
+            self.hovering = self.hovered_handle(context, mouse)
+            if self.hovering: Cursors.set('hand')
+            else:             Cursors.restore()
 
             return {'PASS_THROUGH'}
 
-        def init_grab(self, context, event, mouse, hovering):
-            bm, _ = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-            M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
-            fwd = (Mi @ view_forward_direction(context)).normalized()
-            curve = self.curves[hovering[0]]
-            curve.tessellate_uniform()
-            strip_inds = self.strips_indices[hovering[0]]
-            bmfs = [ bm.faces[i] for i in strip_inds]
-            bmvs = { bmv for bmf in bmfs for bmv in bmf.verts }
-            # all data is local to edit!
-            data = {}
-            for bmv in bmvs:
-                t = curve.approximate_t_at_point_tessellation(bmv.co)
-                o = curve.eval(t)
-                z = Vector(curve.eval_derivative(t)).normalized()
-                f = Frame(o, x=fwd, z=z)
-                data[bmv.index] = (t, f.w2l_point(bmv.co), Vector(bmv.co))
-            self.grab = {
-                'mouse':  Vector(mouse),
-                'curve':  hovering[0],
-                'handle': hovering[1],
-                'prev':   hovering[2],
-                'data':   data,
-                'matrices': [M, Mi],
-                'fwd': fwd,
-            }
-
-        def update_grab(self, context, event):
-            curve = self.curves[self.grab['curve']]
-            data = self.grab['data']
-            bm, em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-
-            if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
-                self.state = 'idle'
-                print('DONE!')
-                return {'RUNNING_MODAL'}  # CONTINUE RUNNING MODAL TO EAT EVENT!
-            if event.type in {'ESC', 'RIGHTMOUSE'}:
-                curve.p0, curve.p1, curve.p2, curve.p3 = self.grab['prev']
-                for bmv_idx in data:
-                    bm.verts[bmv_idx].co = data[bmv_idx][2]
-                bmesh.update_edit_mesh(em)
-                context.area.tag_redraw()
-                self.state = 'idle'
-                print('CANCELLED!')
-                return {'RUNNING_MODAL'}  # CONTINUE RUNNING MODAL TO EAT EVENT!
-
-            mouse = mouse_from_event(event)
-            delta = Vector(mouse) - self.grab['mouse']
-            rgn, r3d = context.region, context.region_data
-            M, Mi = self.grab['matrices']
-            fwd = self.grab['fwd']
-
-            def xform(pt0_edit):
-                pt0_world  = M @ pt0_edit
-                pt0_screen = location_3d_to_region_2d(rgn, r3d, pt0_world)
-                pt1_screen = pt0_screen + delta
-                pt1_world  = region_2d_to_location_3d(rgn, r3d, pt1_screen, pt0_world)
-                pt1_edit   = Mi @ pt1_world
-                return pt1_edit
-
-            p0, p1, p2, p3 = self.grab['prev']
-            curve = self.curves[self.grab['curve']]
-            if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0), xform(p1)
-            if self.grab['handle'] == 1: curve.p1 = xform(p1)
-            if self.grab['handle'] == 2: curve.p2 = xform(p2)
-            if self.grab['handle'] == 3: curve.p2, curve.p3 = xform(p2), xform(p3)
-
-            for bmv_idx in data:
-                bmv = bm.verts[bmv_idx]
-                t, pt, _ = data[bmv_idx]
-                o = curve.eval(t)
-                z = Vector(curve.eval_derivative(t)).normalized()
-                f = Frame(o, x=fwd, z=z)
-                bmv.co = nearest_point_valid_sources(context, M @ f.l2w_point(pt), world=False)
-
-            bmesh.update_edit_mesh(em)
-            context.area.tag_redraw()
-            return {'RUNNING_MODAL'}
 
         def update_data(self):
+            nonlocal paused_update
             if self.depsgraph_version == self.RFCore.depsgraph_version: return
-            if self.state == 'grab': return
+            if paused_update: return
 
             # depsgraph changed, so recollect quad details
 
@@ -233,7 +160,6 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 CubicBezier.create_from_points(strip)
                 for strip in self.selected_strips
             ]
-            print(self.curves)
 
         def hovered_handle(self, context, mouse, *, distance2D=10):
             rgn, r3d = context.region, context.region_data
@@ -256,7 +182,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
         def draw_postpixel_overlay(self):
             is_done = (self.RFCore.selected_RFTool_idname != rftool_idname)
             if is_done: return
-            if self.pause_overlay: return
+            if paused_overlay: return
 
             self.update_data()
 
@@ -282,9 +208,9 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p2),
                     location_3d_to_region_2d(rgn, r3d, M @ curve.p3),
                 ]
+                Drawing.draw2D_lines(context, pts, (1.0, 1.0, 1.0, 0.5), width=2)
                 Drawing.draw2D_points(context, [pts[0], pts[3]], (1.0, 1.0, 1.0, 1.0), radius=16, border=2, borderColor=(0,0,0,0.5))
                 Drawing.draw2D_points(context, [pts[1], pts[2]], (0.0, 0.0, 0.0, 0.75), radius=16, border=2, borderColor=(1,1,1,0.5))
-                Drawing.draw2D_lines(context, pts, (1.0, 1.0, 1.0, 0.5), width=2)
 
     RFOperator_QuadStrip_Selection_Overlay.__name__ = opname
 

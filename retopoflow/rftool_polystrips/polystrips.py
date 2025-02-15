@@ -20,8 +20,9 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bmesh
 from mathutils import Vector
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
 from ..rfbrushes.stroke_brush import create_stroke_brush
 from ..rfoverlays.quadstrip_selection_overlay import create_quadstrip_selection_overlay
@@ -30,7 +31,9 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
+from ..common.maths import point_to_bvec4, view_forward_direction
 from ..common.raycast import raycast_point_valid_sources, mouse_from_event
+from ..common.raycast import is_point_hidden, nearest_point_valid_sources
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
@@ -39,7 +42,7 @@ from ..common.operator import (
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, Frame
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -178,6 +181,109 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         logic.width /= 0.95
 
 
+class RFOperator_PolyStrips_Edit(RFOperator):
+    bl_idname = 'retopoflow.polystrips_edit'
+    bl_label = 'Insert PolyStrip'
+    bl_description = 'Insert quad strip'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
+    rf_keymaps = [
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+    ]
+
+    @classmethod
+    def can_start(cls, context):
+        return bool(RFTool_PolyStrips.rf_overlay.instance.hovering)
+
+    def init(self, context, event):
+        self.curves = RFTool_PolyStrips.rf_overlay.instance.curves
+        self.hovering = RFTool_PolyStrips.rf_overlay.instance.hovering
+        self.strips_indices = RFTool_PolyStrips.rf_overlay.instance.strips_indices
+
+        RFTool_PolyStrips.rf_overlay.pause_update()
+        RFTool_PolyStrips.rf_overlay.instance.depsgraph_version = None
+
+        mouse = mouse_from_event(event)
+
+        self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
+        self.M, self.Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
+        self.fwd = (self.Mi @ view_forward_direction(context)).normalized()
+        self.curve = self.curves[self.hovering[0]]
+        self.curve.tessellate_uniform()
+        strip_inds = self.strips_indices[self.hovering[0]]
+        bmfs = [ self.bm.faces[i] for i in strip_inds]
+        bmvs = { bmv for bmf in bmfs for bmv in bmf.verts }
+        # all data is local to edit!
+        data = {}
+        for bmv in bmvs:
+            t = self.curve.approximate_t_at_point_tessellation(bmv.co)
+            o = self.curve.eval(t)
+            z = Vector(self.curve.eval_derivative(t)).normalized()
+            f = Frame(o, x=self.fwd, z=z)
+            data[bmv.index] = (t, f.w2l_point(bmv.co), Vector(bmv.co))
+        self.grab = {
+            'mouse':    Vector(mouse),
+            'curve':    self.hovering[0],
+            'handle':   self.hovering[1],
+            'prev':     self.hovering[2],
+            'data':     data,
+            'matrices': [self.M, self.Mi],
+            'fwd':      self.fwd,
+        }
+
+    def finish(self, context):
+        RFTool_PolyStrips.rf_overlay.unpause_update()
+
+    def update(self, context, event):
+        curve = self.curve
+        data = self.grab['data']
+        bm, em = self.bm, self.em
+
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            return {'FINISHED'}
+
+        if event.type in {'ESC', 'RIGHTMOUSE'}:
+            curve.p0, curve.p1, curve.p2, curve.p3 = self.grab['prev']
+            for bmv_idx in data:
+                bm.verts[bmv_idx].co = data[bmv_idx][2]
+            bmesh.update_edit_mesh(em)
+            context.area.tag_redraw()
+            return {'CANCELLED'}
+
+        mouse = mouse_from_event(event)
+        delta = Vector(mouse) - self.grab['mouse']
+        rgn, r3d = context.region, context.region_data
+        M, Mi = self.grab['matrices']
+        fwd = self.grab['fwd']
+
+        def xform(pt0_edit):
+            pt0_world  = M @ pt0_edit
+            pt0_screen = location_3d_to_region_2d(rgn, r3d, pt0_world)
+            pt1_screen = pt0_screen + delta
+            pt1_world  = region_2d_to_location_3d(rgn, r3d, pt1_screen, pt0_world)
+            pt1_edit   = Mi @ pt1_world
+            return pt1_edit
+
+        p0, p1, p2, p3 = self.grab['prev']
+        curve = self.curves[self.grab['curve']]
+        if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0), xform(p1)
+        if self.grab['handle'] == 1: curve.p1 = xform(p1)
+        if self.grab['handle'] == 2: curve.p2 = xform(p2)
+        if self.grab['handle'] == 3: curve.p2, curve.p3 = xform(p2), xform(p3)
+
+        for bmv_idx in data:
+            bmv = bm.verts[bmv_idx]
+            t, pt, _ = data[bmv_idx]
+            o = curve.eval(t)
+            z = Vector(curve.eval_derivative(t)).normalized()
+            f = Frame(o, x=fwd, z=z)
+            bmv.co = nearest_point_valid_sources(context, M @ f.l2w_point(pt), world=False)
+
+        bmesh.update_edit_mesh(em)
+        context.area.tag_redraw()
+        return {'RUNNING_MODAL'}
+
+
 class RFOperator_PolyStrips(RFOperator):
     bl_idname = 'retopoflow.polystrips'
     bl_label = 'PolyStrips'
@@ -216,13 +322,13 @@ class RFOperator_PolyStrips(RFOperator):
     def init(self, context, event):
         RFTool_PolyStrips.rf_brush.set_operator(self)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
-        RFTool_PolyStrips.rf_overlay.pause_overlay = True
+        RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.tickle(context)
 
     def finish(self, context):
         RFTool_PolyStrips.rf_brush.set_operator(None)
         RFTool_PolyStrips.rf_brush.reset_nearest(context)
-        RFTool_PolyStrips.rf_overlay.pause_overlay = False
+        RFTool_PolyStrips.rf_overlay.unpause_overlay()
 
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
@@ -279,6 +385,7 @@ class RFTool_PolyStrips(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyStrips,
         RFOperator_PolyStrips_Insert,
+        RFOperator_PolyStrips_Edit,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate_ScreenSpace,
     )

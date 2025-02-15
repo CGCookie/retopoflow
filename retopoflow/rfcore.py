@@ -162,6 +162,31 @@ class RFCore:
         RFCore_NewTarget_Active.draw_menu_item(self, context)
 
     @staticmethod
+    def quick_switch(bl_idname):
+        def switch(*bl_idnames):
+            if not bl_idnames: return
+            print(f'quick switch! {bl_idnames}')
+            for wm in bpy.data.window_managers:
+                for win in wm.windows:
+                    for area in win.screen.areas:
+                        if area.type != 'VIEW_3D': continue
+                        for space in area.spaces:
+                            if space.type != 'VIEW_3D': continue
+                            for rgn in area.regions:
+                                if rgn.type != 'WINDOW': continue
+                                with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
+                                    bpy.ops.wm.tool_set_by_id(name=bl_idnames[0])
+                                bpy.app.timers.register(
+                                    lambda: switch(*bl_idnames[1:]),
+                                    first_interval=0.1,
+                                )
+                                return
+        bpy.app.timers.register(
+            lambda: switch('builtin.select', bl_idname),
+            first_interval=0.1,
+        )
+
+    @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
@@ -177,11 +202,18 @@ class RFCore:
                 rftool = RFTools[RFCore.selected_RFTool_idname]
                 rftool.activate(context)
                 if rftool.rf_overlay:
-                    try:
-                        rftool.rf_overlay.activate()
-                    except Exception as e:
-                        print(f'Caught exception while trying to activate overlay {e}')
-                        RFCore.restart()
+                    if not context.region:
+                        # this can happen if RF tool is selected when .blend file is saved
+                        # try switching to different tool then switch back later?
+                        RFCore.quick_switch(rftool.bl_idname)
+                    else:
+                        try:
+                            print(f'Activating {rftool.rf_overlay}')
+                            print(bpy.context.area, bpy.context.region)
+                            rftool.rf_overlay.activate()
+                        except Exception as e:
+                            print(f'Caught exception while trying to activate overlay {e}')
+                            RFCore.restart()
 
         if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
             RFCore.stop()

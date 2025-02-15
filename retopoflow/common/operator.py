@@ -138,6 +138,8 @@ class RFOperator(bpy.types.Operator):
         # make sure RFOperator has only one running instance!
         if getattr(cls, '_is_running', False): return False
 
+        if not cls.can_start(context): return False
+
         return True
 
     def invoke(self, context, event):
@@ -273,6 +275,8 @@ class RFOperator(bpy.types.Operator):
     def register(cls): pass
     @classmethod
     def unregister(cls): pass
+    @classmethod
+    def can_start(cls, context): return True
     def can_init(self, context, event): return True
     def init(self, context, event): pass
     def reset(self): pass
