@@ -1,4 +1,5 @@
 # distutils: language=c++
+# cython: language_level=3
 
 from libc.stdint cimport uint8_t, uint32_t, uintptr_t
 

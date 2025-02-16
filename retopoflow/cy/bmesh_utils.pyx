@@ -56,12 +56,12 @@ def get_selected_verts(object bm_py):
         int* selected_indices
         BMesh* bmesh
         list result = []
-        
+
     # Get BMesh pointer directly
     bmesh = (<BPy_BMesh*><uintptr_t>id(bm_py)).bm
     if not bmesh or not bmesh.vtable:
         return result
-        
+
     # Get selected indices without GIL
     with nogil:
         selected_indices = find_selected_indices(bmesh.vtable, bmesh.vtable_tot, &num_selected)

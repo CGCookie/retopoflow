@@ -1,11 +1,17 @@
+# distutils: language=c++
+# distutils: extra_compile_args=/std:c++17
 # cython: language_level=3
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: nonecheck=False
+# cython: cdivision=True
+# cython: initializedcheck=False
+# cython: embedsignature=True
+# cython: binding=False
 
-import cython
-from libc.stdint cimport uint8_t
+from .bmesh_fast cimport BMHeader
 
-from .bmesh_fast import BMHeader
-
-
+# Define as C constants
 cdef enum BMElemHFlag:
     BM_ELEM_SELECT       = (1 << 0)  # 1
     BM_ELEM_HIDDEN       = (1 << 1)  # 2
@@ -16,19 +22,16 @@ cdef enum BMElemHFlag:
     BM_ELEM_TAG_ALT      = (1 << 6)  # 64
     BM_ELEM_INTERNAL_TAG = (1 << 7)  # 128
 
+
 # Helper functions to check flags
-@cython.inline
-cdef bint BM_elem_flag_test(BMHeader head, uint8_t hflag) nogil:
+cdef inline bint BM_elem_flag_test(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
     return head.hflag & hflag
 
-@cython.inline
-cdef void BM_elem_flag_set(BMHeader head, uint8_t hflag) nogil:
+cdef inline void BM_elem_flag_set(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
     head.hflag |= hflag
 
-@cython.inline
-cdef void BM_elem_flag_clear(BMHeader head, uint8_t hflag) nogil:
+cdef inline void BM_elem_flag_clear(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
     head.hflag &= ~hflag
 
-@cython.inline
-cdef void BM_elem_flag_toggle(BMHeader head, uint8_t hflag) nogil:
+cdef inline void BM_elem_flag_toggle(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
     head.hflag ^= hflag
