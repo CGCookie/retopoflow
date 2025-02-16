@@ -40,7 +40,7 @@ cdef enum SelectionState:
 
 cdef struct View3D:
     float[4][4] proj_matrix
-    Vector3 view_pos
+    float[3] view_pos
     bint is_persp
 
 cdef class Accel2D:
@@ -57,17 +57,20 @@ cdef class Accel2D:
         View3D view3d
 
         # C++ sets for storing geometry
-        cpp_set[BMVert*] verts
-        cpp_set[BMEdge*] edges  
-        cpp_set[BMFace*] faces
-        
+        cpp_set[BMVert*] visverts
+        cpp_set[BMEdge*] visedges  
+        cpp_set[BMFace*] visfaces
+        size_t totvisverts
+        size_t totvisedges
+        size_t totvisfaces
+
         # Visibility arrays
-        uint8_t* is_visible_vert
-        uint8_t* is_visible_edge
-        uint8_t* is_visible_face
-        uint8_t* is_selected_vert
-        uint8_t* is_selected_edge
-        uint8_t* is_selected_face
+        uint8_t* is_hidden_v
+        uint8_t* is_hidden_e
+        uint8_t* is_hidden_f
+        uint8_t* is_selected_v
+        uint8_t* is_selected_e
+        uint8_t* is_selected_f
 
     cpdef void update_matrix_world(self, object py_matrix_world)
 
@@ -75,8 +78,8 @@ cdef class Accel2D:
     cdef void _build_accel_struct(self) noexcept nogil
     cdef void _reset(self) noexcept nogil
     cdef void _ensure_lookup_tables(self, object py_bmesh)
-    cdef bint _filter_elem(self, BMHeader* head, int index, uint8_t* is_visible_array, uint8_t* is_selected_array) noexcept nogil
-    # cdef void compute_geometry_visibility_in_region(self, float margin_check=0.0) noexcept nogil
+    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
+    cdef void _compute_geometry_visibility_in_region(self, float margin_check) noexcept nogil
 
     cdef np.ndarray get_is_visible_verts_array(self)
     cdef np.ndarray get_is_visible_edges_array(self)

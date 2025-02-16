@@ -44,12 +44,12 @@ import cython
 cdef class Accel2D:
     def __cinit__(self):
         # Initialize C++ member variables
-        self.is_visible_vert = NULL
-        self.is_visible_edge = NULL
-        self.is_visible_face = NULL
-        self.is_selected_vert = NULL
-        self.is_selected_edge = NULL
-        self.is_selected_face = NULL
+        self.is_hidden_v = NULL
+        self.is_hidden_e = NULL
+        self.is_hidden_f = NULL
+        self.is_selected_v = NULL
+        self.is_selected_e = NULL
+        self.is_selected_f = NULL
 
     def __init__(self, object py_bmesh, object py_object, object py_region, object py_rv3d, int selected_only):
         # print(f"Accel2D.__init__({py_bmesh}, {py_region}, {py_rv3d}, {selected_only})\n")
@@ -60,8 +60,8 @@ cdef class Accel2D:
         self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
         self.selected_only = selected_only
         self.update_matrix_world(py_object.matrix_world)
-        # self.compute_geometry_visibility_in_region(margin_check=0.0)
-        self._build_accel_struct()
+        self._compute_geometry_visibility_in_region(0.0)
+        # self._build_accel_struct()
 
     def __dealloc__(self):
         self._reset()
@@ -99,9 +99,9 @@ cdef class Accel2D:
         # View position.
         mat4_invert(self.rv3d.viewmat, mat_temp_1)
         if is_persp:
-            mat4_get_translation(mat_temp_1, &self.view3d.view_pos)
+            mat4_get_translation(mat_temp_1, self.view3d.view_pos)
         else:
-            mat4_get_col3(mat_temp_1, 2, &self.view3d.view_pos)
+            mat4_get_col3(mat_temp_1, 2, self.view3d.view_pos)
 
     cdef void _ensure_lookup_tables(self, object py_bmesh):
         """Ensure lookup tables are created for the bmesh"""
@@ -118,24 +118,211 @@ cdef class Accel2D:
         except IndexError:
             py_bmesh.faces.ensure_lookup_table()
 
-    cdef bint _filter_elem(self, BMHeader* head, int index, uint8_t* is_visible_array, uint8_t* is_selected_array) noexcept nogil:
-        """Filter element based on selection and visibility flags."""
+    cdef void _compute_geometry_visibility_in_region(self, float margin_check) noexcept nogil:
         cdef:
-            bint is_visible = not BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
-            bint is_selected = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
+            uint8_t* visible_vert_indices = NULL
+            uint8_t* is_vert_visible = NULL
+            uint8_t* is_edge_visible = NULL
+            uint8_t* is_face_visible = NULL
+            size_t i, j, k, count = 0
+            size_t vert_idx, edge_idx, face_idx
+            float[3] world_pos
+            float[3] world_normal
+            float[3] view_dir
+            float[4] screen_pos
+            BMVert* vert
+            BMEdge* edge
+            BMFace* face
+            BMLoop* loop
+            size_t totvisvert = 0
+            size_t totvisedge = 0
+            size_t totvisface = 0
+            
+            # Cache BMesh data before nogil section
+            BMVert** vtable = self.bmesh.vtable
+            BMEdge** etable = self.bmesh.etable
+            BMFace** ftable = self.bmesh.ftable
+            size_t totvert = self.bmesh.totvert
+            size_t totedge = self.bmesh.totedge
+            size_t totface = self.bmesh.totface
+            View3D view3d = self.view3d
+            bint is_persp = view3d.is_persp
+        
+        self._reset()
 
-        is_visible_array[index] = is_visible
-        is_selected_array[index] = is_selected
+        # Allocate memory
+        visible_vert_indices = <uint8_t*>malloc(totvert * sizeof(uint8_t))
+        is_vert_visible = <uint8_t*>malloc(totvert * sizeof(uint8_t))
+        is_edge_visible = <uint8_t*>malloc(totedge * sizeof(uint8_t))
+        is_face_visible = <uint8_t*>malloc(totface * sizeof(uint8_t))
 
-        if is_visible:
-            if self.selected_only == SelectionState.ALL:
-                return True
-            elif self.selected_only == SelectionState.SELECTED and is_selected:
-                return True
-            elif self.selected_only == SelectionState.UNSELECTED and not is_selected:
-                return True
+        if visible_vert_indices == NULL or is_vert_visible == NULL or\
+            is_edge_visible == NULL or is_face_visible == NULL:
+            printf("Error: Failed to allocate memory\n")
+            if visible_vert_indices != NULL:
+                free(visible_vert_indices)
+            if is_vert_visible != NULL:
+                free(is_vert_visible)
+            if is_edge_visible != NULL:
+                free(is_edge_visible)
+            if is_face_visible != NULL:
+                free(is_face_visible)
+            return
 
-        return False
+        self.is_hidden_v = <uint8_t*>malloc(totvert * sizeof(uint8_t))
+        self.is_hidden_e = <uint8_t*>malloc(totedge * sizeof(uint8_t))
+        self.is_hidden_f = <uint8_t*>malloc(totface * sizeof(uint8_t))
+
+        self.is_selected_v = <uint8_t*>malloc(totvert * sizeof(uint8_t))
+        self.is_selected_e = <uint8_t*>malloc(totedge * sizeof(uint8_t))
+        self.is_selected_f = <uint8_t*>malloc(totface * sizeof(uint8_t))
+
+        if self.is_hidden_v == NULL or self.is_hidden_e == NULL or self.is_hidden_f == NULL or\
+            self.is_selected_v == NULL or self.is_selected_e == NULL or self.is_selected_f == NULL:
+            printf("Error: Failed to allocate memory\n")
+            if self.is_hidden_v != NULL:
+                free(self.is_hidden_v)
+            if self.is_hidden_e != NULL:
+                free(self.is_hidden_e)
+            if self.is_hidden_f != NULL:
+                free(self.is_hidden_f)
+            if self.is_selected_v != NULL:
+                free(self.is_selected_v)
+            if self.is_selected_e != NULL:
+                free(self.is_selected_e)
+            if self.is_selected_f != NULL:
+                free(self.is_selected_f)
+            return
+
+        # Initialize visibility array
+        with parallel():
+            for i in prange(totvert):
+                is_vert_visible[i] = 0
+                visible_vert_indices[i] = 0
+            for j in prange(totedge):
+                is_edge_visible[j] = 0
+            for k in prange(totface):
+                is_face_visible[k] = 0
+
+        # Compute visible vertices on screen (region space).
+        for vert_idx in prange(totvert, nogil=True):
+            vert = vtable[vert_idx]
+            # Skip NULL/invalid vertices.
+            if vert == NULL:
+                continue
+            
+            self._classify_elem(
+                &vert.head, vert_idx,
+                self.is_hidden_v,
+                self.is_selected_v
+            )
+
+            # Skip hidden vertices.
+            if self.is_hidden_v[vert_idx]:
+                continue
+
+            # Transform position to world space
+            for j in range(3):
+                world_pos[j] = 0.0
+                for k in range(3):
+                    world_pos[j] += vert.co[k] * self.matrix_world[k][j]
+                world_pos[j] += self.matrix_world[3][j]
+
+            # Transform normal to world space
+            for j in range(3):
+                world_normal[j] = 0.0
+                for k in range(3):
+                    world_normal[j] += vert.no[k] * self.matrix_normal[k][j]
+            vec3_normalize(world_normal)
+
+            # Calculate view direction
+            if is_persp:
+                for j in range(3):
+                    view_dir[j] = world_pos[j] - view3d.view_pos[j]
+                vec3_normalize(view_dir)
+            else:
+                for j in range(3):
+                    view_dir[j] = view3d.view_pos[j]
+
+            # Check if facing camera
+            if vec3_dot(world_normal, view_dir) > 0:
+                continue
+
+            # Project to screen space
+            for j in range(4):
+                screen_pos[j] = (
+                    world_pos[0] * view3d.proj_matrix[0][j] +
+                    world_pos[1] * view3d.proj_matrix[1][j] +
+                    world_pos[2] * view3d.proj_matrix[2][j] +
+                    view3d.proj_matrix[3][j]
+                )
+
+            if screen_pos[3] <= 0:  # Behind camera
+                continue
+
+            # Perspective divide and bounds check
+            if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
+                fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
+                is_vert_visible[vert_idx] = 1
+                visible_vert_indices[vert.head.index] = 1
+                totvisvert += 1
+
+        # Compute visible edges and faces based on vertices.
+        with parallel():
+            for edge_idx in prange(totedge):
+                edge = etable[edge_idx]
+                if edge == NULL:
+                    continue
+
+                self._classify_elem(
+                    &edge.head, edge_idx,
+                    self.is_hidden_e,
+                    self.is_selected_e
+                )
+
+                if self.is_hidden_e[edge_idx]:
+                    continue
+
+                if visible_vert_indices[(<BMVert*>edge.v1).head.index] or\
+                   visible_vert_indices[(<BMVert*>edge.v2).head.index]:
+                    is_edge_visible[edge_idx] = 1
+                    totvisedge += 1
+
+            for face_idx in prange(totface):
+                face = ftable[face_idx]
+                if face == NULL:
+                    continue
+                
+                self._classify_elem(
+                    &face.head, face_idx,
+                    self.is_hidden_f,
+                    self.is_selected_f
+                )
+
+                if self.is_hidden_f[face_idx]:
+                    continue
+
+                loop = <BMLoop*>face.l_first
+                if loop == NULL:
+                    continue
+                for k in range(face.len):
+                    if visible_vert_indices[(<BMVert*>loop.v).head.index]:
+                        is_face_visible[face_idx] = 1
+                        totvisface += 1
+                        break
+                    else:
+                        loop = <BMLoop*>loop.next
+                        if loop == NULL:
+                            break
+
+        self.totvisverts = totvisvert
+        self.totvisedges = totvisedge
+        self.totvisfaces = totvisface
+
+    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
+        """Classify element based on selection and visibility flags."""
+        is_hidden_array[index]= BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
+        is_selected_array[index] = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
 
     cdef void _build_accel_struct(self) noexcept nogil:
         """Build acceleration structure for geometry visibility tests"""
@@ -156,227 +343,39 @@ cdef class Accel2D:
             size_t totvert = bmesh.totvert
             size_t totedge = bmesh.totedge
             size_t totface = bmesh.totface
-            int vert_idx, edge_idx, face_idx
 
-        # Free existing memory
-        with gil:
-            self._reset()
-
-        # Allocate new memory using malloc
-        self.is_visible_vert = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        self.is_visible_edge = <uint8_t*>malloc(totedge * sizeof(uint8_t))
-        self.is_visible_face = <uint8_t*>malloc(totface * sizeof(uint8_t))
-
-        self.is_selected_vert = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        self.is_selected_edge = <uint8_t*>malloc(totedge * sizeof(uint8_t))
-        self.is_selected_face = <uint8_t*>malloc(totface * sizeof(uint8_t))
-
-        with parallel():
-
-            # Process vertices
-            for vert_idx in prange(totvert):
-                if vtable[vert_idx] != NULL:
-                    if self._filter_elem(&vtable[vert_idx].head, vert_idx, self.is_visible_vert, self.is_selected_vert):
-                        pass # self.verts.insert(vtable[vert_idx])
-
-            # Process edges
-            for edge_idx in prange(totedge):
-                if etable[edge_idx] == NULL:
-                    continue
-                if self._filter_elem(&etable[edge_idx].head, edge_idx, self.is_visible_edge, self.is_selected_edge):
-                    pass # self.edges.insert(etable[edge_idx])
-
-            # Process faces
-            for face_idx in prange(totface):
-                if ftable[face_idx] == NULL:
-                    continue
-                if self._filter_elem(&ftable[face_idx].head, face_idx, self.is_visible_face, self.is_selected_face):
-                    pass # self.faces.insert(ftable[face_idx])
 
     cdef void _reset(self) noexcept nogil:
         """Reset the acceleration structure"""
         # printf("Accel2D._reset()\n")
 
-        if self.is_visible_vert != NULL:
-            free(self.is_visible_vert)
-        if self.is_visible_edge != NULL:
-            free(self.is_visible_edge)
-        if self.is_visible_face != NULL:
-            free(self.is_visible_face)
+        if self.is_hidden_v != NULL:
+            free(self.is_hidden_v)
+        if self.is_hidden_e != NULL:
+            free(self.is_hidden_e)
+        if self.is_hidden_f != NULL:
+            free(self.is_hidden_f)
         
-        if self.is_selected_vert != NULL:
-            free(self.is_selected_vert)
-        if self.is_selected_edge != NULL:
-            free(self.is_selected_edge)
-        if self.is_selected_face != NULL:
-            free(self.is_selected_face)
+        if self.is_selected_v != NULL:
+            free(self.is_selected_v)
+        if self.is_selected_e != NULL:
+            free(self.is_selected_e)
+        if self.is_selected_f != NULL:
+            free(self.is_selected_f)
 
         # Set memory views to empty
-        self.is_visible_vert = NULL
-        self.is_visible_edge = NULL
-        self.is_visible_face = NULL
+        self.is_hidden_v = NULL
+        self.is_hidden_e = NULL
+        self.is_hidden_f = NULL
         
-        self.is_selected_vert = NULL
-        self.is_selected_edge = NULL
-        self.is_selected_face = NULL
+        self.is_selected_v = NULL
+        self.is_selected_e = NULL
+        self.is_selected_f = NULL
 
         # For C++ sets, we don't need to check for NULLs, just clear them!
-        self.verts.clear()
-        self.edges.clear()
-        self.faces.clear()
-
-    '''
-    cdef void compute_geometry_visibility_in_region(self, float margin_check=0.0) noexcept nogil:
-        cdef:
-            uint8_t* visible_vert_indices = NULL
-            uint8_t* is_vert_visible = NULL
-            uint8_t* is_edge_visible = NULL
-            uint8_t* is_face_visible = NULL
-            size_t i, j, k, count = 0
-            float[3] world_pos
-            float[3] world_normal
-            float[3] view_dir
-            float[4] screen_pos
-            BMVert* vert
-            BMEdge* edge
-            BMFace* face
-            BMLoop* loop
-            
-            # Cache BMesh data before nogil section
-            BMVert** vtable
-            BMEdge** etable
-            BMFace** ftable
-            size_t totvert
-            size_t totedge
-            size_t totface
-            View3D view3d
-            float[4][4] matrix_world
-            float[4][4] matrix_normal
-            float[4][4] proj_matrix
-            float[3] view_pos
-            bint is_persp
-
-        # Get BMesh data with GIL
-        with gil:
-            vtable = self.bmesh.vtable
-            etable = self.bmesh.etable
-            ftable = self.bmesh.ftable
-            totvert = self.bmesh.totvert
-            totedge = self.bmesh.totedge
-            totface = self.bmesh.totface
-            view3d = self.view3d
-            is_persp = view3d.is_persp
-            memcpy(matrix_world, self.matrix_world, sizeof(float) * 16)
-            memcpy(matrix_normal, self.matrix_normal, sizeof(float) * 16)
-            memcpy(proj_matrix, view3d.proj_matrix, sizeof(float) * 16)
-            memcpy(view_pos, view3d.view_pos, sizeof(float) * 3)
-
-        # Now we can use these cached values in nogil section
-        # Allocate memory
-        visible_vert_indices = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        is_vert_visible = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        is_edge_visible = <uint8_t*>malloc(totedge * sizeof(uint8_t))
-        is_face_visible = <uint8_t*>malloc(totface * sizeof(uint8_t))
-        if visible_vert_indices == NULL or is_vert_visible == NULL or\
-            is_edge_visible == NULL or is_face_visible == NULL:
-            printf("Error: Failed to allocate memory\n")
-            if visible_vert_indices != NULL:
-                free(visible_vert_indices)
-            if is_vert_visible != NULL:
-                free(is_vert_visible)
-            if is_edge_visible != NULL:
-                free(is_edge_visible)
-            if is_face_visible != NULL:
-                free(is_face_visible)
-            return
-
-        # Initialize visibility array
-        with parallel():
-            for i in prange(totvert):
-                is_vert_visible[i] = 0
-                visible_vert_indices[i] = 0
-            for j in prange(totedge):
-                is_edge_visible[j] = 0
-            for k in prange(totface):
-                is_face_visible[k] = 0
-
-        # Compute visible vertices on screen (region space).
-        for i in prange(totvert, nogil=True):
-            vert = vtable[i]
-            if vert == NULL:
-                continue
-
-            # Transform position to world space
-            for j in range(3):
-                world_pos[j] = 0
-                for k in range(3):
-                    world_pos[j] += vert.co[k] * matrix_world[k][j]
-                world_pos[j] += matrix_world[3][j]
-
-            # Transform normal to world space
-            for j in range(3):
-                world_normal[j] = 0
-                for k in range(3):
-                    world_normal[j] += vert.no[k] * matrix_normal[k][j]
-            vec3_normalize(world_normal)
-
-            # Calculate view direction
-            if is_persp:
-                for j in range(3):
-                    view_dir[j] = world_pos[j] - view_pos[j]
-                vec3_normalize(view_dir)
-            else:
-                for j in range(3):
-                    view_dir[j] = view_pos[j]
-
-            # Check if facing camera
-            if vec3_dot(world_normal, view_dir) > 0:
-                continue
-
-            # Project to screen space
-            for j in range(4):
-                screen_pos[j] = (
-                    world_pos[0] * proj_matrix[0][j] +
-                    world_pos[1] * proj_matrix[1][j] +
-                    world_pos[2] * proj_matrix[2][j] +
-                    proj_matrix[3][j]
-                )
-
-            if screen_pos[3] <= 0:  # Behind camera
-                continue
-
-            # Perspective divide and bounds check
-            if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
-                fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
-                is_vert_visible[i] = 1
-                visible_vert_indices[vert.head.index] = 1
-
-        # Compute visible edges and faces based on vertices.
-        with parallel():
-            for i in prange(totedge):
-                edge = etable[i]
-                if edge == NULL:
-                    continue
-                if visible_vert_indices[(<BMVert*>edge.v1).head.index] or\
-                   visible_vert_indices[(<BMVert*>edge.v2).head.index]:
-                    is_edge_visible[i] = 1
-
-            for j in prange(totface):
-                face = ftable[i]
-                if face == NULL:
-                    continue
-                loop = <BMLoop*>face.l_first
-                if loop == NULL:
-                    continue
-                for k in prange(face.len):
-                    if visible_vert_indices[(<BMVert*>loop.v).head.index]:
-                        is_face_visible[i] = 1
-                        break
-                    else:
-                        loop = <BMLoop*>loop.next
-                        if loop == NULL:
-                            break
-    '''
+        self.visverts.clear()
+        self.visedges.clear()
+        self.visfaces.clear()
 
     '''
     ______________________________________________________________________________________________________________
@@ -402,17 +401,17 @@ cdef class Accel2D:
 
         if verts:
             for i in range(bmesh.totvert):
-                if self.is_visible_vert[i] if not invert_selection else not self.is_visible_vert[i]:
+                if self.is_hidden_v[i] if not invert_selection else not self.is_hidden_v[i]:
                     vis_py_verts.add(py_bm_verts[i])
 
         if edges:
             for i in range(bmesh.totedge):
-                if self.is_visible_edge[i] if not invert_selection else not self.is_visible_edge[i]:
+                if self.is_hidden_e[i] if not invert_selection else not self.is_hidden_e[i]:
                     vis_py_edges.add(py_bm_edges[i])
 
         if faces:
             for i in range(bmesh.totface):
-                if self.is_visible_face[i] if not invert_selection else not self.is_visible_face[i]:
+                if self.is_hidden_f[i] if not invert_selection else not self.is_hidden_f[i]:
                     vis_py_faces.add(py_bm_faces[i])
 
         return vis_py_verts, vis_py_edges, vis_py_faces
@@ -434,17 +433,17 @@ cdef class Accel2D:
 
         if verts:
             for i in range(bmesh.totvert):
-                if self.is_selected_vert[i] if not invert_selection else not self.is_selected_vert[i]:
+                if self.is_selected_v[i] if not invert_selection else not self.is_selected_v[i]:
                     sel_py_verts.add(py_bm_verts[i])
 
         if edges:
             for i in range(bmesh.totedge):
-                if self.is_selected_edge[i] if not invert_selection else not self.is_selected_edge[i]:
+                if self.is_selected_e[i] if not invert_selection else not self.is_selected_e[i]:
                     sel_py_edges.add(py_bm_edges[i])
 
         if faces:
             for i in range(bmesh.totface):
-                if self.is_selected_face[i] if not invert_selection else not self.is_selected_face[i]:
+                if self.is_selected_f[i] if not invert_selection else not self.is_selected_f[i]:
                     sel_py_faces.add(py_bm_faces[i])
 
         return sel_py_verts, sel_py_edges, sel_py_faces
@@ -473,9 +472,9 @@ cdef class Accel2D:
             np.npy_intp face_size = bmesh.totface
 
         return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_visible_vert),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_visible_edge),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_visible_face)
+            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_hidden_v),
+            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_hidden_e),
+            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_hidden_f)
         )
 
     def get_selected_arrays(self):
@@ -487,37 +486,37 @@ cdef class Accel2D:
             np.npy_intp face_size = bmesh.totface
 
         return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_selected_vert),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_selected_edge),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_selected_face)
+            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_selected_v),
+            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_selected_e),
+            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_selected_f)
         )
 
     cdef np.ndarray get_is_visible_verts_array(self):
         """Get visible array of vertices as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_visible_vert)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_v)
 
     cdef np.ndarray get_is_visible_edges_array(self):
         """Get visible array of edges as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_visible_edge)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_e)
 
     cdef np.ndarray get_is_visible_faces_array(self):
         """Get visible array of faces as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_visible_face)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_f)
 
     cdef np.ndarray get_is_selected_verts_array(self):
         """Get selected array of vertices as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_vert)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_v)
 
     cdef np.ndarray get_is_selected_edges_array(self):
         """Get selected array of edges as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_edge)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_e)
 
     cdef np.ndarray get_is_selected_faces_array(self):
         """Get selected array of faces as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_face)
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)
