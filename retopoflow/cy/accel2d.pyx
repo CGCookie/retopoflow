@@ -18,10 +18,11 @@ from libc.string cimport memset, memcpy
 from libc.stdio cimport printf
 from libc.math cimport sqrt, fabs
 from cython.parallel cimport parallel, prange
-from cython.operator cimport dereference as deref
+from cython.operator cimport dereference as deref, preincrement as inc
 from libcpp.vector cimport vector
 from libcpp.set cimport set as cpp_set
 from libcpp.pair cimport pair
+from libcpp.iterator cimport iterator
 
 from .bmesh_fast cimport BMVert, BMEdge, BMFace, BMesh, BPy_BMesh, BMesh, BMHeader, BPy_BMEdge, BPy_BMFace, BPy_BMVert, BPy_BMLoop, BPy_BMElemSeq, BPy_BMElem, BMLoop, BPy_BMIter
 from .bmesh_enums cimport BMElemHFlag, BM_elem_flag_test
@@ -79,7 +80,7 @@ cdef class Accel2D:
         self._update_object_transform(matrix_world, matrix_normal)
         self._update_view(proj_matrix, view_pos, is_perspective)
 
-        if self._compute_geometry_visibility_in_region(1.0) != 0:
+        if self._compute_geometry_visibility_in_region(<float>1.0) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
 
         # self._build_accel_struct()
@@ -93,7 +94,8 @@ cdef class Accel2D:
 
         for i in range(4):
             for j in range(4):
-                self.matrix_world[i][j] = matrix_world[i][j]
+                self.matrix_world[i][j] = matrix_world[i,j]
+                self.matrix_normal[i][j] = matrix_normal[i,j]
 
     cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil:
         cdef:
@@ -101,54 +103,12 @@ cdef class Accel2D:
 
         for i in range(4):
             for j in range(4):
-                self.view3d.proj_matrix[i][j] = proj_matrix[i][j]
+                self.view3d.proj_matrix[i][j] = proj_matrix[i,j]
 
         for i in range(3):
             self.view3d.view_pos[i] = view_pos[i]
 
         self.view3d.is_persp = is_perspective
-
-    '''
-    cpdef void update_matrix_world(self, object py_matrix_world):
-        # Matrix World.
-        print(f"[CYTHON] Accel2D.update_matrix_world({py_matrix_world})\n")
-        for i in range(4):
-            for j in range(4):
-                self.matrix_world[i][j] = py_matrix_world[i][j]
-        
-        self._update_matrices()
-
-        print(f'[CYTHON]MATRIX AND VIEW PROPS: {self.matrix_world=} {self.matrix_normal=} {self.view3d.proj_matrix=} {self.view3d.is_persp=} {self.view3d.view_pos=}')
-
-    cdef void _update_matrices(self) noexcept nogil:
-        cdef:
-            float[4][4] mat_temp_1
-            float[4][4] mat_temp_2
-            bint is_persp
-
-        # Matrix Normal.
-        mat4_invert_safe(self.matrix_world, mat_temp_1)  # Call the function here
-        mat4_transpose(mat_temp_1, mat_temp_2)
-        mat4_to_3x3(mat_temp_2, self.matrix_normal)
-
-        ############################################################
-        # Pre-compute the view and projection matrices
-
-        # Projection matrix.
-        mat4_multiply(self.rv3d.winmat, self.rv3d.viewmat, self.view3d.proj_matrix)
-
-        # Determine if the view is perspective.
-        # In RegionView3D, 'is_persp' is declared as a char (non-zero means perspective).
-        is_persp = self.rv3d.is_persp != 0
-        self.view3d.is_persp = is_persp
-
-        # View position.
-        mat4_invert(self.rv3d.viewmat, mat_temp_1)
-        if is_persp:
-            mat4_get_translation(mat_temp_1, self.view3d.view_pos)
-        else:
-            mat4_get_col3(mat_temp_1, 2, self.view3d.view_pos)
-    '''
 
     cpdef void _ensure_lookup_tables(self, object py_bmesh):
         """Ensure lookup tables are created for the bmesh"""
@@ -272,19 +232,19 @@ cdef class Accel2D:
             )
 
             # Skip hidden vertices.
-            if self.is_hidden_v[vert_idx]:
-                continue
+            # if self.is_hidden_v[vert_idx]:
+            #     continue
 
             # Transform position to world space
             for j in range(3):
-                world_pos[j] = 0.0
+                world_pos[j] = 0
                 for k in range(3):
                     world_pos[j] += vert.co[k] * self.matrix_world[k][j]
                 world_pos[j] += self.matrix_world[3][j]
 
             # Transform normal to world space
             for j in range(3):
-                world_normal[j] = 0.0
+                world_normal[j] = 0
                 for k in range(3):
                     world_normal[j] += vert.no[k] * self.matrix_normal[k][j]
             vec3_normalize(world_normal)
@@ -296,7 +256,7 @@ cdef class Accel2D:
                 vec3_normalize(view_dir)
             else:
                 for j in range(3):
-                    view_dir[j] = view3d.view_pos[j]
+                    view_dir[j] = -view3d.view_pos[j]
 
             # Check if facing camera
             if vec3_dot(world_normal, view_dir) > 0:
@@ -311,10 +271,9 @@ cdef class Accel2D:
                     view3d.proj_matrix[3][j]
                 )
 
-            # Check if behind camera
-            if screen_pos[3] <= 0:
+            if screen_pos[3] <= 0:  # Behind camera
                 continue
-
+            
             # Perspective divide and bounds check
             if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
                 fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
@@ -519,9 +478,16 @@ cdef class Accel2D:
     def get_vis_verts(self, object py_bmesh, int selected_only) -> set:
         cdef:
             object py_bm_verts = py_bmesh.verts
+            cpp_set[BMVert*].iterator visverts_it = self.visverts.begin()
+            set py_vis_verts = set()
+            BMVert* cur_visvert = NULL
 
         if selected_only == SelectionState.ALL:
-            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert)}
+            while visverts_it != self.visverts.end():
+                cur_visvert = deref(visverts_it)
+                py_vis_verts.add(py_bm_verts[cur_visvert.head.index])
+                inc(visverts_it)
+            return py_vis_verts
         elif selected_only == SelectionState.SELECTED:
             return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if self.is_selected_v[i]}
         elif selected_only == SelectionState.UNSELECTED:

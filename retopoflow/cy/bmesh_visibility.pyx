@@ -113,7 +113,7 @@ cdef int* _compute_visible_vertices_nogil(
                 vec3_normalize(view_dir)
             else:
                 for j in range(3):
-                    view_dir[j] = view_pos[j]
+                    view_dir[j] = -view_pos[j]
             
             # Check if facing camera
             if vec3_dot(world_normal, view_dir) > 0:
