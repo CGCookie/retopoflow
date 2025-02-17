@@ -232,8 +232,8 @@ cdef class Accel2D:
             )
 
             # Skip hidden vertices.
-            # if self.is_hidden_v[vert_idx]:
-            #     continue
+            if self.is_hidden_v[vert_idx]:
+                continue
 
             # Transform position to world space
             for j in range(3):
