@@ -4,6 +4,11 @@
 from .vector cimport rctf, rcti, BoundBox
 
 
+cdef struct ListBase:
+    void* first
+    void* last
+
+
 cdef struct View2D:
     # Tot - area that data can be drawn in; cur - region of tot that is visible in viewport
     rctf tot, cur
@@ -67,9 +72,17 @@ cdef struct ARegion:
     short regiontype
     short alignment
     short flag
-
-    # STRUCTURE IS INCOMPLETE!!!
-    # JUST TO ACCESS BASIC ATTRIBUTES AS v2d, winrct, winx, winy, etc.
+    short sizex, sizey
+    short overlap
+    short flagfullscreen
+    char[2] _pad
+    ListBase panels
+    ListBase panels_category_active
+    ListBase ui_lists
+    ListBase ui_previews
+    ListBase view_states
+    void* regiondata
+    void* runtime  # ARegionRuntimeHandle -> ARegionRuntime
 
 
 cdef struct RegionView3D:
