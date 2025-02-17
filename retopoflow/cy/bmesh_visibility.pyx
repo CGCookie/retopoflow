@@ -10,6 +10,8 @@
 
 import numpy as np
 cimport numpy as np
+np.import_array()  # Required for NumPy C-API
+
 from libc.stdint cimport uintptr_t
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport printf
