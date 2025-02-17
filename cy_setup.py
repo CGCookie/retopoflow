@@ -19,13 +19,13 @@ def build_for_architecture(arch):
 
     # Base compiler flags for all platforms
     compiler_flags = {
-        'Windows': ['/O2'],
-        'Darwin': ['-O3'],  # macOS
-        'Linux': ['-O3']
+        'Windows': ['/O2', '/std:c++17'],  # MSVC flags
+        'Darwin': ['-O3', '-std=c++17'],   # macOS/Clang flags
+        'Linux': ['-O3', '-std=c++17']     # Linux/GCC flags
     }
 
     # Get base optimization flag for current platform
-    extra_compile_args = compiler_flags.get(platform.system(), ['-O3'])
+    extra_compile_args = compiler_flags.get(platform.system(), ['-O3', '-std=c++17'])
     extra_link_args = []
 
     # Add architecture flags only for macOS
