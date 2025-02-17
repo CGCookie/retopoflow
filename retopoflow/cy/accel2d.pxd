@@ -9,29 +9,7 @@ cimport numpy as np
 
 from .bmesh_fast cimport BMVert, BMEdge, BMFace, BMesh, BPy_BMesh, BMHeader
 from .space cimport ARegion, RegionView3D
-from .vector cimport Vector3
 
-'''
-# Define as C constants
-cdef int ALL = 0
-cdef int SELECTED = 1
-cdef int UNSELECTED = 2
-
-cdef extern from *:
-    """
-    extern "C" {
-        enum SelectionState {
-            ALL = 0,
-            SELECTED = 1,
-            UNSELECTED = 2
-        };
-    }
-    """
-    cdef enum SelectionState:
-        ALL = 0
-        SELECTED = 1
-        UNSELECTED = 2
-'''
 
 cdef enum SelectionState:
     ALL = 0
@@ -72,14 +50,17 @@ cdef class Accel2D:
         uint8_t* is_selected_e
         uint8_t* is_selected_f
 
-    cpdef void update_matrix_world(self, object py_matrix_world)
-
-    cdef void _update_matrices(self) noexcept nogil
+    # cpdef void update_matrix_world(self, object py_matrix_world)
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil
+    cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
+    # cdef void _update_matrices(self) noexcept nogil
     cdef void _build_accel_struct(self) noexcept nogil
     cdef void _reset(self) noexcept nogil
-    cdef void _ensure_lookup_tables(self, object py_bmesh)
-    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
-    cdef void _compute_geometry_visibility_in_region(self, float margin_check) noexcept nogil
+    cpdef void _ensure_lookup_tables(self, object py_bmesh)
+    cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil
+
+    # def get_vis_verts(self, object py_bmesh, int selected_only) -> set
 
     cdef np.ndarray get_is_visible_verts_array(self)
     cdef np.ndarray get_is_visible_edges_array(self)

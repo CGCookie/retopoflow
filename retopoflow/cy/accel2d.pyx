@@ -33,6 +33,10 @@ from .matrix cimport mat4_invert_safe, mat4_invert, mat4_to_3x3, mat4_transpose,
 
 import cython
 
+# from cpython.ref cimport Py_INCREF, Py_DECREF
+# from cpython.object cimport PyObject, PyObject_CallMethod, PyObject_GetAttr, PyObject_SetAttr
+
+
 # from mathutils import Matrix as py_Matrix
 # from bmesh.types import BMesh as py_BMesh
 # from bpy.types import Region as py_Region, RegionView3D as py_RegionView3D
@@ -51,28 +55,71 @@ cdef class Accel2D:
         self.is_selected_e = NULL
         self.is_selected_f = NULL
 
-    def __init__(self, object py_bmesh, object py_object, object py_region, object py_rv3d, int selected_only):
-        # print(f"Accel2D.__init__({py_bmesh}, {py_region}, {py_rv3d}, {selected_only})\n")
+    def __init__(self,
+        object py_bmesh,
+        # object py_object,
+        object py_region,
+        object py_rv3d,
+        # int selected_only,
+        np.ndarray[np.float32_t, ndim=2] matrix_world,
+        np.ndarray[np.float32_t, ndim=2] matrix_normal,
+        np.ndarray[np.float32_t, ndim=2] proj_matrix,
+        np.ndarray[np.float32_t, ndim=1] view_pos,
+        bint is_perspective
+    ):
+        print(f"[CYTHON] Accel2D.__init__({py_bmesh}, {py_region}, {py_rv3d}, {matrix_world}, {matrix_normal}, {proj_matrix}, {view_pos}, {is_perspective})\n")
         self._ensure_lookup_tables(py_bmesh)
         self.py_bmesh = <BPy_BMesh*><uintptr_t>id(py_bmesh)
         self.bmesh = self.py_bmesh.bm
+        # check if valid BMesh and tables.
         self.region = <ARegion*><uintptr_t>id(py_region)
         self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
-        self.selected_only = selected_only
-        self.update_matrix_world(py_object.matrix_world)
-        self._compute_geometry_visibility_in_region(0.0)
+        # self.selected_only = selected_only
+        # self.update_matrix_world(py_object.matrix_world)
+
+        self._update_object_transform(matrix_world, matrix_normal)
+        self._update_view(proj_matrix, view_pos, is_perspective)
+
+        if self._compute_geometry_visibility_in_region(1.0) != 0:
+            print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
+
         # self._build_accel_struct()
 
     def __dealloc__(self):
         self._reset()
 
+    cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil:
+        cdef:
+            int i, j
+
+        for i in range(4):
+            for j in range(4):
+                self.matrix_world[i][j] = matrix_world[i][j]
+
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil:
+        cdef:
+            int i, j
+
+        for i in range(4):
+            for j in range(4):
+                self.view3d.proj_matrix[i][j] = proj_matrix[i][j]
+
+        for i in range(3):
+            self.view3d.view_pos[i] = view_pos[i]
+
+        self.view3d.is_persp = is_perspective
+
+    '''
     cpdef void update_matrix_world(self, object py_matrix_world):
         # Matrix World.
+        print(f"[CYTHON] Accel2D.update_matrix_world({py_matrix_world})\n")
         for i in range(4):
             for j in range(4):
                 self.matrix_world[i][j] = py_matrix_world[i][j]
         
         self._update_matrices()
+
+        print(f'[CYTHON]MATRIX AND VIEW PROPS: {self.matrix_world=} {self.matrix_normal=} {self.view3d.proj_matrix=} {self.view3d.is_persp=} {self.view3d.view_pos=}')
 
     cdef void _update_matrices(self) noexcept nogil:
         cdef:
@@ -102,23 +149,31 @@ cdef class Accel2D:
             mat4_get_translation(mat_temp_1, self.view3d.view_pos)
         else:
             mat4_get_col3(mat_temp_1, 2, self.view3d.view_pos)
+    '''
 
-    cdef void _ensure_lookup_tables(self, object py_bmesh):
+    cpdef void _ensure_lookup_tables(self, object py_bmesh):
         """Ensure lookup tables are created for the bmesh"""
         try:
             py_bmesh.verts[0]
         except IndexError:
+            print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
             py_bmesh.verts.ensure_lookup_table()
         try:
             py_bmesh.edges[0]
         except IndexError:
+            print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
             py_bmesh.edges.ensure_lookup_table()
         try:
             py_bmesh.faces[0]
         except IndexError:
+            print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
             py_bmesh.faces.ensure_lookup_table()
 
-    cdef void _compute_geometry_visibility_in_region(self, float margin_check) noexcept nogil:
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil:
+        if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
+            printf("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
+            return -1
+
         cdef:
             uint8_t* visible_vert_indices = NULL
             uint8_t* is_vert_visible = NULL
@@ -158,7 +213,7 @@ cdef class Accel2D:
 
         if visible_vert_indices == NULL or is_vert_visible == NULL or\
             is_edge_visible == NULL or is_face_visible == NULL:
-            printf("Error: Failed to allocate memory\n")
+            printf("[CYTHON] Error: Failed to allocate memory\n")
             if visible_vert_indices != NULL:
                 free(visible_vert_indices)
             if is_vert_visible != NULL:
@@ -167,7 +222,7 @@ cdef class Accel2D:
                 free(is_edge_visible)
             if is_face_visible != NULL:
                 free(is_face_visible)
-            return
+            return -1
 
         self.is_hidden_v = <uint8_t*>malloc(totvert * sizeof(uint8_t))
         self.is_hidden_e = <uint8_t*>malloc(totedge * sizeof(uint8_t))
@@ -179,7 +234,7 @@ cdef class Accel2D:
 
         if self.is_hidden_v == NULL or self.is_hidden_e == NULL or self.is_hidden_f == NULL or\
             self.is_selected_v == NULL or self.is_selected_e == NULL or self.is_selected_f == NULL:
-            printf("Error: Failed to allocate memory\n")
+            printf("[CYTHON]Error: Failed to allocate memory\n")
             if self.is_hidden_v != NULL:
                 free(self.is_hidden_v)
             if self.is_hidden_e != NULL:
@@ -192,7 +247,7 @@ cdef class Accel2D:
                 free(self.is_selected_e)
             if self.is_selected_f != NULL:
                 free(self.is_selected_f)
-            return
+            return -1
 
         # Initialize visibility array
         with parallel():
@@ -205,7 +260,7 @@ cdef class Accel2D:
                 is_face_visible[k] = 0
 
         # Compute visible vertices on screen (region space).
-        for vert_idx in prange(totvert, nogil=True):
+        for vert_idx in prange(totvert, nogil=True, schedule='static'):
             vert = vtable[vert_idx]
             # Skip NULL/invalid vertices.
             if vert == NULL:
@@ -257,7 +312,8 @@ cdef class Accel2D:
                     view3d.proj_matrix[3][j]
                 )
 
-            if screen_pos[3] <= 0:  # Behind camera
+            # Check if behind camera
+            if screen_pos[3] <= 0:
                 continue
 
             # Perspective divide and bounds check
@@ -319,7 +375,20 @@ cdef class Accel2D:
         self.totvisedges = totvisedge
         self.totvisfaces = totvisface
 
-    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
+        with parallel():
+            for vert_idx in prange(totvert):
+                if is_vert_visible[vert_idx]:
+                    self.visverts.insert(vtable[vert_idx])
+            for edge_idx in prange(totedge):
+                if is_edge_visible[edge_idx]:
+                    self.visedges.insert(etable[edge_idx])
+            for face_idx in prange(totface):
+                if is_face_visible[face_idx]:
+                    self.visfaces.insert(ftable[face_idx])
+
+        return 0
+
+    cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
         """Classify element based on selection and visibility flags."""
         is_hidden_array[index]= BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
         is_selected_array[index] = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
@@ -447,6 +516,19 @@ cdef class Accel2D:
                     sel_py_faces.add(py_bm_faces[i])
 
         return sel_py_verts, sel_py_edges, sel_py_faces
+
+    def get_vis_verts(self, object py_bmesh, int selected_only) -> set:
+        cdef:
+            object py_bm_verts = py_bmesh.verts
+
+        if selected_only == SelectionState.ALL:
+            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert)}
+        elif selected_only == SelectionState.SELECTED:
+            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if self.is_selected_v[i]}
+        elif selected_only == SelectionState.UNSELECTED:
+            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if not self.is_selected_v[i]}
+        else:
+            return set()
 
     def get_nearest_verts(self, tuple point, double max_dist):
         """Get vertices within max_dist of point"""
