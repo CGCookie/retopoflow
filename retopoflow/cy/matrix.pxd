@@ -18,6 +18,6 @@ cdef void mat4_invert_safe(float[4][4] m, float[4][4] result) noexcept nogil
 cdef void mat4_to_3x3(float[4][4] m, float[3][3] result) noexcept nogil
 cdef float mat4_determinant(float[4][4] m) noexcept nogil
 cdef void mat4_multiply(float[4][4] a, float[4][4] b, float[4][4] result) noexcept nogil
-cdef void mat4_get_translation(float[4][4] m, Vector3* result) noexcept nogil
-cdef void mat4_get_col3(float[4][4] m, int col, Vector3* result) noexcept nogil
-cdef void mat4_get_col4(float[4][4] m, int col, Vector4* result) noexcept nogil
+cdef void mat4_get_translation(float[4][4] m, float* result) noexcept nogil
+cdef void mat4_get_col3(float[4][4] m, int col, float* result) noexcept nogil
+cdef void mat4_get_col4(float[4][4] m, int col, float* result) noexcept nogil

@@ -202,16 +202,16 @@ cdef void mat4_to_3x3(float[4][4] m, float[3][3] result) noexcept nogil:
         for j in range(3):
             result[i][j] = m[i][j]
 
-cdef void mat4_get_col3(float[4][4] m, int col, Vector3* result) noexcept nogil:
-    result.x = m[0][col]
-    result.y = m[1][col]
-    result.z = m[2][col]
+cdef void mat4_get_col3(float[4][4] m, int col, float* result) noexcept nogil:
+    result[0] = m[0][col]
+    result[1] = m[1][col]
+    result[2] = m[2][col]
 
-cdef void mat4_get_col4(float[4][4] m, int col, Vector4* result) noexcept nogil:
-    result.x = m[0][col]
-    result.y = m[1][col]
-    result.z = m[2][col]
-    result.w = m[3][col]
+cdef void mat4_get_col4(float[4][4] m, int col, float* result) noexcept nogil:
+    result[0] = m[0][col]
+    result[1] = m[1][col]
+    result[2] = m[2][col]
+    result[3] = m[3][col]
 
 cdef void mat4_transpose(float[4][4] m, float[4][4] result) noexcept nogil:
     cdef int i, j
@@ -227,7 +227,7 @@ cdef void mat4_multiply(float[4][4] a, float[4][4] b, float[4][4] result) noexce
             for k in range(4):
                 result[i][j] += a[i][k] * b[k][j]
 
-cdef void mat4_get_translation(float[4][4] m, Vector3* result) noexcept nogil:
-    result.x = m[0][3]
-    result.y = m[1][3]
-    result.z = m[2][3]
+cdef void mat4_get_translation(float[4][4] m, float* result) noexcept nogil:
+    result[0] = m[0][3]
+    result[1] = m[1][3]
+    result[2] = m[2][3]
