@@ -231,3 +231,26 @@ cdef void mat4_get_translation(float[4][4] m, float* result) noexcept nogil:
     result[0] = m[0][3]
     result[1] = m[1][3]
     result[2] = m[2][3]
+
+
+################################################################
+################################################################
+################################################################
+
+cdef void mul_m4_v3(const float[4][4] M, float[3] r) noexcept nogil:
+    cdef:
+        float x = r[0];
+        float y = r[1];
+
+    r[0] = x * M[0][0] + y * M[1][0] + M[2][0] * r[2] + M[3][0]
+    r[1] = x * M[0][1] + y * M[1][1] + M[2][1] * r[2] + M[3][1]
+    r[2] = x * M[0][2] + y * M[1][2] + M[2][2] * r[2] + M[3][2]
+
+cdef void mul_v3_m4v3(float[3] r, const float[4][4] mat, const float[3] vec) noexcept nogil:
+    cdef:
+        float x = vec[0]
+        float y = vec[1]
+
+    r[0] = x * mat[0][0] + y * mat[1][0] + mat[2][0] * vec[2] + mat[3][0]
+    r[1] = x * mat[0][1] + y * mat[1][1] + mat[2][1] * vec[2] + mat[3][1]
+    r[2] = x * mat[0][2] + y * mat[1][2] + mat[2][2] * vec[2] + mat[3][2]

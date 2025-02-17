@@ -21,3 +21,10 @@ cdef void mat4_multiply(float[4][4] a, float[4][4] b, float[4][4] result) noexce
 cdef void mat4_get_translation(float[4][4] m, float* result) noexcept nogil
 cdef void mat4_get_col3(float[4][4] m, int col, float* result) noexcept nogil
 cdef void mat4_get_col4(float[4][4] m, int col, float* result) noexcept nogil
+
+################################################################
+################################################################
+################################################################
+
+cdef void mul_m4_v3(const float[4][4] M, float[3] r) noexcept nogil
+cdef void mul_v3_m4v3(float[3] r, const float[4][4] mat, const float[3] vec) noexcept nogil
