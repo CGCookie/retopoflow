@@ -24,12 +24,12 @@ bl_info = {
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, JF Matheu, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (4, 0, 0),
-    "version":      (4, 0, 2),
+    "version":      (4, 0, 0, 'α', 3),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "Edit Mode Toolbar",
     "category":     "3D View",
-    "warning":      "Alpha",
+    "warning":      "Alpha Version",
 }
 
 import bpy
