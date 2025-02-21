@@ -24,28 +24,25 @@ from libcpp.set cimport set as cpp_set
 from libcpp.pair cimport pair
 from libcpp.iterator cimport iterator
 
-from .bmesh_fast cimport BMVert, BMEdge, BMFace, BMesh, BPy_BMesh, BMesh, BMHeader, BPy_BMEdge, BPy_BMFace, BPy_BMVert, BPy_BMLoop, BPy_BMElemSeq, BPy_BMElem, BMLoop, BPy_BMIter
-from .bmesh_enums cimport BMElemHFlag, BM_elem_flag_test
-from .space cimport ARegion, RegionView3D
-from .vector cimport vec3_normalize, vec3_dot
-from .matrix cimport mat4_invert_safe, mat4_invert, mat4_to_3x3, mat4_transpose, mat4_multiply, mat4_get_col3, mat4_get_translation
+
+# from .matrix cimport mat4_invert_safe, mat4_invert, mat4_to_3x3, mat4_transpose, mat4_multiply, mat4_get_col3, mat4_get_translation
 # from .view3d_utils cimport location_3d_to_region_2d
 
 import cython
 
-# from cpython.ref cimport Py_INCREF, Py_DECREF
-# from cpython.object cimport PyObject, PyObject_CallMethod, PyObject_GetAttr, PyObject_SetAttr
-
-
-# from mathutils import Matrix as py_Matrix
-# from bmesh.types import BMesh as py_BMesh
-# from bpy.types import Region as py_Region, RegionView3D as py_RegionView3D
+from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeader, BMLoop
+from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
+from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
+from .bl_types cimport ARegion, RegionView3D
+from .utils cimport vec3_normalize, vec3_dot
 
 # ctypedef np.uint8_t uint8
 
+cdef float inf = <float>1e1000
+
 
 @cython.binding(True)
-cdef class Accel2D:
+cdef class TargetMeshAccel:
     def __cinit__(self):
         # Initialize C++ member variables
         self.is_hidden_v = NULL
@@ -77,13 +74,13 @@ cdef class Accel2D:
         # self.selected_only = selected_only
         # self.update_matrix_world(py_object.matrix_world)
 
+        # self.accel = Accel()
+
         self._update_object_transform(matrix_world, matrix_normal)
         self._update_view(proj_matrix, view_pos, is_perspective)
 
         if self._compute_geometry_visibility_in_region(<float>1.0) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
-
-        # self._build_accel_struct()
 
     def __dealloc__(self):
         self._reset()
@@ -101,6 +98,7 @@ cdef class Accel2D:
         cdef:
             int i, j
 
+        # Update view3d parameters
         for i in range(4):
             for j in range(4):
                 self.view3d.proj_matrix[i][j] = proj_matrix[i,j]
@@ -275,11 +273,16 @@ cdef class Accel2D:
                 continue
             
             # Perspective divide and bounds check
-            if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
-                fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
-                is_vert_visible[vert_idx] = 1
-                visible_vert_indices[vert.head.index] = 1
-                totvisvert += 1
+            if (fabs(screen_pos[0] / screen_pos[3]) > margin_check or 
+                fabs(screen_pos[1] / screen_pos[3]) > margin_check):
+                continue
+
+            # TODO: project vert.co to 2D region space.
+            # TODO: store vert 2d position in custom array in self (Accel2D).
+            # TODO: if vertex could be projected and 2d point in inside the region bounds, then mark vertex as visible (as below).
+            is_vert_visible[vert_idx] = 1
+            visible_vert_indices[vert.head.index] = 1
+            totvisvert += 1
 
         # Compute visible edges and faces based on vertices.
         with parallel():
@@ -344,6 +347,9 @@ cdef class Accel2D:
                 if is_face_visible[face_idx]:
                     self.visfaces.insert(ftable[face_idx])
 
+        # After computing visibility and populating the C++ sets, build acceleration structure
+        self._build_accel_struct()
+
         return 0
 
     cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
@@ -351,26 +357,148 @@ cdef class Accel2D:
         is_hidden_array[index]= BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
         is_selected_array[index] = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
 
-    cdef void _build_accel_struct(self) noexcept nogil:
-        """Build acceleration structure for geometry visibility tests"""
-        # printf("Accel2D._build_accel_struct()\n")
-
-        if not self.bmesh or not self.bmesh.vtable:
-            printf("Accel2D._build_accel_struct() - bmesh or vtable is NULL\n")
-            return
-
+    cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil:
+        """Project 3D point to screen space and compute depth"""
         cdef:
-            BMesh* bmesh = self.bmesh
-            BMVert** vtable = bmesh.vtable
-            BMEdge** etable = bmesh.etable
-            BMFace** ftable = bmesh.ftable
-            #BMVert* bmv = NULL
-            #BMEdge* bme = NULL
-            #BMFace* bmf = NULL
-            size_t totvert = bmesh.totvert
-            size_t totedge = bmesh.totedge
-            size_t totface = bmesh.totface
+            float[4] pos4d
+            float[4] clip_pos
+            int i
+            
+        # Transform to clip space
+        for i in range(3):
+            pos4d[i] = world_pos[i]
+        pos4d[3] = <float>1.0
+        
+        # Apply projection
+        for i in range(4):
+            clip_pos[i] = 0
+            for j in range(4):
+                clip_pos[i] += self.view3d.proj_matrix[i][j] * pos4d[j]
+                
+        # Perspective divide
+        if clip_pos[3] != 0:
+            screen_pos[0] = (clip_pos[0] / clip_pos[3] + <float>1.0) * self.region.winx * <float>0.5
+            screen_pos[1] = (clip_pos[1] / clip_pos[3] + <float>1.0) * self.region.winy * <float>0.5
+            depth[0] = clip_pos[2] / clip_pos[3]
+        else:
+            screen_pos[0] = screen_pos[1] = <float>(-1.0)
+            depth[0] = 0
 
+    cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil:
+        """Add vertex to grid"""
+        cdef:
+            float[3] world_pos
+            float[2] screen_pos
+            float depth
+            GeomElement* elem
+            int i
+            
+        # Transform vertex position to world space
+        for i in range(3):
+            world_pos[i] = vert.co[i]
+            for j in range(3):
+                world_pos[i] += self.matrix_world[i][j] * vert.co[j]
+            world_pos[i] += self.matrix_world[i][3]
+            
+        # Project to screen space
+        self._project_point_to_screen(world_pos, screen_pos, &depth)
+        
+        # Create and add element
+        elem = <GeomElement*>malloc(sizeof(GeomElement))
+        elem.elem = vert
+        elem.pos[0] = screen_pos[0]
+        elem.pos[1] = screen_pos[1]
+        elem.depth = depth
+        elem.type = GeomType.VERT
+        
+        self._add_element_to_grid(elem)
+
+    cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil:
+        """Add edge samples to grid"""
+        cdef:
+            float[3] v1_world, v2_world, sample_pos
+            float[2] screen_pos
+            float depth, t
+            GeomElement* elem
+            int i, j
+            BMVert* v1 = <BMVert*>edge.v1
+            BMVert* v2 = <BMVert*>edge.v2
+            
+        # Transform vertices to world space
+        for i in range(3):
+            v1_world[i] = v1.co[i]
+            v2_world[i] = v2.co[i]
+            for j in range(3):
+                v1_world[i] += self.matrix_world[i][j] * v1.co[j]
+                v2_world[i] += self.matrix_world[i][j] * v2.co[j]
+            v1_world[i] += self.matrix_world[i][3]
+            v2_world[i] += self.matrix_world[i][3]
+            
+        # Add samples along edge
+        for i in range(num_samples):
+            t = (<float>i + <float>1.0) / (<float>num_samples + <float>1.0)  # Exclude endpoints
+            
+            # Interpolate position
+            for j in range(3):
+                sample_pos[j] = v1_world[j] * (<float>1.0-t) + v2_world[j] * t
+                
+            # Project to screen space
+            self._project_point_to_screen(sample_pos, screen_pos, &depth)
+            
+            # Create and add element
+            elem = <GeomElement*>malloc(sizeof(GeomElement))
+            elem.elem = edge
+            elem.pos[0] = screen_pos[0]
+            elem.pos[1] = screen_pos[1]
+            elem.depth = depth
+            elem.type = GeomType.EDGE
+            
+            self._add_element_to_grid(elem)
+
+    cdef void add_face_to_grid(self, BMFace* face) noexcept nogil:
+        """Add face centroid to grid"""
+        cdef:
+            float[3] centroid
+            float[2] screen_pos
+            float depth
+            GeomElement* elem
+            int i, j, num_verts = 0
+            BMLoop* l_iter = <BMLoop*>face.l_first
+            BMVert* vert
+            
+        # Compute face centroid in world space
+        for i in range(3):
+            centroid[i] = 0
+            
+        while l_iter:
+            vert = <BMVert*>l_iter.v
+            for i in range(3):
+                centroid[i] += vert.co[i]
+            num_verts += 1
+            l_iter = <BMLoop*>l_iter.next
+            if l_iter == <BMLoop*>face.l_first:
+                break
+                
+        if num_verts > 0:
+            # Average centroid and transform to world space
+            for i in range(3):
+                centroid[i] /= num_verts
+                for j in range(3):
+                    centroid[i] += self.matrix_world[i][j] * centroid[j]
+                centroid[i] += self.matrix_world[i][3]
+                
+            # Project to screen space
+            self._project_point_to_screen(centroid, screen_pos, &depth)
+            
+            # Create and add element
+            elem = <GeomElement*>malloc(sizeof(GeomElement))
+            elem.elem = face
+            elem.pos[0] = screen_pos[0]
+            elem.pos[1] = screen_pos[1]
+            elem.depth = depth
+            elem.type = GeomType.FACE
+            
+            self._add_element_to_grid(elem)
 
     cdef void _reset(self) noexcept nogil:
         """Reset the acceleration structure"""
@@ -567,3 +695,228 @@ cdef class Accel2D:
         """Get selected array of faces as NumPy array (zero-copy)"""
         cdef size_t size = self.py_bmesh.bm.totface
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)
+
+    def find_nearest_vert(self, float x, float y, float max_dist=inf):
+        """Find nearest visible vertex to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.VERT)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    def find_nearest_edge(self, float x, float y, float max_dist=inf):
+        """Find nearest visible edge to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.EDGE)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    def find_nearest_face(self, float x, float y, float max_dist=inf):
+        """Find nearest visible face to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.FACE)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    def find_k_nearest(self, float x, float y, int k, float max_dist=inf, GeomType filter_type=GeomType.NONE):
+        """Find k nearest elements to screen position"""
+        cdef:
+            vector[GeomElement] results
+            list py_results = []
+            size_t i
+            
+        self._find_nearest_k(x, y, k, max_dist, filter_type, &results)
+        
+        for i in range(results.size()):
+            py_results.append({
+                'elem': <object>results[i].elem,
+                'pos': (results[i].pos[0], results[i].pos[1]),
+                'depth': results[i].depth
+            })
+            
+        return py_results
+
+    cdef void _init_grid(self) noexcept nogil:
+        """Initialize the grid structure based on region size"""
+        cdef:
+            int i, j
+            
+        self.grid_size_x = self.region.winx // 20  # Adjust cell size as needed
+        self.grid_size_y = self.region.winy // 20
+        self.cell_size_x = self.region.winx / <float>self.grid_size_x
+        self.cell_size_y = self.region.winy / <float>self.grid_size_y
+        
+        # Allocate grid
+        self.grid = <GridCell**>malloc(self.grid_size_x * sizeof(GridCell*))
+        for i in range(self.grid_size_x):
+            self.grid[i] = <GridCell*>malloc(self.grid_size_y * sizeof(GridCell))
+            for j in range(self.grid_size_y):
+                self.grid[i][j].elements.clear()
+
+    cdef void _clear_grid(self) noexcept nogil:
+        """Clear and deallocate grid"""
+        cdef int i
+        if self.grid != NULL:
+            for i in range(self.grid_size_x):
+                if self.grid[i] != NULL:
+                    free(self.grid[i])
+            free(self.grid)
+            self.grid = NULL
+
+    cdef void _get_cell_coords(self, float x, float y, int* cell_x, int* cell_y) noexcept nogil:
+        """Get grid cell coordinates for a point"""
+        cell_x[0] = <int>(x / self.cell_size_x)
+        cell_y[0] = <int>(y / self.cell_size_y)
+        
+        # Clamp to grid bounds
+        if cell_x[0] < 0: cell_x[0] = 0
+        if cell_y[0] < 0: cell_y[0] = 0
+        if cell_x[0] >= self.grid_size_x: cell_x[0] = self.grid_size_x - 1
+        if cell_y[0] >= self.grid_size_y: cell_y[0] = self.grid_size_y - 1
+
+    cdef void _add_element_to_grid(self, GeomElement* elem) noexcept nogil:
+        """Add an element to the appropriate grid cell"""
+        cdef:
+            int cell_x, cell_y
+        
+        self._get_cell_coords(elem.pos[0], elem.pos[1], &cell_x, &cell_y)
+        self.grid[cell_x][cell_y].elements.push_back(elem[0])
+
+    cdef void _find_cells_in_range(self, float x, float y, float radius, 
+                                  vector[GridCell*]* cells) noexcept nogil:
+        """Find all grid cells that intersect with the given circle"""
+        cdef:
+            int min_cell_x, min_cell_y, max_cell_x, max_cell_y
+            int cell_x, cell_y
+            float radius_cells_x = radius / self.cell_size_x
+            float radius_cells_y = radius / self.cell_size_y
+            
+        # Get cell range that could contain points within radius
+        self._get_cell_coords(x - radius, y - radius, &min_cell_x, &min_cell_y)
+        self._get_cell_coords(x + radius, y + radius, &max_cell_x, &max_cell_y)
+        
+        # Add all cells in range
+        for cell_x in range(min_cell_x, max_cell_x + 1):
+            for cell_y in range(min_cell_y, max_cell_y + 1):
+                cells.push_back(&self.grid[cell_x][cell_y])
+
+    cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil:
+        """Compute 2D Euclidean distance"""
+        cdef:
+            float dx = x2 - x1
+            float dy = y2 - y1
+        return sqrt(dx * dx + dy * dy)
+
+    cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
+                                  GeomType filter_type) noexcept nogil:
+        """Find nearest element of given type within max_dist"""
+        cdef:
+            vector[GridCell*] cells
+            size_t i, j
+            float dist, min_dist = max_dist
+            GeomElement* nearest = NULL
+            GeomElement* elem
+            
+        # Get cells that could contain points within max_dist
+        self._find_cells_in_range(x, y, max_dist, &cells)
+        
+        # Search through all elements in found cells
+        for i in range(cells.size()):
+            for j in range(cells[i].elements.size()):
+                elem = &cells[i].elements[j]
+                if filter_type != NONE and elem.type != filter_type:
+                    continue
+                    
+                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
+                if dist < min_dist:
+                    min_dist = dist
+                    nearest = elem
+                    
+        return nearest
+
+    cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
+                             GeomType filter_type, vector[GeomElement]* results) noexcept nogil:
+        """Find k nearest elements of given type within max_dist"""
+        cdef:
+            vector[GridCell*] cells
+            size_t i, j, l
+            float dist
+            GeomElement elem
+            vector[pair[float, GeomElement]] candidates
+            
+        # Get cells that could contain points within max_dist
+        self._find_cells_in_range(x, y, max_dist, &cells)
+        
+        # Collect all elements and their distances
+        for i in range(cells.size()):
+            for j in range(cells[i].elements.size()):
+                elem = cells[i].elements[j]
+                if filter_type != NONE and elem.type != filter_type:
+                    continue
+                    
+                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
+                if dist <= max_dist:
+                    candidates.push_back(pair[float, GeomElement](dist, elem))
+                    
+        # Sort candidates by distance
+        # Note: This is a simple bubble sort, could be optimized
+        cdef:
+            size_t n = candidates.size()
+            pair[float, GeomElement] temp
+            
+        for i in range(n):
+            for j in range(0, n - i - 1):
+                if candidates[j].first > candidates[j + 1].first:
+                    temp = candidates[j]
+                    candidates[j] = candidates[j + 1]
+                    candidates[j + 1] = temp
+                    
+        # Take k nearest
+        for i in range(min(k, candidates.size())):
+            results.push_back(candidates[i].second)
+
+    cdef void _build_accel_struct(self) noexcept nogil:
+        """Build acceleration structure for efficient spatial queries"""
+        cdef:
+            cpp_set[BMVert*].iterator vert_it
+            cpp_set[BMEdge*].iterator edge_it
+            cpp_set[BMFace*].iterator face_it
+            BMVert* vert
+            BMEdge* edge
+            BMFace* face
+            int i, j
+
+        # Initialize grid
+        self._init_grid()
+
+        # Add visible vertices
+        vert_it = self.visverts.begin()
+        while vert_it != self.visverts.end():
+            vert = deref(vert_it)
+            self.add_vert_to_grid(vert)
+            inc(vert_it)
+
+        # Add visible edges with samples
+        edge_it = self.visedges.begin()
+        while edge_it != self.visedges.end():
+            edge = deref(edge_it)
+            self.add_edge_to_grid(edge, 3)  # 3 samples along each edge
+            inc(edge_it)
+
+        # Add visible faces
+        face_it = self.visfaces.begin()
+        while face_it != self.visfaces.end():
+            face = deref(face_it)
+            self.add_face_to_grid(face)  # Add face centroid
+            inc(face_it)

@@ -1,12 +1,8 @@
 # distutils: language=c++
 # cython: language_level=3
 
-from .vector cimport rctf, rcti, BoundBox
-
-
-cdef struct ListBase:
-    void* first
-    void* last
+from .vec_types cimport rcti, rctf, BoundBox
+from .list_base cimport ListBase
 
 
 cdef struct View2D:

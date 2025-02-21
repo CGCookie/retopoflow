@@ -8,13 +8,13 @@
 # cython: embedsignature=True
 # cython: binding=False
 
-from libc.math cimport sqrt, fabs
+from libc.math cimport sqrt
 
 
-cdef inline float vec3_dot(const float* a, const float* b) noexcept nogil:
+cdef float vec3_dot(const float* a, const float* b) noexcept nogil:
         return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
-cdef inline void vec3_normalize(float* v) noexcept nogil:
+cdef void vec3_normalize(float* v) noexcept nogil:
     cdef float length = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
     if length > 0:
         v[0] /= length

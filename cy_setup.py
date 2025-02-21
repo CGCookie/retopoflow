@@ -5,6 +5,18 @@ import sys
 import platform
 import os
 import subprocess
+import shutil
+from pathlib import Path
+
+# check if script was run with --dev flag.
+DEV_BUILD = '--dev' in sys.argv
+
+if DEV_BUILD:
+    index = sys.argv.index('--dev')
+    sys.argv.pop(index)
+    addon_module_prefix = 'bl_ext.vscode_development'
+else:
+    addon_module_prefix = 'bl_ext.user_default'
 
 
 numpy_extra_compile_args = {
@@ -58,52 +70,104 @@ def build_for_architecture(arch):
                     return True
         return False
 
-    # Automatically discover all .pyx files.
     cy_dir = "retopoflow/cy"
     ext_modules = []
-    print("Found .pyx files:", [f for f in os.listdir(cy_dir) if f.endswith('.pyx')])
-    for file in os.listdir(cy_dir):
-        if file.endswith('.pyx'):
-            module_name = f"retopoflow.cy.{file[:-4]}"  # Remove .pyx extension.
-            file_path = os.path.join(cy_dir, file)
 
-            # Build extension kwargs.
-            ext_kwargs = {**shared_ext_kwargs}
+    # Find all .pyx files recursively
+    cy_path = Path(cy_dir)
+    pyx_files = [file for file in cy_path.glob('**/*.pyx')]
+    print("Found .pyx files:", pyx_files)
 
-            # Add numpy kwargs only if the file uses numpy.
-            if uses_numpy(file_path):
-                ext_kwargs.update(numpy_extra_compile_args)
+    def create_extensions_from_pyx_files(dirpath: str):
+        for file in os.listdir(dirpath):
+            file_path = os.path.join(dirpath, file)
+            if os.path.isdir(file_path):
+                if file.startswith('_'):
+                    continue
+                create_extensions_from_pyx_files(file_path)
+            elif file.endswith('.pyx'):
+                module_name = f"retopoflow.cy.{file[:-4]}"  # Remove .pyx extension.
+                
+                print("Info: New Extension from module:", module_name)
 
-            ext_modules.append(
-                Extension(
-                    module_name,
-                    sources=[file_path],
-                    **ext_kwargs
+                # Build extension kwargs.
+                ext_kwargs = {**shared_ext_kwargs}
+
+                # Add numpy kwargs only if the file uses numpy.
+                if uses_numpy(file_path):
+                    ext_kwargs.update(numpy_extra_compile_args)
+
+                ext_modules.append(
+                    Extension(
+                        module_name,
+                        sources=[file_path],
+                        **ext_kwargs
+                    )
                 )
-            )
+
+    create_extensions_from_pyx_files(cy_dir)
 
     # Build extensions
-    setup(
-        name="retopoflow",
-        packages=find_packages(),
-        ext_modules=cythonize(ext_modules, 
-                            annotate=True,
-                            compiler_directives={
-                                'language_level': 3,
-                                'boundscheck': False,
-                                'wraparound': False,
-                            }),
-        zip_safe=False,
-    )
+    failed = False
+    try:
+        setup(
+            name="retopoflow",
+            packages=[f'retopoflow.cy'], # , {addon_module_prefix}. 'retopoflow.cy.bl_types', 'retopoflow.cy.utils'],
+            ext_modules=cythonize(ext_modules, 
+                                annotate=DEV_BUILD,
+                                compiler_directives={
+                                    'language_level': 3,
+                                    'boundscheck': False,
+                                    'wraparound': False,
+                                }),
+            zip_safe=False,
+        )
+    except Exception as e:
+        print(f"Error: {e}")
+        failed = True
 
-    if platform.system() == 'Darwin':
-        # find all compiled files and rename them to include the platform tag
-        for file in os.listdir("retopoflow/cy"):
-            if file.endswith('darwin.so'):
-                os.rename(f"retopoflow/cy/{file}", f"retopoflow/cy/{file.split('.')[0]}-{os.environ['PLAT_NAME']}.so")
+    if not failed:
+        if platform.system() == 'Darwin':
+            # find all compiled files and rename them to include the platform tag
+            for file in os.listdir("retopoflow/cy"):
+                if file.endswith('darwin.so'):
+                    os.rename(f"retopoflow/cy/{file}", f"retopoflow/cy/{file.split('.')[0]}-{os.environ['PLAT_NAME']}.so")
+
+
+def clean_cython_cache(cy_dir):
+    """Clean Cython cache and build files"""
+    # Remove .c and .cpp files
+    for ext in ['.c', '.cpp']:
+        for file in Path(cy_dir).rglob(f'*{ext}'):
+            file.unlink()
+            print(f"Removed {file}")
+    
+    # Remove compiled .so or .pyd files
+    for ext in ['.so', '.pyd']:
+        for file in Path(cy_dir).rglob(f'*{ext}'):
+            file.unlink()
+            print(f"Removed {file}")
+    
+    # Remove __pycache__ directories
+    for cache_dir in Path(cy_dir).rglob('__pycache__'):
+        shutil.rmtree(cache_dir)
+        print(f"Removed {cache_dir}")
+    
+    # Remove build directory if it exists
+    build_dir = Path('build')
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+        print("Removed build directory")
 
 
 def main():
+    cy_dir = os.path.abspath("retopoflow/cy")
+    print(f"Cython directory: {cy_dir}")
+
+    # Clean cache if --force flag is present
+    if '--force' in sys.argv:
+        clean_cython_cache(cy_dir)
+
     system = platform.system()
 
     if system == 'Darwin':  # macOS

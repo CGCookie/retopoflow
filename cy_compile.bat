@@ -8,7 +8,7 @@ set PYTHON_PATH="%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
 cd "%~dp0"
 
 "%PYTHON_PATH%" -m pip install --upgrade cython numpy
-"%PYTHON_PATH%" cy_setup.py build_ext -i -v --inplace --force
+"%PYTHON_PATH%" cy_setup.py build_ext -i -v --inplace --force --dev
 
 if %errorlevel% neq 0 (
     echo Compilation failed.
