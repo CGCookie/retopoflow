@@ -69,7 +69,7 @@ from ...addon_common.common.maths import (
     Direction,
     closest_points_segments,
 )
-from ...addon_common.common.utils import iter_pairs, enumerate_reversed
+from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumerate_direction
 
 import math
 from itertools import chain
@@ -129,7 +129,7 @@ class PolyStrips_Logic:
     @count.setter
     def count(self, v): self._count = max(int(v), self.count_min)
 
-    def stroke_samples(self):
+    def stroke_angles(self):
         context = self.context
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -170,7 +170,8 @@ class PolyStrips_Logic:
             print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
             return
 
-        print(f'{self.stroke_samples()=}')
+        angles = self.stroke_angles()
+        print(f'{angles=}')
 
         ###########################################################################
         # sample the stroke and compute various properties of sample
@@ -197,8 +198,8 @@ class PolyStrips_Logic:
         ######################################
         # create bmverts
 
-        w0 = self.snap0[3] if self.snap0 else self.width
-        w1 = self.snap1[3] if self.snap1 else self.width
+        w0 = self.snap0['bme.radius'] if self.snap0 else self.width
+        w1 = self.snap1['bme.radius'] if self.snap1 else self.width
         wm = self.width
         bmvs = [[], []]
 
@@ -206,7 +207,7 @@ class PolyStrips_Logic:
         p, pn = self.points[0], self.points[1]
         f, r = self.forwards[0], self.rights[0]
         if self.snap0:
-            bme = self.bm.edges[self.snap0[1]]
+            bme = self.bm.edges[self.snap0['bme.index']]
             bmv0, bmv1 = bme.verts[0], bme.verts[1]
             co0, co1 = M @ bmv0.co, M @ bmv1.co
             if r.dot(co1 - co0) > 0:
@@ -235,7 +236,7 @@ class PolyStrips_Logic:
         p, pp = self.points[-1], self.points[-2]
         f, r = self.forwards[-1], self.rights[-1]
         if self.snap1:
-            bme = self.bm.edges[self.snap1[1]]
+            bme = self.bm.edges[self.snap1['bme.index']]
             bmv0, bmv1 = bme.verts[0], bme.verts[1]
             co0, co1 = M @ bmv0.co, M @ bmv1.co
             if r.dot(co1 - co0) > 0:
@@ -253,8 +254,8 @@ class PolyStrips_Logic:
 
         # insert bmverts of snapped faces
         # IMPORTANT: must happen _BEFORE_ faces are created!
-        bmvs_snap0 = list(self.bm.faces[self.snap0[0]].verts) if self.snap0 else []
-        bmvs_snap1 = list(self.bm.faces[self.snap1[0]].verts) if self.snap1 else []
+        bmvs_snap0 = list(self.bm.faces[self.snap0['bmf.index']].verts) if self.snap0 else []
+        bmvs_snap1 = list(self.bm.faces[self.snap1['bmf.index']].verts) if self.snap1 else []
 
 
         ######################################################
@@ -312,76 +313,93 @@ class PolyStrips_Logic:
         #######################################################################################
         # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
 
-        i0, i1 = 0, len(self.stroke3D_local)
-        self.snap0, self.snap1 = None, None
+        def generate_point_inside_bmf(bmf):
+            cos3D = [bmv.co for bmv in bmf.verts]
+            o = sum(cos3D, Vector()) / len(cos3D)
+            z = Direction(bmf.normal)
+            x = Direction(cos3D[0] - o)
+            y = Direction(z.cross(x))
+            def to2D(point):
+                v = point - o
+                vx, vy = x.dot(v), y.dot(v)
+                return (vx, vy)
+            cos2D = [ to2D(co) for co in cos3D ]
+            def inside(point):
+                # compute windings to determine if point is inside bmf
+                # https://ics.uci.edu/~eppstein/161/960307.html
+                (px, py) = to2D(point)
+                crossings = 0
+                for ((x0, y0), (x1, y1)) in iter_pairs(cos2D, True):
+                    if x0 < px < x1 or x0 > px > x1:
+                        t = (px - x1) / (x0 - x1)
+                        cy = t * y0 + (1 - t) * y1
+                        if py == cy: return True                           # on boundary edge of face!
+                        if py > cy: crossings += 1
+                    if px == x0:
+                        if py == y0: return True                           # on boundary vert of face!
+                        if x1 == px:
+                            if y0 < py < y1 or y0 > py > y1: return True   # on boundary vert of face!
+                        elif x1 > px:
+                            crossings += 1
+                        if x1 > px: crossings += 1
+                return (crossings % 2) == 1
+            return inside
 
-        if self.snap_bmf0:
-            bmf = self.snap_bmf0
-            bmf_cos = [bmv.co for bmv in bmf.verts]
-            bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
-            bmf_radius = max((co - bmf_center).length for co in bmf_cos)
+        def trim_stroke_to_bmf(stroke, bmf, from_start):
+            if not bmf: return None
+
+            point_inside_bmf = generate_point_inside_bmf(bmf)
+
             # find the first stroke pt outside the snapped bmf
-            i0 = next((i for (i,pt) in enumerate(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
-            if i0 is None:
-                print(f'ERROR: stroke totally inside the face hovered at start of stroke!')
+            i = next((i for (i,pt) in enumerate_direction(stroke, from_start) if not point_inside_bmf(pt)), None)
+            if i is None: return {'error': 'stroke totally inside the hovered face'}
+
+            # split stroke into inside bmf and outside bmf
+            if from_start: inside,  outside = stroke[:i], stroke[i:]
+            else:          outside, inside  = stroke[:i], stroke[i:]
+            search = inside or ([stroke[0]] if from_start else [stroke[-1]])
+
+            # find closest bme of bmf to search part of stroke
+            bme = min(bmf.edges, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
+            return {
+                'error': None,
+                'stroke': outside,
+                'bmf.index': bmf.index,
+                'bme.index': bme.index,
+                'bme.center': bme_midpoint(bme),
+                'bme.radius': bme_length(bme) / 2,
+            }
+
+        self.snap0 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf0, True)
+        if self.snap0:
+            if self.snap0['error']:
                 self.error = True
+                print(f'ERROR: {self.snap0["error"]}')
                 return
-            # find closest edge
-            def dist(bme):
-                center = bme_midpoint(bme)
-                return min((pt - center).length for pt in self.stroke3D_local[:i0])
-            bme = min((bme for bme in bmf.edges), key=dist)
-            # bmfidx, bmeidx, bmectr, bmelen
-            self.snap0 = (
-                bmf.index,
-                bme.index,
-                bme_midpoint(bme),
-                bme_length(bme) / 2,
-            )
+            self.stroke3D_local = self.snap0['stroke']
 
-        if self.snap_bmf1:
-            bmf = self.snap_bmf1
-            bmf_cos = [bmv.co for bmv in bmf.verts]
-            bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
-            bmf_radius = max((co - bmf_center).length for co in bmf_cos)
-            # find the first stroke pt outside the snapped bmf
-            i1 = next((i for (i,pt) in enumerate_reversed(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
-            if i1 is None:
-                print(f'ERROR: stroke totally inside the face hovered at end of stroke!')
+        self.snap1 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf1, False)
+        if self.snap1:
+            if self.snap1['error']:
                 self.error = True
+                print(f'ERROR: {self.snap1["error"]}')
                 return
-            # find closest edge
-            def dist(bme):
-                center = bme_midpoint(bme)
-                return min((pt - center).length for pt in self.stroke3D_local[i1:])
-            bme = min((bme for bme in bmf.edges), key=dist)
-            self.snap1 = (
-                bmf.index,
-                bme.index,
-                bme_midpoint(bme),
-                bme_length(bme) / 2,
-            )
-
-        if i1 > i0:
-            i0, i1 = i0, i1
-
-        self.stroke3D_local = self.stroke3D_local[i0:i1+1]
-
+            self.stroke3D_local = self.snap1['stroke']
 
         #################################################
         # warp stroke to better fit snapped geo
 
         if self.snap0 and not self.snap1:
-            offset = self.snap0[2] - self.stroke3D_local[0]
+            offset = self.snap0['bme.center'] - self.stroke3D_local[0]
             self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
 
         elif not self.snap0 and self.snap1:
-            offset = self.snap1[2] - self.stroke3D_local[-1]
+            offset = self.snap1['bme.center'] - self.stroke3D_local[-1]
             self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
 
         elif self.snap0 and self.snap1:
-            csnap = (self.snap0[2] + self.snap1[2]) / 2
-            ssnap = (self.snap0[2] - self.snap1[2]).length
+            csnap = (self.snap0['bme.center'] + self.snap1['bme.center']) / 2
+            ssnap = (self.snap0['bme.center'] - self.snap1['bme.center']).length
             cstroke = (self.stroke3D_local[0] + self.stroke3D_local[-1]) / 2
             sstroke = (self.stroke3D_local[0] - self.stroke3D_local[-1]).length
             scale = ssnap / sstroke

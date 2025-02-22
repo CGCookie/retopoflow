@@ -390,6 +390,10 @@ def iter_running_sum(lw):
         s += w
         yield (w,s)
 
+def enumerate_direction(l, forward):
+    if forward: yield from enumerate(l)
+    else: yield from enumerate_reversed(l)
+
 def enumerate_reversed(l):
     n = len(l)
     yield from ((i,l[i]) for i in range(n - 1, -1, -1))

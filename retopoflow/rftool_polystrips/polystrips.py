@@ -372,6 +372,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def process_stroke(self, context, radius2D, stroke2D, is_cycle, snapped_geo):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
+        stroke3D = [pt for pt in stroke3D if pt]
         RFOperator_PolyStrips_Insert.polystrips_insert(
             context,
             radius2D,
