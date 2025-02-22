@@ -132,6 +132,7 @@ class RFOperator_PolyStrips_Insert(
             split_angle,
         )
         logic = RFOperator_PolyStrips_Insert.logic
+        if not logic or logic.error: return
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
             cut_count=logic.count,
@@ -142,6 +143,7 @@ class RFOperator_PolyStrips_Insert(
     @staticmethod
     def polystrips_reinsert(context):
         logic = RFOperator_PolyStrips_Insert.logic
+        if not logic or logic.error: return
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
             cut_count=logic.count,
@@ -191,7 +193,9 @@ class RFOperator_PolyStrips_Insert(
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
                 if last_op != RFOperator_PolyStrips_Insert.bl_label: return
-                fn(context, RFOperator_PolyStrips_Insert.logic)
+                logic = RFOperator_PolyStrips_Insert.logic
+                if not logic or logic.error: return
+                fn(context, logic)
                 bpy.ops.ed.undo()
                 RFOperator_PolyStrips_Insert.polystrips_reinsert(context)
             return wrapped
@@ -369,13 +373,20 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def process_stroke(self, context, radius2D, stroke2D, is_cycle, snapped_geo):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         if not snap_bmf0:
-            p0, p1 = stroke2D[:2]
-            pp = p0 + Direction2D(p0 - p1) * radius2D
-            stroke2D = [pp] + stroke2D
+            l = len(stroke2D)
+            p0, p1 = stroke2D[0], stroke2D[min(10, l-1)]
+            d = Direction2D(p0 - p1)
+            for i in range(1, 101):
+                p = p0 + d * (radius2D * (i / 100))
+                if not raycast_point_valid_sources(context, p): break
+                stroke2D = [p] + stroke2D
         if not snap_bmf1:
             p1, p0 = stroke2D[-2:]
-            pp = p0 + Direction2D(p0 - p1) * radius2D
-            stroke2D += [pp]
+            d = Direction2D(p0 - p1)
+            for i in range(1, 101):
+                p = p0 + d * (radius2D * (i / 100))
+                if not raycast_point_valid_sources(context, p): break
+                stroke2D += [p]
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
         stroke3D = [pt for pt in stroke3D if pt]

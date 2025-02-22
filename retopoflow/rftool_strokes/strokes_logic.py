@@ -1125,7 +1125,7 @@ class Strokes_Logic:
                             path[bmv_] = bmv
                             processing.append(bmv_)
             else:
-                return None
+                return 0, None
             bmv, bmvs = bmv_from, []
             while bmv:
                 bmvs.append(bmv)

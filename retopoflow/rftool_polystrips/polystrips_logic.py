@@ -104,8 +104,8 @@ def trim_stroke_to_bmf(stroke, bmf, from_start):
     return {
         'error': None,
         'stroke': outside,
-        'bmf.index': bmf.index,
-        'bme.index': bme.index,
+        'bmf': bmf,
+        'bme': bme,
         'bme.center': bme_midpoint(bme),
         'bme.radius': bme_length(bme) / 2,
     }
@@ -163,14 +163,20 @@ class PolyStrips_Logic:
         # use this indicator to fail gracefully rather than throwing/catching exception?
         self.error = False
 
+        # TODO: Remove this limitation!
+        if is_cycle:
+            self.error = True
+            print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
+            return
+
         ##############################
         # store passed parameters
         M, Mi = self.matrix_world, self.matrix_world_inv
         self.radius2D = radius2D
         self.stroke3D_local = stroke3D_local
         self.is_cycle = is_cycle
-        self.snap_bmf0 = snap_bmf0
-        self.snap_bmf1 = snap_bmf1
+        self.snap_bmf0_index = snap_bmf0.index if snap_bmf0 else None
+        self.snap_bmf1_index = snap_bmf1.index if snap_bmf1 else None
         self.split_angle = split_angle  # clamp!?
 
         #################################
@@ -179,17 +185,6 @@ class PolyStrips_Logic:
         self.count = max(2, round(length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
         self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
 
-        ######################################################################
-        # process stroke data, such as projecting and computing length
-        self.process_stroke(context)
-
-        ###############################################
-        # fail gracefully if something went wrong
-        if self.error:
-            self.count_min = 0  # must be set before self.count
-            self.count = 0      # must be set after self.count_min
-            self.width = 0
-            return
 
     @property
     def count(self): return self._count
@@ -203,55 +198,80 @@ class PolyStrips_Logic:
         bvh = self.bvh
         M, Mi = self.matrix_world, self.matrix_world_inv
 
-        # TODO: Remove this limitation!
-        if self.is_cycle:
-            print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
-            return
+        stroke3D_local = list(self.stroke3D_local)
+        select_geo = []
 
         angles = stroke_angles(
-            self.stroke3D_local,
+            stroke3D_local,
             self.width,
             self.split_angle,
             lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
         )
-        print(f'{angles=}')
+
+        # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
+        snap_bmf0 = None if self.snap_bmf0_index is None else self.bm.faces[self.snap_bmf0_index]
+        snap_bmf1 = None if self.snap_bmf1_index is None else self.bm.faces[self.snap_bmf1_index]
+
+        snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True)
+        if snap0:
+            if snap0['error']:
+                self.error = True
+                print(f'ERROR: {snap0["error"]}')
+                return
+            stroke3D_local = snap0['stroke']
+
+        snap1 = trim_stroke_to_bmf(stroke3D_local, snap_bmf1, False)
+        if snap1:
+            if snap1['error']:
+                self.error = True
+                print(f'ERROR: {snap1["error"]}')
+                return
+            stroke3D_local = snap1['stroke']
+
+        # warp stroke to better fit snapped geo
+        stroke3D_local = warp_stroke(
+            stroke3D_local,
+            None if not snap0 else snap0['bme.center'],
+            None if not snap1 else snap1['bme.center'],
+            self.nearest_point,
+        )
 
         ###########################################################################
         # sample the stroke and compute various properties of sample
 
-        count = (self.count - 1) if self.snap0 and self.snap1 else self.count
-        self.npoints = count + (count - 1)
-        nsamples = (self.npoints + 2) if not (self.snap0 or self.snap1) else self.npoints
-        self.points = [
-            find_point_at(self.stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
+        count = (self.count - 1) if snap0 and snap1 else self.count
+        npoints = count + (count - 1)
+        nsamples = (npoints + 2) if not (snap0 or snap1) else npoints
+        points = [
+            find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
             for i in range(nsamples)
         ]
-        self.points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in self.points ]
-        self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
-        self.forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
-        self.forwards += [ self.forwards[-1] ]
+        points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in points ]
+        normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in points ]
+        forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+        forwards += [ forwards[-1] ]
         # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
-        self.backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
-        self.backwards = [ self.backwards[0] ] + self.backwards
-        self.rights = [
+        backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+        backwards = [ backwards[0] ] + backwards
+        rights = [
             (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
-            for (b, f, n) in zip(self.backwards, self.forwards, self.normals)
+            for (b, f, n) in zip(backwards, forwards, normals)
         ]
 
 
         ######################################
         # create bmverts
 
-        w0 = self.snap0['bme.radius'] if self.snap0 else self.width
-        w1 = self.snap1['bme.radius'] if self.snap1 else self.width
+        w0 = snap0['bme.radius'] if snap0 else self.width
+        w1 = snap1['bme.radius'] if snap1 else self.width
         wm = self.width
         bmvs = [[], []]
 
         # create bmverts at beginning of stroke
-        p, pn = self.points[0], self.points[1]
-        f, r = self.forwards[0], self.rights[0]
-        if self.snap0:
-            bme = self.bm.edges[self.snap0['bme.index']]
+        p, pn = points[0], points[1]
+        f, r = forwards[0], rights[0]
+        if snap0:
+            bme = snap0['bme']
             bmv0, bmv1 = bme.verts[0], bme.verts[1]
             co0, co1 = M @ bmv0.co, M @ bmv1.co
             if r.dot(co1 - co0) > 0:
@@ -263,40 +283,32 @@ class PolyStrips_Logic:
             bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
 
         # create bmverts along stroke
-        i_start = 2 if (self.snap0 or self.snap1) else 2
-        i_end = len(self.points) - (2 if (self.snap0 or self.snap1) else 1)
+        i_start = 2 if (snap0 or snap1) else 2
+        i_end = len(points) - (2 if (snap0 or snap1) else 1)
         for i in range(i_start, i_end, 2):
-            pp, p, pn = self.points[i-1:i+2]
+            pp, p, pn = points[i-1:i+2]
+            r = rights[i]
 
             # compute width
-            if self.snap0 and not self.snap1:
-                v = i / (len(self.points) - 1)
+            if snap0 and not snap1:
+                v = i / (len(points) - 1)
                 w = w0 + (wm - w0) * v
-            elif not self.snap0 and self.snap1:
-                v = i / (len(self.points) - 1)
+            elif not snap0 and snap1:
+                v = i / (len(points) - 1)
                 w = wm + (w1 - wm) * v
             else:
-                v = 2 * i / (len(self.points) - 1)
+                v = 2 * i / (len(points) - 1)
                 if v < 1: w = w0 + (wm - w0) * v
                 else:     w = wm + (w1 - wm) * (v-1)
 
-            # compute offset based on bend
-            # dp, dn = Direction(p - pp), Direction(pn - p)
-            # angle = dp.signed_angle_between(dn, self.normals[i])
-            # size = (pn - pp).length
-            # offset = math.pow(math.sin(angle), 2.0) * w * (w / size)
-
-            r = self.rights[i]
-            rm0 = w # + offset
-            rm1 = rm0 - 2 * w
-            bmvs[0] += [ self.bm.verts.new(p + r * rm0) ]
-            bmvs[1] += [ self.bm.verts.new(p + r * rm1) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * w) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * w) ]
 
         # create bmverts at ending of stroke
-        p, pp = self.points[-1], self.points[-2]
-        f, r = self.forwards[-1], self.rights[-1]
-        if self.snap1:
-            bme = self.bm.edges[self.snap1['bme.index']]
+        p, pp = points[-1], points[-2]
+        f, r = forwards[-1], rights[-1]
+        if snap1:
+            bme = snap1['bme']
             bmv0, bmv1 = bme.verts[0], bme.verts[1]
             co0, co1 = M @ bmv0.co, M @ bmv1.co
             if r.dot(co1 - co0) > 0:
@@ -311,11 +323,6 @@ class PolyStrips_Logic:
         for bmv in chain(bmvs[0], bmvs[1]):
             bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
 
-        # insert bmverts of snapped faces
-        # IMPORTANT: must happen _BEFORE_ faces are created!
-        bmvs_snap0 = list(self.bm.faces[self.snap0['bmf.index']].verts) if self.snap0 else []
-        bmvs_snap1 = list(self.bm.faces[self.snap1['bmf.index']].verts) if self.snap1 else []
-
 
         ######################################################
         # create bmfaces
@@ -326,15 +333,18 @@ class PolyStrips_Logic:
             bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
             bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
             bmfs += [ bmf ]
+            select_geo.append(bmf)
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
+        if snap_bmf0: select_geo.append(snap_bmf0)
+        if snap_bmf1: select_geo.append(snap_bmf1)
 
         ########################################
         # select newly created geometry
 
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, bmvs[0] + bmvs[1] + bmvs_snap0 + bmvs_snap1)
+        bmops.select_iter(self.bm, select_geo)
         bmops.flush_selection(self.bm, self.em)
 
 
@@ -362,38 +372,6 @@ class PolyStrips_Logic:
         )
 
 
-    def process_stroke(self, context):
-        M, Mi = self.matrix_world, self.matrix_world_inv
-
-        # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
-        self.snap0 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf0, True)
-        if self.snap0:
-            if self.snap0['error']:
-                self.error = True
-                print(f'ERROR: {self.snap0["error"]}')
-                return
-            self.stroke3D_local = self.snap0['stroke']
-
-        self.snap1 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf1, False)
-        if self.snap1:
-            if self.snap1['error']:
-                self.error = True
-                print(f'ERROR: {self.snap1["error"]}')
-                return
-            self.stroke3D_local = self.snap1['stroke']
-
-        # warp stroke to better fit snapped geo
-        self.stroke3D_local = warp_stroke(
-            self.stroke3D_local,
-            None if not self.snap0 else self.snap0['bme.center'],
-            None if not self.snap1 else self.snap1['bme.center'],
-            self.nearest_point,
-        )
-
-        self.stroke3D_world = [(M @ pt) for pt in self.stroke3D_local]
-        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D_world if pt]
-        self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
-        self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D_world, self.is_cycle))
 
 
 
@@ -401,8 +379,6 @@ class PolyStrips_Logic:
     #####################################################################################
     # utility functions
 
-    def find_point2D(self, v):  return find_point_at(self.stroke2D, self.is_cycle, v)
-    def find_point3D(self, v):  return find_point_at(self.stroke3D_world, self.is_cycle, v)
     def project_pt(self, pt):
         p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
         return p.xy if p else None
