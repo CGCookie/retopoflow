@@ -42,7 +42,7 @@ from ..common.operator import (
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp, Frame
+from ...addon_common.common.maths import clamp, Frame, Direction2D
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -368,6 +368,14 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
     def process_stroke(self, context, radius2D, stroke2D, is_cycle, snapped_geo):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
+        if not snap_bmf0:
+            p0, p1 = stroke2D[:2]
+            pp = p0 + Direction2D(p0 - p1) * radius2D
+            stroke2D = [pp] + stroke2D
+        if not snap_bmf1:
+            p1, p0 = stroke2D[-2:]
+            pp = p0 + Direction2D(p0 - p1) * radius2D
+            stroke2D += [pp]
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
         stroke3D = [pt for pt in stroke3D if pt]

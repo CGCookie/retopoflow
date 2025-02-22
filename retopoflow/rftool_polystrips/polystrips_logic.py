@@ -221,9 +221,10 @@ class PolyStrips_Logic:
 
         count = (self.count - 1) if self.snap0 and self.snap1 else self.count
         self.npoints = count + (count - 1)
+        nsamples = (self.npoints + 2) if not (self.snap0 or self.snap1) else self.npoints
         self.points = [
-            find_point_at(self.stroke3D_local, self.is_cycle, (i / (self.npoints - 1)))
-            for i in range(self.npoints)
+            find_point_at(self.stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
+            for i in range(nsamples)
         ]
         self.points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in self.points ]
         self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
@@ -258,12 +259,11 @@ class PolyStrips_Logic:
             bmvs[0] += [bmv0]
             bmvs[1] += [bmv1]
         else:
-            d = (pn - p).length
-            bmvs[0] += [ self.bm.verts.new(p + r * wm - f * d) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * wm - f * d) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
 
         # create bmverts along stroke
-        i_start = 2 if (self.snap0 or self.snap1) else 1
+        i_start = 2 if (self.snap0 or self.snap1) else 2
         i_end = len(self.points) - (2 if (self.snap0 or self.snap1) else 1)
         for i in range(i_start, i_end, 2):
             pp, p, pn = self.points[i-1:i+2]
@@ -304,9 +304,8 @@ class PolyStrips_Logic:
             bmvs[0] += [bmv0]
             bmvs[1] += [bmv1]
         else:
-            d = (pp - p).length
-            bmvs[0] += [ self.bm.verts.new(p + r * wm + f * d) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * wm + f * d) ]
+            bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
+            bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
 
         # snap newly created bmverts to source
         for bmv in chain(bmvs[0], bmvs[1]):
