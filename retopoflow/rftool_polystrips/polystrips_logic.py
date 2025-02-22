@@ -267,13 +267,24 @@ class PolyStrips_Logic:
         i_end = len(self.points) - (2 if (self.snap0 or self.snap1) else 1)
         for i in range(i_start, i_end, 2):
             pp, p, pn = self.points[i-1:i+2]
-            r = self.rights[i]
+            dp, dn = Direction(p - pp), Direction(pn - p)
+            size = (pn - pp).length
+            r, n = self.rights[i], self.normals[i]
+            angle = dp.signed_angle_between(dn, n)
             d = ((pp - p).length + (pn - p).length) / 2
-            v = 2 * i / (len(self.points) - 1)
-            if v < 1: w = w0 + (wm - w0) * v
-            else:     w = wm + (w1 - wm) * (v-1)
-            bmvs[0] += [ self.bm.verts.new(p + r * w) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * w) ]
+            if self.snap0 and not self.snap1:
+                v = i / (len(self.points) - 1)
+                w = w0 + (wm - w0) * v
+            elif not self.snap0 and self.snap1:
+                v = i / (len(self.points) - 1)
+                w = wm + (w1 - wm) * v
+            else:
+                v = 2 * i / (len(self.points) - 1)
+                if v < 1: w = w0 + (wm - w0) * v
+                else:     w = wm + (w1 - wm) * (v-1)
+            offset = math.sin(angle) * w
+            bmvs[0] += [ self.bm.verts.new(p + r * (w + offset)) ]
+            bmvs[1] += [ self.bm.verts.new(p + r * (w + offset - 2 * w)) ]
 
         # create bmverts at ending of stroke
         p, pp = self.points[-1], self.points[-2]
@@ -357,6 +368,7 @@ class PolyStrips_Logic:
                 print(f'ERROR: {self.snap0["error"]}')
                 return
             self.stroke3D_local = self.snap0['stroke']
+
         self.snap1 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf1, False)
         if self.snap1:
             if self.snap1['error']:
