@@ -86,7 +86,7 @@ NOT HANDLING CYCLIC STROKES, YET
 
 
 
-def trim_stroke_to_bmf(stroke, bmf, from_start):
+def trim_stroke_to_bmf(stroke, bmf, from_start, limit_bmes=None):
     if not bmf: return None
 
     # find the first stroke pt outside the snapped bmf
@@ -100,7 +100,12 @@ def trim_stroke_to_bmf(stroke, bmf, from_start):
     search = inside or ([stroke[0]] if from_start else [stroke[-1]])
 
     # find closest bme of bmf to search part of stroke
-    bme = min(bmf.edges, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
+    if limit_bmes:
+        bmes = limit_bmes
+    else:
+        bmes = bmf.edges
+    if not bmes: return None
+    bme = min(bmes, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
     return {
         'error': None,
         'stroke': outside,
@@ -149,7 +154,8 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
             # connected to previous, so find biggest angle of current island
             biggest[-1] = max(biggest[-1], (i, a), key=lambda pa: abs(pa[1]))
 
-    return biggest
+    indices = [0] + [i for (i,_) in biggest] + [len(stroke)]
+    return indices
 
 
 
@@ -198,151 +204,180 @@ class PolyStrips_Logic:
         bvh = self.bvh
         M, Mi = self.matrix_world, self.matrix_world_inv
 
-        stroke3D_local = list(self.stroke3D_local)
         select_geo = []
 
+        # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
+        snap_bmf_start, snap_bmf_end = None, None
+        if self.snap_bmf0_index is not None:
+            snap_bmf_start = self.bm.faces[self.snap_bmf0_index]
+            select_geo += [snap_bmf_start]
+        if self.snap_bmf1_index is not None:
+            snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
+            select_geo += [snap_bmf_end]
+
         angles = stroke_angles(
-            stroke3D_local,
+            self.stroke3D_local,
             self.width,
             self.split_angle,
             lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
         )
 
-        # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
-        snap_bmf0 = None if self.snap_bmf0_index is None else self.bm.faces[self.snap_bmf0_index]
-        snap_bmf1 = None if self.snap_bmf1_index is None else self.bm.faces[self.snap_bmf1_index]
+        # break stroke into segments
+        for (i0, i1) in iter_pairs(angles, False):
+            stroke3D_local = self.stroke3D_local[i0:i1]
+            snap_bmf0 = snap_bmf_start if i0 == 0 else snap_bmf1
+            snap_bmf1 = snap_bmf_end if i1 == len(self.stroke3D_local) else None
+            limit_bmes0 = None
+            if i0 > 0:
+                limit_bmes0 = [
+                    bme for bme in snap_bmf0.edges
+                    if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
+                ]
+            if i1 < len(self.stroke3D_local):
+                # extend stroke by self.width
+                i_end = max(0, len(stroke3D_local) - 5)
+                p0,p1 = stroke3D_local[i_end], stroke3D_local[-1]
+                d01 = Direction(p1 - p0)
+                p2 = self.nearest_point(p1 + d01 * (self.width / 2))
+                stroke3D_local += [p2]
+            print(f'{snap_bmf0=} {snap_bmf1=}')
 
-        snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True)
-        if snap0:
-            if snap0['error']:
-                self.error = True
-                print(f'ERROR: {snap0["error"]}')
-                return
-            stroke3D_local = snap0['stroke']
+            snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True, limit_bmes0)
+            if snap0:
+                if snap0['error']:
+                    self.error = True
+                    print(f'ERROR: {snap0["error"]}')
+                    return
+                stroke3D_local = snap0['stroke']
 
-        snap1 = trim_stroke_to_bmf(stroke3D_local, snap_bmf1, False)
-        if snap1:
-            if snap1['error']:
-                self.error = True
-                print(f'ERROR: {snap1["error"]}')
-                return
-            stroke3D_local = snap1['stroke']
+            snap1 = trim_stroke_to_bmf(stroke3D_local, snap_bmf1, False)
+            if snap1:
+                if snap1['error']:
+                    self.error = True
+                    print(f'ERROR: {snap1["error"]}')
+                    return
+                stroke3D_local = snap1['stroke']
 
-        # warp stroke to better fit snapped geo
-        stroke3D_local = warp_stroke(
-            stroke3D_local,
-            None if not snap0 else snap0['bme.center'],
-            None if not snap1 else snap1['bme.center'],
-            self.nearest_point,
-        )
+            # warp stroke to better fit snapped geo
+            stroke3D_local = warp_stroke(
+                stroke3D_local,
+                None if not snap0 else snap0['bme.center'],
+                None if not snap1 else snap1['bme.center'],
+                self.nearest_point,
+            )
 
-        ###########################################################################
-        # sample the stroke and compute various properties of sample
+            ###########################################################################
+            # sample the stroke and compute various properties of sample
 
-        count = (self.count - 1) if snap0 and snap1 else self.count
-        npoints = count + (count - 1)
-        nsamples = (npoints + 2) if not (snap0 or snap1) else npoints
-        points = [
-            find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
-            for i in range(nsamples)
-        ]
-        points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in points ]
-        normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in points ]
-        forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
-        forwards += [ forwards[-1] ]
-        # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
-        backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
-        backwards = [ backwards[0] ] + backwards
-        rights = [
-            (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
-            for (b, f, n) in zip(backwards, forwards, normals)
-        ]
-
-
-        ######################################
-        # create bmverts
-
-        w0 = snap0['bme.radius'] if snap0 else self.width
-        w1 = snap1['bme.radius'] if snap1 else self.width
-        wm = self.width
-        bmvs = [[], []]
-
-        # create bmverts at beginning of stroke
-        p, pn = points[0], points[1]
-        f, r = forwards[0], rights[0]
-        if snap0:
-            bme = snap0['bme']
-            bmv0, bmv1 = bme.verts[0], bme.verts[1]
-            co0, co1 = M @ bmv0.co, M @ bmv1.co
-            if r.dot(co1 - co0) > 0:
-                bmv0, bmv1 = bmv1, bmv0
-            bmvs[0] += [bmv0]
-            bmvs[1] += [bmv1]
-        else:
-            bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
-
-        # create bmverts along stroke
-        i_start = 2 if (snap0 or snap1) else 2
-        i_end = len(points) - (2 if (snap0 or snap1) else 1)
-        for i in range(i_start, i_end, 2):
-            pp, p, pn = points[i-1:i+2]
-            r = rights[i]
-
-            # compute width
-            if snap0 and not snap1:
-                v = i / (len(points) - 1)
-                w = w0 + (wm - w0) * v
-            elif not snap0 and snap1:
-                v = i / (len(points) - 1)
-                w = wm + (w1 - wm) * v
+            # self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
+            if i0 == 0 and i1 == len(self.stroke3D_local):
+                segment_count = self.count
             else:
-                v = 2 * i / (len(points) - 1)
-                if v < 1: w = w0 + (wm - w0) * v
-                else:     w = wm + (w1 - wm) * (v-1)
+                segment_count = round(((self.compute_length3D(stroke3D_local, False) / self.width) + 1) / 2)
+                segment_count = max(2, segment_count)
 
-            bmvs[0] += [ self.bm.verts.new(p + r * w) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * w) ]
-
-        # create bmverts at ending of stroke
-        p, pp = points[-1], points[-2]
-        f, r = forwards[-1], rights[-1]
-        if snap1:
-            bme = snap1['bme']
-            bmv0, bmv1 = bme.verts[0], bme.verts[1]
-            co0, co1 = M @ bmv0.co, M @ bmv1.co
-            if r.dot(co1 - co0) > 0:
-                bmv0, bmv1 = bmv1, bmv0
-            bmvs[0] += [bmv0]
-            bmvs[1] += [bmv1]
-        else:
-            bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
-            bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
-
-        # snap newly created bmverts to source
-        for bmv in chain(bmvs[0], bmvs[1]):
-            bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
+            count = (segment_count - 1) if snap0 and snap1 else segment_count
+            npoints = count + (count - 1)
+            nsamples = (npoints + 2) if not (snap0 or snap1) else npoints
+            points = [
+                find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
+                for i in range(nsamples)
+            ]
+            points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in points ]
+            normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in points ]
+            forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+            forwards += [ forwards[-1] ]
+            # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
+            backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+            backwards = [ backwards[0] ] + backwards
+            rights = [
+                (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
+                for (b, f, n) in zip(backwards, forwards, normals)
+            ]
 
 
-        ######################################################
-        # create bmfaces
+            ######################################
+            # create bmverts
 
-        bmfs = []
-        for i in range(0, len(bmvs[0])-1):
-            bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
-            bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
-            bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-            bmfs += [ bmf ]
-            select_geo.append(bmf)
-        fwd = Mi @ view_forward_direction(self.context)
-        check_bmf_normals(fwd, bmfs)
+            w0 = snap0['bme.radius'] if snap0 else self.width
+            w1 = snap1['bme.radius'] if snap1 else self.width
+            wm = self.width
+            bmvs = [[], []]
 
-        if snap_bmf0: select_geo.append(snap_bmf0)
-        if snap_bmf1: select_geo.append(snap_bmf1)
+            # create bmverts at beginning of stroke
+            p, pn = points[0], points[1]
+            f, r = forwards[0], rights[0]
+            if snap0:
+                bme = snap0['bme']
+                bmv0, bmv1 = bme.verts[0], bme.verts[1]
+                co0, co1 = M @ bmv0.co, M @ bmv1.co
+                if r.dot(co1 - co0) > 0:
+                    bmv0, bmv1 = bmv1, bmv0
+                bmvs[0] += [bmv0]
+                bmvs[1] += [bmv1]
+            else:
+                bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
+                bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
+
+            # create bmverts along stroke
+            i_start = 2 if (snap0 or snap1) else 2
+            i_end = len(points) - (2 if (snap0 or snap1) else 1)
+            for i in range(i_start, i_end, 2):
+                pp, p, pn = points[i-1:i+2]
+                r = rights[i]
+
+                # compute width
+                if snap0 and not snap1:
+                    v = i / (len(points) - 1)
+                    w = w0 + (wm - w0) * v
+                elif not snap0 and snap1:
+                    v = i / (len(points) - 1)
+                    w = wm + (w1 - wm) * v
+                else:
+                    v = 2 * i / (len(points) - 1)
+                    if v < 1: w = w0 + (wm - w0) * v
+                    else:     w = wm + (w1 - wm) * (v-1)
+
+                bmvs[0] += [ self.bm.verts.new(p + r * w) ]
+                bmvs[1] += [ self.bm.verts.new(p - r * w) ]
+
+            # create bmverts at ending of stroke
+            p, pp = points[-1], points[-2]
+            f, r = forwards[-1], rights[-1]
+            if snap1:
+                bme = snap1['bme']
+                bmv0, bmv1 = bme.verts[0], bme.verts[1]
+                co0, co1 = M @ bmv0.co, M @ bmv1.co
+                if r.dot(co1 - co0) > 0:
+                    bmv0, bmv1 = bmv1, bmv0
+                bmvs[0] += [bmv0]
+                bmvs[1] += [bmv1]
+            else:
+                bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
+                bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
+
+            # snap newly created bmverts to source
+            for bmv in chain(bmvs[0], bmvs[1]):
+                bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
+
+
+            ######################################################
+            # create bmfaces
+
+            bmfs = []
+            for i in range(0, len(bmvs[0])-1):
+                bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
+                bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
+                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                bmfs += [ bmf ]
+                select_geo.append(bmf)
+            fwd = Mi @ view_forward_direction(self.context)
+            check_bmf_normals(fwd, bmfs)
+
+            if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
 
         ########################################
         # select newly created geometry
-
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, select_geo)
         bmops.flush_selection(self.bm, self.em)
