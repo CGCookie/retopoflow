@@ -85,6 +85,48 @@ NOT HANDLING CYCLIC STROKES, YET
 '''
 
 
+
+def trim_stroke_to_bmf(stroke, bmf, from_start):
+    if not bmf: return None
+
+    # find the first stroke pt outside the snapped bmf
+    point_inside_bmf = generate_point_inside_bmf(bmf)
+    i = next((i for (i,pt) in enumerate_direction(stroke, from_start) if not point_inside_bmf(pt)), None)
+    if i is None: return {'error': 'stroke totally inside the hovered face'}
+
+    # split stroke into inside bmf and outside bmf
+    if from_start: inside,  outside = stroke[:i], stroke[i:]
+    else:          outside, inside  = stroke[:i], stroke[i:]
+    search = inside or ([stroke[0]] if from_start else [stroke[-1]])
+
+    # find closest bme of bmf to search part of stroke
+    bme = min(bmf.edges, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
+    return {
+        'error': None,
+        'stroke': outside,
+        'bmf.index': bmf.index,
+        'bme.index': bme.index,
+        'bme.center': bme_midpoint(bme),
+        'bme.radius': bme_length(bme) / 2,
+    }
+
+def warp_stroke(stroke, end0, end1, fn_snap_point):
+    if not stroke or (not end0 and not end1):
+        return stroke
+    s0, s1 = stroke[0], stroke[-1]
+    if end0 and not end1:
+        offset = end0 - s0
+        return [ fn_snap_point(pt + offset) for pt in stroke ]
+    elif not end0 and end1:
+        offset = end1 - s1
+        return [ fn_snap_point(pt + offset) for pt in stroke ]
+    ec, es = (end0 + end1) / 2, (end0 - end1).length
+    sc, ss = (s0 + s1) / 2, (s0 - s1).length
+    scale = es / ss
+    return [ fn_snap_point(ec + (pt - sc) * scale) for pt in stroke ]
+
+
+
 class PolyStrips_Logic:
     def __init__(self, context, radius2D, stroke3D_local, is_cycle, snap_bmf0, snap_bmf1, split_angle):
         # store context data to make it more convenient
@@ -121,7 +163,7 @@ class PolyStrips_Logic:
         # compute initial settings
 
         self.action = ''  # will be filled in later
-        self.count_min = 3 if (self.snap0 and self.snap1) else 2        # must be set before self.count
+        self.count_min = 3 if (snap_bmf0 and snap_bmf1) else 2          # must be set before self.count
         self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
         self.width = self.length3D / (self.count * 2 - 1)
 
@@ -300,45 +342,7 @@ class PolyStrips_Logic:
     def process_stroke(self, context):
         M, Mi = self.matrix_world, self.matrix_world_inv
 
-        ##############################################
-        # clean up stroke data
-
-        # make sure all stroke points are not None
-        self.stroke3D_local = [ pt for pt in self.stroke3D_local if pt ]
-        if not self.stroke3D_local:
-            print(f'ERROR: empty stroke!')
-            self.error = True
-            return
-
-
-        #######################################################################################
         # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
-
-
-        def trim_stroke_to_bmf(stroke, bmf, from_start):
-            if not bmf: return None
-
-            # find the first stroke pt outside the snapped bmf
-            point_inside_bmf = generate_point_inside_bmf(bmf)
-            i = next((i for (i,pt) in enumerate_direction(stroke, from_start) if not point_inside_bmf(pt)), None)
-            if i is None: return {'error': 'stroke totally inside the hovered face'}
-
-            # split stroke into inside bmf and outside bmf
-            if from_start: inside,  outside = stroke[:i], stroke[i:]
-            else:          outside, inside  = stroke[:i], stroke[i:]
-            search = inside or ([stroke[0]] if from_start else [stroke[-1]])
-
-            # find closest bme of bmf to search part of stroke
-            bme = min(bmf.edges, key=lambda bme: min(distance_point_bmedge(pt, bme) for pt in search))
-            return {
-                'error': None,
-                'stroke': outside,
-                'bmf.index': bmf.index,
-                'bme.index': bme.index,
-                'bme.center': bme_midpoint(bme),
-                'bme.radius': bme_length(bme) / 2,
-            }
-
         self.snap0 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf0, True)
         if self.snap0:
             if self.snap0['error']:
@@ -346,7 +350,6 @@ class PolyStrips_Logic:
                 print(f'ERROR: {self.snap0["error"]}')
                 return
             self.stroke3D_local = self.snap0['stroke']
-
         self.snap1 = trim_stroke_to_bmf(self.stroke3D_local, self.snap_bmf1, False)
         if self.snap1:
             if self.snap1['error']:
@@ -355,28 +358,14 @@ class PolyStrips_Logic:
                 return
             self.stroke3D_local = self.snap1['stroke']
 
-        #################################################
         # warp stroke to better fit snapped geo
+        self.stroke3D_local = warp_stroke(
+            self.stroke3D_local,
+            None if not self.snap0 else self.snap0['bme.center'],
+            None if not self.snap1 else self.snap1['bme.center'],
+            lambda p: Mi @ nearest_point_valid_sources(context, M @ p),
+        )
 
-        if self.snap0 and not self.snap1:
-            offset = self.snap0['bme.center'] - self.stroke3D_local[0]
-            self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
-
-        elif not self.snap0 and self.snap1:
-            offset = self.snap1['bme.center'] - self.stroke3D_local[-1]
-            self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
-
-        elif self.snap0 and self.snap1:
-            csnap = (self.snap0['bme.center'] + self.snap1['bme.center']) / 2
-            ssnap = (self.snap0['bme.center'] - self.snap1['bme.center']).length
-            cstroke = (self.stroke3D_local[0] + self.stroke3D_local[-1]) / 2
-            sstroke = (self.stroke3D_local[0] - self.stroke3D_local[-1]).length
-            scale = ssnap / sstroke
-            def offset(pt): return csnap + (pt - cstroke) * scale
-            self.stroke3D_local = [
-                Mi @ nearest_point_valid_sources(context, M @ offset(pt))
-                for pt in self.stroke3D_local
-            ]
 
 
         ###################################
