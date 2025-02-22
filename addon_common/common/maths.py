@@ -444,6 +444,7 @@ class Direction(VecUtils, Entity3D):
         return self
 
     def angle_between(self, other):
+        return self.angle(other, 0)
         return acos(mid(-1, 1, self.dot(other.normalized())))
     def signed_angle_between(self, other, up):
         angle = self.angle_between(other)
