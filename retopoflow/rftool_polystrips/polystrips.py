@@ -119,13 +119,14 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1, split_angle):
+    def polystrips_insert(context, radius2D, stroke3D, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle):
         logic = RFOperator_PolyStrips_Insert.logic
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
             stroke3D,
             is_cycle,
+            length2D,
             snap_bmf0,
             snap_bmf1,
             split_angle,
@@ -152,10 +153,6 @@ class RFOperator_PolyStrips_Insert(
         layout = self.layout
         grid = layout.grid_flow(row_major=True, columns=2)
         logic = RFOperator_PolyStrips_Insert.logic
-
-        if logic.action:
-            grid.label(text=f'Inserted')
-            grid.label(text=logic.action)
 
         grid.label(text=f'Count')
         grid.prop(self, 'cut_count', text='')
@@ -371,6 +368,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
     def process_stroke(self, context, radius2D, stroke2D, is_cycle, snapped_geo):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
+        length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
         stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
         stroke3D = [pt for pt in stroke3D if pt]
         RFOperator_PolyStrips_Insert.polystrips_insert(
@@ -378,6 +376,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             radius2D,
             stroke3D,
             is_cycle,
+            length2D,
             snap_bmf0, snap_bmf1,
             self.split_angle,
         )

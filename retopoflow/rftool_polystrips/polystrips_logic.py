@@ -125,10 +125,36 @@ def warp_stroke(stroke, end0, end1, fn_snap_point):
     scale = es / ss
     return [ fn_snap_point(ec + (pt - sc) * scale) for pt in stroke ]
 
+def stroke_angles(stroke, width, split_angle, fn_snap_normal):
+    # determine where stroke angles very strongly
+    l = []
+    for (i, p) in enumerate(stroke):
+        pp = next((pp for pp in stroke[i::-1] if (p - pp).length >= width), None)
+        pn = next((pn for pn in stroke[i:]    if (p - pn).length >= width), None)
+        if not pp or not pn: continue
+
+        n = Direction(fn_snap_normal(p))
+        dp, dn = Direction(p - pp), Direction(pn - p)
+        angle = math.degrees(dp.signed_angle_between(dn, n))
+        if abs(angle) < split_angle: continue
+        l.append((i, p, int(angle)))
+
+    # find largest angle of connected "islands" (run of points within width of neighboring points)
+    biggest = []
+    for (_, pp, _), (i, p, a) in zip(l[:-1], l[1:]):
+        if not biggest or (pp - p).length >= width:
+            # either first point (and therefore biggest by default) or too far away from previous (disconnected)
+            biggest += [(i, a)]
+        else:
+            # connected to previous, so find biggest angle of current island
+            biggest[-1] = max(biggest[-1], (i, a), key=lambda pa: abs(pa[1]))
+
+    return biggest
+
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, is_cycle, snap_bmf0, snap_bmf1, split_angle):
+    def __init__(self, context, radius2D, stroke3D_local, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -147,6 +173,12 @@ class PolyStrips_Logic:
         self.snap_bmf1 = snap_bmf1
         self.split_angle = split_angle  # clamp!?
 
+        #################################
+        # initial settings
+        self.count_min = 3 if (snap_bmf0 and snap_bmf1) else 2     # must be set before self.count
+        self.count = max(2, round(length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
+        self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
+
         ######################################################################
         # process stroke data, such as projecting and computing length
         self.process_stroke(context)
@@ -159,47 +191,10 @@ class PolyStrips_Logic:
             self.width = 0
             return
 
-        #################################
-        # compute initial settings
-
-        self.action = ''  # will be filled in later
-        self.count_min = 3 if (snap_bmf0 and snap_bmf1) else 2          # must be set before self.count
-        self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
-        self.width = self.length3D / (self.count * 2 - 1)
-
     @property
     def count(self): return self._count
     @count.setter
     def count(self, v): self._count = max(int(v), self.count_min)
-
-    def stroke_angles(self):
-        context = self.context
-        M, Mi = self.matrix_world, self.matrix_world_inv
-
-        # determine where stroke angles very strongly
-        l = []
-        for (i, p) in enumerate(self.stroke3D_local):
-            pp = next((pp for pp in self.stroke3D_local[i::-1] if (p - pp).length >= self.width), None)
-            pn = next((pn for pn in self.stroke3D_local[i:] if (p - pn).length >= self.width), None)
-            if not pp or not pn: continue
-            # not first set of points
-            n = Direction(nearest_normal_valid_sources(context, M @ p, world=False))
-            dp, dn = Direction(p - pp), Direction(pn - p)
-            angle = math.degrees(dp.signed_angle_between(dn, n))
-            if abs(angle) < self.split_angle: continue
-            l.append((i, p, int(angle)))
-
-        # find largest angle of connected "islands" (run of points within self.width of neighboring points)
-        biggest = []
-        for (_, pp, _), (i, p, a) in zip(l[:-1], l[1:]):
-            if not biggest or (pp - p).length >= self.width:
-                # either first point (and therefore biggest by default) or too far away from previous (disconnected)
-                biggest += [(i, a)]
-            else:
-                # connected to previous, so find biggest angle of current island
-                biggest[-1] = max(biggest[-1], (i, a), key=lambda pa: abs(pa[1]))
-
-        return biggest
 
     def create(self, context):
         if self.error: return
@@ -213,7 +208,12 @@ class PolyStrips_Logic:
             print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
             return
 
-        angles = self.stroke_angles()
+        angles = stroke_angles(
+            self.stroke3D_local,
+            self.width,
+            self.split_angle,
+            lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
+        )
         print(f'{angles=}')
 
         ###########################################################################
@@ -337,6 +337,13 @@ class PolyStrips_Logic:
         self.bm.edges.ensure_lookup_table()
         self.bm.faces.ensure_lookup_table()
         self.bvh = BVHTree.FromBMesh(self.bm)
+
+    def compute_length3D(self, stroke3D_local, is_cycle):
+        M = self.matrix_world
+        return sum(
+            ((M @ p1) - (M @ p0)).length
+            for (p0, p1) in iter_pairs(stroke3D_local, is_cycle)
+        )
 
 
     def process_stroke(self, context):
