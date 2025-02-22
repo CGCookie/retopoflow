@@ -387,20 +387,11 @@ class PolyStrips_Logic:
             self.stroke3D_local,
             None if not self.snap0 else self.snap0['bme.center'],
             None if not self.snap1 else self.snap1['bme.center'],
-            lambda p: Mi @ nearest_point_valid_sources(context, M @ p),
+            self.nearest_point,
         )
 
-
-
-        ###################################
-        # finalize needed properties
-
         self.stroke3D_world = [(M @ pt) for pt in self.stroke3D_local]
-
-        # project 3D stroke points to screen
         self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D_world if pt]
-
-        # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D_world, self.is_cycle))
 
@@ -418,6 +409,8 @@ class PolyStrips_Logic:
     def project_bmv(self, bmv):
         p = self.project_pt(bmv.co)
         return p.xy if p else None
+    def nearest_point(self, p):
+        return self.matrix_world_inv @ nearest_point_valid_sources(self.context, self.matrix_world @ p)
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
