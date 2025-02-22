@@ -48,6 +48,7 @@ from ..common.bmesh_maths import (
     get_boundary_cycle,
     get_boundary_strips,
     get_longest_strip_cycle,
+    generate_point_inside_bmf,
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_point_valid_sources, nearest_normal_valid_sources
 from ..common.maths import (
@@ -313,44 +314,12 @@ class PolyStrips_Logic:
         #######################################################################################
         # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
 
-        def generate_point_inside_bmf(bmf):
-            cos3D = [bmv.co for bmv in bmf.verts]
-            o = sum(cos3D, Vector()) / len(cos3D)
-            z = Direction(bmf.normal)
-            x = Direction(cos3D[0] - o)
-            y = Direction(z.cross(x))
-            def to2D(point):
-                v = point - o
-                vx, vy = x.dot(v), y.dot(v)
-                return (vx, vy)
-            cos2D = [ to2D(co) for co in cos3D ]
-            def inside(point):
-                # compute windings to determine if point is inside bmf
-                # https://ics.uci.edu/~eppstein/161/960307.html
-                (px, py) = to2D(point)
-                crossings = 0
-                for ((x0, y0), (x1, y1)) in iter_pairs(cos2D, True):
-                    if x0 < px < x1 or x0 > px > x1:
-                        t = (px - x1) / (x0 - x1)
-                        cy = t * y0 + (1 - t) * y1
-                        if py == cy: return True                           # on boundary edge of face!
-                        if py > cy: crossings += 1
-                    if px == x0:
-                        if py == y0: return True                           # on boundary vert of face!
-                        if x1 == px:
-                            if y0 < py < y1 or y0 > py > y1: return True   # on boundary vert of face!
-                        elif x1 > px:
-                            crossings += 1
-                        if x1 > px: crossings += 1
-                return (crossings % 2) == 1
-            return inside
 
         def trim_stroke_to_bmf(stroke, bmf, from_start):
             if not bmf: return None
 
-            point_inside_bmf = generate_point_inside_bmf(bmf)
-
             # find the first stroke pt outside the snapped bmf
+            point_inside_bmf = generate_point_inside_bmf(bmf)
             i = next((i for (i,pt) in enumerate_direction(stroke, from_start) if not point_inside_bmf(pt)), None)
             if i is None: return {'error': 'stroke totally inside the hovered face'}
 

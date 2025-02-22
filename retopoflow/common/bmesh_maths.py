@@ -39,7 +39,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import closest_point_segment, segment2D_intersection
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, Direction
 from ...addon_common.common.utils import iter_pairs
 
 import math
@@ -235,3 +235,37 @@ def get_longest_strip_cycle(bmes):
 
     return (longest_strip0, longest_strip1, longest_cycle0, longest_cycle1)
 
+def generate_point_inside_bmf(bmf):
+    '''
+    generate function to determine if a point is inside bmf
+    '''
+    cos3D = [bmv.co for bmv in bmf.verts]
+    o = sum(cos3D, Vector()) / len(cos3D)
+    z = Direction(bmf.normal)
+    x = Direction(cos3D[0] - o)
+    y = Direction(z.cross(x))
+    def to2D(point):
+        v = point - o
+        vx, vy = x.dot(v), y.dot(v)
+        return (vx, vy)
+    cos2D = [ to2D(co) for co in cos3D ]
+    def point_inside_bmf(point):
+        # compute windings to determine if point is inside bmf
+        # https://ics.uci.edu/~eppstein/161/960307.html
+        (px, py) = to2D(point)
+        crossings = 0
+        for ((x0, y0), (x1, y1)) in iter_pairs(cos2D, True):
+            if x0 < px < x1 or x0 > px > x1:
+                t = (px - x1) / (x0 - x1)
+                cy = t * y0 + (1 - t) * y1
+                if py == cy: return True                           # on boundary edge of face!
+                if py > cy: crossings += 1
+            if px == x0:
+                if py == y0: return True                           # on boundary vert of face!
+                if x1 == px:
+                    if y0 < py < y1 or y0 > py > y1: return True   # on boundary vert of face!
+                elif x1 > px:
+                    crossings += 1
+                if x1 > px: crossings += 1
+        return (crossings % 2) == 1
+    return point_inside_bmf
