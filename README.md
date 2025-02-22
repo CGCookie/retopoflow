@@ -18,6 +18,7 @@ Below is a table showing which versions of RetopoFlow and Blender are compatible
 
 | RetopoFlow |    Blender     |
 | ---------- | -------------- |
+|   4.0.0    | 4.3 or later   |
 |   3.4.0    | 3.6 or later   |
 |   3.3.0    | 2.93--3.5      |
 |   3.2.4    | 2.8x--2.9x     |
@@ -52,7 +53,7 @@ Press Install from file.
 _If your browser auto-extracted the downloaded zip file, then you will need to re-compress the **RetopoFlow** folder before installing, or use Save As to save the zip file without extracting the contents._
 
 Once installed, Blender should automatically filter the list of add-ons to show only RetopoFlow.
-You can then enable the add-on by clicking the checkbox next to `3D View: RetopoFlow`.
+You can then enable the add-on by clicking the checkbox next to `RetopoFlow 4`.
 
 ![Installing RetopoFlow](help/images/install.png)
 
@@ -61,25 +62,13 @@ If you have any issues with installing, please try the following steps:
 1. Download the latest version of RetopoFlow for your version of Blender (see Requirements section above).
 2. Open Blender
 3. Head to Edit > Preferences > Add-ons and search for RetopoFlow
-4. Expand by clicking the triangle, and then press Remove
+4. Expand by clicking the triangle, and then press Uninstall
 5. Close Blender to completely clear out the previous version
 6. Open Blender and head to preferences again
 7. Click Install
 8. Navigate to your RetopoFlow zip file (please do not unzip)
 9. Click Install Add-on
 10. Enable RetopoFlow
-
-
-## Updating
-
-RetopoFlow 3 comes with a built-in updater.
-Once you've installed it the first time, simply check for updates using the RetopoFlow menu.
-If you need to update the add-on manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.
-
-The RetopoFlow updater will keep all of your previous settings intact.
-If you need to update manually for whatever reason, you can also keep your preferences by copying the `RetopoFlow_keymaps.json` and `RetopoFlow_options.json` files from the previous version's folder before installation and pasting them into the new version's folder after installation.
-
-See the [Updater page](https://docs.retopoflow.com/addon_updater.html) for more details.
 
 
 ## Getting Support
