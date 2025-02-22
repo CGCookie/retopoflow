@@ -443,8 +443,12 @@ class Direction(VecUtils, Entity3D):
         self.z *= -1
         return self
 
-    def angleBetween(self, other):
+    def angle_between(self, other):
         return acos(mid(-1, 1, self.dot(other.normalized())))
+    def signed_angle_between(self, other, up):
+        angle = self.angle_between(other)
+        cross = self.cross(other).dot(up)
+        return angle * sign(cross)
 
     def from_vector(self, v):
         super().from_vector(v)
@@ -2092,6 +2096,10 @@ def closest_points_segments(a0, a1, b0, b1):
     atob = constrain_point_segment(btoa, a0, a1)
     return (atob, btoa)
 
+def sign(v):
+    if v > 0: return 1
+    if v < 0: return -1
+    return 0
 
 
 if __name__ == '__main__':

@@ -740,9 +740,9 @@ class Patches(RFTool):
                     sv1 = list(reversed(sv1))
                     dir1.reverse()
                 # make sure the I strip are good candidates for bridging
-                # if math.degrees(dir0.angleBetween(dir1)) > 80: continue     # make sure strips are parallel enough
-                if math.degrees(dir0.angleBetween(Direction(sv1[0].co-sv0[0].co))) < 45: continue
-                if math.degrees(dir1.angleBetween(Direction(sv0[0].co-sv1[0].co))) < 45: continue
+                # if math.degrees(dir0.angle_between(dir1)) > 80: continue     # make sure strips are parallel enough
+                if math.degrees(dir0.angle_between(Direction(sv1[0].co-sv0[0].co))) < 45: continue
+                if math.degrees(dir1.angle_between(Direction(sv0[0].co-sv1[0].co))) < 45: continue
                 dist = min((v0.co-v1.co).length for v0 in sv0 for v1 in sv1)
                 if best_sv1 and best_dist < dist: continue
                 best_sv1 = sv1

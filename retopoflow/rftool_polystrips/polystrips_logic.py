@@ -65,7 +65,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import (
     closest_point_segment,
     segment2D_intersection,
-    clamp,
+    clamp, sign,
     Direction,
     closest_points_segments,
 )
@@ -85,65 +85,102 @@ NOT HANDLING CYCLIC STROKES, YET
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, is_cycle, snap_bmf0, snap_bmf1):
+    def __init__(self, context, radius2D, stroke3D_local, is_cycle, snap_bmf0, snap_bmf1, split_angle):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
 
+        # self.process_stroke() will set self.error if something went wrong
+        # use this indicator to fail gracefully rather than throwing/catching exception?
+        self.error = False
+
+        ##############################
         # store passed parameters
         M, Mi = self.matrix_world, self.matrix_world_inv
         self.radius2D = radius2D
-        self.stroke3D_local = [ pt for pt in stroke3D_local if pt ]
-        self.stroke3D_world = [ (M @ pt) for pt in stroke3D_local if pt ]
+        self.stroke3D_local = stroke3D_local
         self.is_cycle = is_cycle
         self.snap_bmf0 = snap_bmf0
         self.snap_bmf1 = snap_bmf1
+        self.split_angle = split_angle  # clamp!?
 
-        self.error = False
-
+        ######################################################################
         # process stroke data, such as projecting and computing length
         self.process_stroke(context)
+
+        ###############################################
+        # fail gracefully if something went wrong
         if self.error:
-            self.count = 0
-            self.count_min = 0
+            self.count_min = 0  # must be set before self.count
+            self.count = 0      # must be set after self.count_min
             self.width = 0
             return
 
-        # initialize options
+        #################################
+        # compute initial settings
+
         self.action = ''  # will be filled in later
-        self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)
-        self.count_min = 3 if (self.snap0 and self.snap1) else 2
+        self.count_min = 3 if (self.snap0 and self.snap1) else 2        # must be set before self.count
+        self.count = max(2, round(self.length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
         self.width = self.length3D / (self.count * 2 - 1)
 
     @property
     def count(self): return self._count
     @count.setter
-    def count(self, v): self._count = max(2, int(v))
+    def count(self, v): self._count = max(int(v), self.count_min)
+
+    def stroke_samples(self):
+        context = self.context
+        M, Mi = self.matrix_world, self.matrix_world_inv
+
+        # determine where stroke angles very strongly
+        l = []
+        for (i, p) in enumerate(self.stroke3D_local):
+            pp = next((pp for pp in self.stroke3D_local[i::-1] if (p - pp).length >= self.width), None)
+            pn = next((pn for pn in self.stroke3D_local[i:] if (p - pn).length >= self.width), None)
+            if not pp or not pn: continue
+            # not first set of points
+            n = Direction(nearest_normal_valid_sources(context, M @ p, world=False))
+            dp, dn = Direction(p - pp), Direction(pn - p)
+            angle = math.degrees(dp.signed_angle_between(dn, n))
+            if abs(angle) < self.split_angle: continue
+            l.append((i, p, int(angle)))
+
+        # find largest angle of connected "islands" (run of points within self.width of neighboring points)
+        biggest = []
+        for (_, pp, _), (i, p, a) in zip(l[:-1], l[1:]):
+            if not biggest or (pp - p).length >= self.width:
+                # either first point (and therefore biggest by default) or too far away from previous (disconnected)
+                biggest += [(i, a)]
+            else:
+                # connected to previous, so find biggest angle of current island
+                biggest[-1] = max(biggest[-1], (i, a), key=lambda pa: abs(pa[1]))
+
+        return biggest
 
     def create(self, context):
         if self.error: return
         self.update_context(context)
 
-        self.count = max(self.count, self.count_min)
-
         bvh = self.bvh
+        M, Mi = self.matrix_world, self.matrix_world_inv
 
         # TODO: Remove this limitation!
         if self.is_cycle:
             print(f'Warning: PolyStrips cannot handle cyclic strokes, yet')
             return
 
-        M, Mi = self.matrix_world, self.matrix_world_inv
+        print(f'{self.stroke_samples()=}')
 
-        # compute number of samples to make on stroke
+        ###########################################################################
+        # sample the stroke and compute various properties of sample
+
         count = (self.count - 1) if self.snap0 and self.snap1 else self.count
         self.npoints = count + (count - 1)
         self.points = [
             find_point_at(self.stroke3D_local, self.is_cycle, (i / (self.npoints - 1)))
             for i in range(self.npoints)
         ]
-        # print(f'start: {bvh.find_nearest(Mi @ self.points[0])}')
-        # print(f'end:   {bvh.find_nearest(Mi @ self.points[-1])}')
         self.points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in self.points ]
         self.normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in self.points ]
         self.forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(self.points, self.is_cycle) ]
@@ -156,12 +193,16 @@ class PolyStrips_Logic:
             for (b, f, n) in zip(self.backwards, self.forwards, self.normals)
         ]
 
+
+        ######################################
         # create bmverts
+
         w0 = self.snap0[3] if self.snap0 else self.width
         w1 = self.snap1[3] if self.snap1 else self.width
         wm = self.width
         bmvs = [[], []]
-        # beginning of stroke
+
+        # create bmverts at beginning of stroke
         p, pn = self.points[0], self.points[1]
         f, r = self.forwards[0], self.rights[0]
         if self.snap0:
@@ -176,7 +217,8 @@ class PolyStrips_Logic:
             d = (pn - p).length
             bmvs[0] += [ self.bm.verts.new(p + r * wm - f * d) ]
             bmvs[1] += [ self.bm.verts.new(p - r * wm - f * d) ]
-        # along stroke
+
+        # create bmverts along stroke
         i_start = 2 if (self.snap0 or self.snap1) else 1
         i_end = len(self.points) - (2 if (self.snap0 or self.snap1) else 1)
         for i in range(i_start, i_end, 2):
@@ -184,13 +226,12 @@ class PolyStrips_Logic:
             r = self.rights[i]
             d = ((pp - p).length + (pn - p).length) / 2
             v = 2 * i / (len(self.points) - 1)
-            if v < 1:
-                w = w0 + (wm - w0) * v
-            else:
-                w = wm + (w1 - wm) * (v-1)
+            if v < 1: w = w0 + (wm - w0) * v
+            else:     w = wm + (w1 - wm) * (v-1)
             bmvs[0] += [ self.bm.verts.new(p + r * w) ]
             bmvs[1] += [ self.bm.verts.new(p - r * w) ]
-        # ending of stroke
+
+        # create bmverts at ending of stroke
         p, pp = self.points[-1], self.points[-2]
         f, r = self.forwards[-1], self.rights[-1]
         if self.snap1:
@@ -210,9 +251,14 @@ class PolyStrips_Logic:
         for bmv in chain(bmvs[0], bmvs[1]):
             bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
 
-        # must happen _BEFORE_ faces are created!
+        # insert bmverts of snapped faces
+        # IMPORTANT: must happen _BEFORE_ faces are created!
         bmvs_snap0 = list(self.bm.faces[self.snap0[0]].verts) if self.snap0 else []
         bmvs_snap1 = list(self.bm.faces[self.snap1[0]].verts) if self.snap1 else []
+
+
+        ######################################################
+        # create bmfaces
 
         bmfs = []
         for i in range(0, len(bmvs[0])-1):
@@ -223,10 +269,12 @@ class PolyStrips_Logic:
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
+
+        ########################################
         # select newly created geometry
+
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, bmvs[0] + bmvs[1] + bmvs_snap0 + bmvs_snap1)
-
         bmops.flush_selection(self.bm, self.em)
 
 
@@ -250,15 +298,23 @@ class PolyStrips_Logic:
     def process_stroke(self, context):
         M, Mi = self.matrix_world, self.matrix_world_inv
 
-        #############################################################################
-        # TODO: change logic to use snapped bmfs so UI and logic match!
-        #       do not do the following!
-        #       still need to find which edge of each bmf is crossed, but that
-        #       should be much easier!
-        #############################################################################
+        ##############################################
+        # clean up stroke data
+
+        # make sure all stroke points are not None
+        self.stroke3D_local = [ pt for pt in self.stroke3D_local if pt ]
+        if not self.stroke3D_local:
+            print(f'ERROR: empty stroke!')
+            self.error = True
+            return
+
+
+        #######################################################################################
+        # deal with snapping stroke to bmfs hovered at beginning and ending of stroke
 
         i0, i1 = 0, len(self.stroke3D_local)
         self.snap0, self.snap1 = None, None
+
         if self.snap_bmf0:
             bmf = self.snap_bmf0
             bmf_cos = [bmv.co for bmv in bmf.verts]
@@ -267,7 +323,7 @@ class PolyStrips_Logic:
             # find the first stroke pt outside the snapped bmf
             i0 = next((i for (i,pt) in enumerate(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
             if i0 is None:
-                print(f'WARNING: stroke totally inside the face!')
+                print(f'ERROR: stroke totally inside the face hovered at start of stroke!')
                 self.error = True
                 return
             # find closest edge
@@ -282,6 +338,7 @@ class PolyStrips_Logic:
                 bme_midpoint(bme),
                 bme_length(bme) / 2,
             )
+
         if self.snap_bmf1:
             bmf = self.snap_bmf1
             bmf_cos = [bmv.co for bmv in bmf.verts]
@@ -290,7 +347,7 @@ class PolyStrips_Logic:
             # find the first stroke pt outside the snapped bmf
             i1 = next((i for (i,pt) in enumerate_reversed(self.stroke3D_local) if (pt - bmf_center).length > bmf_radius), None)
             if i1 is None:
-                print(f'WARNING: stroke totally inside the face!')
+                print(f'ERROR: stroke totally inside the face hovered at end of stroke!')
                 self.error = True
                 return
             # find closest edge
@@ -304,17 +361,24 @@ class PolyStrips_Logic:
                 bme_midpoint(bme),
                 bme_length(bme) / 2,
             )
+
         if i1 > i0:
             i0, i1 = i0, i1
+
         self.stroke3D_local = self.stroke3D_local[i0:i1+1]
 
+
+        #################################################
         # warp stroke to better fit snapped geo
+
         if self.snap0 and not self.snap1:
             offset = self.snap0[2] - self.stroke3D_local[0]
             self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
+
         elif not self.snap0 and self.snap1:
             offset = self.snap1[2] - self.stroke3D_local[-1]
             self.stroke3D_local = [ pt + offset for pt in self.stroke3D_local ]
+
         elif self.snap0 and self.snap1:
             csnap = (self.snap0[2] + self.snap1[2]) / 2
             ssnap = (self.snap0[2] - self.snap1[2]).length
@@ -328,72 +392,8 @@ class PolyStrips_Logic:
             ]
 
 
-        # # determine if stroke crosses any edges
-        # faces = {}
-        # for bmf in self.bm.faces:
-        #     bmf_cos = [M @ bmv.co for bmv in bmf.verts]
-        #     bmf_center = sum(bmf_cos, Vector()) / len(bmf_cos)
-        #     bmf_radius = max((co - bmf_center).length for co in bmf_cos)
-        #     for i, (pt0, pt1) in enumerate(iter_pairs(self.stroke3D, self.is_cycle)):
-        #         vpt = pt1 - pt0
-        #         lpt2 = vpt.dot(vpt)
-        #         # determine if stroke is going in or out based on stroke segment points
-        #         in0 = (pt0 - bmf_center).length < bmf_radius
-        #         in1 = (pt1 - bmf_center).length < bmf_radius
-        #         if in0 == in1: continue
-        #         for bme in bmf.edges:
-        #             bmv0, bmv1 = bme.verts
-        #             co0, co1 = M @ bmv0.co, M @ bmv1.co
-        #             vco = co1 - co0
-        #             lco2 = vco.dot(vco)
-        #             co01, pt01 = closest_points_segments(co0, co1, pt0, pt1)
-        #             vclosest = pt01 - co01
-        #             lclosest2 = vclosest.dot(vclosest)
-        #             if faces.get((bmf.index, in1), (None, None, None, float('inf')))[-1] > lclosest2:
-        #                 bme_center = (co0 + co1) / 2
-        #                 bme_len = math.sqrt(lco2) / 2
-        #                 faces[(bmf.index, in1)] = (bme.index, bme_center, bme_len, i, lclosest2)
-        # self.crossings = []
-        # self.snap0 = None
-        # self.snap1 = None
-        # for (bmfidx, going_in), (bmeidx, bmectr, bmelen, stidx, dist) in faces.items():
-        #     self.crossings += [(stidx, going_in, bmfidx, bmeidx, bmectr, bmelen)]
-        # self.crossings.sort(key=lambda p: p[0])
-        # if self.crossings:
-        #     # print(self.crossings)
-        #     i0, i1 = 0, len(self.stroke3D)
-        #     if self.crossings[0][1]:
-        #         # ignore stroke after stidx
-        #         i1 = self.crossings[0][0]
-        #         self.snap1 = self.crossings[0][2:]
-        #     else:
-        #         # ignore stroke up to stidx
-        #         i0 = self.crossings[0][0]
-        #         self.snap0 = self.crossings[0][2:]
-        #         if len(self.crossings) >= 2:
-        #             i1 = self.crossings[1][0]
-        #             self.snap1 = self.crossings[1][2:]
-        #     self.stroke3D = self.stroke3D[i0:i1]
-
-        # # warp stroke to better fit snapped geo
-        # if self.snap0 or self.snap1:
-        #     if self.snap0 and not self.snap1:
-        #         offset = self.snap0[2] - self.stroke3D[0]
-        #         self.stroke3D = [ pt + offset for pt in self.stroke3D ]
-        #     elif not self.snap0 and self.snap1:
-        #         offset = self.snap1[2] - self.stroke3D[-1]
-        #         self.stroke3D = [ pt + offset for pt in self.stroke3D ]
-        #     else:
-        #         csnap = (self.snap0[2] + self.snap1[2]) / 2
-        #         ssnap = (self.snap0[2] - self.snap1[2]).length
-        #         cstroke = (self.stroke3D[0] + self.stroke3D[-1]) / 2
-        #         sstroke = (self.stroke3D[0] - self.stroke3D[-1]).length
-        #         off = csnap - cstroke
-        #         scale = ssnap / sstroke
-        #         self.stroke3D = [
-        #             nearest_point_valid_sources(context, ((pt - cstroke) * scale + csnap))
-        #             for pt in self.stroke3D
-        #         ]
+        ###################################
+        # finalize needed properties
 
         self.stroke3D_world = [(M @ pt) for pt in self.stroke3D_local]
 

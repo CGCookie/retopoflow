@@ -67,12 +67,35 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
 )
 
 class RFOperator_PolyStrips_Insert_Keymaps:
-    # used to collect redo shortcuts, which is filled in by redo_ fns below...
-    # note: cannot use RFOperator_PolyStrips_Insert.rf_keymaps, because RFOperator_PolyStrips_Insert
-    #       is not yet created!
+    '''
+    collection of keymaps, used to collect redo shortcuts created by @create_redo_operator
+    note: cannot use RFOperator_PolyStrips_Insert.rf_keymaps, because RFOperator_PolyStrips_Insert
+          is not yet created!
+    '''
+
     rf_keymaps = []
 
-class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOperator_Execute):
+
+class RFOperator_PolyStrips_Insert_Properties:
+    '''
+    bpy properties that are shared between insert operator and the modal operator
+    used to prevent duplicate code across both operators
+    '''
+
+    split_angle: bpy.props.IntProperty(
+        name='Angle',
+        description='Angle (degrees) threshold where stroke is split to insert a corner',
+        default=60,
+        min=45,
+        max=135,
+    )
+
+
+class RFOperator_PolyStrips_Insert(
+        RFOperator_PolyStrips_Insert_Keymaps,
+        RFOperator_PolyStrips_Insert_Properties,
+        RFOperator_Execute,
+    ):
     bl_idname = 'retopoflow.polystrips_insert'
     bl_label = 'Insert PolyStrip'
     bl_description = 'Insert quad strip'
@@ -87,14 +110,17 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
         min=2,
         max=256,
     )
+
     width: bpy.props.FloatProperty(
         name='Width',
         description='Width of quad strip',
         min=0.0001,
     )
 
+
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1):
+    def polystrips_insert(context, radius2D, stroke3D, is_cycle, snap_bmf0, snap_bmf1, split_angle):
+        logic = RFOperator_PolyStrips_Insert.logic
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -102,19 +128,24 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
             is_cycle,
             snap_bmf0,
             snap_bmf1,
+            split_angle,
         )
+        logic = RFOperator_PolyStrips_Insert.logic
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            cut_count=RFOperator_PolyStrips_Insert.logic.count,
-            width=RFOperator_PolyStrips_Insert.logic.width,
+            cut_count=logic.count,
+            width=logic.width,
+            split_angle=logic.split_angle,
         )
 
     @staticmethod
     def polystrips_reinsert(context):
+        logic = RFOperator_PolyStrips_Insert.logic
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            cut_count=RFOperator_PolyStrips_Insert.logic.count,
-            width=RFOperator_PolyStrips_Insert.logic.width,
+            cut_count=logic.count,
+            width=logic.width,
+            split_angle=logic.split_angle,
         )
 
     def draw(self, context):
@@ -128,13 +159,18 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
 
         grid.label(text=f'Count')
         grid.prop(self, 'cut_count', text='')
+
         grid.label(text=f'Width')
         grid.prop(self, 'width', text='')
+
+        grid.label(text=f'Angle')
+        grid.prop(self, 'split_angle', text='')
 
     def execute(self, context):
         try:
             RFOperator_PolyStrips_Insert.logic.count = self.cut_count
             RFOperator_PolyStrips_Insert.logic.width = self.width
+            RFOperator_PolyStrips_Insert.logic.split_angle = self.split_angle
             RFOperator_PolyStrips_Insert.logic.create(context)
             self.cut_count = RFOperator_PolyStrips_Insert.logic.count
         except Exception as e:
@@ -179,6 +215,7 @@ class RFOperator_PolyStrips_Insert(RFOperator_PolyStrips_Insert_Keymaps, RFOpera
     @create_redo_operator('polystrips_insert_width_increased', 'Reinsert quad strip with increased width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
     def increase_cut_count(context, logic):
         logic.width /= 0.95
+
 
 
 class RFOperator_PolyStrips_Edit(RFOperator):
@@ -284,7 +321,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         return {'RUNNING_MODAL'}
 
 
-class RFOperator_PolyStrips(RFOperator):
+class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.polystrips'
     bl_label = 'PolyStrips'
     bl_description = 'Insert quad strip'
@@ -306,7 +343,6 @@ class RFOperator_PolyStrips(RFOperator):
     ]
 
     rf_status = ['LMB: Insert']
-
 
     stroke_smoothing: bpy.props.FloatProperty(
         name='Stroke Smoothing',
@@ -342,6 +378,7 @@ class RFOperator_PolyStrips(RFOperator):
             stroke3D,
             is_cycle,
             snap_bmf0, snap_bmf1,
+            self.split_angle,
         )
 
     def update(self, context, event):
@@ -396,12 +433,17 @@ class RFTool_PolyStrips(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
+
             layout.prop(props_polystrips, 'stroke_smoothing', text='Stroke')
-            row = layout.row(align=True)
+
+            layout.prop(props_polystrips, 'split_angle', text='Angle')
+
             layout.popover('RF_PT_TweakCommon')
+
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
+
             layout.popover('RF_PT_Display', text='', icon='OPTIONS')
         else:
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
