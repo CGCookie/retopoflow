@@ -103,17 +103,42 @@ class RFOperator_PolyStrips_Insert(
 
     logic = None
 
-    cut_count: bpy.props.IntProperty(
+    count0: bpy.props.IntProperty(
         name='Count',
-        description='Number of vertices to create in a new quad strip',
+        description='Number of quads in the first quad strip',
         default=8,
         min=2,
         max=256,
     )
-
-    width: bpy.props.FloatProperty(
+    width0: bpy.props.FloatProperty(
         name='Width',
-        description='Width of quad strip',
+        description='Width of quads in the first quad strip',
+        min=0.0001,
+    )
+
+    count1: bpy.props.IntProperty(
+        name='Count',
+        description='Number of quads in the second quad strip',
+        default=8,
+        min=2,
+        max=256,
+    )
+    width1: bpy.props.FloatProperty(
+        name='Width',
+        description='Width of quads in the second quad strip',
+        min=0.0001,
+    )
+
+    count2: bpy.props.IntProperty(
+        name='Count',
+        description='Number of quads in the third quad strip',
+        default=8,
+        min=2,
+        max=256,
+    )
+    width2: bpy.props.FloatProperty(
+        name='Width',
+        description='Width of quads in the third quad strip',
         min=0.0001,
     )
 
@@ -133,10 +158,14 @@ class RFOperator_PolyStrips_Insert(
         )
         logic = RFOperator_PolyStrips_Insert.logic
         if not logic or logic.error: return
+        count0, width0 = logic.count0, logic.width0
+        count1, width1 = logic.count1, logic.width1
+        count2, width2 = logic.count2, logic.width2
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            cut_count=logic.count,
-            width=logic.width,
+            count0=count0, width0=width0,
+            count1=count1, width1=width1,
+            count2=count2, width2=width2,
             split_angle=logic.split_angle,
         )
 
@@ -144,10 +173,14 @@ class RFOperator_PolyStrips_Insert(
     def polystrips_reinsert(context):
         logic = RFOperator_PolyStrips_Insert.logic
         if not logic or logic.error: return
+        count0, width0 = logic.count0, logic.width0
+        count1, width1 = logic.count1, logic.width1
+        count2, width2 = logic.count2, logic.width2
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            cut_count=logic.count,
-            width=logic.width,
+            count0=count0, width0=width0,
+            count1=count1, width1=width1,
+            count2=count2, width2=width2,
             split_angle=logic.split_angle,
         )
 
@@ -156,22 +189,44 @@ class RFOperator_PolyStrips_Insert(
         grid = layout.grid_flow(row_major=True, columns=2)
         logic = RFOperator_PolyStrips_Insert.logic
 
-        grid.label(text=f'Count')
-        grid.prop(self, 'cut_count', text='')
+        if logic.strip_count == 1:
+            grid.label(text=f'Count')
+            grid.prop(self, 'count0', text='')
+            grid.label(text=f'Width')
+            grid.prop(self, 'width0', text='')
 
-        grid.label(text=f'Width')
-        grid.prop(self, 'width', text='')
+        elif logic.strip_count >= 1:
+            grid.label(text=f'First')
+            row = grid.row(align=True)
+            row.prop(self, 'count0', text='')
+            row.prop(self, 'width0', text='')
+
+            if logic.strip_count >= 2:
+                grid.label(text=f'Second')
+                row = grid.row(align=True)
+                row.prop(self, 'count1', text='')
+                row.prop(self, 'width1', text='')
+
+            if logic.strip_count >= 3:
+                grid.label(text=f'Third')
+                row = grid.row(align=True)
+                row.prop(self, 'count2', text='')
+                row.prop(self, 'width2', text='')
 
         grid.label(text=f'Angle')
         grid.prop(self, 'split_angle', text='')
 
     def execute(self, context):
         try:
-            RFOperator_PolyStrips_Insert.logic.count = self.cut_count
-            RFOperator_PolyStrips_Insert.logic.width = self.width
-            RFOperator_PolyStrips_Insert.logic.split_angle = self.split_angle
-            RFOperator_PolyStrips_Insert.logic.create(context)
-            self.cut_count = RFOperator_PolyStrips_Insert.logic.count
+            logic = RFOperator_PolyStrips_Insert.logic
+            logic.count0, logic.width0 = self.count0, self.width0
+            logic.count1, logic.width1 = self.count1, self.width1
+            logic.count2, logic.width2 = self.count2, self.width2
+            logic.split_angle = self.split_angle
+            logic.create(context)
+            self.count0, self.width0 = logic.count0, logic.width0
+            self.count1, self.width1 = logic.count1, logic.width1
+            self.count2, self.width2 = logic.count2, logic.width2
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -201,21 +256,21 @@ class RFOperator_PolyStrips_Insert(
             return wrapped
         return wrapper
 
-    @create_redo_operator('polystrips_insert_cut_count_decreased', 'Reinsert quad strip with decreased count', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
-    def decrease_cut_count(context, logic):
-        logic.count -= 1
+    @create_redo_operator('polystrips_insert_count0_decreased', 'Decrease count of quads in first quad strip', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    def decrease_count0(context, logic):
+        logic.count0 -= 1
 
-    @create_redo_operator('polystrips_insert_cut_count_increased', 'Reinsert quad strip with increased count', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
-    def increase_cut_count(context, logic):
-        logic.count += 1
+    @create_redo_operator('polystrips_insert_count0_increased', 'Increase count of quads in first quad strip', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    def increase_count0(context, logic):
+        logic.count0 += 1
 
-    @create_redo_operator('polystrips_insert_width_decreased', 'Reinsert quad strip with decreased width', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
-    def decrease_cut_count(context, logic):
-        logic.width *= 0.95
+    @create_redo_operator('polystrips_insert_width0_decreased', 'Decrease width of quads in first quad strip', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    def decrease_width0(context, logic):
+        logic.width0 *= 0.95
 
-    @create_redo_operator('polystrips_insert_width_increased', 'Reinsert quad strip with increased width', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    def increase_cut_count(context, logic):
-        logic.width /= 0.95
+    @create_redo_operator('polystrips_insert_width0_increased', 'Increase width of quads in first quad strip', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    def increase_width1(context, logic):
+        logic.width0 /= 0.95
 
 
 

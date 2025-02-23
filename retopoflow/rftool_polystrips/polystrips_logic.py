@@ -187,15 +187,56 @@ class PolyStrips_Logic:
 
         #################################
         # initial settings
-        self.count_min = 3 if (snap_bmf0 and snap_bmf1) else 2     # must be set before self.count
-        self.count = max(2, round(length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
-        self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
+        self.initial = True
+        self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
+        self.initial_width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.initial_count * 2 - 1)
+        self.strip_count = 0
+        self.count_mins = []
+        self.counts = []
+        self.widths = []
 
+        # self.count_min = 3 if (snap_bmf0 and snap_bmf1) else 2     # must be set before self.count
+        # self.count = max(2, round(length2D / (2 * radius2D)) + 1)  # must be set after self.count_min
+        # self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
 
     @property
-    def count(self): return self._count
-    @count.setter
-    def count(self, v): self._count = max(int(v), self.count_min)
+    def count0(self): return self.counts[0] if self.strip_count >= 1 else 0
+    @count0.setter
+    def count0(self, v):
+        if self.strip_count < 1: return
+        self.counts[0] = max(self.count_mins[0], v)
+    @property
+    def count1(self): return self.counts[1] if self.strip_count >= 2 else 0
+    @count1.setter
+    def count1(self, v):
+        if self.strip_count < 2: return
+        self.counts[1] = max(self.count_mins[1], v)
+    @property
+    def count2(self): return self.counts[2] if self.strip_count >= 3 else 0
+    @count2.setter
+    def count2(self, v):
+        if self.strip_count < 3: return
+        self.counts[2] = max(self.count_mins[2], v)
+
+    @property
+    def width0(self): return self.widths[0] if self.strip_count >= 1 else 0
+    @width0.setter
+    def width0(self, v):
+        if self.strip_count < 1: return
+        self.widths[0] = v
+    @property
+    def width1(self): return self.widths[1] if self.strip_count >= 2 else 0
+    @width1.setter
+    def width1(self, v):
+        if self.strip_count < 2: return
+        self.widths[1] = v
+    @property
+    def width2(self): return self.widths[2] if self.strip_count >= 3 else 0
+    @width2.setter
+    def width2(self, v):
+        if self.strip_count < 3: return
+        self.widths[2] = v
+
 
     def create(self, context):
         if self.error: return
@@ -215,32 +256,43 @@ class PolyStrips_Logic:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
             select_geo += [snap_bmf_end]
 
-        angles = stroke_angles(
+        strips = stroke_angles(
             self.stroke3D_local,
-            self.width,
+            self.initial_width,
             self.split_angle,
             lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
         )
+        nstroke = len(self.stroke3D_local)
 
         # break stroke into segments
-        for (i0, i1) in iter_pairs(angles, False):
+        nstrip_count = len(strips) - 1
+        if self.strip_count != nstrip_count:
+            # reset data
+            self.count_mins, self.counts, self.widths = [], [], []
+        ncount_mins, ncounts, nwidths = [], [], []
+        for i_strip, (i0, i1) in enumerate(iter_pairs(strips, False)):
             stroke3D_local = self.stroke3D_local[i0:i1]
-            snap_bmf0 = snap_bmf_start if i0 == 0 else snap_bmf1
-            snap_bmf1 = snap_bmf_end if i1 == len(self.stroke3D_local) else None
-            limit_bmes0 = None
-            if i0 > 0:
+
+            if i0 == 0:
+                snap_bmf0 = snap_bmf_start
+                limit_bmes0 = None
+            else:
+                snap_bmf0 = snap_bmf1
                 limit_bmes0 = [
                     bme for bme in snap_bmf0.edges
                     if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
                 ]
-            if i1 < len(self.stroke3D_local):
+
+            if i1 == nstroke:
+                snap_bmf1 = snap_bmf_end
+            else:
+                snap_bmf1 = None
                 # extend stroke by self.width
                 i_end = max(0, len(stroke3D_local) - 5)
                 p0,p1 = stroke3D_local[i_end], stroke3D_local[-1]
                 d01 = Direction(p1 - p0)
-                p2 = self.nearest_point(p1 + d01 * (self.width / 2))
+                p2 = self.nearest_point(p1 + d01 * (self.initial_width / 2))
                 stroke3D_local += [p2]
-            print(f'{snap_bmf0=} {snap_bmf1=}')
 
             snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True, limit_bmes0)
             if snap0:
@@ -270,25 +322,31 @@ class PolyStrips_Logic:
             # sample the stroke and compute various properties of sample
 
             # self.width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.count * 2 - 1)
-            if i0 == 0 and i1 == len(self.stroke3D_local):
-                segment_count = self.count
+            if not self.counts:
+                quad_count = round(((self.compute_length3D(stroke3D_local, False) / self.initial_width) + 1) / 2)
+                quad_count = max(2, quad_count)
+                width = self.initial_width
             else:
-                segment_count = round(((self.compute_length3D(stroke3D_local, False) / self.width) + 1) / 2)
-                segment_count = max(2, segment_count)
+                quad_count = self.counts[i_strip]
+                width = self.widths[i_strip]
 
-            count = (segment_count - 1) if snap0 and snap1 else segment_count
-            npoints = count + (count - 1)
-            nsamples = (npoints + 2) if not (snap0 or snap1) else npoints
-            points = [
+            ncount_mins += [3 if (snap_bmf0 and snap_bmf1) else 2]
+            ncounts += [quad_count]
+            nwidths += [width]
+
+            quad_count = (quad_count - 1) if snap0 and snap1 else quad_count
+            nsamples = quad_count + (quad_count - 1)
+            nsamples = (nsamples + 2) if not (snap0 or snap1) else nsamples
+            samples = [
                 find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
                 for i in range(nsamples)
             ]
-            points = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in points ]
-            normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in points ]
-            forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+            samples = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in samples ]
+            normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in samples ]
+            forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
             forwards += [ forwards[-1] ]
             # backwards is essentially the same as forwards, but doing it this way is slightly easier to understand
-            backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(points, self.is_cycle) ]
+            backwards = [ Direction(p0 - p1) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
             backwards = [ backwards[0] ] + backwards
             rights = [
                 (f.cross(n).normalize() + n.cross(b).normalize()).normalize()
@@ -299,13 +357,13 @@ class PolyStrips_Logic:
             ######################################
             # create bmverts
 
-            w0 = snap0['bme.radius'] if snap0 else self.width
-            w1 = snap1['bme.radius'] if snap1 else self.width
-            wm = self.width
+            w0 = snap0['bme.radius'] if snap0 else width
+            w1 = snap1['bme.radius'] if snap1 else width
+            wm = width
             bmvs = [[], []]
 
             # create bmverts at beginning of stroke
-            p, pn = points[0], points[1]
+            p, pn = samples[0], samples[1]
             f, r = forwards[0], rights[0]
             if snap0:
                 bme = snap0['bme']
@@ -321,20 +379,20 @@ class PolyStrips_Logic:
 
             # create bmverts along stroke
             i_start = 2 if (snap0 or snap1) else 2
-            i_end = len(points) - (2 if (snap0 or snap1) else 1)
+            i_end = len(samples) - (2 if (snap0 or snap1) else 1)
             for i in range(i_start, i_end, 2):
-                pp, p, pn = points[i-1:i+2]
+                pp, p, pn = samples[i-1:i+2]
                 r = rights[i]
 
                 # compute width
                 if snap0 and not snap1:
-                    v = i / (len(points) - 1)
+                    v = i / (len(samples) - 1)
                     w = w0 + (wm - w0) * v
                 elif not snap0 and snap1:
-                    v = i / (len(points) - 1)
+                    v = i / (len(samples) - 1)
                     w = wm + (w1 - wm) * v
                 else:
-                    v = 2 * i / (len(points) - 1)
+                    v = 2 * i / (len(samples) - 1)
                     if v < 1: w = w0 + (wm - w0) * v
                     else:     w = wm + (w1 - wm) * (v-1)
 
@@ -342,7 +400,7 @@ class PolyStrips_Logic:
                 bmvs[1] += [ self.bm.verts.new(p - r * w) ]
 
             # create bmverts at ending of stroke
-            p, pp = points[-1], points[-2]
+            p, pp = samples[-1], samples[-2]
             f, r = forwards[-1], rights[-1]
             if snap1:
                 bme = snap1['bme']
@@ -381,6 +439,11 @@ class PolyStrips_Logic:
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, select_geo)
         bmops.flush_selection(self.bm, self.em)
+
+        self.count_mins = ncount_mins
+        self.counts = ncounts
+        self.widths = nwidths
+        self.strip_count = nstrip_count
 
 
     def update_context(self, context):
