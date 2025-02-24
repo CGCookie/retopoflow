@@ -289,6 +289,8 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         return bool(RFTool_PolyStrips.rf_overlay.instance.hovering)
 
     def init(self, context, event):
+        RFOperator_PolyStrips_Insert.logic = None
+
         self.curves = RFTool_PolyStrips.rf_overlay.instance.curves
         self.hovering = RFTool_PolyStrips.rf_overlay.instance.hovering
         self.strips_indices = RFTool_PolyStrips.rf_overlay.instance.strips_indices
