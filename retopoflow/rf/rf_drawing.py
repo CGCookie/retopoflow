@@ -28,6 +28,7 @@ import urllib
 import gpu
 from mathutils import Vector, Matrix
 from gpu_extras.presets import draw_texture_2d
+from gpu.state import viewport_get, active_framebuffer_get
 
 from ...addon_common.cookiecutter.cookiecutter import CookieCutter
 
@@ -135,6 +136,9 @@ class RetopoFlow_Drawing:
 
     @DrawCallbacks.on_draw('post3d')
     def draw_target_and_sources(self):
+        Globals.framebuffer = active_framebuffer_get()
+        Globals.viewport_info = viewport_get()
+
         if not self.actions.r3d: return
         if not self.loading_done: return
         # if self.fps_low_warning: return     # skip drawing if low FPS warning is showing
