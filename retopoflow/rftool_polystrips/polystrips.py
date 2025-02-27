@@ -351,20 +351,25 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         M, Mi = self.grab['matrices']
         fwd = self.grab['fwd']
 
-        def xform(pt0_edit):
-            pt0_world  = M @ pt0_edit
-            pt0_screen = location_3d_to_region_2d(rgn, r3d, pt0_world)
-            pt1_screen = pt0_screen + delta
-            pt1_world  = region_2d_to_location_3d(rgn, r3d, pt1_screen, pt0_world)
-            pt1_edit   = Mi @ pt1_world
-            return pt1_edit
+        def xform(pt0_cur_edit, pt1_cur_edit=None):
+            pt0_cur_world  = M @ pt0_cur_edit
+            pt0_cur_screen = location_3d_to_region_2d(rgn, r3d, pt0_cur_world)
+            pt0_new_screen = pt0_cur_screen + delta
+            if pt1_cur_edit is None:
+                pt0_new_world = region_2d_to_location_3d(rgn, r3d, pt0_new_screen, pt0_cur_world)
+                pt0_new_edit  = Mi @ pt0_new_world
+                return pt0_new_edit
+            pt0_new_world = raycast_point_valid_sources(context, pt0_new_screen)
+            pt0_new_edit = Mi @ pt0_new_world
+            pt1_new_edit = pt1_cur_edit + (pt0_new_edit - pt0_cur_edit)
+            return (pt0_new_edit, pt1_new_edit)
 
         p0, p1, p2, p3 = self.grab['prev']
         curve = self.curves[self.grab['curve']]
-        if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0), xform(p1)
+        if self.grab['handle'] == 0: curve.p0, curve.p1 = xform(p0, p1)
         if self.grab['handle'] == 1: curve.p1 = xform(p1)
         if self.grab['handle'] == 2: curve.p2 = xform(p2)
-        if self.grab['handle'] == 3: curve.p2, curve.p3 = xform(p2), xform(p3)
+        if self.grab['handle'] == 3: curve.p3, curve.p2 = xform(p3, p2)
 
         for bmv_idx in data:
             bmv = bm.verts[bmv_idx]
