@@ -100,8 +100,6 @@ def verts_to_triangles(count):
         verts_to_triangles.triangle_inds = [[i,i,i] for i in range(count*2)]
     return verts_to_triangles.triangle_inds[:count]
 
-def bme_other_bmv(bme, bmv):
-    return next((bmv_ for bmv_ in bme.verts if bmv_ != bmv), None)
 
 def crossed_quad(pt0, pt1, pt2, pt3):
     v01 = pt1 - pt0
@@ -131,8 +129,11 @@ def bmes_share_face(bme0, bme1):
 def bme_midpoint(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co + bmv1.co) / 2
+# def bme_other_bmv(bme, bmv):
+#     return next((bmv_ for bmv_ in bme.verts if bmv_ != bmv), None)
 def bme_other_bmv(bme, bmv):
     bmv0, bmv1 = bme.verts
+    if bmv != bmv0 and bmv != bmv1: return None
     return bmv0 if bmv1 == bmv else bmv1
 def bme_other_bmf(bme, bmf):
     return next((bmf_ for bmf_ in bme.link_faces if bmf_ != bmf), None)
