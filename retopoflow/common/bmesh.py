@@ -46,8 +46,13 @@ def get_bmesh_emesh(context, *, ensure_lookup_tables=False):
     bm = bmesh.from_edit_mesh(em)
     if ensure_lookup_tables:
         bm.verts.ensure_lookup_table()
+        bm.verts.index_update()
+
         bm.edges.ensure_lookup_table()
+        bm.edges.index_update()
+
         bm.faces.ensure_lookup_table()
+        bm.faces.index_update()
     return (bm, em)
 
 def iter_mirror_modifiers(obj):
