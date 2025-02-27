@@ -307,15 +307,22 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         self.curve.tessellate_uniform()
         strip_inds = self.strips_indices[self.hovering[0]]
         bmfs = [ self.bm.faces[i] for i in strip_inds]
-        bmvs = { bmv for bmf in bmfs for bmv in bmf.verts }
+        bmvs = { bmv: 1.0 for bmf in bmfs for bmv in bmf.verts }
+        # gather neighboring geo
+        all_bmvs = bmvs | { bmv_other: 0.5 for bmv in bmvs for bmf in bmv.link_faces for bmv_other in bmf.verts if bmv_other not in bmvs }
         # all data is local to edit!
         data = {}
-        for bmv in bmvs:
+        for (bmv, factor) in all_bmvs.items():
             t = self.curve.approximate_t_at_point_tessellation(bmv.co)
             o = self.curve.eval(t)
             z = Vector(self.curve.eval_derivative(t)).normalized()
             f = Frame(o, x=self.fwd, z=z)
-            data[bmv.index] = (t, f.w2l_point(bmv.co), Vector(bmv.co))
+            data[bmv.index] = (
+                t,
+                f.w2l_point(bmv.co),
+                Vector(bmv.co),
+                factor,
+            )
         self.grab = {
             'mouse':    Vector(mouse),
             'curve':    self.hovering[0],
@@ -340,7 +347,8 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         if event.type in {'ESC', 'RIGHTMOUSE'}:
             curve.p0, curve.p1, curve.p2, curve.p3 = self.grab['prev']
             for bmv_idx in data:
-                bm.verts[bmv_idx].co = data[bmv_idx][2]
+                t, pt_curve_orig, pt_edit_orig, factor = data[bmv_idx]
+                bm.verts[bmv_idx].co = pt_edit_orig
             bmesh.update_edit_mesh(em)
             context.area.tag_redraw()
             return {'CANCELLED'}
@@ -373,11 +381,13 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         for bmv_idx in data:
             bmv = bm.verts[bmv_idx]
-            t, pt, _ = data[bmv_idx]
+            t, pt_curve_orig, pt_edit_orig, factor = data[bmv_idx]
             o = curve.eval(t)
             z = Vector(curve.eval_derivative(t)).normalized()
             f = Frame(o, x=fwd, z=z)
-            bmv.co = nearest_point_valid_sources(context, M @ f.l2w_point(pt), world=False)
+            pt_edit_new = M @ f.l2w_point(pt_curve_orig)
+            pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
+            bmv.co = nearest_point_valid_sources(context, pt_edit_new, world=False)
 
         bmesh.update_edit_mesh(em)
         context.area.tag_redraw()
