@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.5&rarr;3.4.6
+
+- Updated tool hotkey numbers (0-9) to match the toolbar order
+
+
 ### RetopoFlow 3.4.4&rarr;3.4.5
 
 - Added ability for PolyStrips to create closed loops
