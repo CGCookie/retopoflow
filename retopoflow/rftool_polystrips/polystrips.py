@@ -32,17 +32,18 @@ from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cy
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import point_to_bvec4, view_forward_direction
-from ..common.raycast import raycast_point_valid_sources, mouse_from_event
-from ..common.raycast import is_point_hidden, nearest_point_valid_sources
+from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size2D_to_size
+from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
 from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
     chain_rf_keymaps,
 )
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp, Frame, Direction2D
+from ...addon_common.common.maths import clamp, Frame, Direction2D, Color
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -55,6 +56,7 @@ from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.display_panel import draw_display_panel
 from ..common.interface import draw_line_separator
 
+import heapq
 from functools import wraps
 
 
@@ -299,20 +301,44 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         RFTool_PolyStrips.rf_overlay.instance.depsgraph_version = None
 
         mouse = mouse_from_event(event)
+        M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
 
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
-        self.M, self.Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
-        self.fwd = (self.Mi @ view_forward_direction(context)).normalized()
+        self.M, self.Mi = M, Mi
+        self.fwd = (Mi @ view_forward_direction(context)).normalized()
         self.curve = self.curves[self.hovering[0]]
         self.curve.tessellate_uniform()
         strip_inds = self.strips_indices[self.hovering[0]]
         bmfs = [ self.bm.faces[i] for i in strip_inds]
-        bmvs = { bmv: 1.0 for bmf in bmfs for bmv in bmf.verts }
+        bmvs = [ bmv for bmf in bmfs for bmv in bmf.verts ]
         # gather neighboring geo
-        all_bmvs = bmvs | { bmv_other: 0.5 for bmv in bmvs for bmf in bmv.link_faces for bmv_other in bmf.verts if bmv_other not in bmvs }
+        if bmvs and context.tool_settings.use_proportional_edit:
+            connected_only = context.tool_settings.use_proportional_connected
+            prop_dist_world = context.tool_settings.proportional_distance  # IMPORTANT: this is in world space
+            if connected_only:
+                all_bmvs = {}
+                # NOTE: an exception is thrown if BMVerts are compared, so we are adding in bmv.index
+                #       into tuple to break ties with same distances before bmvs are compared
+                queue = [(0, bmv.index, bmv) for bmv in bmvs]
+                while queue:
+                    (d, _, bmv) = heapq.heappop(queue)
+                    if bmv in all_bmvs or d > prop_dist_world: continue
+                    all_bmvs[bmv] = d
+                    for bmf in bmv.link_faces:
+                        for bmv_ in bmf.verts:
+                            heapq.heappush(queue, (d + (M @ bmv.co - M @ bmv_.co).length, bmv_.index, bmv_))
+            else:
+                cos_sel = [M @ bmv.co for bmv in bmvs]
+                all_bmvs = {}
+                for bmv in self.bm.verts:
+                    co = M @ bmv.co
+                    d = min((co - co_sel).length for co_sel in cos_sel)
+                    if d <= prop_dist_world: all_bmvs[bmv] = d
+        else:
+            all_bmvs = { bmv: 0.0 for bmv in bmvs }
         # all data is local to edit!
         data = {}
-        for (bmv, factor) in all_bmvs.items():
+        for (bmv, distance) in all_bmvs.items():
             t = self.curve.approximate_t_at_point_tessellation(bmv.co)
             o = self.curve.eval(t)
             z = Vector(self.curve.eval_derivative(t)).normalized()
@@ -321,10 +347,11 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 t,
                 f.w2l_point(bmv.co),
                 Vector(bmv.co),
-                factor,
+                distance,
             )
         self.grab = {
             'mouse':    Vector(mouse),
+            'current':  Vector(mouse),
             'curve':    self.hovering[0],
             'handle':   self.hovering[1],
             'prev':     self.hovering[2],
@@ -352,12 +379,18 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             bmesh.update_edit_mesh(em)
             context.area.tag_redraw()
             return {'CANCELLED'}
+        if event.type in {'WHEELUPMOUSE'}:
+            context.tool_settings.proportional_distance *= 0.90
+        if event.type in {'WHEELDOWNMOUSE'}:
+            context.tool_settings.proportional_distance /= 0.90
 
         mouse = mouse_from_event(event)
+        self.grab['current'] = mouse
         delta = Vector(mouse) - self.grab['mouse']
         rgn, r3d = context.region, context.region_data
         M, Mi = self.grab['matrices']
         fwd = self.grab['fwd']
+        prop_dist_world = context.tool_settings.proportional_distance
 
         def xform(pt0_cur_edit, pt1_cur_edit=None):
             pt0_cur_world  = M @ pt0_cur_edit
@@ -381,7 +414,12 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         for bmv_idx in data:
             bmv = bm.verts[bmv_idx]
-            t, pt_curve_orig, pt_edit_orig, factor = data[bmv_idx]
+            t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
+            if context.tool_settings.use_proportional_edit:
+                if distance > prop_dist_world: continue
+                factor = 1 - distance / prop_dist_world
+            else:
+                factor = 1
             o = curve.eval(t)
             z = Vector(curve.eval_derivative(t)).normalized()
             f = Frame(o, x=fwd, z=z)
@@ -393,6 +431,21 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
+    def draw_postview(self, context):
+        if not context.tool_settings.use_proportional_edit: return
+        hit = raycast_valid_sources(context, self.grab['current'])
+        if not hit: return
+        pt = hit['co_world']
+        radius = context.tool_settings.proportional_distance
+        color = Color((1,1,1,0.75))
+        n = hit['no_world']  #view_forward_direction(context)
+        width = 3 * size2D_to_size(context, hit['distance'])
+        gpustate.blend('ALPHA')
+        gpustate.depth_mask(False)
+        gpustate.depth_test('ALWAYS')  # ALWAYS, NONE
+        Drawing.draw3D_circle(context, pt, radius, color, n=n, width=width)
+        gpustate.depth_test('LESS_EQUAL')
+        gpustate.depth_mask(True)
 
 class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.polystrips'
