@@ -26,6 +26,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 import math
 import numpy as np
+import random
 
 from ...addon_common.common.maths import clamp, Point, Vector, Normal
 
@@ -111,3 +112,25 @@ def pt_z0(pt0, pt1):
     pt = pt0 + d * (abs(pt0.z) / d.z)
     pt.z = 0
     return pt
+
+def proportional_edit(falloff_type, dist):
+    # see calculatePropRatio() in blender/source/blender/editors/transform/transform_generics.cc
+    match falloff_type:
+        case 'SMOOTH':
+            return 3 * dist * dist - 2 * dist * dist * dist
+        case 'SPHERE':
+            return math.sqrt(2 * dist - dist * dist)
+        case 'ROOT':
+            return math.sqrt(dist)
+        case 'INVERSE_SQUARE':
+            return dist * (2 - dist)
+        case 'SHARP':
+            return dist * dist
+        case 'LINEAR':
+            return dist
+        case 'CONSTANT':
+            return 1
+        case 'RANDOM':
+            return random.random()
+        case _:
+            return 1

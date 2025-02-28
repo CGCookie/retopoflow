@@ -31,7 +31,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import point_to_bvec4, view_forward_direction
+from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit
 from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size2D_to_size
 from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
 from ..common.operator import (
@@ -390,7 +390,9 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         rgn, r3d = context.region, context.region_data
         M, Mi = self.grab['matrices']
         fwd = self.grab['fwd']
+        prop_use = context.tool_settings.use_proportional_edit
         prop_dist_world = context.tool_settings.proportional_distance
+        prop_falloff = context.tool_settings.proportional_edit_falloff
 
         def xform(pt0_cur_edit, pt1_cur_edit=None):
             pt0_cur_world  = M @ pt0_cur_edit
@@ -415,9 +417,10 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         for bmv_idx in data:
             bmv = bm.verts[bmv_idx]
             t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
-            if context.tool_settings.use_proportional_edit:
+            if prop_use:
                 if distance > prop_dist_world: continue
-                factor = 1 - distance / prop_dist_world
+                dist = 1 - distance / prop_dist_world
+                factor = proportional_edit(prop_falloff, dist)
             else:
                 factor = 1
             o = curve.eval(t)
