@@ -51,7 +51,7 @@ def get_label_pos(context, label, boundary):
 
 
 def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
-    class RFOperator_LoopStrip_Selection_Overlay(RFOperator):
+    class RFOperator_LoopStrip_Selection_Overlay: # (RFOperator):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
@@ -100,6 +100,8 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                     lbl_pos -= Vector((tw / 2, -th / 2))
                     Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))
-    RFOperator_LoopStrip_Selection_Overlay.__name__ = opname
 
-    return RFOperator_LoopStrip_Selection_Overlay
+    return type(opname, (RFOperator_LoopStrip_Selection_Overlay, RFOperator), {})
+
+    # RFOperator_LoopStrip_Selection_Overlay.__name__ = opname
+    # return RFOperator_LoopStrip_Selection_Overlay
