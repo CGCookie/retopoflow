@@ -163,12 +163,16 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
 
         return {'RUNNING_MODAL'}
 
+    color_highlight_border = Color4((255/255, 255/255, 40/255, 1.0))
+    color_highlight_fill = Color4((255/255, 255/255, 40/255, 0.0))
+
     def draw_postpixel(self, context):
         if not self.highlight: return
+        theme = context.preferences.themes[0]
         with Drawing.draw(context, CC_2D_POINTS) as draw:
-            draw.point_size(8)
-            draw.border(width=2, color=Color4((40/255, 255/255, 40/255, 0.5)))
-            draw.color(Color4((40/255, 255/255, 255/255, 0.0)))
+            draw.point_size(theme.view_3d.vertex_size + 4)
+            draw.border(width=2, color=self.color_highlight_border)
+            draw.color(self.color_highlight_fill)
             for bmv in self.highlight:
                 co = self.matrix_world @ bmv.co
                 p = location_3d_to_region_2d(context.region, context.region_data, co)

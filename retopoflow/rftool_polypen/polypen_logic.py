@@ -326,12 +326,13 @@ class PP_Logic:
         color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
         color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
         color_mesh = theme.face_select
+        vertex_size = theme.vertex_size
 
         if self.nearest.bmv:
             co = self.matrix_world @ self.nearest.bmv.co
             p = location_3d_to_region_2d(context.region, context.region_data, co)
             with Drawing.draw(context, CC_2D_POINTS) as draw:
-                draw.point_size(8)
+                draw.point_size(vertex_size + 4)
                 draw.border(width=2, color=color_point)
                 draw.color(color_border_transparent)
                 draw.vertex(p)
@@ -344,7 +345,7 @@ class PP_Logic:
                 if self.nearest.bmv: return
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
                     draw.color(color_point)
                     draw.vertex(pt)
 
@@ -358,7 +359,7 @@ class PP_Logic:
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
                     draw.color(color_border_open)
                     draw.vertex(pt)
 
@@ -386,7 +387,7 @@ class PP_Logic:
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
                     draw.color(color_border_open)
                     draw.vertex(pt)
 
@@ -415,7 +416,7 @@ class PP_Logic:
                 d = diff.normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
 
                     if not self.nearest.bmv:
                         draw.color(color_border_open)
@@ -443,7 +444,7 @@ class PP_Logic:
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
 
                     if not self.nearest.bmv:
                         draw.color(color_border_open)
@@ -484,7 +485,7 @@ class PP_Logic:
                 d30 = (p0 - p3).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
                     draw.border(width=2, color=color_point)
                     draw.color(color_stipple)
                     draw.vertex(p0)
@@ -525,7 +526,7 @@ class PP_Logic:
                 d30 = v30.normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
                     draw.color(color_border_open)
                     if not self.bmv2: draw.vertex(p2)
                     if not self.bmv3: draw.vertex(p3)
@@ -575,7 +576,7 @@ class PP_Logic:
                 d12 = (p2 - p1).normalized() * Drawing.scale(8)
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
-                    draw.point_size(8)
+                    draw.point_size(vertex_size + 4)
 
                     if not self.nearest.bmv:
                         draw.color(color_border_open)
