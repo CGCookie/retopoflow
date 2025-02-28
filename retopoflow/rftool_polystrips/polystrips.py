@@ -85,8 +85,8 @@ class RFOperator_PolyStrips_Insert_Properties:
     '''
 
     split_angle: bpy.props.IntProperty(
-        name='Angle',
-        description='Angle (degrees) threshold where stroke is split to insert a corner',
+        name='Split Angle',
+        description='Angle threshold (in degrees) where the stroke is split to create a corner',
         default=60,
         min=45,
         max=135,
@@ -187,36 +187,32 @@ class RFOperator_PolyStrips_Insert(
         )
 
     def draw(self, context):
-        layout = self.layout
-        grid = layout.grid_flow(row_major=True, columns=2)
         logic = RFOperator_PolyStrips_Insert.logic
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
 
         if logic.strip_count == 1:
-            grid.label(text=f'Count')
-            grid.prop(self, 'count0', text='')
-            grid.label(text=f'Width')
-            grid.prop(self, 'width0', text='')
+            layout.prop(self, 'count0')
+            layout.prop(self, 'width0')
+            layout.prop(self, 'split_angle')
 
         elif logic.strip_count >= 1:
-            grid.label(text=f'First')
-            row = grid.row(align=True)
-            row.prop(self, 'count0', text='')
-            row.prop(self, 'width0', text='')
+            col = layout.column(align=True)
+            col.prop(self, 'count0', text='Strip 1 Count')
+            col.prop(self, 'width0')
 
             if logic.strip_count >= 2:
-                grid.label(text=f'Second')
-                row = grid.row(align=True)
-                row.prop(self, 'count1', text='')
-                row.prop(self, 'width1', text='')
+                col = layout.column(align=True)
+                col.prop(self, 'count1', text='Strip 2 Count')
+                col.prop(self, 'width1')
 
             if logic.strip_count >= 3:
-                grid.label(text=f'Third')
-                row = grid.row(align=True)
-                row.prop(self, 'count2', text='')
-                row.prop(self, 'width2', text='')
-
-        grid.label(text=f'Angle')
-        grid.prop(self, 'split_angle', text='')
+                col = layout.column(align=True)
+                col.prop(self, 'count2', text='Strip 3 Count')
+                col.prop(self, 'width2')
+                
+            layout.prop(self, 'split_angle')
 
     def execute(self, context):
         try:
