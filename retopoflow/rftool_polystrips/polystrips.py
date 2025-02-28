@@ -310,7 +310,6 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         # gather neighboring geo
         if bmvs and context.tool_settings.use_proportional_edit:
             connected_only = context.tool_settings.use_proportional_connected
-            prop_dist_world = context.tool_settings.proportional_distance  # IMPORTANT: this is in world space
             if connected_only:
                 all_bmvs = {}
                 # NOTE: an exception is thrown if BMVerts are compared, so we are adding in bmv.index
@@ -318,7 +317,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 queue = [(0, bmv.index, bmv) for bmv in bmvs]
                 while queue:
                     (d, _, bmv) = heapq.heappop(queue)
-                    if bmv in all_bmvs or d > prop_dist_world: continue
+                    if bmv in all_bmvs: continue
                     all_bmvs[bmv] = d
                     for bmf in bmv.link_faces:
                         for bmv_ in bmf.verts:
@@ -329,7 +328,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 for bmv in self.bm.verts:
                     co = M @ bmv.co
                     d = min((co - co_sel).length for co_sel in cos_sel)
-                    if d <= prop_dist_world: all_bmvs[bmv] = d
+                    all_bmvs[bmv] = d
         else:
             all_bmvs = { bmv: 0.0 for bmv in bmvs }
         # all data is local to edit!
@@ -354,6 +353,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             'data':     data,
             'matrices': [self.M, self.Mi],
             'fwd':      self.fwd,
+            'only':     None,
         }
 
     def finish(self, context):
@@ -375,10 +375,15 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             bmesh.update_edit_mesh(em)
             context.area.tag_redraw()
             return {'CANCELLED'}
-        if event.type in {'WHEELUPMOUSE'}:
-            context.tool_settings.proportional_distance *= 0.90
-        if event.type in {'WHEELDOWNMOUSE'}:
-            context.tool_settings.proportional_distance /= 0.90
+        if event.type in {'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
+            if event.type in {'WHEELUPMOUSE'}:
+                context.tool_settings.proportional_distance *= 0.90
+            if event.type in {'WHEELDOWNMOUSE'}:
+                context.tool_settings.proportional_distance /= 0.90
+            if self.grab['only']:
+                for bmv_idx in self.grab['only']:
+                    bm.verts[bmv_idx].co = data[bmv_idx][2]
+            self.grab['only'] = None
 
         mouse = mouse_from_event(event)
         self.grab['current'] = mouse
@@ -410,12 +415,19 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         if self.grab['handle'] == 2: curve.p2 = xform(p2)
         if self.grab['handle'] == 3: curve.p3, curve.p2 = xform(p3, p2)
 
-        for bmv_idx in data:
+        if self.grab['only'] is None:
+            self.grab['only'] = [
+                bmv_idx
+                for bmv_idx in data
+                if data[bmv_idx][-1] <= prop_dist_world
+            ]
+
+        for bmv_idx in self.grab['only']:
             bmv = bm.verts[bmv_idx]
             t, pt_curve_orig, pt_edit_orig, distance = data[bmv_idx]
+            if distance > prop_dist_world: continue
             if prop_use:
-                if distance > prop_dist_world: continue
-                dist = 1 - distance / prop_dist_world
+                dist = max(1 - distance / prop_dist_world, 0)
                 factor = proportional_edit(prop_falloff, dist)
             else:
                 factor = 1
