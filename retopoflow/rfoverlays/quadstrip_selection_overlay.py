@@ -77,7 +77,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
     paused_update = False
     paused_overlay = False
 
-    class RFOperator_QuadStrip_Selection_Overlay: # (RFOperator):
+    class RFOperator_QuadStrip_Selection_Overlay:
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
@@ -213,6 +213,3 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 Drawing.draw2D_points(context, [pts[1], pts[2]], (0.0, 0.0, 0.0, 0.75), radius=16, border=2, borderColor=(1,1,1,0.5))
 
     return type(opname, (RFOperator_QuadStrip_Selection_Overlay,RFOperator), {})
-
-    # RFOperator_QuadStrip_Selection_Overlay.__name__ = opname
-    # return RFOperator_QuadStrip_Selection_Overlay

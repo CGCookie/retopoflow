@@ -290,7 +290,7 @@ class RFOperator(bpy.types.Operator):
 
 
 def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set()):
-    class RFOp(RFOperator):
+    class RFOp:
         bl_idname = f"retopoflow.{idname}"
         bl_label = label
         bl_description = description if description is not None else label
@@ -311,8 +311,9 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
             ret = fn_modal(context, event) if fn_modal else {'FINISHED'}
             return ret if ret is not None else {'FINISHED'}
 
-    RFOp.__name__ = f'RETOPOFLOW_OT_{name}'
-    return RFOp
+    opname = f'RETOPOFLOW_OT_{name}'
+
+    return type(opname, (RFOp, RFOperator), {})
 
 
 def invoke_operator(name, label, **kwargs):

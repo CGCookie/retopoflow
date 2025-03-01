@@ -81,7 +81,7 @@ class PolyPen_Insert_Modes:
             nonlocal ops_insert
             rf_idname = f'retopoflow.polypen_setinsertmode_{idname.lower()}'
             rf_label = label
-            class RFTool_OT_PolyPen_SetInsertMode(RFRegisterClass, bpy.types.Operator):
+            class RFTool_OT_PolyPen_SetInsertMode:
                 bl_idname = rf_idname
                 bl_label = rf_label
                 bl_description = f'Set PolyPen Insert Mode to {label}'
@@ -89,7 +89,8 @@ class PolyPen_Insert_Modes:
                     PolyPen_Insert_Modes.set_insert_mode(None, value)
                     context.area.tag_redraw()
                     return {'FINISHED'}
-            RFTool_OT_PolyPen_SetInsertMode.__name__ = f'RFTool_OT_PolyPen_SetInsertMode_{idname}'
+            opname = f'RFTool_OT_PolyPen_SetInsertMode_{idname}'
+            op = type(opname, (RFTool_OT_PolyPen_SetInsertMode, RFRegisterClass, bpy.types.Operator), {})
             ops_insert += [(rf_idname, rf_label)]
 
         class VIEW3D_MT_PIE_PolyPen(RFRegisterClass, bpy.types.Menu):
