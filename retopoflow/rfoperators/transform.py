@@ -159,11 +159,12 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         self.data = all_bmvs
         self.last_success = { bmv:Vector(bmv.co) for bmv in all_bmvs }
         self.bmvs = all_bmvs.keys()
-        self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
-        self.bmvs_co2d_orig = [
-            location_3d_to_region_2d(context.region, context.region_data, (M @ Vector((*bmv.co, 1.0))).xyz)
+        self.bmvs_co_orig = { bmv: Vector(bmv.co) for bmv in self.bmvs }
+        self.bmvs_co2d_orig = {
+            bmv: location_3d_to_region_2d(context.region, context.region_data, (M @ Vector((*bmv.co, 1.0))).xyz)
             for bmv in self.bmvs
-        ]
+        }
+        self.moving = None
 
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -198,10 +199,10 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                 context.tool_settings.proportional_distance *= 0.90
             if event.type in {'WHEELDOWNMOUSE'}:
                 context.tool_settings.proportional_distance /= 0.90
-            # if self.grab['only']:
-            #     for bmv_idx in self.grab['only']:
-            #         bm.verts[bmv_idx].co = data[bmv_idx][2]
-            # self.grab['only'] = None
+            if self.moving:
+                for bmv in self.moving:
+                    bmv.co = self.bmvs_co_orig[bmv]
+            self.moving = None
 
         if self.delay_delta_update:
             self.delay_delta_update = False
@@ -258,8 +259,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         context.area.tag_redraw()
 
     def cancel_reset(self, context, event):
-        for bmv, co_orig in zip(self.bmvs, self.bmvs_co_orig):
-            bmv.co = co_orig
+        for bmv, co in self.bmvs_co_orig.items(): bmv.co = co
         for bmf, norm_orig in self.bmfs:
             bmf.normal_update()
             if norm_orig.dot(bmf.normal) < 0: bmf.normal_flip()
@@ -278,9 +278,16 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         prop_dist_world = context.tool_settings.proportional_distance
         prop_falloff = context.tool_settings.proportional_edit_falloff
 
+        if self.moving is None:
+            self.moving = [
+                bmv for bmv in self.bmvs
+                if self.data[bmv] <= prop_dist_world
+            ]
+
         self.highlight = set()
-        for bmv, co2d_orig in zip(self.bmvs, self.bmvs_co2d_orig):
+        for bmv in self.moving:
             distance = self.data[bmv]
+            co2d_orig = self.bmvs_co2d_orig[bmv]
             if prop_use:
                 dist = max(1 - distance / prop_dist_world, 0)
                 factor = proportional_edit(prop_falloff, dist)
@@ -399,11 +406,12 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
         self.data = all_bmvs
         self.last_success = { bmv:Vector(bmv.co) for bmv in all_bmvs }
         self.bmvs = all_bmvs.keys()
-        self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
-        self.bmvs_co2d_orig = [
-            location_3d_to_region_2d(context.region, context.region_data, (M @ Vector((*bmv.co, 1.0))).xyz)
+        self.bmvs_co_orig = { bmv: Vector(bmv.co) for bmv in self.bmvs }
+        self.bmvs_co2d_orig = {
+            bmv: location_3d_to_region_2d(context.region, context.region_data, (M @ Vector((*bmv.co, 1.0))).xyz)
             for bmv in self.bmvs
-        ]
+        }
+        self.moving = None
 
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -430,6 +438,16 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
             bpy.ops.ed.undo_push(message='Transform')
             # print(f'COMMIT TRANSLATE')
             return {'FINISHED'}
+
+        if event.type in {'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
+            if event.type in {'WHEELUPMOUSE'}:
+                context.tool_settings.proportional_distance *= 0.90
+            if event.type in {'WHEELDOWNMOUSE'}:
+                context.tool_settings.proportional_distance /= 0.90
+            if self.moving:
+                for bmv in self.moving:
+                    bmv.co = self.bmvs_co_orig[bmv]
+            self.moving = None
 
         if self.delay_delta_update:
             self.delay_delta_update = False
@@ -466,8 +484,7 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
                 gpustate.depth_mask(True)
 
     def cancel_reset(self, context, event):
-        for bmv, co_orig in zip(self.bmvs, self.bmvs_co_orig):
-            bmv.co = co_orig
+        for bmv, co in self.bmvs_co_orig.items(): bmv.co = co
         for bmf, norm_orig in self.bmfs:
             bmf.normal_update()
             if norm_orig.dot(bmf.normal) < 0: bmf.normal_flip()
@@ -486,9 +503,17 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
         prop_dist_world = context.tool_settings.proportional_distance
         prop_falloff = context.tool_settings.proportional_edit_falloff
 
+        if self.moving is None:
+            self.moving = [
+                bmv for bmv in self.bmvs
+                if self.data[bmv] <= prop_dist_world
+            ]
+
         self.highlight = set()
-        for bmv, co_orig, co2d_orig in zip(self.bmvs, self.bmvs_co_orig, self.bmvs_co2d_orig):
+        for bmv in self.moving:
             distance = self.data[bmv]
+            co2d_orig = self.bmvs_co2d_orig[bmv]
+            co_orig = self.bmvs_co_orig[bmv]
             if prop_use:
                 dist = max(1 - distance / prop_dist_world, 0)
                 factor = proportional_edit(prop_falloff, dist)
