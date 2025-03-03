@@ -78,41 +78,45 @@ def build_for_architecture(arch):
     pyx_files = [file for file in cy_path.glob('**/*.pyx')]
     print("Found .pyx files:", pyx_files)
 
-    def create_extensions_from_pyx_files(dirpath: str):
-        for file in os.listdir(dirpath):
-            file_path = os.path.join(dirpath, file)
-            if os.path.isdir(file_path):
-                if file.startswith('_'):
-                    continue
-                create_extensions_from_pyx_files(file_path)
-            elif file.endswith('.pyx'):
-                module_name = f"retopoflow.cy.{file[:-4]}"  # Remove .pyx extension.
-                
-                print("Info: New Extension from module:", module_name)
+    def create_extensions_from_pyx_files():
+        for file_path in pyx_files:
+            filename = file_path.stem
+            dirname = file_path.parent.name
+            if dirname == 'cy':
+                path = f"retopoflow.cy"
+            else:
+                path = f"retopoflow.cy.{dirname}"
+            module_name = f"{path}.{filename}"
+            module_path = f"{path.replace('.', '/')}/{filename}.pyx"
+            
+            print("Info: New Extension from module:", module_name, module_path)
 
-                # Build extension kwargs.
-                ext_kwargs = {**shared_ext_kwargs}
+            # Build extension kwargs.
+            ext_kwargs = {**shared_ext_kwargs}
 
-                # Add numpy kwargs only if the file uses numpy.
-                if uses_numpy(file_path):
-                    ext_kwargs.update(numpy_extra_compile_args)
+            # Add numpy kwargs only if the file uses numpy.
+            if uses_numpy(file_path):
+                ext_kwargs.update(numpy_extra_compile_args)
 
-                ext_modules.append(
-                    Extension(
-                        module_name,
-                        sources=[file_path],
-                        **ext_kwargs
-                    )
+            ext_modules.append(
+                Extension(
+                    module_name,
+                    sources=[module_path],
+                    **ext_kwargs
                 )
+            )
 
-    create_extensions_from_pyx_files(cy_dir)
+    create_extensions_from_pyx_files()
 
     # Build extensions
     failed = False
     try:
         setup(
             name="retopoflow",
-            packages=[f'retopoflow.cy'], # , {addon_module_prefix}. 'retopoflow.cy.bl_types', 'retopoflow.cy.utils'],
+            packages=[
+                "retopoflow.cy", 
+                "retopoflow.cy.bl_types",
+            ],
             ext_modules=cythonize(ext_modules, 
                                 annotate=DEV_BUILD,
                                 compiler_directives={
@@ -167,6 +171,14 @@ def main():
     # Clean cache if --force flag is present
     if '--force' in sys.argv:
         clean_cython_cache(cy_dir)
+
+    # Create missing __init__.pyx files if needed
+    for module_dir in ["retopoflow/cy", "retopoflow/cy/bl_types"]:
+        init_pyx = os.path.join(module_dir, "__init__.pyx")
+        if not os.path.exists(init_pyx):
+            with open(init_pyx, "w") as f:
+                f.write("# distutils: language=c++\n# cython: language_level=3\n")
+            print(f"Created {init_pyx}")
 
     system = platform.system()
 
