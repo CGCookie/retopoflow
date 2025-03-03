@@ -126,3 +126,18 @@ cdef class TargetMeshAccel:
     cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil
     cdef void add_face_to_grid(self, BMFace* face) noexcept nogil
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil
+
+
+    # ---------------------------------------------------------------------------------------
+    # Python exposed methods.
+    # ---------------------------------------------------------------------------------------
+
+    # Single nearest element methods
+    cpdef dict find_nearest_vert(self, float x, float y, float max_dist=*)
+    cpdef dict find_nearest_edge(self, float x, float y, float max_dist=*)
+    cpdef dict find_nearest_face(self, float x, float y, float max_dist=*)
+    
+    # k nearest elements methods
+    cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=*)
+    cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=*)
+    cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=*)

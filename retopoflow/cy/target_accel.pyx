@@ -30,8 +30,8 @@ from libcpp.iterator cimport iterator
 
 import cython
 
-from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeader, BMLoop
-from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
+from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMHeader, BMLoop
+from .bl_types.bmesh_py_wrappers cimport BPy_BMesh, BPy_BMVert, BPy_BMEdge, BPy_BMFace
 from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
 from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot
@@ -81,6 +81,7 @@ cdef class TargetMeshAccel:
 
         if self._compute_geometry_visibility_in_region(<float>1.0) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
+            self._build_accel_struct()
 
     def __dealloc__(self):
         self._reset()
@@ -129,6 +130,8 @@ cdef class TargetMeshAccel:
     cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
             printf("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
+            with gil:
+                print(f"[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             return -1
 
         cdef:
@@ -171,6 +174,8 @@ cdef class TargetMeshAccel:
         if visible_vert_indices == NULL or is_vert_visible == NULL or\
             is_edge_visible == NULL or is_face_visible == NULL:
             printf("[CYTHON] Error: Failed to allocate memory\n")
+            with gil:
+                print(f"[CYTHON] Error: Failed to allocate memory\n")
             if visible_vert_indices != NULL:
                 free(visible_vert_indices)
             if is_vert_visible != NULL:
@@ -192,6 +197,8 @@ cdef class TargetMeshAccel:
         if self.is_hidden_v == NULL or self.is_hidden_e == NULL or self.is_hidden_f == NULL or\
             self.is_selected_v == NULL or self.is_selected_e == NULL or self.is_selected_f == NULL:
             printf("[CYTHON]Error: Failed to allocate memory\n")
+            with gil:
+                print(f"[CYTHON] Error: Failed to allocate memory\n")
             if self.is_hidden_v != NULL:
                 free(self.is_hidden_v)
             if self.is_hidden_e != NULL:
@@ -221,6 +228,8 @@ cdef class TargetMeshAccel:
             vert = vtable[vert_idx]
             # Skip NULL/invalid vertices.
             if vert == NULL:
+                with gil:
+                    print(f"[CYTHON] vert {vert_idx} is NULL")
                 continue
             
             self._classify_elem(
@@ -231,6 +240,8 @@ cdef class TargetMeshAccel:
 
             # Skip hidden vertices.
             if self.is_hidden_v[vert_idx]:
+                with gil:
+                    print(f"[CYTHON] vert {vert_idx} is hidden")
                 continue
 
             # Transform position to world space
@@ -273,16 +284,15 @@ cdef class TargetMeshAccel:
                 continue
             
             # Perspective divide and bounds check
-            if (fabs(screen_pos[0] / screen_pos[3]) > margin_check or 
-                fabs(screen_pos[1] / screen_pos[3]) > margin_check):
-                continue
+            if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
+                fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
 
-            # TODO: project vert.co to 2D region space.
-            # TODO: store vert 2d position in custom array in self (Accel2D).
-            # TODO: if vertex could be projected and 2d point in inside the region bounds, then mark vertex as visible (as below).
-            is_vert_visible[vert_idx] = 1
-            visible_vert_indices[vert.head.index] = 1
-            totvisvert += 1
+                # TODO: project vert.co to 2D region space.
+                # TODO: store vert 2d position in custom array in self (Accel2D).
+                # TODO: if vertex could be projected and 2d point in inside the region bounds, then mark vertex as visible (as below).
+                is_vert_visible[vert_idx] = 1
+                visible_vert_indices[vert.head.index] = 1
+                totvisvert += 1
 
         # Compute visible edges and faces based on vertices.
         with parallel():
@@ -347,8 +357,13 @@ cdef class TargetMeshAccel:
                 if is_face_visible[face_idx]:
                     self.visfaces.insert(ftable[face_idx])
 
+        with gil:
+            print(f"[CYTHON] totvisverts: {self.totvisverts}")
+            print(f"[CYTHON] totvisedges: {self.totvisedges}")
+            print(f"[CYTHON] totvisfaces: {self.totvisfaces}")
+
         # After computing visibility and populating the C++ sets, build acceleration structure
-        self._build_accel_struct()
+        # self._build_accel_struct()
 
         return 0
 
@@ -392,17 +407,17 @@ cdef class TargetMeshAccel:
             float depth
             GeomElement* elem
             int i
-            
+
         # Transform vertex position to world space
         for i in range(3):
             world_pos[i] = vert.co[i]
             for j in range(3):
                 world_pos[i] += self.matrix_world[i][j] * vert.co[j]
             world_pos[i] += self.matrix_world[i][3]
-            
+
         # Project to screen space
         self._project_point_to_screen(world_pos, screen_pos, &depth)
-        
+
         # Create and add element
         elem = <GeomElement*>malloc(sizeof(GeomElement))
         elem.elem = vert
@@ -410,7 +425,7 @@ cdef class TargetMeshAccel:
         elem.pos[1] = screen_pos[1]
         elem.depth = depth
         elem.type = GeomType.VERT
-        
+
         self._add_element_to_grid(elem)
 
     cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil:
@@ -423,7 +438,7 @@ cdef class TargetMeshAccel:
             int i, j
             BMVert* v1 = <BMVert*>edge.v1
             BMVert* v2 = <BMVert*>edge.v2
-            
+
         # Transform vertices to world space
         for i in range(3):
             v1_world[i] = v1.co[i]
@@ -433,7 +448,7 @@ cdef class TargetMeshAccel:
                 v2_world[i] += self.matrix_world[i][j] * v2.co[j]
             v1_world[i] += self.matrix_world[i][3]
             v2_world[i] += self.matrix_world[i][3]
-            
+
         # Add samples along edge
         for i in range(num_samples):
             t = (<float>i + <float>1.0) / (<float>num_samples + <float>1.0)  # Exclude endpoints
@@ -441,7 +456,7 @@ cdef class TargetMeshAccel:
             # Interpolate position
             for j in range(3):
                 sample_pos[j] = v1_world[j] * (<float>1.0-t) + v2_world[j] * t
-                
+            
             # Project to screen space
             self._project_point_to_screen(sample_pos, screen_pos, &depth)
             
@@ -452,7 +467,7 @@ cdef class TargetMeshAccel:
             elem.pos[1] = screen_pos[1]
             elem.depth = depth
             elem.type = GeomType.EDGE
-            
+
             self._add_element_to_grid(elem)
 
     cdef void add_face_to_grid(self, BMFace* face) noexcept nogil:
@@ -465,7 +480,7 @@ cdef class TargetMeshAccel:
             int i, j, num_verts = 0
             BMLoop* l_iter = <BMLoop*>face.l_first
             BMVert* vert
-            
+
         # Compute face centroid in world space
         for i in range(3):
             centroid[i] = 0
@@ -478,7 +493,7 @@ cdef class TargetMeshAccel:
             l_iter = <BMLoop*>l_iter.next
             if l_iter == <BMLoop*>face.l_first:
                 break
-                
+
         if num_verts > 0:
             # Average centroid and transform to world space
             for i in range(3):
@@ -696,64 +711,13 @@ cdef class TargetMeshAccel:
         cdef size_t size = self.py_bmesh.bm.totface
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)
 
-    def find_nearest_vert(self, float x, float y, float max_dist=inf):
-        """Find nearest visible vertex to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.VERT)
-        if result != NULL:
-            return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
-            }
-        return None
-
-    def find_nearest_edge(self, float x, float y, float max_dist=inf):
-        """Find nearest visible edge to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.EDGE)
-        if result != NULL:
-            return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
-            }
-        return None
-
-    def find_nearest_face(self, float x, float y, float max_dist=inf):
-        """Find nearest visible face to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.FACE)
-        if result != NULL:
-            return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
-            }
-        return None
-
-    def find_k_nearest(self, float x, float y, int k, float max_dist=inf, GeomType filter_type=GeomType.NONE):
-        """Find k nearest elements to screen position"""
-        cdef:
-            vector[GeomElement] results
-            list py_results = []
-            size_t i
-            
-        self._find_nearest_k(x, y, k, max_dist, filter_type, &results)
-        
-        for i in range(results.size()):
-            py_results.append({
-                'elem': <object>results[i].elem,
-                'pos': (results[i].pos[0], results[i].pos[1]),
-                'depth': results[i].depth
-            })
-            
-        return py_results
-
     cdef void _init_grid(self) noexcept nogil:
         """Initialize the grid structure based on region size"""
         cdef:
             int i, j
             
-        self.grid_size_x = self.region.winx // 20  # Adjust cell size as needed
-        self.grid_size_y = self.region.winy // 20
+        self.grid_size_x = self.region.winx // 92  # Adjust cell size as needed
+        self.grid_size_y = self.region.winy // 92
         self.cell_size_x = self.region.winx / <float>self.grid_size_x
         self.cell_size_y = self.region.winy / <float>self.grid_size_y
         
@@ -920,3 +884,95 @@ cdef class TargetMeshAccel:
             face = deref(face_it)
             self.add_face_to_grid(face)  # Add face centroid
             inc(face_it)
+    
+
+    # ---------------------------------------------------------------------------------------
+    # Python exposed methods.
+    # ---------------------------------------------------------------------------------------
+
+    cpdef dict find_nearest_vert(self, float x, float y, float max_dist=float('inf')):
+        """Find nearest visible vertex to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.VERT)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    cpdef dict find_nearest_edge(self, float x, float y, float max_dist=float('inf')):
+        """Find nearest visible edge to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.EDGE)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    cpdef dict find_nearest_face(self, float x, float y, float max_dist=float('inf')):
+        """Find nearest visible face to screen position"""
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.FACE)
+        if result != NULL:
+            return {
+                'elem': <object>result.elem,
+                'pos': (result.pos[0], result.pos[1]),
+                'depth': result.depth
+            }
+        return None
+
+    cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=float('inf')):
+        """Find k nearest vertices to screen position"""
+        cdef:
+            vector[GeomElement] results
+            list py_results = []
+            size_t i
+            
+        self._find_nearest_k(x, y, k, max_dist, GeomType.VERT, &results)
+        
+        for i in range(results.size()):
+            py_results.append({
+                'elem': <object>results[i].elem,
+                'pos': (results[i].pos[0], results[i].pos[1]),
+                'depth': results[i].depth
+            })
+            
+        return py_results
+
+    cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=float('inf')):
+        """Find k nearest edges to screen position"""
+        cdef:
+            vector[GeomElement] results
+            list py_results = []
+            size_t i
+            
+        self._find_nearest_k(x, y, k, max_dist, GeomType.EDGE, &results)
+        
+        for i in range(results.size()):
+            py_results.append({
+                'elem': <object>results[i].elem,
+                'pos': (results[i].pos[0], results[i].pos[1]),
+                'depth': results[i].depth
+            })
+            
+        return py_results
+
+    cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=float('inf')):
+        """Find k nearest faces to screen position"""
+        cdef:
+            vector[GeomElement] results
+            list py_results = []
+            size_t i
+            
+        self._find_nearest_k(x, y, k, max_dist, GeomType.FACE, &results)
+        
+        for i in range(results.size()):
+            py_results.append({
+                'elem': <object>results[i].elem,
+                'pos': (results[i].pos[0], results[i].pos[1]),
+                'depth': results[i].depth
+            })
+            
+        return py_results
