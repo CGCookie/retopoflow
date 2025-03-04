@@ -243,7 +243,8 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                 gpustate.depth_mask(True)
 
     def automerge(self, context, event):
-        if not context.tool_settings.use_mesh_automerge: return
+        prop_use = context.tool_settings.use_proportional_edit
+        if not context.tool_settings.use_mesh_automerge or prop_use: return
 
         merging = {}
         for bmv in self.bmvs:
