@@ -530,9 +530,12 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        forward = (self.matrix_world_inv @ Vector((*view_forward_direction(context), 0.0))).xyz
-        for bmf, _ in self.bmfs:
-            if not bmf.is_valid: continue
-            bmf.normal_update()
-            if forward.dot(bmf.normal) > 0:
-                bmf.normal_flip()
+        # workaround fix for issue #1462
+        # TODO: revisit this and handle correctly!
+        pass
+        # forward = (self.matrix_world_inv @ Vector((*view_forward_direction(context), 0.0))).xyz
+        # for bmf, _ in self.bmfs:
+        #     if not bmf.is_valid: continue
+        #     bmf.normal_update()
+        #     if forward.dot(bmf.normal) > 0:
+        #         bmf.normal_flip()
