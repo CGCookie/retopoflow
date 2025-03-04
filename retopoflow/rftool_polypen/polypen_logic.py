@@ -218,6 +218,13 @@ class PP_Logic:
             if insert_mode == 'QUAD-ONLY' or (not sel_bmf or len(sel_bmf.verts) != 3):
                 hov_bme = self.nearest_bme.bme
                 if not any(hov_bme in bmf.edges for bmf in sel_bme.link_faces):
+                    hov_bmv0, hov_bmv1 = hov_bme.verts
+                    if hov_bmv0 in sel_bme.verts or hov_bmv1 in sel_bme.verts:
+                        # hovered edge shares vert with selected edge!  (issue #1443)
+                        # treat this as though the artist is hovering the other vert
+                        self.state = PP_Action.EDGE_TRI
+                        return
+
                     self.state = PP_Action.EDGE_QUAD_EDGE
                     self.bme = sel_bme
                     self.bme_hovered = hov_bme
