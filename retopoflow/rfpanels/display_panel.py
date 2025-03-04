@@ -35,7 +35,8 @@ def draw_display_options(context, layout):
     row.prop(props, 'expand_masking', text='Masking Options')
     col.separator()
     col = grid.column()
-    col.prop(theme, 'face_retopology', text='Overlay')
+    col.prop(theme, 'face_retopology', text='Overlay Color')
+    col.prop(context.space_data.overlay, 'retopology_offset', text='Offset')
     #col.prop(props, 'highlight_color', text='Highlight')
 
 
