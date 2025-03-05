@@ -46,7 +46,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp, Color
+from ...addon_common.common.maths import clamp, Color, sign
 from ...addon_common.common.utils import iter_pairs
 
 from ..common.drawing import (
@@ -171,6 +171,14 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
             for bmv in self.bmvs
         }
         self.moving = None
+
+        self.mirror = set()
+        for mod in context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
 
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -300,10 +308,20 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                 factor = proportional_edit(prop_falloff, dist)
             else:
                 factor = 1
+
             co = raycast_point_valid_sources(context, co2d_orig + self.delta * factor, world=False)
             if not co:
                 co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
                 co = nearest_point_valid_sources(context, co, world=False)
+
+            if self.mirror:
+                co_prev = Vector(co)
+                co_orig = self.bmvs_co_orig[bmv]
+                if 'x' in self.mirror and sign(co.x) != sign(co_orig.x): co.x = 0
+                if 'y' in self.mirror and sign(co.y) != sign(co_orig.y): co.y = 0
+                if 'z' in self.mirror and sign(co.z) != sign(co_orig.z): co.z = 0
+                co = nearest_point_valid_sources(context, co, world=False)
+
             self.last_success[bmv] = co
             if distance > prop_dist_world: continue
             if context.tool_settings.use_mesh_automerge and not prop_use:
