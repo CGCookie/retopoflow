@@ -27,23 +27,26 @@ from ..preferences import RF_Prefs
 def draw_tweaking_options(context, layout):
     props = RF_Prefs.get_prefs(context)
 
-    grid = layout.grid_flow(even_columns=True, even_rows=True)
+    grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
 
-    col = grid.column()
-    col.label(text='Selection')
-    row = col.row(heading='Mouse')
-    row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
-    row = col.row(heading='Keyboard')
-    row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
-    col.prop(props, 'tweaking_distance', text='Distance')
+
     col = grid.column()
     row = col.row(heading='Auto Merge')
     row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
     row = col.row()
     row.enabled = context.scene.tool_settings.use_mesh_automerge
     row.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')
+    col.separator()
+
+    col = grid.column()
+    col.label(text='Selection')
+    col.prop(props, 'tweaking_distance', text='Distance')
+    row = col.row(heading='Mouse')
+    row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
+    row = col.row(heading='Keyboard')
+    row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
 
 def draw_tweaking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
