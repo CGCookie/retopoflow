@@ -91,6 +91,7 @@ class RFCore:
             return
 
         # register RF operator and RF tools
+        preferences.register()
         RFTool_Base.register_all()
         RFOperator.register_all()
         RFOperator_Execute.register_all()
@@ -100,7 +101,6 @@ class RFCore:
         masking_panel.register()
         display_panel.register()
         relax_algorithm_panel.register()
-        preferences.register()
 
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common

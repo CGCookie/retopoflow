@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from .preferences import RF_Prefs
 
 class RFTool_Base(bpy.types.WorkSpaceTool):
     bl_space_type = 'VIEW_3D'
@@ -57,8 +58,11 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
 
     @staticmethod
     def register_all():
+        prefs = RF_Prefs.get_prefs(bpy.context)
+        after = "builtin.measure"
         for i, rft in enumerate(RFTool_Base.get_all_RFTools()):
-            bpy.utils.register_tool(rft, separator=(i==0))
+            bpy.utils.register_tool(rft, separator=(i==0), after=after, group=(i==0 and not prefs.expand_tools))
+            after = rft.bl_idname
             rft.register()
 
     @staticmethod

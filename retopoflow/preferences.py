@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from .common.interface import update_toolbar
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
@@ -39,7 +40,15 @@ class RF_Prefs(bpy.types.AddonPreferences):
             'Show masking options for brush tools directly in the 3D View tool header rather than in a menu. ' 
             'Useful when working on larger screens.'
         ),
-        default=False,
+        default=True,
+    )
+    expand_tools: bpy.props.BoolProperty(
+        name='Expand Tools',
+        description=(
+            'Shows all tools in the toolbar, which takes up more space but makes them more accessible'
+        ),
+        default=True,
+        update=update_toolbar
     )
     highlight_color: bpy.props.FloatVectorProperty(
         name='Highlight Color',

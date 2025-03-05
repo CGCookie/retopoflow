@@ -30,14 +30,16 @@ def draw_display_options(context, layout):
     grid.use_property_split = True
     grid.use_property_decorate = False
 
-    col = grid.column()
-    row = col.row(heading='Expand')
-    row.prop(props, 'expand_masking', text='Masking Options')
-    col.separator()
-    col = grid.column()
+    col = grid.column(align=True)
     col.prop(theme, 'face_retopology', text='Overlay Color')
-    col.prop(context.space_data.overlay, 'retopology_offset', text='Offset')
+    if hasattr(context.space_data, 'overlay'):
+        col.prop(context.space_data.overlay, 'retopology_offset', text='Offset')
     #col.prop(props, 'highlight_color', text='Highlight')
+    col.separator()
+    col = grid.column(align=True)
+    row = col.row(heading='Expand')
+    row.prop(props, 'expand_tools', text='Tools')
+    col.prop(props, 'expand_masking', text='Masking Options')
 
 
 def draw_display_panel(context, layout):
