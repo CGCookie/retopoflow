@@ -15,6 +15,7 @@ Some key changes include:
 - PolyStrips
     - Proportional Editing can now be used for smoothly affecting the surrounding geometry while adjusting existing strips
     - The angle at which new strips are split to create sharp corners can now be specified
+    - Strip spacing is now calculated in world space
 - Strokes 
     - Several new stroke shapes are now supported so drawing new geometry feels more natural
     - Extrudes can now match the curvature of the original geometry if the method is set to Adapt
