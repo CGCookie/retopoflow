@@ -42,10 +42,10 @@ from .rfpanels import mesh_cleanup_panel, masking_panel, relax_algorithm_panel, 
 from . import preferences
 
 # NOTE: import order determines tool order
-from .rftool_contours.contours     import RFTool_Contours
+from .rftool_polypen.polypen       import RFTool_PolyPen
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
-from .rftool_polypen.polypen       import RFTool_PolyPen
+from .rftool_contours.contours     import RFTool_Contours
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
 

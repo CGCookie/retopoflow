@@ -142,7 +142,7 @@ PolyPen_Insert_Modes.generate_operators()
 
 class RFOperator_PolyPen(RFOperator):
     bl_idname = "retopoflow.polypen"
-    bl_label = 'PolyPen'
+    bl_label = 'Poly Pen'
     bl_description = 'Create complex topology on vertex-by-vertex basis'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
