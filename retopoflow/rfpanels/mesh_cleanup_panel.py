@@ -49,8 +49,8 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     row = col.row(heading='Snap')
     row.prop(props, 'cleaning_use_snap', text='To Source')
     if draw_operators:
-        col.separator()
-        col.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+        layout.separator()
+        layout.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
 
 
 def draw_cleanup_panel(context, layout):
