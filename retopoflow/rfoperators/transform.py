@@ -36,7 +36,7 @@ from enum import Enum
 
 from ..preferences import RF_Prefs
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, NearestBMEdge
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, NearestBMEdge, NearestBMFace
 from ..common.bmesh import nearest_bmv_world, nearest_bme_world
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources, size2D_to_size
@@ -100,6 +100,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
+        self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         props = RF_Prefs.get_prefs(context)
@@ -115,9 +116,14 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                 distance2d = props.tweaking_distance
                 self.nearest_bmv.update(context, co, distance2d=distance2d)
                 self.nearest_bme.update(context, co, distance2d=distance2d)
+                self.nearest_bmf.update(context, co, distance2d=distance2d)
                 # bmesh.geometry.intersect_face_point(face, point)
                 # select hovered geometry
-                nearest_bmelem = self.nearest_bmv.bmv or self.nearest_bme.bme  #or self.nearest.bmf
+                mode = context.tool_settings.mesh_select_mode
+                nearest_bmelem = None
+                if mode[0] and not nearest_bmelem: nearest_bmelem = self.nearest_bmv.bmv
+                if mode[1] and not nearest_bmelem: nearest_bmelem = self.nearest_bme.bme
+                if mode[2] and not nearest_bmelem: nearest_bmelem = self.nearest_bmf.bmf
                 if nearest_bmelem:
                     bmops.deselect_all(self.bm)
                     bmops.select(self.bm, nearest_bmelem)
