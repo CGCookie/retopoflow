@@ -115,18 +115,30 @@ cdef class TargetMeshAccel:
 
     cpdef void _ensure_lookup_tables(self):
         """Ensure lookup tables are created for the bmesh"""
+
+        if self.bmesh.totvert == 0:
+            return
+
         try:
             self.py_bmesh.verts[0]
         except IndexError:
             print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
             self.py_bmesh.verts.ensure_lookup_table()
             self.set_dirty()
+        
+        if self.bmesh.totedge == 0:
+            return
+
         try:
             self.py_bmesh.edges[0]
         except IndexError:
             print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
             self.py_bmesh.edges.ensure_lookup_table()
             self.set_dirty()
+
+        if self.bmesh.totface == 0:
+            return
+
         try:
             self.py_bmesh.faces[0]
         except IndexError:
