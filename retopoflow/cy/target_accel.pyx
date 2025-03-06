@@ -38,11 +38,56 @@ from .utils cimport vec3_normalize, vec3_dot
 
 # ctypedef np.uint8_t uint8
 
-cdef float inf = <float>1e1000
+cdef float finf = <float>1e1000
+# _instances = {}
 
 
 @cython.binding(True)
 cdef class TargetMeshAccel:
+
+    '''@classmethod
+    def get_instance(cls,
+        object py_target_object,
+        object py_bmesh,
+        object py_region,
+        object py_rv3d):
+
+        if py_bmesh is None:
+            print("[CYTHON] Warning: py_bmesh is None, we can't create an instance for TargetMeshAccel")
+            return None
+        
+        # Use a unique key for this combination
+        key = "default"  # Or use a more specific key if needed
+        
+        if key not in _instances or _instances[key] is None:
+            print(f"[CYTHON] Creating new TargetMeshAccel instance with parameters")
+            
+            # Create a new instance with parameters
+            _instances[key] = TargetMeshAccel(
+                py_bmesh=py_bmesh,
+                py_target_object=py_target_object,
+                py_region=py_region,
+                py_rv3d=py_rv3d,
+                initialize=True
+            )
+            
+        else:
+            print(f"[CYTHON] Updating existing TargetMeshAccel instance")
+            
+            instance = _instances[key]
+            
+            # Update if needed
+            if instance.py_bmesh != py_bmesh:
+                instance.py_update_bmesh(py_bmesh)
+            if instance.py_target_object != py_target_object:
+                instance.py_update_object(py_target_object)
+            if instance.py_region != py_region:
+                instance.py_update_region(py_region)
+            if instance.py_rv3d != py_rv3d:
+                instance.py_update_view(py_rv3d)
+        
+        return _instances[key]'''
+
     def __cinit__(self):
         # Initialize C++ member variables
         self.is_hidden_v = NULL
@@ -51,35 +96,97 @@ cdef class TargetMeshAccel:
         self.is_selected_v = NULL
         self.is_selected_e = NULL
         self.is_selected_f = NULL
+        
+        # Initialize grid
+        self.grid = NULL
+        self.grid_size_x = 0
+        self.grid_size_y = 0
+        
+        # Initialize dirty flags
+        self.is_dirty_geom_vis = True
+        self.is_dirty_accel = True
 
+    '''def __init__(self, 
+                 object py_bmesh=None,
+                 object py_target_object=None, 
+                 object py_region=None, 
+                 object py_rv3d=None,
+                 bint initialize=False):
+        """Initialize with optional parameters"""
+        # Initialize Python attributes
+        self.py_bmesh = py_bmesh
+        self.py_target_object = py_target_object
+        self.py_region = py_region
+        self.py_rv3d = py_rv3d
+        
+        # Initialize C++ member pointers
+        self.bmesh = NULL
+        self.bmesh_pywrapper = NULL
+        self.region = NULL
+        self.rv3d = NULL
+        
+        # Initialize counters
+        self.totvisverts = 0
+        self.totvisedges = 0
+        self.totvisfaces = 0
+        
+        # Initialize and update if requested
+        if initialize and py_bmesh is not None:
+            self.py_update_bmesh(py_bmesh)
+            
+        if initialize and py_target_object is not None:
+            self.py_update_object(py_target_object)
+            
+        if initialize and py_region is not None:
+            self.py_update_region(py_region)
+            
+        if initialize and py_rv3d is not None:
+            self.py_update_view(py_rv3d)'''
+    
     def __init__(self,
+        object py_object,
         object py_bmesh,
-        # object py_object,
         object py_region,
         object py_rv3d,
-        # int selected_only,
-        np.ndarray[np.float32_t, ndim=2] matrix_world,
-        np.ndarray[np.float32_t, ndim=2] matrix_normal,
-        np.ndarray[np.float32_t, ndim=2] proj_matrix,
-        np.ndarray[np.float32_t, ndim=1] view_pos,
-        bint is_perspective
+        # np.ndarray[np.float32_t, ndim=2] matrix_world,
+        # np.ndarray[np.float32_t, ndim=2] matrix_normal,
+        # np.ndarray[np.float32_t, ndim=2] proj_matrix,
+        # np.ndarray[np.float32_t, ndim=1] view_pos,
+        # bint is_perspective
     ):
-        print(f"[CYTHON] Accel2D.__init__({py_bmesh}, {py_region}, {py_rv3d}, {matrix_world}, {matrix_normal}, {proj_matrix}, {view_pos}, {is_perspective})\n")
-        self._ensure_lookup_tables(py_bmesh)
-        self.py_bmesh = <BPy_BMesh*><uintptr_t>id(py_bmesh)
-        self.bmesh = self.py_bmesh.bm
-        # check if valid BMesh and tables.
+        print(f"[CYTHON] Accel2D.__init__({py_object}, {py_bmesh}, {py_region}, {py_rv3d})") #, {matrix_world}, {matrix_normal}, {proj_matrix}, {view_pos}, {is_perspective})\n")
+
+        self.py_update_object(py_object)
+        self.py_update_bmesh(py_bmesh)
+        self.py_update_region(py_region)
+        self.py_update_view(py_rv3d)
+
+        return
+
+        # Store references to Python objects.
+        self.py_object = py_object
+        self.py_bmesh = py_bmesh
+        self.py_region = py_region
+        self.py_rv3d = py_rv3d
+
+        # BMesh: ensure tables and indices are up to date.
+        self._ensure_lookup_tables()
+        self._ensure_indices()
+
+        # Initialize C pointers.
+        self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
+        self.bmesh = self.bmesh_pywrapper.bm
         self.region = <ARegion*><uintptr_t>id(py_region)
         self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
-        # self.selected_only = selected_only
-        # self.update_matrix_world(py_object.matrix_world)
 
-        # self.accel = Accel()
-
+        # Update object and view matrices and other parameters.
         self._update_object_transform(matrix_world, matrix_normal)
         self._update_view(proj_matrix, view_pos, is_perspective)
 
-        if self._compute_geometry_visibility_in_region(<float>1.0) != 0:
+    cpdef void update(self, float margin_check):
+        self._ensure_lookup_tables()
+        self._ensure_indices()
+        if self._compute_geometry_visibility_in_region(margin_check) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             self._build_accel_struct()
 
@@ -94,6 +201,8 @@ cdef class TargetMeshAccel:
             for j in range(4):
                 self.matrix_world[i][j] = matrix_world[i,j]
                 self.matrix_normal[i][j] = matrix_normal[i,j]
+        
+        self.set_dirty()
 
     cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil:
         cdef:
@@ -109,23 +218,47 @@ cdef class TargetMeshAccel:
 
         self.view3d.is_persp = is_perspective
 
-    cpdef void _ensure_lookup_tables(self, object py_bmesh):
+        self.set_dirty()
+
+    cpdef void _ensure_lookup_tables(self):
         """Ensure lookup tables are created for the bmesh"""
         try:
-            py_bmesh.verts[0]
+            self.py_bmesh.verts[0]
         except IndexError:
             print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
-            py_bmesh.verts.ensure_lookup_table()
+            self.py_bmesh.verts.ensure_lookup_table()
+            self.set_dirty()
         try:
-            py_bmesh.edges[0]
+            self.py_bmesh.edges[0]
         except IndexError:
             print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
-            py_bmesh.edges.ensure_lookup_table()
+            self.py_bmesh.edges.ensure_lookup_table()
+            self.set_dirty()
         try:
-            py_bmesh.faces[0]
+            self.py_bmesh.faces[0]
         except IndexError:
             print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
-            py_bmesh.faces.ensure_lookup_table()
+            self.py_bmesh.faces.ensure_lookup_table()
+            self.set_dirty()
+
+    cpdef void _ensure_indices(self):
+        # We make 3 checks to be sure that the indices are updated and in order.
+        cdef int i
+        for i in range(3):
+            if self.py_bmesh.verts[i].index != i:
+                self.py_bmesh.verts.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_indices() - verts updated")
+                break
+        for i in range(3):
+            if self.py_bmesh.edges[i].index != i:
+                self.py_bmesh.edges.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_indices() - edges updated")
+                break
+        for i in range(3):
+            if self.py_bmesh.faces[i].index != i:
+                self.py_bmesh.faces.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_indices() - faces updated")
+                break
 
     cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
@@ -133,6 +266,9 @@ cdef class TargetMeshAccel:
             with gil:
                 print(f"[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             return -1
+
+        if not self.is_dirty_geom_vis:
+            return 0
 
         cdef:
             uint8_t* visible_vert_indices = NULL
@@ -365,6 +501,8 @@ cdef class TargetMeshAccel:
         # After computing visibility and populating the C++ sets, build acceleration structure
         # self._build_accel_struct()
 
+        self.is_dirty_geom_vis = False
+        self.is_dirty_accel = True
         return 0
 
     cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
@@ -399,6 +537,287 @@ cdef class TargetMeshAccel:
             screen_pos[0] = screen_pos[1] = <float>(-1.0)
             depth[0] = 0
 
+    cdef void _reset(self, bint dirty=True) noexcept nogil:
+        """Reset the acceleration structure"""
+        # printf("Accel2D._reset()\n")
+
+        if self.is_hidden_v != NULL:
+            free(self.is_hidden_v)
+        if self.is_hidden_e != NULL:
+            free(self.is_hidden_e)
+        if self.is_hidden_f != NULL:
+            free(self.is_hidden_f)
+        
+        if self.is_selected_v != NULL:
+            free(self.is_selected_v)
+        if self.is_selected_e != NULL:
+            free(self.is_selected_e)
+        if self.is_selected_f != NULL:
+            free(self.is_selected_f)
+
+        # Set memory views to empty
+        self.is_hidden_v = NULL
+        self.is_hidden_e = NULL
+        self.is_hidden_f = NULL
+        
+        self.is_selected_v = NULL
+        self.is_selected_e = NULL
+        self.is_selected_f = NULL
+
+        # For C++ sets, we don't need to check for NULLs, just clear them!
+        self.visverts.clear()
+        self.visedges.clear()
+        self.visfaces.clear()
+
+        self._clear_grid()
+
+        self.totvisverts = 0
+        self.totvisedges = 0
+        self.totvisfaces = 0
+
+        if dirty:
+            self.set_dirty()
+
+    cdef void set_dirty(self) noexcept nogil:
+        """Set the dirty flag"""
+        self.is_dirty_geom_vis = True
+        self.is_dirty_accel = True
+
+
+    '''
+    ______________________________________________________________________________________________________________
+    
+    Python access methods 
+    ______________________________________________________________________________________________________________
+    '''
+
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True, bint invert_selection=False):
+        """Return sets of visible geometry"""
+        if not self.bmesh or not self.bmesh.vtable:
+            printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
+            return set(), set(), set()
+
+        cdef:
+            BMesh* bmesh = self.bmesh
+            set vis_py_verts = set()
+            set vis_py_edges = set()
+            set vis_py_faces = set()
+            object py_bm_verts = py_bmesh.verts
+            object py_bm_edges = py_bmesh.edges
+            object py_bm_faces = py_bmesh.faces
+
+        if verts:
+            for i in range(bmesh.totvert):
+                if self.is_hidden_v[i] if not invert_selection else not self.is_hidden_v[i]:
+                    vis_py_verts.add(py_bm_verts[i])
+
+        if edges:
+            for i in range(bmesh.totedge):
+                if self.is_hidden_e[i] if not invert_selection else not self.is_hidden_e[i]:
+                    vis_py_edges.add(py_bm_edges[i])
+
+        if faces:
+            for i in range(bmesh.totface):
+                if self.is_hidden_f[i] if not invert_selection else not self.is_hidden_f[i]:
+                    vis_py_faces.add(py_bm_faces[i])
+
+        return vis_py_verts, vis_py_edges, vis_py_faces
+
+    cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True, bint invert_selection=False):
+        """Return sets of selected geometry"""
+        if not self.bmesh or not self.bmesh.vtable:
+            printf("Accel2D.get_selected_geom() - bmesh or vtable is NULL\n")
+            return set(), set(), set()
+
+        cdef:
+            BMesh* bmesh = self.bmesh
+            set sel_py_verts = set()
+            set sel_py_edges = set()
+            set sel_py_faces = set()
+            object py_bm_verts = py_bmesh.verts
+            object py_bm_edges = py_bmesh.edges
+            object py_bm_faces = py_bmesh.faces
+
+        if verts:
+            for i in range(bmesh.totvert):
+                if self.is_selected_v[i] if not invert_selection else not self.is_selected_v[i]:
+                    sel_py_verts.add(py_bm_verts[i])
+
+        if edges:
+            for i in range(bmesh.totedge):
+                if self.is_selected_e[i] if not invert_selection else not self.is_selected_e[i]:
+                    sel_py_edges.add(py_bm_edges[i])
+
+        if faces:
+            for i in range(bmesh.totface):
+                if self.is_selected_f[i] if not invert_selection else not self.is_selected_f[i]:
+                    sel_py_faces.add(py_bm_faces[i])
+
+        return sel_py_verts, sel_py_edges, sel_py_faces
+
+    def get_vis_verts(self, object py_bmesh, int selected_only) -> set:
+        cdef:
+            object py_bm_verts = py_bmesh.verts
+            cpp_set[BMVert*].iterator visverts_it = self.visverts.begin()
+            set py_vis_verts = set()
+            BMVert* cur_visvert = NULL
+
+        if selected_only == SelectionState.ALL:
+            while visverts_it != self.visverts.end():
+                cur_visvert = deref(visverts_it)
+                py_vis_verts.add(py_bm_verts[cur_visvert.head.index])
+                inc(visverts_it)
+            return py_vis_verts
+        elif selected_only == SelectionState.SELECTED:
+            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if self.is_selected_v[i]}
+        elif selected_only == SelectionState.UNSELECTED:
+            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if not self.is_selected_v[i]}
+        else:
+            return set()
+
+
+    # ---------------------------------------------------------------------------------------
+    # Acceleration structure methods.
+    # ---------------------------------------------------------------------------------------
+
+    cdef void _init_grid(self) noexcept nogil:
+        """Initialize the grid structure based on region size"""
+        cdef:
+            int i, j
+            
+        self.grid_size_x = self.region.winx // 92  # Adjust cell size as needed
+        self.grid_size_y = self.region.winy // 92
+        self.cell_size_x = self.region.winx / <float>self.grid_size_x
+        self.cell_size_y = self.region.winy / <float>self.grid_size_y
+        
+        # Allocate grid
+        self.grid = <GridCell**>malloc(self.grid_size_x * sizeof(GridCell*))
+        for i in range(self.grid_size_x):
+            self.grid[i] = <GridCell*>malloc(self.grid_size_y * sizeof(GridCell))
+            for j in range(self.grid_size_y):
+                self.grid[i][j].elements.clear()
+
+    cdef void _clear_grid(self) noexcept nogil:
+        """Clear and deallocate grid"""
+        cdef int i
+        if self.grid != NULL:
+            for i in range(self.grid_size_x):
+                if self.grid[i] != NULL:
+                    free(self.grid[i])
+            free(self.grid)
+            self.grid = NULL
+
+    cdef void _get_cell_coords(self, float x, float y, int* cell_x, int* cell_y) noexcept nogil:
+        """Get grid cell coordinates for a point"""
+        cell_x[0] = <int>(x / self.cell_size_x)
+        cell_y[0] = <int>(y / self.cell_size_y)
+        
+        # Clamp to grid bounds
+        if cell_x[0] < 0: cell_x[0] = 0
+        if cell_y[0] < 0: cell_y[0] = 0
+        if cell_x[0] >= self.grid_size_x: cell_x[0] = self.grid_size_x - 1
+        if cell_y[0] >= self.grid_size_y: cell_y[0] = self.grid_size_y - 1
+
+    cdef void _add_element_to_grid(self, GeomElement* elem) noexcept nogil:
+        """Add an element to the appropriate grid cell"""
+        self._get_cell_coords(elem.pos[0], elem.pos[1], &elem.cell_x, &elem.cell_y)
+        self.grid[elem.cell_x][elem.cell_y].elements.push_back(elem[0])
+
+    cdef void _find_cells_in_range(self, float x, float y, float radius, 
+                                  vector[GridCell*]* cells) noexcept nogil:
+        """Find all grid cells that intersect with the given circle"""
+        cdef:
+            int min_cell_x, min_cell_y
+            int max_cell_x, max_cell_y
+            int cell_x, cell_y
+            # float radius_cells_x = radius / self.cell_size_x
+            # float radius_cells_y = radius / self.cell_size_y
+
+        # Get cell range that could contain points within radius
+        self._get_cell_coords(x - radius, y - radius, &min_cell_x, &min_cell_y)
+        self._get_cell_coords(x + radius, y + radius, &max_cell_x, &max_cell_y)
+        
+        # Add all cells in range
+        for cell_x in range(min_cell_x, max_cell_x + 1):
+            for cell_y in range(min_cell_y, max_cell_y + 1):
+                if self.grid != NULL and self.grid[cell_x] != NULL:
+                    cells.push_back(&self.grid[cell_x][cell_y])
+
+    cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil:
+        """Compute 2D Euclidean distance"""
+        cdef:
+            float dx = x2 - x1
+            float dy = y2 - y1
+        return sqrt(dx * dx + dy * dy)
+
+    cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
+                                  GeomType filter_type) noexcept nogil:
+        """Find nearest element of given type within max_dist"""
+        cdef:
+            vector[GridCell*] cells
+            size_t i, j
+            float dist, min_dist = max_dist
+            GeomElement* nearest = NULL
+            GeomElement* elem
+            
+        # Get cells that could contain points within max_dist
+        self._find_cells_in_range(x, y, max_dist, &cells)
+        
+        # Search through all elements in found cells
+        for i in range(cells.size()):
+            for j in range(cells[i].elements.size()):
+                elem = &cells[i].elements[j]
+                if filter_type != NONE and elem.type != filter_type:
+                    continue
+                    
+                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
+                if dist < min_dist:
+                    min_dist = dist
+                    nearest = elem
+                    
+        return nearest
+
+    cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
+                             GeomType filter_type, vector[GeomElement]* results) noexcept nogil:
+        """Find k nearest elements of given type within max_dist"""
+        cdef:
+            vector[GridCell*] cells
+            size_t i, j, l
+            float dist
+            GeomElement elem
+            vector[pair[float, GeomElement]] candidates
+            
+        # Get cells that could contain points within max_dist
+        self._find_cells_in_range(x, y, max_dist, &cells)
+        
+        # Collect all elements and their distances
+        for i in range(cells.size()):
+            for j in range(cells[i].elements.size()):
+                elem = cells[i].elements[j]
+                if filter_type != NONE and elem.type != filter_type:
+                    continue
+                    
+                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
+                if dist <= max_dist:
+                    candidates.push_back(pair[float, GeomElement](dist, elem))
+                    
+        # Sort candidates by distance
+        # Note: This is a simple bubble sort, could be optimized
+        cdef:
+            size_t n = candidates.size()
+            pair[float, GeomElement] temp
+            
+        for i in range(n):
+            for j in range(0, n - i - 1):
+                if candidates[j].first > candidates[j + 1].first:
+                    temp = candidates[j]
+                    candidates[j] = candidates[j + 1]
+                    candidates[j + 1] = temp
+                    
+        # Take k nearest
+        for i in range(min(k, candidates.size())):
+            results.push_back(candidates[i].second)
+    
     cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil:
         """Add vertex to grid"""
         cdef:
@@ -515,343 +934,14 @@ cdef class TargetMeshAccel:
             
             self._add_element_to_grid(elem)
 
-    cdef void _reset(self) noexcept nogil:
-        """Reset the acceleration structure"""
-        # printf("Accel2D._reset()\n")
-
-        if self.is_hidden_v != NULL:
-            free(self.is_hidden_v)
-        if self.is_hidden_e != NULL:
-            free(self.is_hidden_e)
-        if self.is_hidden_f != NULL:
-            free(self.is_hidden_f)
-        
-        if self.is_selected_v != NULL:
-            free(self.is_selected_v)
-        if self.is_selected_e != NULL:
-            free(self.is_selected_e)
-        if self.is_selected_f != NULL:
-            free(self.is_selected_f)
-
-        # Set memory views to empty
-        self.is_hidden_v = NULL
-        self.is_hidden_e = NULL
-        self.is_hidden_f = NULL
-        
-        self.is_selected_v = NULL
-        self.is_selected_e = NULL
-        self.is_selected_f = NULL
-
-        # For C++ sets, we don't need to check for NULLs, just clear them!
-        self.visverts.clear()
-        self.visedges.clear()
-        self.visfaces.clear()
-
-    '''
-    ______________________________________________________________________________________________________________
-    
-    Python access methods 
-    ______________________________________________________________________________________________________________
-    '''
-
-    def get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True, bint invert_selection=False):
-        """Return sets of visible geometry"""
-        if not self.bmesh or not self.bmesh.vtable:
-            printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
-            return set(), set(), set()
-
-        cdef:
-            BMesh* bmesh = self.bmesh
-            set vis_py_verts = set()
-            set vis_py_edges = set()
-            set vis_py_faces = set()
-            object py_bm_verts = py_bmesh.verts
-            object py_bm_edges = py_bmesh.edges
-            object py_bm_faces = py_bmesh.faces
-
-        if verts:
-            for i in range(bmesh.totvert):
-                if self.is_hidden_v[i] if not invert_selection else not self.is_hidden_v[i]:
-                    vis_py_verts.add(py_bm_verts[i])
-
-        if edges:
-            for i in range(bmesh.totedge):
-                if self.is_hidden_e[i] if not invert_selection else not self.is_hidden_e[i]:
-                    vis_py_edges.add(py_bm_edges[i])
-
-        if faces:
-            for i in range(bmesh.totface):
-                if self.is_hidden_f[i] if not invert_selection else not self.is_hidden_f[i]:
-                    vis_py_faces.add(py_bm_faces[i])
-
-        return vis_py_verts, vis_py_edges, vis_py_faces
-
-    def get_selected_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True, bint invert_selection=False):
-        """Return sets of selected geometry"""
-        if not self.bmesh or not self.bmesh.vtable:
-            printf("Accel2D.get_selected_geom() - bmesh or vtable is NULL\n")
-            return set(), set(), set()
-
-        cdef:
-            BMesh* bmesh = self.bmesh
-            set sel_py_verts = set()
-            set sel_py_edges = set()
-            set sel_py_faces = set()
-            object py_bm_verts = py_bmesh.verts
-            object py_bm_edges = py_bmesh.edges
-            object py_bm_faces = py_bmesh.faces
-
-        if verts:
-            for i in range(bmesh.totvert):
-                if self.is_selected_v[i] if not invert_selection else not self.is_selected_v[i]:
-                    sel_py_verts.add(py_bm_verts[i])
-
-        if edges:
-            for i in range(bmesh.totedge):
-                if self.is_selected_e[i] if not invert_selection else not self.is_selected_e[i]:
-                    sel_py_edges.add(py_bm_edges[i])
-
-        if faces:
-            for i in range(bmesh.totface):
-                if self.is_selected_f[i] if not invert_selection else not self.is_selected_f[i]:
-                    sel_py_faces.add(py_bm_faces[i])
-
-        return sel_py_verts, sel_py_edges, sel_py_faces
-
-    def get_vis_verts(self, object py_bmesh, int selected_only) -> set:
-        cdef:
-            object py_bm_verts = py_bmesh.verts
-            cpp_set[BMVert*].iterator visverts_it = self.visverts.begin()
-            set py_vis_verts = set()
-            BMVert* cur_visvert = NULL
-
-        if selected_only == SelectionState.ALL:
-            while visverts_it != self.visverts.end():
-                cur_visvert = deref(visverts_it)
-                py_vis_verts.add(py_bm_verts[cur_visvert.head.index])
-                inc(visverts_it)
-            return py_vis_verts
-        elif selected_only == SelectionState.SELECTED:
-            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if self.is_selected_v[i]}
-        elif selected_only == SelectionState.UNSELECTED:
-            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if not self.is_selected_v[i]}
-        else:
-            return set()
-
-    def get_nearest_verts(self, tuple point, double max_dist):
-        """Get vertices within max_dist of point"""
-        # Implement vertex query
-        pass
-
-    def get_nearest_edges(self, tuple point, double max_dist):
-        """Get edges within max_dist of point"""
-        # Implement edge query
-        pass
-
-    def get_nearest_faces(self, tuple point, double max_dist):
-        """Get faces within max_dist of point"""
-        # Implement face query
-        pass
-
-    def get_visible_arrays(self):
-        """Get visible arrays as NumPy arrays (zero-copy)"""
-        cdef:
-            BMesh* bmesh = self.py_bmesh.bm
-            np.npy_intp vert_size = bmesh.totvert
-            np.npy_intp edge_size = bmesh.totedge
-            np.npy_intp face_size = bmesh.totface
-
-        return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_hidden_v),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_hidden_e),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_hidden_f)
-        )
-
-    def get_selected_arrays(self):
-        """Get selected arrays as NumPy arrays (zero-copy)"""
-        cdef:
-            BMesh* bmesh = self.py_bmesh.bm
-            np.npy_intp vert_size = bmesh.totvert
-            np.npy_intp edge_size = bmesh.totedge
-            np.npy_intp face_size = bmesh.totface
-
-        return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_selected_v),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_selected_e),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_selected_f)
-        )
-
-    cdef np.ndarray get_is_visible_verts_array(self):
-        """Get visible array of vertices as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_v)
-
-    cdef np.ndarray get_is_visible_edges_array(self):
-        """Get visible array of edges as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_e)
-
-    cdef np.ndarray get_is_visible_faces_array(self):
-        """Get visible array of faces as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_f)
-
-    cdef np.ndarray get_is_selected_verts_array(self):
-        """Get selected array of vertices as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_v)
-
-    cdef np.ndarray get_is_selected_edges_array(self):
-        """Get selected array of edges as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_e)
-
-    cdef np.ndarray get_is_selected_faces_array(self):
-        """Get selected array of faces as NumPy array (zero-copy)"""
-        cdef size_t size = self.py_bmesh.bm.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)
-
-    cdef void _init_grid(self) noexcept nogil:
-        """Initialize the grid structure based on region size"""
-        cdef:
-            int i, j
-            
-        self.grid_size_x = self.region.winx // 92  # Adjust cell size as needed
-        self.grid_size_y = self.region.winy // 92
-        self.cell_size_x = self.region.winx / <float>self.grid_size_x
-        self.cell_size_y = self.region.winy / <float>self.grid_size_y
-        
-        # Allocate grid
-        self.grid = <GridCell**>malloc(self.grid_size_x * sizeof(GridCell*))
-        for i in range(self.grid_size_x):
-            self.grid[i] = <GridCell*>malloc(self.grid_size_y * sizeof(GridCell))
-            for j in range(self.grid_size_y):
-                self.grid[i][j].elements.clear()
-
-    cdef void _clear_grid(self) noexcept nogil:
-        """Clear and deallocate grid"""
-        cdef int i
-        if self.grid != NULL:
-            for i in range(self.grid_size_x):
-                if self.grid[i] != NULL:
-                    free(self.grid[i])
-            free(self.grid)
-            self.grid = NULL
-
-    cdef void _get_cell_coords(self, float x, float y, int* cell_x, int* cell_y) noexcept nogil:
-        """Get grid cell coordinates for a point"""
-        cell_x[0] = <int>(x / self.cell_size_x)
-        cell_y[0] = <int>(y / self.cell_size_y)
-        
-        # Clamp to grid bounds
-        if cell_x[0] < 0: cell_x[0] = 0
-        if cell_y[0] < 0: cell_y[0] = 0
-        if cell_x[0] >= self.grid_size_x: cell_x[0] = self.grid_size_x - 1
-        if cell_y[0] >= self.grid_size_y: cell_y[0] = self.grid_size_y - 1
-
-    cdef void _add_element_to_grid(self, GeomElement* elem) noexcept nogil:
-        """Add an element to the appropriate grid cell"""
-        cdef:
-            int cell_x, cell_y
-        
-        self._get_cell_coords(elem.pos[0], elem.pos[1], &cell_x, &cell_y)
-        self.grid[cell_x][cell_y].elements.push_back(elem[0])
-
-    cdef void _find_cells_in_range(self, float x, float y, float radius, 
-                                  vector[GridCell*]* cells) noexcept nogil:
-        """Find all grid cells that intersect with the given circle"""
-        cdef:
-            int min_cell_x, min_cell_y, max_cell_x, max_cell_y
-            int cell_x, cell_y
-            float radius_cells_x = radius / self.cell_size_x
-            float radius_cells_y = radius / self.cell_size_y
-            
-        # Get cell range that could contain points within radius
-        self._get_cell_coords(x - radius, y - radius, &min_cell_x, &min_cell_y)
-        self._get_cell_coords(x + radius, y + radius, &max_cell_x, &max_cell_y)
-        
-        # Add all cells in range
-        for cell_x in range(min_cell_x, max_cell_x + 1):
-            for cell_y in range(min_cell_y, max_cell_y + 1):
-                cells.push_back(&self.grid[cell_x][cell_y])
-
-    cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil:
-        """Compute 2D Euclidean distance"""
-        cdef:
-            float dx = x2 - x1
-            float dy = y2 - y1
-        return sqrt(dx * dx + dy * dy)
-
-    cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
-                                  GeomType filter_type) noexcept nogil:
-        """Find nearest element of given type within max_dist"""
-        cdef:
-            vector[GridCell*] cells
-            size_t i, j
-            float dist, min_dist = max_dist
-            GeomElement* nearest = NULL
-            GeomElement* elem
-            
-        # Get cells that could contain points within max_dist
-        self._find_cells_in_range(x, y, max_dist, &cells)
-        
-        # Search through all elements in found cells
-        for i in range(cells.size()):
-            for j in range(cells[i].elements.size()):
-                elem = &cells[i].elements[j]
-                if filter_type != NONE and elem.type != filter_type:
-                    continue
-                    
-                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest = elem
-                    
-        return nearest
-
-    cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
-                             GeomType filter_type, vector[GeomElement]* results) noexcept nogil:
-        """Find k nearest elements of given type within max_dist"""
-        cdef:
-            vector[GridCell*] cells
-            size_t i, j, l
-            float dist
-            GeomElement elem
-            vector[pair[float, GeomElement]] candidates
-            
-        # Get cells that could contain points within max_dist
-        self._find_cells_in_range(x, y, max_dist, &cells)
-        
-        # Collect all elements and their distances
-        for i in range(cells.size()):
-            for j in range(cells[i].elements.size()):
-                elem = cells[i].elements[j]
-                if filter_type != NONE and elem.type != filter_type:
-                    continue
-                    
-                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
-                if dist <= max_dist:
-                    candidates.push_back(pair[float, GeomElement](dist, elem))
-                    
-        # Sort candidates by distance
-        # Note: This is a simple bubble sort, could be optimized
-        cdef:
-            size_t n = candidates.size()
-            pair[float, GeomElement] temp
-            
-        for i in range(n):
-            for j in range(0, n - i - 1):
-                if candidates[j].first > candidates[j + 1].first:
-                    temp = candidates[j]
-                    candidates[j] = candidates[j + 1]
-                    candidates[j + 1] = temp
-                    
-        # Take k nearest
-        for i in range(min(k, candidates.size())):
-            results.push_back(candidates[i].second)
-
     cdef void _build_accel_struct(self) noexcept nogil:
         """Build acceleration structure for efficient spatial queries"""
+
+        if self.is_dirty_geom_vis:
+            return
+        if not self.is_dirty_accel:
+            return
+
         cdef:
             cpp_set[BMVert*].iterator vert_it
             cpp_set[BMEdge*].iterator edge_it
@@ -860,37 +950,108 @@ cdef class TargetMeshAccel:
             BMEdge* edge
             BMFace* face
             int i, j
+        
+        # Clear existing grid
+        self._clear_grid()
 
         # Initialize grid
         self._init_grid()
 
         # Add visible vertices
-        vert_it = self.visverts.begin()
-        while vert_it != self.visverts.end():
-            vert = deref(vert_it)
-            self.add_vert_to_grid(vert)
-            inc(vert_it)
+        if self.totvisverts > 0:
+            vert_it = self.visverts.begin()
+            while vert_it != self.visverts.end():
+                vert = deref(vert_it)
+                self.add_vert_to_grid(vert)
+                inc(vert_it)
 
         # Add visible edges with samples
-        edge_it = self.visedges.begin()
-        while edge_it != self.visedges.end():
-            edge = deref(edge_it)
-            self.add_edge_to_grid(edge, 3)  # 3 samples along each edge
-            inc(edge_it)
+        if self.totvisedges > 0:
+            edge_it = self.visedges.begin()
+            while edge_it != self.visedges.end():
+                edge = deref(edge_it)
+                self.add_edge_to_grid(edge, 3)  # 3 samples along each edge
+                inc(edge_it)
 
         # Add visible faces
-        face_it = self.visfaces.begin()
-        while face_it != self.visfaces.end():
-            face = deref(face_it)
-            self.add_face_to_grid(face)  # Add face centroid
-            inc(face_it)
-    
+        if self.totvisfaces > 0:
+            face_it = self.visfaces.begin()
+            while face_it != self.visfaces.end():
+                face = deref(face_it)
+                self.add_face_to_grid(face)  # Add face centroid
+                inc(face_it)
+
+        self.is_dirty_accel = False
+
 
     # ---------------------------------------------------------------------------------------
     # Python exposed methods.
     # ---------------------------------------------------------------------------------------
 
-    cpdef dict find_nearest_vert(self, float x, float y, float max_dist=float('inf')):
+    cpdef void py_set_dirty_accel(self):
+        self.is_dirty_accel = True
+
+    cpdef void py_set_dirty_geom_vis(self):
+        self.is_dirty_geom_vis = True
+        self.is_dirty_accel = True
+
+    cpdef void py_update_bmesh(self, object py_bmesh):
+        if hasattr(self, 'py_bmesh') and id(self.py_bmesh) == id(py_bmesh):
+            return
+
+        self.py_bmesh = py_bmesh
+        self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
+        self.bmesh = self.bmesh_pywrapper.bm
+
+        self._ensure_lookup_tables()
+        self._ensure_indices()
+
+    cpdef void py_update_object(self, object py_object):
+        self.py_object = py_object
+
+        matrix_world = np.array(py_object.matrix_world, dtype=np.float32)
+        matrix_normal = np.array(py_object.matrix_world.inverted_safe().transposed().to_3x3(), dtype=np.float32)
+        self._update_object_transform(matrix_world, matrix_normal)
+
+    cpdef void py_update_region(self, object py_region):
+        if hasattr(self, 'py_region') and id(self.py_region) == id(py_region):
+            return
+
+        self.py_region = py_region
+        self.region = <ARegion*><uintptr_t>id(py_region)
+
+    cpdef void py_update_view(self, object py_rv3d):
+        cdef:
+            bint is_perspective
+
+        self.py_rv3d = py_rv3d
+        self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
+
+        view_matrix = py_rv3d.view_matrix
+        proj_matrix = np.array(py_rv3d.window_matrix @ view_matrix, dtype=np.float32)
+        is_perspective = py_rv3d.is_perspective
+
+        if is_perspective:
+            view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
+        else:
+            view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
+
+        self._update_view(proj_matrix, view_pos, <bint>is_perspective)
+
+    cpdef bint py_update_geometry_visibility(self):
+        if not self.is_dirty_geom_vis:
+            return True
+        return self._compute_geometry_visibility_in_region(<float>1.0) == 0
+
+    cpdef void py_update_accel_struct(self):
+        if self.is_dirty_geom_vis:
+            if not self.py_update_geometry_visibility():
+                return
+        if not self.is_dirty_accel:
+            return
+        self._build_accel_struct()
+
+    cpdef dict find_nearest_vert(self, float x, float y, float max_dist=finf):
         """Find nearest visible vertex to screen position"""
         cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.VERT)
         if result != NULL:
@@ -901,7 +1062,7 @@ cdef class TargetMeshAccel:
             }
         return None
 
-    cpdef dict find_nearest_edge(self, float x, float y, float max_dist=float('inf')):
+    cpdef dict find_nearest_edge(self, float x, float y, float max_dist=finf):
         """Find nearest visible edge to screen position"""
         cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.EDGE)
         if result != NULL:
@@ -912,7 +1073,7 @@ cdef class TargetMeshAccel:
             }
         return None
 
-    cpdef dict find_nearest_face(self, float x, float y, float max_dist=float('inf')):
+    cpdef dict find_nearest_face(self, float x, float y, float max_dist=finf):
         """Find nearest visible face to screen position"""
         cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.FACE)
         if result != NULL:
@@ -923,7 +1084,7 @@ cdef class TargetMeshAccel:
             }
         return None
 
-    cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=float('inf')):
+    cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=finf):
         """Find k nearest vertices to screen position"""
         cdef:
             vector[GeomElement] results
@@ -941,7 +1102,7 @@ cdef class TargetMeshAccel:
             
         return py_results
 
-    cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=float('inf')):
+    cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=finf):
         """Find k nearest edges to screen position"""
         cdef:
             vector[GeomElement] results
@@ -959,7 +1120,7 @@ cdef class TargetMeshAccel:
             
         return py_results
 
-    cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=float('inf')):
+    cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=finf):
         """Find k nearest faces to screen position"""
         cdef:
             vector[GeomElement] results
@@ -976,3 +1137,66 @@ cdef class TargetMeshAccel:
             })
             
         return py_results
+
+
+    # ---------------------------------------------------------------------------------------
+    # Getters for visible/selected arrays.
+    # ---------------------------------------------------------------------------------------
+
+    def get_visible_arrays(self):
+        """Get visible arrays as NumPy arrays (zero-copy)"""
+        cdef:
+            BMesh* bmesh = self.bmesh
+            np.npy_intp vert_size = bmesh.totvert
+            np.npy_intp edge_size = bmesh.totedge
+            np.npy_intp face_size = bmesh.totface
+
+        return (
+            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_hidden_v),
+            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_hidden_e),
+            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_hidden_f)
+        )
+
+    def get_selected_arrays(self):
+        """Get selected arrays as NumPy arrays (zero-copy)"""
+        cdef:
+            BMesh* bmesh = self.bmesh
+            np.npy_intp vert_size = bmesh.totvert
+            np.npy_intp edge_size = bmesh.totedge
+            np.npy_intp face_size = bmesh.totface
+
+        return (
+            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_selected_v),
+            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_selected_e),
+            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_selected_f)
+        )
+
+    cdef np.ndarray get_is_visible_verts_array(self):
+        """Get visible array of vertices as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totvert
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_v)
+
+    cdef np.ndarray get_is_visible_edges_array(self):
+        """Get visible array of edges as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totedge
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_e)
+
+    cdef np.ndarray get_is_visible_faces_array(self):
+        """Get visible array of faces as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totface
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_f)
+
+    cdef np.ndarray get_is_selected_verts_array(self):
+        """Get selected array of vertices as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totvert
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_v)
+
+    cdef np.ndarray get_is_selected_edges_array(self):
+        """Get selected array of edges as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totedge
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_e)
+
+    cdef np.ndarray get_is_selected_faces_array(self):
+        """Get selected array of faces as NumPy array (zero-copy)"""
+        cdef size_t size = self.bmesh.totface
+        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)

@@ -13,6 +13,7 @@ from libcpp.set cimport set as cpp_set
 import numpy as np
 cimport numpy as np
 from libcpp.vector cimport vector
+from cpython.object cimport PyObject
 
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeader
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
@@ -41,15 +42,25 @@ cdef struct GeomElement:
     float[2] pos        # 2D screen position
     float depth         # View depth
     GeomType type       # Type of element
-    
+    int cell_x          # Grid cell index in X axis
+    int cell_y          # Grid cell index in Y axis
+
 # Structure for grid cell
 cdef struct GridCell:
     vector[GeomElement] elements
 
 cdef class TargetMeshAccel:
     cdef:
+        bint is_dirty_geom_vis
+        bint is_dirty_accel
+
+        object py_object
+        object py_region
+        object py_rv3d
+        object py_bmesh
+
         # BMesh reference
-        BPy_BMesh* py_bmesh
+        BPy_BMesh* bmesh_pywrapper
         BMesh* bmesh
         ARegion* region
         RegionView3D* rv3d
@@ -58,6 +69,8 @@ cdef class TargetMeshAccel:
         float[4][4] matrix_world
         float[3][3] matrix_normal
         View3D view3d
+
+        float screen_margin
 
         # C++ sets for storing geometry
         cpp_set[BMVert*] visverts
@@ -91,7 +104,7 @@ cdef class TargetMeshAccel:
     # Methods for grid operations
     cdef void _init_grid(self) noexcept nogil
     cdef void _clear_grid(self) noexcept nogil
-    cdef void _get_cell_coords(self, float x, float y, int* cell_x, int* cell_y) noexcept nogil
+    cdef void _get_cell_coords(self, const float x, const float y, int* cell_x, int* cell_y) noexcept nogil
     cdef void _add_element_to_grid(self, GeomElement* elem) noexcept nogil
     cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil
     cdef void _find_cells_in_range(self, float x, float y, float radius, 
@@ -103,12 +116,10 @@ cdef class TargetMeshAccel:
     cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
                         GeomType filter_type, vector[GeomElement]* results) noexcept nogil
 
-    # cpdef void update_matrix_world(self, object py_matrix_world)
     cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
-    # cdef void _build_accel_struct(self) noexcept nogil
-    cdef void _reset(self) noexcept nogil
-    cpdef void _ensure_lookup_tables(self, object py_bmesh)
+    cdef void _reset(self, bint dirty=*) noexcept nogil
+    cdef void set_dirty(self) noexcept nogil
     cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
     cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil
 
@@ -132,6 +143,22 @@ cdef class TargetMeshAccel:
     # Python exposed methods.
     # ---------------------------------------------------------------------------------------
 
+    cpdef void update(self, float margin_check)
+
+    cpdef void _ensure_lookup_tables(self)
+    cpdef void _ensure_indices(self)
+
+    cpdef void py_set_dirty_accel(self)
+    cpdef void py_set_dirty_geom_vis(self)
+
+    cpdef void py_update_object(self, object py_target_object)
+    cpdef void py_update_region(self, object py_region)
+    cpdef void py_update_view(self, object py_rv3d)
+    cpdef void py_update_bmesh(self, object py_bmesh)
+
+    cpdef bint py_update_geometry_visibility(self)
+    cpdef void py_update_accel_struct(self)
+
     # Single nearest element methods
     cpdef dict find_nearest_vert(self, float x, float y, float max_dist=*)
     cpdef dict find_nearest_edge(self, float x, float y, float max_dist=*)
@@ -141,3 +168,7 @@ cdef class TargetMeshAccel:
     cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=*)
     cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=*)
     cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=*)
+
+
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
+    cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
