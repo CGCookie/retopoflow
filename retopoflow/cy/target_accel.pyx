@@ -147,7 +147,11 @@ cdef class TargetMeshAccel:
             self.set_dirty()
 
     cpdef void _ensure_indices(self):
-        if self.bmesh.totvert == 0:
+        if self.bmesh == NULL:
+            print(f"[CYTHON] Accel2D._ensure_indices() - bmesh is NULL")
+            return
+
+        if self.bmesh.vtable == NULL or self.bmesh.totvert == 0:
             return
 
         # We make 3 checks to be sure that the indices are updated and in order.
@@ -158,7 +162,8 @@ cdef class TargetMeshAccel:
                 print(f"[CYTHON] Accel2D._ensure_indices() - verts updated")
                 break
 
-        if self.bmesh.totedge == 0:
+        if self.bmesh.etable == NULL or self.bmesh.totedge == 0:
+            print(f"[CYTHON] Accel2D._ensure_indices() - etable is NULL or totedge is 0")
             return
 
         for i in range(max(self.bmesh.totedge, 3)):
@@ -167,7 +172,8 @@ cdef class TargetMeshAccel:
                 print(f"[CYTHON] Accel2D._ensure_indices() - edges updated")
                 break
 
-        if self.bmesh.totface == 0:
+        if self.bmesh.ftable == NULL or self.bmesh.totface == 0:
+            print(f"[CYTHON] Accel2D._ensure_indices() - ftable is NULL or totface is 0")
             return
 
         for i in range(max(self.bmesh.totface, 3)):
