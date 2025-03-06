@@ -2,6 +2,7 @@ import bpy, os
 from bpy.types import Menu
 from bpy.utils import previews
 
+from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 
 class RFMenu_MT_ToolPie(Menu):
     bl_idname = 'RF_MT_Tools'
@@ -17,13 +18,15 @@ class RFMenu_MT_ToolPie(Menu):
     
     def draw_bottom_menu(self, pie):
         active_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False).idname
-        box = pie.column()
+        back = pie.box()
+        box = back.column()
         box.emboss = 'RADIAL_MENU'
 
         if active_tool == 'retopoflow.polypen':
+            box.ui_units_x = 8
             row = box.row()
             row.emboss = 'NONE'
-            row.label(text='Insert Mode')
+            row.label(text='Poly Pen Insert Mode')
             grid = box.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
             col = row.column()
@@ -33,9 +36,16 @@ class RFMenu_MT_ToolPie(Menu):
             col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
             col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
 
-        row = box.row()
-        row.emboss = 'NONE'
-        row.separator(type='SPACE')
+            if PolyPen_Insert_Modes.insert_mode == 4:
+                row = box.row()
+                row.emboss = 'NONE'
+                row.label(text='Quad Stability')
+                row = box.row(align=True)
+                row.operator('retopoflow.polypen_quad_stability_quarter', text='0.25')
+                row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
+                row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
+                row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
+
         row = box.row()
         row.emboss = 'NONE'
         row.label(text='Clean Up')

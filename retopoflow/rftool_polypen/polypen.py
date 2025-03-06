@@ -104,9 +104,45 @@ class PolyPen_Insert_Modes:
     @staticmethod
     def set_insert_mode(self, v): PolyPen_Insert_Modes.insert_mode = v
 
+class PolyPen_Quad_Stability:
+    quad_stability = 1
+
+    rf_keymaps = []
+
+    @staticmethod
+    def generate_operators():
+        ops_insert = []
+        def gen_quad_stability(idname, label, value):
+            nonlocal ops_insert
+            rf_idname = f'retopoflow.polypen_quad_stability_{idname.lower()}'
+            rf_label = label
+            class RFTool_OT_PolyPen_SetQuadStability:
+                bl_idname = rf_idname
+                bl_label = rf_label
+                bl_description = f'Set PolyPen Quad Stability to {label}'
+                def execute(self, context):
+                    PolyPen_Quad_Stability.set_quad_stability(None, float(label))
+                    context.area.tag_redraw()
+                    return {'FINISHED'}
+            opname = f'RFTool_OT_PolyPen_SetQuadStability_{idname}'
+            op = type(opname, (RFTool_OT_PolyPen_SetQuadStability, RFRegisterClass, bpy.types.Operator), {})
+            ops_insert += [(rf_idname, rf_label)]
+
+        gen_quad_stability('quarter',  '0.25',  0)
+        gen_quad_stability('half', '0.5', 1)
+        gen_quad_stability('threequarters', '0.75', 2)
+        gen_quad_stability('full',  '1',  3)
+
+    @staticmethod
+    def get_quad_stability(self): return PolyPen_Quad_Stability.quad_stability
+    @staticmethod
+    def set_quad_stability(self, v): PolyPen_Quad_Stability.quad_stability = v
+
+
 # TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
 #       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
 PolyPen_Insert_Modes.generate_operators()
+PolyPen_Quad_Stability.generate_operators()
 
 
 class RFOperator_PolyPen(RFOperator):
@@ -131,7 +167,8 @@ class RFOperator_PolyPen(RFOperator):
         description='Insertion mode for PolyPen',
         items=PolyPen_Insert_Modes.insert_modes,
     )
-    quad_stability: bpy.props.FloatProperty(
+    quad_stability: wrap_property(
+        PolyPen_Quad_Stability, 'quad_stability', 'float',
         name='Quad Stability',
         description='Stability of parallel edges',
         min=0.00,
