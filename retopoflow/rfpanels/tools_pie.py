@@ -29,10 +29,10 @@ class RFMenu_MT_ToolPie(Menu):
             row.label(text='Poly Pen Insert Mode')
             grid = box.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
-            col = row.column()
+            col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
             col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
-            col = row.column()
+            col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
             col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
 
