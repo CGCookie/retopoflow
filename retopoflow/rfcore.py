@@ -38,7 +38,7 @@ from .rfbrush_base import RFBrush_Base
 
 from .rfoperators import mesh_cleanup
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
-from .rfpanels import mesh_cleanup_panel, masking_panel, relax_algorithm_panel, tweaking_panel, display_panel
+from .rfpanels import mesh_cleanup_panel, masking_panel, relax_algorithm_panel, tweaking_panel, display_panel, tools_pie
 from . import preferences
 
 # NOTE: import order determines tool order
@@ -100,6 +100,7 @@ class RFCore:
         tweaking_panel.register()
         masking_panel.register()
         display_panel.register()
+        tools_pie.register()
         relax_algorithm_panel.register()
 
         # wrap tool change function so we know when the artist switches tool
@@ -151,6 +152,7 @@ class RFCore:
         masking_panel.unregister()
         display_panel.unregister()
         relax_algorithm_panel.unregister()
+        tools_pie.unregister()
         preferences.unregister()
 
 
