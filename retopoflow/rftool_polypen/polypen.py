@@ -72,8 +72,6 @@ class PolyPen_Insert_Modes:
     ]
     insert_mode = 0
 
-    rf_keymaps = []
-
     @staticmethod
     def generate_operators():
         ops_insert = []
@@ -106,8 +104,6 @@ class PolyPen_Insert_Modes:
 
 class PolyPen_Quad_Stability:
     quad_stability = 1
-
-    rf_keymaps = []
 
     @staticmethod
     def generate_operators():
@@ -226,7 +222,6 @@ class RFTool_PolyPen(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyPen,
         RFOperator_Translate_ScreenSpace,
-        PolyPen_Insert_Modes,
     )
 
     def draw_settings(context, layout, tool):
