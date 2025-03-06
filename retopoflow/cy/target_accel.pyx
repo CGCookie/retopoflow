@@ -62,7 +62,10 @@ cdef class TargetMeshAccel:
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
 
-    
+        self.last_totvert = 0
+        self.last_totedge = 0
+        self.last_totface = 0
+
     def __init__(self,
         object py_object,
         object py_bmesh,
@@ -77,6 +80,13 @@ cdef class TargetMeshAccel:
         self.py_update_view(py_rv3d)
 
     cpdef void update(self, float margin_check):
+        print(f"[CYTHON] update() called with margin_check={margin_check}")
+        print(f"[CYTHON] bmesh: {self.bmesh != NULL}")
+        if self.bmesh:
+            print(f"[CYTHON] vtable: {self.bmesh.vtable != NULL}")
+            print(f"[CYTHON] etable: {self.bmesh.etable != NULL}")
+            print(f"[CYTHON] ftable: {self.bmesh.ftable != NULL}")
+
         self._ensure_lookup_tables()
         self._ensure_indices()
         if self._compute_geometry_visibility_in_region(margin_check) != 0:
@@ -115,36 +125,72 @@ cdef class TargetMeshAccel:
 
     cpdef void _ensure_lookup_tables(self):
         """Ensure lookup tables are created for the bmesh"""
-
-        if self.bmesh.totvert == 0:
+        if self.bmesh == NULL:
+            print(f"[CYTHON] Accel2D._ensure_lookup_tables() - bmesh is NULL")
             return
 
-        try:
-            self.py_bmesh.verts[0]
-        except IndexError:
+        cdef:
+            bint vtable_dirty = False
+            bint etable_dirty = False
+            bint ftable_dirty = False
+
+        if self.bmesh.vtable == NULL:
+            vtable_dirty = True
+        elif self.last_totvert != self.bmesh.totvert:
+            vtable_dirty = True
+        else:
+            try:
+                self.py_bmesh.verts[0]
+            except IndexError:
+                vtable_dirty = True
+
+        if self.bmesh.etable == NULL:
+            etable_dirty = True
+        elif self.last_totedge != self.bmesh.totedge:
+            etable_dirty = True
+        else:
+            try:
+                self.py_bmesh.edges[0]
+            except IndexError:
+                etable_dirty = True
+
+        if self.bmesh.ftable == NULL:
+            ftable_dirty = True
+        elif self.last_totface != self.bmesh.totface:
+            ftable_dirty = True
+        else:
+            try:
+                self.py_bmesh.faces[0]
+            except IndexError:
+                ftable_dirty = True
+
+        if vtable_dirty:
             print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
             self.py_bmesh.verts.ensure_lookup_table()
-            self.set_dirty()
-        
-        if self.bmesh.totedge == 0:
-            return
+            if self.last_totvert != self.bmesh.totvert:
+                self.py_bmesh.verts.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - verts indices updated")
 
-        try:
-            self.py_bmesh.edges[0]
-        except IndexError:
+        if etable_dirty:
             print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
             self.py_bmesh.edges.ensure_lookup_table()
-            self.set_dirty()
+            if self.last_totedge != self.bmesh.totedge:
+                self.py_bmesh.edges.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - edges indices updated")
 
-        if self.bmesh.totface == 0:
-            return
-
-        try:
-            self.py_bmesh.faces[0]
-        except IndexError:
+        if ftable_dirty:
             print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
             self.py_bmesh.faces.ensure_lookup_table()
+            if self.last_totface != self.bmesh.totface:
+                self.py_bmesh.faces.update_indices()
+                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - faces indices updated")
+
+        if vtable_dirty or etable_dirty or ftable_dirty:
             self.set_dirty()
+
+        self.last_totvert = self.bmesh.totvert
+        self.last_totedge = self.bmesh.totedge
+        self.last_totface = self.bmesh.totface
 
     cpdef void _ensure_indices(self):
         if self.bmesh == NULL:

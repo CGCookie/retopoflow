@@ -72,6 +72,11 @@ cdef class TargetMeshAccel:
 
         float screen_margin
 
+        # Store latest values of totvert, totedge, totface.
+        size_t last_totvert
+        size_t last_totedge
+        size_t last_totface
+
         # C++ sets for storing geometry
         cpp_set[BMVert*] visverts
         cpp_set[BMEdge*] visedges  
