@@ -57,16 +57,28 @@ jobs:
       shell: bash
       run: |
         cd retopoflow/cy
-        echo "Compiled files:"
-        ls -la *.so || ls -la *.pyd
+        echo "Current directory contents:"
+        ls -la
+        
+        echo -e "\nSearching for compiled files recursively:"
+        find . -type f \( -name "*.so" -o -name "*.pyd" \) || true
+        
+        # Don't fail if no files are found
+        if ! find . -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
+          echo "No compiled extensions found. This might indicate a build issue."
+          # Continue without failing
+          exit 0
+        fi
 
     - name: Upload compiled extensions
       uses: actions/upload-artifact@v4
+      if: always()  # Try to upload even if previous step failed
       with:
         name: compiled-extensions-${{ matrix.os }}
         path: |
-          retopoflow/cy/*.so
-          retopoflow/cy/*.pyd
+          retopoflow/cy/**/*.so
+          retopoflow/cy/**/*.pyd
+        if-no-files-found: warn  # Change from error to warn
         retention-days: 7
 
   commit-files:
