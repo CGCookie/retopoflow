@@ -150,8 +150,7 @@ cdef class TargetMeshAccel:
 
     cpdef void update(self, float margin_check)
 
-    cpdef void _ensure_lookup_tables(self)
-    cpdef void _ensure_indices(self)
+    cpdef void _ensure_bmesh(self)
 
     cpdef void py_set_dirty_accel(self)
     cpdef void py_set_dirty_geom_vis(self)

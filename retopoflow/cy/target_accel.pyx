@@ -87,8 +87,8 @@ cdef class TargetMeshAccel:
             print(f"[CYTHON] etable: {self.bmesh.etable != NULL}")
             print(f"[CYTHON] ftable: {self.bmesh.ftable != NULL}")
 
-        self._ensure_lookup_tables()
-        self._ensure_indices()
+        self._ensure_bmesh()
+
         if self._compute_geometry_visibility_in_region(margin_check) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             self._build_accel_struct()
@@ -123,10 +123,10 @@ cdef class TargetMeshAccel:
 
         self.set_dirty()
 
-    cpdef void _ensure_lookup_tables(self):
-        """Ensure lookup tables are created for the bmesh"""
+    cpdef void _ensure_bmesh(self):
+        """Ensure lookup tables are created for the bmesh and indices are updated (sorted in ascending order)."""
         if self.bmesh == NULL:
-            print(f"[CYTHON] Accel2D._ensure_lookup_tables() - bmesh is NULL")
+            print(f"[CYTHON] Accel2D._ensure_bmesh() - bmesh is NULL")
             return
 
         cdef:
@@ -134,10 +134,17 @@ cdef class TargetMeshAccel:
             bint etable_dirty = False
             bint ftable_dirty = False
 
+            # We make up to 5 checks to be sure that the indices are updated and in order.
+            int i, step
+            bint vindices_dirty = False
+            bint eindices_dirty = False
+            bint findices_dirty = False
+
         if self.bmesh.vtable == NULL:
             vtable_dirty = True
         elif self.last_totvert != self.bmesh.totvert:
             vtable_dirty = True
+            vindices_dirty = True
         else:
             try:
                 self.py_bmesh.verts[0]
@@ -148,6 +155,7 @@ cdef class TargetMeshAccel:
             etable_dirty = True
         elif self.last_totedge != self.bmesh.totedge:
             etable_dirty = True
+            eindices_dirty = True
         else:
             try:
                 self.py_bmesh.edges[0]
@@ -158,6 +166,7 @@ cdef class TargetMeshAccel:
             ftable_dirty = True
         elif self.last_totface != self.bmesh.totface:
             ftable_dirty = True
+            findices_dirty = True
         else:
             try:
                 self.py_bmesh.faces[0]
@@ -167,23 +176,48 @@ cdef class TargetMeshAccel:
         if vtable_dirty:
             print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
             self.py_bmesh.verts.ensure_lookup_table()
-            if self.last_totvert != self.bmesh.totvert:
-                self.py_bmesh.verts.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - verts indices updated")
 
         if etable_dirty:
             print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
             self.py_bmesh.edges.ensure_lookup_table()
-            if self.last_totedge != self.bmesh.totedge:
-                self.py_bmesh.edges.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - edges indices updated")
 
         if ftable_dirty:
             print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
             self.py_bmesh.faces.ensure_lookup_table()
-            if self.last_totface != self.bmesh.totface:
-                self.py_bmesh.faces.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_lookup_tables() - faces indices updated")
+
+        if not vindices_dirty:
+            # Calculate step size: if totvert is 25, step should be 5
+            step = max(self.bmesh.totvert // 5, 1)  # Ensure minimum step of 1
+            for i in range(0, min(self.bmesh.totvert, 5 * step), step):
+                if self.py_bmesh.verts[i].index != i:
+                    self.vindices_dirty = True
+                    break
+        
+        if not eindices_dirty:
+            step = max(self.bmesh.totedge // 5, 1)  # Ensure minimum step of 1
+            for i in range(0, min(self.bmesh.totedge, 5 * step), step):
+                if self.py_bmesh.edges[i].index != i:
+                    self.eindices_dirty = True
+                    break
+
+        if not findices_dirty:
+            step = max(self.bmesh.totface // 5, 1)  # Ensure minimum step of 1
+            for i in range(0, min(self.bmesh.totface, 5 * step), step):
+                if self.py_bmesh.faces[i].index != i:
+                    self.findices_dirty = True
+                    break
+
+        if vindices_dirty:
+            self.py_bmesh.verts.index_update()
+            print(f"[CYTHON] py_bmesh.verts.index_update()")
+        
+        if eindices_dirty:
+            self.py_bmesh.edges.index_update()
+            print(f"[CYTHON] py_bmesh.edges.index_update()")
+
+        if findices_dirty:
+            self.py_bmesh.faces.index_update()
+            print(f"[CYTHON] py_bmesh.faces.index_update()")
 
         if vtable_dirty or etable_dirty or ftable_dirty:
             self.set_dirty()
@@ -191,47 +225,6 @@ cdef class TargetMeshAccel:
         self.last_totvert = self.bmesh.totvert
         self.last_totedge = self.bmesh.totedge
         self.last_totface = self.bmesh.totface
-
-    cpdef void _ensure_indices(self):
-        if self.bmesh == NULL:
-            print(f"[CYTHON] Accel2D._ensure_indices() - bmesh is NULL")
-            return
-
-        if self.bmesh.vtable == NULL or self.bmesh.totvert == 0:
-            return
-
-        # We make up to 5 checks to be sure that the indices are updated and in order.
-        cdef int i, step
-        
-        # Calculate step size: if totvert is 25, step should be 5
-        step = max(self.bmesh.totvert // 5, 1)  # Ensure minimum step of 1
-        for i in range(0, min(self.bmesh.totvert, 5 * step), step):
-            if self.py_bmesh.verts[i].index != i:
-                self.py_bmesh.verts.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_indices() - verts updated")
-                break
-
-        if self.bmesh.etable == NULL or self.bmesh.totedge == 0:
-            print(f"[CYTHON] Accel2D._ensure_indices() - etable is NULL or totedge is 0")
-            return
-
-        step = max(self.bmesh.totedge // 5, 1)
-        for i in range(0, min(self.bmesh.totedge, 5 * step), step):
-            if self.py_bmesh.edges[i].index != i:
-                self.py_bmesh.edges.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_indices() - edges updated")
-                break
-
-        if self.bmesh.ftable == NULL or self.bmesh.totface == 0:
-            print(f"[CYTHON] Accel2D._ensure_indices() - ftable is NULL or totface is 0")
-            return
-
-        step = max(self.bmesh.totface // 5, 1)
-        for i in range(0, min(self.bmesh.totface, 5 * step), step):
-            if self.py_bmesh.faces[i].index != i:
-                self.py_bmesh.faces.update_indices()
-                print(f"[CYTHON] Accel2D._ensure_indices() - faces updated")
-                break
 
     cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
@@ -974,8 +967,7 @@ cdef class TargetMeshAccel:
             self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
             self.bmesh = self.bmesh_pywrapper.bm
 
-        self._ensure_lookup_tables()
-        self._ensure_indices()
+        self._ensure_bmesh()
 
     cpdef void py_update_object(self, object py_object):
         self.py_object = py_object
