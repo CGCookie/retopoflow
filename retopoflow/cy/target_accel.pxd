@@ -18,6 +18,7 @@ from cpython.object cimport PyObject
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeader
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from .bl_types cimport ARegion, RegionView3D
+from .vector_utils cimport bVec3
 
 
 cdef enum SelectionState:
@@ -28,6 +29,7 @@ cdef enum SelectionState:
 cdef struct View3D:
     float[4][4] proj_matrix
     float[3] view_pos
+    float[3] view_dir
     bint is_persp
 
 cdef enum GeomType:
@@ -64,7 +66,9 @@ cdef class TargetMeshAccel:
         BMesh* bmesh
         ARegion* region
         RegionView3D* rv3d
+
         int selected_only
+        bVec3 use_symmetry
 
         float[4][4] matrix_world
         float[3][3] matrix_normal
@@ -121,7 +125,7 @@ cdef class TargetMeshAccel:
     cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
                         GeomType filter_type, vector[GeomElement]* results) noexcept nogil
 
-    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective) nogil
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
@@ -154,6 +158,7 @@ cdef class TargetMeshAccel:
 
     cpdef void py_set_dirty_accel(self)
     cpdef void py_set_dirty_geom_vis(self)
+    cpdef void py_set_symmetry(self, bint x, bint y, bint z)
 
     cpdef void py_update_object(self, object py_target_object)
     cpdef void py_update_region(self, object py_region)

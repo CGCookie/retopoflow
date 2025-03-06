@@ -36,6 +36,8 @@ from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
 from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot
 
+import mathutils
+
 # ctypedef np.uint8_t uint8
 
 cdef float finf = <float>1e1000
@@ -65,6 +67,8 @@ cdef class TargetMeshAccel:
         self.last_totvert = 0
         self.last_totedge = 0
         self.last_totface = 0
+
+        self.use_symmetry = bVec3(False, False, False)
 
     def __init__(self,
         object py_object,
@@ -107,7 +111,7 @@ cdef class TargetMeshAccel:
         
         self.set_dirty()
 
-    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, bint is_perspective) nogil:
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective) nogil:
         cdef:
             int i, j
 
@@ -118,6 +122,7 @@ cdef class TargetMeshAccel:
 
         for i in range(3):
             self.view3d.view_pos[i] = view_pos[i]
+            self.view3d.view_dir[i] = view_dir[i]
 
         self.view3d.is_persp = is_perspective
 
@@ -961,6 +966,13 @@ cdef class TargetMeshAccel:
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
 
+    cpdef void py_set_symmetry(self, bint x, bint y, bint z):
+        if self.use_symmetry.x != x or self.use_symmetry.y != y or self.use_symmetry.z != z:
+            self.use_symmetry.x = x
+            self.use_symmetry.y = y
+            self.use_symmetry.z = z
+            self.py_set_dirty_accel()
+
     cpdef void py_update_bmesh(self, object py_bmesh):
         if not hasattr(self, 'py_bmesh') or id(self.py_bmesh) != id(py_bmesh):
             self.py_bmesh = py_bmesh
@@ -998,8 +1010,10 @@ cdef class TargetMeshAccel:
             view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
         else:
             view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
+        
+        view_dir = np.array(view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1)), dtype=np.float32)
 
-        self._update_view(proj_matrix, view_pos, <bint>is_perspective)
+        self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
 
     cpdef bint py_update_geometry_visibility(self):
         if not self.is_dirty_geom_vis:
