@@ -5,6 +5,7 @@
 retopoflow/cy/**/*.html
 retopoflow/cy/**/*.cpp
 retopoflow/cy/**/*.c
+retopoflow/cy/**/*.h
 retopoflow/cy/_tests/
 retopoflow/cy/_html/
 
