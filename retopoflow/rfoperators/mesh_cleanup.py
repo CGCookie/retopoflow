@@ -38,6 +38,10 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     rf_label = "Clean Up Mesh"
     RFCore = None
 
+    affect_all: bpy.props.BoolProperty(
+        default=False
+    )
+
     def draw(self, context):
         draw_cleanup_options(context, self.layout, draw_operators=False)
 
@@ -55,11 +59,16 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         edges = [ e for e in bm.edges if e.select and not e.hide ]
         faces = [ f for f in bm.faces if f.select and not f.hide ]
 
+        if self.affect_all:
+            verts = [ v for v in bm.verts if not v.hide ]
+            edges = [ e for e in bm.edges if not e.hide ]
+            faces = [ f for f in bm.faces if not f.hide ]
+
         if props.cleaning_use_merge:
             bmesh.ops.remove_doubles(bm, verts=verts, dist=props.cleaning_merge_threshold)
 
         if props.cleaning_use_delete_loose:
-            for v in bm.verts:
+            for v in verts:
                 if not v.link_edges:
                     bm.verts.remove(v)
 
@@ -70,7 +79,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
             bmesh.ops.recalc_face_normals(bm, faces=faces)
 
         if props.cleaning_use_snap:
-            for v in bm.verts:
+            for v in verts:
                 v.co = nearest_point_valid_sources(context, v.co)
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)

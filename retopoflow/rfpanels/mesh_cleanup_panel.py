@@ -50,7 +50,9 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     row.prop(props, 'cleaning_use_snap', text='To Source')
     if draw_operators:
         layout.separator()
-        layout.operator('retopoflow.meshcleanup', text='Clean Up Mesh')
+        row = layout.row()
+        row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
+        row.operator('retopoflow.meshcleanup', text='All').affect_all=True
 
 
 def draw_cleanup_panel(context, layout):

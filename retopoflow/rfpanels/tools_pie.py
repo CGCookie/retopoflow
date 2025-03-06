@@ -49,7 +49,9 @@ class RFMenu_MT_ToolPie(Menu):
         row = box.row()
         row.emboss = 'NONE'
         row.label(text='Clean Up')
-        box.operator('retopoflow.meshcleanup', text='Selected')
+        row = box.row(align=True)
+        row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
+        row.operator('retopoflow.meshcleanup', text='All').affect_all=True
 
     def draw(self, context):
         layout = self.layout
