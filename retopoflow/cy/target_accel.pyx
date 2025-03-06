@@ -912,12 +912,10 @@ cdef class TargetMeshAccel:
         self.is_dirty_accel = True
 
     cpdef void py_update_bmesh(self, object py_bmesh):
-        if hasattr(self, 'py_bmesh') and id(self.py_bmesh) == id(py_bmesh):
-            return
-
-        self.py_bmesh = py_bmesh
-        self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
-        self.bmesh = self.bmesh_pywrapper.bm
+        if not hasattr(self, 'py_bmesh') or id(self.py_bmesh) != id(py_bmesh):
+            self.py_bmesh = py_bmesh
+            self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
+            self.bmesh = self.bmesh_pywrapper.bm
 
         self._ensure_lookup_tables()
         self._ensure_indices()
