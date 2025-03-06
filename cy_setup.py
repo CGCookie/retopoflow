@@ -152,7 +152,7 @@ def build_for_architecture(arch):
 def clean_cython_cache(cy_dir):
     """Clean Cython cache and build files"""
     # Remove .c and .cpp files
-    for ext in ['.c', '.cpp']:
+    for ext in ['.c', '.cpp', '.h']:
         for file in Path(cy_dir).rglob(f'*{ext}'):
             file.unlink()
             print(f"Removed {file}")
