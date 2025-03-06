@@ -45,6 +45,20 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     def draw(self, context):
         draw_cleanup_options(context, self.layout, draw_operators=False)
 
+    def get_components(self, bm):
+        if self.affect_all:
+            return {
+                'verts': [ v for v in bm.verts if not v.hide ],
+                'edges': [ e for e in bm.edges if not e.hide ],
+                'faces': [ f for f in bm.faces if not f.hide ],
+            }
+        else:
+            return {
+                'verts': [ v for v in bm.verts if v.select and not v.hide ],
+                'edges': [ e for e in bm.edges if e.select and not e.hide ],
+                'faces': [ f for f in bm.faces if f.select and not f.hide ],
+            }
+
     def execute(self, context):
         props = RF_Prefs.get_prefs(context)
 
@@ -55,31 +69,29 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
-        verts = [ v for v in bm.verts if v.select and not v.hide ]
-        edges = [ e for e in bm.edges if e.select and not e.hide ]
-        faces = [ f for f in bm.faces if f.select and not f.hide ]
+        # This needs to be updated whenever a component gets removed
+        components = self.get_components(bm)
 
-        if self.affect_all:
-            verts = [ v for v in bm.verts if not v.hide ]
-            edges = [ e for e in bm.edges if not e.hide ]
-            faces = [ f for f in bm.faces if not f.hide ]
-
+        # Remove unnecissary verts first
         if props.cleaning_use_merge:
-            bmesh.ops.remove_doubles(bm, verts=verts, dist=props.cleaning_merge_threshold)
+            bmesh.ops.remove_doubles(bm, verts=components['verts'], dist=props.cleaning_merge_threshold)
+            components = self.get_components(bm)
 
         if props.cleaning_use_delete_loose:
-            for v in verts:
+            for v in components['verts']:
                 if not v.link_edges:
                     bm.verts.remove(v)
+            components = self.get_components(bm)
 
+        # Clean up remaining components 
         if props.cleaning_use_fill_holes:
-            bmesh.ops.holes_fill(bm, edges=edges, sides=4)
+            bmesh.ops.holes_fill(bm, edges=components['edges'], sides=4)
 
         if props.cleaning_use_recalculate_normals:
-            bmesh.ops.recalc_face_normals(bm, faces=faces)
+            bmesh.ops.recalc_face_normals(bm, faces=components['faces'])
 
         if props.cleaning_use_snap:
-            for v in verts:
+            for v in components['verts']:
                 v.co = nearest_point_valid_sources(context, v.co)
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)

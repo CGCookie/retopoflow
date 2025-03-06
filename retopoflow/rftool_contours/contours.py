@@ -335,7 +335,7 @@ class RFTool_Contours(RFTool_Base):
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            row.operator("retopoflow.meshcleanup", text='', icon='PLAY')
+            row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             layout.popover('RF_PT_Display', text='', icon='OPTIONS')
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
