@@ -39,54 +39,10 @@ from .utils cimport vec3_normalize, vec3_dot
 # ctypedef np.uint8_t uint8
 
 cdef float finf = <float>1e1000
-# _instances = {}
 
 
 @cython.binding(True)
 cdef class TargetMeshAccel:
-
-    '''@classmethod
-    def get_instance(cls,
-        object py_target_object,
-        object py_bmesh,
-        object py_region,
-        object py_rv3d):
-
-        if py_bmesh is None:
-            print("[CYTHON] Warning: py_bmesh is None, we can't create an instance for TargetMeshAccel")
-            return None
-        
-        # Use a unique key for this combination
-        key = "default"  # Or use a more specific key if needed
-        
-        if key not in _instances or _instances[key] is None:
-            print(f"[CYTHON] Creating new TargetMeshAccel instance with parameters")
-            
-            # Create a new instance with parameters
-            _instances[key] = TargetMeshAccel(
-                py_bmesh=py_bmesh,
-                py_target_object=py_target_object,
-                py_region=py_region,
-                py_rv3d=py_rv3d,
-                initialize=True
-            )
-            
-        else:
-            print(f"[CYTHON] Updating existing TargetMeshAccel instance")
-            
-            instance = _instances[key]
-            
-            # Update if needed
-            if instance.py_bmesh != py_bmesh:
-                instance.py_update_bmesh(py_bmesh)
-            if instance.py_target_object != py_target_object:
-                instance.py_update_object(py_target_object)
-            if instance.py_region != py_region:
-                instance.py_update_region(py_region)
-            if instance.py_rv3d != py_rv3d:
-                instance.py_update_view(py_rv3d)
-        
-        return _instances[key]'''
 
     def __cinit__(self):
         # Initialize C++ member variables
@@ -106,82 +62,19 @@ cdef class TargetMeshAccel:
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
 
-    '''def __init__(self, 
-                 object py_bmesh=None,
-                 object py_target_object=None, 
-                 object py_region=None, 
-                 object py_rv3d=None,
-                 bint initialize=False):
-        """Initialize with optional parameters"""
-        # Initialize Python attributes
-        self.py_bmesh = py_bmesh
-        self.py_target_object = py_target_object
-        self.py_region = py_region
-        self.py_rv3d = py_rv3d
-        
-        # Initialize C++ member pointers
-        self.bmesh = NULL
-        self.bmesh_pywrapper = NULL
-        self.region = NULL
-        self.rv3d = NULL
-        
-        # Initialize counters
-        self.totvisverts = 0
-        self.totvisedges = 0
-        self.totvisfaces = 0
-        
-        # Initialize and update if requested
-        if initialize and py_bmesh is not None:
-            self.py_update_bmesh(py_bmesh)
-            
-        if initialize and py_target_object is not None:
-            self.py_update_object(py_target_object)
-            
-        if initialize and py_region is not None:
-            self.py_update_region(py_region)
-            
-        if initialize and py_rv3d is not None:
-            self.py_update_view(py_rv3d)'''
     
     def __init__(self,
         object py_object,
         object py_bmesh,
         object py_region,
-        object py_rv3d,
-        # np.ndarray[np.float32_t, ndim=2] matrix_world,
-        # np.ndarray[np.float32_t, ndim=2] matrix_normal,
-        # np.ndarray[np.float32_t, ndim=2] proj_matrix,
-        # np.ndarray[np.float32_t, ndim=1] view_pos,
-        # bint is_perspective
+        object py_rv3d
     ):
-        print(f"[CYTHON] Accel2D.__init__({py_object}, {py_bmesh}, {py_region}, {py_rv3d})") #, {matrix_world}, {matrix_normal}, {proj_matrix}, {view_pos}, {is_perspective})\n")
+        print(f"[CYTHON] Accel2D.__init__({py_object}, {py_bmesh}, {py_region}, {py_rv3d})")
 
         self.py_update_object(py_object)
         self.py_update_bmesh(py_bmesh)
         self.py_update_region(py_region)
         self.py_update_view(py_rv3d)
-
-        return
-
-        # Store references to Python objects.
-        self.py_object = py_object
-        self.py_bmesh = py_bmesh
-        self.py_region = py_region
-        self.py_rv3d = py_rv3d
-
-        # BMesh: ensure tables and indices are up to date.
-        self._ensure_lookup_tables()
-        self._ensure_indices()
-
-        # Initialize C pointers.
-        self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
-        self.bmesh = self.bmesh_pywrapper.bm
-        self.region = <ARegion*><uintptr_t>id(py_region)
-        self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
-
-        # Update object and view matrices and other parameters.
-        self._update_object_transform(matrix_world, matrix_normal)
-        self._update_view(proj_matrix, view_pos, is_perspective)
 
     cpdef void update(self, float margin_check):
         self._ensure_lookup_tables()
