@@ -31,14 +31,19 @@ def build_for_architecture(arch):
 
     # Base compiler flags for all platforms
     compiler_flags = {
-        'Windows': ['/O2', '/std:c++17'],  # MSVC flags
-        'Darwin': ['-O3', '-std=c++17'],   # macOS/Clang flags
-        'Linux': ['-O3', '-std=c++17']     # Linux/GCC flags
+        'Windows': ['/O2', '/std:c++17', '/EHsc'],  # Added /EHsc for Windows
+        'Darwin': ['-O3', '-std=c++17'],
+        'Linux': ['-O3', '-std=c++17']
     }
 
     # Get base optimization flag for current platform
-    extra_compile_args = compiler_flags.get(platform.system(), ['-O3', '-std=c++17'])
+    system = platform.system()
+    extra_compile_args = compiler_flags.get(system, ['-O3', '-std=c++17'])
     extra_link_args = []
+
+    # Add debug output
+    print(f"System: {system}")
+    print(f"Compiler flags: {extra_compile_args}")
 
     # Add architecture flags only for macOS
     if platform.system() == 'Darwin' and arch:
@@ -123,11 +128,17 @@ def build_for_architecture(arch):
                                     'language_level': 3,
                                     'boundscheck': False,
                                     'wraparound': False,
-                                }),
+                                },
+                                # Add verbose output for debugging
+                                force=True,
+                                ),
             zip_safe=False,
         )
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error during setup: {str(e)}")
+        print("Exception details:", e.__class__.__name__)
+        import traceback
+        traceback.print_exc()
         failed = True
 
     if not failed:
