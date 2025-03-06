@@ -1,7 +1,6 @@
 import bpy, os
 from bpy.types import Menu
 from bpy.utils import previews
-from ..common.icons import get_path_to_blender_icon
 
 
 class RFMenu_MT_ToolPie(Menu):
@@ -16,10 +15,39 @@ class RFMenu_MT_ToolPie(Menu):
             tools.from_space_view3d_mode('EDIT_MESH', create=False).idname.split('.')[0] == 'retopoflow'
         )
     
+    def draw_bottom_menu(self, pie):
+        active_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False).idname
+        box = pie.column()
+        box.emboss = 'RADIAL_MENU'
+
+        if active_tool == 'retopoflow.polypen':
+            grid = box.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column()
+            col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
+            col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
+            col = row.column()
+            col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
+            col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
+
+        row = box.row()
+        row.emboss = 'NONE'
+        row.separator(type='SPACE')
+        box.operator('retopoflow.meshcleanup', text='Clean Up')
+
     def draw(self, context):
         layout = self.layout
         pie = layout.menu_pie() 
-        # Pie menus are arranged in the order West, East, South, North, Northwest, Northeast, Southwest, Southeast
+
+        for x in range(0):
+            pie.separator()
+            pie.separator()
+            self.draw_bottom_menu(pie)
+            pie.separator()
+            pie.separator()
+            pie.separator()
+            pie.separator()
+            pie.separator()
 
         # West   
         pie.operator('wm.tool_set_by_id', text='Poly Strips', icon_value=RF_icons['POLYSTRIPS'].icon_id).name='retopoflow.polystrips'
@@ -28,12 +56,7 @@ class RFMenu_MT_ToolPie(Menu):
         pie.operator('wm.tool_set_by_id', text='Tweak', icon_value=RF_icons['TWEAK'].icon_id).name='retopoflow.tweak'
 
         # South
-        pie.operator('wm.tool_set_by_id', text='Select Box').name='builtin.select_box'
-        # col = pie.box()
-        # col.label(text="Preset 1")
-        # col.label(text="Preset 2")
-        # col.label(text="Preset 3")
-        # col.label(text="Preset 4")
+        self.draw_bottom_menu(pie)
 
         # North 
         pie.operator('wm.tool_set_by_id', text='Contours', icon_value=RF_icons['CONTOURS'].icon_id).name='retopoflow.contours'
