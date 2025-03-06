@@ -588,9 +588,7 @@ class RFTool_PolyStrips(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
-
-            layout.prop(props_polystrips, 'stroke_smoothing', text='Stroke')
-
+            layout.prop(props_polystrips, 'stroke_smoothing', text='Smoothing')
             layout.prop(props_polystrips, 'split_angle', text='Angle')
 
             layout.popover('RF_PT_TweakCommon')
