@@ -66,7 +66,7 @@ class PolyPen_Insert_Modes:
         # None is a separator
         ("VERT-ONLY", "Vertex", "Insert vertices only",           1),
         ("EDGE-ONLY", "Edge", "Insert edges only",                2),
-        ("TRI-ONLY",  "Triangle",  "Insert triangles only",            3),  # 'MESH_DATA'
+        ("TRI-ONLY",  "Triangle",  "Insert triangles only",       3),  # 'MESH_DATA'
         ("TRI/QUAD",  "Tri/Quad",  "Insert triangles then quads", 0),
         ("QUAD-ONLY", "Quad", "Insert quads only",                4),
     ]
@@ -93,42 +93,11 @@ class PolyPen_Insert_Modes:
             op = type(opname, (RFTool_OT_PolyPen_SetInsertMode, RFRegisterClass, bpy.types.Operator), {})
             ops_insert += [(rf_idname, rf_label)]
 
-        class VIEW3D_MT_PIE_PolyPen(RFRegisterClass, bpy.types.Menu):
-            bl_label = 'Select PolyPen Insert Mode'
-
-            def draw(self, context):
-                nonlocal ops_insert
-                layout = self.layout
-                pie = layout.menu_pie()
-                for bl_idname, bl_label in ops_insert:
-                    pie.operator(bl_idname, text=bl_label) # icon='OBJECT_DATAMODE'
-                # # 4 - LEFT
-                # # 6 - RIGHT
-                # # 2 - BOTTOM
-                # # 8 - TOP
-                # # 7 - TOP - LEFT
-                # # 9 - TOP - RIGHT
-                # # 1 - BOTTOM - LEFT
-                # # 3 - BOTTOM - RIGHT
-                # pie.separator()
-
-        class RFTool_OT_Show_PolyPen_Pie(RFRegisterClass, bpy.types.Operator):
-            bl_idname = 'retopoflow.polypen_setinsertmode_piemenu'
-            bl_label = 'PolyPen Insert Mode Pie Menu'
-            def execute(self, context):
-                bpy.ops.wm.call_menu_pie(name="VIEW3D_MT_PIE_PolyPen")
-                return {'FINISHED'}
-
-        # gen_insert_mode('VertOnly', 'Vert-Only', 1)
+        gen_insert_mode('VertOnly', 'Vert-Only', 1)
         gen_insert_mode('EdgeOnly', 'Edge-Only', 2)
         gen_insert_mode('TriOnly',  'Tri-Only',  3)
         gen_insert_mode('TriQuad',  'Tri/Quad',  0)
         gen_insert_mode('QuadOnly', 'Quad-Only', 4)
-
-        PolyPen_Insert_Modes.rf_keymaps += [
-            (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'ACCENT_GRAVE', 'shift': True, 'value': 'PRESS'}, None),
-            (RFTool_OT_Show_PolyPen_Pie.bl_idname, {'type': 'Q', 'value': 'PRESS'}, None),
-        ]
 
     @staticmethod
     def get_insert_mode(self): return PolyPen_Insert_Modes.insert_mode
