@@ -21,6 +21,9 @@ class RFMenu_MT_ToolPie(Menu):
         box.emboss = 'RADIAL_MENU'
 
         if active_tool == 'retopoflow.polypen':
+            row = box.row()
+            row.emboss = 'NONE'
+            row.label(text='Insert Mode')
             grid = box.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
             col = row.column()
@@ -33,7 +36,10 @@ class RFMenu_MT_ToolPie(Menu):
         row = box.row()
         row.emboss = 'NONE'
         row.separator(type='SPACE')
-        box.operator('retopoflow.meshcleanup', text='Clean Up')
+        row = box.row()
+        row.emboss = 'NONE'
+        row.label(text='Clean Up')
+        box.operator('retopoflow.meshcleanup', text='Selected')
 
     def draw(self, context):
         layout = self.layout
