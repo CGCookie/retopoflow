@@ -193,7 +193,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
         if not (cyclic and i1 == len(stroke)-1):
             if (p0-p1).length > discontinuity_distance:
                 dprint('frag: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
-                return (from_edge, stroke[:i1], None, False, stroke[i1:])
+                return (from_edge, stroke[:i1], None, False, stroke[i1:], False)
 
         # check for self-intersection (skip last segment if cyclic)
         end_range = len(stroke)-1 if cyclic else len(stroke)-1
@@ -202,7 +202,7 @@ def process_stroke_get_next(stroke, from_edge, edges2D):
             p = intersect_line_line_2d(p0,p1, q0,q1)
             if not p: continue
             dprint('self: %d %d %d' % (i0, len(stroke), len(stroke)-i1))
-            return (from_edge, stroke[:i1], None, False, stroke[i1:])
+            return (from_edge, stroke[:i1], None, False, stroke[i1:], False)
 
         # check for intersections with edges
         for bme,(q0,q1) in edges2D:

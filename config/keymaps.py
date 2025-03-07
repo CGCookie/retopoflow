@@ -159,18 +159,18 @@ default_rf_keymaps = {
     'strokes tool': ['THREE', 'CTRL+ALT+B'],
     'patches tool': ['FOUR', 'CTRL+ALT+F'],
     'polypen tool': ['FIVE', 'CTRL+ALT+V'],
-    'knife tool': ['CTRL+FIVE', 'CTRL+K'],
+    'knife tool': ['SIX', 'CTRL+K'],
     'knife quick': ['K'],
-    'loops tool': ['SIX', 'CTRL+ALT+Q'],
+    'loops tool': ['SEVEN', 'CTRL+ALT+Q'],
     'loops quick': ['CTRL+R'],
-    'tweak tool': ['SEVEN', 'CTRL+ALT+G'],
+    'tweak tool': ['EIGHT', 'CTRL+ALT+G'],
     'tweak quick': ['C'],
-    'relax tool': ['EIGHT', 'CTRL+ALT+X'],
+    'relax tool': ['NINE', 'CTRL+ALT+X'],
     'relax quick': ['Z'],
-    'stretch tool': ['NINE'],          # not ported from rf279, yet
+    'stretch tool': ['CTRL+NINE'],          # not ported from rf279, yet
     'grease pencil tool': ['ZERO'],    # not ported from rf279, yet
 
-    'select tool':    ['W'],
+    'select tool':    ['ZERO', 'W'],
     'select quick':   ['B'],
 }
 

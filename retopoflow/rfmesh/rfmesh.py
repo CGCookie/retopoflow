@@ -1982,6 +1982,8 @@ class RFTarget(RFMesh):
         return rfv
 
     def new_edge(self, verts):
+        if not all(verts):
+            return None
         verts = [self._unwrap(v) for v in verts]
         bme = self.bme.edges.new(verts)
         return self._wrap_bmedge(bme)
