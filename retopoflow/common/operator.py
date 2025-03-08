@@ -112,6 +112,10 @@ class RFOperator(bpy.types.Operator):
     def is_active(cls):
         return type(RFOperator.active_operator()) is cls
 
+    @classmethod
+    def is_running(cls):
+        return any(cls is type(op) for op in RFOperator.active_operators)
+
     @staticmethod
     def get_all_RFOperators():
         return RFOperator._subclasses

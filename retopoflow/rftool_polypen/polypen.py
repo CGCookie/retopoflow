@@ -172,6 +172,10 @@ class RFOperator_PolyPen(RFOperator):
         default=1.00,
     )
 
+    @classmethod
+    def can_start(cls, context):
+        return not cls.is_running()
+
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
         self.logic = PP_Logic(context, event)
@@ -199,9 +203,6 @@ class RFOperator_PolyPen(RFOperator):
 
         if event.type == 'MOUSEMOVE':
             context.area.tag_redraw()
-            # must return RUNNING_MODAL, otherwise PP will get started over and over
-            # again due to CTRL+MOUSEMOVE is a keymap to launch PP
-            return {'RUNNING_MODAL'}
 
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 
