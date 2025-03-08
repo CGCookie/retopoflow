@@ -39,6 +39,7 @@ from ..common.operator import (
 )
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.resetter import Resetter
@@ -278,7 +279,7 @@ class RFOperator_Contours(RFOperator):
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.initial_span_count, self.initial_process_source_method)
 
     def update(self, context, event):
-        if event.value in {'CLICK', 'DOUBLE_CLICK'}:
+        if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             return {'RUNNING_MODAL'}
 
         if RFTool_Contours.rf_brush.is_cancelled:

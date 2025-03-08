@@ -37,6 +37,7 @@ from ..common.operator import (
     chain_rf_keymaps,
 )
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import clamp
@@ -392,7 +393,7 @@ class RFOperator_Strokes(RFOperator):
         )
 
     def update(self, context, event):
-        if event.value in {'CLICK', 'DOUBLE_CLICK'}:
+        if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             # prevents object selection with Ctrl+LMB Click
             return {'RUNNING_MODAL'}
 

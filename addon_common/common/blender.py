@@ -1160,3 +1160,12 @@ def bversion(short=True):
     bver_long = '%03d.%03d.%03d' % (major,minor,rev)
     bver_short = '%d.%02d' % (major, minor)
     return bver_short if short else bver_long
+
+
+def event_modifier_check(event, *, ctrl=None, shift=None, alt=None, oskey=None):
+    if ctrl  is not None and event.ctrl  != ctrl:  return False
+    if shift is not None and event.shift != shift: return False
+    if alt   is not None and event.alt   != alt:   return False
+    if oskey is not None and event.oskey != oskey: return False
+    return True
+

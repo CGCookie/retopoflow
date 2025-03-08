@@ -43,7 +43,7 @@ from ..common.maths import view_forward_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.resetter import Resetter
-from ...addon_common.common.blender import get_path_from_addon_common
+from ...addon_common.common.blender import get_path_from_addon_common, event_modifier_check
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
@@ -197,7 +197,7 @@ class RFOperator_PolyPen(RFOperator):
 
         self.logic.update(context, event, self.insert_mode, self.quad_stability)
 
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 

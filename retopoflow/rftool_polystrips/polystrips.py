@@ -41,6 +41,7 @@ from ..common.operator import (
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
+from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import clamp, Frame, Direction2D, Color
@@ -211,7 +212,7 @@ class RFOperator_PolyStrips_Insert(
                 col = layout.column(align=True)
                 col.prop(self, 'count2', text='Strip 3 Count')
                 col.prop(self, 'width2')
-                
+
             layout.prop(self, 'split_angle')
 
     def execute(self, context):
@@ -538,7 +539,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         )
 
     def update(self, context, event):
-        if event.value in {'CLICK', 'DOUBLE_CLICK'}:
+        if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             # prevents object selection with Ctrl+LMB Click
             return {'RUNNING_MODAL'}
 

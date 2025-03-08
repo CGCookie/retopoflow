@@ -47,6 +47,7 @@ from ..common.operator import (
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
+from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
@@ -233,14 +234,15 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
 
             if event.type == 'LEFTMOUSE':
                 if event.value == 'PRESS':
-                    if raycast_valid_sources(context, self.mouse):
-                        self.mouse = mouse
-                        self.mousedown = mouse
-                        self.stroke = [Point2D(mouse)]
-                        self.stroke_far = False
-                        self.stroke_cycle = False
+                    if event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
+                        if raycast_valid_sources(context, self.mouse):
+                            self.mouse = mouse
+                            self.mousedown = mouse
+                            self.stroke = [Point2D(mouse)]
+                            self.stroke_far = False
+                            self.stroke_cycle = False
 
-                        self.timer = TimerHandler(120, context=context, enabled=True)
+                            self.timer = TimerHandler(120, context=context, enabled=True)
 
                 elif event.value == 'RELEASE':
                     if self.is_stroking():
