@@ -683,13 +683,24 @@ class PP_Logic:
                 else:
                     bmv = self.bm.verts.new(self.hit)
                 bmf = next(iter(bmops.shared_link_faces([bmv0, bmv1, bmv])), None)
-                if not bmf:
+                select_now = [bmv]
+                select_later = []
+                if bmf:
+                    # split face
+                    if not bmops.shared_link_edges([bmv0, bmv]):
+                        bmf0, _ = bmesh.utils.face_split(bmf, bmv0, bmv)
+                        select_later += [bmf0]
+                        # don't know which face is touching bmv1 (bmvf or bmf0), so just grab again
+                        bmf = next(iter(bmops.shared_link_faces([bmv1, bmv])), None)
+                    if not bmops.shared_link_edges([bmv1, bmv]):
+                        bmf1, _ = bmesh.utils.face_split(bmf, bmv1, bmv)
+                        select_later += [bmf1]
+                else:
                     bmf = self.bm.faces.new((bmv0,bmv1,bmv))
                     bmf.normal_update()
                     if view_forward_direction(context).dot(bmf.normal) > 0:
                         bmf.normal_flip()
-                select_now = [bmv]
-                select_later = [bmf]
+                select_later += [bmf]
 
             case PP_Action.EDGE_QUAD_EDGE:
                 bmv0, bmv1 = self.bme.verts
