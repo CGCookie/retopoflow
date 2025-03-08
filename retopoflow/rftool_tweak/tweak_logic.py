@@ -80,13 +80,15 @@ class Tweak_Logic:
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
 
-        def is_bmvert_hidden(bmv, *, factor=0.999):
+        offset = context.space_data.overlay.retopology_offset
+
+        def is_bmvert_hidden(bmv):
             nonlocal context
             point = self.matrix_world @ point_to_bvec4(bmv.co)
             hit = raycast_valid_sources(context, point)
             if not hit: return False
             ray_e = hit['ray_world'][0]
-            return hit['distance'] < (ray_e.xyz - point.xyz).length * factor
+            return hit['distance'] < (ray_e.xyz - point.xyz).length - offset
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
