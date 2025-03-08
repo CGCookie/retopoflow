@@ -38,7 +38,7 @@ from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point
+from ...addon_common.common.maths import closest_point_segment, Point, sign
 
 
 class Relax_Logic:
@@ -49,6 +49,14 @@ class Relax_Logic:
 
         self.brush = brush
         self.relax = relax
+
+        self.mirror = set()
+        for mod in context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
 
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
@@ -302,6 +310,13 @@ class Relax_Logic:
                         if p is None or d_ < d: p, d = p_, d_
                     if p is not None:
                         co = p
+
+                if self.mirror:
+                    co_orig = self.prev[bmv]
+                    if 'x' in self.mirror and sign(co.x) != sign(co_orig.x): co.x = 0
+                    if 'y' in self.mirror and sign(co.y) != sign(co_orig.y): co.y = 0
+                    if 'z' in self.mirror and sign(co.z) != sign(co_orig.z): co.z = 0
+                    co = nearest_point_valid_sources(context, co, world=False)
 
                 co_world = self.matrix_world @ Vector((*co, 1.0))
                 co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)

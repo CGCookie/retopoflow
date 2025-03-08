@@ -38,7 +38,7 @@ from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point
+from ...addon_common.common.maths import closest_point_segment, Point, sign
 
 class Tweak_Logic:
     def __init__(self, context, event, brush, tweak):
@@ -48,6 +48,14 @@ class Tweak_Logic:
         self.bm.faces.ensure_lookup_table()
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
+
+        self.mirror = set()
+        for mod in context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
 
         self.brush = brush
         self.tweak = tweak
@@ -134,6 +142,13 @@ class Tweak_Logic:
                     if p is None or d_ < d: p, d = p_, d_
                 if p is not None:
                     new_co = p
+
+            if self.mirror:
+                if 'x' in self.mirror and sign(new_co.x) != sign(co.x): new_co.x = 0
+                if 'y' in self.mirror and sign(new_co.y) != sign(co.y): new_co.y = 0
+                if 'z' in self.mirror and sign(new_co.z) != sign(co.z): new_co.z = 0
+                new_co = nearest_point_valid_sources(context, new_co, world=False)
+
 
             if new_co: bmv.co = new_co
         bmesh.update_edit_mesh(self.em)

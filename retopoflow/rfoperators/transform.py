@@ -315,7 +315,6 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                 co = nearest_point_valid_sources(context, co, world=False)
 
             if self.mirror:
-                co_prev = Vector(co)
                 co_orig = self.bmvs_co_orig[bmv]
                 if 'x' in self.mirror and sign(co.x) != sign(co_orig.x): co.x = 0
                 if 'y' in self.mirror and sign(co.y) != sign(co_orig.y): co.y = 0
