@@ -622,7 +622,7 @@ class PP_Logic:
 
         if self.state == PP_Action.NONE: return
         # TODO: UNDO NOT PUSHING ON MULTIPLE TIMES!?!?!
-        bpy.ops.ed.undo_push(message=f'PolyPen commit {time.time()}')
+        # bpy.ops.ed.undo_push(message=f'PolyPen commit {time.time()}')
 
         # make sure artist can see the vert
         context.tool_settings.mesh_select_mode[0] = True
