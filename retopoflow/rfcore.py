@@ -135,7 +135,7 @@ class RFCore:
             print(f'Caught ReferenceError while trying to unregister')
             debugger.print_exception()
 
-        bpy.types.VIEW3D_MT_add.remove(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
         # bpy.types.VIEW3D_MT_editor_menus.remove(RFCORE_PT_Panel.draw_popover)
 
         # unwrap tool change function
