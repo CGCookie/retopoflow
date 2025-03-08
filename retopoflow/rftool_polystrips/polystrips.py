@@ -284,7 +284,8 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
     @classmethod
     def can_start(cls, context):
-        return bool(RFTool_PolyStrips.rf_overlay.instance.hovering)
+        i = RFTool_PolyStrips.rf_overlay.instance
+        return False if not i else bool(i.hovering)
 
     def init(self, context, event):
         RFOperator_PolyStrips_Insert.logic = None
