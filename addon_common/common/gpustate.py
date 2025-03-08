@@ -288,7 +288,7 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
             consts.append(line)
         elif re.match(r'#version ', sline):
             match mode:
-                case 'common': vertVersion = geoVersion = fragVersion = line, line, line
+                case 'common': vertVersion, geoVersion, fragVersion = line, line, line
                 case 'vert':   vertVersion = line
                 case 'geo':    geoVersion  = line
                 case 'frag':   fragVersion = line
@@ -360,7 +360,7 @@ def clean_shader_source(source):
     return source
 
 re_shader_var = re.compile(
-    r'((layout\((?P<layout>[^)]*)\))\s+)?'
+    r'((layout *\((?P<layout>[^)]*)\))\s+)?'
     r'((?P<qualifier>noperspective|flat|smooth)\s+)?'
     r'(?P<uio>uniform|in|out)\s+'
     r'(?P<type>[a-zA-Z0-9_]+)\s+'
@@ -625,7 +625,14 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
     shader_info.vertex_source(vert_source)
     shader_info.fragment_source(frag_source)
 
-    shader = gpu.shader.create_from_info(shader_info)
+    try:
+        shader = gpu.shader.create_from_info(shader_info)
+    except Exception as e:
+        print(f'Caught Exception {e} while trying to create shader')
+        print(vert_source)
+        print(frag_source)
+        raise e
+
     UBOs.set_shader(shader)
     del shader_interface
     del shader_info

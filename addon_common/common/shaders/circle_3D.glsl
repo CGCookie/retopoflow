@@ -51,7 +51,7 @@ noperspective out vec2 cpos;    // center of line, scaled by screensize
 void main() {
     float ang = TAU * pos.x;
     float r   = radius();
-    float rio = r + (pos.y - 0.5) * (width() + 0.0001);
+    float rio = r + (pos.y - 0.5) * (width() + 0.000001);
     vec3  c   = options.center.xyz;
     vec3  v   = options.plane_x.xyz * cos(ang) + options.plane_y.xyz * sin(ang);
     vec4  pp  = options.MVPMatrix * vec4(c + v * rio,  1.0);
@@ -70,7 +70,9 @@ noperspective in vec2 vpos;
 noperspective in vec2 cpos;
 
 out vec4  outColor;
-out float gl_FragDepth;
+
+// see comment note below before gl_FragDepth line
+layout (depth_any) out float gl_FragDepth;
 
 vec4 blender_srgb_to_framebuffer_space(vec4 in_color)
 {
@@ -93,6 +95,11 @@ void main() {
 
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(options.color * vec4(1.0,1.0,1.0,alpha));
-    gl_FragDepth = mix(depth_near(), depth_far(), (1.0 + gl_FragCoord.z) / 2.0);
+
+    // UNFORTUNATELY, as of 2025.03.08, there appears to be no way to assign to gl_FragDepth!
+    // https://developer.blender.org/docs/handbook/guidelines/glsl/#driver-differences
+    // implies that there is a way, but this is in Blender source, and this doesn't seem to be
+    // exposed to bpy :(
+    gl_FragDepth = mix(depth_far(), depth_near(), gl_FragCoord.z);
 }
 

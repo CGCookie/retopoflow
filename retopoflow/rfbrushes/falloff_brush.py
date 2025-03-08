@@ -55,7 +55,7 @@ from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources,
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
+from ...addon_common.common.maths import Color, Frame, clamp
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
@@ -79,8 +79,8 @@ def create_falloff_brush(idname, label, **kwargs):
         below_alpha     = Color((1,1,1,0.25))  # multiplied against fill_color when occluded
         brush_min_alpha = 0.100
         brush_max_alpha = 0.700
-        depth_fill      = 0.998
-        depth_border    = 0.996
+        depth_fill      = 0.998 # see note on gl_FragDepth in circle_3D.glsl
+        depth_border    = 0.996 # see note on gl_FragDepth in circle_3D.glsl
 
         # hack to know which areas the mouse is in
         mouse_areas = set()
@@ -111,7 +111,7 @@ def create_falloff_brush(idname, label, **kwargs):
         def get_scaled_radius(self):
             return self.hit_scale * self.radius
         def get_strength_dist(self, dist:float):
-            return max(0.0, min(1.0, (1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff)))) * self.strength
+            return self.strength * clamp(1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff), 0.0, 1.0)
         def get_strength_Point(self, point:Point):
             if not self.hit_p: return 0.0
             return self.get_strength_dist((point - self.hit_p).length)
@@ -152,9 +152,11 @@ def create_falloff_brush(idname, label, **kwargs):
             # print(f'  {hit=}')
             if not hit: return
             #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])
+            self.offset = min(hit['distance'] * 0.75, 1.05 * context.space_data.overlay.retopology_offset)
             scale = size2D_to_size(context, hit['distance'], pt=self.mouse)
+            scale_offset = size2D_to_size(context, hit['distance'] - self.offset, pt=self.mouse)
             # print(f'  {scale=}')
-            if scale is None: return
+            if scale is None or scale_offset is None: return
 
             n = hit['no_local']
             rmat = Matrix.Rotation(Direction.Z.angle(n), 4, Direction.Z.cross(n))
@@ -162,6 +164,7 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit = True
             self.hit_ray = hit['ray_world']
             self.hit_scale = scale
+            self.hit_scale_offset = scale_offset
             self.hit_p = hit['co_world']
             self.hit_n = hit['no_world']
             self.hit_depth = hit['distance']
@@ -199,23 +202,17 @@ def create_falloff_brush(idname, label, **kwargs):
             fillscale = Color((1, 1, 1, lerp(self.strength, self.brush_min_alpha, self.brush_max_alpha)))
 
             ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
-            p = self.hit_p - self.hit_ray[1].xyz * (1.5 * context.space_data.overlay.retopology_offset)
+            p = self.hit_p - self.hit_ray[1].xyz * self.offset
             n = self.hit_n
-            ro = self.radius * self.hit_scale
+            ro = self.radius * self.hit_scale_offset
             ri = ro * ff
             rm, rd = (ro + ri) / 2.0, (ro - ri)
-            rt = (2 + 2 * (1 + self.hit_n.dot(self.hit_ray[1]))) * self.hit_scale
+            rt = (2 + 2 * (1 + self.hit_n.dot(self.hit_ray[1]))) * self.hit_scale_offset
             co, ci, cf = self.outer_color, self.inner_color, self.fill_color * fillscale
             #print(self.hit_n, self.hit_ray[1], self.hit_n.dot(self.hit_ray[1]))
 
             gpustate.blend('ALPHA')
-            gpustate.depth_mask(False)
-
-            # draw below
-            gpustate.depth_test('GREATER')
-            Drawing.draw3D_circle(context, p, rm, cf * self.below_alpha, n=n, width=rd, depth_far=self.depth_fill)
-            Drawing.draw3D_circle(context, p, ro, co * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
-            Drawing.draw3D_circle(context, p, ri, ci * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
+            gpustate.depth_mask(True)
 
             # draw above
             gpustate.depth_test('LESS_EQUAL')
@@ -223,9 +220,15 @@ def create_falloff_brush(idname, label, **kwargs):
             Drawing.draw3D_circle(context, p, ro, co, n=n, width=rt, depth_far=self.depth_border)
             Drawing.draw3D_circle(context, p, ri, ci, n=n, width=rt, depth_far=self.depth_border)
 
+            # draw below
+            gpustate.depth_test('GREATER')
+            Drawing.draw3D_circle(context, p, rm, cf * self.below_alpha, n=n, width=rd, depth_far=self.depth_fill)
+            Drawing.draw3D_circle(context, p, ro, co * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
+            Drawing.draw3D_circle(context, p, ri, ci * self.below_alpha, n=n, width=rt, depth_far=self.depth_border)
+
             # reset
             gpustate.depth_test('LESS_EQUAL')
-            gpustate.depth_mask(True)
+            # gpustate.depth_mask(True)
 
     class RFOperator_FalloffBrush_Adjust(RFOperator):
         bl_idname      = f'retopoflow.{idname}'

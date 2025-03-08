@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 
 import time
+import math
 
 from mathutils import Vector
 from bpy_extras.view3d_utils import (
@@ -94,40 +95,16 @@ def prettyprint_matrices(*args, format='% 7.3f'):
 def size2D_to_size(context, depth3D, *, pt=None):
     w, h = context.region.width * 0.5, context.region.height * 0.5
     scale = min(w, h)
-    if False:
-        # TODO: come back to this.  this is an attempt to improve this function, but there's still something off...
-        if not pt:
-            pt = Vector((w, h, 0, 1))
-        else:
-            pt = Vector((pt[0], pt[1], 0, 1))
-        r3d = getattr(context, 'region_data', None)
-        if not r3d: return None
-        # MVP = P @ V @ M    MV = V @ M    P = MVP @ MV^-1
-        MVP  = r3d.perspective_matrix
-        MVPi = MVP.inverted()
-        MV   = r3d.view_matrix
-        MVi  = MV.inverted()
-        P    = MVP @ MVi
-        W = r3d.window_matrix
-        depth2d = P @ Vector((0, 0, depth3D, 1))
-        depth = depth2d.z / depth2d.w
-        print()
-        prettyprint_matrices("MVP = ", MVP, ' MV = ', MV, '  P = ', P)
-        o = min(w, h)
-        xy2_0 = pt + Vector((0, 0, depth, 1))  # Vector((w, h, depth, 1))
-        xy2_1 = pt + Vector((o, 0, depth, 1))  # Vector((w + o, h, depth, 1))
-        xy3_0 = MVPi @ xy2_0
-        xy3_1 = MVPi @ xy2_1
-        xy3_0 = xy3_0.xyz / xy3_0.w
-        xy3_1 = xy3_1.xyz / xy3_1.w
-        d = (xy3_0 - xy3_1).length / o
-        print(f'{d=}')
-        return d # / scale
+
     # note: scaling then unscaling helps with numerical instability when clip_start is small
     # find center of screen
-    xy = Vector((w, h))
-    xy0, xy1 = Vector((w - scale, h)), Vector((w + scale, h))
-    xy2, xy3 = Vector((w, h - scale)), Vector((w, h + scale))
+    if not pt:
+        pt = Vector((w, h))
+    else:
+        pt = Vector((pt[0], pt[1]))
+    xy = pt
+    xy0, xy1 = xy + Vector((-scale, 0)), xy + Vector((scale, 0))
+    xy2, xy3 = xy + Vector((0, -scale)), xy + Vector((0, scale))
     p3d = point2D_to_point(context, xy, depth3D)
     p3d0, p3d1 = point2D_to_point(context, xy0, depth3D), point2D_to_point(context, xy1, depth3D)
     p3d2, p3d3 = point2D_to_point(context, xy2, depth3D), point2D_to_point(context, xy3, depth3D)
@@ -135,8 +112,9 @@ def size2D_to_size(context, depth3D, *, pt=None):
     # if not p3d0 or not p3d1: return None
     d0, d1 = (p3d0 - p3d).length, (p3d1 - p3d).length
     d2, d3 = (p3d2 - p3d).length, (p3d3 - p3d).length
+    d = (d0 + d1 + d2 + d3) / 4
     # print(f'{d0} {d1} {d2} {d3}')
-    return (d0 + d1 + d2 + d3) / 4 / scale
+    return d / scale
 
 def ray_from_mouse(context, event):
     mouse = (event.mouse_region_x, event.mouse_region_y)
