@@ -252,9 +252,13 @@ class RFOperator(bpy.types.Operator):
         wm, win, area = context.window_manager, context.window, context.area
         timer = wm.event_timer_add(0.01, window=win)
         def tickled():
-            wm.event_timer_remove(timer)
-            RFOperator.tickled = None
-            RFOperator.RFCore.tag_redraw_areas()
+            try:
+                wm.event_timer_remove(timer)
+                RFOperator.tickled = None
+                RFOperator.RFCore.tag_redraw_areas()
+            except Exception as e:
+                print(f'Ignoring uncaught Exception while trying to remove event timer')
+                print(e)
         RFOperator.tickled = tickled
 
 
