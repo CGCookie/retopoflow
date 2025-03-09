@@ -87,7 +87,10 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     strips, cycles = get_boundary_strips_cycles(sel_bmes)
                     strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
                     cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
-                    self.selected_boundaries = (strips, cycles)
+                    if len(strips) + len(cycles) <= 5:
+                        self.selected_boundaries = (strips, cycles)
+                    else:
+                        self.selected_boundaries = ([], [])
                 else:
                     self.selected_boundaries = ([], [])
 
