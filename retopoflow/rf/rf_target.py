@@ -402,7 +402,7 @@ class RetopoFlow_Target:
 
     def get_point2D(self, point):
         if not point: return None
-        if point.is_2D(): return point
+        if len(point) == 2: return point
         return self.Point_to_Point2D(point)
 
     def _iter_symmetry_points(self, point, normal):
