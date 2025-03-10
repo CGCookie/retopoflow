@@ -31,9 +31,9 @@ class RFMenu_MT_ToolPie(Menu):
             row = grid.row(align=True)
             col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
-            col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
-            col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_triquad', text='Tri/Quad')
+            col = row.column(align=True)
+            col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
             col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
 
             if PolyPen_Insert_Modes.insert_mode == 4:
