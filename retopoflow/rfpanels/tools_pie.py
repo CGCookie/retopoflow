@@ -57,16 +57,6 @@ class RFMenu_MT_ToolPie(Menu):
         layout = self.layout
         pie = layout.menu_pie() 
 
-        for x in range(0):
-            pie.separator()
-            pie.separator()
-            self.draw_bottom_menu(pie)
-            pie.separator()
-            pie.separator()
-            pie.separator()
-            pie.separator()
-            pie.separator()
-
         # West   
         pie.operator('wm.tool_set_by_id', text='Poly Strips', icon_value=RF_icons['POLYSTRIPS'].icon_id).name='retopoflow.polystrips'
 
