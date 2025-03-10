@@ -65,7 +65,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
-        mesh = context.active_object.data
+        obj = context.active_object
+        mesh = obj.data
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
@@ -90,9 +91,13 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         if props.cleaning_use_recalculate_normals:
             bmesh.ops.recalc_face_normals(bm, faces=components['faces'])
 
+        if props.cleaning_flip_normals:
+            for face in components['faces']:
+                face.normal_flip()
+
         if props.cleaning_use_snap:
             for v in components['verts']:
-                v.co = nearest_point_valid_sources(context, v.co)
+                v.co = nearest_point_valid_sources(context, v.co, world=True)
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bm.to_mesh(mesh)

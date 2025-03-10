@@ -30,6 +30,12 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
+    
+    col = grid.column()
+    row = col.row(heading='Merge')
+    row = col.row(heading='Snap')
+    row.prop(props, 'cleaning_use_snap', text='To Surface')
+    col.separator()
 
     col = grid.column()
     row = col.row(heading='Merge')
@@ -39,15 +45,21 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     row.prop(props, 'cleaning_merge_threshold', text='Threshold')
     col.separator()
 
+    col = grid.column(align=True)
+    row = col.row(heading='Normals')
+    row.prop(props, 'cleaning_use_recalculate_normals', text='Recalculate')
+    row = col.row()
+    row.enabled = props.cleaning_use_recalculate_normals
+    row.prop(props, 'cleaning_flip_normals', text='Inside')
+    col.separator()
+
     col = grid.column()
     row = col.row(heading='Delete')
     row.prop(props, 'cleaning_use_delete_loose', text='Loose')
+    col.separator()
     row = col.row(heading='Fill')
     row.prop(props, 'cleaning_use_fill_holes', text='Holes')
-    row = col.row(heading='Recalculate')
-    row.prop(props, 'cleaning_use_recalculate_normals', text='Normals')
-    row = col.row(heading='Snap')
-    row.prop(props, 'cleaning_use_snap', text='To Source')
+
     if draw_operators:
         layout.separator()
         row = layout.row()
