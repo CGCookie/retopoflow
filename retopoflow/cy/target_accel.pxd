@@ -130,7 +130,7 @@ cdef class TargetMeshAccel:
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
     cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) nogil
 
     # def get_vis_verts(self, object py_bmesh, int selected_only) -> set
 
@@ -152,7 +152,7 @@ cdef class TargetMeshAccel:
     # Python exposed methods.
     # ---------------------------------------------------------------------------------------
 
-    cpdef void update(self, float margin_check)
+    cpdef void update(self, float margin_check, int selection_mode)
 
     cpdef void _ensure_bmesh(self)
 
@@ -165,7 +165,7 @@ cdef class TargetMeshAccel:
     cpdef void py_update_view(self, object py_rv3d)
     cpdef void py_update_bmesh(self, object py_bmesh)
 
-    cpdef bint py_update_geometry_visibility(self)
+    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode)
     cpdef void py_update_accel_struct(self)
 
     # Single nearest element methods

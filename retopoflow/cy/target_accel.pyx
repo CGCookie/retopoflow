@@ -83,7 +83,7 @@ cdef class TargetMeshAccel:
         self.py_update_region(py_region)
         self.py_update_view(py_rv3d)
 
-    cpdef void update(self, float margin_check):
+    cpdef void update(self, float margin_check, int selection_mode):
         print(f"[CYTHON] update() called with margin_check={margin_check}")
         print(f"[CYTHON] bmesh: {self.bmesh != NULL}")
         if self.bmesh:
@@ -93,7 +93,7 @@ cdef class TargetMeshAccel:
 
         self._ensure_bmesh()
 
-        if self._compute_geometry_visibility_in_region(margin_check) != 0:
+        if self._compute_geometry_visibility_in_region(margin_check, selection_mode) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             self._build_accel_struct()
 
@@ -231,7 +231,7 @@ cdef class TargetMeshAccel:
         self.last_totedge = self.bmesh.totedge
         self.last_totface = self.bmesh.totface
 
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check) nogil:
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
             printf("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             with gil:
@@ -344,6 +344,15 @@ cdef class TargetMeshAccel:
                 self.is_hidden_v,
                 self.is_selected_v
             )
+
+            '''if selection_mode == SelectionState.SELECTED:
+                # ONLY SELECTED
+                if not self.is_selected_v[i]:
+                    continue
+            elif selection_mode == SelectionState.UNSELECTED:
+                # ONLY UNSELECTED
+                if self.is_selected_v[i]:
+                    continue'''
 
             # Skip hidden vertices.
             if self.is_hidden_v[vert_idx]:
@@ -579,17 +588,17 @@ cdef class TargetMeshAccel:
 
         if verts:
             for i in range(bmesh.totvert):
-                if self.is_hidden_v[i] if not invert_selection else not self.is_hidden_v[i]:
+                if self.is_hidden_v[i] if invert_selection else not self.is_hidden_v[i]:
                     vis_py_verts.add(py_bm_verts[i])
 
         if edges:
             for i in range(bmesh.totedge):
-                if self.is_hidden_e[i] if not invert_selection else not self.is_hidden_e[i]:
+                if self.is_hidden_e[i] if invert_selection else not self.is_hidden_e[i]:
                     vis_py_edges.add(py_bm_edges[i])
 
         if faces:
             for i in range(bmesh.totface):
-                if self.is_hidden_f[i] if not invert_selection else not self.is_hidden_f[i]:
+                if self.is_hidden_f[i] if invert_selection else not self.is_hidden_f[i]:
                     vis_py_faces.add(py_bm_faces[i])
 
         return vis_py_verts, vis_py_edges, vis_py_faces
@@ -998,12 +1007,26 @@ cdef class TargetMeshAccel:
     cpdef void py_update_view(self, object py_rv3d):
         cdef:
             bint is_perspective
+            int i, j
+            bint is_dirty
 
         self.py_rv3d = py_rv3d
         self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
 
         view_matrix = py_rv3d.view_matrix
         proj_matrix = np.array(py_rv3d.window_matrix @ view_matrix, dtype=np.float32)
+
+        for i in range(4):
+            for j in range(4):
+                if proj_matrix[i][j] != self.view3d.proj_matrix[i][j]:
+                    is_dirty = True
+                    break
+
+        if not is_dirty:
+            return
+
+        print("[CYTHON] User is navigating! Updating view data...")
+
         is_perspective = py_rv3d.is_perspective
 
         if is_perspective:
@@ -1015,15 +1038,14 @@ cdef class TargetMeshAccel:
 
         self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
 
-    cpdef bint py_update_geometry_visibility(self):
+    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode):
         if not self.is_dirty_geom_vis:
             return True
-        return self._compute_geometry_visibility_in_region(<float>1.0) == 0
+        return self._compute_geometry_visibility_in_region(margin_check, selection_mode) == 0
 
     cpdef void py_update_accel_struct(self):
         if self.is_dirty_geom_vis:
-            if not self.py_update_geometry_visibility():
-                return
+            return
         if not self.is_dirty_accel:
             return
         self._build_accel_struct()
