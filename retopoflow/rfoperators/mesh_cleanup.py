@@ -97,7 +97,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
 
         if props.cleaning_use_snap:
             for v in components['verts']:
-                v.co = nearest_point_valid_sources(context, v.co, world=True)
+                world_co = obj.matrix_world @ v.co
+                v.co = nearest_point_valid_sources(context, world_co, world=False)
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bm.to_mesh(mesh)
