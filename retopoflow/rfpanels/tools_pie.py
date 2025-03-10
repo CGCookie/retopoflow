@@ -1,8 +1,20 @@
 import bpy, os
-from bpy.types import Menu
+from bpy.types import Menu, Operator
 from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
+
+class RFTool_OT_SwitchToPatches(Operator):
+    bl_idname = 'retopoflow.switch_to_patches'
+    bl_label = 'Switch to Patches'
+    bl_description = 'Temporary operator to show that patches cannot be switched to'
+
+    @classmethod
+    def poll(self, context):
+        return False
+    
+    def execute(self, context):
+        return {'FINISHED'}
 
 class RFMenu_MT_ToolPie(Menu):
     bl_idname = 'RF_MT_Tools'
@@ -73,7 +85,7 @@ class RFMenu_MT_ToolPie(Menu):
         pie.operator('wm.tool_set_by_id', text='Strokes', icon_value=RF_icons['STROKES'].icon_id).name='retopoflow.strokes'
 
         # Northeast
-        pie.operator('wm.tool_set_by_id', text='Patches', icon_value=RF_icons['PATCHES'].icon_id).name='retopoflow.strokes'
+        pie.operator('retopoflow.switch_to_patches', text='Patches', icon_value=RF_icons['PATCHES'].icon_id)
 
         # Southwest
         pie.operator('wm.tool_set_by_id', text='Poly Pen', icon_value=RF_icons['POLYPEN'].icon_id).name='retopoflow.polypen'
@@ -87,6 +99,7 @@ RF_icons = None
 
 
 def register():
+    bpy.utils.register_class(RFTool_OT_SwitchToPatches)
     bpy.utils.register_class(RFMenu_MT_ToolPie)
     
     wm = bpy.context.window_manager
@@ -109,6 +122,7 @@ def register():
     RF_icons.load('RELAX', os.path.join(icons_dir, 'relax-icon.png'), 'IMAGE')
 
 def unregister():
+    bpy.utils.unregister_class(RFTool_OT_SwitchToPatches)
     bpy.utils.unregister_class(RFMenu_MT_ToolPie)
 
     for keymap, keymap_item in keymaps:
