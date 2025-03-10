@@ -74,9 +74,16 @@ cdef class TargetMeshAccel:
         object py_object,
         object py_bmesh,
         object py_region,
-        object py_rv3d
+        object py_rv3d,
+        object vert_wrapper = None,
+        object edge_wrapper = None,
+        object face_wrapper = None
     ):
         print(f"[CYTHON] Accel2D.__init__({py_object}, {py_bmesh}, {py_region}, {py_rv3d})")
+
+        self.vert_wrapper = vert_wrapper
+        self.edge_wrapper = edge_wrapper
+        self.face_wrapper = face_wrapper
 
         self.py_update_object(py_object)
         self.py_update_bmesh(py_bmesh)
@@ -571,7 +578,7 @@ cdef class TargetMeshAccel:
     ______________________________________________________________________________________________________________
     '''
 
-    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True, bint invert_selection=False):
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True):
         """Return sets of visible geometry"""
         if not self.bmesh or not self.bmesh.vtable:
             printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
@@ -585,21 +592,33 @@ cdef class TargetMeshAccel:
             object py_bm_verts = py_bmesh.verts
             object py_bm_edges = py_bmesh.edges
             object py_bm_faces = py_bmesh.faces
+            object vert_wrapper = self.vert_wrapper
+            object edge_wrapper = self.edge_wrapper
+            object face_wrapper = self.face_wrapper
 
         if verts:
             for i in range(bmesh.totvert):
                 if self.is_hidden_v[i] if invert_selection else not self.is_hidden_v[i]:
-                    vis_py_verts.add(py_bm_verts[i])
+                    if wrapped:
+                        vis_py_verts.add(vert_wrapper(py_bm_verts[i]))
+                    else:
+                        vis_py_verts.add(py_bm_verts[i])
 
         if edges:
             for i in range(bmesh.totedge):
                 if self.is_hidden_e[i] if invert_selection else not self.is_hidden_e[i]:
-                    vis_py_edges.add(py_bm_edges[i])
+                    if wrapped:
+                        vis_py_edges.add(edge_wrapper(py_bm_edges[i]))
+                    else:
+                        vis_py_edges.add(py_bm_edges[i])
 
         if faces:
             for i in range(bmesh.totface):
                 if self.is_hidden_f[i] if invert_selection else not self.is_hidden_f[i]:
-                    vis_py_faces.add(py_bm_faces[i])
+                    if wrapped:
+                        vis_py_faces.add(face_wrapper(py_bm_faces[i]))
+                    else:
+                        vis_py_faces.add(py_bm_faces[i])
 
         return vis_py_verts, vis_py_edges, vis_py_faces
 

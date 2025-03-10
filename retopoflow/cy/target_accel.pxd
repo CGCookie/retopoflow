@@ -61,6 +61,10 @@ cdef class TargetMeshAccel:
         object py_rv3d
         object py_bmesh
 
+        object vert_wrapper
+        object edge_wrapper
+        object face_wrapper
+
         # BMesh reference
         BPy_BMesh* bmesh_pywrapper
         BMesh* bmesh
@@ -179,5 +183,5 @@ cdef class TargetMeshAccel:
     cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=*)
 
 
-    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
