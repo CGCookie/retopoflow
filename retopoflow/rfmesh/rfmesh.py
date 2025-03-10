@@ -60,15 +60,30 @@ from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence
 )
 
+import sys
+import os
+
+
+# Define fallback flag
+USE_CYTHON = False
+
+# Cython modules need the retopoflow module to be absolute, but new extension platform of Blender makes it harder,
+# so we have to use this HACK. Compiling for both dev and prod package paths can also lead to issues when testing or developing,
+# so this workaround is a way of having a unified solution without requiring any environment-specific settings for the Cython setup.
 try:
-    from ..cy.bmesh_visibility import (
-        compute_visible_vertices,
-        get_visible_edges_from_verts_vis_cache,
-        get_visible_faces_from_verts_vis_cache
-    )
-    USE_CYTHON = True
-except ImportError:
-    USE_CYTHON = False
+    # Production environment.
+    import bl_ext.user_default.retopoflow.retopoflow
+    sys.modules['retopoflow'] = sys.modules['bl_ext.user_default.retopoflow.retopoflow']
+except Exception:
+    # Development environment.
+    import bl_ext.vscode_development.retopoflow.retopoflow
+    sys.modules['retopoflow'] = sys.modules['bl_ext.vscode_development.retopoflow.retopoflow']
+
+try:
+    from retopoflow.cy.target_accel import TargetMeshAccel as CY_TargetMeshAccel
+except Exception as e:
+    print(f'Error: Could not import TargetMeshAccel, falling back to Python implementation: {e}')
+    CY_TargetMeshAccel = None
 
 
 class RFMesh():
@@ -1026,24 +1041,10 @@ class RFMesh():
         return _check_vert_vis
 
     @timing
-    def visible_verts(self, is_visible, verts=None, cache_indices: bool = False):
+    def visible_verts(self, is_visible, verts=None):
         if USE_CYTHON:
-            # NEW - faster - METHOD. :D
-            if verts is None or len(verts) == 0:
-                if len(self.bme.verts) == 0:
-                    return set()
-                try:
-                    self.bme.verts[0]
-                except IndexError:
-                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
-                    self.bme.verts.ensure_lookup_table()
-                verts = self.bme.verts
-
-            '''is_vis = self._gen_is_vis()
-            return {bmv for bmv in verts if is_vis(bmv)}'''
-
-            return self.get_visible_vertices(verts, cache_indices=cache_indices)
-
+            # TODO: use new CYTHON TargetMeshAccel.
+            pass
         else:
             # OLD - slower - METHOD. D:
             is_vis = self._gen_is_vis(is_visible)
@@ -1051,128 +1052,10 @@ class RFMesh():
             return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
 
     @timing
-    def get_visible_vertices(self, verts, screen_margin=0, cache_indices: bool = False):
-        """
-        Get list of visible vertex indices for an object in the current 3D view.
-        """
-        # Add check for empty mesh
-        mesh = self.obj.data
-        if len(mesh.vertices) == 0:
-            return set()  # Return empty set if no vertices exist
-
-        with time_it("prepare data", enabled=True):
-            # Get mesh data
-            matrix_world = np.array(self.obj.matrix_world, dtype=np.float32)
-            matrix_normal = np.array(self.obj.matrix_world.inverted_safe().transposed().to_3x3(), dtype=np.float32)
-            
-            # Get view parameters
-            actions = Actions.get_instance(None)
-            if actions is None:
-                raise Exception("No actions instance found")
-            r3d = actions.r3d
-            
-            # Pre-compute matrices and view parameters
-            view_matrix = r3d.view_matrix
-            proj_matrix = np.array(r3d.window_matrix @ view_matrix, dtype=np.float32)
-            is_perspective = r3d.is_perspective
-            
-            if is_perspective:
-                view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
-            else:
-                view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
-
-            ''' # rfmesh_visibility.pyx
-            verts_list = list(verts) if isinstance(verts, set) else verts
-
-            # Get mesh vertex data pointers
-            vert_ptr = mesh.vertices[0].as_pointer()
-            norm_ptr = mesh.vertex_normals[0].as_pointer()
-            num_vertices = len(mesh.vertices)
-
-            # Create mapping from vertex index to position in verts_list
-            vert_indices = np.array([v.index for v in verts_list], dtype=np.int32)
-            process_all_verts = len(mesh.vertices) == len(verts_list)
-            '''
-
-        with time_it("compute visible vertices (Cython):", enabled=True):
-            return compute_visible_vertices(
-                self.bme,
-                list(verts),  # RF's BMVert
-                matrix_world,
-                matrix_normal,
-                proj_matrix,
-                view_pos,
-                is_perspective,
-                float(1 + screen_margin),
-                cache_indices
-            )
-
-        ''' # rfmesh_visibility.pyx
-            visible_flags = compute_visible_vertices(
-                vert_ptr,
-                norm_ptr, 
-                num_vertices,
-                process_all_verts,
-                vert_indices,
-                matrix_world,
-                matrix_normal,
-                proj_matrix,
-                view_pos,
-                is_perspective,
-                float(1 + screen_margin)
-            )
-        
-        # Convert visibility flags to vertex set
-        if len(visible_flags) == 0:
-            return set()
-
-        with time_it("convert indices to vertex set", enabled=True):
-            # Create mapping from vertex index to verts_list position
-            vert_idx_to_pos = {v.index: i for i, v in enumerate(verts_list)}
-            # Get indices where visible_flags is 1
-            visible_indices = np.where(visible_flags)[0]
-            # Convert vertex indices to verts_list positions
-            visible_positions = [vert_idx_to_pos[i] for i in visible_indices if i in vert_idx_to_pos]
-            return {verts_list[i] for i in visible_positions}
-        '''
-
-    @timing
-    def visible_edges(self, is_visible, verts=None, edges=None, use_cache: bool = False):
+    def visible_edges(self, is_visible, verts=None, edges=None):
         if USE_CYTHON:
-            if use_cache:
-                try:
-                    self.bme.edges[0]
-                except IndexError:
-                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
-                    self.bme.edges.ensure_lookup_table()
-                edges = get_visible_edges_from_verts_vis_cache(self.bme) #, list(edges))
-                return edges
-
-            else:
-                if edges is None or len(edges) == 0:
-                    if len(self.bme.edges) == 0:
-                        return set()
-                    try:
-                        self.bme.edges[0]
-                    except IndexError:
-                        # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
-                        self.bme.edges.ensure_lookup_table()
-                    edges = map(self._wrap_bmedge, self.bme.edges)
-
-                is_valid = RFMesh.fn_is_valid
-
-                # Edge is visible if ANY of its vertices are visible
-                if verts is None:
-                    verts = self.visible_verts(None)
-                return set([bme for bme in edges if is_valid(bme) and\
-                    (bme.verts[0] in verts or bme.verts[1] in verts)])
-                
-                '''
-                is_vis = self._gen_is_vis()
-                
-                return {bme for bme in edges if is_valid(bme) and\
-                    (is_vis(bme.verts[0]) or is_vis(bme.verts[1]))}
-                '''
+            # TODO: use new CYTHON TargetMeshAccel.
+            pass
         else:
             is_valid = RFMesh.fn_is_valid
 
@@ -1188,50 +1071,10 @@ class RFMesh():
             return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     @timing
-    def visible_faces(self, is_visible, verts=None, faces=None, use_cache: bool = False):
+    def visible_faces(self, is_visible, verts=None, faces=None):
         if USE_CYTHON:
-            if use_cache:
-                try:
-                    self.bme.faces[0]
-                except IndexError:
-                    # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
-                    self.bme.faces.ensure_lookup_table()
-                faces = get_visible_faces_from_verts_vis_cache(self.bme) #, list(faces))
-                return faces
-
-            else:
-                if faces is None or len(faces) == 0:
-                    if len(self.bme.faces) == 0:
-                        return set()
-                    try:
-                        self.bme.faces[0]
-                    except IndexError:
-                        # BMElemSeq[index]: outdated internal index table, run ensure_lookup_table() first
-                        self.bme.faces.ensure_lookup_table()
-                    faces = map(self._wrap_bmface, self.bme.faces)
-
-                is_valid = RFMesh.fn_is_valid
-
-                # Edge is visible if ANY of its vertices are visible
-                if verts is None:
-                    verts = self.visible_verts(None)
-
-                def _check_face_verts_vis(face: RFFace) -> bool:
-                    # iterate with break if any vert is visible.
-                    for bmv in face.verts:
-                        if bmv in verts:
-                            return True
-                    return False
-
-                return set([face for face in faces if is_valid(face) and _check_face_verts_vis(face)])
-                '''
-                
-                is_vis = self._gen_is_vis()
-                return {face for face in faces if is_valid(face) and\
-                    (is_vis(face.verts[0]) or is_vis(face.verts[2]) or\
-                    is_vis(face.verts[1]) or is_vis(face.verts[3]))}
-                '''
-
+            # TODO: use new CYTHON TargetMeshAccel.
+            pass
         else:
             is_valid = RFMesh.fn_is_valid
 

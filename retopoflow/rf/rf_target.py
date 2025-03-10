@@ -504,9 +504,9 @@ class RetopoFlow_Target:
     #######################################
     # get visible geometry
 
-    def visible_verts(self, verts=None, cache_indices: bool = False):             return self.rftarget.visible_verts(self.gen_is_visible(), verts=verts, cache_indices=cache_indices)
-    def visible_edges(self, verts=None, edges=None, use_cache: bool = False): return self.rftarget.visible_edges(self.gen_is_visible(), verts=verts, edges=edges, use_cache=use_cache)
-    def visible_faces(self, verts=None, faces=None, use_cache: bool = False): return self.rftarget.visible_faces(self.gen_is_visible(), verts=verts, faces=faces, use_cache=use_cache)
+    def visible_verts(self, verts=None):             return self.rftarget.visible_verts(self.gen_is_visible(), verts=verts)
+    def visible_edges(self, verts=None, edges=None): return self.rftarget.visible_edges(self.gen_is_visible(), verts=verts, edges=edges)
+    def visible_faces(self, verts=None, faces=None): return self.rftarget.visible_faces(self.gen_is_visible(), verts=verts, faces=faces)
     def visible_geom(self): return (verts := self.visible_verts()), self.visible_edges(verts=verts), self.visible_faces(verts=verts)
 
     def nonvisible_verts(self):             return self.rftarget.visible_verts(self.gen_is_nonvisible())
