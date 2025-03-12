@@ -37,11 +37,22 @@ def draw_general_options(context, layout):
         row.prop(context.scene.tool_settings, 'use_snap_selectable', text='Non-Selectable')
         col.separator()
 
-    col = grid.column(align=True)
+    col = grid.column()
     col.label(text='Viewport')
-    col.prop(theme, 'face_retopology', text='Overlay Color')
     if hasattr(context.space_data, 'overlay'):
-        col.prop(context.space_data.overlay, 'retopology_offset', text='Offset')
+        row = col.split(factor=0.4)
+        row.alignment='RIGHT'
+        row.label(text='Overlay')
+        split = row.split(align=True, factor=1/3)
+        split.prop(theme, 'face_retopology', text='')
+        split.prop(context.space_data.overlay, 'retopology_offset', text='')
+        row = col.row(heading='Fade Sources')
+        row.prop(context.space_data.overlay, 'show_fade_inactive', text='')
+        row2 = row.row()
+        row2.enabled = context.space_data.overlay.show_fade_inactive
+        row2.prop(context.space_data.overlay, 'fade_inactive_alpha', text='')
+    else:
+        col.prop(theme, 'face_retopology', text='Overlay')
     #col.prop(props, 'highlight_color', text='Highlight')
     col.separator()
 
