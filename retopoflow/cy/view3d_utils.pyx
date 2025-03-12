@@ -9,120 +9,84 @@
 # cython: binding=True
 
 from libc.stdlib cimport malloc, free
-from libc.math cimport isfinite
+from libc.math cimport isfinite, fabs
 from libc.stdint cimport uintptr_t
 
 from .bl_types cimport ARegion, RegionView3D
+from .math_matrix cimport mul_v4_m4v4
 
 
-cdef float* location_3d_to_region_2d(const ARegion* region, const RegionView3D* rv3d, float[3] coord, float[2] default_value) noexcept nogil:
+cdef bint location_3d_to_region_2d(const ARegion* region, const float[4][4] persp_matrix, const float[3] coord, float* result) noexcept nogil:
     cdef:
         float[4] vec
-        float* result = NULL
+        float[4] prj  # Projected vector
         float w
-        short winx, winy
+        float width_half, height_half
 
-    # Store the window dimensions locally
-    winx = region.winx
-    winy = region.winy
+    # Initialize result to -10000, -10000
+    result[0] = <float>(-10000.0)
+    result[1] = <float>(-10000.0)
 
-    # Create homogeneous coordinate
+    # Prepare homogeneous coordinates
     vec[0] = coord[0]
     vec[1] = coord[1]
     vec[2] = coord[2]
     vec[3] = <float>1.0
 
-    # Apply perspective matrix
-    w = (rv3d.persmat[0][3] * vec[0] +
-         rv3d.persmat[1][3] * vec[1] +
-         rv3d.persmat[2][3] * vec[2] +
-         rv3d.persmat[3][3])
+    mul_v4_m4v4(prj, persp_matrix, vec)
 
-    if w > 0.0:
-        # Apply perspective divide and viewport transform
-        result = <float*>malloc(sizeof(float)*2)
-        if result == NULL:
-            return NULL
+    # Check if w > 0.0 (EXACTLY like Python version - no fabs, no epsilon)
+    w = prj[3]
+    if w <= 0.0:
+        return False
 
-        # Perspective divide
-        w = <float>1.0 / w
-        vec[0] = (rv3d.persmat[0][0] * coord[0] +
-                rv3d.persmat[1][0] * coord[1] +
-                rv3d.persmat[2][0] * coord[2] +
-                rv3d.persmat[3][0]) * w
-        vec[1] = (rv3d.persmat[0][1] * coord[0] +
-                rv3d.persmat[1][1] * coord[1] +
-                rv3d.persmat[2][1] * coord[2] +
-                rv3d.persmat[3][1]) * w
-
-        # Viewport transform
-        result[0] = (winx * <float>0.5) * (<float>1.0 + vec[0])
-        result[1] = (winy * <float>0.5) * (<float>1.0 + vec[1])
-
-        # Check if point is within region bounds
-        if result[0] < 0 or result[0] > winx or result[1] < 0 or result[1] > winy:
-            free(result)
-            if default_value != NULL:
-                result = <float*>malloc(sizeof(float)*2)
-                if result != NULL:
-                    result[0] = default_value[0]
-                    result[1] = default_value[1]
-            return result
-
-        # Ensure result is finite
-        if not (isfinite(result[0]) and isfinite(result[1])):
-            free(result)
-            if default_value != NULL:
-                result = <float*>malloc(sizeof(float)*2)
-                if result != NULL:
-                    result[0] = default_value[0]
-                    result[1] = default_value[1]
-            return result
-
-        return result
-
-    # Return default value if point is behind camera
-    if default_value != NULL:
-        result = <float*>malloc(sizeof(float)*2)
-        if result != NULL:
-            result[0] = default_value[0]
-            result[1] = default_value[1]
-    return result
-
-# Python wrapper
-def py_location_3d_to_region_2d(region, rv3d, coord, default=None):
-    """Return the region relative 2d location of a 3d position.
+    # Calculate window coordinates exactly like Python version
+    width_half = <float>region.winx / <float>2.0
+    height_half = <float>region.winy / <float>2.0
     
-    Args:
-        region: Region of the 3D viewport
-        rv3d: 3D region data
-        coord: 3d world-space location
-        default: Return this value if coord is behind the origin of a perspective view
-    
-    Returns:
-        2d location as (x, y) tuple or default value
+    # EXACTLY match Python calculation
+    result[0] = width_half * (prj[0] / w) + width_half
+    result[1] = height_half * (prj[1] / w) + height_half
+
+    # with gil:
+    #     print(f"\t-PROJ COORD: ({prj[0]}, {prj[1]}, {prj[2]}, {prj[3]})")
+    #     print("\t-RESULT", <float>(<double>width_half + <double>width_half * (prj[0] / w)), <float>(<double>height_half + <double>height_half * (prj[1] / w)))
+        
+    return True
+
+
+
+'''
+# WORKING PYTHON BLENDER VERSION
+
+
+def location_3d_to_region_2d(region, rv3d, coord, *, default=None):
     """
-    cdef:
-        float[3] c_coord
-        float[2] c_default
-        float* result
-        ARegion* c_region = <ARegion*>(<uintptr_t>id(region))
-        RegionView3D* c_rv3d = <RegionView3D*>(<uintptr_t>id(rv3d))
+    Return the *region* relative 2d location of a 3d position.
 
-    c_coord[0] = coord[0]
-    c_coord[1] = coord[1]
-    c_coord[2] = coord[2]
+    :arg region: region of the 3D viewport, typically bpy.context.region.
+    :type region: :class:`bpy.types.Region`
+    :arg rv3d: 3D region data, typically bpy.context.space_data.region_3d.
+    :type rv3d: :class:`bpy.types.RegionView3D`
+    :arg coord: 3d world-space location.
+    :type coord: 3d vector
+    :arg default: Return this value if ``coord``
+       is behind the origin of a perspective view.
+    :return: 2d location
+    :rtype: :class:`mathutils.Vector` | Any
+    """
+    from mathutils import Vector
 
-    if default is not None:
-        c_default[0] = default[0]
-        c_default[1] = default[1]
-        result = location_3d_to_region_2d(c_region, c_rv3d, c_coord, c_default)
+    prj = rv3d.perspective_matrix @ Vector((coord[0], coord[1], coord[2], 1.0))
+    if prj.w > 0.0:
+        width_half = region.width / 2.0
+        height_half = region.height / 2.0
+
+        return Vector((
+            width_half + width_half * (prj.x / prj.w),
+            height_half + height_half * (prj.y / prj.w),
+        ))
     else:
-        result = location_3d_to_region_2d(c_region, c_rv3d, c_coord, NULL)
+        return default
 
-    if result == NULL:
-        return None
-    
-    ret = (result[0], result[1])
-    free(result)
-    return ret
+'''
