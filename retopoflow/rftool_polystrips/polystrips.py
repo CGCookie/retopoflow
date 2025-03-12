@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+import math
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
@@ -85,12 +86,13 @@ class RFOperator_PolyStrips_Insert_Properties:
     used to prevent duplicate code across both operators
     '''
 
-    split_angle: bpy.props.IntProperty(
+    split_angle: bpy.props.FloatProperty(
         name='Split Angle',
         description='Angle threshold (in degrees) where the stroke is split to create a corner',
-        default=60,
-        min=45,
-        max=135,
+        subtype='ANGLE',
+        default=1.04719755,
+        min=0.78539816,
+        max=2.35619449,
     )
 
 

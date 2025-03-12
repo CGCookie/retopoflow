@@ -141,7 +141,7 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
         n = Direction(fn_snap_normal(p))
         dp, dn = Direction(p - pp), Direction(pn - p)
         angle = math.degrees(dp.signed_angle_between(dn, n))
-        if abs(angle) < split_angle: continue
+        if abs(angle) < math.degrees(split_angle): continue
         l.append((i, p, int(angle)))
 
     # find largest angle of connected "islands" (run of points within width of neighboring points)
