@@ -999,9 +999,9 @@ class RFMesh():
 
         # Get view direction based on view type
         if r3d.is_perspective:
-            view_position = r3d.view_matrix.inverted().translation
+            view_position = view_matrix.inverted().translation
         else:
-            view_vector = r3d.view_matrix.inverted().col[2].xyz
+            view_vector = view_matrix.inverted().col[2].xyz
 
         vis_func = RFMesh.fn_is_valid_revealed
 
