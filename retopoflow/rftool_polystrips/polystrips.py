@@ -604,7 +604,8 @@ class RFTool_PolyStrips(RFTool_Base):
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                pass
+                panel.prop(props_polystrips, 'stroke_smoothing', text='Stroke Smoothing')
+                panel.prop(props_polystrips, 'split_angle')
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_general_panel(context, layout)
