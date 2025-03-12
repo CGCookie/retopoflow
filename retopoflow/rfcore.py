@@ -242,7 +242,6 @@ class RFCore:
 
         for s in iter_all_view3d_spaces():
             RFCore.resetter['s.overlay.show_retopology'] = True
-            RFCore.resetter['s.overlay.show_object_origins'] = False
         RFCore.resetter['context.scene.tool_settings.use_snap'] = True
         RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
         RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
