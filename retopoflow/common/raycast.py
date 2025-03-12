@@ -166,6 +166,7 @@ def is_point_hidden(context, co_edit, *, factor=0.95):
 
 
 def iter_all_valid_sources(context):
+    ts = context.scene.tool_settings
     yield from (
         obj
         for obj in context.view_layer.objects
@@ -174,9 +175,12 @@ def iter_all_valid_sources(context):
             obj.mode == 'OBJECT' and
             not obj.hide_get() and
             obj.visible_get() and
-            not obj.hide_select and
             not obj.hide_viewport and
-            bool(obj.data.polygons)
+            bool(obj.data.polygons) and 
+            (   
+                not ts.use_snap_selectable or
+                (ts.use_snap_selectable and not obj.hide_select)
+            )
         )
     )
 
