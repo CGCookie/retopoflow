@@ -54,7 +54,7 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
-from ..rfpanels.display_panel import draw_display_panel
+from ..rfpanels.general_panel import draw_general_panel
 from ..common.interface import draw_line_separator
 
 import heapq
@@ -599,7 +599,7 @@ class RFTool_PolyStrips(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
 
-            layout.popover('RF_PT_Display', text='', icon='OPTIONS')
+            layout.popover('RF_PT_General', text='', icon='OPTIONS')
         else:
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
@@ -607,7 +607,7 @@ class RFTool_PolyStrips(RFTool_Base):
                 pass
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
-            draw_display_panel(context, layout)
+            draw_general_panel(context, layout)
 
     @classmethod
     def activate(cls, context):

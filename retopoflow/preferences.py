@@ -128,11 +128,11 @@ class RF_Prefs(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
-        from .rfpanels.display_panel import draw_display_options
-        header, panel = layout.panel(idname='display_panel_prefs', default_closed=True)
-        header.label(text="Display")
+        from .rfpanels.general_panel import draw_general_options
+        header, panel = layout.panel(idname='general_panel_prefs', default_closed=True)
+        header.label(text="General")
         if panel:
-            draw_display_options(context, panel)
+            draw_general_options(context, panel)
 
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)

@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from ..preferences import RF_Prefs
 
-def draw_display_options(context, layout):
+def draw_general_options(context, layout):
     props = RF_Prefs.get_prefs(context)
     theme = context.preferences.themes[0].view_3d
 
@@ -52,24 +52,24 @@ def draw_display_options(context, layout):
     col.prop(props, 'expand_masking', text='Masking Options')
 
 
-def draw_display_panel(context, layout):
-    header, panel = layout.panel(idname='display_panel_common', default_closed=True)
-    header.label(text="Display")
+def draw_general_panel(context, layout):
+    header, panel = layout.panel(idname='general_panel_common', default_closed=True)
+    header.label(text="General")
     if panel:
-        draw_display_options(context, panel)
+        draw_general_options(context, panel)
 
 
-class RFMenu_PT_Masking(bpy.types.Panel):
-    bl_label = "Display"
-    bl_idname = "RF_PT_Display"
+class RFMenu_PT_General(bpy.types.Panel):
+    bl_label = "General"
+    bl_idname = "RF_PT_General"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
 
     def draw(self, context):
-        draw_display_options(context, self.layout)
+        draw_general_options(context, self.layout)
 
 def register():
-    bpy.utils.register_class(RFMenu_PT_Masking)
+    bpy.utils.register_class(RFMenu_PT_General)
 
 def unregister():
-    bpy.utils.unregister_class(RFMenu_PT_Masking)
+    bpy.utils.unregister_class(RFMenu_PT_General)
