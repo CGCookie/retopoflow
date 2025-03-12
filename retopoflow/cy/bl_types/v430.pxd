@@ -63,6 +63,7 @@ cdef struct ARegion:
     ARegion* prev
     View2D v2d
     rcti winrct
+    rcti drawrct
     short winx, winy
     int category_scroll
     short regiontype
