@@ -23,6 +23,8 @@ import time
 import random
 import traceback
 from itertools import chain
+from enum import Enum
+import numpy as np
 
 import bpy
 
@@ -38,12 +40,15 @@ from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XFo
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
 from ...addon_common.common.maths_accel import Accel2D
 from ...addon_common.common.text import fix_string
+from ...addon_common.common.globals import Globals
+from ...addon_common.common.useractions import Actions
 
-from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
+from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace, CY_TargetMeshAccel
 from ..rfmesh.rfmesh import RFSource, RFTarget
 from ..rfmesh.rfmesh_render import RFMeshRender
 
 from .event_blocker import is_outside_working_area
+
 
 
 class RetopoFlow_Target:
@@ -52,6 +57,7 @@ class RetopoFlow_Target:
     '''
 
     @profiler.function
+    @timing
     def setup_target(self):
         ''' target is the active object.  must be selected and visible '''
         tar_object = self.get_target()
@@ -67,6 +73,24 @@ class RetopoFlow_Target:
         self.accel_data_sel   = Dict(get_default=None)
         self.accel_data_unsel = Dict(get_default=None)
         self.accel_recompute = True
+
+
+        Globals.target_accel = None
+        with time_it('[CYTHON] TargetMeshAccel initialization', enabled=True):
+            target = self.rftarget
+            actions = Actions.get_instance(None)
+            region_3d = actions.r3d
+            region = actions.region
+
+            Globals.target_accel = CY_TargetMeshAccel(
+                target.obj,
+                target.bme,
+                region,
+                region_3d,
+                RFVert,
+                RFEdge,
+                RFFace
+            )
 
         self._draw_count = 0
 
@@ -241,7 +265,7 @@ class RetopoFlow_Target:
 
         accel_data.recompute = False
 
-        match selected_only:
+        '''match selected_only:
             case None:
                 verts, edges, faces = None, None, None
             case True:
@@ -254,9 +278,12 @@ class RetopoFlow_Target:
                 faces = self.get_unselected_faces()
 
         with time_it('getting visible geometry', enabled=True):
-            accel_data.verts = self.visible_verts(verts=verts, cache_indices=True)
-            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts, use_cache=True)
-            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts, use_cache=True)
+            accel_data.verts = self.visible_verts(verts=verts)
+            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
+            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
+            print(f'[PYTHON] accel_data.verts={len(list(accel_data.verts))}')
+            print(f'[PYTHON] accel_data.edges={len(list(accel_data.edges))}')
+            print(f'[PYTHON] accel_data.faces={len(list(accel_data.faces))}')
         with time_it('building accel struct', enabled=True):
             accel_data.accel = Accel2D(
                 f'RFTarget visible geometry ({selected_only=})',
@@ -264,7 +291,64 @@ class RetopoFlow_Target:
                 accel_data.edges,
                 accel_data.faces,
                 self.iter_point2D_symmetries
-            )
+            )'''
+
+        # TEST FRAMEBUFFER and VIEWPORT INFO:
+        print(f'{Globals.framebuffer=} {Globals.viewport_info=}')
+
+        # TEST CYTHON ALTERNATIVE:
+        # Use accelerated functions for geometry processing
+        class SelectedOnly(Enum):
+            ALL = 0
+            SELECTED = 1
+            UNSELECTED = 2
+        
+        match selected_only:
+            case None:
+                selected_only = SelectedOnly.ALL
+            case True:
+                selected_only = SelectedOnly.SELECTED
+            case False:
+                selected_only = SelectedOnly.UNSELECTED
+            case _:
+                selected_only = SelectedOnly.ALL
+
+        try:
+            if Globals.target_accel is not None:
+                actions = Actions.get_instance(None)
+                region = Globals.drawing.rgn
+                Globals.target_accel.py_update_region(region)
+                region3d = Globals.drawing.r3d
+                Globals.target_accel.py_update_view(region3d)
+
+                Globals.target_accel.py_update_bmesh(self.rftarget.bme)
+                Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)
+
+                with time_it('[CYTHON] TargetMeshAccel update', enabled=True):
+                    print(f'[CYTHON] TargetMeshAccel update')
+                    Globals.target_accel.update(1.0, selected_only.value)
+
+                with time_it('[CYTHON] getting visible geometry', enabled=True):
+                    accel_data.verts, accel_data.edges, accel_data.faces = Globals.target_accel.get_visible_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
+
+                # with time_it('[CYTHON] getting selected geometry', enabled=True):
+                #     sel_verts, sel_edges, sel_faces = Globals.target_accel.get_selected_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
+                
+                # TODO: REMOVE THIS WHEN CYTHON ACCEL IS COMPLETE.
+                with time_it('[PYTHON] building accel struct', enabled=True):
+                    accel_data.accel = Accel2D(
+                        f'RFTarget visible geometry ({selected_only=})',
+                        [], #accel_data.verts,
+                        [], # accel_data.edges,
+                        [], # accel_data.faces,
+                        self.iter_point2D_symmetries
+                    )
+
+        except Exception as e:
+            # TODO: Handle possible issues.
+            print(f'[Cython] Error: {e}')
+            import sys
+            sys.exit(0)
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version
@@ -276,25 +360,30 @@ class RetopoFlow_Target:
         accel_data.ray_ignore_backface_sources = self.ray_ignore_backface_sources()
         accel_data.draw_count                  = self._draw_count
         accel_data.mirror_mod                  = (mm.x, mm.y, mm.z)
-
+        
         return accel_data
 
     @staticmethod
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
 
+    @timing
     def get_vis_verts(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts
+    @timing
     def get_vis_edges(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_edges
+    @timing
     def get_vis_faces(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_faces
+    @timing
     def get_vis_geom(self,  **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
 
+    @timing
     def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):
         verts, edges, faces = self.visible_geom()
         if selection_only is not None:
@@ -308,6 +397,7 @@ class RetopoFlow_Target:
             self.iter_point2D_symmetries if symmetry else self.iter_point2D_nosymmetry,
         )
 
+    ### @timing
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -335,6 +425,7 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmvert_Point2D(xy, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
 
+    ### @timing
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -362,6 +453,7 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmedge_Point2D(xy, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
 
+    ### @timing
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -389,6 +481,7 @@ class RetopoFlow_Target:
 
         return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.iter_point2D_symmetries, faces=faces) #, max_dist=max_dist)
 
+    ### @timing
     def accel_nearest2D_geom(self, **kwargs):
         if (vert := self.accel_nearest2D_vert(**kwargs)[0]): return vert
         if (edge := self.accel_nearest2D_edge(**kwargs)[0]): return edge
