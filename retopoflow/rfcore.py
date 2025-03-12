@@ -248,7 +248,6 @@ class RFCore:
         RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_edit'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_nonedit'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_selectable'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
