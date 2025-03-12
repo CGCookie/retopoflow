@@ -26,17 +26,27 @@ def draw_display_options(context, layout):
     props = RF_Prefs.get_prefs(context)
     theme = context.preferences.themes[0].view_3d
 
-    grid = layout.grid_flow(even_columns=True, even_rows=True)
+    grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
 
+    if hasattr(context.space_data, 'overlay'):
+        col = grid.column()
+        col.label(text='Snapping')
+        row = col.row(heading='Exclude')
+        row.prop(context.scene.tool_settings, 'use_snap_selectable', text='Non-Selectable')
+        col.separator()
+
     col = grid.column(align=True)
+    col.label(text='Viewport')
     col.prop(theme, 'face_retopology', text='Overlay Color')
     if hasattr(context.space_data, 'overlay'):
         col.prop(context.space_data.overlay, 'retopology_offset', text='Offset')
     #col.prop(props, 'highlight_color', text='Highlight')
     col.separator()
+
     col = grid.column(align=True)
+    col.label(text='Interface')
     row = col.row(heading='Expand')
     row.prop(props, 'expand_tools', text='Tools')
     col.prop(props, 'expand_masking', text='Masking Options')
