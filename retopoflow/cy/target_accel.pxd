@@ -19,6 +19,7 @@ from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeade
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from .bl_types cimport ARegion, RegionView3D
 from .vector_utils cimport bVec3
+from .bl_types.vec_types cimport rcti, rctf, BoundBox
 
 
 cdef enum SelectionState:
@@ -185,3 +186,7 @@ cdef class TargetMeshAccel:
 
     cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
+
+    cdef bint _segment2D_intersection(self, float[2] p0, float[2] p1, float[2] p2, float[2] p3) noexcept nogil
+    cdef bint _triangle2D_overlap(self, float[3][2] tri1, float[3][2] tri2) noexcept nogil
+    cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=*, bint use_shift=*) noexcept

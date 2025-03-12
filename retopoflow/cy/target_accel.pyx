@@ -8,6 +8,8 @@
 # cython: embedsignature=True
 # cython: binding=True
 
+import time
+
 import numpy as np
 cimport numpy as np
 np.import_array()  # Required for NumPy C-API
@@ -16,7 +18,7 @@ from libc.stdint cimport uintptr_t, uint8_t
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset, memcpy
 from libc.stdio cimport printf
-from libc.math cimport sqrt, fabs
+from libc.math cimport sqrt, fabs, fmin, fmax
 from cython.parallel cimport parallel, prange
 from cython.operator cimport dereference as deref, preincrement as inc
 from libcpp.vector cimport vector
@@ -24,21 +26,17 @@ from libcpp.set cimport set as cpp_set
 from libcpp.pair cimport pair
 from libcpp.iterator cimport iterator
 
-
-# from .matrix cimport mat4_invert_safe, mat4_invert, mat4_to_3x3, mat4_transpose, mat4_multiply, mat4_get_col3, mat4_get_translation
-# from .view3d_utils cimport location_3d_to_region_2d
-
 import cython
 
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMHeader, BMLoop
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh, BPy_BMVert, BPy_BMEdge, BPy_BMFace
-from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
+from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test, BM_elem_flag_set
 from .bl_types cimport ARegion, RegionView3D
-from .utils cimport vec3_normalize, vec3_dot
+from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
+from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
+from .vector_utils cimport copy_v4_to_v3, div_v3_f
 
 import mathutils
-
-# ctypedef np.uint8_t uint8
 
 cdef float finf = <float>1e1000
 
@@ -91,18 +89,21 @@ cdef class TargetMeshAccel:
         self.py_update_view(py_rv3d)
 
     cpdef void update(self, float margin_check, int selection_mode):
-        print(f"[CYTHON] update() called with margin_check={margin_check}")
+        '''print(f"[CYTHON] update() called with margin_check={margin_check}")
         print(f"[CYTHON] bmesh: {self.bmesh != NULL}")
         if self.bmesh:
             print(f"[CYTHON] vtable: {self.bmesh.vtable != NULL}")
             print(f"[CYTHON] etable: {self.bmesh.etable != NULL}")
-            print(f"[CYTHON] ftable: {self.bmesh.ftable != NULL}")
+            print(f"[CYTHON] ftable: {self.bmesh.ftable != NULL}")'''
 
         self._ensure_bmesh()
 
         if self._compute_geometry_visibility_in_region(margin_check, selection_mode) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
-            self._build_accel_struct()
+            return
+        
+        # TODO:
+        # self._build_accel_struct()
 
     def __dealloc__(self):
         self._reset()
@@ -948,6 +949,7 @@ cdef class TargetMeshAccel:
             BMVert* vert
             BMEdge* edge
             BMFace* face
+            BMHeader* head
             int i, j
         
         # Clear existing grid
@@ -981,6 +983,218 @@ cdef class TargetMeshAccel:
                 inc(face_it)
 
         self.is_dirty_accel = False
+
+
+    # ------------------------------------------------------------------------------------
+    # Select-Box Utils.
+    # ------------------------------------------------------------------------------------
+
+    cdef bint _segment2D_intersection(self, float[2] p0, float[2] p1, float[2] p2, float[2] p3) noexcept nogil:
+        cdef:
+            float s1_x = p1[0] - p0[0]
+            float s1_y = p1[1] - p0[1]
+            float s2_x = p3[0] - p2[0]
+            float s2_y = p3[1] - p2[1]
+            float s = (-s1_y * (p0[0] - p2[0]) + s1_x * (p0[1] - p2[1])) / (-s2_x * s1_y + s1_x * s2_y)
+            float t = (s2_x * (p0[1] - p2[1]) - s2_y * (p0[0] - p2[0])) / (-s2_x * s1_y + s1_x * s2_y)
+
+        return (s >= 0 and s <= 1 and t >= 0 and t <= 1)
+
+    cdef bint _triangle2D_overlap(self, float[3][2] tri1, float[3][2] tri2) noexcept nogil:
+        # Simple AABB overlap test for triangles
+        cdef:
+            float min_x1 = fmin(fmin(tri1[0][0], tri1[1][0]), tri1[2][0])
+            float max_x1 = fmax(fmax(tri1[0][0], tri1[1][0]), tri1[2][0])
+            float min_y1 = fmin(fmin(tri1[0][1], tri1[1][1]), tri1[2][1])
+            float max_y1 = fmax(fmax(tri1[0][1], tri1[1][1]), tri1[2][1])
+            float min_x2 = fmin(fmin(tri2[0][0], tri2[1][0]), tri2[2][0])
+            float max_x2 = fmax(fmax(tri2[0][0], tri2[1][0]), tri2[2][0])
+            float min_y2 = fmin(fmin(tri2[0][1], tri2[1][1]), tri2[2][1])
+            float max_y2 = fmax(fmax(tri2[0][1], tri2[1][1]), tri2[2][1])
+
+        return not (max_x1 < min_x2 or min_x1 > max_x2 or max_y1 < min_y2 or min_y1 > max_y2)
+
+    cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept:
+        """Select geometry within the given box coordinates"""
+        cdef:
+            cpp_set[BMVert*].iterator vert_it
+            cpp_set[BMEdge*].iterator edge_it
+            cpp_set[BMFace*].iterator face_it
+            BMVert* vert
+            BMEdge* edge
+            BMFace* face
+            BMLoop* loop
+            BMHeader* head
+            float[2] screen_pos
+            float[3] world_pos
+            float[4] vec4
+            float w
+            int i, j, k
+            bint inside_box
+            bint selection_changed
+            float[4][4] persmat = self.rv3d.persmat # persmatob # persmat
+            float[4][4] mw = self.matrix_world
+            cdef float[3] origin_world = [0, 0, 0]  # Will store first vertex world pos
+            cdef bint is_first = True
+
+        '''print("[PYTHON] PERSPECTIVE MATRIX:")
+        mat = self.py_rv3d.perspective_matrix
+        for i in range(4):
+            for j in range(4):
+                print("\t", mat[i][j])
+        print("[PYTHON]", self.py_region.width, self.py_region.height)
+        print("[CYTHON] PERSPECTIVE MATRIX:")
+        for i in range(4):
+            for j in range(4):
+                print("\t", perspmat[j][i])
+        print("[CYTHON] REGION SIZE:", self.region.winx, self.region.winy)'''
+
+        '''print("[CYTHON] MATRIX WORLD:")
+        for i in range(4):
+            for j in range(4):
+                print("\t", mw[j][i])'''
+
+        # Iterate over visible geometry based on type
+        if select_geometry_type == GeomType.VERT:
+            
+            
+            vert_it = self.visverts.begin()
+            while vert_it != self.visverts.end():
+                vert = deref(vert_it)
+
+                # Local to World space transformation
+                '''for i in range(3):
+                    world_pos[i] = (mw[i][0] * vert.co[0] +
+                                  mw[i][1] * vert.co[1] +
+                                  mw[i][2] * vert.co[2] +
+                                  mw[i][3])'''
+
+                # Local to World space transformation (l2w_point equivalent)
+                # Convert to homogeneous coordinates and transform
+                # v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
+                # return Point(v.xyz / v.w)
+                vec4[0] = vert.co[0]
+                vec4[1] = vert.co[1]
+                vec4[2] = vert.co[2]
+                vec4[3] = <float>1.0
+
+                mul_m4_v4(mw, vec4)  # local to world space
+                copy_v4_to_v3(vec4, world_pos)  # xyz
+                w = vec4[3]  # w
+                div_v3_f(world_pos, w)  # v.xyz / v.w
+
+                '''for i in range(3):
+                    world_pos[i] = 0
+                    for j in range(3):
+                        world_pos[i] += mw[j][i] * vert.co[j]
+                    world_pos[i] += mw[3][i]
+
+                # Get w component for perspective divide
+                w = mw[0][3] * vert.co[0] + \
+                    mw[1][3] * vert.co[1] + \
+                    mw[2][3] * vert.co[2] + \
+                    mw[3][3]
+
+                # Perspective divide if needed
+                if w != 1.0 and w != 0.0:
+                    for i in range(3):
+                        world_pos[i] /= w'''
+                
+                # Store first vertex world position as origin
+                '''if is_first:
+                    for i in range(3):
+                        origin_world[i] = world_pos[i]
+                    is_first = False
+                else:
+                    # Scale around first vertex position
+                    for i in range(3):
+                        world_pos[i] = origin_world[i] + 2.0 * (world_pos[i] - origin_world[i])'''
+
+                location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
+
+                # print(f"[CYTHON] Info: Vertex {vert.head.index} - ({world_pos[0]}, {world_pos[1]}, {world_pos[2]}) - ({screen_pos[0]}, {screen_pos[1]})")
+
+                # Check if vertex is inside box
+                if (left <= screen_pos[0] <= right) and (bottom <= screen_pos[1] <= top):
+                    head = &vert.head
+                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    selection_changed = True
+                inc(vert_it)
+
+        elif select_geometry_type == GeomType.EDGE:
+            edge_it = self.visedges.begin()
+            while edge_it != self.visedges.end():
+                edge = deref(edge_it)
+                inside_box = False
+                
+                # Check both vertices of the edge
+                for i in range(2):
+                    vert = <BMVert*>(edge.v1 if i == 0 else edge.v2)
+                    for j in range(3):
+                        world_pos[j] = vert.co[j]
+                        for k in range(3):
+                            world_pos[j] += self.matrix_world[k][j] * vert.co[k]
+                        world_pos[j] += self.matrix_world[3][j]
+                    
+                    location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
+                    
+                    if left <= screen_pos[0] <= right and bottom <= screen_pos[1] <= top:
+                        inside_box = True
+                        break
+                
+                if inside_box:
+                    # Select edge and its vertices
+                    head = &edge.head
+                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    head = &(<BMVert*>edge.v1).head
+                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    head = &(<BMVert*>edge.v2).head
+                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    selection_changed = True
+                inc(edge_it)
+
+        elif select_geometry_type == GeomType.FACE:
+            face_it = self.visfaces.begin()
+            while face_it != self.visfaces.end():
+                face = deref(face_it)
+                inside_box = False
+                
+                # Check all vertices of the face
+                loop = <BMLoop*>face.l_first
+                while loop:
+                    vert = <BMVert*>loop.v
+                    for j in range(3):
+                        world_pos[j] = vert.co[j]
+                        for k in range(3):
+                            world_pos[j] += self.matrix_world[k][j] * vert.co[k]
+                        world_pos[j] += self.matrix_world[3][j]
+                    
+                    location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
+                    
+                    if left <= screen_pos[0] <= right and bottom <= screen_pos[1] <= top:
+                        inside_box = True
+                        break
+                        
+                    loop = <BMLoop*>loop.next
+                    if loop == <BMLoop*>face.l_first:
+                        break
+                
+                if inside_box:
+                    # Select face and all its vertices
+                    head = &face.head
+                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    
+                    loop = <BMLoop*>face.l_first
+                    while loop:
+                        head = &(<BMVert*>loop.v).head
+                        BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                        loop = <BMLoop*>loop.next
+                        if loop == <BMLoop*>face.l_first:
+                            break
+                    selection_changed = True
+                inc(face_it)
+
+        return selection_changed
 
 
     # ---------------------------------------------------------------------------------------
@@ -1021,7 +1235,9 @@ cdef class TargetMeshAccel:
             return
 
         self.py_region = py_region
-        self.region = <ARegion*><uintptr_t>id(py_region)
+        self.region = <ARegion*><uintptr_t>py_region.as_pointer()
+
+        # print("region size:", self.region.winx, self.region.winy)
 
     cpdef void py_update_view(self, object py_rv3d):
         cdef:
@@ -1029,11 +1245,33 @@ cdef class TargetMeshAccel:
             int i, j
             bint is_dirty
 
-        self.py_rv3d = py_rv3d
-        self.rv3d = <RegionView3D*><uintptr_t>id(py_rv3d)
+        # Force view update if possible
+        # if hasattr(py_rv3d, 'update'):
+        #     py_rv3d.update()
 
-        view_matrix = py_rv3d.view_matrix
-        proj_matrix = np.array(py_rv3d.window_matrix @ view_matrix, dtype=np.float32)
+        self.py_rv3d = py_rv3d
+        self.rv3d = <RegionView3D*><uintptr_t>py_rv3d.as_pointer()
+
+        # Print winmat and viewmat for debugging
+        '''print("[DEBUG] ID:", id(py_rv3d))
+        print("[DEBUG] winmat and viewmat:")
+        print(f"\twinmat: {[list(row) for row in py_rv3d.window_matrix]}")
+        print(f"\tviewmat: {[list(row) for row in py_rv3d.view_matrix]}")
+
+        # Print raw persmat from RegionView3D struct
+        print("[CY] Raw persmat from RegionView3D:")
+        for i in range(4):
+            print(f"\t{[self.rv3d.persmat[j][i] for j in range(4)]}")
+
+        # Print perspective_matrix from Python
+        print("[PY] perspective_matrix from Python:")
+        py_persmat = np.array(py_rv3d.perspective_matrix)
+        for i in range(4):
+            print(f"\t{py_persmat[i]}")'''
+
+        proj_matrix = np.array(py_rv3d.perspective_matrix.copy(), dtype=np.float32)
+
+        # print("proj matrix:", list(proj_matrix))
 
         for i in range(4):
             for j in range(4):
@@ -1044,16 +1282,16 @@ cdef class TargetMeshAccel:
         if not is_dirty:
             return
 
-        print("[CYTHON] User is navigating! Updating view data...")
+        # print("[CYTHON] User is navigating! Updating view data...")
 
         is_perspective = py_rv3d.is_perspective
 
         if is_perspective:
-            view_pos = np.array(view_matrix.inverted().translation, dtype=np.float32)
+            view_pos = np.array(py_rv3d.view_matrix.inverted().translation, dtype=np.float32)
         else:
-            view_pos = np.array(view_matrix.inverted().col[2].xyz, dtype=np.float32)
+            view_pos = np.array(py_rv3d.view_matrix.inverted().col[2].xyz, dtype=np.float32)
         
-        view_dir = np.array(view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1)), dtype=np.float32)
+        view_dir = np.array(py_rv3d.view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1)), dtype=np.float32)
 
         self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
 
