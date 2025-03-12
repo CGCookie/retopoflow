@@ -37,9 +37,10 @@ from ...addon_common.common.maths import (
 from ...addon_common.common.fsm import FSM
 from ...addon_common.common.boundvar import BoundBool, BoundInt, BoundFloat, BoundString
 from ...addon_common.common.maths import segment2D_intersection, Point2D, triangle2D_overlap
-from ...addon_common.common.profiler import profiler
+from ...addon_common.common.profiler import profiler, timing
 from ...addon_common.common.utils import iter_pairs, delay_exec, Dict
 from ...config.options import options, themes
+from ...addon_common.common.globals import Globals
 
 
 class Select(RFTool):
@@ -107,11 +108,39 @@ class Select(RFTool):
         self.rfcontext.undo_push('invert selection')
         self.rfcontext.select_invert()
 
+    @timing
     @RFWidget.on_action('Select: Box')
     def selectbox(self):
         box = self.rfwidgets['selectbox']
         p0, p1 = box.box2D
         if not p0 or not p1: return
+
+        (x0, y0), (x1, y1) = p0, p1
+        
+        left, right = min(x0, x1), max(x0, x1)
+        bottom, top = min(y0, y1), max(y0, y1)
+        
+        ## print(f"selectbox: left={left}, right={right}, bottom={bottom}, top={top}")
+
+        ctrl = box.mods['ctrl']
+        shift = box.mods['shift']
+
+        self.rfcontext.undo_push('select box')
+        
+        r3d = self.rfcontext.actions.r3d
+        Globals.target_accel.py_update_view(r3d)
+
+        match options['select geometry']:
+            case 'Verts':
+                Globals.target_accel.select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
+            case 'Edges':
+                Globals.target_accel.select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
+            case 'Faces':
+                Globals.target_accel.select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
+                
+        self.rfcontext.dirty(selectionOnly=True)
+
+        '''
 
         (x0, y0), (x1, y1) = p0, p1
         left, right = min(x0, x1), max(x0, x1)
@@ -169,7 +198,7 @@ class Select(RFTool):
         if   box.mods['ctrl']:  self.rfcontext.select(self.rfcontext.get_selected_verts() - verts, only=True)   # del verts from selection
         elif box.mods['shift']: self.rfcontext.select(verts, only=False)                                        # add vert to selection
         else:                   self.rfcontext.select(verts, only=True)                                         # replace selection
-
+        '''
 
     @FSM.on_state('move', 'enter')
     def move_enter(self):
