@@ -81,9 +81,11 @@ except Exception:
 
 try:
     from retopoflow.cy.target_accel import TargetMeshAccel as CY_TargetMeshAccel
+    from retopoflow.cy.rfmesh_render import MeshRenderAccel as CY_MeshRenderAccel
 except Exception as e:
     print(f'Error: Could not import TargetMeshAccel, falling back to Python implementation: {e}')
     CY_TargetMeshAccel = None
+    CY_MeshRenderAccel = None
 
 
 class RFMesh():

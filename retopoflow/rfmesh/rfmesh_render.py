@@ -47,7 +47,7 @@ from ...addon_common.common.debug import dprint, Debugger
 from ...addon_common.common.decorators import stats_wrapper
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.hasher import hash_object, hash_bmesh
-from ...addon_common.common.profiler import profiler
+from ...addon_common.common.profiler import profiler, timing, time_it
 from ...addon_common.common.maths import (
     Point, Direction, Normal, Frame,
     Point2D, Vec2D, Direction2D,
@@ -60,6 +60,7 @@ from ...config.options import options
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence,
 )
+from .rfmesh import CY_MeshRenderAccel
 
 
 
@@ -192,6 +193,7 @@ class RFMeshRender():
             }
         self.dirty()
 
+    @timing
     @profiler.function
     def _gather_data(self):
         if not self.split:
@@ -209,6 +211,18 @@ class RFMeshRender():
         mirror_z = 'z' in mirror_axes
 
         layer_pin = self.rfmesh.layer_pin
+        
+        # Create accelerator instance
+        if CY_MeshRenderAccel is not None:
+            accel = CY_MeshRenderAccel(
+                self.bmesh, 
+                mirror_x=mirror_x,
+                mirror_y=mirror_y,
+                mirror_z=mirror_z,
+                layer_pin=layer_pin
+            )
+        else:
+            accel = None
 
         def gather(verts, edges, faces, static):
             vert_count = 100_000
@@ -300,24 +314,36 @@ class RFMeshRender():
                                 self.add_buffered_render(BufferedRender_Batch.LINES, edge_data, static)
 
                     if self.load_verts:
-                        verts = [bmv for bmv in verts if bmv.is_valid and not bmv.hide]
-                        l = len(verts)
-                        for i0 in range(0, l, vert_count):
-                            i1 = min(l, i0 + vert_count)
-                            vert_data = {
-                                'vco':  [ tuple(bmv.co)     for bmv in verts[i0:i1] ],
-                                'vno':  [ tuple(bmv.normal) for bmv in verts[i0:i1] ],
-                                'sel':  [ sel(bmv)          for bmv in verts[i0:i1] ],
-                                'warn': [ warn_vert(bmv)    for bmv in verts[i0:i1] ],
-                                'pin':  [ pin_vert(bmv)     for bmv in verts[i0:i1] ],
-                                'seam': [ seam_vert(bmv)    for bmv in verts[i0:i1] ],
-                                'idx':  None,  # list(range(len(self.bmesh.verts))),
-                            }
+                        def _process_vert_data(_vert_data):
                             if self.async_load:
-                                self.buf_data_queue.put((BufferedRender_Batch.POINTS, vert_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.POINTS, _vert_data, static))
                                 tag_redraw_all('buffer update')
                             else:
-                                self.add_buffered_render(BufferedRender_Batch.POINTS, vert_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.POINTS, _vert_data, static)
+
+                        if accel is not None:
+                            with time_it('[CYTHON] gather vert data for RFMeshRender', enabled=True):
+                                vert_data = accel.gather_vert_data()
+                            with time_it('[PYTHON] process vert data', enabled=True):
+                                if vert_data:
+                                    _process_vert_data(vert_data)
+                        else:
+                            with time_it('[PYTHON] gather vert data for RFMeshRender', enabled=True):
+                                verts = [bmv for bmv in verts if bmv.is_valid and not bmv.hide]
+                                l = len(verts)
+                                for i0 in range(0, l, vert_count):
+                                    i1 = min(l, i0 + vert_count)
+                                    vert_data = {
+                                        'vco':  [ tuple(bmv.co)     for bmv in verts[i0:i1] ],
+                                        'vno':  [ tuple(bmv.normal) for bmv in verts[i0:i1] ],
+                                        'sel':  [ sel(bmv)          for bmv in verts[i0:i1] ],
+                                        'warn': [ warn_vert(bmv)    for bmv in verts[i0:i1] ],
+                                        'pin':  [ pin_vert(bmv)     for bmv in verts[i0:i1] ],
+                                        'seam': [ seam_vert(bmv)    for bmv in verts[i0:i1] ],
+                                        'idx':  None,  # list(range(len(self.bmesh.verts))),
+                                    }
+                                    _process_vert_data(vert_data)
+                                
 
                     if self.async_load:
                         self.buf_data_queue.put('done')
@@ -403,6 +429,7 @@ class RFMeshRender():
 
         profiler.add_note('--> passed through')
 
+    @timing
     @profiler.function
     def draw(
         self,
