@@ -1062,7 +1062,8 @@ cdef class TargetMeshAccel:
         box[3] = top
 
         if not use_ctrl and not use_shift:
-            self.deselect_all(GeomType.BM_ALL)
+            if self.deselect_all(GeomType.BM_ALL):
+                selection_changed = True
 
         '''print("[PYTHON] PERSPECTIVE MATRIX:")
         mat = self.py_rv3d.perspective_matrix
@@ -1088,7 +1089,10 @@ cdef class TargetMeshAccel:
                 vert = deref(vert_it)
                 if self._vert_inside_box(vert, box):
                     head = &vert.head
-                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    if use_ctrl:
+                        BM_elem_flag_clear(head, BMElemHFlag.BM_ELEM_SELECT)
+                    else:
+                        BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
                 inc(vert_it)
 
@@ -1100,9 +1104,14 @@ cdef class TargetMeshAccel:
                 if self._vert_inside_box(<BMVert*>edge.v1, box) or\
                    self._vert_inside_box(<BMVert*>edge.v2, box):
                     # Select edge and its vertices
-                    BM_elem_flag_set(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
-                    BM_elem_flag_set(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT)
-                    BM_elem_flag_set(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT)
+                    if use_ctrl:
+                        BM_elem_flag_clear(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+                        BM_elem_flag_clear(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT)
+                        BM_elem_flag_clear(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT)
+                    else:
+                        BM_elem_flag_set(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+                        BM_elem_flag_set(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT)
+                        BM_elem_flag_set(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
                 inc(edge_it)
 
@@ -1114,11 +1123,18 @@ cdef class TargetMeshAccel:
                 loop = <BMLoop*>face.l_first
                 while 1:
                     if self._vert_inside_box(<BMVert*>loop.v, box):
-                        BM_elem_flag_set(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                        if use_ctrl:
+                            BM_elem_flag_clear(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                        else:
+                            BM_elem_flag_set(&face.head, BMElemHFlag.BM_ELEM_SELECT)
                         loop = <BMLoop*>face.l_first
                         while loop:
-                            BM_elem_flag_set(&(<BMVert*>loop.v).head, BMElemHFlag.BM_ELEM_SELECT)
-                            BM_elem_flag_set(&(<BMVert*>loop.e).head, BMElemHFlag.BM_ELEM_SELECT)
+                            if use_ctrl:
+                                BM_elem_flag_clear(&(<BMVert*>loop.v).head, BMElemHFlag.BM_ELEM_SELECT)
+                                BM_elem_flag_clear(&(<BMVert*>loop.e).head, BMElemHFlag.BM_ELEM_SELECT)
+                            else:
+                                BM_elem_flag_set(&(<BMVert*>loop.v).head, BMElemHFlag.BM_ELEM_SELECT)
+                                BM_elem_flag_set(&(<BMVert*>loop.e).head, BMElemHFlag.BM_ELEM_SELECT)
                             loop = <BMLoop*>loop.next
                             if loop == <BMLoop*>face.l_first:
                                 break
@@ -1138,54 +1154,57 @@ cdef class TargetMeshAccel:
     # Selection Utils.
     # ---------------------------------------------------------------------------------------
 
-    cdef void deselect_all(self, GeomType geom_type = GeomType.BM_ALL) noexcept nogil:
+    cdef bint deselect_all(self, GeomType geom_type = GeomType.BM_ALL) noexcept nogil:
         if self.bmesh == NULL:
-            return
+            return False
 
         cdef:
-            int i = 0
+            int vi, ei, fi
             BMVert** vtable
             BMVert* vert
             BMEdge** etable
             BMEdge* edge
             BMFace** ftable
             BMFace* face
+            bint selection_changed = False
 
-        if geom_type == GeomType.BM_VERT or geom_type == GeomType.BM_ALL:
-            if self.bmesh.totvertsel == 0:
-                return
+        if (geom_type == GeomType.BM_VERT) or (geom_type == GeomType.BM_ALL):
             vtable = self.bmesh.vtable
             if vtable == NULL:
-                return
-            for i in prange(self.bmesh.totvert):
-                vert = vtable[i]
+                return selection_changed
+            for vi in prange(self.bmesh.totvert):
+                vert = vtable[vi]
                 if vert == NULL:
                     continue
-                BM_elem_flag_clear(&vert.head, BMElemHFlag.BM_ELEM_SELECT)
-        
-        if geom_type == GeomType.BM_EDGE or geom_type == GeomType.BM_ALL:
-            if self.bmesh.totedgesel == 0:
-                return
+                if BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_SELECT):
+                    BM_elem_flag_clear(&vert.head, BMElemHFlag.BM_ELEM_SELECT)
+                    selection_changed = True
+
+        if (geom_type == GeomType.BM_EDGE) or (geom_type == GeomType.BM_ALL):
             etable = self.bmesh.etable
             if etable == NULL:
-                return
-            for i in prange(self.bmesh.totedge):
-                edge = etable[i]
+                return selection_changed
+            for ei in prange(self.bmesh.totedge):
+                edge = etable[ei]
                 if edge == NULL:
                     continue
-                BM_elem_flag_clear(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+                if BM_elem_flag_test(&edge.head, BMElemHFlag.BM_ELEM_SELECT):
+                    BM_elem_flag_clear(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+                    selection_changed = True
 
-        if geom_type == GeomType.BM_FACE or geom_type == GeomType.BM_ALL:
-            if self.bmesh.totfacesel == 0:
-                return
+        if (geom_type == GeomType.BM_FACE) or (geom_type == GeomType.BM_ALL):
             ftable = self.bmesh.ftable
             if ftable == NULL:
-                return
-            for i in prange(self.bmesh.totface):
-                face = ftable[i]
+                return selection_changed
+            for fi in prange(self.bmesh.totface):
+                face = ftable[fi]
                 if face == NULL:
                     continue
-                BM_elem_flag_clear(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                if BM_elem_flag_test(&face.head, BMElemHFlag.BM_ELEM_SELECT):
+                    BM_elem_flag_clear(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                    selection_changed = True
+
+        return selection_changed
 
 
     # ---------------------------------------------------------------------------------------

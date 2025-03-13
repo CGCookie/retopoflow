@@ -129,7 +129,7 @@ cdef class TargetMeshAccel:
     cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil
 
     # Selection utils.
-    cdef void deselect_all(self, GeomType geom_type=*) noexcept nogil
+    cdef bint deselect_all(self, GeomType geom_type=*) noexcept nogil
 
     # Search methods
     cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
