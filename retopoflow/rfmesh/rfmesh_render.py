@@ -451,7 +451,6 @@ class RFMeshRender():
 
         profiler.add_note('--> passed through')
 
-    @timing
     @profiler.function
     def draw(
         self,
