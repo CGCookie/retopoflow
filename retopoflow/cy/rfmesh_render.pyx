@@ -89,41 +89,6 @@ cdef class MeshRenderAccel:
     
     cdef float seam_face(self, BMFace* face) noexcept nogil:
         return <float>0.0
-    
-    '''
-    cdef vector[TriFace] triangulate_face(self, BMFace* face) nogil:
-        cdef:
-            vector[TriFace] tri_faces
-            TriFace tri
-            BMLoop* l_first = <BMLoop*>face.l_first
-            BMLoop* l_iter = l_first
-            BMLoop* l_prev
-            BMVert* v_first
-            BMVert* v_prev
-            BMVert* v_curr
-            int i = 0
-            
-        # Simple fan triangulation for convex faces
-        # For complex faces, we'd need a more robust algorithm
-        v_first = <BMVert*>l_first.v
-        l_iter = <BMLoop*>l_first.next
-        v_prev = v_first
-        
-        while l_iter != l_first and i < face.len - 2:
-            v_curr = <BMVert*>l_iter.v
-            
-            tri.face = face
-            tri.verts[0] = v_first
-            tri.verts[1] = v_prev
-            tri.verts[2] = v_curr
-            
-            tri_faces.push_back(tri)
-            
-            v_prev = v_curr
-            l_iter = <BMLoop*>l_iter.next
-            i += 1
-            
-        return tri_faces'''
 
     cpdef dict gather_vert_data(self):
         """Gather BMesh vert data"""
