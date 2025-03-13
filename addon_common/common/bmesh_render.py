@@ -37,6 +37,7 @@ import math
 import ctypes
 import random
 import traceback
+import numpy as np
 
 import gpu
 import bpy
@@ -116,6 +117,10 @@ class BufferedRender_Batch:
     POINTS    = 1
     LINES     = 2
     TRIANGLES = 3
+    
+    # Class-level constants for the offset patterns
+    POINT_OFFSETS = np.array([(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)], dtype=np.float32)
+    LINE_OFFSETS = np.array([(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)], dtype=np.float32)
 
     def __init__(self, drawtype):
         global faces_shader, edges_shader, verts_shader
@@ -131,38 +136,72 @@ class BufferedRender_Batch:
 
     def buffer(self, pos, norm, sel, warn, pin, seam):
         if self.shader == None: return
-        if self.shader_type == 'POINTS':
-            data = {
-                # repeat each value 6 times
-                'vert_pos':    [p for p in pos  for __ in range(6)],
-                'vert_norm':   [n for n in norm for __ in range(6)],
-                'selected':    [s for s in sel  for __ in range(6)],
-                'warning':     [w for w in warn for __ in range(6)],
-                'pinned':      [p for p in pin  for __ in range(6)],
-                'seam':        [p for p in seam for __ in range(6)],
-                'vert_offset': [o for _ in pos for o in [(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)]],
+        use_np = isinstance(pos, np.ndarray)
+        if use_np:
+            if self.shader_type == 'POINTS':
+                # Use numpy's repeat instead of list comprehension
+                data = {
+                    'vert_pos': np.repeat(pos, 6, axis=0),
+                    'vert_norm': np.repeat(norm, 6, axis=0),
+                    'selected': np.repeat(sel, 6),
+                    'warning': np.repeat(warn, 6),
+                    'pinned': np.repeat(pin, 6),
+                    'seam': np.repeat(seam, 6),
+                    'vert_offset': np.tile(self.POINT_OFFSETS, (len(pos), 1))
+                }
+            elif self.shader_type == 'LINES':
+                # Split line vertices and repeat
+                data = {
+                    'vert_pos0': np.repeat(pos[::2], 6, axis=0),
+                    'vert_pos1': np.repeat(pos[1::2], 6, axis=0),
+                    'vert_norm': np.repeat(norm[::2], 6, axis=0),
+                    'selected': np.repeat(sel[::2], 6),
+                    'warning': np.repeat(warn[::2], 6),
+                    'pinned': np.repeat(pin[::2], 6),
+                    'seam': np.repeat(seam[::2], 6),
+                    'vert_offset': np.tile(self.LINE_OFFSETS, (len(pos)//2, 1))
+                }
+            elif self.shader_type == 'TRIS':
+                # Triangles don't need expansion
+                data = {
+                    'vert_pos': pos,
+                    'vert_norm': norm,
+                    'selected': sel,
+                    'pinned': pin,
+                }
+        else:
+            if self.shader_type == 'POINTS':
+                data = {
+                    # repeat each value 6 times
+                    'vert_pos':    [p for p in pos  for __ in range(6)],
+                    'vert_norm':   [n for n in norm for __ in range(6)],
+                    'selected':    [s for s in sel  for __ in range(6)],
+                    'warning':     [w for w in warn for __ in range(6)],
+                    'pinned':      [p for p in pin  for __ in range(6)],
+                    'seam':        [p for p in seam for __ in range(6)],
+                    'vert_offset': [o for _ in pos for o in [(0,0), (1,0), (0,1), (0,1), (1,0), (1,1)]],
+                }
+            elif self.shader_type == 'LINES':
+                data = {
+                    # repeat each value 6 times
+                    'vert_pos0':   [p0 for p0 in pos [0::2] for __ in range(6)],
+                    'vert_pos1':   [p1 for p1 in pos [1::2] for __ in range(6)],
+                    'vert_norm':   [n  for n  in norm[0::2] for __ in range(6)],
+                    'selected':    [s  for s  in sel [0::2] for __ in range(6)],
+                    'warning':     [w  for w  in warn[0::2] for __ in range(6)],
+                    'pinned':      [p  for p  in pin [0::2] for __ in range(6)],
+                    'seam':        [s  for s  in seam[0::2] for __ in range(6)],
+                    'vert_offset': [o for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
             }
-        elif self.shader_type == 'LINES':
-            data = {
-                # repeat each value 6 times
-                'vert_pos0':   [p0 for p0 in pos [0::2] for __ in range(6)],
-                'vert_pos1':   [p1 for p1 in pos [1::2] for __ in range(6)],
-                'vert_norm':   [n  for n  in norm[0::2] for __ in range(6)],
-                'selected':    [s  for s  in sel [0::2] for __ in range(6)],
-                'warning':     [w  for w  in warn[0::2] for __ in range(6)],
-                'pinned':      [p  for p  in pin [0::2] for __ in range(6)],
-                'seam':        [s  for s  in seam[0::2] for __ in range(6)],
-                'vert_offset': [o for _ in pos[0::2] for o in [(0,0), (0,1), (1,1), (0,0), (1,1), (1,0)]],
-        }
-        elif self.shader_type == 'TRIS':
-            data = {
-                'vert_pos':    pos,
-                'vert_norm':   norm,
-                'selected':    sel,
-                'pinned':      pin,
-                # 'seam':        seam,
-            }
-        else: assert False, f'BufferedRender_Batch.buffer: Unhandled type: {self.shader_type}'
+            elif self.shader_type == 'TRIS':
+                data = {
+                    'vert_pos':    pos,
+                    'vert_norm':   norm,
+                    'selected':    sel,
+                    'pinned':      pin,
+                    # 'seam':        seam,
+                }
+            else: assert False, f'BufferedRender_Batch.buffer: Unhandled type: {self.shader_type}'
         self.batch = batch_for_shader(self.shader, 'TRIS', data)
         self.count = len(pos)
 
