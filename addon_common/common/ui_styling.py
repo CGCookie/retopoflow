@@ -611,6 +611,7 @@ class UI_Styling:
     def load_from_file(self, filename):
         text = open(filename, 'rt').read()
         self.load_from_text(text)
+        self.initialized = True
 
     @profiler.function
     def load_from_text(self, text):
@@ -900,6 +901,7 @@ class UI_Styling:
         self._rules = []
         self._decllist_cache = {}
         self._matches_cache = {}
+        self.initialized = False
         if lines:
             self.load_from_text(lines)
         self.dirty_optimization()
@@ -1116,6 +1118,9 @@ class UI_Styling:
 ui_defaultstylings = UI_Styling(defaults=True)
 def load_defaultstylings():
     global ui_defaultstylings
+    if ui_defaultstylings.initialized:
+        # It is loaded. No need to reload.
+        return
     path = get_path_from_addon_common('common', 'config', 'ui_defaultstyles.css')
     if os.path.exists(path): ui_defaultstylings.load_from_file(path)
     else: ui_defaultstylings.rules = []

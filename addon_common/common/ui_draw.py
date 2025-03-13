@@ -131,6 +131,8 @@ class UI_Draw:
 
     @staticmethod
     def load_stylesheet(path):
+        if UI_Draw.default_stylesheet is not None:
+            return
         UI_Draw.default_stylesheet = UI_Styling.from_file(path)
 
     def update(self): pass
