@@ -123,7 +123,10 @@ cdef class TargetMeshAccel:
     cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil
     cdef void _find_cells_in_range(self, float x, float y, float radius, 
                             vector[GridCell*]* cells) noexcept nogil
-    
+
+    # Space-conversion utilities.
+    cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil
+
     # Search methods
     cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
                                 GeomType filter_type) noexcept nogil
@@ -190,3 +193,4 @@ cdef class TargetMeshAccel:
     cdef bint _segment2D_intersection(self, float[2] p0, float[2] p1, float[2] p2, float[2] p3) noexcept nogil
     cdef bint _triangle2D_overlap(self, float[3][2] tri1, float[3][2] tri2) noexcept nogil
     cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=*, bint use_shift=*) noexcept
+    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box)

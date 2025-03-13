@@ -34,7 +34,7 @@ from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test, BM_elem_flag_
 from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
 from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
-from .vector_utils cimport copy_v4_to_v3, div_v3_f
+from .vector_utils cimport copy_v4_to_v3, div_v3_f, copy_v3f_to_v4
 
 import mathutils
 
@@ -571,6 +571,27 @@ cdef class TargetMeshAccel:
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
 
+    
+    # ----------------------------------------------------------------------------------------
+    # Space Convert Utilities.
+    # ----------------------------------------------------------------------------------------
+
+    cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil:
+        cdef:
+            float[4] vec4
+            float[3] world_pos
+
+        # Local to World space transformation (l2w_point equivalent)
+        # Convert to homogeneous coordinates and transform
+        # v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
+        # return Point(v.xyz / v.w)
+        copy_v3f_to_v4(point3d, <float>1.0, vec4)
+        mul_m4_v4(self.matrix_world, vec4)  # local to world space
+        copy_v4_to_v3(vec4, world_pos)  # xyz
+        w = vec4[3]  # w
+        div_v3_f(world_pos, w)  # v.xyz / v.w
+
+        location_3d_to_region_2d(self.region, self.rv3d.persmat, world_pos, &point2d[0])
 
     '''
     ______________________________________________________________________________________________________________
@@ -1014,6 +1035,12 @@ cdef class TargetMeshAccel:
 
         return not (max_x1 < min_x2 or min_x1 > max_x2 or max_y1 < min_y2 or min_y1 > max_y2)
 
+    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box):
+        """Check if vertex is inside box"""
+        cdef float[2] screen_pos
+        self.l2w_point(vert.co, screen_pos)
+        return (box[0] <= screen_pos[0] <= box[1]) and (box[2] <= screen_pos[1] <= box[3])
+
     cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept:
         """Select geometry within the given box coordinates"""
         cdef:
@@ -1025,17 +1052,14 @@ cdef class TargetMeshAccel:
             BMFace* face
             BMLoop* loop
             BMHeader* head
-            float[2] screen_pos
-            float[3] world_pos
-            float[4] vec4
-            float w
             int i, j, k
-            bint inside_box
             bint selection_changed
-            float[4][4] persmat = self.rv3d.persmat # persmatob # persmat
-            float[4][4] mw = self.matrix_world
-            cdef float[3] origin_world = [0, 0, 0]  # Will store first vertex world pos
-            cdef bint is_first = True
+            float[4] box
+
+        box[0] = left
+        box[1] = right
+        box[2] = bottom
+        box[3] = top
 
         '''print("[PYTHON] PERSPECTIVE MATRIX:")
         mat = self.py_rv3d.perspective_matrix
@@ -1056,66 +1080,10 @@ cdef class TargetMeshAccel:
 
         # Iterate over visible geometry based on type
         if select_geometry_type == GeomType.VERT:
-            
-            
             vert_it = self.visverts.begin()
             while vert_it != self.visverts.end():
                 vert = deref(vert_it)
-
-                # Local to World space transformation
-                '''for i in range(3):
-                    world_pos[i] = (mw[i][0] * vert.co[0] +
-                                  mw[i][1] * vert.co[1] +
-                                  mw[i][2] * vert.co[2] +
-                                  mw[i][3])'''
-
-                # Local to World space transformation (l2w_point equivalent)
-                # Convert to homogeneous coordinates and transform
-                # v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
-                # return Point(v.xyz / v.w)
-                vec4[0] = vert.co[0]
-                vec4[1] = vert.co[1]
-                vec4[2] = vert.co[2]
-                vec4[3] = <float>1.0
-
-                mul_m4_v4(mw, vec4)  # local to world space
-                copy_v4_to_v3(vec4, world_pos)  # xyz
-                w = vec4[3]  # w
-                div_v3_f(world_pos, w)  # v.xyz / v.w
-
-                '''for i in range(3):
-                    world_pos[i] = 0
-                    for j in range(3):
-                        world_pos[i] += mw[j][i] * vert.co[j]
-                    world_pos[i] += mw[3][i]
-
-                # Get w component for perspective divide
-                w = mw[0][3] * vert.co[0] + \
-                    mw[1][3] * vert.co[1] + \
-                    mw[2][3] * vert.co[2] + \
-                    mw[3][3]
-
-                # Perspective divide if needed
-                if w != 1.0 and w != 0.0:
-                    for i in range(3):
-                        world_pos[i] /= w'''
-                
-                # Store first vertex world position as origin
-                '''if is_first:
-                    for i in range(3):
-                        origin_world[i] = world_pos[i]
-                    is_first = False
-                else:
-                    # Scale around first vertex position
-                    for i in range(3):
-                        world_pos[i] = origin_world[i] + 2.0 * (world_pos[i] - origin_world[i])'''
-
-                location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
-
-                # print(f"[CYTHON] Info: Vertex {vert.head.index} - ({world_pos[0]}, {world_pos[1]}, {world_pos[2]}) - ({screen_pos[0]}, {screen_pos[1]})")
-
-                # Check if vertex is inside box
-                if (left <= screen_pos[0] <= right) and (bottom <= screen_pos[1] <= top):
+                if self._vert_inside_box(vert, box):
                     head = &vert.head
                     BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
@@ -1125,31 +1093,13 @@ cdef class TargetMeshAccel:
             edge_it = self.visedges.begin()
             while edge_it != self.visedges.end():
                 edge = deref(edge_it)
-                inside_box = False
-                
                 # Check both vertices of the edge
-                for i in range(2):
-                    vert = <BMVert*>(edge.v1 if i == 0 else edge.v2)
-                    for j in range(3):
-                        world_pos[j] = vert.co[j]
-                        for k in range(3):
-                            world_pos[j] += self.matrix_world[k][j] * vert.co[k]
-                        world_pos[j] += self.matrix_world[3][j]
-                    
-                    location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
-                    
-                    if left <= screen_pos[0] <= right and bottom <= screen_pos[1] <= top:
-                        inside_box = True
-                        break
-                
-                if inside_box:
+                if self._vert_inside_box(<BMVert*>edge.v1, box) or\
+                   self._vert_inside_box(<BMVert*>edge.v2, box):
                     # Select edge and its vertices
-                    head = &edge.head
-                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
-                    head = &(<BMVert*>edge.v1).head
-                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
-                    head = &(<BMVert*>edge.v2).head
-                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
+                    BM_elem_flag_set(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+                    BM_elem_flag_set(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT)
+                    BM_elem_flag_set(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
                 inc(edge_it)
 
@@ -1157,41 +1107,25 @@ cdef class TargetMeshAccel:
             face_it = self.visfaces.begin()
             while face_it != self.visfaces.end():
                 face = deref(face_it)
-                inside_box = False
-                
                 # Check all vertices of the face
                 loop = <BMLoop*>face.l_first
-                while loop:
-                    vert = <BMVert*>loop.v
-                    for j in range(3):
-                        world_pos[j] = vert.co[j]
-                        for k in range(3):
-                            world_pos[j] += self.matrix_world[k][j] * vert.co[k]
-                        world_pos[j] += self.matrix_world[3][j]
-                    
-                    location_3d_to_region_2d(self.region, persmat, world_pos, &screen_pos[0])
-                    
-                    if left <= screen_pos[0] <= right and bottom <= screen_pos[1] <= top:
-                        inside_box = True
+                while 1:
+                    if self._vert_inside_box(<BMVert*>loop.v, box):
+                        BM_elem_flag_set(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                        loop = <BMLoop*>face.l_first
+                        while loop:
+                            BM_elem_flag_set(&(<BMVert*>loop.v).head, BMElemHFlag.BM_ELEM_SELECT)
+                            BM_elem_flag_set(&(<BMVert*>loop.e).head, BMElemHFlag.BM_ELEM_SELECT)
+                            loop = <BMLoop*>loop.next
+                            if loop == <BMLoop*>face.l_first:
+                                break
+                        selection_changed = True
                         break
-                        
+
                     loop = <BMLoop*>loop.next
                     if loop == <BMLoop*>face.l_first:
                         break
-                
-                if inside_box:
-                    # Select face and all its vertices
-                    head = &face.head
-                    BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
-                    
-                    loop = <BMLoop*>face.l_first
-                    while loop:
-                        head = &(<BMVert*>loop.v).head
-                        BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
-                        loop = <BMLoop*>loop.next
-                        if loop == <BMLoop*>face.l_first:
-                            break
-                    selection_changed = True
+
                 inc(face_it)
 
         return selection_changed
