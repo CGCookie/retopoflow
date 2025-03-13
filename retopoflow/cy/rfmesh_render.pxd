@@ -38,3 +38,5 @@ cdef class MeshRenderAccel:
     
     # Main data gathering methods
     cpdef dict gather_vert_data(self)
+    cpdef dict gather_edge_data(self)
+    cpdef dict gather_face_data(self)

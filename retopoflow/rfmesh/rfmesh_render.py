@@ -270,51 +270,73 @@ class RFMeshRender():
                 # selection will bleed
                 with profiler.code('gathering', enabled=not self.async_load):
                     if self.load_faces:
-                        tri_faces = [(bmf, list(bmvs))
-                                     for bmf in faces
-                                     if bmf.is_valid and not bmf.hide
-                                     for bmvs in triangulateFace(bmf.verts)
-                                     ]
-                        l = len(tri_faces)
-                        for i0 in range(0, l, face_count):
-                            i1 = min(l, i0 + face_count)
-                            face_data = {
-                                'vco':  [ tuple(bmv.co)     for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
-                                'vno':  [ tuple(bmv.normal) for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
-                                'sel':  [ sel(bmf)          for bmf, verts in tri_faces[i0:i1] for _   in verts ],
-                                'warn': [ warn_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
-                                'pin':  [ pin_face(bmf)     for bmf, verts in tri_faces[i0:i1] for _   in verts ],
-                                'seam': [ seam_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
-                                'idx': None,  # list(range(len(tri_faces)*3)),
-                            }
+                        def _process_face_data(_face_data: dict):
                             if self.async_load:
-                                self.buf_data_queue.put((BufferedRender_Batch.TRIANGLES, face_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.TRIANGLES, _face_data, static))
                                 tag_redraw_all('buffer update')
                             else:
-                                self.add_buffered_render(BufferedRender_Batch.TRIANGLES, face_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.TRIANGLES, _face_data, static)
+
+                        if accel is not None:
+                            with time_it('[CYTHON] gather face data for RFMeshRender', enabled=True):
+                                face_data = accel.gather_face_data()
+                            with time_it('[PYTHON] process face data', enabled=True):
+                                if face_data:
+                                    _process_face_data(face_data)
+                        else:
+                            with time_it('[PYTHON] gather face data for RFMeshRender', enabled=True):
+                                tri_faces = [(bmf, list(bmvs))
+                                            for bmf in faces
+                                            if bmf.is_valid and not bmf.hide
+                                            for bmvs in triangulateFace(bmf.verts)
+                                            ]
+                                l = len(tri_faces)
+                                for i0 in range(0, l, face_count):
+                                    i1 = min(l, i0 + face_count)
+                                    face_data = {
+                                        'vco':  [ tuple(bmv.co)     for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
+                                        'vno':  [ tuple(bmv.normal) for bmf, verts in tri_faces[i0:i1] for bmv in verts ],
+                                        'sel':  [ sel(bmf)          for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                        'warn': [ warn_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                        'pin':  [ pin_face(bmf)     for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                        'seam': [ seam_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
+                                        'idx': None,  # list(range(len(tri_faces)*3)),
+                                    }
+                                _process_face_data(face_data)
 
                     if self.load_edges:
-                        edges = [bme for bme in edges if bme.is_valid and not bme.hide]
-                        l = len(edges)
-                        for i0 in range(0, l, edge_count):
-                            i1 = min(l, i0 + edge_count)
-                            edge_data = {
-                                'vco':  [ tuple(bmv.co)     for bme in edges[i0:i1] for bmv in bme.verts ],
-                                'vno':  [ tuple(bmv.normal) for bme in edges[i0:i1] for bmv in bme.verts ],
-                                'sel':  [ sel(bme)          for bme in edges[i0:i1] for _   in bme.verts ],
-                                'warn': [ warn_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
-                                'pin':  [ pin_edge(bme)     for bme in edges[i0:i1] for _   in bme.verts ],
-                                'seam': [ seam_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
-                                'idx': None,  # list(range(len(self.bmesh.edges)*2)),
-                            }
+                        def _process_edge_data(_edge_data: dict):
                             if self.async_load:
-                                self.buf_data_queue.put((BufferedRender_Batch.LINES, edge_data, static))
+                                self.buf_data_queue.put((BufferedRender_Batch.LINES, _edge_data, static))
                                 tag_redraw_all('buffer update')
                             else:
-                                self.add_buffered_render(BufferedRender_Batch.LINES, edge_data, static)
+                                self.add_buffered_render(BufferedRender_Batch.LINES, _edge_data, static)
+
+                        if accel is not None:
+                            with time_it('[CYTHON] gather edge data for RFMeshRender', enabled=True):
+                                edge_data = accel.gather_edge_data()
+                            with time_it('[PYTHON] process edge data', enabled=True):
+                                if edge_data:
+                                    _process_edge_data(edge_data)
+                        else:
+                            with time_it('[PYTHON] gather edge data for RFMeshRender', enabled=True):
+                                edges = [bme for bme in edges if bme.is_valid and not bme.hide]
+                                l = len(edges)
+                                for i0 in range(0, l, edge_count):
+                                    i1 = min(l, i0 + edge_count)
+                                    edge_data = {
+                                        'vco':  [ tuple(bmv.co)     for bme in edges[i0:i1] for bmv in bme.verts ],
+                                        'vno':  [ tuple(bmv.normal) for bme in edges[i0:i1] for bmv in bme.verts ],
+                                        'sel':  [ sel(bme)          for bme in edges[i0:i1] for _   in bme.verts ],
+                                        'warn': [ warn_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
+                                        'pin':  [ pin_edge(bme)     for bme in edges[i0:i1] for _   in bme.verts ],
+                                        'seam': [ seam_edge(bme)    for bme in edges[i0:i1] for _   in bme.verts ],
+                                        'idx': None,  # list(range(len(self.bmesh.edges)*2)),
+                                    }
+                                    _process_edge_data(edge_data)
 
                     if self.load_verts:
-                        def _process_vert_data(_vert_data):
+                        def _process_vert_data(_vert_data: dict):
                             if self.async_load:
                                 self.buf_data_queue.put((BufferedRender_Batch.POINTS, _vert_data, static))
                                 tag_redraw_all('buffer update')

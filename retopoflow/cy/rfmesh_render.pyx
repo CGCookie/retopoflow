@@ -126,10 +126,19 @@ cdef class MeshRenderAccel:
         return tri_faces'''
 
     cpdef dict gather_vert_data(self):
-        """Gather vertex data in Cython for better performance"""
+        """Gather BMesh vert data"""
         if self.bmesh == NULL or self.bmesh.vtable == NULL:
-            print("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
-            return {}
+            print("[CYTHON] Error: gather_face_edge() - bmesh or etable is NULL\n")
+            return {
+                'vco': np.zeros((0, 3), dtype=np.float32),
+                'vno': np.zeros((0, 3), dtype=np.float32),
+                'sel': np.zeros(0, dtype=np.float32),
+                'warn': np.zeros(0, dtype=np.float32),
+                'pin': np.zeros(0, dtype=np.float32),
+                'seam': np.zeros(0, dtype=np.float32),
+                'indices': np.zeros(0, dtype=np.int32),
+                'count': 0
+            }
 
         cdef:
             BMVert* vert
@@ -147,13 +156,9 @@ cdef class MeshRenderAccel:
             np.ndarray[np.float32_t, ndim=1] seam
             np.ndarray[np.int32_t, ndim=1] indices
             np.ndarray[np.int32_t, ndim=1] valid_indices
-        
-        print(">>>>> 1")
-        
+
         # First, create an array to mark valid vertices with their index
         valid_indices = np.full(self.bmesh.totvert, -1, dtype=np.int32)
-
-        print(">>>>> 2")
 
         try:
             # First pass: count valid vertices and assign indices
@@ -171,8 +176,6 @@ cdef class MeshRenderAccel:
             print(f"Error in gather_vert_data: {str(e)}")
             print(traceback.format_exc())
 
-        print(">>>>> 3")
-
         # Allocate NumPy arrays with the exact size needed
         vco = np.zeros((totvalidverts, 3), dtype=np.float32)
         vno = np.zeros((totvalidverts, 3), dtype=np.float32)
@@ -182,43 +185,36 @@ cdef class MeshRenderAccel:
         seam = np.zeros(totvalidverts, dtype=np.float32)
         indices = np.zeros(totvalidverts, dtype=np.int32)
 
-        print(">>>>> 4")
-
         # Second pass
-        with nogil, parallel():
-            for i in prange(self.bmesh.totvert):
-                if valid_indices[i] == -1:
-                    continue
-                    
-                vert = vtable[i]
-                valid_idx = valid_indices[i]
+        for i in prange(self.bmesh.totvert, nogil=True):
+            if valid_indices[i] == -1:
+                continue
                 
-                # Store vertex index for later reference
-                indices[valid_idx] = i
+            vert = vtable[i]
+            valid_idx = valid_indices[i]
+            
+            # Store vertex index for later reference
+            indices[valid_idx] = i
 
-                # Fill coordinate and normal data
-                for j in range(3):
-                    vco[valid_idx, j] = vert.co[j]
-                    vno[valid_idx, j] = vert.no[j]
+            # Fill coordinate and normal data
+            for j in range(3):
+                vco[valid_idx, j] = vert.co[j]
+                vno[valid_idx, j] = vert.no[j]
 
-                # Fill selection state
-                sel[valid_idx] = self.sel_elem(&vert.head)
-                
-                # Fill warning state
-                warn[valid_idx] = self.warn_vert(vert)
-                
-                # Fill seam state
-                seam[valid_idx] = self.seam_elem(&vert.head)  # TODO: self.seam_vert(vert)
-
-        print(">>>>> 5")
+            # Fill selection state
+            sel[valid_idx] = self.sel_elem(&vert.head)
+            
+            # Fill warning state
+            warn[valid_idx] = self.warn_vert(vert)
+            
+            # Fill seam state
+            seam[valid_idx] = self.seam_elem(&vert.head)  # TODO: self.seam_vert(vert)
 
         # Handle pin state which requires Python interaction
         if self.layer_pin:
             for i in range(totvalidverts):
                 bmv = py_verts[indices[i]]
-                pin[i] = 1.0 if bmv[self.layer_pin] else 0.0
-
-        print(">>>>> 6")
+                pin[i] = <float>1.0 if bmv[self.layer_pin] else <float>0.0
 
         # Return as a dictionary of NumPy arrays
         return {
@@ -232,117 +228,327 @@ cdef class MeshRenderAccel:
             'count': totvalidverts
         }
 
-    '''cpdef gather_edge_data(self, edges):
-        """Gather edge data in Cython for better performance"""
+    cpdef dict gather_edge_data(self):
+        """Gather BMesh edge data"""
+        if self.bmesh == NULL or self.bmesh.etable == NULL:
+            print("[CYTHON] Error: gather_face_edge() - bmesh or etable is NULL\n")
+            return {
+                'vco': np.zeros((0, 3), dtype=np.float32),
+                'vno': np.zeros((0, 3), dtype=np.float32),
+                'sel': np.zeros(0, dtype=np.float32),
+                'warn': np.zeros(0, dtype=np.float32),
+                'pin': np.zeros(0, dtype=np.float32),
+                'seam': np.zeros(0, dtype=np.float32),
+                'indices': np.zeros(0, dtype=np.int32),
+                'count': 0
+            }
+
         cdef:
-            vector[EdgeData] edge_data_vec
-            EdgeData ed
             BMEdge* edge
             BMVert* v0
             BMVert* v1
-            int i, j
-            
-        for bme in edges:
-            if not bme.is_valid or bme.hide:
+            int i, j, k
+            float sel_val, warn_val, seam_val, pin_val
+            BMEdge** etable = self.bmesh.etable
+            object py_edges = self.py_bmesh.edges
+            int totvalidedges = 0
+            int valid_idx
+            np.ndarray[np.float32_t, ndim=2] vco
+            np.ndarray[np.float32_t, ndim=2] vno
+            np.ndarray[np.float32_t, ndim=1] sel
+            np.ndarray[np.float32_t, ndim=1] warn
+            np.ndarray[np.float32_t, ndim=1] pin
+            np.ndarray[np.float32_t, ndim=1] seam
+            np.ndarray[np.int32_t, ndim=1] indices
+            np.ndarray[np.int32_t, ndim=1] valid_indices
+        
+        # First, create an array to mark valid edges with their index.
+        valid_indices = np.full(self.bmesh.totedge, -1, dtype=np.int32)
+
+        # First pass: count valid edges and assign indices.
+        for i in range(self.bmesh.totedge):
+            if etable[i] == NULL:
+                # INVALID!
+                continue
+            if self.hidden_elem(&etable[i].head):
+                # HIDDEN!
+                continue
+            valid_indices[i] = totvalidedges
+            totvalidedges += 1
+
+        # Each edge has 2 vertices, so we need 2 * totvalidedges entries,
+        # Allocate NumPy arrays with the exact size needed.
+        vco = np.zeros((totvalidedges * 2, 3), dtype=np.float32)
+        vno = np.zeros((totvalidedges * 2, 3), dtype=np.float32)
+        sel = np.zeros(totvalidedges * 2, dtype=np.float32)
+        warn = np.zeros(totvalidedges * 2, dtype=np.float32)
+        pin = np.zeros(totvalidedges * 2, dtype=np.float32)
+        seam = np.zeros(totvalidedges * 2, dtype=np.float32)
+        indices = np.zeros(totvalidedges, dtype=np.int32)
+
+        # Second pass: fill arrays.
+        for i in prange(self.bmesh.totedge, nogil=True):
+            if valid_indices[i] == -1:
                 continue
                 
-            edge = <BMEdge*><uintptr_t>bme.as_pointer()
+            edge = etable[i]
+            valid_idx = valid_indices[i]
+            
+            # Store edge index for later reference.
+            indices[valid_idx] = i
+            
+            # Get vertices
             v0 = <BMVert*>edge.v1
             v1 = <BMVert*>edge.v2
             
-            # Fill edge data
-            for i in range(3):
-                ed.co[0][i] = v0.co[i]
-                ed.co[1][i] = v1.co[i]
-                ed.normal[0][i] = v0.no[i]
-                ed.normal[1][i] = v1.no[i]
+            # Calculate array indices for the two vertices.
+            k = valid_idx * 2
             
-            ed.sel = self.sel_elem(&edge.head)
-            ed.warn = self.warn_edge(edge)
+            # Fill coordinate and normal data for first vertex.
+            for j in range(3):
+                vco[k, j] = v0.co[j]
+                vno[k, j] = v0.no[j]
             
-            # These need Python interaction
-            ed.pin = 1.0 if all(v[self.layer_pin] for v in bme.verts) and self.layer_pin else 0.0
-            ed.seam = self.seam_edge(edge)
+            # Fill coordinate and normal data for second vertex.
+            for j in range(3):
+                vco[k+1, j] = v1.co[j]
+                vno[k+1, j] = v1.no[j]
             
-            edge_data_vec.push_back(ed)
-        
-        # Convert to Python data structure
-        result = {
-            'vco': [],
-            'vno': [],
-            'sel': [],
-            'warn': [],
-            'pin': [],
-            'seam': []
+            # Fill selection state (same for both vertices).
+            sel_val = self.sel_elem(&edge.head)
+            sel[k] = sel_val
+            sel[k+1] = sel_val
+            
+            # Fill warning state (same for both vertices).
+            warn_val = self.warn_edge(edge)
+            warn[k] = warn_val
+            warn[k+1] = warn_val
+            
+            # Fill seam state (same for both vertices).
+            seam_val = self.seam_edge(edge)
+            seam[k] = seam_val
+            seam[k+1] = seam_val
+
+        # Handle pin state which requires Python interaction.
+        if self.layer_pin:
+            for i in range(totvalidedges):
+                bme = py_edges[indices[i]]
+                # Avoid closure by manually checking each vertex.
+                pin_val = 1.0
+                for v in bme.verts:
+                    if not v[self.layer_pin]:
+                        pin_val = 0.0
+                        break
+                k = i * 2
+                pin[k] = pin_val
+                pin[k+1] = pin_val
+
+        # Return as a dictionary of NumPy arrays.
+        return {
+            'vco': vco,
+            'vno': vno,
+            'sel': sel,
+            'warn': warn,
+            'pin': pin,
+            'seam': seam,
+            'indices': indices,
+            'count': totvalidedges
         }
-        
-        for i in range(edge_data_vec.size()):
-            ed = edge_data_vec[i]
-            result['vco'].extend([(ed.co[0][0], ed.co[0][1], ed.co[0][2]), 
-                                 (ed.co[1][0], ed.co[1][1], ed.co[1][2])])
-            result['vno'].extend([(ed.normal[0][0], ed.normal[0][1], ed.normal[0][2]), 
-                                 (ed.normal[1][0], ed.normal[1][1], ed.normal[1][2])])
-            result['sel'].extend([ed.sel, ed.sel])
-            result['warn'].extend([ed.warn, ed.warn])
-            result['pin'].extend([ed.pin, ed.pin])
-            result['seam'].extend([ed.seam, ed.seam])
-        
-        return result
-    
-    cpdef gather_face_data(self, faces):
-        """Gather face data in Cython for better performance"""
+
+    cpdef dict gather_face_data(self):
+        """Gather BMesh face data"""
+        if self.bmesh == NULL or self.bmesh.ftable == NULL:
+            print("[CYTHON] Error: gather_face_data() - bmesh or ftable is NULL\n")
+            return {
+                'vco': np.zeros((0, 3), dtype=np.float32),
+                'vno': np.zeros((0, 3), dtype=np.float32),
+                'sel': np.zeros(0, dtype=np.float32),
+                'warn': np.zeros(0, dtype=np.float32),
+                'pin': np.zeros(0, dtype=np.float32),
+                'seam': np.zeros(0, dtype=np.float32),
+                'indices': np.zeros(0, dtype=np.int32),
+                'count': 0,
+                'tri_count': 0
+            }
+
         cdef:
-            vector[TriFace] tri_faces_vec
-            vector[TriFace] all_tri_faces
-            TriFace tri
             BMFace* face
-            int i, j, k
-            
-        # First, triangulate all faces
-        for bmf in faces:
-            if not bmf.is_valid or bmf.hide:
+            BMLoop* loop
+            BMLoop* l_first
+            BMLoop* l_iter
+            BMVert* v_first
+            BMVert* v_prev
+            BMVert* v_curr
+            int i, j, k, v_idx, tri_idx = 0, tri_base = 0
+            int valid_idx = 0
+            int face_idx
+            BMFace** ftable = self.bmesh.ftable
+            object py_faces = self.py_bmesh.faces
+            int totvalidfaces = 0
+            int total_triangles = 0
+            float sel_val, warn_val, seam_val
+            float[3] first_co
+            float[3] first_no
+            float[3] prev_co
+            float[3] prev_no
+            np.ndarray[np.float32_t, ndim=2] vco
+            np.ndarray[np.float32_t, ndim=2] vno
+            np.ndarray[np.float32_t, ndim=1] sel
+            np.ndarray[np.float32_t, ndim=1] warn
+            np.ndarray[np.float32_t, ndim=1] pin
+            np.ndarray[np.float32_t, ndim=1] seam
+            np.ndarray[np.int32_t, ndim=1] indices
+            np.ndarray[np.int32_t, ndim=1] valid_indices
+            np.ndarray[np.int32_t, ndim=1] tri_counts
+            np.ndarray[np.int32_t, ndim=1] tri_offsets
+        
+        # Combined first pass: count valid faces, triangles, and set up indices.
+        valid_indices = np.full(self.bmesh.totface, -1, dtype=np.int32)
+        
+        # First pass: count and setup indices.
+        for i in range(self.bmesh.totface):
+            if ftable[i] == NULL:
+                continue
+            if self.hidden_elem(&ftable[i].head):
                 continue
                 
-            face = <BMFace*><uintptr_t>bmf.as_pointer()
-            tri_faces_vec = self.triangulate_face(face)
+            face = ftable[i]
+            valid_indices[i] = totvalidfaces
             
-            for i in range(tri_faces_vec.size()):
-                all_tri_faces.push_back(tri_faces_vec[i])
+            # Each face with n vertices needs (n-2) triangles.
+            total_triangles += face.len - 2
+            totvalidfaces += 1
         
-        # Convert to Python data structure
-        result = {
-            'vco': [],
-            'vno': [],
-            'sel': [],
-            'warn': [],
-            'pin': [],
-            'seam': [],
-            'tri_faces': []
-        }
+        # Allocate all arrays at once.
+        indices = np.zeros(totvalidfaces, dtype=np.int32)
+        tri_counts = np.zeros(totvalidfaces, dtype=np.int32)
+        tri_offsets = np.zeros(totvalidfaces, dtype=np.int32)
+        vco = np.zeros((total_triangles * 3, 3), dtype=np.float32)
+        vno = np.zeros((total_triangles * 3, 3), dtype=np.float32)
+        sel = np.zeros(total_triangles * 3, dtype=np.float32)
+        warn = np.zeros(total_triangles * 3, dtype=np.float32)
+        pin = np.zeros(total_triangles * 3, dtype=np.float32)
+        seam = np.zeros(total_triangles * 3, dtype=np.float32)
         
-        for i in range(all_tri_faces.size()):
-            tri = all_tri_faces[i]
-            face = tri.face
+        # Combined second pass: setup triangle counts and offsets.
+        valid_idx = 0
+        tri_idx = 0
+        
+        for i in range(self.bmesh.totface):
+            if valid_indices[i] == -1:
+                continue
+                
+            face = ftable[i]
+            indices[valid_idx] = i
             
-            face_sel = self.sel_elem(&face.head)
-            face_warn = self.warn_face(face)
+            # Store triangle count for this face.
+            tri_count = face.len - 2
+            tri_counts[valid_idx] = tri_count
             
-            # These need Python interaction
-            bmf = <object>face.head.data
-            face_pin = 1.0 if all(v[self.layer_pin] for v in bmf.verts) and self.layer_pin else 0.0
-            face_seam = self.seam_face(face)
+            # Store triangle offset for this face.
+            tri_offsets[valid_idx] = tri_idx
+            tri_idx += tri_count
+            valid_idx += 1
+        
+        # Third pass: fill arrays with triangulated face data in parallel.
+        for i in prange(totvalidfaces, nogil=True):
+            face_idx = indices[i]
+            face = ftable[face_idx]
             
-            # Add triangle vertices
+            # Get face properties.
+            sel_val = self.sel_elem(&face.head)
+            warn_val = self.warn_face(face)
+            seam_val = self.seam_face(face)
+            
+            # Simple fan triangulation
+            l_first = <BMLoop*>face.l_first
+            v_first = <BMVert*>l_first.v
+            
+            # Store first vertex data.
             for j in range(3):
-                vert = tri.verts[j]
-                result['vco'].append((vert.co[0], vert.co[1], vert.co[2]))
-                result['vno'].append((vert.no[0], vert.no[1], vert.no[2]))
-                result['sel'].append(face_sel)
-                result['warn'].append(face_warn)
-                result['pin'].append(face_pin)
-                result['seam'].append(face_seam)
+                first_co[j] = v_first.co[j]
+                first_no[j] = v_first.no[j]
             
-            # Store the original face for reference
-            result['tri_faces'].append(bmf)
+            # Move to second vertex.
+            l_iter = <BMLoop*>l_first.next
+            v_prev = <BMVert*>l_iter.v
+            
+            # Store second vertex data.
+            for j in range(3):
+                prev_co[j] = v_prev.co[j]
+                prev_no[j] = v_prev.no[j]
+            
+            # Iterate through remaining vertices to create triangles.
+            l_iter = <BMLoop*>l_iter.next
+            
+            # Get base triangle index for this face.
+            tri_base = tri_offsets[i]
+            
+            for j in range(face.len - 2):
+                v_curr = <BMVert*>l_iter.v
+                
+                # Calculate array index for this triangle.
+                k = (tri_base + j) * 3
+                
+                # First vertex of triangle (pivot).
+                for v_idx in range(3):
+                    vco[k, v_idx] = first_co[v_idx]
+                    vno[k, v_idx] = first_no[v_idx]
+                
+                # Second vertex of triangle.
+                for v_idx in range(3):
+                    vco[k+1, v_idx] = prev_co[v_idx]
+                    vno[k+1, v_idx] = prev_no[v_idx]
+                
+                # Third vertex of triangle.
+                for v_idx in range(3):
+                    vco[k+2, v_idx] = v_curr.co[v_idx]
+                    vno[k+2, v_idx] = v_curr.no[v_idx]
+                
+                # Fill properties for all three vertices.
+                for v_idx in range(3):
+                    sel[k+v_idx] = sel_val
+                    warn[k+v_idx] = warn_val
+                    seam[k+v_idx] = seam_val
+                
+                # Update previous vertex for next triangle.
+                for v_idx in range(3):
+                    prev_co[v_idx] = v_curr.co[v_idx]
+                    prev_no[v_idx] = v_curr.no[v_idx]
+                
+                # Move to next vertex.
+                l_iter = <BMLoop*>l_iter.next
         
-        return result'''
+        # Handle pin state separately (requires Python interaction)
+        if self.layer_pin is not None:
+            for i in range(totvalidfaces):
+                face_idx = indices[i]
+                bmf = py_faces[face_idx]
+                
+                # Check if all vertices are pinned.
+                pin_val = 1.0
+                for v in bmf.verts:
+                    if not v[self.layer_pin]:
+                        pin_val = 0.0
+                        break
+                
+                # Apply pin value to all vertices of all triangles for this face.
+                tri_idx = tri_offsets[i]
+                for j in range(tri_counts[i]):
+                    k = (tri_idx + j) * 3
+                    pin[k] = pin_val
+                    pin[k+1] = pin_val
+                    pin[k+2] = pin_val
+        
+        # Return as a dictionary of NumPy arrays.
+        return {
+            'vco': vco,
+            'vno': vno,
+            'sel': sel,
+            'warn': warn,
+            'pin': pin,
+            'seam': seam,
+            'indices': indices,
+            'count': totvalidfaces,
+            'tri_count': total_triangles
+        }
