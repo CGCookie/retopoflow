@@ -30,7 +30,7 @@ import cython
 
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMHeader, BMLoop
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh, BPy_BMVert, BPy_BMEdge, BPy_BMFace
-from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test, BM_elem_flag_set
+from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test, BM_elem_flag_set, BM_elem_flag_clear
 from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
 from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
@@ -788,7 +788,7 @@ cdef class TargetMeshAccel:
         for i in range(cells.size()):
             for j in range(cells[i].elements.size()):
                 elem = &cells[i].elements[j]
-                if filter_type != NONE and elem.type != filter_type:
+                if filter_type != BM_NONE and elem.type != filter_type:
                     continue
                     
                 dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
@@ -815,7 +815,7 @@ cdef class TargetMeshAccel:
         for i in range(cells.size()):
             for j in range(cells[i].elements.size()):
                 elem = cells[i].elements[j]
-                if filter_type != NONE and elem.type != filter_type:
+                if filter_type != BM_NONE and elem.type != filter_type:
                     continue
                     
                 dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
@@ -864,7 +864,7 @@ cdef class TargetMeshAccel:
         elem.pos[0] = screen_pos[0]
         elem.pos[1] = screen_pos[1]
         elem.depth = depth
-        elem.type = GeomType.VERT
+        elem.type = GeomType.BM_VERT
 
         self._add_element_to_grid(elem)
 
@@ -906,7 +906,7 @@ cdef class TargetMeshAccel:
             elem.pos[0] = screen_pos[0]
             elem.pos[1] = screen_pos[1]
             elem.depth = depth
-            elem.type = GeomType.EDGE
+            elem.type = GeomType.BM_EDGE
 
             self._add_element_to_grid(elem)
 
@@ -951,7 +951,7 @@ cdef class TargetMeshAccel:
             elem.pos[0] = screen_pos[0]
             elem.pos[1] = screen_pos[1]
             elem.depth = depth
-            elem.type = GeomType.FACE
+            elem.type = GeomType.BM_FACE
             
             self._add_element_to_grid(elem)
 
@@ -1061,6 +1061,9 @@ cdef class TargetMeshAccel:
         box[2] = bottom
         box[3] = top
 
+        if not use_ctrl and not use_shift:
+            self.deselect_all(GeomType.BM_ALL)
+
         '''print("[PYTHON] PERSPECTIVE MATRIX:")
         mat = self.py_rv3d.perspective_matrix
         for i in range(4):
@@ -1079,7 +1082,7 @@ cdef class TargetMeshAccel:
                 print("\t", mw[j][i])'''
 
         # Iterate over visible geometry based on type
-        if select_geometry_type == GeomType.VERT:
+        if select_geometry_type == GeomType.BM_VERT:
             vert_it = self.visverts.begin()
             while vert_it != self.visverts.end():
                 vert = deref(vert_it)
@@ -1089,7 +1092,7 @@ cdef class TargetMeshAccel:
                     selection_changed = True
                 inc(vert_it)
 
-        elif select_geometry_type == GeomType.EDGE:
+        elif select_geometry_type == GeomType.BM_EDGE:
             edge_it = self.visedges.begin()
             while edge_it != self.visedges.end():
                 edge = deref(edge_it)
@@ -1103,7 +1106,7 @@ cdef class TargetMeshAccel:
                     selection_changed = True
                 inc(edge_it)
 
-        elif select_geometry_type == GeomType.FACE:
+        elif select_geometry_type == GeomType.BM_FACE:
             face_it = self.visfaces.begin()
             while face_it != self.visfaces.end():
                 face = deref(face_it)
@@ -1129,6 +1132,60 @@ cdef class TargetMeshAccel:
                 inc(face_it)
 
         return selection_changed
+
+    
+    # ---------------------------------------------------------------------------------------
+    # Selection Utils.
+    # ---------------------------------------------------------------------------------------
+
+    cdef void deselect_all(self, GeomType geom_type = GeomType.BM_ALL) noexcept nogil:
+        if self.bmesh == NULL:
+            return
+
+        cdef:
+            int i = 0
+            BMVert** vtable
+            BMVert* vert
+            BMEdge** etable
+            BMEdge* edge
+            BMFace** ftable
+            BMFace* face
+
+        if geom_type == GeomType.BM_VERT or geom_type == GeomType.BM_ALL:
+            if self.bmesh.totvertsel == 0:
+                return
+            vtable = self.bmesh.vtable
+            if vtable == NULL:
+                return
+            for i in prange(self.bmesh.totvert):
+                vert = vtable[i]
+                if vert == NULL:
+                    continue
+                BM_elem_flag_clear(&vert.head, BMElemHFlag.BM_ELEM_SELECT)
+        
+        if geom_type == GeomType.BM_EDGE or geom_type == GeomType.BM_ALL:
+            if self.bmesh.totedgesel == 0:
+                return
+            etable = self.bmesh.etable
+            if etable == NULL:
+                return
+            for i in prange(self.bmesh.totedge):
+                edge = etable[i]
+                if edge == NULL:
+                    continue
+                BM_elem_flag_clear(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+
+        if geom_type == GeomType.BM_FACE or geom_type == GeomType.BM_ALL:
+            if self.bmesh.totfacesel == 0:
+                return
+            ftable = self.bmesh.ftable
+            if ftable == NULL:
+                return
+            for i in prange(self.bmesh.totface):
+                face = ftable[i]
+                if face == NULL:
+                    continue
+                BM_elem_flag_clear(&face.head, BMElemHFlag.BM_ELEM_SELECT)
 
 
     # ---------------------------------------------------------------------------------------
@@ -1243,7 +1300,7 @@ cdef class TargetMeshAccel:
 
     cpdef dict find_nearest_vert(self, float x, float y, float max_dist=finf):
         """Find nearest visible vertex to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.VERT)
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_VERT)
         if result != NULL:
             return {
                 'elem': <object>result.elem,
@@ -1254,7 +1311,7 @@ cdef class TargetMeshAccel:
 
     cpdef dict find_nearest_edge(self, float x, float y, float max_dist=finf):
         """Find nearest visible edge to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.EDGE)
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_EDGE)
         if result != NULL:
             return {
                 'elem': <object>result.elem,
@@ -1265,7 +1322,7 @@ cdef class TargetMeshAccel:
 
     cpdef dict find_nearest_face(self, float x, float y, float max_dist=finf):
         """Find nearest visible face to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.FACE)
+        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_FACE)
         if result != NULL:
             return {
                 'elem': <object>result.elem,
@@ -1281,7 +1338,7 @@ cdef class TargetMeshAccel:
             list py_results = []
             size_t i
             
-        self._find_nearest_k(x, y, k, max_dist, GeomType.VERT, &results)
+        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_VERT, &results)
         
         for i in range(results.size()):
             py_results.append({
@@ -1299,7 +1356,7 @@ cdef class TargetMeshAccel:
             list py_results = []
             size_t i
             
-        self._find_nearest_k(x, y, k, max_dist, GeomType.EDGE, &results)
+        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_EDGE, &results)
         
         for i in range(results.size()):
             py_results.append({
@@ -1317,7 +1374,7 @@ cdef class TargetMeshAccel:
             list py_results = []
             size_t i
             
-        self._find_nearest_k(x, y, k, max_dist, GeomType.FACE, &results)
+        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_FACE, &results)
         
         for i in range(results.size()):
             py_results.append({

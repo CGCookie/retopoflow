@@ -34,10 +34,11 @@ cdef struct View3D:
     bint is_persp
 
 cdef enum GeomType:
-    NONE = -1
-    VERT = 0
-    EDGE = 1
-    FACE = 2
+    BM_NONE = -1
+    BM_VERT = 0
+    BM_EDGE = 1
+    BM_FACE = 2
+    BM_ALL = 3
 
 # Structure to hold geometry element info
 cdef struct GeomElement:
@@ -126,6 +127,9 @@ cdef class TargetMeshAccel:
 
     # Space-conversion utilities.
     cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil
+
+    # Selection utils.
+    cdef void deselect_all(self, GeomType geom_type=*) noexcept nogil
 
     # Search methods
     cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
