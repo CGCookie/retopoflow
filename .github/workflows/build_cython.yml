@@ -39,13 +39,12 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # Windows-specific setup for Visual Studio 2022
+    # Windows-specific setup for Visual Studio 2022 - using default toolset
     - name: Set up MSVC (Visual Studio 2022)
       if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        # Correct format for VS2022 toolset
-        toolset: 14.38  # Use 14.3x for Visual Studio 2022
+        # Use default VS2022 toolset without specifying a version
         arch: x64       # Target 64-bit architecture
 
     # Debug information for build environment
