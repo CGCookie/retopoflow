@@ -157,8 +157,11 @@ jobs:
 
     - name: Commit and push changes
       run: |
-        # Use git add with recursive path
+        # Add .gitattributes first
         git add .gitattributes
-        git add "retopoflow/cy/**/*.so" "retopoflow/cy/**/*.pyd"
+        
+        # Find and add all .so and .pyd files recursively
+        find retopoflow/cy -type f \( -name "*.so" -o -name "*.pyd" \) -exec git add {} \;
+        
         git commit -m "Update compiled Cython extensions [skip ci]" || echo "No changes to commit"
         git push
