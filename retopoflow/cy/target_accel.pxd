@@ -180,7 +180,7 @@ cdef class TargetMeshAccel:
     cpdef void py_update_view(self, object py_rv3d)
     cpdef void py_update_bmesh(self, object py_bmesh)
 
-    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode)
+    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)
     cpdef void py_update_accel_struct(self)
 
     # Single nearest element methods

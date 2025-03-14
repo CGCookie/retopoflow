@@ -407,7 +407,7 @@ cdef class TargetMeshAccel:
             if screen_pos[3] <= 0:  # Behind camera
                 continue
             
-            # Perspective divide and bounds check
+            # Perspective divide and bounds check (ok values between -1 and 1)
             if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
                 fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
 
@@ -1051,6 +1051,16 @@ cdef class TargetMeshAccel:
 
     cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept:
         """Select geometry within the given box coordinates"""
+
+        # Ensure matrix-world and persp-matrix are up to date.
+        self.py_update_object(self.py_object)
+        self.py_update_view(self.py_rv3d)
+        # Update mesh vis only.
+        if self.is_dirty_geom_vis:
+            if not self.py_update_geometry_visibility(<float>1.0, <int>SelectionState.ALL, update_accel=False):
+                print("[CYTHON] Error updating visible geometry when select-box!")
+                return False
+
         cdef:
             cpp_set[BMVert*].iterator vert_it
             cpp_set[BMEdge*].iterator edge_it
@@ -1242,9 +1252,22 @@ cdef class TargetMeshAccel:
         self._ensure_bmesh()
 
     cpdef void py_update_object(self, object py_object):
+        cdef:
+            bint is_dirty = False
+            int i = 0
+
         self.py_object = py_object
 
         matrix_world = np.array(py_object.matrix_world, dtype=np.float32)
+        for i in range(4):
+            for j in range(4):
+                if matrix_world[i][j] != self.matrix_world[i][j]:
+                    is_dirty = True
+                    break
+
+        if not is_dirty:
+            return
+
         matrix_normal = np.array(py_object.matrix_world.inverted_safe().transposed().to_3x3(), dtype=np.float32)
         self._update_object_transform(matrix_world, matrix_normal)
 
@@ -1313,10 +1336,14 @@ cdef class TargetMeshAccel:
 
         self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
 
-    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode):
+    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel):
         if not self.is_dirty_geom_vis:
             return True
-        return self._compute_geometry_visibility_in_region(margin_check, selection_mode) == 0
+        if self._compute_geometry_visibility_in_region(margin_check, selection_mode) == 0:
+            if update_accel:
+                self._build_accel_struct()
+            return True
+        return False
 
     cpdef void py_update_accel_struct(self):
         if self.is_dirty_geom_vis:
