@@ -127,6 +127,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      with:
+        # Add this to ensure we have the full git history
+        fetch-depth: 0
 
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -137,13 +140,25 @@ jobs:
     - name: Copy compiled files to cy folder
       run: |
         mkdir -p retopoflow/cy
-        find artifacts -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f {} retopoflow/cy/ \;
+        # Copy files preserving directory structure
+        cd artifacts
+        find . -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f --parents --preserve=mode,timestamps {} ../retopoflow/cy/ \;
+        cd ..
         ls -la retopoflow/cy/
+        find retopoflow/cy -type f \( -name "*.so" -o -name "*.pyd" \)
 
-    - name: Commit and push changes
+    - name: Configure Git
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        git add retopoflow/cy/*.so retopoflow/cy/*.pyd
+        # Ensure Git treats these files as binary
+        echo "*.so binary" >> .gitattributes
+        echo "*.pyd binary" >> .gitattributes
+
+    - name: Commit and push changes
+      run: |
+        # Use git add with recursive path
+        git add .gitattributes
+        git add "retopoflow/cy/**/*.so" "retopoflow/cy/**/*.pyd"
         git commit -m "Update compiled Cython extensions [skip ci]" || echo "No changes to commit"
         git push
