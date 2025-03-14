@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11']
+        python-version: ['3.11.9']  # Match exact Python version used by Blender
         include:
           - os: macos-latest
             target: native
@@ -39,18 +39,52 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    # Windows-specific setup for Visual Studio 2022
+    - name: Set up MSVC (Visual Studio 2022)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        toolset: 19.40  # Visual Studio 2022 toolset version
+        arch: x64       # Target 64-bit architecture
+
+    # Debug information for build environment
+    - name: Debug build environment
+      shell: bash
+      run: |
+        python -c "import sys; print(f'Python version: {sys.version}')"
+        python -c "import platform; print(f'Platform: {platform.platform()}')"
+        python -c "import os; print(f'Environment: {os.environ.get(\"PLAT_NAME\", \"unknown\")}')"
+        python -c "import platform; print(f'Machine: {platform.machine()}')"
+        python -c "import sysconfig; print(f'Platform tag: {sysconfig.get_platform()}')"
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install cython numpy setuptools wheel
 
-    - name: Build Cython extensions
+    # Platform-specific build commands
+    - name: Build Cython extensions (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: cmd
+      run: |
+        echo "Building with MSVC for Windows..."
+        python cy_setup.py build_ext --inplace --compiler=msvc
+
+    - name: Build Cython extensions (macOS)
+      if: matrix.os == 'macos-latest'
       shell: bash
       env:
+        TARGET_ARCH: ${{ matrix.compile_target }}
         ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || matrix.target == 'native' && '-arch arm64' || '' }}
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install cython numpy setuptools wheel
+        echo "Building for macOS with arch: $TARGET_ARCH..."
+        python cy_setup.py build_ext --inplace
+
+    - name: Build Cython extensions (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        echo "Building for Linux..."
         python cy_setup.py build_ext --inplace
 
     - name: List compiled extensions
@@ -63,6 +97,13 @@ jobs:
         echo -e "\nSearching for compiled files recursively:"
         find . -type f \( -name "*.so" -o -name "*.pyd" \) || true
         
+        # For Windows, show more details about the .pyd files
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          echo -e "\nDetails of Windows .pyd files:"
+          # Use dir instead of dumpbin as it's more universally available
+          dir *.pyd || true
+        fi
+        
         # Don't fail if no files are found
         if ! find . -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
           echo "No compiled extensions found. This might indicate a build issue."
@@ -74,7 +115,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()  # Try to upload even if previous step failed
       with:
-        name: compiled-extensions-${{ matrix.os }}
+        name: compiled-extensions-${{ matrix.os }}-${{ matrix.target || 'default' }}
         path: |
           retopoflow/cy/**/*.so
           retopoflow/cy/**/*.pyd
@@ -97,6 +138,7 @@ jobs:
       run: |
         mkdir -p retopoflow/cy
         find artifacts -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f {} retopoflow/cy/ \;
+        ls -la retopoflow/cy/
 
     - name: Commit and push changes
       run: |
