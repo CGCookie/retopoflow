@@ -44,7 +44,8 @@ jobs:
       if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        toolset: 19.40  # Visual Studio 2022 toolset version
+        # Correct format for VS2022 toolset
+        toolset: 14.38  # Use 14.3x for Visual Studio 2022
         arch: x64       # Target 64-bit architecture
 
     # Debug information for build environment
