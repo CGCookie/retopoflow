@@ -571,27 +571,35 @@ cdef class TargetMeshAccel:
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
 
-    
+
     # ----------------------------------------------------------------------------------------
     # Space Convert Utilities.
     # ----------------------------------------------------------------------------------------
 
-    cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil:
+    cdef void l2w_point(self, const float[3] local_pos, float[3] world_pos) noexcept nogil:
         cdef:
             float[4] vec4
-            float[3] world_pos
-
         # Local to World space transformation (l2w_point equivalent)
         # Convert to homogeneous coordinates and transform
         # v = self.mx_p @ Vector((p.x, p.y, p.z, 1.0))
         # return Point(v.xyz / v.w)
-        copy_v3f_to_v4(point3d, <float>1.0, vec4)
+        copy_v3f_to_v4(local_pos, <float>1.0, vec4)
         mul_m4_v4(self.matrix_world, vec4)  # local to world space
         copy_v4_to_v3(vec4, world_pos)  # xyz
         w = vec4[3]  # w
         div_v3_f(world_pos, w)  # v.xyz / v.w
 
+    cdef void project_wpoint_to_region_2d(self, float[3] world_pos, float[2] point2d) noexcept nogil:
         location_3d_to_region_2d(self.region, self.rv3d.persmat, world_pos, &point2d[0])
+
+    cdef void project_lpoint_to_region_2d(self, float[3] local_pos, float[2] point2d) noexcept nogil:
+        cdef float[3] world_pos
+        self.l2w_point(local_pos, world_pos)
+        self.project_wpoint_to_region_2d(world_pos, point2d)
+
+    cdef void project_vert_to_region_2d(self, BMVert* vert, float[2] point2d) noexcept nogil:
+        self.project_lpoint_to_region_2d(vert.co, point2d)
+
 
     '''
     ______________________________________________________________________________________________________________
@@ -1038,7 +1046,7 @@ cdef class TargetMeshAccel:
     cdef bint _vert_inside_box(self, BMVert* vert, float[4] box):
         """Check if vertex is inside box"""
         cdef float[2] screen_pos
-        self.l2w_point(vert.co, screen_pos)
+        self.project_vert_to_region_2d(vert, screen_pos)
         return (box[0] <= screen_pos[0] <= box[1]) and (box[2] <= screen_pos[1] <= box[3])
 
     cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept:

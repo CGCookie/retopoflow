@@ -127,6 +127,9 @@ cdef class TargetMeshAccel:
 
     # Space-conversion utilities.
     cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil
+    cdef void project_wpoint_to_region_2d(self, float[3] world_pos, float[2] point2d) noexcept nogil
+    cdef void project_lpoint_to_region_2d(self, float[3] local_pos, float[2] point2d) noexcept nogil
+    cdef void project_vert_to_region_2d(self, BMVert* vert, float[2] point2d) noexcept nogil
 
     # Selection utils.
     cdef bint deselect_all(self, GeomType geom_type=*) noexcept nogil
