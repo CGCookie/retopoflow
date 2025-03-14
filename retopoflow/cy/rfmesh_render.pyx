@@ -299,10 +299,10 @@ cdef class MeshRenderAccel:
             for i in range(totvalidedges):
                 bme = py_edges[indices[i]]
                 # Avoid closure by manually checking each vertex.
-                pin_val = 1.0
+                pin_val = <float>1.0
                 for v in bme.verts:
                     if not v[self.layer_pin]:
-                        pin_val = 0.0
+                        pin_val = <float>0.0
                         break
                 k = i * 2
                 pin[k] = pin_val
@@ -491,10 +491,10 @@ cdef class MeshRenderAccel:
                 bmf = py_faces[face_idx]
                 
                 # Check if all vertices are pinned.
-                pin_val = 1.0
+                pin_val = <float>1.0
                 for v in bmf.verts:
                     if not v[self.layer_pin]:
-                        pin_val = 0.0
+                        pin_val = <float>0.0
                         break
                 
                 # Apply pin value to all vertices of all triangles for this face.
