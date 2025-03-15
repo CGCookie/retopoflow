@@ -122,8 +122,8 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
         def update_data(self):
             nonlocal paused_update
-            if self.depsgraph_version == self.RFCore.depsgraph_version: return
-            if paused_update: return
+            if self.depsgraph_version == self.RFCore.depsgraph_version and hasattr(self, 'curves'): return True
+            if paused_update: return False
 
             # depsgraph changed, so recollect quad details
 
@@ -161,7 +161,10 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 for strip in self.selected_strips
             ]
 
+            return True
+
         def hovered_handle(self, context, mouse, *, distance2D=10):
+            if not self.update_data(): return False
             rgn, r3d = context.region, context.region_data
             if not r3d: return False
             mouse = Vector(mouse)
@@ -184,7 +187,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             if is_done: return
             if paused_overlay: return
 
-            self.update_data()
+            if not self.update_data(): return
 
             for strip in self.selected_strips:
                 lbl_pos = get_label_pos(bpy.context, strip)
