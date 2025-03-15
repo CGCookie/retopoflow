@@ -34,7 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
-from ..common.maths import point_to_bvec4
+from ..common.maths import point_to_bvec4, view_forward_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -46,6 +46,7 @@ class Relax_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.mouse = None
+        self.forward = view_forward_direction(context)
 
         self.brush = brush
         self.relax = relax
@@ -243,6 +244,9 @@ class Relax_Logic:
                 cnt = len(bmvs)
                 ctr = Point.average(bmv.co for bmv in bmvs)
                 rels = [bmv.co - ctr for bmv in bmvs]
+                bmf_z = bmf.normal.normalized()
+                bmf_y = bmf_z.cross(self.forward).normalized()
+                bmf_x = bmf_y.cross(bmf_z).normalized()
 
                 # push verts toward average dist from verts to face center
                 if opt_face_radius:
@@ -265,20 +269,20 @@ class Relax_Logic:
 
                 # push verts toward equal spread
                 if opt_face_angles:
-                    avg_angle = 2.0 * math.pi / cnt
-                    for i0 in range(cnt):
-                        i1 = (i0 + 1) % cnt
-                        rel0,bmv0 = rels[i0],bmvs[i0]
-                        rel1,bmv1 = rels[i1],bmvs[i1]
-                        if rel0.length < 0.00001 or rel1.length < 0.00001: continue
-                        vec = bmv1.co - bmv0.co
-                        vec_len = vec.length
-                        fvec0 = rel0.cross(vec).cross(rel0).normalized()
-                        fvec1 = rel1.cross(rel1.cross(vec)).normalized()
-                        angle = rel0.angle(rel1)
-                        f_mag = (0.05 * (avg_angle - angle) * strength) / cnt #/ vec_len
-                        add_force(bmv0, fvec0 * -f_mag)
-                        add_force(bmv1, fvec1 * -f_mag)
+                    angle_target = (cnt - 2) * math.pi / cnt
+                    for i1 in range(cnt):
+                        i0 = (i1 + cnt - 1) % cnt
+                        i2 = (i1 + 1) % cnt
+                        bmv0, bmv1, bmv2 = bmvs[i0], bmvs[i1], bmvs[i2]
+                        v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
+                        d10, d12 = v10.normalized(), v12.normalized()
+                        d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
+                        d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
+                        angle = d10_2.angle_signed(d12_2)
+                        angle_diff = angle_target - angle
+                        mag = angle_diff * 0.001 * strength
+                        add_force(bmv0, d10.cross(bmf_z).normalized() * -mag)
+                        add_force(bmv2, d12.cross(bmf_z).normalized() * mag)
 
         # perform smoothing
         for step in range(opt_steps):
