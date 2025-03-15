@@ -155,13 +155,14 @@ def plane_normal_from_points(context, p0, p1):
     #d1 = region_2d_to_vector_3d(context.region, context.region_data, p1).normalized()
     return d0.cross(d1).normalized()
 
-def is_point_hidden(context, co_edit, *, factor=0.95):
+def is_point_hidden(context, co_edit, *, factor=1.0, use_offset=True):
     M = context.edit_object.matrix_world
     co_world = M @ point_to_bvec4(co_edit)
     hit = raycast_valid_sources(context, co_world)
     if not hit: return False
     ray_e = hit['ray_world'][0]
-    return hit['distance'] < (ray_e.xyz - co_world.xyz).length * factor
+    offset = context.space_data.overlay.retopology_offset if use_offset else 0.0
+    return hit['distance'] + offset < (ray_e.xyz - co_world.xyz).length * factor
 
 
 
@@ -176,8 +177,8 @@ def iter_all_valid_sources(context):
             not obj.hide_get() and
             obj.visible_get() and
             not obj.hide_viewport and
-            bool(obj.data.polygons) and 
-            (   
+            bool(obj.data.polygons) and
+            (
                 not ts.use_snap_selectable or
                 (ts.use_snap_selectable and not obj.hide_select)
             )

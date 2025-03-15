@@ -31,12 +31,14 @@ from ..common.raycast import is_point_hidden
 from ...addon_common.common import bmesh_ops as bmops
 
 
-def get_label_pos(context, label, boundary):
+def get_label_pos(context, label, mids, corners):
     M = context.edit_object.matrix_world
     rgn, r3d = context.region, context.region_data
 
-    boundary = [pt for pt in boundary if not is_point_hidden(context, pt)]
-    if len(boundary) == 0: return None
+    boundary = [pt for pt in mids if not is_point_hidden(context, pt)]
+    if len(boundary) == 0:
+        boundary = [pt for pt in corners if not is_point_hidden(context, pt)]
+        if len(boundary) == 0: return None
 
     match label:
         case 'Strip':
@@ -85,8 +87,8 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     sel_bmes = [ bme for bme in sel_bmes if bme.is_wire or bme.is_boundary ]
                 if len(sel_bmes) < 1000:
                     strips, cycles = get_boundary_strips_cycles(sel_bmes)
-                    strips = [[bme_midpoint(bme) for bme in strip] for strip in strips]
-                    cycles = [[bme_midpoint(bme) for bme in cycle] for cycle in cycles]
+                    strips = [([bme_midpoint(bme) for bme in strip], [bmv.co for bme in strip for bmv in bme.verts]) for strip in strips]
+                    cycles = [([bme_midpoint(bme) for bme in cycle], [bmv.co for bme in cycle for bmv in bme.verts]) for cycle in cycles]
                     if len(strips) + len(cycles) <= 5:
                         self.selected_boundaries = (strips, cycles)
                     else:
@@ -96,10 +98,10 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
             # draw info about each selected boundary strip
             for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
-                for boundary in boundaries:
-                    lbl_pos = get_label_pos(bpy.context, lbl, boundary)
+                for (mids, corners) in boundaries:
+                    lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
                     if not lbl_pos: continue
-                    text = f'{lbl}: {len(boundary)}'
+                    text = f'{lbl}: {len(mids)}'
                     tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                     lbl_pos -= Vector((tw / 2, -th / 2))
                     Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))

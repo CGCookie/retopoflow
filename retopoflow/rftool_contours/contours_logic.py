@@ -65,7 +65,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import (
-    Point2D, Point, Normal, Vector, Plane,
+    Point2D, Point, Normal, Vector, Plane, Ray,
     closest_point_segment,
 )
 from ...addon_common.common.profiler import time_it
@@ -85,7 +85,7 @@ from ..common.drawing import (
 
 
 class Contours_Logic:
-    def __init__(self, context, initial, hit, plane, span_count, twist, circle_hit, process_source_method):
+    def __init__(self, context, initial, hit, plane, span_count, twist, circle_hit, hits, process_source_method):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -93,7 +93,8 @@ class Contours_Logic:
         self.context, self.rgn, self.r3d = context, context.region, context.region_data
 
         self.plane = plane            # world space
-        self.hit = hit
+        self.hit   = hit
+        self.hits  = hits
         self.circle_hit = circle_hit  # plane space
         self.process_source_method = process_source_method
 
@@ -112,9 +113,15 @@ class Contours_Logic:
             debugger.print_exception()
 
     def process_source(self):
-        if self.process_source_method == 'fast':
-            return self.process_source_fast()
-        return self.process_source_walk()
+        match self.process_source_method:
+            case 'fast':
+                return self.process_source_fast()
+            case 'skip':
+                return self.process_source_skip()
+            case 'walk':
+                return self.process_source_walk()
+            case _:
+                assert False, f'Unhandled source processing method "{self.process_source_method}"'
 
     def process_source_fast(self):
         context = self.context
@@ -150,6 +157,61 @@ class Contours_Logic:
 
         self.points = points                            # points where cut crosses source (target space)
         self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
+
+    def process_source_skip(self):
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+
+        pt = self.hit['co_world']
+        pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
+        dist = 0.5 * ((pt - pt0).length + (pt - pt1).length) / 2
+        direction = (pt0 - pt).normalized()
+        pt_start = pt
+        dist_pre = 0
+
+        points = [pt]
+        has_shrunk = False
+        for i in range(10000):
+            # print(f'{pt=} {direction=}')
+            pt_next = pt + direction * dist
+            for _ in range(10):
+                pt_next = nearest_point_valid_sources(context, pt_next, world=True)
+                pt_next = plane_cut.w2l_point(pt_next)
+                pt_next.z = 0
+                pt_next = Vector(plane_cut.l2w_point(pt_next))
+            dist_next = (pt_next - pt_start).length
+            if dist_next < dist_pre:
+                has_shrunk = True
+            elif has_shrunk and dist_next < dist * 4:
+                print(f'WRAPPED AFTER {i}!')
+                break
+            points += [pt_next]
+            direction = (pt_next - pt).normalized()
+            # print(f'{pt=} {pt_next=} {direction=}')
+            pt = pt_next
+            dist_pre = dist_next
+        else:
+            print('gah')
+            return False
+
+        cyclic = True
+        mirror_clipped_loop = False
+
+        points = [self.matrix_world_inv @ pt for pt in points]
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        self.points = points
+        self.cyclic = cyclic
         self.plane_fit = plane_fit                      # plane that fits cut points (target space)
         self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
         self.path_length = path_length                  # length of path of points (target space)
@@ -307,6 +369,10 @@ class Contours_Logic:
             for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
         ]
         if not cyclic: points += add_path_end(path[-1])
+        points = [
+            p0 for (p0, p1) in iter_pairs(points, cyclic)
+            if (p0 - p1).length > 0
+        ]
 
 
 
@@ -550,6 +616,7 @@ class Contours_Logic:
     def insert_new_cut(self):
         path_length = self.path_length
         points = self.points
+        M, Mi = self.matrix_world, self.matrix_world_inv
 
         segment_count = self.span_count
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
@@ -607,6 +674,10 @@ class Contours_Logic:
         npts = best_npts
         assert npts, f'Could not find enough points!?'
         assert len(npts) >= vertex_count
+
+        npts = [
+            Mi @ nearest_point_valid_sources(self.context, M @ pt, world=True) for pt in npts
+        ]
 
         # create geometry!
         nbmvs = [ self.bm.verts.new(pt) for pt in npts[:vertex_count] ]

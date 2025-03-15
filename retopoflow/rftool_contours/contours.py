@@ -37,7 +37,14 @@ from ..common.operator import (
     RFOperator, RFRegisterClass, RFOperator_Execute,
     chain_rf_keymaps, wrap_property,
 )
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
+from ..common.raycast import (
+    raycast_valid_sources,
+    raycast_point_valid_sources,
+    raycast_ray_valid_sources,
+    mouse_from_event,
+    nearest_point_valid_sources,
+    ray_from_point,
+)
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
@@ -62,11 +69,11 @@ class RFOperator_Contours_Insert_Keymaps:
     #       is not yet created!
     rf_keymaps = []
 
-class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_Execute):
-    bl_idname = 'retopoflow.contours_insert'
-    bl_label = 'Contours: Insert new stroke'
-    bl_description = 'Insert cut and extrude edges into a patch'
-    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+class RFOperator_Contours_Insert_Properties:
+    '''
+    bpy properties that are shared between insert operator and the modal operator
+    used to prevent duplicate code across both operators
+    '''
 
     span_count: bpy.props.IntProperty(
         name='Span Count',
@@ -75,24 +82,45 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
         min=3,
         max=100,
     )
+
+    process_source_method: bpy.props.EnumProperty(
+        name='Process Source Method',
+        description="Source processing method",
+        items=[
+            ('fast', 'Fast', 'Process source approximately (fast but inaccurate)'),
+            ('skip', 'Skip', 'Process source approximately by skipping about the source mesh'),
+            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow but accurate)'),
+        ],
+        default='skip',
+    )
+
+
+class RFOperator_Contours_Insert(
+        RFOperator_Contours_Insert_Keymaps,
+        RFOperator_Contours_Insert_Properties,
+        RFOperator_Execute,
+    ):
+    bl_idname = 'retopoflow.contours_insert'
+    bl_label = 'Contours: Insert new stroke'
+    bl_description = 'Insert cut and extrude edges into a patch'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
     twist: bpy.props.IntProperty(
         name='Rotate Cut',
         description='Rotate cut',
         default=0,
     )
-    process_source_method: bpy.props.EnumProperty(
-        name='Process Source Method',
-        description="Source processing method",
-        items=[
-            ('fast', 'Fast', 'Process source approximately (fast)'),
-            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow)'),
-        ],
+
+    cycle: bpy.props.BoolProperty(
+        name='Cyclic Cut',
+        description='Force cut to be cyclic or not',
+        default=False,  # will be set on initial cut
     )
 
     contours_data = None
 
     @staticmethod
-    def insert(context, hit, plane, circle_hit, initial_span_count, process_source_method):
+    def insert(context, hit, plane, circle_hit, span_count, process_source_method, hits):
         RFOperator_Contours_Insert.contours_data = {
             'initial':         True,
             'action':          '',
@@ -100,9 +128,10 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
             'plane':           plane,
             'circle_hit':      circle_hit,
             'show_span_count': False,
-            'span_count':      initial_span_count,
+            'span_count':      span_count,
             'show_twist':      False,
             'twist':           0,
+            'hits':            hits,
             'process_source_method': process_source_method,
         }
         RFOperator_Contours_Insert.reinsert(context)
@@ -115,6 +144,7 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
             span_count=data['span_count'],
             twist=data['twist'],
             process_source_method=data['process_source_method'],
+            # cycle=data['cycle'],
         )
 
     def draw(self, context):
@@ -148,6 +178,7 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
                 data['span_count'] if data['initial'] else self.span_count,
                 self.twist,
                 data['circle_hit'],
+                data['hits'],
                 self.process_source_method,
             )
             if data['initial']:
@@ -203,7 +234,7 @@ class RFOperator_Contours_Insert(RFOperator_Contours_Insert_Keymaps, RFOperator_
 
 
 
-class RFOperator_Contours(RFOperator):
+class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.contours'
     bl_label = 'Contours'
     bl_description = 'Retopologize cylindrical forms, like arms and legs'
@@ -226,13 +257,6 @@ class RFOperator_Contours(RFOperator):
 
     rf_status = ['LMB: Insert']
 
-    initial_span_count: bpy.props.IntProperty(
-        name='Count',
-        description='Number of vertices to create in a new cut',
-        default=8,
-        min=3,
-        max=100,
-    )
     sample_points: bpy.props.IntProperty(
         name='Samples',
         default=100,
@@ -244,15 +268,6 @@ class RFOperator_Contours(RFOperator):
         default=0.75,
         min=0.10,
         max=1.00,
-    )
-    initial_process_source_method: bpy.props.EnumProperty(
-        name='Processing Method',
-        description="How Contours processes the source meshes to determine the new perimeter loop",
-        items=[
-            ('fast', 'Fast', 'Process source approximately (fast)'),
-            ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow)'),
-        ],
-        default='walk',
     )
 
     def init(self, context, event):
@@ -266,17 +281,47 @@ class RFOperator_Contours(RFOperator):
         RFTool_Contours.rf_brush.reset()
 
     def v_to_point(self, v, mouse0, mouse1):
-        v = (4 * self.sample_width) * (v / 2)**3 + 0.5
-        return mouse0 + (mouse1 - mouse0) * v
+        vn = (4 * self.sample_width) * (v / 2)**3 + 0.5
+        return mouse0 + (mouse1 - mouse0) * vn
 
     def process_cut(self, context, hit, plane, mouse0, mouse1):
         n = self.sample_points // 2
-        other0 = list(itertools.takewhile(lambda h: hit is not None, [ raycast_valid_sources(context, self.v_to_point(-v / n, mouse0, mouse1)) for v in range(0,n+1)]))
-        other1 = list(itertools.takewhile(lambda h: hit is not None, [ raycast_valid_sources(context, self.v_to_point(+v / n, mouse0, mouse1)) for v in range(1,n+0)]))
-        points     = [ hit['co_world'] for hit in itertools.chain(other0[::-1], other1) if hit ]
+
+        hits_neg = list(itertools.takewhile(
+            bool,
+            (raycast_valid_sources(context, self.v_to_point(-(v+1) / n, mouse0, mouse1)) for v in range(n)),
+        ))
+        hit_mid = raycast_valid_sources(context, mouse0 + (mouse1 - mouse0) / 2)
+        hits_pos = list(itertools.takewhile(
+            bool,
+            (raycast_valid_sources(context, self.v_to_point(+(v+1) / n, mouse0, mouse1)) for v in range(n))
+        ))
+        hits = list(itertools.chain(hits_neg, [hit_mid], hits_pos))
+
+        # gather more hits to improve
+        rays_neg = [
+            (Vector((*hit['co_world'], 1.0)), ray_from_point(context, hit['co_world'])[1])
+            for hit in hits_neg
+        ]
+        pts_neg_back = [
+            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
+            for (p, d) in rays_neg
+        ]
+        rays_pos = [
+            (Vector((*hit['co_world'], 1.0)), ray_from_point(context, hit['co_world'])[1])
+            for hit in hits_pos
+        ]
+        pts_pos_back = [
+            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
+            for (p, d) in rays_pos
+        ]
+        points = list(itertools.chain(
+            [hit['co_world'] for hit in hits if hit],
+            pts_neg_back, pts_pos_back
+        ))
         circle_hit = hyperLSQ([list(plane.w2l_point(pt).xy) for pt in points])
 
-        RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.initial_span_count, self.initial_process_source_method)
+        RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.span_count, self.process_source_method, hits)
 
     def update(self, context, event):
         if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
@@ -328,9 +373,9 @@ class RFTool_Contours(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text='Insert:')
-            layout.prop(props_contours, 'initial_span_count')
-            layout.prop(props_contours, 'initial_process_source_method', text=f'')
-            if props_contours.initial_process_source_method == 'fast':
+            layout.prop(props_contours, 'span_count')
+            layout.prop(props_contours, 'process_source_method', text=f'')
+            if props_contours.process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
             draw_line_separator(layout)
@@ -342,9 +387,9 @@ class RFTool_Contours(RFTool_Base):
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_contours, 'initial_span_count')
-                panel.prop(props_contours, 'initial_process_source_method', text=f'Method')
-                if props_contours.initial_process_source_method == 'fast':
+                panel.prop(props_contours, 'span_count')
+                panel.prop(props_contours, 'process_source_method', text=f'Method')
+                if props_contours.process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
             draw_cleanup_panel(context, layout)
@@ -356,7 +401,7 @@ class RFTool_Contours(RFTool_Base):
         cls.resetter['context.tool_settings.use_mesh_automerge'] = False
         cls.resetter.store('context.tool_settings.snap_elements_base')
         cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
 
     @classmethod
     def deactivate(cls, context):
