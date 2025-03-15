@@ -525,13 +525,16 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         # only start if an RFTool is active
         return bool(RFCore.selected_RFTool_idname)
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         print(f'RFCore_Operator.__init__')
         self.running_in_area = None
         RFCore_Operator.running_operators += 1
         self.is_running = True
     def __del__(self):
-        print(f'RFCore_Operator.__del__!!! {getattr(self, "is_running", None)}')
+        print(f'RFCore_Operator.__del__!!!')
+        print(f'    {self}')
+        print(f'    {getattr(self, "is_running", None)}')
         if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
             RFCore.running_in_areas.remove(self.running_in_area)
         RFCore_Operator.running_operators -= 1
