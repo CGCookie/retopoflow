@@ -146,7 +146,7 @@ class Relax_Logic:
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
         self._time = cur_time
-        strength = (5.0 / opt_steps) * brush.strength * time_delta
+        strength = (5.0 / opt_steps) * brush.strength * time_delta * event.pressure
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
