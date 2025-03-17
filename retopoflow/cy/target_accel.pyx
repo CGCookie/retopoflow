@@ -102,7 +102,7 @@ cdef class TargetMeshAccel:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             return
         
-        # TODO:
+        # TODO: ensure accel struct works...
         # self._build_accel_struct()
 
     def __dealloc__(self):
@@ -857,21 +857,16 @@ cdef class TargetMeshAccel:
             int i
 
         # Transform vertex position to world space
-        for i in range(3):
-            world_pos[i] = vert.co[i]
-            for j in range(3):
-                world_pos[i] += self.matrix_world[i][j] * vert.co[j]
-            world_pos[i] += self.matrix_world[i][3]
 
         # Project to screen space
-        self._project_point_to_screen(world_pos, screen_pos, &depth)
+        self.project_vert_to_region_2d(vert, screen_pos)
 
         # Create and add element
         elem = <GeomElement*>malloc(sizeof(GeomElement))
         elem.elem = vert
         elem.pos[0] = screen_pos[0]
         elem.pos[1] = screen_pos[1]
-        elem.depth = depth
+        elem.depth = 0  # depth
         elem.type = GeomType.BM_VERT
 
         self._add_element_to_grid(elem)
@@ -888,14 +883,8 @@ cdef class TargetMeshAccel:
             BMVert* v2 = <BMVert*>edge.v2
 
         # Transform vertices to world space
-        for i in range(3):
-            v1_world[i] = v1.co[i]
-            v2_world[i] = v2.co[i]
-            for j in range(3):
-                v1_world[i] += self.matrix_world[i][j] * v1.co[j]
-                v2_world[i] += self.matrix_world[i][j] * v2.co[j]
-            v1_world[i] += self.matrix_world[i][3]
-            v2_world[i] += self.matrix_world[i][3]
+        self.l2w_point(v1.co, v1_world)
+        self.l2w_point(v2.co, v2_world)
 
         # Add samples along edge
         for i in range(num_samples):
@@ -906,14 +895,14 @@ cdef class TargetMeshAccel:
                 sample_pos[j] = v1_world[j] * (<float>1.0-t) + v2_world[j] * t
             
             # Project to screen space
-            self._project_point_to_screen(sample_pos, screen_pos, &depth)
-            
+            self.project_wpoint_to_region_2d(sample_pos, screen_pos)
+
             # Create and add element
             elem = <GeomElement*>malloc(sizeof(GeomElement))
             elem.elem = edge
             elem.pos[0] = screen_pos[0]
             elem.pos[1] = screen_pos[1]
-            elem.depth = depth
+            elem.depth = 0  # depth
             elem.type = GeomType.BM_EDGE
 
             self._add_element_to_grid(elem)
@@ -929,10 +918,10 @@ cdef class TargetMeshAccel:
             BMLoop* l_iter = <BMLoop*>face.l_first
             BMVert* vert
 
-        # Compute face centroid in world space
+        # Compute face centroid in local space
         for i in range(3):
             centroid[i] = 0
-            
+
         while l_iter:
             vert = <BMVert*>l_iter.v
             for i in range(3):
@@ -942,26 +931,22 @@ cdef class TargetMeshAccel:
             if l_iter == <BMLoop*>face.l_first:
                 break
 
-        if num_verts > 0:
-            # Average centroid and transform to world space
-            for i in range(3):
-                centroid[i] /= num_verts
-                for j in range(3):
-                    centroid[i] += self.matrix_world[i][j] * centroid[j]
-                centroid[i] += self.matrix_world[i][3]
-                
-            # Project to screen space
-            self._project_point_to_screen(centroid, screen_pos, &depth)
-            
-            # Create and add element
-            elem = <GeomElement*>malloc(sizeof(GeomElement))
-            elem.elem = face
-            elem.pos[0] = screen_pos[0]
-            elem.pos[1] = screen_pos[1]
-            elem.depth = depth
-            elem.type = GeomType.BM_FACE
-            
-            self._add_element_to_grid(elem)
+        # Divide by num_verts to get the actual centroid
+        for i in range(3):
+            centroid[i] /= num_verts
+
+        # Project to screen space
+        self.project_lpoint_to_region_2d(centroid, screen_pos)
+
+        # Create and add element
+        elem = <GeomElement*>malloc(sizeof(GeomElement))
+        elem.elem = face
+        elem.pos[0] = screen_pos[0]
+        elem.pos[1] = screen_pos[1]
+        elem.depth = 0  # depth
+        elem.type = GeomType.BM_FACE
+        
+        self._add_element_to_grid(elem)
 
     cdef void _build_accel_struct(self) noexcept nogil:
         """Build acceleration structure for efficient spatial queries"""
