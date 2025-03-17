@@ -104,6 +104,11 @@ cdef class MeshRenderAccel:
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0
             }
+        
+        try:
+            self.py_bmesh.verts[self.bmesh.totvert-1]
+        except IndexError:
+            self.py_bmesh.verts.ensure_lookup_table()
 
         cdef:
             BMVert* vert
@@ -207,6 +212,11 @@ cdef class MeshRenderAccel:
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0
             }
+        
+        try:
+            self.py_bmesh.edges[self.bmesh.totedge-1]
+        except IndexError:
+            self.py_bmesh.edges.ensure_lookup_table()
 
         cdef:
             BMEdge* edge
@@ -335,6 +345,11 @@ cdef class MeshRenderAccel:
                 'count': 0,
                 'tri_count': 0
             }
+        
+        try:
+            self.py_bmesh.faces[self.bmesh.totface-1]
+        except IndexError:
+            self.py_bmesh.faces.ensure_lookup_table()
 
         cdef:
             BMFace* face
