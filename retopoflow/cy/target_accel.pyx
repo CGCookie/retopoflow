@@ -1332,7 +1332,7 @@ cdef class TargetMeshAccel:
         else:
             view_pos = np.array(py_rv3d.view_matrix.inverted().col[2].xyz, dtype=np.float32)
         
-        view_dir = np.array(py_rv3d.view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1)), dtype=np.float32)
+        view_dir = np.array((py_rv3d.view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1))).normalized(), dtype=np.float32)
 
         self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
 
