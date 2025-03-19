@@ -91,7 +91,7 @@ class RFOperator_Contours_Insert_Properties:
             ('skip', 'Skip', 'Process source approximately by skipping about the source mesh'),
             ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow but accurate)'),
         ],
-        default='skip',
+        default='walk',
     )
 
 
