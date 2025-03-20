@@ -22,7 +22,7 @@ website = "https://docs.retopoflow.com"
 # https://docs.blender.org/manual/en/dev/extensions/tags.html
 tags = ["3D View", "Modeling", "Mesh"]
 
-blender_version_min = "4.0.0"
+blender_version_min = "4.3.0"
 # Optional: maximum supported Blender version
 # blender_version_max = "5.1.0"
 
