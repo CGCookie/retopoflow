@@ -24,12 +24,13 @@ from .common.interface import update_toolbar
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
-    # Grabs the top level folder name regardless of this file's location
-    bl_idname = __name__.split('.')[0]
+    # Grabs the full extension name regardless of which library it is in
+    # Since this file is in a subfolder, it needs the last folder name removed
+    bl_idname = __package__.rsplit('.', 1)[0] 
 
     @staticmethod
     def get_prefs(context):
-        bl_idname = __name__.split('.')[0]
+        bl_idname = __package__.rsplit('.', 1)[0] 
         return context.preferences.addons[bl_idname].preferences
     
     """ Display """
