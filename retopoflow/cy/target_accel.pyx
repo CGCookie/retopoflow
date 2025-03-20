@@ -35,6 +35,7 @@ from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
 from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
 from .vector_utils cimport copy_v4_to_v3, div_v3_f, copy_v3f_to_v4
+from .spatial_accel cimport spatial_accel_find_elem, spatial_accel_find_k_elem, spatial_accel_find_k_elem_in_area, spatial_accel_find_elem_in_area
 
 import mathutils
 
@@ -52,12 +53,7 @@ cdef class TargetMeshAccel:
         self.is_selected_v = NULL
         self.is_selected_e = NULL
         self.is_selected_f = NULL
-        
-        # Initialize grid
-        self.grid = NULL
-        self.grid_size_x = 0
-        self.grid_size_y = 0
-        
+
         # Initialize dirty flags
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
@@ -67,6 +63,8 @@ cdef class TargetMeshAccel:
         self.last_totface = 0
 
         self.use_symmetry = bVec3(False, False, False)
+
+        self.accel = spatial_accel_new()
 
     def __init__(self,
         object py_object,
@@ -88,24 +86,37 @@ cdef class TargetMeshAccel:
         self.py_update_region(py_region)
         self.py_update_view(py_rv3d)
 
-    cpdef void update(self, float margin_check, int selection_mode):
-        '''print(f"[CYTHON] update() called with margin_check={margin_check}")
-        print(f"[CYTHON] bmesh: {self.bmesh != NULL}")
-        if self.bmesh:
-            print(f"[CYTHON] vtable: {self.bmesh.vtable != NULL}")
-            print(f"[CYTHON] etable: {self.bmesh.etable != NULL}")
-            print(f"[CYTHON] ftable: {self.bmesh.ftable != NULL}")'''
+    cpdef void update(self, float margin_check, int selection_mode, bint debug=False):
+        if debug:
+            # Use Python objects for timing to avoid Cython conversion issues
+            start_time = time.time()
+            print("[CYTHON] TargetMeshAccel.update()")
 
         self._ensure_bmesh()
+        if debug:
+            current_time = time.time()
+            print(f"\t- Ensure BMesh took: {round(current_time - start_time, 5)} seconds")
+            step_start_time = current_time
 
         if self._compute_geometry_visibility_in_region(margin_check, selection_mode) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             return
-        
-        # TODO: ensure accel struct works...
-        # self._build_accel_struct()
+        if debug:
+            current_time = time.time()
+            print(f"\t- Compute Geom Visibility took: {round(current_time - step_start_time, 5)} seconds")
+            step_start_time = current_time
+
+        self._build_accel_struct()
+        if debug:
+            current_time = time.time()
+            print(f"\t- Build SpatialAccel struct: {round(current_time - step_start_time, 5)} seconds")
+            print(f"\t- TOTAL TIME: {round(current_time - start_time, 5)} seconds")
 
     def __dealloc__(self):
+        if self.accel != NULL:
+            spatial_accel_free(self.accel)
+            self.accel = NULL
+
         self._reset()
 
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil:
@@ -486,9 +497,6 @@ cdef class TargetMeshAccel:
             print(f"[CYTHON] totvisedges: {self.totvisedges}")
             print(f"[CYTHON] totvisfaces: {self.totvisfaces}")
 
-        # After computing visibility and populating the C++ sets, build acceleration structure
-        # self._build_accel_struct()
-
         self.is_dirty_geom_vis = False
         self.is_dirty_accel = True
         return 0
@@ -528,7 +536,6 @@ cdef class TargetMeshAccel:
     cdef void _reset(self, bint dirty=True) noexcept nogil:
         """Reset the acceleration structure"""
         # printf("Accel2D._reset()\n")
-
         if self.is_hidden_v != NULL:
             free(self.is_hidden_v)
         if self.is_hidden_e != NULL:
@@ -556,8 +563,6 @@ cdef class TargetMeshAccel:
         self.visverts.clear()
         self.visedges.clear()
         self.visfaces.clear()
-
-        self._clear_grid()
 
         self.totvisverts = 0
         self.totvisedges = 0
@@ -684,192 +689,23 @@ cdef class TargetMeshAccel:
 
         return sel_py_verts, sel_py_edges, sel_py_faces
 
-    def get_vis_verts(self, object py_bmesh, int selected_only) -> set:
-        cdef:
-            object py_bm_verts = py_bmesh.verts
-            cpp_set[BMVert*].iterator visverts_it = self.visverts.begin()
-            set py_vis_verts = set()
-            BMVert* cur_visvert = NULL
-
-        if selected_only == SelectionState.ALL:
-            while visverts_it != self.visverts.end():
-                cur_visvert = deref(visverts_it)
-                py_vis_verts.add(py_bm_verts[cur_visvert.head.index])
-                inc(visverts_it)
-            return py_vis_verts
-        elif selected_only == SelectionState.SELECTED:
-            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if self.is_selected_v[i]}
-        elif selected_only == SelectionState.UNSELECTED:
-            return {py_bm_verts[self.bmesh.vtable[i].head.index] for i in range(self.bmesh.totvert) if not self.is_selected_v[i]}
-        else:
-            return set()
-
 
     # ---------------------------------------------------------------------------------------
     # Acceleration structure methods.
     # ---------------------------------------------------------------------------------------
 
-    cdef void _init_grid(self) noexcept nogil:
-        """Initialize the grid structure based on region size"""
-        cdef:
-            int i, j
-            
-        self.grid_size_x = self.region.winx // 92  # Adjust cell size as needed
-        self.grid_size_y = self.region.winy // 92
-        self.cell_size_x = self.region.winx / <float>self.grid_size_x
-        self.cell_size_y = self.region.winy / <float>self.grid_size_y
-        
-        # Allocate grid
-        self.grid = <GridCell**>malloc(self.grid_size_x * sizeof(GridCell*))
-        for i in range(self.grid_size_x):
-            self.grid[i] = <GridCell*>malloc(self.grid_size_y * sizeof(GridCell))
-            for j in range(self.grid_size_y):
-                self.grid[i][j].elements.clear()
-
-    cdef void _clear_grid(self) noexcept nogil:
-        """Clear and deallocate grid"""
-        cdef int i
-        if self.grid != NULL:
-            for i in range(self.grid_size_x):
-                if self.grid[i] != NULL:
-                    free(self.grid[i])
-            free(self.grid)
-            self.grid = NULL
-
-    cdef void _get_cell_coords(self, float x, float y, int* cell_x, int* cell_y) noexcept nogil:
-        """Get grid cell coordinates for a point"""
-        cell_x[0] = <int>(x / self.cell_size_x)
-        cell_y[0] = <int>(y / self.cell_size_y)
-        
-        # Clamp to grid bounds
-        if cell_x[0] < 0: cell_x[0] = 0
-        if cell_y[0] < 0: cell_y[0] = 0
-        if cell_x[0] >= self.grid_size_x: cell_x[0] = self.grid_size_x - 1
-        if cell_y[0] >= self.grid_size_y: cell_y[0] = self.grid_size_y - 1
-
-    cdef void _add_element_to_grid(self, GeomElement* elem) noexcept nogil:
-        """Add an element to the appropriate grid cell"""
-        self._get_cell_coords(elem.pos[0], elem.pos[1], &elem.cell_x, &elem.cell_y)
-        self.grid[elem.cell_x][elem.cell_y].elements.push_back(elem[0])
-
-    cdef void _find_cells_in_range(self, float x, float y, float radius, 
-                                  vector[GridCell*]* cells) noexcept nogil:
-        """Find all grid cells that intersect with the given circle"""
-        cdef:
-            int min_cell_x, min_cell_y
-            int max_cell_x, max_cell_y
-            int cell_x, cell_y
-            # float radius_cells_x = radius / self.cell_size_x
-            # float radius_cells_y = radius / self.cell_size_y
-
-        # Get cell range that could contain points within radius
-        self._get_cell_coords(x - radius, y - radius, &min_cell_x, &min_cell_y)
-        self._get_cell_coords(x + radius, y + radius, &max_cell_x, &max_cell_y)
-        
-        # Add all cells in range
-        for cell_x in range(min_cell_x, max_cell_x + 1):
-            for cell_y in range(min_cell_y, max_cell_y + 1):
-                if self.grid != NULL and self.grid[cell_x] != NULL:
-                    cells.push_back(&self.grid[cell_x][cell_y])
-
-    cdef float _compute_distance_2d(self, float x1, float y1, float x2, float y2) noexcept nogil:
-        """Compute 2D Euclidean distance"""
-        cdef:
-            float dx = x2 - x1
-            float dy = y2 - y1
-        return sqrt(dx * dx + dy * dy)
-
-    cdef GeomElement* _find_nearest(self, float x, float y, float max_dist, 
-                                  GeomType filter_type) noexcept nogil:
-        """Find nearest element of given type within max_dist"""
-        cdef:
-            vector[GridCell*] cells
-            size_t i, j
-            float dist, min_dist = max_dist
-            GeomElement* nearest = NULL
-            GeomElement* elem
-            
-        # Get cells that could contain points within max_dist
-        self._find_cells_in_range(x, y, max_dist, &cells)
-        
-        # Search through all elements in found cells
-        for i in range(cells.size()):
-            for j in range(cells[i].elements.size()):
-                elem = &cells[i].elements[j]
-                if filter_type != BM_NONE and elem.type != filter_type:
-                    continue
-                    
-                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest = elem
-                    
-        return nearest
-
-    cdef void _find_nearest_k(self, float x, float y, int k, float max_dist,
-                             GeomType filter_type, vector[GeomElement]* results) noexcept nogil:
-        """Find k nearest elements of given type within max_dist"""
-        cdef:
-            vector[GridCell*] cells
-            size_t i, j, l
-            float dist
-            GeomElement elem
-            vector[pair[float, GeomElement]] candidates
-            
-        # Get cells that could contain points within max_dist
-        self._find_cells_in_range(x, y, max_dist, &cells)
-        
-        # Collect all elements and their distances
-        for i in range(cells.size()):
-            for j in range(cells[i].elements.size()):
-                elem = cells[i].elements[j]
-                if filter_type != BM_NONE and elem.type != filter_type:
-                    continue
-                    
-                dist = self._compute_distance_2d(x, y, elem.pos[0], elem.pos[1])
-                if dist <= max_dist:
-                    candidates.push_back(pair[float, GeomElement](dist, elem))
-                    
-        # Sort candidates by distance
-        # Note: This is a simple bubble sort, could be optimized
-        cdef:
-            size_t n = candidates.size()
-            pair[float, GeomElement] temp
-            
-        for i in range(n):
-            for j in range(0, n - i - 1):
-                if candidates[j].first > candidates[j + 1].first:
-                    temp = candidates[j]
-                    candidates[j] = candidates[j + 1]
-                    candidates[j + 1] = temp
-                    
-        # Take k nearest
-        for i in range(min(k, candidates.size())):
-            results.push_back(candidates[i].second)
-    
     cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil:
         """Add vertex to grid"""
         cdef:
             float[3] world_pos
             float[2] screen_pos
             float depth
-            GeomElement* elem
-            int i
-
-        # Transform vertex position to world space
 
         # Project to screen space
         self.project_vert_to_region_2d(vert, screen_pos)
 
-        # Create and add element
-        elem = <GeomElement*>malloc(sizeof(GeomElement))
-        elem.elem = vert
-        elem.pos[0] = screen_pos[0]
-        elem.pos[1] = screen_pos[1]
-        elem.depth = 0  # depth
-        elem.type = GeomType.BM_VERT
-
-        self._add_element_to_grid(elem)
+        # Add to accel grid
+        spatial_accel_add_element(self.accel, <void*>vert, vert.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.VERT)
 
     cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil:
         """Add edge samples to grid"""
@@ -877,7 +713,6 @@ cdef class TargetMeshAccel:
             float[3] v1_world, v2_world, sample_pos
             float[2] screen_pos
             float depth, t
-            GeomElement* elem
             int i, j
             BMVert* v1 = <BMVert*>edge.v1
             BMVert* v2 = <BMVert*>edge.v2
@@ -897,15 +732,8 @@ cdef class TargetMeshAccel:
             # Project to screen space
             self.project_wpoint_to_region_2d(sample_pos, screen_pos)
 
-            # Create and add element
-            elem = <GeomElement*>malloc(sizeof(GeomElement))
-            elem.elem = edge
-            elem.pos[0] = screen_pos[0]
-            elem.pos[1] = screen_pos[1]
-            elem.depth = 0  # depth
-            elem.type = GeomType.BM_EDGE
-
-            self._add_element_to_grid(elem)
+            # Add to accel grid
+            spatial_accel_add_element(self.accel, <void*>edge, edge.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.EDGE)
 
     cdef void add_face_to_grid(self, BMFace* face) noexcept nogil:
         """Add face centroid to grid"""
@@ -913,7 +741,6 @@ cdef class TargetMeshAccel:
             float[3] centroid
             float[2] screen_pos
             float depth
-            GeomElement* elem
             int i, j, num_verts = 0
             BMLoop* l_iter = <BMLoop*>face.l_first
             BMVert* vert
@@ -938,23 +765,20 @@ cdef class TargetMeshAccel:
         # Project to screen space
         self.project_lpoint_to_region_2d(centroid, screen_pos)
 
-        # Create and add element
-        elem = <GeomElement*>malloc(sizeof(GeomElement))
-        elem.elem = face
-        elem.pos[0] = screen_pos[0]
-        elem.pos[1] = screen_pos[1]
-        elem.depth = 0  # depth
-        elem.type = GeomType.BM_FACE
-        
-        self._add_element_to_grid(elem)
+        # Add to accel grid
+        spatial_accel_add_element(self.accel, <void*>face, face.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.FACE)
 
     cdef void _build_accel_struct(self) noexcept nogil:
         """Build acceleration structure for efficient spatial queries"""
-
         if self.is_dirty_geom_vis:
             return
         if not self.is_dirty_accel:
             return
+
+        cdef SpatialAccel new_accel
+
+        # Initialize the spatial acceleration structure
+        spatial_accel_init(self.accel, 0.0, 0.0, self.region.winx, self.region.winy, 92, 92)
 
         cdef:
             cpp_set[BMVert*].iterator vert_it
@@ -965,13 +789,8 @@ cdef class TargetMeshAccel:
             BMFace* face
             BMHeader* head
             int i, j
-        
-        # Clear existing grid
-        self._clear_grid()
 
-        # Initialize grid
-        self._init_grid()
-
+        # with parallel():
         # Add visible vertices
         if self.totvisverts > 0:
             vert_it = self.visverts.begin()
@@ -1331,97 +1150,246 @@ cdef class TargetMeshAccel:
         return False
 
     cpdef void py_update_accel_struct(self):
-        if self.is_dirty_geom_vis:
-            return
-        if not self.is_dirty_accel:
-            return
         self._build_accel_struct()
 
-    cpdef dict find_nearest_vert(self, float x, float y, float max_dist=finf):
+    cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible vertex to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_VERT)
-        if result != NULL:
+        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.VERT, use_epsilon=False)
+        cdef SpatialGeomElement* elem_data = result.element
+        cdef object py_elem
+        if elem_data.elem != NULL:
+            py_elem = self.py_bmesh.verts[elem_data.index]
             return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
+                'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
+                'pos': (elem_data.x, elem_data.y),
+                'depth': elem_data.depth,
+                'distance':  result.distance
             }
         return None
 
-    cpdef dict find_nearest_edge(self, float x, float y, float max_dist=finf):
+    cpdef dict find_nearest_edge(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible edge to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_EDGE)
-        if result != NULL:
+        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.EDGE, use_epsilon=False)
+        cdef SpatialGeomElement* elem_data = result.element
+        cdef object py_elem
+        if elem_data.elem != NULL:
+            py_elem = self.py_bmesh.edges[elem_data.index]
             return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
+                'elem': self.edge_wrapper(py_elem) if wrapped else py_elem,
+                'pos': (elem_data.x, elem_data.y),
+                'depth': elem_data.depth,
+                'distance':  result.distance
             }
         return None
 
-    cpdef dict find_nearest_face(self, float x, float y, float max_dist=finf):
+    cpdef dict find_nearest_face(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible face to screen position"""
-        cdef GeomElement* result = self._find_nearest(x, y, max_dist, GeomType.BM_FACE)
-        if result != NULL:
+        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.FACE, use_epsilon=False)
+        cdef SpatialGeomElement* elem_data = result.element
+        cdef object py_elem
+        if elem_data.elem != NULL:
+            py_elem = self.py_bmesh.faces[elem_data.index]
             return {
-                'elem': <object>result.elem,
-                'pos': (result.pos[0], result.pos[1]),
-                'depth': result.depth
+                'elem': self.face_wrapper(py_elem) if wrapped else py_elem,
+                'pos': (elem_data.x, elem_data.y),
+                'depth': elem_data.depth,
+                'distance':  result.distance
             }
         return None
 
-    cpdef list find_k_nearest_verts(self, float x, float y, int k, float max_dist=finf):
+    cpdef tuple find_nearest_geom(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
+        """Find nearest visible face to screen position"""
+        cdef dict result_v = self.find_nearest_vert(x, y, <float>0.0, max_dist, wrapped=wrapped)
+        cdef dict result_e = self.find_nearest_edge(x, y, <float>0.0, max_dist, wrapped=wrapped)
+        cdef dict result_f = self.find_nearest_face(x, y, <float>0.0, max_dist, wrapped=wrapped)
+        return (result_v, result_e, result_f)
+
+    cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
         """Find k nearest vertices to screen position"""
         cdef:
-            vector[GeomElement] results
+            vector[SpatialElementWithDistance] results
             list py_results = []
             size_t i
-            
-        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_VERT, &results)
-        
+            SpatialGeomElement* elem_data
+            object py_elem
+
+        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.VERT, k)
+
         for i in range(results.size()):
-            py_results.append({
-                'elem': <object>results[i].elem,
-                'pos': (results[i].pos[0], results[i].pos[1]),
-                'depth': results[i].depth
-            })
-            
+            elem_data = results[i].element
+            if elem_data.elem != NULL:
+                py_elem = self.py_bmesh.verts[elem_data.index]
+                py_results.append({
+                    'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
+                    'pos': (elem_data.x, elem_data.y),
+                    'depth': elem_data.depth,
+                    'distance':  results[i].distance
+                })
+
         return py_results
 
-    cpdef list find_k_nearest_edges(self, float x, float y, int k, float max_dist=finf):
+    cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
         """Find k nearest edges to screen position"""
         cdef:
-            vector[GeomElement] results
+            vector[SpatialElementWithDistance] results
             list py_results = []
             size_t i
+            SpatialGeomElement* elem_data
+            object py_elem
             
-        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_EDGE, &results)
+        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.EDGE, k)
         
         for i in range(results.size()):
-            py_results.append({
-                'elem': <object>results[i].elem,
-                'pos': (results[i].pos[0], results[i].pos[1]),
-                'depth': results[i].depth
-            })
+            elem_data = results[i].element
+            if elem_data.elem != NULL:
+                py_elem = self.py_bmesh.edges[elem_data.index]
+                py_results.append({
+                    'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
+                    'pos': (elem_data.x, elem_data.y),
+                    'depth': elem_data.depth,
+                    'distance':  results[i].distance
+                })
             
         return py_results
 
-    cpdef list find_k_nearest_faces(self, float x, float y, int k, float max_dist=finf):
+    cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
         """Find k nearest faces to screen position"""
         cdef:
-            vector[GeomElement] results
+            vector[SpatialElementWithDistance] results
             list py_results = []
             size_t i
+            SpatialGeomElement* elem_data
+            object py_elem
             
-        self._find_nearest_k(x, y, k, max_dist, GeomType.BM_FACE, &results)
+        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.FACE, k)
         
         for i in range(results.size()):
+            elem_data = results[i].element
+            if elem_data.elem != NULL:
+                py_elem = self.py_bmesh.faces[elem_data.index]
+                py_results.append({
+                    'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
+                    'pos': (elem_data.x, elem_data.y),
+                    'depth': elem_data.depth,
+                    'distance':  results[i].distance
+                })
+            
+        return py_results
+
+    cpdef list find_verts_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
+        """Find vertices within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.VERT, radius)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.verts[(<BMElem*>results[i].elem).head.index]
             py_results.append({
-                'elem': <object>results[i].elem,
-                'pos': (results[i].pos[0], results[i].pos[1]),
+                'elem': self.vert_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
                 'depth': results[i].depth
             })
-            
+
+        return py_results
+
+    cpdef list find_edges_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
+        """Find edges within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.EDGE, radius)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.edges[(<BMElem*>results[i].elem).head.index]
+            py_results.append({
+                'elem': self.edge_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
+                'depth': results[i].depth
+            })
+
+        return py_results
+
+    cpdef list find_faces_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
+        """Find faces within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.FACE, radius)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.faces[(<BMElem*>results[i].elem).head.index]
+            py_results.append({
+                'elem': self.face_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
+                'depth': results[i].depth
+            })
+
+        return py_results
+
+    cpdef list find_geom_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
+        """Find all geometry types within a radius of the given point."""
+        cdef list py_results = []
+        py_results.extend(self.find_verts_in_area(x, y, depth, radius, wrapped))
+        py_results.extend(self.find_edges_in_area(x, y, depth, radius, wrapped))
+        py_results.extend(self.find_faces_in_area(x, y, depth, radius, wrapped))
+        return py_results
+
+    cpdef list find_k_verts_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
+        """Find k nearest vertices within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.VERT, radius, k)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.verts[(<BMElem*>results[i].elem).head.index]
+            py_results.append({
+                'elem': self.vert_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
+                'depth': results[i].depth
+            })
+
+        return py_results
+
+    cpdef list find_k_edges_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
+        """Find k nearest edges within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.EDGE, radius, k)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.edges[(<BMElem*>results[i].elem).head.index]
+            py_results.append({
+                'elem': self.edge_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
+                'depth': results[i].depth
+            })
+
+        return py_results
+
+    cpdef list find_k_faces_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
+        """Find k nearest faces within a radius of the given point."""
+        cdef vector[SpatialGeomElement*] results
+        cdef list py_results = []
+        cdef object elem
+
+        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.FACE, radius, k)
+
+        for i in range(results.size()):
+            elem = self.py_bmesh.faces[(<BMElem*>results[i].elem).head.index]
+            py_results.append({
+                'elem': self.face_wrapper(elem) if wrapped else elem,
+                'pos': (results[i].x, results[i].y),
+                'depth': results[i].depth
+            })
+
         return py_results
 
 

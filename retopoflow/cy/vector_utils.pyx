@@ -15,7 +15,7 @@ cdef float vec3_dot(const float* a, const float* b) noexcept nogil:
         return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 cdef void vec3_normalize(float* v) noexcept nogil:
-    cdef float length = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    cdef float length = <float>sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
     if length > <float>0.0:
         v[0] /= length
         v[1] /= length

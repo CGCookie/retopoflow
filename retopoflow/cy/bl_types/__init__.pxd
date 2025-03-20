@@ -7,7 +7,7 @@ cdef int BLENDER_VERSION = version[0] * 100 + version[1] * 10 + version[2]
 
 from retopoflow.cy.bl_types.vec_types cimport rcti, rctf, BoundBox
 from retopoflow.cy.bl_types.list_base cimport ListBase
-from retopoflow.cy.bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMLoop, BMHeader
+from retopoflow.cy.bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMLoop, BMHeader, BMElem
 from retopoflow.cy.bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from retopoflow.cy.bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
 

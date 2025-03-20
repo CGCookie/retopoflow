@@ -15,6 +15,10 @@ cdef struct BMHeader:
     char api_flag
     char _pad
 
+# Just a wrapper for all elem types to get unified access to BMHeader data
+cdef struct BMElem:
+    BMHeader head
+
 # Disk link structure used by edges
 cdef struct BMDiskLink:
     void* next  # BMEdge*
