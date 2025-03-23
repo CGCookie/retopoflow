@@ -33,9 +33,7 @@ cdef struct ElementWithDistance:
 
 # Cell structure containing geometry elements
 cdef struct Cell:
-    GeomElement* elements
-    int count
-    int capacity
+    vector[GeomElement] elements
 
 # Convert to struct instead of class
 cdef struct SpatialAccel:

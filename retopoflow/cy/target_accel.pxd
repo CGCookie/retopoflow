@@ -20,7 +20,7 @@ from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from .bl_types cimport ARegion, RegionView3D
 from .vector_utils cimport bVec3
 from .bl_types.vec_types cimport rcti, rctf, BoundBox
-from .spatial_accel cimport SpatialAccel, spatial_accel_new, spatial_accel_free, spatial_accel_init, spatial_accel_cleanup
+from .spatial_accel cimport SpatialAccel, spatial_accel_new, spatial_accel_free, spatial_accel_init, spatial_accel_cleanup, spatial_accel_reset
 from .spatial_accel cimport spatial_accel_add_element, GeomType as SpatialGeomType, GeomElement as SpatialGeomElement, ElementWithDistance as SpatialElementWithDistance
 
 
@@ -119,7 +119,7 @@ cdef class TargetMeshAccel:
     cdef np.ndarray get_is_selected_edges_array(self)
     cdef np.ndarray get_is_selected_faces_array(self)
 
-    cdef void _build_accel_struct(self) noexcept nogil
+    cdef void _build_accel_struct(self) nogil
     cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil
     cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil
     cdef void add_face_to_grid(self, BMFace* face) noexcept nogil
