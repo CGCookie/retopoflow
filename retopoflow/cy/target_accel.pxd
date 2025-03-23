@@ -19,9 +19,10 @@ from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeade
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from .bl_types cimport ARegion, RegionView3D
 from .vector_utils cimport bVec3
-from .bl_types.vec_types cimport rcti, rctf, BoundBox
+from .bl_types.vec_types cimport rcti, rctf
 from .spatial_accel cimport SpatialAccel, spatial_accel_new, spatial_accel_free, spatial_accel_init, spatial_accel_cleanup, spatial_accel_reset
-from .spatial_accel cimport spatial_accel_add_element, GeomType as SpatialGeomType, GeomElement as SpatialGeomElement, ElementWithDistance as SpatialElementWithDistance
+from .spatial_accel cimport spatial_accel_add_element, spatial_accel_update_grid_indices #, spatial_accel_get_nearest_elements
+from .spatial_accel cimport GeomType as SpatialGeomType, GeomElement as SpatialGeomElement, ElementWithDistance as SpatialElementWithDistance
 
 
 cdef enum SelectionState:
@@ -119,12 +120,11 @@ cdef class TargetMeshAccel:
     cdef np.ndarray get_is_selected_edges_array(self)
     cdef np.ndarray get_is_selected_faces_array(self)
 
-    cdef void _build_accel_struct(self) nogil
-    cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil
-    cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil
-    cdef void add_face_to_grid(self, BMFace* face) noexcept nogil
+    cdef void _build_accel_struct(self) noexcept nogil
+    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index, bint debug) noexcept nogil
+    cdef void add_edge_to_grid(self, BMEdge* edge, int insert_index, int num_samples) noexcept nogil
+    cdef void add_face_to_grid(self, BMFace* face, int insert_index) noexcept nogil
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil
-
 
     # ---------------------------------------------------------------------------------------
     # Python exposed methods.
@@ -146,29 +146,17 @@ cdef class TargetMeshAccel:
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)
     cpdef void py_update_accel_struct(self)
 
-    # Single nearest element methods
+    '''# Single nearest element methods
     cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
     cpdef dict find_nearest_edge(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
     cpdef dict find_nearest_face(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
     cpdef tuple find_nearest_geom(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
-    
+
     # k nearest elements methods
     cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
     cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
     cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
-
-    # area search nearest elements methods
-    cpdef list find_verts_in_area(self, float x, float y, float depth, float radius, bint wrapped=*)
-    cpdef list find_edges_in_area(self, float x, float y, float depth, float radius, bint wrapped=*)
-    cpdef list find_faces_in_area(self, float x, float y, float depth, float radius, bint wrapped=*)
-    cpdef list find_geom_in_area(self, float x, float y, float depth, float radius, bint wrapped=*)
-
-    # area search k-nearest elements methods
-    cpdef list find_k_verts_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=*)
-    cpdef list find_k_edges_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=*)
-    cpdef list find_k_faces_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=*)
-
-
+    '''
     cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
 

@@ -8,7 +8,9 @@
 # cython: embedsignature=True
 # cython: binding=True
 
-from libcpp.vector cimport vector
+from libcpp.list cimport list as cpp_list
+from libcpp.algorithm cimport sort
+from libcpp cimport bool
 
 
 # Define geometry types
@@ -16,49 +18,69 @@ cpdef enum GeomType:
     VERT = 0
     EDGE = 1
     FACE = 2
+    ANY = 3  # New type to allow searching for any geometry type
 
 # Geometry element structure
 cdef struct GeomElement:
-    void* elem
-    int index
-    float x
-    float y
-    float depth
-    GeomType geom_type
+    void* elem          # Pointer to the actual geometry element
+    size_t index           # Index in the source collection
+    float x, y, depth   # 3D position (2D + depth)
+    GeomType geom_type  # Type of geometry
+    int cell_x, cell_y
+    size_t cell_index
 
-# Define comparison function for sorting GeomElements by distance
+# Structure for element with distance information for sorting
 cdef struct ElementWithDistance:
-    GeomElement* element
-    float distance
+    GeomElement* element  # Pointer to the geometry element
+    float distance        # Distance from query point
 
-# Cell structure containing geometry elements
+# Cell structure for the spatial grid
 cdef struct Cell:
-    vector[GeomElement] elements
+    int totelem
+    int* elem_indices  # Indices of the elements in this cell
 
-# Convert to struct instead of class
+# Main spatial acceleration structure
 cdef struct SpatialAccel:
+    # Bounds of the 2D grid
     float min_x, min_y, max_x, max_y
-    int grid_width, grid_height
+    
+    # Grid dimensions
+    int grid_cols, grid_rows
+    
+    # Size of each cell
     float cell_size_x, cell_size_y
-    Cell** grid
+
+    # All elements added to the spatial accel structure.
+    int totelem
+    GeomElement* elements
+
+    # The 2D grid of cells
+    Cell** grid  # references to the pointers at cells_memory.
+    Cell* cells_memory  # here we store the real cells data.
+
+    # Whether the structure is initialized
     bint is_initialized
 
-# Function declarations that operate on the SpatialAccel struct
-cdef void spatial_accel_cleanup(SpatialAccel* accel) noexcept nogil
-cdef void spatial_accel_init(SpatialAccel* accel, float min_x, float min_y, float max_x, float max_y, int grid_width, int grid_height) noexcept nogil
-cdef void spatial_accel_reset(SpatialAccel* accel) noexcept nogil
-cdef void spatial_accel_get_cell_indices(SpatialAccel* accel, float x, float y, int* cell_x, int* cell_y) noexcept nogil
-cdef void spatial_accel_add_element(SpatialAccel* accel, void* elem, int index, float x, float y, float depth, GeomType geom_type) noexcept nogil
-cdef ElementWithDistance spatial_accel_find_elem(SpatialAccel* accel, float x, float y, float depth, float max_dist, GeomType geom_type, bint use_epsilon)
-cdef float spatial_accel_element_distance(SpatialAccel* accel, GeomElement* elem, float x, float y, float depth) noexcept nogil
-cdef vector[ElementWithDistance] spatial_accel_find_k_elem(SpatialAccel* accel, float x, float y, float depth, float max_dist, GeomType geom_type, int k)
-cdef vector[GeomElement*] spatial_accel_find_elem_in_area(SpatialAccel* accel, float x, float y, float depth, GeomType geom_type, float radius)
-cdef vector[GeomElement*] spatial_accel_find_k_elem_in_area(SpatialAccel* accel, float x, float y, float depth, GeomType geom_type, float radius, int k)
-
-# Global pointer to current SpatialAccel instance
-# cdef:
-#     SpatialAccel* global_accel
-
-# Functions to create and destroy SpatialAccel
+# Core function declarations
 cdef SpatialAccel* spatial_accel_new() noexcept nogil
 cdef void spatial_accel_free(SpatialAccel* accel) noexcept nogil
+cdef void spatial_accel_cleanup(SpatialAccel* accel) noexcept nogil
+cdef void spatial_accel_init(SpatialAccel* accel, int totelem, float min_x, float min_y, float max_x, float max_y, int grid_cols, int grid_rows) noexcept nogil
+cdef void spatial_accel_reset(SpatialAccel* accel) noexcept nogil
+
+# Element management
+cdef void spatial_accel_add_element(SpatialAccel* accel, int insert_index, void* elem, int index, float x, float y, float depth, GeomType geom_type) noexcept nogil
+cdef void spatial_accel_update_grid_indices(SpatialAccel* accel) noexcept nogil
+
+# Unified search function - replaces all the separate search functions
+'''cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
+    SpatialAccel* accel,
+    float x, float y, float depth,  # Search position
+    int k,                          # Number of elements to return (k=0 means all elements within max_dist)
+    float max_dist,                 # Maximum search distance (max_dist=0 means unlimited)
+    GeomType geom_type              # Type of geometry to search for
+) noexcept nogil'''
+
+# Utility functions
+cdef void spatial_accel_get_cell_indices(SpatialAccel* accel, float x, float y, int* cell_x, int* cell_y) noexcept nogil
+cdef float spatial_accel_element_distance(SpatialAccel* accel, GeomElement* elem, float x, float y, float depth) noexcept nogil

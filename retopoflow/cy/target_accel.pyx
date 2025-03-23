@@ -35,7 +35,6 @@ from .bl_types cimport ARegion, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
 from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
 from .vector_utils cimport copy_v4_to_v3, div_v3_f, copy_v3f_to_v4
-from .spatial_accel cimport spatial_accel_find_elem, spatial_accel_find_k_elem, spatial_accel_find_k_elem_in_area, spatial_accel_find_elem_in_area
 
 import mathutils
 
@@ -65,6 +64,8 @@ cdef class TargetMeshAccel:
         self.use_symmetry = bVec3(False, False, False)
 
         self.accel = spatial_accel_new()
+        if self.accel == NULL:
+            raise MemoryError("Failed to allocate SpatialAccel")
 
     def __init__(self,
         object py_object,
@@ -694,25 +695,33 @@ cdef class TargetMeshAccel:
     # Acceleration structure methods.
     # ---------------------------------------------------------------------------------------
 
-    cdef void add_vert_to_grid(self, BMVert* vert) noexcept nogil:
+    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index, bint debug) noexcept nogil:
         """Add vertex to grid"""
         cdef:
             float[3] world_pos
             float[2] screen_pos
-            float depth
+            float depth = 0.0  # Initialize depth
 
-        # Project to screen space
-        self.project_vert_to_region_2d(vert, screen_pos)
+        # Transform vertex to world space
+        self.l2w_point(vert.co, world_pos)
+        
+        # Project to screen space with depth
+        self._project_point_to_screen(world_pos, screen_pos, &depth)
 
-        # Add to accel grid
-        spatial_accel_add_element(self.accel, <void*>vert, vert.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.VERT)
+        if debug:
+            with gil:
+                print(f"\t- Vert - world_pos: ({world_pos[0]}, {world_pos[1]}, {world_pos[2]}) - screen_pos: ({screen_pos[0]}, {screen_pos[1]}) - depth: {depth}")
 
-    cdef void add_edge_to_grid(self, BMEdge* edge, int num_samples) noexcept nogil:
+        # Add to accel grid with proper depth
+        # cdef (SpatialAccel* accel, void* elem, int index, float x, float y, float depth, GeomType geom_type)
+        spatial_accel_add_element(self.accel, insert_index, <void*>vert, vert.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.VERT)
+
+    cdef void add_edge_to_grid(self, BMEdge* edge, int insert_index, int num_samples) noexcept nogil:
         """Add edge samples to grid"""
         cdef:
             float[3] v1_world, v2_world, sample_pos
             float[2] screen_pos
-            float depth, t
+            float depth = 0.0, t
             int i, j
             BMVert* v1 = <BMVert*>edge.v1
             BMVert* v2 = <BMVert*>edge.v2
@@ -729,18 +738,18 @@ cdef class TargetMeshAccel:
             for j in range(3):
                 sample_pos[j] = v1_world[j] * (<float>1.0-t) + v2_world[j] * t
             
-            # Project to screen space
-            self.project_wpoint_to_region_2d(sample_pos, screen_pos)
+            # Project to screen space with depth
+            self._project_point_to_screen(sample_pos, screen_pos, &depth)
 
-            # Add to accel grid
-            spatial_accel_add_element(self.accel, <void*>edge, edge.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.EDGE)
+            # Add to accel grid with proper depth
+            spatial_accel_add_element(self.accel, insert_index, <void*>edge, edge.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.EDGE)
 
-    cdef void add_face_to_grid(self, BMFace* face) noexcept nogil:
+    cdef void add_face_to_grid(self, BMFace* face, int insert_index) noexcept nogil:
         """Add face centroid to grid"""
         cdef:
-            float[3] centroid
+            float[3] centroid, world_centroid
             float[2] screen_pos
-            float depth
+            float depth = 0.0
             int i, j, num_verts = 0
             BMLoop* l_iter = <BMLoop*>face.l_first
             BMVert* vert
@@ -762,17 +771,63 @@ cdef class TargetMeshAccel:
         for i in range(3):
             centroid[i] /= num_verts
 
-        # Project to screen space
-        self.project_lpoint_to_region_2d(centroid, screen_pos)
+        # Transform to world space
+        self.l2w_point(centroid, world_centroid)
+        
+        # Project to screen space with depth
+        self._project_point_to_screen(world_centroid, screen_pos, &depth)
 
-        # Add to accel grid
-        spatial_accel_add_element(self.accel, <void*>face, face.head.index, screen_pos[0], screen_pos[1], 0.0, SpatialGeomType.FACE)
+        # Add to accel grid with proper depth
+        spatial_accel_add_element(self.accel, insert_index, <void*>face, face.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.FACE)
 
-    cdef void _build_accel_struct(self) nogil:
+    cdef void _build_accel_struct(self) noexcept nogil:
         """Build acceleration structure for efficient spatial queries"""
+        with gil:
+            print("[CYTHON] Starting _build_accel_struct()")
+
+        if not self.is_dirty_accel:
+            with gil:
+                print("[CYTHON] Skipping _build_accel_struct() because accel is not dirty")
+            return
+
+        # Validate accel pointer
+        if self.accel == NULL:
+            with gil:
+                print("[CYTHON] ERROR: self.accel is NULL!")
+            return
+
         # Use a smaller grid to avoid memory issues
-        cdef int grid_width = 32  # Reduced from 92
-        cdef int grid_height = 32  # Reduced from 92
+        cdef int grid_width = 64
+        cdef int grid_height = 64
+
+        # Check if region dimensions are valid
+        if self.region == NULL or self.region.winx <= 0 or self.region.winy <= 0:
+            with gil:
+                print("[CYTHON] ERROR: Invalid region or region dimensions")
+            return
+
+        cdef:
+            int edge_samples = 2
+            int edge_insert_index_offset = self.totvisverts
+            int face_insert_index_offset = edge_insert_index_offset + self.totvisedges * edge_samples
+            int totelem = self.totvisverts + self.totvisedges * edge_samples + self.totvisfaces
+
+        # Initialize the spatial acceleration structure
+        spatial_accel_init(self.accel, totelem, 0.0, 0.0, self.region.winx, self.region.winy, grid_width, grid_height)
+
+        # Check initialization status
+        if not self.accel.is_initialized or self.accel.grid == NULL:
+            with gil:
+                print("[CYTHON] ERROR: Failed to initialize spatial acceleration structure")
+            return
+        
+        with gil:
+            # Extra debug info
+            print(f"[CYTHON] Accel bounds: ({self.accel.min_x}, {self.accel.min_y}) -> ({self.accel.max_x}, {self.accel.max_y})")
+            print(f"[CYTHON] Cell size: {self.accel.cell_size_x} x {self.accel.cell_size_y}")
+            
+            # Process visible elements
+            print(f"[CYTHON] Adding {self.totvisverts} vertices, {self.totvisedges} edges, {self.totvisfaces} faces to grid")
 
         cdef:
             cpp_set[BMVert*].iterator vert_it
@@ -783,99 +838,57 @@ cdef class TargetMeshAccel:
             BMFace* face
             int i = 0
 
-        with gil:  # Acquire GIL to allow Python operations
-            try:
-                print("[CYTHON] Starting _build_accel_struct()")
-                
-                if self.is_dirty_geom_vis:
-                    print("[CYTHON] Skipping _build_accel_struct() because geometry visibility is dirty")
-                    return
-                if not self.is_dirty_accel:
-                    print("[CYTHON] Skipping _build_accel_struct() because accel is not dirty")
-                    return
-                
-                print(f"[CYTHON] Region dimensions: {self.region.winx} x {self.region.winy}")
-                print(f"[CYTHON] Initializing spatial_accel with grid {grid_width}x{grid_height}")
-                
-                # Validate accel pointer
-                if self.accel == NULL:
-                    print("[CYTHON] ERROR: self.accel is NULL!")
-                    return
-                    
-                # Initialize the spatial acceleration structure
-                spatial_accel_init(self.accel, 0.0, 0.0, self.region.winx, self.region.winy, grid_width, grid_height)
-                
-                # Check initialization status
-                if not self.accel.is_initialized or self.accel.grid == NULL:
-                    print("[CYTHON] ERROR: Failed to initialize spatial acceleration structure")
-                    return
-                    
-                # Extra debug info
-                print(f"[CYTHON] Accel bounds: ({self.accel.min_x}, {self.accel.min_y}) -> ({self.accel.max_x}, {self.accel.max_y})")
-                print(f"[CYTHON] Cell size: {self.accel.cell_size_x} x {self.accel.cell_size_y}")
-                
-                # Process visible elements
-                print(f"[CYTHON] Adding {self.totvisverts} vertices, {self.totvisedges} edges, {self.totvisfaces} faces to grid")
-                
-                # Add visible vertices
-                if self.totvisverts > 0:
-                    vert_it = self.visverts.begin()
-                    i = 0
-                    print("[CYTHON] Adding vertices to grid")
-                    while vert_it != self.visverts.end():
-                        vert = deref(vert_it)
-                        if i % 500 == 0:  # Print progress every 500 vertices
-                            print(f"[CYTHON] Processing vertex {i}/{self.totvisverts}")
-                        self.add_vert_to_grid(vert)
-                        inc(vert_it)
-                        i += 1
-                
-                # Add visible edges with samples
-                if self.totvisedges > 0:
-                    edge_it = self.visedges.begin()
-                    i = 0
-                    print("[CYTHON] Adding edges to grid")
-                    while edge_it != self.visedges.end():
-                        edge = deref(edge_it)
-                        if i % 500 == 0:  # Print progress every 500 edges
-                            print(f"[CYTHON] Processing edge {i}/{self.totvisedges}")
-                        self.add_edge_to_grid(edge, 2)  # Reduced from 3 to 2 samples
-                        inc(edge_it)
-                        i += 1
-                
-                # Add visible faces
-                if self.totvisfaces > 0:
-                    face_it = self.visfaces.begin()
-                    i = 0
-                    print("[CYTHON] Adding faces to grid")
-                    while face_it != self.visfaces.end():
-                        face = deref(face_it)
-                        if i % 500 == 0:  # Print progress every 500 faces
-                            print(f"[CYTHON] Processing face {i}/{self.totvisfaces}")
-                        self.add_face_to_grid(face)
-                        inc(face_it)
-                        i += 1
-                
-                print("[CYTHON] Finished building acceleration structure")
-                self.is_dirty_accel = False
-                
-            except Exception as e:
-                import traceback
-                print(f"[CYTHON] EXCEPTION in _build_accel_struct(): {type(e).__name__}: {e}")
-                traceback.print_exc()  # Print the full exception traceback
-                print("Call stack:")
-                traceback.print_stack()
-                
-                # Try to provide more specific information about what might be happening
-                import sys
-                print(f"Python version: {sys.version}")
-                print(f"Memory info (if available):")
-                try:
-                    import psutil
-                    process = psutil.Process()
-                    print(f"Memory usage: {process.memory_info().rss / (1024 * 1024)} MB")
-                except ImportError:
-                    print("psutil not available for memory diagnostics")
+        if self.totvisverts > 0:
+            vert_it = self.visverts.begin()
+            i = 0
+            with gil:
+                print("[CYTHON] Adding vertices to grid")
+            while vert_it != self.visverts.end():
+                vert = deref(vert_it)
+                if vert == NULL:
+                    inc(vert_it)
+                    continue
+                self.add_vert_to_grid(vert, i, i == 0 or i % 500 == 0)
+                inc(vert_it)
+                i += 1
+
+        if self.totvisedges > 0:
+            edge_it = self.visedges.begin()
+            i = 0
+            with gil:
+                print("[CYTHON] Adding edges to grid")
+            while edge_it != self.visedges.end():
+                edge = deref(edge_it)
+                if edge == NULL:
+                    inc(edge_it)
+                    continue
+                self.add_edge_to_grid(edge, edge_insert_index_offset + i, edge_samples)  # Reduced from 3 to 2 samples
+                inc(edge_it)
+                i += 1
+
+        if self.totvisfaces > 0:
+            face_it = self.visfaces.begin()
+            i = 0
+            with gil:
+                print("[CYTHON] Adding faces to grid")
+            while face_it != self.visfaces.end():
+                face = deref(face_it)
+                if face == NULL:
+                    inc(face_it)
+                    continue
+                self.add_face_to_grid(face, face_insert_index_offset + i)
+                inc(face_it)
+                i += 1
+
+        self.is_dirty_accel = False
+
+        with gil:
+            print("[CYTHON] Updating grid indices")
+
+        spatial_accel_update_grid_indices(self.accel)
+
+        with gil:
+            print("[CYTHON] Successfully built acceleration structure")
 
 
     # ------------------------------------------------------------------------------------
@@ -1212,7 +1225,7 @@ cdef class TargetMeshAccel:
     cpdef void py_update_accel_struct(self):
         self._build_accel_struct()
 
-    cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
+    '''cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible vertex to screen position"""
         cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.VERT, use_epsilon=False)
         cdef SpatialGeomElement* elem_data = result.element
@@ -1340,123 +1353,7 @@ cdef class TargetMeshAccel:
                     'distance':  results[i].distance
                 })
             
-        return py_results
-
-    cpdef list find_verts_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
-        """Find vertices within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.VERT, radius)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.verts[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.vert_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
-
-    cpdef list find_edges_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
-        """Find edges within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.EDGE, radius)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.edges[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.edge_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
-
-    cpdef list find_faces_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
-        """Find faces within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_elem_in_area(self.accel, x, y, depth, SpatialGeomType.FACE, radius)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.faces[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.face_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
-
-    cpdef list find_geom_in_area(self, float x, float y, float depth, float radius, bint wrapped=False):
-        """Find all geometry types within a radius of the given point."""
-        cdef list py_results = []
-        py_results.extend(self.find_verts_in_area(x, y, depth, radius, wrapped))
-        py_results.extend(self.find_edges_in_area(x, y, depth, radius, wrapped))
-        py_results.extend(self.find_faces_in_area(x, y, depth, radius, wrapped))
-        return py_results
-
-    cpdef list find_k_verts_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
-        """Find k nearest vertices within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.VERT, radius, k)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.verts[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.vert_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
-
-    cpdef list find_k_edges_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
-        """Find k nearest edges within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.EDGE, radius, k)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.edges[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.edge_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
-
-    cpdef list find_k_faces_in_area(self, float x, float y, float depth, float radius, int k, bint wrapped=False):
-        """Find k nearest faces within a radius of the given point."""
-        cdef vector[SpatialGeomElement*] results
-        cdef list py_results = []
-        cdef object elem
-
-        results = spatial_accel_find_k_elem_in_area(self.accel, x, y, depth, SpatialGeomType.FACE, radius, k)
-
-        for i in range(results.size()):
-            elem = self.py_bmesh.faces[(<BMElem*>results[i].elem).head.index]
-            py_results.append({
-                'elem': self.face_wrapper(elem) if wrapped else elem,
-                'pos': (results[i].x, results[i].y),
-                'depth': results[i].depth
-            })
-
-        return py_results
+        return py_results'''
 
 
     # ---------------------------------------------------------------------------------------

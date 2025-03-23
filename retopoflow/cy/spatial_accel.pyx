@@ -10,407 +10,464 @@
 # cython: binding=True
 
 # Import the structs and types from the .pxd file
-from retopoflow.cy.spatial_accel cimport GeomType, GeomElement, Cell, SpatialAccel, ElementWithDistance
+from retopoflow.cy.spatial_accel cimport GeomType, GeomElement, Cell, SpatialAccel, ElementWithDistance, cpp_list
 from retopoflow.cy.bl_types.bmesh_types cimport BMElem
 
 from libc.stdlib cimport malloc, free
-from libc.math cimport sqrt, floor, fabs
-from libcpp.vector cimport vector
+from libc.math cimport sqrt, floor, fabs, isfinite
 from libcpp.algorithm cimport sort
 from libcpp cimport bool
 
+from cython.parallel cimport parallel, prange
 
-cdef float finf = <float>1e1000
+# Utility constants
+cdef float FLOAT_INFINITY = <float>1e6
+cdef float EPSILON = <float>1e-6
 
-# C helper functions for use in nogil context
-cdef int c_min(int a, int b) noexcept nogil:
+# C helper functions for nogil context
+cdef inline int c_min(int a, int b) noexcept nogil:
     return a if a < b else b
 
-cdef int c_max(int a, int b) noexcept nogil:
+cdef inline int c_max(int a, int b) noexcept nogil:
     return a if a > b else b
 
-cdef float c_fabs(float a) noexcept nogil:
+cdef inline float c_fmin(float a, float b) noexcept nogil:
+    return a if a < b else b
+
+cdef inline float c_fmax(float a, float b) noexcept nogil:
+    return a if a > b else b
+
+cdef inline float c_fabs(float a) noexcept nogil:
     return a if a >= 0 else -a
 
-
+# Comparison function for sorting elements by distance
 cdef bool compare_by_distance(const ElementWithDistance& a, const ElementWithDistance& b) noexcept nogil:
-    # Handle NULL element cases
     if a.element == NULL or b.element == NULL:
         return False
-
     return a.distance < b.distance
 
-# Create a new SpatialAccel
+# ======================================================================================
+# Memory Management Functions
+# ======================================================================================
+
 cdef SpatialAccel* spatial_accel_new() noexcept nogil:
+    """
+    Allocate a new SpatialAccel structure and initialize all fields.
+    
+    Returns:
+        A pointer to the newly allocated SpatialAccel structure, or NULL if allocation failed.
+    """
     cdef SpatialAccel* accel = <SpatialAccel*>malloc(sizeof(SpatialAccel))
-    accel.grid = NULL
-    accel.is_initialized = False
+    if accel != NULL:
+        # Initialize all fields to safe values
+        accel.grid = NULL
+        accel.is_initialized = False
+        accel.grid_cols = 0
+        accel.grid_rows = 0
+        accel.min_x = 0.0
+        accel.min_y = 0.0
+        accel.max_x = 0.0
+        accel.max_y = 0.0
+        accel.cell_size_x = 0.0
+        accel.cell_size_y = 0.0
     return accel
 
-# Free a SpatialAccel
 cdef void spatial_accel_free(SpatialAccel* accel) noexcept nogil:
+    """Free a SpatialAccel structure and its resources."""
     if accel != NULL:
         spatial_accel_cleanup(accel)
         free(accel)
 
-# Clear all cells in the grid
 cdef void spatial_accel_reset(SpatialAccel* accel) noexcept nogil:
-    if accel == NULL or not accel.is_initialized:
+    """Clear all cells in the grid without deallocating the grid itself."""
+    if accel == NULL or not accel.is_initialized or accel.grid == NULL:
         return
 
     cdef int i, j
-    for i in range(accel.grid_width):
-        for j in range(accel.grid_height):
-            # Just clear the vectors, don't deallocate the memory
-            accel.grid[i][j].elements.clear()
+    # TODO: reset elements and grid elements.
 
-# Clean up any allocated resources
 cdef void spatial_accel_cleanup(SpatialAccel* accel) noexcept nogil:
+    """Clean up all allocated resources in a SpatialAccel structure."""
     if accel == NULL or not accel.is_initialized:
         return
-    
-    cdef int i
+
+    cdef int cell_idx
+    cdef Cell* cell  # Declare as pointer since we're accessing a Cell struct
+
+    # Free the contiguous cell memory
+    if accel.cells_memory != NULL:
+        # Free indices.
+        for cell_idx in range(accel.grid_cols * accel.grid_rows):
+            cell = &accel.cells_memory[cell_idx]  # Get pointer to the cell
+            if cell.elem_indices != NULL:
+                free(cell.elem_indices)
+                cell.elem_indices = NULL
+                cell.totelem = 0
+
+        free(accel.cells_memory)
+        accel.cells_memory = NULL
 
     if accel.grid != NULL:
-        for i in range(accel.grid_width):
-            if accel.grid[i] != NULL:
-                free(accel.grid[i])
-                accel.grid[i] = NULL
         free(accel.grid)
         accel.grid = NULL
-    
-    accel.is_initialized = False
-    accel.grid_width = 0
-    accel.grid_height = 0
 
-# Initialize or re-initialize the spatial acceleration structure
-cdef void spatial_accel_init(SpatialAccel* accel, float min_x, float min_y, float max_x, float max_y, 
-          int grid_width, int grid_height) noexcept nogil:
+    if accel.elements != NULL:
+        free(accel.elements)
+        accel.elements = NULL
+
+    # Reset all other fields
+    accel.is_initialized = False
+    accel.totelem = 0
+    accel.grid_cols = 0
+    accel.grid_rows = 0
+    accel.min_x = 0.0
+    accel.min_y = 0.0
+    accel.max_x = 0.0
+    accel.max_y = 0.0
+    accel.cell_size_x = 0.0
+    accel.cell_size_y = 0.0
+
+
+# ======================================================================================
+# Grid Initialization and Setup
+# ======================================================================================
+
+cdef void spatial_accel_init(SpatialAccel* accel, int totelem, float min_x, float min_y, float max_x, float max_y, 
+                             int grid_cols, int grid_rows) noexcept nogil:
+    """
+    Initialize or reinitialize the spatial acceleration grid with robust error checking
+    
+    Args:
+        accel: Pointer to the SpatialAccel structure to initialize
+        totelem: Total of elements to be added (for performance and memory management purposes)
+        min_x, min_y: Minimum bounds of the grid
+        max_x, max_y: Maximum bounds of the grid
+        grid_cols, grid_rows: Dimensions of the grid in cells
+    """
     # Safety checks
     if accel == NULL:
         return
-    
+
     # Prevent issues with invalid dimensions
-    if grid_width <= 0 or grid_height <= 0:
+    if grid_cols <= 0 or grid_rows <= 0 or max_x <= min_x or max_y <= min_y:
         return
-    if max_x <= min_x or max_y <= min_y:
-        return
-    
+
     # Check if we only need to reset (same dimensions) or fully reinitialize
-    if accel.is_initialized and accel.grid_width == grid_width and accel.grid_height == grid_height:
-        # Dimensions haven't changed - just update bounds and reset cells
-        '''accel.min_x = min_x
+    '''if accel.is_initialized and accel.grid_cols == grid_cols and accel.grid_rows == grid_rows and accel.totelem == totelem:
+        # Update bounds and reset cells
+        accel.min_x = min_x
         accel.min_y = min_y
         accel.max_x = max_x
         accel.max_y = max_y
-        accel.cell_size_x = (max_x - min_x) / grid_width
-        accel.cell_size_y = (max_y - min_y) / grid_height'''
+        accel.cell_size_x = (max_x - min_x) / grid_cols
+        accel.cell_size_y = (max_y - min_y) / grid_rows
         
-        # Just clear all cells instead of reallocating
+        # Clear all cells without reallocating
         spatial_accel_reset(accel)
-        return
-    
+        return'''
+
     # Dimensions have changed or not initialized yet - do full cleanup and init
     spatial_accel_cleanup(accel)
-    
-    # Set new parameters
+
+    # Set new grid parameters
     accel.min_x = min_x
     accel.min_y = min_y
     accel.max_x = max_x
     accel.max_y = max_y
-    accel.grid_width = grid_width
-    accel.grid_height = grid_height
-    accel.cell_size_x = (max_x - min_x) / grid_width
-    accel.cell_size_y = (max_y - min_y) / grid_height
+    accel.grid_cols = grid_cols
+    accel.grid_rows = grid_rows
+    accel.cell_size_x = (max_x - min_x) / grid_cols
+    accel.cell_size_y = (max_y - min_y) / grid_rows
     
-    # Allocate grid with error checking
-    accel.grid = <Cell**>malloc(grid_width * sizeof(Cell*))
-    if accel.grid == NULL:
+    # Allocate all cells in a single contiguous block
+    cdef Cell* all_cells = <Cell*>malloc(grid_cols * grid_rows * sizeof(Cell))
+    if all_cells == NULL:
         # Failed to allocate memory
         accel.is_initialized = False
         return
+
+    # Allocate row pointers
+    accel.grid = <Cell**>malloc(grid_cols * sizeof(Cell*))
+    if accel.grid == NULL:
+        # Failed to allocate memory for row pointers
+        free(all_cells)
+        accel.is_initialized = False
+        return
     
-    # Initialize all pointers to NULL first
-    cdef int i, j
-    for i in range(grid_width):
-        accel.grid[i] = NULL
+    # Set up row pointers to point to appropriate places in the contiguous block
+    cdef int i
+    for i in range(grid_cols):
+        accel.grid[i] = &all_cells[i * grid_rows]
     
-    # Allocate rows with error checking
-    for i in range(grid_width):
-        accel.grid[i] = <Cell*>malloc(grid_height * sizeof(Cell))
-        if accel.grid[i] == NULL:
-            # Failed to allocate memory for this row, clean up
-            spatial_accel_cleanup(accel)
-            return
-        
-        # Initialize each cell in this row
-        for j in range(grid_height):
-            # C++ vectors should be properly initialized
-            # Use default construction
-            accel.grid[i][j].elements.clear()
-            
+    # Store the contiguous block pointer for later cleanup
+    accel.cells_memory = all_cells  # You'll need to add this field to your struct
+
+    # Allocate memory for elements.
+    accel.totelem = totelem
+    accel.elements = <GeomElement*>malloc(totelem * sizeof(GeomElement))
+
     accel.is_initialized = True
 
-# Get cell indices from coordinates
+
+# ======================================================================================
+# Utility Functions
+# ======================================================================================
+
 cdef void spatial_accel_get_cell_indices(SpatialAccel* accel, float x, float y, int* cell_x, int* cell_y) noexcept nogil:
-    cdef int i = <int>((x - accel.min_x) / accel.cell_size_x)
-    cdef int j = <int>((y - accel.min_y) / accel.cell_size_y)
+    """Convert world coordinates to cell indices with proper bounds checking."""
+    # Default to invalid values.
+    cell_x[0] = -1
+    cell_y[0] = -1
     
-    # Clamp to grid bounds
-    if i < 0: i = 0
-    if i >= accel.grid_width: i = accel.grid_width - 1
-    if j < 0: j = 0
-    if j >= accel.grid_height: j = accel.grid_height - 1
+    # Check for NULL pointers and valid initialization
+    if accel == NULL or not accel.is_initialized or cell_x == NULL or cell_y == NULL:
+        return
+    
+    # Check for valid grid dimensions
+    if accel.grid_cols <= 0 or accel.grid_rows <= 0:
+        return
+        
+    # Check for valid cell sizes to avoid division by zero
+    cdef float cell_width = accel.cell_size_x
+    cdef float cell_height = accel.cell_size_y
+    if cell_width <= 0.0 or cell_height <= 0.0:
+        return
+    
+    # Calculate indices with bounds checking for input coordinates
+    cdef float bounded_x = c_fmax(accel.min_x, c_fmin(accel.max_x, x))
+    cdef float bounded_y = c_fmax(accel.min_y, c_fmin(accel.max_y, y))
+    
+    # Calculate cell indices
+    cdef int i = <int>((bounded_x - accel.min_x) / cell_width)
+    cdef int j = <int>((bounded_y - accel.min_y) / cell_height)
+    
+    # Clamp to grid bounds in case of numerical issues
+    i = c_max(0, c_min(accel.grid_cols - 1, i))
+    j = c_max(0, c_min(accel.grid_rows - 1, j))
     
     cell_x[0] = i
     cell_y[0] = j
 
-# Add a geometry element to the appropriate cell
-cdef void spatial_accel_add_element(SpatialAccel* accel, void* elem, int index, float x, float y, float depth, GeomType geom_type) noexcept nogil:
-    cdef:
-        int cell_x, cell_y
-        Cell* cell
-        GeomElement new_element
+cdef float spatial_accel_element_distance(SpatialAccel* accel, GeomElement* elem, float x, float y, float depth) noexcept nogil:
+    """
+    Calculate the 3D distance between a point and an element with robust error handling.
+    
+    Args:
+        accel: The spatial acceleration structure
+        elem: The geometry element to measure distance to
+        x, y: 2D screen coordinates to measure from
+        depth: Depth of the point to measure from
+        
+    Returns:
+        The 3D distance, or FLOAT_INFINITY if measurement isn't possible
+    """
+    if accel == NULL or elem == NULL:
+        return FLOAT_INFINITY
+    
+    # Check for valid coordinates
+    if (not isfinite(x) or not isfinite(y) or not isfinite(depth) or 
+        not isfinite(elem.x) or not isfinite(elem.y) or not isfinite(elem.depth)):
+        return FLOAT_INFINITY
+        
+    # Calculate 3D distance
+    cdef float dx = elem.x - x
+    cdef float dy = elem.y - y
+    cdef float dz = elem.depth - depth
+    return sqrt(dx*dx + dy*dy + dz*dz)
 
+# ======================================================================================
+# Element Management
+# ======================================================================================
+
+cdef void spatial_accel_add_element(SpatialAccel* accel, int insert_index, void* elem, int index, float x, float y, float depth, GeomType geom_type) noexcept nogil:
+    """
+    Add a geometry element to the appropriate cell in the grid
+    
+    Args:
+        accel: Pointer to spatial acceleration structure
+        insert_index: 
+        elem: Pointer to the geometry element (BMVert*, BMEdge*, or BMFace*)
+        elem_index: index of the element it
+        x, y: Screen coordinates
+        geom_type: Type of geometry (VERT, EDGE, FACE)
+        depth: Depth value for sorting (Z-ordering)
+    """
     # Skip if coordinates are out of bounds
     if x < accel.min_x or x > accel.max_x or y < accel.min_y or y > accel.max_y:
         return
-        
-    spatial_accel_get_cell_indices(accel, x, y, &cell_x, &cell_y)
-    
-    cell = &accel.grid[cell_x][cell_y]
-    
-    # Check if the cell already has too many elements (arbitrary limit to prevent memory issues)
-    if cell.elements.size() > 1000:  # Arbitrary limit
-        return
-    
-    # Create the new element
-    new_element.elem = elem
-    new_element.index = index
-    new_element.x = x
-    new_element.y = y
-    new_element.depth = depth
-    new_element.geom_type = geom_type
-    
-    # Add to vector (no manual memory management needed)
-    cell.elements.push_back(new_element)
 
-# Find an element with matching coordinates, depth and type
-cdef ElementWithDistance spatial_accel_find_elem(SpatialAccel* accel, float x, float y, float depth, float max_dist, GeomType geom_type, bint use_epsilon):
-    cdef ElementWithDistance empty_result
-    empty_result.element = NULL
-    empty_result.distance = finf
-
-    if accel == NULL or not accel.is_initialized:
-        # Return empty result if accel is not valid
-        return empty_result
-
-    cdef int cell_x, cell_y
-    spatial_accel_get_cell_indices(accel, x, y, &cell_x, &cell_y)
-    
-    # Validate cell indices to prevent out-of-bounds access
-    if cell_x < 0 or cell_x >= accel.grid_width or cell_y < 0 or cell_y >= accel.grid_height:
-        return empty_result
-
-    if max_dist <= 0:
-        max_dist = finf
-    
-    cdef Cell* cell = &accel.grid[cell_x][cell_y]
-    cdef size_t k
-    cdef float epsilon = <float>1e-6  # Small threshold for float comparison
-    cdef float closest_dist = finf
-    cdef ElementWithDistance closest_elem_with_dist
-    closest_elem_with_dist.element = NULL  # Initialize to NULL
-    closest_elem_with_dist.distance = finf
-    cdef float dist = finf
-    cdef size_t vector_size = cell.elements.size()
-
-    for k in range(vector_size):
-        if use_epsilon:
-            if (c_fabs(cell.elements[k].x - x) < epsilon and
-                c_fabs(cell.elements[k].y - y) < epsilon and
-                c_fabs(cell.elements[k].depth - depth) < epsilon and
-                cell.elements[k].geom_type == geom_type):
-                closest_elem_with_dist.element = &cell.elements[k]
-                closest_elem_with_dist.distance = 0.0
-                return closest_elem_with_dist
-        else:
-            dist = spatial_accel_element_distance(accel, &cell.elements[k], x, y, depth)
-            if dist <= max_dist and dist < closest_dist:
-                closest_dist = dist
-                closest_elem_with_dist.element = &cell.elements[k]
-                closest_elem_with_dist.distance = closest_dist
-
-    return closest_elem_with_dist
-
-# Calculate distance between a point and an element
-cdef float spatial_accel_element_distance(SpatialAccel* accel, GeomElement* elem, float x, float y, float depth) noexcept nogil:
+    # Skip if element pointer is NULL
     if elem == NULL:
-        return finf  # Return infinity for NULL elements
-    
-    cdef float dx = elem.x - x
-    cdef float dy = elem.y - y
-    cdef float dd = elem.depth - depth
-    return sqrt(dx*dx + dy*dy + dd*dd)
+        return
 
-# Find k closest elements - add more safety checks
-cdef vector[ElementWithDistance] spatial_accel_find_k_elem(SpatialAccel* accel, float x, float y, float depth, float max_dist, GeomType geom_type, int k):
-    cdef vector[ElementWithDistance] result
-    
-    if accel == NULL or not accel.is_initialized or k <= 0:
-        return result  # Return empty vector
+    # Use a pointer to the element in the array
+    cdef GeomElement* element = &accel.elements[insert_index]
 
-    if max_dist <= 0:
-        max_dist = finf
+    # Fill element data
+    element.elem = elem
+    element.index = index
+    element.x = x
+    element.y = y
+    element.depth = depth
+    element.geom_type = geom_type
 
+    # Get Cell XY.
+    spatial_accel_get_cell_indices(accel, x, y, &element.cell_x, &element.cell_y)
+
+    # Add index of the element in the target Cell.
+    element.cell_index = accel.grid[element.cell_x][element.cell_y].totelem
+
+    # Increase element count in target Cell.
+    accel.grid[element.cell_x][element.cell_y].totelem += 1
+
+
+cdef void spatial_accel_update_grid_indices(SpatialAccel* accel) noexcept nogil:
     cdef:
-        int ni, nj
-        size_t ei
-        int cell_x, cell_y
-        vector[ElementWithDistance] candidates
-        float dist
-        ElementWithDistance element_with_dist
+        int cell_idx
+        int elem_idx
         Cell* cell
-        int min_ni, max_ni, min_nj, max_nj
-        size_t candidates_size, count
-        size_t vector_size
-        size_t i
-        
-    # Get cell indices and validate
-    spatial_accel_get_cell_indices(accel, x, y, &cell_x, &cell_y)
-    if cell_x < 0 or cell_x >= accel.grid_width or cell_y < 0 or cell_y >= accel.grid_height:
+        GeomElement* elem
+        int cx, cy
+
+    # Init Cell elements indices based on total amount of elements added to it.
+    for cell_idx in prange(accel.grid_cols * accel.grid_rows):
+        cell = &accel.cells_memory[cell_idx]
+        if cell.totelem > 0:  # Only allocate if needed
+            cell.elem_indices = <int*>malloc(cell.totelem * sizeof(int))
+        else:
+            cell.elem_indices = NULL
+
+    # Add element indices to Cells.
+    for elem_idx in range(accel.totelem):  # Remove prange to avoid race conditions
+        elem = &accel.elements[elem_idx]
+
+        # Validate cell coordinates
+        cx = elem.cell_x
+        cy = elem.cell_y
+        if cx < 0 or cx >= accel.grid_cols or cy < 0 or cy >= accel.grid_rows:
+            continue  # Skip invalid cell coordinates
+
+        cell = &accel.grid[cx][cy]
+        if cell == NULL:
+            continue  # Skip NULL cells
+
+        if elem.cell_index >= cell.totelem:
+            continue  # Skip if index is out of bounds
+
+        if cell.elem_indices == NULL:
+            continue  # Skip if indices array wasn't allocated
+
+        cell.elem_indices[elem.cell_index] = elem_idx
+
+
+# ======================================================================================
+# Unified Search Function
+# ======================================================================================
+'''
+cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
+    SpatialAccel* accel,
+    float x, float y, float depth,
+    int k,
+    float max_dist,
+    GeomType geom_type
+) noexcept nogil:
+    """
+    Unified function to find nearest elements. Can find:
+    - Single nearest element (k=1)
+    - K nearest elements (k>1)
+    - All elements in an area (k=0, max_dist>0)
+    - K nearest elements in an area (k>0, max_dist>0)
+    """
+    cdef cpp_list[ElementWithDistance] result
+    
+    # Input validation
+    if accel == NULL or not accel.is_initialized:
         return result
     
-    # Calculate neighbor cell bounds with safety checks
-    min_ni = c_max(0, cell_x-1)
-    max_ni = c_min(accel.grid_width, cell_x+2)
-    min_nj = c_max(0, cell_y-1)
-    max_nj = c_min(accel.grid_height, cell_y+2)
+    # Handle special cases
+    if k < 0:
+        return result
+        
+    # Use infinite distance if not specified
+    if max_dist <= 0:
+        max_dist = FLOAT_INFINITY
     
-    # Search in current cell and neighboring cells
-    for ni in range(min_ni, max_ni):
-        for nj in range(min_nj, max_nj):
-            if ni < 0 or ni >= accel.grid_width or nj < 0 or nj >= accel.grid_height:
-                continue  # Skip invalid cells
+    cdef:
+        int cell_x, cell_y
+        int radius = 1  # Start with a 1-cell radius search
+        int max_radius = c_max(accel.grid_width, accel.grid_height)
+        int i, j, ni, nj
+        vector[ElementWithDistance] candidates
+        ElementWithDistance element_with_dist
+        float dist
+        Cell* cell
+        size_t ei, vector_size
+        int min_i, max_i, min_j, max_j
+        bint found_elements = False
+        GeomElement* elem_ptr
+        GeomElement elem
+    
+    # Get the starting cell
+    spatial_accel_get_cell_indices(accel, x, y, &cell_x, &cell_y)
+    
+    # Progressively expand search radius until we find enough elements or reach grid bounds
+    while radius <= max_radius:
+        # Calculate the bounds for this search radius
+        min_i = c_max(0, cell_x - radius)
+        max_i = c_min(accel.grid_width - 1, cell_x + radius)
+        min_j = c_max(0, cell_y - radius)
+        max_j = c_min(accel.grid_height - 1, cell_y + radius)
+        
+        # Search cells in this radius
+        for i in range(min_i, max_i + 1):
+            for j in range(min_j, max_j + 1):
+                # Skip if we've already searched this cell in a previous radius
+                if (radius > 1 and i > min_i and i < max_i and j > min_j and j < max_j):
+                    continue
                 
-            cell = &accel.grid[ni][nj]
-            vector_size = cell.elements.size()
+                # Get cell and check elements
+                cell = &accel.grid[i][j]
+                
+                # Iterate through the list - note this is different from vector iteration
+                # For C++ list, we need to use iterators
+                # Since we can't easily iterate through a list in Cython with nogil,
+                # we'll adapt this code to work with the element list
+                
+                # For each element in the cell's list
+                # Note: C++ list doesn't support random access, we access by iterating
+                for elem in cell.elements:
+                    # Match geometry type (or ANY type)
+                    if geom_type == GeomType.ANY or elem.geom_type == geom_type:
+                        # Calculate distance
+                        dist = spatial_accel_element_distance(accel, &elem, x, y, depth)
+                        
+                        # Only consider elements within max_dist
+                        if dist <= max_dist:
+                            found_elements = True
+                            element_with_dist.element = &elem  # This will be a reference to a copy
+                            element_with_dist.distance = dist
+                            candidates.push_back(element_with_dist)
+        
+        # If we found elements and k > 0, check if we have enough
+        if found_elements and k > 0 and candidates.size() >= <size_t>k:
+            break
             
-            for ei in range(vector_size):
-                if cell.elements[ei].geom_type == geom_type:
-                    dist = spatial_accel_element_distance(accel, &cell.elements[ei], x, y, depth)
-                    if dist <= max_dist:  # Only consider elements within max_dist
-                        element_with_dist.element = &cell.elements[ei]
-                        element_with_dist.distance = dist
-                        candidates.push_back(element_with_dist)
-
-    # Sort by distance with a try/except in case of memory issues
+        # Expand search radius
+        radius += 1
+    
+    # If we found candidates, sort them by distance
     if candidates.size() > 0:
         sort(candidates.begin(), candidates.end(), compare_by_distance)
     
-    # Get the k closest elements
-    candidates_size = candidates.size()
-    count = c_min(<int>k, <int>candidates_size)
+    # Take the k nearest elements (or all if k=0)
+    cdef size_t num_results = candidates.size()
+    if k > 0:
+        num_results = c_min(<size_t>k, candidates.size())
     
-    for i in range(count):
-        if i < candidates.size():  # Additional safety check
+    # Copy the elements to the result vector
+    for i in range(<int>num_results):
+        if i < <int>candidates.size():  # Safety check
             result.push_back(candidates[i])
-
-    return result
-
-# Find elements within radius of the given point
-cdef vector[GeomElement*] spatial_accel_find_elem_in_area(SpatialAccel* accel, float x, float y, float depth, GeomType geom_type, float radius):
-    cdef vector[GeomElement*] result
-    
-    if accel == NULL or not accel.is_initialized or radius <= 0:
-        return result
-        
-    cdef:
-        float search_x_min = x - radius
-        float search_x_max = x + radius
-        float search_y_min = y - radius
-        float search_y_max = y + radius
-        int min_i, min_j, max_i, max_j
-        int i, j
-        size_t k
-        float dist
-        Cell* cell
-        int min_i_safe, max_i_safe, min_j_safe, max_j_safe
-        size_t vector_size
-        
-    # Get cell indices with validation
-    spatial_accel_get_cell_indices(accel, search_x_min, search_y_min, &min_i, &min_j)
-    spatial_accel_get_cell_indices(accel, search_x_max, search_y_max, &max_i, &max_j)
-    
-    # Calculate safe bounds
-    min_i_safe = c_max(0, min_i)
-    max_i_safe = c_min(accel.grid_width, max_i + 1)
-    min_j_safe = c_max(0, min_j)
-    max_j_safe = c_min(accel.grid_height, max_j + 1)
-    
-    # Validate bounds
-    if min_i_safe >= accel.grid_width or max_i_safe <= 0 or min_j_safe >= accel.grid_height or max_j_safe <= 0:
-        return result
-    
-    # Search cells
-    for i in range(min_i_safe, max_i_safe):
-        for j in range(min_j_safe, max_j_safe):
-            cell = &accel.grid[i][j]
-            vector_size = cell.elements.size()
-            
-            for k in range(vector_size):
-                if cell.elements[k].geom_type == geom_type:
-                    # Calculate 3D distance
-                    dist = spatial_accel_element_distance(accel, &cell.elements[k], x, y, depth)
-                    
-                    if dist <= radius:
-                        result.push_back(&cell.elements[k])
     
     return result
-
-# Find k closest elements within radius
-cdef vector[GeomElement*] spatial_accel_find_k_elem_in_area(SpatialAccel* accel, float x, float y, float depth, GeomType geom_type, float radius, int k):
-    cdef:
-        vector[GeomElement*] result
-        vector[ElementWithDistance] candidates
-        ElementWithDistance element_with_dist
-        size_t i
-        vector[GeomElement*] elements
-        size_t elements_size, count
-        
-    # Get all matching elements in the area
-    elements = spatial_accel_find_elem_in_area(accel, x, y, depth, geom_type, radius)
-    elements_size = elements.size()
-    
-    # Convert to ElementWithDistance for sorting
-    for i in range(elements_size):
-        element_with_dist.element = elements[i]
-        element_with_dist.distance = spatial_accel_element_distance(accel, elements[i], x, y, depth)
-        candidates.push_back(element_with_dist)
-    
-    # Sort by distance
-    sort(candidates.begin(), candidates.end(), compare_by_distance)
-    
-    # Get the k closest elements
-    count = c_min(<int>k, <int>candidates.size())
-    for i in range(count):
-        result.push_back(candidates[i].element)
-        
-    return result
-
-# Simple Python wrapper if still needed
-'''class PySpatialAccel:
-    def __init__(self):
-        self._ptr = spatial_accel_new()
-    
-    def __del__(self):
-        if self._ptr is not None:
-            spatial_accel_free(self._ptr)
-            self._ptr = None
-    
-    def init(self, min_x, min_y, max_x, max_y, grid_width, grid_height):
-        spatial_accel_init(self._ptr, min_x, min_y, max_x, max_y, grid_width, grid_height)
-    
-    def add_element(self, elem_ptr, x, y, depth, geom_type):
-        spatial_accel_add_element(self._ptr, <void*>elem_ptr, x, y, depth, geom_type)
 '''
