@@ -920,13 +920,13 @@ cdef class TargetMeshAccel:
 
         return not (max_x1 < min_x2 or min_x1 > max_x2 or max_y1 < min_y2 or min_y1 > max_y2)
 
-    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box):
+    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box) noexcept nogil:
         """Check if vertex is inside box"""
         cdef float[2] screen_pos
         self.project_vert_to_region_2d(vert, screen_pos)
         return (box[0] <= screen_pos[0] <= box[1]) and (box[2] <= screen_pos[1] <= box[3])
 
-    cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept:
+    cdef bint select_box(self, float left, float right, float bottom, float top, GeomType select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept nogil:
         """Select geometry within the given box coordinates"""
 
         # Ensure matrix-world and persp-matrix are up to date.
@@ -934,8 +934,9 @@ cdef class TargetMeshAccel:
         self.py_update_view(self.py_rv3d)
         # Update mesh vis only.
         if self.is_dirty_geom_vis:
-            if not self.py_update_geometry_visibility(<float>1.0, <int>SelectionState.ALL, update_accel=False):
-                print("[CYTHON] Error updating visible geometry when select-box!")
+            if self._compute_geometry_visibility_in_region(<float>1.0, <int>SelectionState.ALL) != 0:
+                with gil:
+                    print("[CYTHON] Error updating visible geometry when select-box!")
                 return False
 
         cdef:
@@ -1224,6 +1225,11 @@ cdef class TargetMeshAccel:
 
     cpdef void py_update_accel_struct(self):
         self._build_accel_struct()
+
+
+    cpdef bint py_select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False):
+        self.select_box(left, right, bottom, top, <GeomType>select_geometry_type, use_ctrl, use_shift)
+
 
     '''cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible vertex to screen position"""

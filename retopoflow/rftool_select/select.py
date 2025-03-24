@@ -128,13 +128,18 @@ class Select(RFTool):
         self.rfcontext.undo_push('select box')
 
         with time_it("[CYTHON] select box", enabled=True):
+            # Ensure matrix-world and persp-matrix are up to date.
+            # Globals.target_accel.py_update_object(self.py_object)
+            r3d = self.rfcontext.actions.r3d
+            Globals.target_accel.py_update_view(r3d)
+
             match options['select geometry']:
                 case 'Verts':
-                    Globals.target_accel.select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
+                    Globals.target_accel.py_select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
                 case 'Edges':
-                    Globals.target_accel.select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
+                    Globals.target_accel.py_select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
                 case 'Faces':
-                    Globals.target_accel.select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
+                    Globals.target_accel.py_select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
 
         self.rfcontext.dirty(selectionOnly=True)
 

@@ -161,7 +161,9 @@ cdef class TargetMeshAccel:
     cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
 
+    # Select-Box.
     cdef bint _segment2D_intersection(self, float[2] p0, float[2] p1, float[2] p2, float[2] p3) noexcept nogil
     cdef bint _triangle2D_overlap(self, float[3][2] tri1, float[3][2] tri2) noexcept nogil
-    cpdef bint select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=*, bint use_shift=*) noexcept
-    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box)
+    cdef bint select_box(self, float left, float right, float bottom, float top, GeomType select_geometry_type, bint use_ctrl=*, bint use_shift=*) noexcept nogil
+    cdef bint _vert_inside_box(self, BMVert* vert, float[4] box) noexcept nogil
+    cpdef bint py_select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=*, bint use_shift=*)
