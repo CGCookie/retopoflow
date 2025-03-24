@@ -92,14 +92,6 @@ cdef class TargetMeshAccel:
         int totvisedges
         int totvisfaces
 
-        # Visibility arrays
-        uint8_t* is_hidden_v
-        uint8_t* is_hidden_e
-        uint8_t* is_hidden_f
-        uint8_t* is_selected_v
-        uint8_t* is_selected_e
-        uint8_t* is_selected_f
-
         # Grid acceleration structure
         SpatialAccel* accel
 
@@ -116,15 +108,7 @@ cdef class TargetMeshAccel:
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
-    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
     cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil
-
-    cdef np.ndarray get_is_visible_verts_array(self)
-    cdef np.ndarray get_is_visible_edges_array(self)
-    cdef np.ndarray get_is_visible_faces_array(self)
-    cdef np.ndarray get_is_selected_verts_array(self)
-    cdef np.ndarray get_is_selected_edges_array(self)
-    cdef np.ndarray get_is_selected_faces_array(self)
 
     cdef void _build_accel_struct(self, bint debug=*) noexcept nogil
     cdef void add_vert_to_grid(self, BMVert* vert, int insert_index) noexcept nogil

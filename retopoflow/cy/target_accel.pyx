@@ -45,14 +45,6 @@ cdef float finf = <float>1e1000
 cdef class TargetMeshAccel:
 
     def __cinit__(self):
-        # Initialize C++ member variables
-        self.is_hidden_v = NULL
-        self.is_hidden_e = NULL
-        self.is_hidden_f = NULL
-        self.is_selected_v = NULL
-        self.is_selected_e = NULL
-        self.is_selected_f = NULL
-
         # Initialize geometry arrays
         self.visverts = NULL
         self.visedges = NULL
@@ -318,33 +310,6 @@ cdef class TargetMeshAccel:
                 free(is_face_visible)
             return -1
 
-        self.is_hidden_v = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        self.is_hidden_e = <uint8_t*>malloc(totedge * sizeof(uint8_t))
-        self.is_hidden_f = <uint8_t*>malloc(totface * sizeof(uint8_t))
-
-        self.is_selected_v = <uint8_t*>malloc(totvert * sizeof(uint8_t))
-        self.is_selected_e = <uint8_t*>malloc(totedge * sizeof(uint8_t))
-        self.is_selected_f = <uint8_t*>malloc(totface * sizeof(uint8_t))
-
-        if self.is_hidden_v == NULL or self.is_hidden_e == NULL or self.is_hidden_f == NULL or\
-            self.is_selected_v == NULL or self.is_selected_e == NULL or self.is_selected_f == NULL:
-            printf("[CYTHON]Error: Failed to allocate memory\n")
-            with gil:
-                print(f"[CYTHON] Error: Failed to allocate memory\n")
-            if self.is_hidden_v != NULL:
-                free(self.is_hidden_v)
-            if self.is_hidden_e != NULL:
-                free(self.is_hidden_e)
-            if self.is_hidden_f != NULL:
-                free(self.is_hidden_f)
-            if self.is_selected_v != NULL:
-                free(self.is_selected_v)
-            if self.is_selected_e != NULL:
-                free(self.is_selected_e)
-            if self.is_selected_f != NULL:
-                free(self.is_selected_f)
-            return -1
-
         # Initialize visibility arrays to zero
         memset(is_vert_visible, 0, totvert * sizeof(uint8_t))
         memset(is_edge_visible, 0, totedge * sizeof(uint8_t))
@@ -358,24 +323,18 @@ cdef class TargetMeshAccel:
                 with gil:
                     print(f"[CYTHON] vert {vert_idx} is NULL")
                 continue
-            
-            self._classify_elem(
-                &vert.head, vert_idx,
-                self.is_hidden_v,
-                self.is_selected_v
-            )
 
             '''if selection_mode == SelectionState.SELECTED:
                 # ONLY SELECTED
-                if not self.is_selected_v[i]:
+                if not BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_SELECT):
                     continue
             elif selection_mode == SelectionState.UNSELECTED:
                 # ONLY UNSELECTED
-                if self.is_selected_v[i]:
+                if BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_SELECT):
                     continue'''
 
             # Skip hidden vertices.
-            if self.is_hidden_v[vert_idx]:
+            if BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_HIDDEN):
                 with gil:
                     print(f"[CYTHON] vert {vert_idx} is hidden")
                 continue
@@ -436,13 +395,7 @@ cdef class TargetMeshAccel:
                 if edge == NULL:
                     continue
 
-                self._classify_elem(
-                    &edge.head, edge_idx,
-                    self.is_hidden_e,
-                    self.is_selected_e
-                )
-
-                if self.is_hidden_e[edge_idx]:
+                if BM_elem_flag_test(&edge.head, BMElemHFlag.BM_ELEM_HIDDEN):
                     continue
 
                 if is_vert_visible[(<BMVert*>edge.v1).head.index] or\
@@ -455,13 +408,7 @@ cdef class TargetMeshAccel:
                 if face == NULL:
                     continue
                 
-                self._classify_elem(
-                    &face.head, face_idx,
-                    self.is_hidden_f,
-                    self.is_selected_f
-                )
-
-                if self.is_hidden_f[face_idx]:
+                if BM_elem_flag_test(&face.head, BMElemHFlag.BM_ELEM_HIDDEN):
                     continue
 
                 loop = <BMLoop*>face.l_first
@@ -541,11 +488,6 @@ cdef class TargetMeshAccel:
         self.is_dirty_accel = True
         return 0
 
-    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
-        """Classify element based on selection and visibility flags."""
-        is_hidden_array[index]= BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
-        is_selected_array[index] = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
-
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil:
         """Project 3D point to screen space and compute depth"""
         cdef:
@@ -575,29 +517,6 @@ cdef class TargetMeshAccel:
 
     cdef void _reset(self, bint dirty=True) noexcept nogil:
         """Reset the acceleration structure"""
-        if self.is_hidden_v != NULL:
-            free(self.is_hidden_v)
-        if self.is_hidden_e != NULL:
-            free(self.is_hidden_e)
-        if self.is_hidden_f != NULL:
-            free(self.is_hidden_f)
-        
-        if self.is_selected_v != NULL:
-            free(self.is_selected_v)
-        if self.is_selected_e != NULL:
-            free(self.is_selected_e)
-        if self.is_selected_f != NULL:
-            free(self.is_selected_f)
-
-        # Set memory views to empty
-        self.is_hidden_v = NULL
-        self.is_hidden_e = NULL
-        self.is_hidden_f = NULL
-        
-        self.is_selected_v = NULL
-        self.is_selected_e = NULL
-        self.is_selected_f = NULL
-
         # Free and reset geometry arrays
         if self.visverts != NULL:
             free(self.visverts)
@@ -1394,66 +1313,3 @@ cdef class TargetMeshAccel:
                 })
             
         return py_results'''
-
-
-    # ---------------------------------------------------------------------------------------
-    # Getters for visible/selected arrays.
-    # ---------------------------------------------------------------------------------------
-
-    def get_visible_arrays(self):
-        """Get visible arrays as NumPy arrays (zero-copy)"""
-        cdef:
-            BMesh* bmesh = self.bmesh
-            np.npy_intp vert_size = bmesh.totvert
-            np.npy_intp edge_size = bmesh.totedge
-            np.npy_intp face_size = bmesh.totface
-
-        return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_hidden_v),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_hidden_e),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_hidden_f)
-        )
-
-    def get_selected_arrays(self):
-        """Get selected arrays as NumPy arrays (zero-copy)"""
-        cdef:
-            BMesh* bmesh = self.bmesh
-            np.npy_intp vert_size = bmesh.totvert
-            np.npy_intp edge_size = bmesh.totedge
-            np.npy_intp face_size = bmesh.totface
-
-        return (
-            np.PyArray_SimpleNewFromData(1, &vert_size, np.NPY_UINT8, self.is_selected_v),
-            np.PyArray_SimpleNewFromData(1, &edge_size, np.NPY_UINT8, self.is_selected_e),
-            np.PyArray_SimpleNewFromData(1, &face_size, np.NPY_UINT8, self.is_selected_f)
-        )
-
-    cdef np.ndarray get_is_visible_verts_array(self):
-        """Get visible array of vertices as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_v)
-
-    cdef np.ndarray get_is_visible_edges_array(self):
-        """Get visible array of edges as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_e)
-
-    cdef np.ndarray get_is_visible_faces_array(self):
-        """Get visible array of faces as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_f)
-
-    cdef np.ndarray get_is_selected_verts_array(self):
-        """Get selected array of vertices as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totvert
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_v)
-
-    cdef np.ndarray get_is_selected_edges_array(self):
-        """Get selected array of edges as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totedge
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_e)
-
-    cdef np.ndarray get_is_selected_faces_array(self):
-        """Get selected array of faces as NumPy array (zero-copy)"""
-        cdef int size = self.bmesh.totface
-        return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)
