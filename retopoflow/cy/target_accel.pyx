@@ -665,7 +665,12 @@ cdef class TargetMeshAccel:
             return set(), set(), set()
 
         cdef:
-            BMesh* bmesh = self.bmesh
+            BMVert* vert
+            BMEdge* edge
+            BMFace* face
+            BMVert** visverts = self.visverts
+            BMEdge** visedges = self.visedges
+            BMFace** visfaces = self.visfaces
             set vis_py_verts = set()
             set vis_py_edges = set()
             set vis_py_faces = set()
@@ -675,30 +680,44 @@ cdef class TargetMeshAccel:
             object vert_wrapper = self.vert_wrapper
             object edge_wrapper = self.edge_wrapper
             object face_wrapper = self.face_wrapper
+            int i, j, k
 
-        if verts:
-            for i in range(bmesh.totvert):
-                if self.is_hidden_v[i] if invert_selection else not self.is_hidden_v[i]:
+        with nogil, parallel():
+            if verts:
+                for i in prange(self.totvisverts):
+                    vert = visverts[i]
+                    if vert is NULL:
+                        continue
                     if wrapped:
-                        vis_py_verts.add(vert_wrapper(py_bm_verts[i]))
+                        with gil:
+                            vis_py_verts.add(vert_wrapper(py_bm_verts[vert.head.index]))
                     else:
-                        vis_py_verts.add(py_bm_verts[i])
+                        with gil:
+                            vis_py_verts.add(py_bm_verts[vert.head.index])
 
-        if edges:
-            for i in range(bmesh.totedge):
-                if self.is_hidden_e[i] if invert_selection else not self.is_hidden_e[i]:
+            if edges:
+                for j in prange(self.totvisedges):
+                    edge = visedges[j]
+                    if edge is NULL:
+                        continue
                     if wrapped:
-                        vis_py_edges.add(edge_wrapper(py_bm_edges[i]))
+                        with gil:
+                            vis_py_edges.add(edge_wrapper(py_bm_edges[edge.head.index]))
                     else:
-                        vis_py_edges.add(py_bm_edges[i])
+                        with gil:
+                            vis_py_edges.add(py_bm_edges[edge.head.index])
 
-        if faces:
-            for i in range(bmesh.totface):
-                if self.is_hidden_f[i] if invert_selection else not self.is_hidden_f[i]:
+            if faces:
+                for k in prange(self.totvisfaces):
+                    face = visfaces[k]
+                    if face is NULL:
+                        continue
                     if wrapped:
-                        vis_py_faces.add(face_wrapper(py_bm_faces[i]))
+                        with gil:
+                            vis_py_faces.add(face_wrapper(py_bm_faces[face.head.index]))
                     else:
-                        vis_py_faces.add(py_bm_faces[i])
+                        with gil:
+                            vis_py_faces.add(py_bm_faces[face.head.index])
 
         return vis_py_verts, vis_py_edges, vis_py_faces
 
