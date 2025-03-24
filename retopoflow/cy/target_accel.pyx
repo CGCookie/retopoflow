@@ -926,9 +926,6 @@ cdef class TargetMeshAccel:
     cdef bint select_box(self, float left, float right, float bottom, float top, GeomType select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept nogil:
         """Select geometry within the given box coordinates"""
 
-        # Ensure matrix-world and persp-matrix are up to date.
-        self.py_update_object(self.py_object)
-        self.py_update_view(self.py_rv3d)
         # Update mesh vis only.
         if self.is_dirty_geom_vis:
             if self._compute_geometry_visibility_in_region(<float>1.0, <int>SelectionState.ALL) != 0:
