@@ -50,8 +50,6 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     def update(self, timer=True):
         if not self.loading_done:
-            # calling self.fsm.update() in case mouse is hovering over ui
-            self.fsm.update()
             return
 
         options.clean(raise_exception=False)
