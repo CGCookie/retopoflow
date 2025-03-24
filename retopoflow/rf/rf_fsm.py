@@ -122,6 +122,8 @@ class RetopoFlow_FSM(CookieCutter): # CookieCutter must be here in order to over
 
     @FSM.on_state('main')
     def modal_main(self):
+        if not self.loading_done:
+            return
         # if self.actions.just_pressed: print('modal_main', self.actions.just_pressed)
         if self.rftool._fsm_in_main() and (not self.rftool.rfwidget or self.rftool.rfwidget._fsm_in_main()):
             # handle exit
