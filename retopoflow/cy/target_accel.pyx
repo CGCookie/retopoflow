@@ -266,8 +266,8 @@ cdef class TargetMeshAccel:
             uint8_t* is_vert_visible = NULL
             uint8_t* is_edge_visible = NULL
             uint8_t* is_face_visible = NULL
-            size_t i, j, k, count = 0
-            size_t vert_idx, edge_idx, face_idx
+            int i, j, k, count = 0
+            int vert_idx, edge_idx, face_idx
             float[3] world_pos
             float[3] world_normal
             float[3] view_dir
@@ -276,17 +276,17 @@ cdef class TargetMeshAccel:
             BMEdge* edge
             BMFace* face
             BMLoop* loop
-            size_t totvisvert = 0
-            size_t totvisedge = 0
-            size_t totvisface = 0
-            
+            int totvisvert = 0
+            int totvisedge = 0
+            int totvisface = 0
+
             # Cache BMesh data before nogil section
             BMVert** vtable = self.bmesh.vtable
             BMEdge** etable = self.bmesh.etable
             BMFace** ftable = self.bmesh.ftable
-            size_t totvert = self.bmesh.totvert
-            size_t totedge = self.bmesh.totedge
-            size_t totface = self.bmesh.totface
+            int totvert = self.bmesh.totvert
+            int totedge = self.bmesh.totedge
+            int totface = self.bmesh.totface
             View3D view3d = self.view3d
             bint is_persp = view3d.is_persp
         
@@ -502,7 +502,7 @@ cdef class TargetMeshAccel:
         self.is_dirty_accel = True
         return 0
 
-    cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
+    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil:
         """Classify element based on selection and visibility flags."""
         is_hidden_array[index]= BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_HIDDEN)
         is_selected_array[index] = BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SELECT)
@@ -1288,7 +1288,7 @@ cdef class TargetMeshAccel:
         cdef:
             vector[SpatialElementWithDistance] results
             list py_results = []
-            size_t i
+            int i
             SpatialGeomElement* elem_data
             object py_elem
 
@@ -1312,7 +1312,7 @@ cdef class TargetMeshAccel:
         cdef:
             vector[SpatialElementWithDistance] results
             list py_results = []
-            size_t i
+            int i
             SpatialGeomElement* elem_data
             object py_elem
             
@@ -1336,7 +1336,7 @@ cdef class TargetMeshAccel:
         cdef:
             vector[SpatialElementWithDistance] results
             list py_results = []
-            size_t i
+            int i
             SpatialGeomElement* elem_data
             object py_elem
             
@@ -1390,30 +1390,30 @@ cdef class TargetMeshAccel:
 
     cdef np.ndarray get_is_visible_verts_array(self):
         """Get visible array of vertices as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totvert
+        cdef int size = self.bmesh.totvert
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_v)
 
     cdef np.ndarray get_is_visible_edges_array(self):
         """Get visible array of edges as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totedge
+        cdef int size = self.bmesh.totedge
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_e)
 
     cdef np.ndarray get_is_visible_faces_array(self):
         """Get visible array of faces as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totface
+        cdef int size = self.bmesh.totface
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_hidden_f)
 
     cdef np.ndarray get_is_selected_verts_array(self):
         """Get selected array of vertices as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totvert
+        cdef int size = self.bmesh.totvert
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_v)
 
     cdef np.ndarray get_is_selected_edges_array(self):
         """Get selected array of edges as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totedge
+        cdef int size = self.bmesh.totedge
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_e)
 
     cdef np.ndarray get_is_selected_faces_array(self):
         """Get selected array of faces as NumPy array (zero-copy)"""
-        cdef size_t size = self.bmesh.totface
+        cdef int size = self.bmesh.totface
         return np.PyArray_SimpleNewFromData(1, [size], np.NPY_UINT8, self.is_selected_f)

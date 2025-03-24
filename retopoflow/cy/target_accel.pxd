@@ -74,17 +74,18 @@ cdef class TargetMeshAccel:
         float screen_margin
 
         # Store latest values of totvert, totedge, totface.
-        size_t last_totvert
-        size_t last_totedge
-        size_t last_totface
+        int last_totvert
+        int last_totedge
+        int last_totface
 
         # C++ sets for storing geometry
         cpp_set[BMVert*] visverts
         cpp_set[BMEdge*] visedges  
         cpp_set[BMFace*] visfaces
-        size_t totvisverts
-        size_t totvisedges
-        size_t totvisfaces
+        # Verts/Edges/Faces count.
+        int totvisverts
+        int totvisedges
+        int totvisfaces
 
         # Visibility arrays
         uint8_t* is_hidden_v
@@ -110,7 +111,7 @@ cdef class TargetMeshAccel:
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
-    cdef void _classify_elem(self, BMHeader* head, size_t index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
+    cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
     cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) nogil
 
     cdef np.ndarray get_is_visible_verts_array(self)
