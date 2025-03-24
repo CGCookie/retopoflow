@@ -842,7 +842,7 @@ cdef class TargetMeshAccel:
                 if vert == NULL:
                     inc(vert_it)
                     continue
-                self.add_vert_to_grid(vert, i, i == 0 or i % 500 == 0)
+                self.add_vert_to_grid(vert, i)
                 inc(vert_it)
                 i += 1
 
