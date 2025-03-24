@@ -339,52 +339,10 @@ cdef class TargetMeshAccel:
                     print(f"[CYTHON] vert {vert_idx} is hidden")
                 continue
 
-            # Transform position to world space
-            for j in range(3):
-                world_pos[j] = 0
-                for k in range(3):
-                    world_pos[j] += vert.co[k] * self.matrix_world[k][j]
-                world_pos[j] += self.matrix_world[3][j]
-
-            # Transform normal to world space
-            for j in range(3):
-                world_normal[j] = 0
-                for k in range(3):
-                    world_normal[j] += vert.no[k] * self.matrix_normal[k][j]
+            self.l2w_point(vert.co, world_pos)
+            self.l2w_point(vert.no, world_normal)
             vec3_normalize(world_normal)
-
-            # Calculate view direction
-            if is_persp:
-                for j in range(3):
-                    view_dir[j] = world_pos[j] - view3d.view_pos[j]
-                vec3_normalize(view_dir)
-            else:
-                for j in range(3):
-                    view_dir[j] = -view3d.view_pos[j]
-
-            # Check if facing camera
-            if vec3_dot(world_normal, view_dir) > 0:
-                continue
-
-            # Project to screen space
-            for j in range(4):
-                screen_pos[j] = (
-                    world_pos[0] * view3d.proj_matrix[0][j] +
-                    world_pos[1] * view3d.proj_matrix[1][j] +
-                    world_pos[2] * view3d.proj_matrix[2][j] +
-                    view3d.proj_matrix[3][j]
-                )
-
-            if screen_pos[3] <= 0:  # Behind camera
-                continue
-            
-            # Perspective divide and bounds check (ok values between -1 and 1)
-            if (fabs(screen_pos[0] / screen_pos[3]) <= margin_check and 
-                fabs(screen_pos[1] / screen_pos[3]) <= margin_check):
-
-                # TODO: project vert.co to 2D region space.
-                # TODO: store vert 2d position in custom array in self (Accel2D).
-                # TODO: if vertex could be projected and 2d point in inside the region bounds, then mark vertex as visible (as below).
+            if point_visible_in_3d_view(world_pos, world_normal, view3d):
                 is_vert_visible[vert.head.index] = 1
                 totvisvert += 1
 
@@ -1313,3 +1271,33 @@ cdef class TargetMeshAccel:
                 })
             
         return py_results'''
+
+cdef bint point_visible_in_3d_view(float[3] co, float[3] no, View3D view3d) noexcept nogil:
+    cdef:
+        float[4] clip_pos
+        float[3] view_dir = view3d.view_dir
+        float dot_product
+        int i, j
+
+    # Transform vertex position to clip space
+    for i in range(4):
+        clip_pos[i] = 0
+        for j in range(3):
+            clip_pos[i] += view3d.proj_matrix[i][j] * co[j]
+        clip_pos[i] += view3d.proj_matrix[i][3]  # Add the w component
+
+    # Perspective divide to get NDC
+    if clip_pos[3] != 0:
+        for i in range(3):
+            clip_pos[i] /= clip_pos[3]
+
+    # Check if the vertex is within the view frustum
+    if not (-1 <= clip_pos[0] <= 1 and -1 <= clip_pos[1] <= 1 and -1 <= clip_pos[2] <= 1):
+        return False
+
+    # Check if the vertex normal is facing the camera
+    dot_product = 0
+    for i in range(3):
+        dot_product += no[i] * view_dir[i]
+
+    return dot_product < 0
