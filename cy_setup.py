@@ -75,6 +75,19 @@ def build_for_architecture(arch):
                     return True
         return False
 
+    # Function to check if a .pyx file uses atomic.
+    def uses_atomic(file_path):
+        with open(file_path, 'r') as f:
+            # Only check first 50 lines where imports typically are
+            for i, line in enumerate(f):
+                if i > 50:  # Stop after checking first 50 lines
+                    break
+                if any(atomic_import in line for atomic_import in [
+                    'from libcpp.atomic',
+                ]):
+                    return True
+        return False
+
     cy_dir = "retopoflow/cy"
     ext_modules = []
 
@@ -102,6 +115,17 @@ def build_for_architecture(arch):
             # Add numpy kwargs only if the file uses numpy.
             if uses_numpy(file_path):
                 ext_kwargs.update(numpy_extra_compile_args)
+            
+            if uses_atomic(file_path):
+                if system == 'Windows':
+                    # For Windows, only add /openmp to compiler flags
+                    # The compiler (MSVC) takes care of linking to the OpenMP library automatically
+                    ext_kwargs['extra_compile_args'].append('/openmp')
+                else:
+                    # For non-Windows platforms, add -fopenmp to both
+                    flag = '-fopenmp'
+                    ext_kwargs['extra_compile_args'].append(flag)
+                    ext_kwargs['extra_link_args'].append(flag)
 
             ext_modules.append(
                 Extension(
