@@ -328,36 +328,39 @@ cdef void spatial_accel_update_grid_indices(SpatialAccel* accel) noexcept nogil:
         Cell* cell
         GeomElement* elem
         int cx, cy
+        int totcells = accel.grid_cols * accel.grid_rows
 
-    # Init Cell elements indices based on total amount of elements added to it.
-    for cell_idx in prange(accel.grid_cols * accel.grid_rows):
-        cell = &accel.cells_memory[cell_idx]
-        if cell.totelem > 0:  # Only allocate if needed
-            cell.elem_indices = <int*>malloc(cell.totelem * sizeof(int))
-        else:
-            cell.elem_indices = NULL
+    with parallel():
+        # Init Cell elements indices based on total amount of elements added to it.
+        for cell_idx in prange(totcells):
+            cell = &accel.cells_memory[cell_idx]
+            if cell.totelem > 0:  # Only allocate if needed
+                cell.elem_indices = <int*>malloc(cell.totelem * sizeof(int))
+            else:
+                cell.elem_indices = NULL
 
     # Add element indices to Cells.
-    for elem_idx in range(accel.totelem):  # Remove prange to avoid race conditions
-        elem = &accel.elements[elem_idx]
+    with parallel():
+        for elem_idx in prange(accel.totelem):  # Remove prange to avoid race conditions?
+            elem = &accel.elements[elem_idx]
 
-        # Validate cell coordinates
-        cx = elem.cell_x
-        cy = elem.cell_y
-        if cx < 0 or cx >= accel.grid_cols or cy < 0 or cy >= accel.grid_rows:
-            continue  # Skip invalid cell coordinates
+            # Validate cell coordinates
+            cx = elem.cell_x
+            cy = elem.cell_y
+            if cx < 0 or cx >= accel.grid_cols or cy < 0 or cy >= accel.grid_rows:
+                continue  # Skip invalid cell coordinates
 
-        cell = &accel.grid[cx][cy]
-        if cell == NULL:
-            continue  # Skip NULL cells
+            cell = &accel.grid[cx][cy]
+            if cell == NULL:
+                continue  # Skip NULL cells
 
-        if elem.cell_index >= cell.totelem:
-            continue  # Skip if index is out of bounds
+            if elem.cell_index >= cell.totelem:
+                continue  # Skip if index is out of bounds
 
-        if cell.elem_indices == NULL:
-            continue  # Skip if indices array wasn't allocated
+            if cell.elem_indices == NULL:
+                continue  # Skip if indices array wasn't allocated
 
-        cell.elem_indices[elem.cell_index] = elem_idx
+            cell.elem_indices[elem.cell_index] = elem_idx
 
 
 # ======================================================================================
