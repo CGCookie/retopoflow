@@ -82,10 +82,11 @@ cdef class TargetMeshAccel:
         uint8_t* is_edge_visible
         uint8_t* is_face_visible
 
-        # C++ sets for storing geometry
-        cpp_set[BMVert*] visverts
-        cpp_set[BMEdge*] visedges  
-        cpp_set[BMFace*] visfaces
+        # Change C++ sets to C arrays for storing geometry
+        BMVert** visverts
+        BMEdge** visedges  
+        BMFace** visfaces
+
         # Verts/Edges/Faces count.
         int totvisverts
         int totvisedges

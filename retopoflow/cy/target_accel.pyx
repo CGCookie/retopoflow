@@ -53,6 +53,14 @@ cdef class TargetMeshAccel:
         self.is_selected_e = NULL
         self.is_selected_f = NULL
 
+        # Initialize geometry arrays
+        self.visverts = NULL
+        self.visedges = NULL
+        self.visfaces = NULL
+        self.totvisverts = 0
+        self.totvisedges = 0
+        self.totvisfaces = 0
+
         # Initialize dirty flags
         self.is_dirty_geom_vis = True
         self.is_dirty_accel = True
@@ -469,33 +477,65 @@ cdef class TargetMeshAccel:
                         if loop == NULL:
                             break
 
-        self.totvisverts = totvisvert
-        self.totvisedges = totvisedge
-        self.totvisfaces = totvisface
+        # Allocate the arrays with exact sizes
+        self.visverts = <BMVert**>malloc(totvisvert * sizeof(BMVert*))
+        self.visedges = <BMEdge**>malloc(totvisedge * sizeof(BMEdge*))
+        self.visfaces = <BMFace**>malloc(totvisface * sizeof(BMFace*))
 
-        with parallel():
-            for vert_idx in prange(totvert):
-                vert = vtable[vert_idx]
-                if is_vert_visible[vert.head.index]:
-                    self.visverts.insert(vtable[vert_idx])
-            for edge_idx in prange(totedge):
-                edge = etable[vert_idx]
-                if is_edge_visible[edge.head.index]:
-                    self.visedges.insert(etable[edge_idx])
-            for face_idx in prange(totface):
-                face = ftable[face_idx]
-                if is_face_visible[face.head.index]:
-                    self.visfaces.insert(ftable[face_idx])
+        if self.visverts == NULL or self.visedges == NULL or self.visfaces == NULL:
+            printf("[CYTHON] Error: Failed to allocate memory for geometry arrays\n")
+            with gil:
+                print(f"[CYTHON] Error: Failed to allocate memory for geometry arrays\n")
+            if self.visverts != NULL:
+                free(self.visverts)
+                self.visverts = NULL
+            if self.visedges != NULL:
+                free(self.visedges)
+                self.visedges = NULL
+            if self.visfaces != NULL:
+                free(self.visfaces)
+                self.visfaces = NULL
+            return -1
+
+        # Initialize arrays
+        memset(self.visverts, 0, totvisvert * sizeof(BMVert*))
+        memset(self.visedges, 0, totvisedge * sizeof(BMEdge*))
+        memset(self.visfaces, 0, totvisface * sizeof(BMFace*))
+
+        vert_idx = 0
+        edge_idx = 0
+        face_idx = 0
+
+        for i in range(totvert):
+            vert = vtable[i]
+            if is_vert_visible[vert.head.index]:
+                self.visverts[vert_idx] = vert
+                vert_idx += 1
+        for i in range(totedge):
+            edge = etable[i]
+            if is_edge_visible[edge.head.index]:
+                self.visedges[edge_idx] = edge
+                edge_idx += 1
+        for i in range(totface):
+            face = ftable[i]
+            if is_face_visible[face.head.index]:
+                self.visfaces[face_idx] = face
+                face_idx += 1
+
 
         with gil:
-            print(f"[CYTHON] totvisverts: {self.totvisverts}")
-            print(f"[CYTHON] totvisedges: {self.totvisedges}")
-            print(f"[CYTHON] totvisfaces: {self.totvisfaces}")
+            print(f"[CYTHON] totvisverts: {totvisvert}")
+            print(f"[CYTHON] totvisedges: {totvisedge}")
+            print(f"[CYTHON] totvisfaces: {totvisface}")
 
         # Store vis states for verts/edges/faces.
         self.is_vert_visible = is_vert_visible
         self.is_edge_visible = is_edge_visible
         self.is_face_visible = is_face_visible
+
+        self.totvisverts = totvisvert
+        self.totvisedges = totvisedge
+        self.totvisfaces = totvisface
 
         self.is_dirty_geom_vis = False
         self.is_dirty_accel = True
@@ -535,7 +575,6 @@ cdef class TargetMeshAccel:
 
     cdef void _reset(self, bint dirty=True) noexcept nogil:
         """Reset the acceleration structure"""
-        # printf("Accel2D._reset()\n")
         if self.is_hidden_v != NULL:
             free(self.is_hidden_v)
         if self.is_hidden_e != NULL:
@@ -559,10 +598,16 @@ cdef class TargetMeshAccel:
         self.is_selected_e = NULL
         self.is_selected_f = NULL
 
-        # For C++ sets, we don't need to check for NULLs, just clear them!
-        self.visverts.clear()
-        self.visedges.clear()
-        self.visfaces.clear()
+        # Free and reset geometry arrays
+        if self.visverts != NULL:
+            free(self.visverts)
+            self.visverts = NULL
+        if self.visedges != NULL:
+            free(self.visedges)
+            self.visedges = NULL
+        if self.visfaces != NULL:
+            free(self.visfaces)
+            self.visfaces = NULL
 
         self.totvisverts = 0
         self.totvisedges = 0
@@ -807,6 +852,10 @@ cdef class TargetMeshAccel:
             int edge_insert_index_offset = self.totvisverts
             int face_insert_index_offset = edge_insert_index_offset + self.totvisedges * edge_samples
             int totelem = self.totvisverts + self.totvisedges * edge_samples + self.totvisfaces
+            int i
+            BMVert* vert
+            BMEdge* edge
+            BMFace* face
 
         # Initialize the spatial acceleration structure
         spatial_accel_init(self.accel, totelem, 0.0, 0.0, self.region.winx, self.region.winy, grid_width, grid_height)
@@ -823,56 +872,35 @@ cdef class TargetMeshAccel:
                 print(f"[CYTHON] Grid size: {grid_width}x{grid_height} with cell size: {self.accel.cell_size_x} x {self.accel.cell_size_y}")
                 print(f"[CYTHON] Adding {self.totvisverts} vertices, {self.totvisedges} edges, {self.totvisfaces} faces to grid")
 
-        cdef:
-            cpp_set[BMVert*].iterator vert_it
-            cpp_set[BMEdge*].iterator edge_it
-            cpp_set[BMFace*].iterator face_it
-            BMVert* vert
-            BMEdge* edge
-            BMFace* face
-            int i = 0
-
+        # Add vertices to grid
         if self.totvisverts > 0:
-            vert_it = self.visverts.begin()
-            i = 0
             with gil:
                 print("[CYTHON] Adding vertices to grid")
-            while vert_it != self.visverts.end():
-                vert = deref(vert_it)
+            for i in range(self.totvisverts):
+                vert = self.visverts[i]
                 if vert == NULL:
-                    inc(vert_it)
                     continue
                 self.add_vert_to_grid(vert, i)
-                inc(vert_it)
-                i += 1
 
+        # Add edges to grid
         if self.totvisedges > 0:
-            edge_it = self.visedges.begin()
-            i = 0
             with gil:
                 print("[CYTHON] Adding edges to grid")
-            while edge_it != self.visedges.end():
-                edge = deref(edge_it)
+            for i in range(self.totvisedges):
+                edge = self.visedges[i]
                 if edge == NULL:
-                    inc(edge_it)
                     continue
-                self.add_edge_to_grid(edge, edge_insert_index_offset + i, edge_samples)  # Reduced from 3 to 2 samples
-                inc(edge_it)
-                i += 1
+                self.add_edge_to_grid(edge, edge_insert_index_offset + i, edge_samples)
 
+        # Add faces to grid
         if self.totvisfaces > 0:
-            face_it = self.visfaces.begin()
-            i = 0
             with gil:
                 print("[CYTHON] Adding faces to grid")
-            while face_it != self.visfaces.end():
-                face = deref(face_it)
+            for i in range(self.totvisfaces):
+                face = self.visfaces[i]
                 if face == NULL:
-                    inc(face_it)
                     continue
                 self.add_face_to_grid(face, face_insert_index_offset + i)
-                inc(face_it)
-                i += 1
 
         self.is_dirty_accel = False
 
@@ -974,9 +1002,8 @@ cdef class TargetMeshAccel:
 
         # Iterate over visible geometry based on type
         if select_geometry_type == GeomType.BM_VERT:
-            vert_it = self.visverts.begin()
-            while vert_it != self.visverts.end():
-                vert = deref(vert_it)
+            for i in prange(self.totvisverts):
+                vert = self.visverts[i]
                 if self._vert_inside_box(vert, box):
                     head = &vert.head
                     if use_ctrl:
@@ -984,12 +1011,10 @@ cdef class TargetMeshAccel:
                     else:
                         BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
-                inc(vert_it)
 
         elif select_geometry_type == GeomType.BM_EDGE:
-            edge_it = self.visedges.begin()
-            while edge_it != self.visedges.end():
-                edge = deref(edge_it)
+            for j in prange(self.totvisedges):
+                edge = self.visedges[j]
                 # Check both vertices of the edge
                 if self._vert_inside_box(<BMVert*>edge.v1, box) or\
                    self._vert_inside_box(<BMVert*>edge.v2, box):
@@ -1003,12 +1028,10 @@ cdef class TargetMeshAccel:
                         BM_elem_flag_set(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT)
                         BM_elem_flag_set(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
-                inc(edge_it)
 
         elif select_geometry_type == GeomType.BM_FACE:
-            face_it = self.visfaces.begin()
-            while face_it != self.visfaces.end():
-                face = deref(face_it)
+            for k in prange(self.totvisfaces):
+                face = self.visfaces[k]
                 # Check all vertices of the face
                 loop = <BMLoop*>face.l_first
                 while 1:
@@ -1034,8 +1057,6 @@ cdef class TargetMeshAccel:
                     loop = <BMLoop*>loop.next
                     if loop == <BMLoop*>face.l_first:
                         break
-
-                inc(face_it)
 
         return selection_changed
 
