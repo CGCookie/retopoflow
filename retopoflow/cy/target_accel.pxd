@@ -122,7 +122,7 @@ cdef class TargetMeshAccel:
 
     cpdef void update(self, float margin_check, int selection_mode, bint debug=*)
 
-    cpdef void _ensure_bmesh(self)
+    cpdef int ensure_bmesh(self)
 
     cpdef void py_set_dirty_accel(self)
     cpdef void py_set_dirty_geom_vis(self)

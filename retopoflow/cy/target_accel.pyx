@@ -93,7 +93,7 @@ cdef class TargetMeshAccel:
             start_time = time.time()
             print("[CYTHON] TargetMeshAccel.update()")
 
-        self._ensure_bmesh()
+        self.ensure_bmesh()
         if debug:
             current_time = time.time()
             print(f"\t- Ensure BMesh took: {round(current_time - start_time, 5)} seconds")
@@ -148,11 +148,21 @@ cdef class TargetMeshAccel:
 
         self.set_dirty()
 
-    cpdef void _ensure_bmesh(self):
-        """Ensure lookup tables are created for the bmesh and indices are updated (sorted in ascending order)."""
+    cpdef int ensure_bmesh(self):
+        """Ensure lookup tables are created for the bmesh and indices are updated (sorted in ascending order).
+
+            ### Returns:
+                - `-1`, if something went wrong.
+                - `0`, if all went ok and no updates were made to bmesh tables or indices.
+                - `1`, if updates were made to bmesh tables or indices.
+        """
         if self.bmesh == NULL:
-            print(f"[CYTHON] Accel2D._ensure_bmesh() - bmesh is NULL")
-            return
+            print(f"[CYTHON] Accel2D.ensure_bmesh() - bmesh is NULL")
+            return -1
+
+        if not self.py_bmesh.is_valid:
+            print(f"[CYTHON] Accel2D.ensure_bmesh() - py_bmesh is invalid")
+            return -1
 
         cdef:
             bint vtable_dirty = False
@@ -250,6 +260,10 @@ cdef class TargetMeshAccel:
         self.last_totvert = self.bmesh.totvert
         self.last_totedge = self.bmesh.totedge
         self.last_totface = self.bmesh.totface
+
+        if vtable_dirty or etable_dirty or ftable_dirty or vindices_dirty or eindices_dirty or findices_dirty:
+            return 1
+        return 0
 
     cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
@@ -1038,7 +1052,7 @@ cdef class TargetMeshAccel:
             self.bmesh_pywrapper = <BPy_BMesh*><uintptr_t>id(py_bmesh)
             self.bmesh = self.bmesh_pywrapper.bm
 
-        self._ensure_bmesh()
+        self.ensure_bmesh()
 
     cpdef void py_update_object(self, object py_object):
         cdef:
