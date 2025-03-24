@@ -112,7 +112,7 @@ cdef class TargetMeshAccel:
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
     cdef void _classify_elem(self, BMHeader* head, int index, uint8_t* is_hidden_array, uint8_t* is_selected_array) noexcept nogil
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) nogil
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil
 
     cdef np.ndarray get_is_visible_verts_array(self)
     cdef np.ndarray get_is_visible_edges_array(self)
@@ -121,8 +121,8 @@ cdef class TargetMeshAccel:
     cdef np.ndarray get_is_selected_edges_array(self)
     cdef np.ndarray get_is_selected_faces_array(self)
 
-    cdef void _build_accel_struct(self) noexcept nogil
-    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index, bint debug) noexcept nogil
+    cdef void _build_accel_struct(self, bint debug=*) noexcept nogil
+    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index) noexcept nogil
     cdef void add_edge_to_grid(self, BMEdge* edge, int insert_index, int num_samples) noexcept nogil
     cdef void add_face_to_grid(self, BMFace* face, int insert_index) noexcept nogil
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil

@@ -107,7 +107,7 @@ cdef class TargetMeshAccel:
             print(f"\t- Compute Geom Visibility took: {round(current_time - step_start_time, 5)} seconds")
             step_start_time = current_time
 
-        self._build_accel_struct()
+        self._build_accel_struct(debug=debug)
         if debug:
             current_time = time.time()
             print(f"\t- Build SpatialAccel struct: {round(current_time - step_start_time, 5)} seconds")
@@ -251,7 +251,7 @@ cdef class TargetMeshAccel:
         self.last_totedge = self.bmesh.totedge
         self.last_totface = self.bmesh.totface
 
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) nogil:
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
             printf("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             with gil:
@@ -695,7 +695,7 @@ cdef class TargetMeshAccel:
     # Acceleration structure methods.
     # ---------------------------------------------------------------------------------------
 
-    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index, bint debug) noexcept nogil:
+    cdef void add_vert_to_grid(self, BMVert* vert, int insert_index) noexcept nogil:
         """Add vertex to grid"""
         cdef:
             float[3] world_pos
@@ -707,10 +707,6 @@ cdef class TargetMeshAccel:
         
         # Project to screen space with depth
         self._project_point_to_screen(world_pos, screen_pos, &depth)
-
-        if debug:
-            with gil:
-                print(f"\t- Vert - world_pos: ({world_pos[0]}, {world_pos[1]}, {world_pos[2]}) - screen_pos: ({screen_pos[0]}, {screen_pos[1]}) - depth: {depth}")
 
         # Add to accel grid with proper depth
         # cdef (SpatialAccel* accel, void* elem, int index, float x, float y, float depth, GeomType geom_type)
@@ -780,10 +776,11 @@ cdef class TargetMeshAccel:
         # Add to accel grid with proper depth
         spatial_accel_add_element(self.accel, insert_index, <void*>face, face.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.FACE)
 
-    cdef void _build_accel_struct(self) noexcept nogil:
+    cdef void _build_accel_struct(self, bint debug=False) noexcept nogil:
         """Build acceleration structure for efficient spatial queries"""
-        with gil:
-            print("[CYTHON] Starting _build_accel_struct()")
+        if debug:
+            with gil:
+                print("[CYTHON] Starting _build_accel_struct()")
 
         if not self.is_dirty_accel:
             with gil:
@@ -821,13 +818,11 @@ cdef class TargetMeshAccel:
                 print("[CYTHON] ERROR: Failed to initialize spatial acceleration structure")
             return
         
-        with gil:
-            # Extra debug info
-            print(f"[CYTHON] Accel bounds: ({self.accel.min_x}, {self.accel.min_y}) -> ({self.accel.max_x}, {self.accel.max_y})")
-            print(f"[CYTHON] Cell size: {self.accel.cell_size_x} x {self.accel.cell_size_y}")
-            
-            # Process visible elements
-            print(f"[CYTHON] Adding {self.totvisverts} vertices, {self.totvisedges} edges, {self.totvisfaces} faces to grid")
+        if debug:
+            with gil:
+                print(f"[CYTHON] Accel bounds: ({self.accel.min_x}, {self.accel.min_y}) -> ({self.accel.max_x}, {self.accel.max_y})")
+                print(f"[CYTHON] Grid size: {grid_width}x{grid_height} with cell size: {self.accel.cell_size_x} x {self.accel.cell_size_y}")
+                print(f"[CYTHON] Adding {self.totvisverts} vertices, {self.totvisedges} edges, {self.totvisfaces} faces to grid")
 
         cdef:
             cpp_set[BMVert*].iterator vert_it
@@ -887,8 +882,11 @@ cdef class TargetMeshAccel:
 
         spatial_accel_update_grid_indices(self.accel)
 
-        with gil:
-            print("[CYTHON] Successfully built acceleration structure")
+        self.is_dirty_accel = False
+        
+        if debug:
+            with gil:
+                print("[CYTHON] Successfully built acceleration structure")
 
 
     # ------------------------------------------------------------------------------------
