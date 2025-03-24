@@ -293,18 +293,15 @@ cdef class TargetMeshAccel:
         self._reset()
 
         # Allocate memory
-        visible_vert_indices = <uint8_t*>malloc(totvert * sizeof(uint8_t))
         is_vert_visible = <uint8_t*>malloc(totvert * sizeof(uint8_t))
         is_edge_visible = <uint8_t*>malloc(totedge * sizeof(uint8_t))
         is_face_visible = <uint8_t*>malloc(totface * sizeof(uint8_t))
 
-        if visible_vert_indices == NULL or is_vert_visible == NULL or\
+        if is_vert_visible == NULL or\
             is_edge_visible == NULL or is_face_visible == NULL:
             printf("[CYTHON] Error: Failed to allocate memory\n")
             with gil:
                 print(f"[CYTHON] Error: Failed to allocate memory\n")
-            if visible_vert_indices != NULL:
-                free(visible_vert_indices)
             if is_vert_visible != NULL:
                 free(is_vert_visible)
             if is_edge_visible != NULL:
@@ -340,15 +337,10 @@ cdef class TargetMeshAccel:
                 free(self.is_selected_f)
             return -1
 
-        # Initialize visibility array
-        with parallel():
-            for i in prange(totvert):
-                is_vert_visible[i] = 0
-                visible_vert_indices[i] = 0
-            for j in prange(totedge):
-                is_edge_visible[j] = 0
-            for k in prange(totface):
-                is_face_visible[k] = 0
+        # Initialize visibility arrays to zero
+        memset(is_vert_visible, 0, totvert * sizeof(uint8_t))
+        memset(is_edge_visible, 0, totedge * sizeof(uint8_t))
+        memset(is_face_visible, 0, totface * sizeof(uint8_t))
 
         # Compute visible vertices on screen (region space).
         for vert_idx in prange(totvert, nogil=True, schedule='static'):
@@ -426,8 +418,7 @@ cdef class TargetMeshAccel:
                 # TODO: project vert.co to 2D region space.
                 # TODO: store vert 2d position in custom array in self (Accel2D).
                 # TODO: if vertex could be projected and 2d point in inside the region bounds, then mark vertex as visible (as below).
-                is_vert_visible[vert_idx] = 1
-                visible_vert_indices[vert.head.index] = 1
+                is_vert_visible[vert.head.index] = 1
                 totvisvert += 1
 
         # Compute visible edges and faces based on vertices.
@@ -446,9 +437,9 @@ cdef class TargetMeshAccel:
                 if self.is_hidden_e[edge_idx]:
                     continue
 
-                if visible_vert_indices[(<BMVert*>edge.v1).head.index] or\
-                   visible_vert_indices[(<BMVert*>edge.v2).head.index]:
-                    is_edge_visible[edge_idx] = 1
+                if is_vert_visible[(<BMVert*>edge.v1).head.index] or\
+                   is_vert_visible[(<BMVert*>edge.v2).head.index]:
+                    is_edge_visible[edge.head.index] = 1
                     totvisedge += 1
 
             for face_idx in prange(totface):
@@ -469,8 +460,8 @@ cdef class TargetMeshAccel:
                 if loop == NULL:
                     continue
                 for k in range(face.len):
-                    if visible_vert_indices[(<BMVert*>loop.v).head.index]:
-                        is_face_visible[face_idx] = 1
+                    if is_vert_visible[(<BMVert*>loop.v).head.index]:
+                        is_face_visible[face.head.index] = 1
                         totvisface += 1
                         break
                     else:
@@ -484,19 +475,27 @@ cdef class TargetMeshAccel:
 
         with parallel():
             for vert_idx in prange(totvert):
-                if is_vert_visible[vert_idx]:
+                vert = vtable[vert_idx]
+                if is_vert_visible[vert.head.index]:
                     self.visverts.insert(vtable[vert_idx])
             for edge_idx in prange(totedge):
-                if is_edge_visible[edge_idx]:
+                edge = etable[vert_idx]
+                if is_edge_visible[edge.head.index]:
                     self.visedges.insert(etable[edge_idx])
             for face_idx in prange(totface):
-                if is_face_visible[face_idx]:
+                face = ftable[face_idx]
+                if is_face_visible[face.head.index]:
                     self.visfaces.insert(ftable[face_idx])
 
         with gil:
             print(f"[CYTHON] totvisverts: {self.totvisverts}")
             print(f"[CYTHON] totvisedges: {self.totvisedges}")
             print(f"[CYTHON] totvisfaces: {self.totvisfaces}")
+
+        # Store vis states for verts/edges/faces.
+        self.is_vert_visible = is_vert_visible
+        self.is_edge_visible = is_edge_visible
+        self.is_face_visible = is_face_visible
 
         self.is_dirty_geom_vis = False
         self.is_dirty_accel = True

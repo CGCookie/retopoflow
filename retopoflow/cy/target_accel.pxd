@@ -78,6 +78,10 @@ cdef class TargetMeshAccel:
         int last_totedge
         int last_totface
 
+        uint8_t* is_vert_visible
+        uint8_t* is_edge_visible
+        uint8_t* is_face_visible
+
         # C++ sets for storing geometry
         cpp_set[BMVert*] visverts
         cpp_set[BMEdge*] visedges  
