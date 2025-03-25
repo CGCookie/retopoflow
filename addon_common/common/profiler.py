@@ -350,6 +350,8 @@ def time_it(label=None, *, prefix='', infix=' ', enabled=True):
 def timing(f):
     @wraps(f)
     def wrap(*args, **kw):
+        print('func:%r is being called...' % \
+          (f.__name__))
         ts = time.time()
         result = f(*args, **kw)
         te = time.time()

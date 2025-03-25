@@ -24,7 +24,7 @@ from itertools import chain
 
 from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec, mid
 
-from .profiler import profiler, time_it
+from .profiler import profiler, time_it, timing
 
 from ..terminal import term_printer
 
@@ -237,3 +237,31 @@ class Accel2D:
     def get_faces(self, v2d, within):
         return self.get(v2d, within, fn_filter=self._is_face)
 
+
+class Accel2D_CyWrapper:
+    def __init__(self, target_accel) -> None:
+        self.accel = target_accel
+
+    @profiler.function
+    def get(self, v2d, within, nearest_fn, *, fn_filter=None) -> set:
+        if v2d is None or not (isfinite(v2d.x) and isfinite(v2d.y)): return set()
+        res = nearest_fn(v2d.x, v2d.y, 0.0, within, wrapped=True)
+        if res is None:
+            return set()
+        if len(res) == 0:
+            return set()
+        return {
+            nearest['elem'] for nearest in res if fn_filter is None or fn_filter(nearest['elem'])
+        }
+
+    @timing
+    def get_verts(self, v2d, within):
+        return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_verts)
+
+    @timing
+    def get_edges(self, v2d, within):
+        return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_edges)
+
+    @timing
+    def get_faces(self, v2d, within):
+        return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_faces)
