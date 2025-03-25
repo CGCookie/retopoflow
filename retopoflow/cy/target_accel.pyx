@@ -1156,135 +1156,88 @@ cdef class TargetMeshAccel:
         self.select_box(left, right, bottom, top, <GeomType>select_geometry_type, use_ctrl, use_shift)
 
 
-    '''cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
+    cpdef object _find_nearest(self, float x, float y, float depth, SpatialGeomType geom_type, int k=1, float max_dist=finf, bint wrapped=True):
+        if k < 0:
+            return None
+
+        cdef vector[SpatialElementWithDistance] result = spatial_accel_get_nearest_elements(self.accel, x, y, depth, k, max_dist, geom_type)
+
+        if result.size() == 0:
+            if k == 1:
+                return None
+            return []
+
+        cdef object wrapper
+
+        if wrapped:
+            if geom_type == SpatialGeomType.VERT:
+                wrapper = self.vert_wrapper
+            elif geom_type == SpatialGeomType.EDGE:
+                wrapper = self.edge_wrapper
+            elif geom_type == SpatialGeomType.FACE:
+                wrapper = self.face_wrapper
+            else:
+                return None
+        
+        cdef SpatialGeomElement* elem_data
+        cdef object py_elem
+        cdef list output = []
+        cdef int i
+
+        for i in range(result.size()):
+            elem_data = result[i].element
+            if elem_data == NULL:
+                continue
+            if elem_data.elem != NULL:
+                py_elem = self.py_bmesh.verts[elem_data.index]
+                output.append({
+                    'elem': wrapper(py_elem) if wrapped else py_elem,
+                    'pos': (elem_data.x, elem_data.y),
+                    'depth': elem_data.depth,
+                    'distance':  result[i].distance
+                })
+
+        if k == 1:
+            if len(output) == 0:
+                return None
+            return output[0]
+
+        return output
+
+    cpdef object find_nearest_vert(self, float x, float y, float depth, float max_dist=finf, bint wrapped=True):
         """Find nearest visible vertex to screen position"""
-        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.VERT, use_epsilon=False)
-        cdef SpatialGeomElement* elem_data = result.element
-        cdef object py_elem
-        if elem_data == NULL:
-            return None
-        if elem_data.elem != NULL:
-            py_elem = self.py_bmesh.verts[elem_data.index]
-            return {
-                'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
-                'pos': (elem_data.x, elem_data.y),
-                'depth': elem_data.depth,
-                'distance':  result.distance
-            }
-        return None
+        return self._find_nearest(x, y, depth, SpatialGeomType.VERT, 1, max_dist, wrapped)
 
-    cpdef dict find_nearest_edge(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
+    cpdef object find_nearest_edge(self, float x, float y, float depth, float max_dist=finf, bint wrapped=True):
         """Find nearest visible edge to screen position"""
-        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.EDGE, use_epsilon=False)
-        cdef SpatialGeomElement* elem_data = result.element
-        cdef object py_elem
-        if elem_data == NULL:
-            return None
-        if  elem_data.elem != NULL:
-            py_elem = self.py_bmesh.edges[elem_data.index]
-            return {
-                'elem': self.edge_wrapper(py_elem) if wrapped else py_elem,
-                'pos': (elem_data.x, elem_data.y),
-                'depth': elem_data.depth,
-                'distance':  result.distance
-            }
-        return None
+        return self._find_nearest(x, y, depth, SpatialGeomType.EDGE, 1, max_dist, wrapped)
 
-    cpdef dict find_nearest_face(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
+    cpdef object find_nearest_face(self, float x, float y, float depth, float max_dist=finf, bint wrapped=True):
         """Find nearest visible face to screen position"""
-        cdef SpatialElementWithDistance result = spatial_accel_find_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.FACE, use_epsilon=False)
-        cdef SpatialGeomElement* elem_data = result.element
-        cdef object py_elem
-        if elem_data == NULL:
-            return None
-        if elem_data.elem != NULL:
-            py_elem = self.py_bmesh.faces[elem_data.index]
-            return {
-                'elem': self.face_wrapper(py_elem) if wrapped else py_elem,
-                'pos': (elem_data.x, elem_data.y),
-                'depth': elem_data.depth,
-                'distance':  result.distance
-            }
-        return None
+        return self._find_nearest(x, y, depth, SpatialGeomType.FACE, 1, max_dist, wrapped)
 
     cpdef tuple find_nearest_geom(self, float x, float y, float depth, float max_dist=finf, bint wrapped=False):
         """Find nearest visible face to screen position"""
-        cdef dict result_v = self.find_nearest_vert(x, y, <float>0.0, max_dist, wrapped=wrapped)
-        cdef dict result_e = self.find_nearest_edge(x, y, <float>0.0, max_dist, wrapped=wrapped)
-        cdef dict result_f = self.find_nearest_face(x, y, <float>0.0, max_dist, wrapped=wrapped)
+        cdef object result_v = self.find_nearest_vert(x, y, depth, max_dist, wrapped)
+        cdef object result_e = self.find_nearest_edge(x, y, depth, max_dist, wrapped)
+        cdef object result_f = self.find_nearest_face(x, y, depth, max_dist, wrapped)
         return (result_v, result_e, result_f)
 
-    cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
-        """Find k nearest vertices to screen position"""
-        cdef:
-            vector[SpatialElementWithDistance] results
-            list py_results = []
-            int i
-            SpatialGeomElement* elem_data
-            object py_elem
+    cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k=0, float max_dist=finf, bint wrapped=True):
+        """Find k nearest visible vertex to screen position"""
+        assert k==1, "Use k=0 for infinite possible nearest element within range or specify a value greater than 1"
+        return self._find_nearest(x, y, depth, SpatialGeomType.VERT, k, max_dist, wrapped)
 
-        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.VERT, k)
+    cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k=0, float max_dist=finf, bint wrapped=True):
+        """Find k nearest visible edge to screen position"""
+        assert k==1, "Use k=0 for infinite possible nearest element within range or specify a value greater than 1"
+        return self._find_nearest(x, y, depth, SpatialGeomType.EDGE, k, max_dist, wrapped)
 
-        for i in range(results.size()):
-            elem_data = results[i].element
-            if elem_data.elem != NULL:
-                py_elem = self.py_bmesh.verts[elem_data.index]
-                py_results.append({
-                    'elem': self.vert_wrapper(py_elem) if wrapped else py_elem,
-                    'pos': (elem_data.x, elem_data.y),
-                    'depth': elem_data.depth,
-                    'distance':  results[i].distance
-                })
+    cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k=0, float max_dist=finf, bint wrapped=True):
+        """Find k nearest visible face to screen position"""
+        assert k==1, "Use k=0 for infinite possible nearest element within range or specify a value greater than 1"
+        return self._find_nearest(x, y, depth, SpatialGeomType.FACE, k, max_dist, wrapped)
 
-        return py_results
-
-    cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
-        """Find k nearest edges to screen position"""
-        cdef:
-            vector[SpatialElementWithDistance] results
-            list py_results = []
-            int i
-            SpatialGeomElement* elem_data
-            object py_elem
-            
-        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.EDGE, k)
-        
-        for i in range(results.size()):
-            elem_data = results[i].element
-            if elem_data.elem != NULL:
-                py_elem = self.py_bmesh.edges[elem_data.index]
-                py_results.append({
-                    'elem': self.edge_wrapper(py_elem) if wrapped else py_elem,
-                    'pos': (elem_data.x, elem_data.y),
-                    'depth': elem_data.depth,
-                    'distance':  results[i].distance
-                })
-            
-        return py_results
-
-    cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k, float max_dist=finf, bint wrapped=False):
-        """Find k nearest faces to screen position"""
-        cdef:
-            vector[SpatialElementWithDistance] results
-            list py_results = []
-            int i
-            SpatialGeomElement* elem_data
-            object py_elem
-            
-        results = spatial_accel_find_k_elem(self.accel, x, y, <float>0.0, max_dist, SpatialGeomType.FACE, k)
-        
-        for i in range(results.size()):
-            elem_data = results[i].element
-            if elem_data.elem != NULL:
-                py_elem = self.py_bmesh.faces[elem_data.index]
-                py_results.append({
-                    'elem': self.face_wrapper(py_elem) if wrapped else py_elem,
-                    'pos': (elem_data.x, elem_data.y),
-                    'depth': elem_data.depth,
-                    'distance':  results[i].distance
-                })
-            
-        return py_results'''
 
 cdef bint point_visible_in_3d_view(float[3] co, float[3] no, View3D view3d) noexcept nogil:
     cdef:

@@ -21,7 +21,7 @@ from .bl_types cimport ARegion, RegionView3D
 from .vector_utils cimport bVec3
 from .bl_types.vec_types cimport rcti, rctf
 from .spatial_accel cimport SpatialAccel, spatial_accel_new, spatial_accel_free, spatial_accel_init, spatial_accel_cleanup, spatial_accel_reset
-from .spatial_accel cimport spatial_accel_add_element, spatial_accel_update_grid_indices #, spatial_accel_get_nearest_elements
+from .spatial_accel cimport spatial_accel_add_element, spatial_accel_update_grid_indices, spatial_accel_get_nearest_elements
 from .spatial_accel cimport GeomType as SpatialGeomType, GeomElement as SpatialGeomElement, ElementWithDistance as SpatialElementWithDistance
 
 
@@ -136,17 +136,20 @@ cdef class TargetMeshAccel:
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)
     cpdef void py_update_accel_struct(self)
 
-    '''# Single nearest element methods
-    cpdef dict find_nearest_vert(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
-    cpdef dict find_nearest_edge(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
-    cpdef dict find_nearest_face(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
+    # Base nearest search method.
+    cpdef object _find_nearest(self, float x, float y, float depth, SpatialGeomType geom_type, int k=*, float max_dist=*, bint wrapped=*)
+
+    # Single nearest element methods
+    cpdef object find_nearest_vert(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
+    cpdef object find_nearest_edge(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
+    cpdef object find_nearest_face(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
     cpdef tuple find_nearest_geom(self, float x, float y, float depth, float max_dist=*, bint wrapped=*)
 
     # k nearest elements methods
-    cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
-    cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
-    cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k, float max_dist=*, bint wrapped=*)
-    '''
+    cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
+    cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
+    cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
+
     cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
 

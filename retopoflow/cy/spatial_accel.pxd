@@ -8,6 +8,7 @@
 # cython: embedsignature=True
 # cython: binding=True
 
+from libcpp.vector cimport vector
 from libcpp.list cimport list as cpp_list
 from libcpp.algorithm cimport sort
 from libcpp cimport bool
@@ -73,13 +74,13 @@ cdef void spatial_accel_add_element(SpatialAccel* accel, int insert_index, void*
 cdef void spatial_accel_update_grid_indices(SpatialAccel* accel) noexcept nogil
 
 # Unified search function - replaces all the separate search functions
-'''cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
+cdef vector[ElementWithDistance] spatial_accel_get_nearest_elements(
     SpatialAccel* accel,
     float x, float y, float depth,  # Search position
     int k,                          # Number of elements to return (k=0 means all elements within max_dist)
     float max_dist,                 # Maximum search distance (max_dist=0 means unlimited)
     GeomType geom_type              # Type of geometry to search for
-) noexcept nogil'''
+) noexcept nogil
 
 # Utility functions
 cdef void spatial_accel_get_cell_indices(SpatialAccel* accel, float x, float y, int* cell_x, int* cell_y) noexcept nogil

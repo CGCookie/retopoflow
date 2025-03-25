@@ -366,8 +366,8 @@ cdef void spatial_accel_update_grid_indices(SpatialAccel* accel) noexcept nogil:
 # ======================================================================================
 # Unified Search Function
 # ======================================================================================
-'''
-cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
+
+cdef vector[ElementWithDistance] spatial_accel_get_nearest_elements(
     SpatialAccel* accel,
     float x, float y, float depth,
     int k,
@@ -381,7 +381,7 @@ cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
     - All elements in an area (k=0, max_dist>0)
     - K nearest elements in an area (k>0, max_dist>0)
     """
-    cdef cpp_list[ElementWithDistance] result
+    cdef vector[ElementWithDistance] result
     
     # Input validation
     if accel == NULL or not accel.is_initialized:
@@ -398,17 +398,15 @@ cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
     cdef:
         int cell_x, cell_y
         int radius = 1  # Start with a 1-cell radius search
-        int max_radius = c_max(accel.grid_width, accel.grid_height)
-        int i, j, ni, nj
+        int max_radius = c_max(accel.grid_cols, accel.grid_rows)
+        int i, j, ei
         vector[ElementWithDistance] candidates
         ElementWithDistance element_with_dist
         float dist
         Cell* cell
-        size_t ei, vector_size
         int min_i, max_i, min_j, max_j
         bint found_elements = False
         GeomElement* elem_ptr
-        GeomElement elem
     
     # Get the starting cell
     spatial_accel_get_cell_indices(accel, x, y, &cell_x, &cell_y)
@@ -417,9 +415,9 @@ cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
     while radius <= max_radius:
         # Calculate the bounds for this search radius
         min_i = c_max(0, cell_x - radius)
-        max_i = c_min(accel.grid_width - 1, cell_x + radius)
+        max_i = c_min(accel.grid_cols - 1, cell_x + radius)
         min_j = c_max(0, cell_y - radius)
-        max_j = c_min(accel.grid_height - 1, cell_y + radius)
+        max_j = c_min(accel.grid_rows - 1, cell_y + radius)
         
         # Search cells in this radius
         for i in range(min_i, max_i + 1):
@@ -431,23 +429,23 @@ cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
                 # Get cell and check elements
                 cell = &accel.grid[i][j]
                 
-                # Iterate through the list - note this is different from vector iteration
-                # For C++ list, we need to use iterators
-                # Since we can't easily iterate through a list in Cython with nogil,
-                # we'll adapt this code to work with the element list
+                if cell == NULL or cell.elem_indices == NULL or cell.totelem <= 0:
+                    continue
                 
-                # For each element in the cell's list
-                # Note: C++ list doesn't support random access, we access by iterating
-                for elem in cell.elements:
+                # Iterate through the elements in this cell
+                for ei in range(cell.totelem):
+                    # Get the element index from the cell's indices list
+                    elem_ptr = &accel.elements[cell.elem_indices[ei]]
+                    
                     # Match geometry type (or ANY type)
-                    if geom_type == GeomType.ANY or elem.geom_type == geom_type:
+                    if geom_type == GeomType.ANY or elem_ptr.geom_type == geom_type:
                         # Calculate distance
-                        dist = spatial_accel_element_distance(accel, &elem, x, y, depth)
+                        dist = spatial_accel_element_distance(accel, elem_ptr, x, y, depth)
                         
                         # Only consider elements within max_dist
                         if dist <= max_dist:
                             found_elements = True
-                            element_with_dist.element = &elem  # This will be a reference to a copy
+                            element_with_dist.element = elem_ptr
                             element_with_dist.distance = dist
                             candidates.push_back(element_with_dist)
         
@@ -473,4 +471,3 @@ cdef cpp_list[ElementWithDistance] spatial_accel_get_nearest_elements(
             result.push_back(candidates[i])
     
     return result
-'''
