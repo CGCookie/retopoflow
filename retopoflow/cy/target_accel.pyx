@@ -15,7 +15,7 @@ cimport numpy as np
 np.import_array()  # Required for NumPy C-API
 
 from libc.stdint cimport uintptr_t, uint8_t
-from libc.stdlib cimport malloc, free
+from libc.stdlib cimport malloc, free, calloc
 from libc.string cimport memset, memcpy
 from libc.stdio cimport printf
 from libc.math cimport sqrt, fabs, fmin, fmax
@@ -306,16 +306,14 @@ cdef class TargetMeshAccel:
         
         self._reset()
 
-        # Allocate memory
+        # Allocate visibility arrays with error checking
         is_vert_visible = <uint8_t*>malloc(totvert * sizeof(uint8_t))
         is_edge_visible = <uint8_t*>malloc(totedge * sizeof(uint8_t))
         is_face_visible = <uint8_t*>malloc(totface * sizeof(uint8_t))
 
-        if is_vert_visible == NULL or\
-            is_edge_visible == NULL or is_face_visible == NULL:
-            printf("[CYTHON] Error: Failed to allocate memory\n")
+        if is_vert_visible == NULL or is_edge_visible == NULL or is_face_visible == NULL:
             with gil:
-                print(f"[CYTHON] Error: Failed to allocate memory\n")
+                print(f"[CYTHON] Error: Failed to allocate visibility arrays\n")
             if is_vert_visible != NULL:
                 free(is_vert_visible)
             if is_edge_visible != NULL:
@@ -324,7 +322,7 @@ cdef class TargetMeshAccel:
                 free(is_face_visible)
             return -1
 
-        # Initialize visibility arrays to zero
+        # Initialize arrays to zero
         memset(is_vert_visible, 0, totvert * sizeof(uint8_t))
         memset(is_edge_visible, 0, totedge * sizeof(uint8_t))
         memset(is_face_visible, 0, totface * sizeof(uint8_t))
@@ -396,15 +394,16 @@ cdef class TargetMeshAccel:
                         if loop == NULL:
                             break
 
-        # Allocate the arrays with exact sizes
-        self.visverts = <BMVert**>malloc(totvisvert * sizeof(BMVert*))
-        self.visedges = <BMEdge**>malloc(totvisedge * sizeof(BMEdge*))
-        self.visfaces = <BMFace**>malloc(totvisface * sizeof(BMFace*))
+        # Allocate final arrays with exact sizes
+        self.visverts = <BMVert**>calloc(totvisvert, sizeof(BMVert*))
+        self.visedges = <BMEdge**>calloc(totvisedge, sizeof(BMEdge*))
+        self.visfaces = <BMFace**>calloc(totvisface, sizeof(BMFace*))
 
         if self.visverts == NULL or self.visedges == NULL or self.visfaces == NULL:
-            printf("[CYTHON] Error: Failed to allocate memory for geometry arrays\n")
+
             with gil:
-                print(f"[CYTHON] Error: Failed to allocate memory for geometry arrays\n")
+                print(f"[CYTHON] Error: Failed to allocate geometry arrays\n")
+            # Clean up all allocations
             if self.visverts != NULL:
                 free(self.visverts)
                 self.visverts = NULL
@@ -414,6 +413,9 @@ cdef class TargetMeshAccel:
             if self.visfaces != NULL:
                 free(self.visfaces)
                 self.visfaces = NULL
+            free(is_vert_visible)
+            free(is_edge_visible)
+            free(is_face_visible)
             return -1
 
         # Initialize arrays
@@ -458,6 +460,7 @@ cdef class TargetMeshAccel:
 
         self.is_dirty_geom_vis = False
         self.is_dirty_accel = True
+
         return 0
 
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil:
