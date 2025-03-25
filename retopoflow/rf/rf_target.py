@@ -50,6 +50,20 @@ from ..rfmesh.rfmesh_render import RFMeshRender
 from .event_blocker import is_outside_working_area
 
 
+# For visual debugging.
+image_name = "DEPTH"
+framebuffer_image = None
+DEPTH_COLOR_BUFFER = None
+
+DEPTH_BUFFER = None
+PERSP_MATRIX = None
+
+
+class SelectedOnly(Enum):
+    ALL = 0
+    SELECTED = 1
+    UNSELECTED = 2
+
 
 class RetopoFlow_Target:
     '''
@@ -217,6 +231,46 @@ class RetopoFlow_Target:
         return accel_data.accel
 
     @timing
+    def refresh_depth_buffer(self, linearize_depth_buffer=True, scale_factor=10, color=False):
+        # TEST FRAMEBUFFER and VIEWPORT INFO:
+        if Globals.framebuffer is None:
+            # No framebuffer available yet.
+            return
+        print(f'{Globals.framebuffer=} {Globals.viewport_info=}')
+        global PERSP_MATRIX
+        if Globals.drawing is None:
+            return
+        persp_matrix = Globals.drawing.r3d.perspective_matrix
+        if PERSP_MATRIX is not None and PERSP_MATRIX == persp_matrix:
+            return
+        # Changed view (navigation).
+        PERSP_MATRIX = persp_matrix.copy()
+        global DEPTH_BUFFER, DEPTH_COLOR_BUFFER, framebuffer_image, image_name
+        # obtain depth from the framebuffer
+        width = Globals.viewport_info[2]
+        height = Globals.viewport_info[3]
+        depth_buffer = Globals.framebuffer.read_depth(0, 0, width, height)
+        depth_array = np.array(depth_buffer.to_list())
+        # original depth is encoded nonlinearly between 0 and 1. We can linearize and scale it for visualization
+        if linearize_depth_buffer:
+            space = Globals.drawing.space
+            f = space.clip_end
+            n = space.clip_start          
+            depth_array = n / (f - (f - n) * depth_array) * scale_factor
+        DEPTH_BUFFER = depth_array
+        # To Color (RGB).
+        if color:
+            if framebuffer_image is None:
+                if not image_name in bpy.data.images:
+                    framebuffer_image = bpy.data.images.new(image_name , width, height, alpha=False, float_buffer=True, is_data=True)
+                else:
+                    framebuffer_image = bpy.data.images[image_name]
+                    framebuffer_image.scale(width, height)
+            x = np.expand_dims(depth_array, axis=2)
+            pixel_array = np.pad(np.repeat(x, 3, 2), ((0,0),(0,0),(0,1)), 'constant', constant_values=1).flatten().tolist()    
+            framebuffer_image.pixels.foreach_set(pixel_array)
+
+    @timing
     def _generate_accel_data_struct(self, *, selected_only=None, force=False):
         target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
@@ -274,28 +328,22 @@ class RetopoFlow_Target:
 
         accel_data.recompute = False
 
-        # TEST FRAMEBUFFER and VIEWPORT INFO:
-        print(f'{Globals.framebuffer=} {Globals.viewport_info=}')
-
-        # TEST CYTHON ALTERNATIVE:
-        # Use accelerated functions for geometry processing
-        class SelectedOnly(Enum):
-            ALL = 0
-            SELECTED = 1
-            UNSELECTED = 2
-        
-        match selected_only:
-            case None:
-                selected_only = SelectedOnly.ALL
-            case True:
-                selected_only = SelectedOnly.SELECTED
-            case False:
-                selected_only = SelectedOnly.UNSELECTED
-            case _:
-                selected_only = SelectedOnly.ALL
-
         try:
             if Globals.target_accel is not None:
+                # TEST CYTHON ALTERNATIVE:
+                # Use accelerated functions for geometry processing
+                match selected_only:
+                    case None:
+                        selected_only = SelectedOnly.ALL
+                    case True:
+                        selected_only = SelectedOnly.SELECTED
+                    case False:
+                        selected_only = SelectedOnly.UNSELECTED
+                    case _:
+                        selected_only = SelectedOnly.ALL
+
+                self.refresh_depth_buffer(color=False)
+
                 actions = Actions.get_instance(None)
                 region = Globals.drawing.rgn
                 Globals.target_accel.py_update_region(region)
