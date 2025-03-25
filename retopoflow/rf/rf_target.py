@@ -256,7 +256,7 @@ class RetopoFlow_Target:
 
         recompute = force or (needs_recomputed and not any(delay_recompute))
         if not recompute:
-            if Globals.target_accel is not None:
+            '''if Globals.target_accel is not None:
                 res = Globals.target_accel.ensure_bmesh()
                 if res == -1:
                     accel_data.verts.clear()
@@ -264,7 +264,7 @@ class RetopoFlow_Target:
                     accel_data.faces.clear()
                     return accel_data
                 elif res == 0:
-                    return accel_data
+                    return accel_data'''
             # if needs_recomputed and any(delay_recompute):
             #     print(f'VIS ACCEL NEEDS RECOMPUTED, BUT DELAYED: {delay_recompute}')
             if accel_data.verts: accel_data.verts = set(self.filter_is_valid(accel_data.verts))
