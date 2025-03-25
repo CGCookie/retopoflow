@@ -438,7 +438,7 @@ class RetopoFlow_Target:
             else:
                 # get all visible vertices within max_dist from mouse
                 max_dist = self.drawing.scale(max_dist)
-                verts = vis_accel.get_verts(xy, max_dist)
+                verts = vis_accel.get_verts(p2d, max_dist)
 
             if selected_only is not None:
                 verts = { bmv for bmv in verts if bmv.select == selected_only }
@@ -472,7 +472,7 @@ class RetopoFlow_Target:
                 edges = self.accel_vis_edges
             else:
                 max_dist = self.drawing.scale(max_dist)
-                edges = vis_accel.get_edges(xy, max_dist)
+                edges = vis_accel.get_edges(p2d, max_dist)
 
             if selected_only is not None:
                 edges = { bme for bme in edges if bme.select == selected_only }
@@ -509,7 +509,7 @@ class RetopoFlow_Target:
                 faces = self.accel_vis_faces
             else:
                 max_dist = self.drawing.scale(max_dist)
-                faces = vis_accel.get_faces(xy, max_dist)
+                faces = vis_accel.get_faces(p2d, max_dist)
 
             if selected_only is not None:
                 faces = { bmf for bmf in faces if bmf.select == selected_only }
