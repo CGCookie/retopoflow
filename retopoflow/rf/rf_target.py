@@ -38,7 +38,7 @@ from ...addon_common.common.profiler import profiler, time_it, timing
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
-from ...addon_common.common.maths_accel import Accel2D
+from ...addon_common.common.maths_accel import Accel2D, Accel2D_CyWrapper
 from ...addon_common.common.text import fix_string
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.useractions import Actions
@@ -274,34 +274,6 @@ class RetopoFlow_Target:
 
         accel_data.recompute = False
 
-        '''match selected_only:
-            case None:
-                verts, edges, faces = None, None, None
-            case True:
-                verts = self.get_selected_verts()
-                edges = self.get_selected_edges()
-                faces = self.get_selected_faces()
-            case False:
-                verts = self.get_unselected_verts()
-                edges = self.get_unselected_edges()
-                faces = self.get_unselected_faces()
-
-        with time_it('getting visible geometry', enabled=True):
-            accel_data.verts = self.visible_verts(verts=verts)
-            accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
-            accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
-            print(f'[PYTHON] accel_data.verts={len(list(accel_data.verts))}')
-            print(f'[PYTHON] accel_data.edges={len(list(accel_data.edges))}')
-            print(f'[PYTHON] accel_data.faces={len(list(accel_data.faces))}')
-        with time_it('building accel struct', enabled=True):
-            accel_data.accel = Accel2D(
-                f'RFTarget visible geometry ({selected_only=})',
-                accel_data.verts,
-                accel_data.edges,
-                accel_data.faces,
-                self.iter_point2D_symmetries
-            )'''
-
         # TEST FRAMEBUFFER and VIEWPORT INFO:
         print(f'{Globals.framebuffer=} {Globals.viewport_info=}')
 
@@ -333,31 +305,68 @@ class RetopoFlow_Target:
                 Globals.target_accel.py_update_bmesh(self.rftarget.bme)
                 Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)
 
-                with time_it('[CYTHON] TargetMeshAccel update', enabled=True):
-                    print(f'[CYTHON] TargetMeshAccel update')
-                    Globals.target_accel.update(1.0, selected_only.value)
+                with time_it('[CYTHON] TargetMeshAccel.update()', enabled=True):
+                    print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
+                    Globals.target_accel.update(1.0, selected_only.value, debug=True)
 
-                with time_it('[CYTHON] getting visible geometry', enabled=True):
+                with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=True):
+                    print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
                     accel_data.verts, accel_data.edges, accel_data.faces = Globals.target_accel.get_visible_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
 
                 # with time_it('[CYTHON] getting selected geometry', enabled=True):
                 #     sel_verts, sel_edges, sel_faces = Globals.target_accel.get_selected_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
+
+                # Test Cython SpatialAccel structure (WIP, unstable).
+                # accel_data.accel = Accel2D_CyWrapper(Globals.target_accel)
                 
                 # TODO: REMOVE THIS WHEN CYTHON ACCEL IS COMPLETE.
                 with time_it('[PYTHON] building accel struct', enabled=True):
                     accel_data.accel = Accel2D(
                         f'RFTarget visible geometry ({selected_only=})',
-                        [], #accel_data.verts,
-                        [], # accel_data.edges,
-                        [], # accel_data.faces,
+                        accel_data.verts,
+                        accel_data.edges,
+                        accel_data.faces,
+                        self.iter_point2D_symmetries
+                    )
+
+            else:
+                # Fallback to the Python version.
+                match selected_only:
+                    case None:
+                        verts, edges, faces = None, None, None
+                    case True:
+                        verts = self.get_selected_verts()
+                        edges = self.get_selected_edges()
+                        faces = self.get_selected_faces()
+                    case False:
+                        verts = self.get_unselected_verts()
+                        edges = self.get_unselected_edges()
+                        faces = self.get_unselected_faces()
+
+                with time_it('getting visible geometry', enabled=True):
+                    accel_data.verts = self.visible_verts(verts=verts)
+                    accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
+                    accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
+                    print(f'[PYTHON] accel_data.verts={len(list(accel_data.verts))}')
+                    print(f'[PYTHON] accel_data.edges={len(list(accel_data.edges))}')
+                    print(f'[PYTHON] accel_data.faces={len(list(accel_data.faces))}')
+                with time_it('building accel struct', enabled=True):
+                    accel_data.accel = Accel2D(
+                        f'RFTarget visible geometry ({selected_only=})',
+                        accel_data.verts,
+                        accel_data.edges,
+                        accel_data.faces,
                         self.iter_point2D_symmetries
                     )
 
         except Exception as e:
             # TODO: Handle possible issues.
             print(f'[Cython] Error: {e}')
-            import sys
-            sys.exit(0)
+            import traceback
+            traceback.print_exc()
+            print("\nCall Stack:")
+            traceback.print_stack()
+            return
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version
@@ -406,7 +415,7 @@ class RetopoFlow_Target:
             self.iter_point2D_symmetries if symmetry else self.iter_point2D_nosymmetry,
         )
 
-    ### @timing
+    @timing
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -416,25 +425,34 @@ class RetopoFlow_Target:
             if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
-        xy = self.get_point2D(point)
+        p2d = self.get_point2D(point)
+
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if not max_dist:
-            # no max_dist, so get _all_ visible vertices
-            verts = self.accel_vis_verts
+        if isinstance(vis_accel, Accel2D):
+            if not max_dist:
+                # no max_dist, so get _all_ visible vertices
+                verts = self.accel_vis_verts
+            else:
+                # get all visible vertices within max_dist from mouse
+                max_dist = self.drawing.scale(max_dist)
+                verts = vis_accel.get_verts(xy, max_dist)
+
+            if selected_only is not None:
+                verts = { bmv for bmv in verts if bmv.select == selected_only }
+
+            return self.rftarget.nearest2D_bmvert_Point2D(p2d, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
         else:
-            # get all visible vertices within max_dist from mouse
-            max_dist = self.drawing.scale(max_dist)
-            verts = vis_accel.get_verts(xy, max_dist)
+            if max_dist is None:
+                max_dist = 0.0
+            nearest_data = vis_accel.accel.find_nearest_vert(p2d.x, p2d.y, 0.0, max_dist, wrapped=True)  # x, y, depth, max_dist
+            if nearest_data:
+                return nearest_data['elem'], nearest_data['distance']
+            return None, None
 
-        if selected_only is not None:
-            verts = { bmv for bmv in verts if bmv.select == selected_only }
-
-        return self.rftarget.nearest2D_bmvert_Point2D(xy, self.iter_point2D_symmetries, verts=verts, max_dist=max_dist)
-
-    ### @timing
+    @timing
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -444,25 +462,33 @@ class RetopoFlow_Target:
             if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
-        xy = self.get_point2D(point)
+        p2d = self.get_point2D(point)
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if not max_dist:
-            edges = self.accel_vis_edges
+        if isinstance(vis_accel, Accel2D):
+            if not max_dist:
+                edges = self.accel_vis_edges
+            else:
+                max_dist = self.drawing.scale(max_dist)
+                edges = vis_accel.get_edges(xy, max_dist)
+
+            if selected_only is not None:
+                edges = { bme for bme in edges if bme.select == selected_only }
+            if edges_only is not None:
+                edges = { bme for bme in edges if bme in edges_only }
+
+            return self.rftarget.nearest2D_bmedge_Point2D(p2d, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
         else:
-            max_dist = self.drawing.scale(max_dist)
-            edges = vis_accel.get_edges(xy, max_dist)
+            if max_dist is None:
+                max_dist = 0.0
+            nearest_data = vis_accel.accel.find_nearest_edge(p2d.x, p2d.y, 0.0, max_dist, wrapped=True)  # x, y, depth, max_dist
+            if nearest_data:
+                return nearest_data['elem'], nearest_data['distance']
+            return None, None
 
-        if selected_only is not None:
-            edges = { bme for bme in edges if bme.select == selected_only }
-        if edges_only is not None:
-            edges = { bme for bme in edges if bme in edges_only }
-
-        return self.rftarget.nearest2D_bmedge_Point2D(xy, self.iter_point2D_symmetries, edges=edges, max_dist=max_dist)
-
-    ### @timing
+    @timing
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -472,23 +498,32 @@ class RetopoFlow_Target:
             if is_outside_working_area(self):
                 return (None, None)
             point = self.actions.mouse
-        xy = self.get_point2D(point)
+        p2d = self.get_point2D(point)
+
         if not vis_accel:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if not max_dist:
-            faces = self.accel_vis_faces
+        if isinstance(vis_accel, Accel2D):
+            if not max_dist:
+                faces = self.accel_vis_faces
+            else:
+                max_dist = self.drawing.scale(max_dist)
+                faces = vis_accel.get_faces(xy, max_dist)
+
+            if selected_only is not None:
+                faces = { bmf for bmf in faces if bmf.select == selected_only }
+            if faces_only is not None:
+                faces = { bmf for bmf in faces if bmf in faces_only }
+
+            return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), p2d, self.iter_point2D_symmetries, faces=faces) #, max_dist=max_dist)
         else:
-            max_dist = self.drawing.scale(max_dist)
-            faces = vis_accel.get_faces(xy, max_dist)
-
-        if selected_only is not None:
-            faces = { bmf for bmf in faces if bmf.select == selected_only }
-        if faces_only is not None:
-            faces = { bmf for bmf in faces if bmf in faces_only }
-
-        return self.rftarget.nearest2D_bmface_Point2D(self.Vec_forward(), xy, self.iter_point2D_symmetries, faces=faces) #, max_dist=max_dist)
+            if max_dist is None:
+                max_dist = 0.0
+            nearest_data = vis_accel.accel.find_nearest_edge(p2d.x, p2d.y, 0.0, max_dist, wrapped=True)  # x, y, depth, max_dist
+            if nearest_data:
+                return nearest_data['elem'], nearest_data['distance']
+            return None, None
 
     ### @timing
     def accel_nearest2D_geom(self, **kwargs):
