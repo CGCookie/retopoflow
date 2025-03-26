@@ -63,6 +63,9 @@ cdef class TargetMeshAccel:
 
         self.use_symmetry = bVec3(False, False, False)
 
+        self.depth_buffer_dimensions[0] = 0
+        self.depth_buffer_dimensions[1] = 0
+
         self.accel = spatial_accel_new()
         if self.accel == NULL:
             raise MemoryError("Failed to allocate SpatialAccel")
@@ -71,6 +74,7 @@ cdef class TargetMeshAccel:
         object py_object,
         object py_bmesh,
         object py_region,
+        object py_space,
         object py_rv3d,
         object vert_wrapper = None,
         object edge_wrapper = None,
@@ -85,7 +89,7 @@ cdef class TargetMeshAccel:
         self.py_update_object(py_object)
         self.py_update_bmesh(py_bmesh)
         self.py_update_region(py_region)
-        self.py_update_view(py_rv3d)
+        self.py_update_view(py_space, py_rv3d)
 
     cpdef void update(self, float margin_check, int selection_mode, bint debug=False):
         if debug:
@@ -131,7 +135,7 @@ cdef class TargetMeshAccel:
         
         self.set_dirty()
 
-    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective) nogil:
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective, float clip_near, float clip_far) nogil:
         cdef:
             int i, j
 
@@ -145,6 +149,8 @@ cdef class TargetMeshAccel:
             self.view3d.view_dir[i] = view_dir[i]
 
         self.view3d.is_persp = is_perspective
+        self.view3d.clip_near = clip_near
+        self.view3d.clip_far = clip_far
 
         self.set_dirty()
 
@@ -286,6 +292,8 @@ cdef class TargetMeshAccel:
             float[3] world_normal
             float[3] view_dir
             float[4] screen_pos
+            float[2] region_pos
+            float depth, buff_depth
             BMVert* vert
             BMEdge* edge
             BMFace* face
@@ -351,10 +359,7 @@ cdef class TargetMeshAccel:
                     print(f"[CYTHON] vert {vert_idx} is hidden")
                 continue
 
-            self.l2w_point(vert.co, world_pos)
-            self.l2w_point(vert.no, world_normal)
-            vec3_normalize(world_normal)
-            if point_visible_in_3d_view(world_pos, world_normal, view3d):
+            if self.compute_vert_visibility(vert):
                 is_vert_visible[vert.head.index] = 1
                 totvisvert += 1
 
@@ -517,6 +522,36 @@ cdef class TargetMeshAccel:
 
 
     # ----------------------------------------------------------------------------------------
+    # Depth Buffer handling.
+    # ----------------------------------------------------------------------------------------
+
+    cdef void update_depth_buffer(self, float[:, ::1] depth_buffer, int width, int height) noexcept nogil:
+        # No need to free - memoryviews are managed by Python
+        self.depth_buffer = depth_buffer
+        self.depth_buffer_dimensions[0] = width
+        self.depth_buffer_dimensions[1] = height
+
+    cpdef void py_update_depth_buffer(self, np.ndarray[np.float32_t, ndim=2] depth_buffer, int width, int height):
+        self.update_depth_buffer(depth_buffer, width, height)
+
+    cdef float get_depth_from_buffer(self, int x, int y) noexcept nogil:
+        # Check if depth buffer exists and has valid dimensions
+        cdef int width = self.depth_buffer_dimensions[0]
+        cdef int height = self.depth_buffer_dimensions[1]
+        
+        # Check if buffer is uninitialized or dimensions are invalid
+        if width <= 0 or height <= 0:
+            return -1.0  # Invalid depth value
+        
+        # Bounds checking
+        if x < 0 or x >= width or y < 0 or y >= height:
+            return -1.0  # Out of bounds
+        
+        # Use direct 2D indexing instead of calculating 1D offset
+        return self.depth_buffer[x, y]
+
+
+    # ----------------------------------------------------------------------------------------
     # Space Convert Utilities.
     # ----------------------------------------------------------------------------------------
 
@@ -543,6 +578,91 @@ cdef class TargetMeshAccel:
 
     cdef void project_vert_to_region_2d(self, BMVert* vert, float[2] point2d) noexcept nogil:
         self.project_lpoint_to_region_2d(vert.co, point2d)
+
+    cdef float compute_wpoint_depth(self, float[3] co) noexcept nogil:
+        cdef:
+            float[4] co_world
+            float[4] co_view
+            # float[4] co_ndc
+            float view_z
+            # float depth_ndc
+            float near = self.view3d.clip_near
+            float far = self.view3d.clip_far
+            float raw_depth, linear_depth
+
+        # Transform from world to view space
+        copy_v3f_to_v4(co, <float>1.0, co_world)
+        mul_v4_m4v4(co_view, self.rv3d.viewmat, co_world)
+
+        # Get the view Z (negative because view space Z points away from the camera)
+        view_z = -co_view[2]
+
+        # Calculate depth using the near/far plane method
+        # Method 1: Linear depth from view Z
+        # First get normalized depth (0-1) range from view_z
+        linear_depth = (view_z - near) / (far - near)
+
+        '''
+        # Transform from view to NDC space
+        mul_v4_m4v4(co_ndc, self.rv3d.persmat, co_view)
+
+        # Perform perspective divide to get normalized coordinates
+        div_v3_f(co_ndc, co_ndc.w)
+
+        # Convert NDC Z [-1, 1] to depth buffer [0, 1]
+        depth_ndc = (co_ndc[2] + 1.0) * 0.5
+
+        # Method 2: Non-linear depth from projection matrix
+        # Based on the formula from common_view_lib.glsl
+        if region3d.is_perspective:
+            # For perspective projection
+            depth_nonlinear = (-proj_matrix[3][2] / (proj_matrix[2][2] + co_ndc.z))
+            depth_nonlinear = (depth_nonlinear - near) / (far - near)
+        else:
+            # For orthographic projection
+            depth_nonlinear = (-(proj_matrix[3][2] + co_ndc.z) / proj_matrix[2][2])
+            depth_nonlinear = (depth_nonlinear - near) / (far - near)
+        
+        # Method 3: Direct calculation using persmat (most accurate to depth buffer)
+        co_clip = persmat @ co_world.to_4d()
+        depth_persmat = co_clip.z / co_clip.w
+        depth_buffer = (depth_persmat + 1.0) * 0.5
+        '''
+
+        return linear_depth
+
+    cdef float compute_lpoint_depth(self, float[3] co) noexcept nogil:
+        cdef float[3] world_co
+        self.l2w_point(co, world_co)
+        return self.compute_wpoint_depth(world_co)
+
+    cdef float compute_vert_depth(self, BMVert* vert) noexcept nogil:
+        return self.compute_lpoint_depth(vert.co)
+
+    cdef bint compute_wpoint_visibility(self, float[3] world_pos, float[3] world_normal) noexcept nogil:
+        return is_wpoint_visible(
+            world_pos, 
+            world_normal, 
+            self.view3d.proj_matrix,
+            self.view3d.view_dir,
+            self.region, 
+            self.rv3d, 
+            self.depth_buffer, 
+            self.depth_buffer_dimensions[0], 
+            self.depth_buffer_dimensions[1]
+        )
+
+    cdef bint compute_lpoint_visibility(self, float[3] co, float[3] no) noexcept nogil:
+        cdef:
+            float[3] world_pos
+            float[3] world_normal
+        self.l2w_point(co, world_pos)
+        self.l2w_point(no, world_normal)
+        vec3_normalize(world_normal)
+        return self.compute_wpoint_visibility(world_pos, world_normal)
+
+    cdef bint compute_vert_visibility(self, BMVert* vert) noexcept nogil:
+        return self.compute_lpoint_visibility(vert.co, vert.no)
 
 
     '''
@@ -1086,7 +1206,7 @@ cdef class TargetMeshAccel:
 
         # print("region size:", self.region.winx, self.region.winy)
 
-    cpdef void py_update_view(self, object py_rv3d):
+    cpdef void py_update_view(self, object py_space, object py_rv3d):
         cdef:
             bint is_perspective
             int i, j
@@ -1140,7 +1260,7 @@ cdef class TargetMeshAccel:
         
         view_dir = np.array((py_rv3d.view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1))).normalized(), dtype=np.float32)
 
-        self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective)
+        self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective, py_space.clip_start, py_space.clip_end)
 
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel):
         if not self.is_dirty_geom_vis:
@@ -1242,6 +1362,7 @@ cdef class TargetMeshAccel:
         return self._find_nearest(x, y, depth, SpatialGeomType.FACE, k, max_dist, wrapped)
 
 
+
 cdef bint point_visible_in_3d_view(float[3] co, float[3] no, View3D view3d) noexcept nogil:
     cdef:
         float[4] clip_pos
@@ -1271,3 +1392,112 @@ cdef bint point_visible_in_3d_view(float[3] co, float[3] no, View3D view3d) noex
         dot_product += no[i] * view_dir[i]
 
     return dot_product < 0
+
+
+cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][4] proj_matrix, float[3] view_dir, 
+                           ARegion* region, RegionView3D* rv3d, float[:, ::1] depth_buffer, 
+                           int buffer_width, int buffer_height) noexcept nogil:
+    """
+    Check if a vertex is visible in the current view
+    
+    Args:
+        world_pos: The vertex position in world space
+        world_normal: The vertex normal in world space
+        view3d: View3D structure with view parameters
+        region: The region
+        rv3d: The region view 3D
+        depth_buffer: The depth buffer data
+        buffer_width: The framebuffer width
+        buffer_height: The framebuffer height
+        
+    Returns:
+        bool: True if the vertex is visible, False otherwise
+    """
+    cdef:
+        float[2] region_pos
+        float[4] co_world
+        float[4] co_view
+        float[4] co_clip
+        float view_z, clip_z, clip_w, ndc_z
+        float calculated_depth, vertex_depth
+        float dot_product
+        int x, y, i
+        float depth_tolerance = <float>0.0001
+    
+    # Check if the vertex is within the view frustum and facing the camera
+    # This is similar to point_visible_in_3d_view
+    cdef float[4] clip_pos
+    
+    # Transform vertex position to clip space
+    for i in range(4):
+        clip_pos[i] = 0
+        for j in range(3):
+            clip_pos[i] += proj_matrix[i][j] * world_pos[j]
+        clip_pos[i] += proj_matrix[i][3]  # Add the w component
+
+    # Perspective divide to get NDC
+    if clip_pos[3] != 0:
+        for i in range(3):
+            clip_pos[i] /= clip_pos[3]
+
+    # Check if the vertex is within the view frustum
+    if not (-1 <= clip_pos[0] <= 1 and -1 <= clip_pos[1] <= 1 and -1 <= clip_pos[2] <= 1):
+        return False
+
+    # Check if the vertex normal is facing the camera
+    dot_product = 0
+    for i in range(3):
+        dot_product += world_normal[i] * view_dir[i]
+
+    if dot_product >= 0:  # If not facing camera
+        return False
+
+    # Project the 3D point to 2D screen space
+    location_3d_to_region_2d(region, rv3d.persmat, world_pos, &region_pos[0])
+    
+    # Convert to pixel coordinates
+    x = <int>region_pos[0]
+    y = <int>region_pos[1]
+    
+    # Check if coordinates are within viewport
+    if not (0 <= x < buffer_width and 0 <= y < buffer_height):
+        return False  # Outside viewport
+    
+    # Get the depth at the vertex's screen position
+    vertex_depth = depth_buffer[y, x]
+    if vertex_depth < 0:
+        return False  # Invalid depth value
+    
+    # Calculate the expected depth for this vertex
+    # Transform from world to view space
+    copy_v3f_to_v4(world_pos, <float>1.0, co_world)
+    mul_v4_m4v4(co_view, rv3d.viewmat, co_world)
+    
+    # Get the view Z (negative because view space Z points away from the camera)
+    view_z = -co_view[2]
+    
+    # Transform to clip space
+    mul_v4_m4v4(co_clip, rv3d.persmat, co_world)
+    
+    # Get clip space z and w
+    clip_z = co_clip[2]
+    clip_w = co_clip[3]
+    
+    # Perform perspective divide to get NDC z
+    if clip_w != 0:
+        ndc_z = clip_z / clip_w
+    else:
+        ndc_z = <float>1.0
+    
+    # Convert NDC z to depth buffer value [0, 1]
+    calculated_depth = ndc_z * <float>0.5 + <float>0.5
+
+    # with gil:
+    #     print(f"vert: {calculated_depth=}, {vertex_depth=}, = {fabs(calculated_depth - vertex_depth)}")
+
+    # Check if the vertex is occluded (its calculated depth is greater than the stored depth)
+    # We add a small tolerance to account for floating-point precision issues
+    if calculated_depth > (vertex_depth + depth_tolerance):  # fabs(calculated_depth - vertex_depth) > depth_tolerance:
+        return False  # Occluded
+    
+    return True  # Visible

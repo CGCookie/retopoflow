@@ -123,6 +123,9 @@ class RetopoFlow(
         self.scene = self.context.scene
         self.view_layer = self.context.view_layer
 
+        self._clip_end = self.actions.space.clip_end
+        self.actions.space.clip_end = 100
+
         print(f'RetopoFlow: Starting... keymaps and actions {sw.elapsed():0.2f}')
 
         # start loading
@@ -158,6 +161,7 @@ class RetopoFlow(
 
 
     def end(self):
+        self.actions.space.clip_end = self._clip_end
         self.normal_check.stop()
         options.clear_callbacks()
         self.end_normalize(self.context)

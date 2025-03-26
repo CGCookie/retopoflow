@@ -95,11 +95,13 @@ class RetopoFlow_Target:
             actions = Actions.get_instance(None)
             region_3d = actions.r3d
             region = actions.region
+            space = actions.space
 
             Globals.target_accel = CY_TargetMeshAccel(
                 target.obj,
                 target.bme,
                 region,
+                space,
                 region_3d,
                 RFVert,
                 RFEdge,
@@ -232,6 +234,8 @@ class RetopoFlow_Target:
 
     @timing
     def refresh_depth_buffer(self, linearize_depth_buffer=True, scale_factor=10, color=False):
+        if Globals.target_accel is None:
+            return
         # TEST FRAMEBUFFER and VIEWPORT INFO:
         if Globals.framebuffer is None:
             # No framebuffer available yet.
@@ -250,25 +254,33 @@ class RetopoFlow_Target:
         width = Globals.viewport_info[2]
         height = Globals.viewport_info[3]
         depth_buffer = Globals.framebuffer.read_depth(0, 0, width, height)
-        depth_array = np.array(depth_buffer.to_list())
+        
+        # Convert to numpy array and reshape to 2D (height, width)
+        depth_array = np.array(depth_buffer.to_list(), dtype=np.float32)
+        depth_array_2d = depth_array.reshape(height, width)
+        
         # original depth is encoded nonlinearly between 0 and 1. We can linearize and scale it for visualization
         if linearize_depth_buffer:
             space = Globals.drawing.space
             f = space.clip_end
             n = space.clip_start          
-            depth_array = n / (f - (f - n) * depth_array) * scale_factor
-        DEPTH_BUFFER = depth_array
+            depth_array_2d = n / (f - (f - n) * depth_array_2d) * scale_factor
+        
+        DEPTH_BUFFER = depth_array_2d
+        
         # To Color (RGB).
         if color:
             if framebuffer_image is None:
                 if not image_name in bpy.data.images:
-                    framebuffer_image = bpy.data.images.new(image_name , width, height, alpha=False, float_buffer=True, is_data=True)
+                    framebuffer_image = bpy.data.images.new(image_name, width, height, alpha=False, float_buffer=True, is_data=True)
                 else:
                     framebuffer_image = bpy.data.images[image_name]
                     framebuffer_image.scale(width, height)
-            x = np.expand_dims(depth_array, axis=2)
+            x = np.expand_dims(depth_array_2d, axis=2)
             pixel_array = np.pad(np.repeat(x, 3, 2), ((0,0),(0,0),(0,1)), 'constant', constant_values=1).flatten().tolist()    
             framebuffer_image.pixels.foreach_set(pixel_array)
+            
+        Globals.target_accel.py_update_depth_buffer(DEPTH_BUFFER, width, height)
 
     @timing
     def _generate_accel_data_struct(self, *, selected_only=None, force=False):
@@ -342,13 +354,14 @@ class RetopoFlow_Target:
                     case _:
                         selected_only = SelectedOnly.ALL
 
-                self.refresh_depth_buffer(color=False)
+                self.refresh_depth_buffer(linearize_depth_buffer=False, scale_factor=1, color=False)
 
                 actions = Actions.get_instance(None)
                 region = Globals.drawing.rgn
                 Globals.target_accel.py_update_region(region)
                 region3d = Globals.drawing.r3d
-                Globals.target_accel.py_update_view(region3d)
+                space = Globals.drawing.space
+                Globals.target_accel.py_update_view(space, region3d)
 
                 Globals.target_accel.py_update_bmesh(self.rftarget.bme)
                 Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)
@@ -414,7 +427,8 @@ class RetopoFlow_Target:
             traceback.print_exc()
             print("\nCall Stack:")
             traceback.print_stack()
-            return
+            import sys
+            sys.exit(-1)
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version

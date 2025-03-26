@@ -131,7 +131,9 @@ class Select(RFTool):
             # Ensure matrix-world and persp-matrix are up to date.
             # Globals.target_accel.py_update_object(self.py_object)
             r3d = self.rfcontext.actions.r3d
-            Globals.target_accel.py_update_view(r3d)
+            space = Globals.drawing.space
+            Globals.target_accel.py_update_view(space, r3d)
+            # self.rfcontext.rftarget.refresh_depth_buffer(linearize_depth_buffer=False, color=False)
 
             match options['select geometry']:
                 case 'Verts':

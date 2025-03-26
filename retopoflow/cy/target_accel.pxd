@@ -35,6 +35,8 @@ cdef struct View3D:
     float[3] view_pos
     float[3] view_dir
     bint is_persp
+    float clip_near
+    float clip_far
 
 cdef enum GeomType:
     BM_NONE = -1
@@ -92,19 +94,36 @@ cdef class TargetMeshAccel:
         int totvisedges
         int totvisfaces
 
+        # Depth buffer
+        float[:, ::1] depth_buffer
+        int[2] depth_buffer_dimensions
+
         # Grid acceleration structure
         SpatialAccel* accel
+
 
     # Space-conversion utilities.
     cdef void l2w_point(self, const float[3] point3d, float[2] point2d) noexcept nogil
     cdef void project_wpoint_to_region_2d(self, float[3] world_pos, float[2] point2d) noexcept nogil
     cdef void project_lpoint_to_region_2d(self, float[3] local_pos, float[2] point2d) noexcept nogil
     cdef void project_vert_to_region_2d(self, BMVert* vert, float[2] point2d) noexcept nogil
+    
+    # Depth buffer handling
+    cdef void update_depth_buffer(self, float[:, ::1] depth_buffer, int width, int height) noexcept nogil
+    cpdef void py_update_depth_buffer(self, np.ndarray[np.float32_t, ndim=2] depth_buffer, int width, int height)
+    cdef float get_depth_from_buffer(self, int x, int y) noexcept nogil
+
+    cdef float compute_wpoint_depth(self, float[3] co) noexcept nogil
+    cdef float compute_lpoint_depth(self, float[3] co) noexcept nogil
+    cdef float compute_vert_depth(self, BMVert* vert) noexcept nogil
+    cdef bint compute_wpoint_visibility(self, float[3] co, float[3] no) noexcept nogil
+    cdef bint compute_lpoint_visibility(self, float[3] co, float[3] no) noexcept nogil
+    cdef bint compute_vert_visibility(self, BMVert* vert) noexcept nogil
 
     # Selection utils.
     cdef bint deselect_all(self, GeomType geom_type=*) noexcept nogil
 
-    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective) nogil
+    cdef void _update_view(self, const float[:, ::1] proj_matrix, const float[::1] view_pos, const float[::1] view_dir, bint is_perspective, float clip_near, float clip_far) nogil
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
@@ -115,6 +134,7 @@ cdef class TargetMeshAccel:
     cdef void add_edge_to_grid(self, BMEdge* edge, int insert_index, int num_samples) noexcept nogil
     cdef void add_face_to_grid(self, BMFace* face, int insert_index) noexcept nogil
     cdef void _project_point_to_screen(self, const float[3] world_pos, float[2] screen_pos, float* depth) noexcept nogil
+
 
     # ---------------------------------------------------------------------------------------
     # Python exposed methods.
@@ -130,7 +150,7 @@ cdef class TargetMeshAccel:
 
     cpdef void py_update_object(self, object py_target_object)
     cpdef void py_update_region(self, object py_region)
-    cpdef void py_update_view(self, object py_rv3d)
+    cpdef void py_update_view(self, object py_space, object py_rv3d)
     cpdef void py_update_bmesh(self, object py_bmesh)
 
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)

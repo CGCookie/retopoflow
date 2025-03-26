@@ -461,13 +461,13 @@ cdef vector[ElementWithDistance] spatial_accel_get_nearest_elements(
         sort(candidates.begin(), candidates.end(), compare_by_distance)
     
     # Take the k nearest elements (or all if k=0)
-    cdef size_t num_results = candidates.size()
+    cdef int num_results = <int>candidates.size()
     if k > 0:
-        num_results = c_min(<size_t>k, candidates.size())
-    
+        num_results = c_min(k, num_results)
+
     # Copy the elements to the result vector
-    for i in range(<int>num_results):
-        if i < <int>candidates.size():  # Safety check
+    for i in range(num_results):
+        if i < num_results:  # Safety check
             result.push_back(candidates[i])
     
     return result
