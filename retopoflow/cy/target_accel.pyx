@@ -526,6 +526,16 @@ cdef class TargetMeshAccel:
         if self.visfaces != NULL:
             free(self.visfaces)
             self.visfaces = NULL
+
+        if self.is_vert_visible != NULL:
+            free(self.is_vert_visible)
+            self.is_vert_visible = NULL
+        if self.is_edge_visible != NULL:
+            free(self.is_edge_visible)
+            self.is_edge_visible = NULL
+        if self.is_face_visible != NULL:
+            free(self.is_face_visible)
+            self.is_face_visible = NULL
         
         if self.accel2d_points != NULL:
             free(self.accel2d_points)
@@ -1467,7 +1477,62 @@ cdef class TargetMeshAccel:
     # Accel2D Python accessors.
     # ------------------------------------------------------------------
 
-    def get_accel2d_points(self) -> tuple:
+    def get_accel2d_points_as_np(self) -> tuple:
+        """
+        Convert the C array to a NumPy array by copying the data
+        """
+        if self.accel2d_points == NULL or self.accel2d_totpoints <= 0:
+            return None, None, None
+
+        # Define a NumPy dtype that matches the AccelPoint struct
+        accel_point_dtype = np.dtype([
+            ('type', np.int32),
+            ('index', np.int32),
+            ('screen_pos', np.float32, (2,)),
+            ('depth', np.float32),
+            ('elem', np.int64)  # For the C pointer/long long
+        ])
+        
+        # Create intermediate arrays for parallel processing
+        cdef:
+            int n = self.accel2d_totpoints
+            np.ndarray[np.int32_t, ndim=1] types = np.empty(n, dtype=np.int32)
+            np.ndarray[np.int32_t, ndim=1] indices = np.empty(n, dtype=np.int32)
+            np.ndarray[np.float32_t, ndim=2] screen_positions = np.empty((n, 2), dtype=np.float32)
+            np.ndarray[np.float32_t, ndim=1] depths = np.empty(n, dtype=np.float32)
+            np.ndarray[np.int64_t, ndim=1] elements = np.empty(n, dtype=np.int64)
+            int i
+        
+        # Create typed memoryviews for faster access
+        cdef:
+            int[:] types_view = types
+            int[:] indices_view = indices
+            float[:, :] screen_positions_view = screen_positions
+            float[:] depths_view = depths
+            long long[:] elements_view = elements
+        
+        # Copy data in parallel using memoryviews
+        with nogil, parallel():
+            for i in prange(n, schedule='static'):
+                types_view[i] = self.accel2d_points[i].type
+                indices_view[i] = self.accel2d_points[i].index
+                screen_positions_view[i, 0] = self.accel2d_points[i].screen_pos[0]
+                screen_positions_view[i, 1] = self.accel2d_points[i].screen_pos[1]
+                depths_view[i] = self.accel2d_points[i].depth
+                elements_view[i] = self.accel2d_points[i].elem
+        
+        # Now create the final structured array
+        points_array = np.empty(n, dtype=accel_point_dtype)
+        points_array['type'] = types
+        points_array['index'] = indices
+        points_array['screen_pos'][:, 0] = screen_positions[:, 0]
+        points_array['screen_pos'][:, 1] = screen_positions[:, 1]
+        points_array['depth'] = depths
+        points_array['elem'] = elements
+        
+        return points_array, self.accel2d_totpoints, list(self.accel2d_bbox)
+
+    def get_accel2d_points_as_ctypes(self) -> tuple:
         """
         Convert the C array to a ctypes array for Python access
         """
@@ -1639,175 +1704,3 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
         return False  # Occluded
     
     return True  # Visible
-
-
-
-class GridCell:
-    """A cell in the spatial grid that stores elements by type"""
-    def __init__(self):
-        self.elements = [
-            [],  # BM_VERT
-            [],  # BM_EDGE
-            []   # BM_FACE
-        ]
-
-    def add(self, accel_point: AccelPointCtypes):
-        if accel_point.type < 0 or accel_point.type > 2:
-            raise ValueError(f'Invalid element type: {accel_point.type}, {accel_point.index}')
-        self.elements[accel_point.type].append(accel_point)
-
-    def get_all(self):
-        return chain(*self.elements)
-
-    def get_by_type(self, elem_type: int):
-        return self.elements[elem_type]
-
-
-class Accel2DOptimized:
-    DEBUG = False
-
-    @profiler.function
-    def __init__(self,
-                 label: str,
-                 accel_verts: list,
-                 accel_edges: list,
-                 accel_faces: list,
-                 accel_points: ctypes.Array[AccelPointCtypes],
-                 num_points: int,
-                 bbox: list[float],
-                 region_width: int,
-                 region_height: int):
-        self.accel_geom = (
-            accel_verts,
-            accel_edges,
-            accel_faces
-        )
-        with time_it("DEBUG accel_points", enabled=True):
-            print("sizeof AccelPointCtypes:", ctypes.sizeof(AccelPointCtypes))
-            print(bbox)
-            print(num_points)
-            print(accel_points[0].type, accel_points[0].index)
-            print(accel_points[1].type, accel_points[1].index)
-            print(accel_points[2].type, accel_points[2].index)
-            print(accel_points[3].type, accel_points[3].index)
-            # for accel_point in accel_points:
-            #     print("\t-", accel_point.type, accel_point.index)
-        self._init_with_accel_points(label, accel_points, num_points, region_width, region_height, bbox)
-
-    def _init_with_accel_points(self, label, accel_points: ctypes.Array[AccelPointCtypes], num_points, region_width, region_height, bbox):
-        """Initialize with the new ctypes array approach"""
-        self.label = label
-        self.region_width = region_width
-        self.region_height = region_height
-
-        # Set up bounding box
-        self.min = Point2D((bbox[0], bbox[2]))
-        self.max = Point2D((bbox[1], bbox[3]))
-
-        self.size = self.max - self.min
-        self.sizex, self.sizey = self.size
-        self.minx, self.miny = self.min
-        
-        # Determine grid size based on point density
-        # Use square root of number of points for grid size, with a minimum size
-        grid_size = max(16, min(256, int(sqrt(num_points) * 1.5)))
-        self.grid_size_x = grid_size
-        self.grid_size_y = grid_size
-
-        # Create grid cells
-        self.grid: Dict[Tuple[int, int], GridCell] = {}
-
-        if self.sizex <= 0 or self.sizey <= 0:
-            term_printer.boxed(
-                f'Invalid size: sizex={self.sizex}, sizey={self.sizey}',
-                title=f'Accel2DOptimized: {label}', color='black', highlight='red',
-            )
-            return
-
-        # Process points and insert into grid
-        for accel_point in accel_points:
-            # Insert into grid
-            cell_key = self._point_to_cell(accel_point.screen_pos[0], accel_point.screen_pos[1])
-            
-            if cell_key not in self.grid:
-                self.grid[cell_key] = GridCell()
-            
-            # Add element to the cell
-            self.grid[cell_key].add(accel_point)
-        
-        if Accel2DOptimized.DEBUG:
-            # Debug reporting
-            num_cells = len(self.grid)
-            max_elements = max([len(cell.get_all()) for cell in self.grid.values()], default=0)
-            avg_elements = sum([len(cell.get_all()) for cell in self.grid.values()]) / max(1, num_cells)
-            
-            term_printer.boxed(
-                f'Grid: {self.grid_size_x}x{self.grid_size_y}, Cells: {num_cells}/{self.grid_size_x*self.grid_size_y}',
-                f'Points: {num_points}, Max elements per cell: {max_elements}, Avg: {avg_elements:.2f}',
-                f'Size: min={self.min}, max={self.max}, size={self.size}',
-                title=f'Accel2DOptimized: {label}', color='black', highlight='green',
-            )
-
-    def _point_to_cell(self, x, y):
-        """Convert a point to grid cell coordinates"""
-        if self.sizex <= 0 or self.sizey <= 0:
-            return 0, 0
-        
-        cell_i = clamp(int(self.grid_size_x * (x - self.minx) / self.sizex), 0, self.grid_size_x - 1)
-        cell_j = clamp(int(self.grid_size_y * (y - self.miny) / self.sizey), 0, self.grid_size_y - 1)
-        return cell_i, cell_j
-
-    def get(self, v2d, within: float, elem_type: int):
-        """Get elements within a certain distance of a point"""
-        if v2d is None or not (isfinite(v2d.x) and isfinite(v2d.y)):
-            return set()
-
-        # Early rejection test - check if point is outside bounding box plus margin
-        if (v2d.x < self.minx - within or v2d.x > self.minx + self.sizex + within or
-            v2d.y < self.miny - within or v2d.y > self.miny + self.sizey + within):
-            return set()
-        
-        # Determine cells to check
-        min_x, min_y = v2d.x - within, v2d.y - within
-        max_x, max_y = v2d.x + within, v2d.y + within
-        
-        min_cell_i, min_cell_j = self._point_to_cell(min_x, min_y)
-        max_cell_i, max_cell_j = self._point_to_cell(max_x, max_y)
-        
-        # Collect elements from cells
-        result = set()
-        
-        within_sq = within * within
-
-        for i in range(min_cell_i, max_cell_i + 1):
-            for j in range(min_cell_j, max_cell_j + 1):
-                cell_key = (i, j)
-                if cell_key not in self.grid:
-                    # No grid, aka no elements in that square space.
-                    continue
-
-                # Get elements from cell
-                for cell_elem in self.grid[cell_key].get_all():
-                    # Check if elem screen_pos is within distance fron origin in v2d.
-                    dist_sq = (cell_elem.screen_pos[0] - v2d.x)**2 + (cell_elem.screen_pos[1] - v2d.y)**2
-                    if dist_sq > within_sq:
-                        # Outside of distance.
-                        continue
-
-                    rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
-                    if rf_elem.is_valid:
-                        result.add(rf_elem)
-
-        return result
-
-    def get_verts(self, v2d, within):
-        """Get vertices within a certain distance of a point"""
-        return self.get(v2d, within, 0)
-
-    def get_edges(self, v2d, within):
-        """Get edges within a certain distance of a point"""
-        return self.get(v2d, within, 1)
-
-    def get_faces(self, v2d, within):
-        """Get faces within a certain distance of a point"""
-        return self.get(v2d, within, 2)
