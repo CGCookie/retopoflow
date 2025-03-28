@@ -64,6 +64,7 @@ cdef class TargetMeshAccel:
         object py_rv3d
         object py_bmesh
         object py_framebuffer
+        object py_depth_buffer  # reference to avoid garbage collector to destroy the original Python object
 
         object vert_wrapper
         object edge_wrapper

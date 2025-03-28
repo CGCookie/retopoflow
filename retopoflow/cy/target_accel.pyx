@@ -102,6 +102,8 @@ cdef class TargetMeshAccel:
         self.edge_wrapper = edge_wrapper
         self.face_wrapper = face_wrapper
 
+        self.py_depth_buffer = None
+
         self.py_update_object(py_object)
         self.py_update_bmesh(py_bmesh)
         self.py_update_region(py_region)
@@ -1276,27 +1278,21 @@ cdef class TargetMeshAccel:
             self.py_set_dirty_accel()
 
     cpdef void py_update_depth_buffer(self, object framebuffer, int width, int height):
-        print("py_update_depth_buffer --- begin")
         if framebuffer is None:
             return
 
         if id(self.py_framebuffer) != id(framebuffer):
             self.py_framebuffer = framebuffer
 
-        cdef:
-            object depth_buffer
+        self.py_depth_buffer = framebuffer.read_depth(0, 0, width, height)
 
-        depth_buffer = framebuffer.read_depth(0, 0, width, height)
-
-        self.depth_buffer = <BPyGPUBuffer*><uintptr_t>id(depth_buffer)
+        self.depth_buffer = <BPyGPUBuffer*><uintptr_t>id(self.py_depth_buffer)
         self.depth_buffer_dimensions[0] = width
         self.depth_buffer_dimensions[1] = height
 
         # Debug: Sample depth buffer in a grid pattern
-        self.debug_sample_depth_buffer(10)  # Sample every 10 pixels
+        # self.debug_sample_depth_buffer(128)  # Sample every 10 pixels
 
-        print("py_update_depth_buffer --- end")
-    
     cpdef void debug_sample_depth_buffer(self, int step):
         """Sample the depth buffer in a grid pattern for debugging"""
         cdef:
@@ -1742,10 +1738,12 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
     index = (buffer_height - 1 - y) * buffer_width + x
     
     # Now access the float buffer directly
+    if index < 0 or index >= (buffer_height * buffer_width):
+        return False
     vertex_depth = depth_buffer[index]
     if vertex_depth < 0:
         return False  # Invalid depth value
-    
+
     # Calculate the expected depth for this vertex
     # Transform from world to view space
     copy_v3f_to_v4(world_pos, <float>1.0, co_world)
