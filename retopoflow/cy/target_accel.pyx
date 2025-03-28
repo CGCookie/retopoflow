@@ -705,7 +705,7 @@ cdef class TargetMeshAccel:
     ______________________________________________________________________________________________________________
     '''
 
-    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True):
+    cpdef tuple[list, list, list] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True):
         """Return sets of visible geometry"""
         if not self.bmesh or not self.bmesh.vtable:
             printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
@@ -718,9 +718,9 @@ cdef class TargetMeshAccel:
             BMVert** visverts = self.visverts
             BMEdge** visedges = self.visedges
             BMFace** visfaces = self.visfaces
-            set vis_py_verts = set()
-            set vis_py_edges = set()
-            set vis_py_faces = set()
+            list vis_py_verts = []
+            list vis_py_edges = []
+            list vis_py_faces = []
             object py_bm_verts = py_bmesh.verts
             object py_bm_edges = py_bmesh.edges
             object py_bm_faces = py_bmesh.faces
@@ -737,10 +737,10 @@ cdef class TargetMeshAccel:
                         continue
                     if wrapped:
                         with gil:
-                            vis_py_verts.add(vert_wrapper(py_bm_verts[vert.head.index]))
+                            vis_py_verts.append(vert_wrapper(py_bm_verts[vert.head.index]))
                     else:
                         with gil:
-                            vis_py_verts.add(py_bm_verts[vert.head.index])
+                            vis_py_verts.append(py_bm_verts[vert.head.index])
 
             if edges:
                 for j in prange(self.totvisedges):
@@ -749,10 +749,10 @@ cdef class TargetMeshAccel:
                         continue
                     if wrapped:
                         with gil:
-                            vis_py_edges.add(edge_wrapper(py_bm_edges[edge.head.index]))
+                            vis_py_edges.append(edge_wrapper(py_bm_edges[edge.head.index]))
                     else:
                         with gil:
-                            vis_py_edges.add(py_bm_edges[edge.head.index])
+                            vis_py_edges.append(py_bm_edges[edge.head.index])
 
             if faces:
                 for k in prange(self.totvisfaces):
@@ -761,10 +761,10 @@ cdef class TargetMeshAccel:
                         continue
                     if wrapped:
                         with gil:
-                            vis_py_faces.add(face_wrapper(py_bm_faces[face.head.index]))
+                            vis_py_faces.append(face_wrapper(py_bm_faces[face.head.index]))
                     else:
                         with gil:
-                            vis_py_faces.add(py_bm_faces[face.head.index])
+                            vis_py_faces.append(py_bm_faces[face.head.index])
 
         return vis_py_verts, vis_py_edges, vis_py_faces
 
@@ -809,17 +809,18 @@ cdef class TargetMeshAccel:
         """Add vertex to grid"""
         cdef:
             float[3] world_pos
-            AccelPoint accel_point = self.accel2d_points[insert_index]
+            # Don't create a local copy, access the array element directly
         
-        accel_point.elem = <intptr_t>vert
-        accel_point.index = vert.head.index
-        accel_point.type = 0
+        self.accel2d_points[insert_index].elem = <intptr_t>vert
+        self.accel2d_points[insert_index].index = vert.head.index
+        self.accel2d_points[insert_index].type = 0
 
         # Transform vertex to world space
         self.l2w_point(vert.co, world_pos)
         
         # Project to screen space with depth
-        self._project_point_to_screen(world_pos, accel_point.screen_pos, &accel_point.depth)
+        self._project_point_to_screen(world_pos, self.accel2d_points[insert_index].screen_pos, 
+                                     &self.accel2d_points[insert_index].depth)
 
         # Add to accel grid with proper depth
         # cdef (SpatialAccel* accel, void* elem, int index, float x, float y, float depth, GeomType geom_type)
@@ -834,7 +835,6 @@ cdef class TargetMeshAccel:
             int i, j
             BMVert* v1 = <BMVert*>edge.v1
             BMVert* v2 = <BMVert*>edge.v2
-            AccelPoint accel_point
 
         # Transform vertices to world space
         self.l2w_point(v1.co, v1_world)
@@ -848,13 +848,13 @@ cdef class TargetMeshAccel:
             for j in range(3):
                 sample_pos[j] = v1_world[j] * (<float>1.0-t) + v2_world[j] * t
 
-            accel_point = self.accel2d_points[insert_index + i]
-            accel_point.elem = <intptr_t>edge
-            accel_point.index = edge.head.index
-            accel_point.type = 1
+            self.accel2d_points[insert_index + i].elem = <intptr_t>edge
+            self.accel2d_points[insert_index + i].index = edge.head.index
+            self.accel2d_points[insert_index + i].type = 1
 
             # Project to screen space with depth
-            self._project_point_to_screen(sample_pos, accel_point.screen_pos, &accel_point.depth)
+            self._project_point_to_screen(sample_pos, self.accel2d_points[insert_index + i].screen_pos, 
+                                         &self.accel2d_points[insert_index + i].depth)
 
             # Add to accel grid with proper depth
             # spatial_accel_add_element(self.accel, insert_index, <void*>edge, edge.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.EDGE)
@@ -868,11 +868,10 @@ cdef class TargetMeshAccel:
             int i, j, num_verts = 0
             BMLoop* l_iter = <BMLoop*>face.l_first
             BMVert* vert
-            AccelPoint accel_point = self.accel2d_points[insert_index]
 
-        accel_point.elem = <intptr_t>face
-        accel_point.index = face.head.index
-        accel_point.type = 2
+        self.accel2d_points[insert_index].elem = <intptr_t>face
+        self.accel2d_points[insert_index].index = face.head.index
+        self.accel2d_points[insert_index].type = 2
 
         # Compute face centroid in local space
         for i in range(3):
@@ -895,7 +894,8 @@ cdef class TargetMeshAccel:
         self.l2w_point(centroid, world_centroid)
         
         # Project to screen space with depth
-        self._project_point_to_screen(world_centroid, accel_point.screen_pos, &accel_point.depth)
+        self._project_point_to_screen(world_centroid, self.accel2d_points[insert_index].screen_pos, 
+                                    &self.accel2d_points[insert_index].depth)
 
         # Add to accel grid with proper depth
         # spatial_accel_add_element(self.accel, insert_index, <void*>face, face.head.index, screen_pos[0], screen_pos[1], depth, SpatialGeomType.FACE)

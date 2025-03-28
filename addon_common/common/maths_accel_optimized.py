@@ -34,30 +34,6 @@ BM_VERT = 0
 BM_EDGE = 1
 BM_FACE = 2
 
-
-class SimpleVert:
-    def __init__(self, co):
-        self.co = co
-        self.normal = Vec((0, 0, 0))
-        self.is_valid = True
-
-
-class SimpleEdge:
-    def __init__(self, verts):
-        self.verts = verts
-        self.p0 = verts[0].co
-        self.p1 = verts[1].co
-        self.v01 = self.p1 - self.p0
-        self.l = self.v01.length
-        self.d01 = self.v01 / max(self.l, zero_threshold)
-        self.is_valid = True
-    
-    def closest(self, p):
-        v0p = p - self.p0
-        d = self.d01.dot(v0p)
-        return self.p0 + self.d01 * mid(d, 0, self.l)
-
-
 class AccelPointCtypes(ctypes.Structure):
     _fields_ = [
         ('type', ctypes.c_int),
@@ -90,15 +66,13 @@ class GridCell:
 
 
 class Accel2DOptimized:
-    DEBUG = False
-
     @profiler.function
     def __init__(self,
-                 label: str,
                  accel_verts: list,
                  accel_edges: list,
                  accel_faces: list,
-                 accel_points: ctypes.Array[AccelPointCtypes],
+                 bm_wrapper: tuple,
+                 accel_points,
                  num_points: int,
                  bbox: list[float],
                  region_width: int,
@@ -108,21 +82,19 @@ class Accel2DOptimized:
             accel_edges,
             accel_faces
         )
-        with time_it("DEBUG accel_points", enabled=True):
+        self.bm_wrapper = bm_wrapper
+        '''with time_it("DEBUG accel_points", enabled=True):
             print("sizeof AccelPointCtypes:", ctypes.sizeof(AccelPointCtypes))
             print(bbox)
             print(num_points)
             print(accel_points[0].type, accel_points[0].index)
             print(accel_points[1].type, accel_points[1].index)
             print(accel_points[2].type, accel_points[2].index)
-            print(accel_points[3].type, accel_points[3].index)
-            # for accel_point in accel_points:
-            #     print("\t-", accel_point.type, accel_point.index)
-        self._init_with_accel_points(label, accel_points, num_points, region_width, region_height, bbox)
+            print(accel_points[3].type, accel_points[3].index))'''
+        self._init_with_accel_points(accel_points, num_points, region_width, region_height, bbox)
 
-    def _init_with_accel_points(self, label, accel_points: ctypes.Array[AccelPointCtypes], num_points, region_width, region_height, bbox):
+    def _init_with_accel_points(self, accel_points: ctypes.Array[AccelPointCtypes], num_points, region_width, region_height, bbox):
         """Initialize with the new ctypes array approach"""
-        self.label = label
         self.region_width = region_width
         self.region_height = region_height
 
@@ -144,10 +116,6 @@ class Accel2DOptimized:
         self.grid: Dict[Tuple[int, int], GridCell] = {}
 
         if self.sizex <= 0 or self.sizey <= 0:
-            term_printer.boxed(
-                f'Invalid size: sizex={self.sizex}, sizey={self.sizey}',
-                title=f'Accel2DOptimized: {label}', color='black', highlight='red',
-            )
             return
 
         # Process points and insert into grid
@@ -160,19 +128,6 @@ class Accel2DOptimized:
             
             # Add element to the cell
             self.grid[cell_key].add(accel_point)
-        
-        if Accel2DOptimized.DEBUG:
-            # Debug reporting
-            num_cells = len(self.grid)
-            max_elements = max([len(cell.get_all()) for cell in self.grid.values()], default=0)
-            avg_elements = sum([len(cell.get_all()) for cell in self.grid.values()]) / max(1, num_cells)
-            
-            term_printer.boxed(
-                f'Grid: {self.grid_size_x}x{self.grid_size_y}, Cells: {num_cells}/{self.grid_size_x*self.grid_size_y}',
-                f'Points: {num_points}, Max elements per cell: {max_elements}, Avg: {avg_elements:.2f}',
-                f'Size: min={self.min}, max={self.max}, size={self.size}',
-                title=f'Accel2DOptimized: {label}', color='black', highlight='green',
-            )
 
     def _point_to_cell(self, x, y):
         """Convert a point to grid cell coordinates"""
@@ -214,16 +169,17 @@ class Accel2DOptimized:
                     continue
 
                 # Get elements from cell
-                for cell_elem in self.grid[cell_key].get_all():
+                for cell_elem in self.grid[cell_key].get_by_type(elem_type):
                     # Check if elem screen_pos is within distance fron origin in v2d.
                     dist_sq = (cell_elem.screen_pos[0] - v2d.x)**2 + (cell_elem.screen_pos[1] - v2d.y)**2
                     if dist_sq > within_sq:
                         # Outside of distance.
                         continue
-
+                    
+                    # We supose indices are updated!
                     rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
                     if rf_elem.is_valid:
-                        result.add(rf_elem)
+                        result.add(self.bm_wrapper[cell_elem.type](rf_elem))
 
         return result
 

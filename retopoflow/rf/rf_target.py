@@ -398,13 +398,14 @@ class RetopoFlow_Target:
                         self.iter_point2D_symmetries
                     )'''
 
-                '''with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=True):
+                with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=True):
                     accel_data.accel = Accel2DOptimized(
-                        f'RFTarget visible geometry ({selected_only=})',
-                        accel_data.verts, accel_data.edges, accel_data.faces,
-                        *Globals.target_accel.get_accel2d_points(),
+                        # accel_data.verts, accel_data.edges, accel_data.faces,
+                        self.rftarget.bme.verts, self.rftarget.bme.edges, self.rftarget.bme.faces,
+                        (RFVert, RFEdge, RFFace),  # wrappers...
+                        *Globals.target_accel.get_accel2d_points_as_ctypes(),
                         region.width, region.height
-                    )'''
+                    )
 
             else:
                 # Fallback to the Python version.
@@ -509,7 +510,7 @@ class RetopoFlow_Target:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if isinstance(vis_accel, Accel2D):
+        if isinstance(vis_accel, (Accel2D, Accel2DOptimized)):
             if not max_dist:
                 # no max_dist, so get _all_ visible vertices
                 verts = self.accel_vis_verts
@@ -545,7 +546,7 @@ class RetopoFlow_Target:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if isinstance(vis_accel, Accel2D):
+        if isinstance(vis_accel, (Accel2D, Accel2DOptimized)):
             if not max_dist:
                 edges = self.accel_vis_edges
             else:
@@ -582,7 +583,7 @@ class RetopoFlow_Target:
             vis_accel = self.get_accel_visible(selected_only=selected_only)
         if not vis_accel: return (None, None)
 
-        if isinstance(vis_accel, Accel2D):
+        if isinstance(vis_accel, (Accel2D, Accel2DOptimized)):
             if not max_dist:
                 faces = self.accel_vis_faces
             else:
