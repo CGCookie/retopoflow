@@ -132,8 +132,7 @@ class Select(RFTool):
             # Globals.target_accel.py_update_object(self.py_object)
             r3d = self.rfcontext.actions.r3d
             space = Globals.drawing.space
-            Globals.target_accel.py_update_view(space, r3d)
-            # self.rfcontext.rftarget.refresh_depth_buffer(linearize_depth_buffer=False, color=False)
+            Globals.target_accel.py_update_view(space, r3d, Globals.framebuffer, Globals.viewport_info)
 
             match options['select geometry']:
                 case 'Verts':

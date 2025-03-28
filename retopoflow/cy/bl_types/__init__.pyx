@@ -11,6 +11,7 @@ from retopoflow.cy.bl_types.list_base cimport ListBase
 from retopoflow.cy.bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMLoop, BMHeader
 from retopoflow.cy.bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from retopoflow.cy.bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test
+from retopoflow.cy.bl_types.gpu_py_wrappers cimport BPyGPUBuffer
 
 # VERSIONING - use absolute imports instead of relative
 if BLENDER_VERSION >= 440:

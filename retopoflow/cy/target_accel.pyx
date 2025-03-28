@@ -32,7 +32,7 @@ import ctypes
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMHeader, BMLoop
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh, BPy_BMVert, BPy_BMEdge, BPy_BMFace
 from .bl_types.bmesh_flags cimport BMElemHFlag, BM_elem_flag_test, BM_elem_flag_set, BM_elem_flag_clear
-from .bl_types cimport ARegion, RegionView3D
+from .bl_types cimport ARegion, BPyGPUBuffer, RegionView3D
 from .utils cimport vec3_normalize, vec3_dot, location_3d_to_region_2d
 from .math_matrix cimport mul_v4_m4v4, mul_m4_v4
 from .vector_utils cimport copy_v4_to_v3, div_v3_f, copy_v3f_to_v4
@@ -90,6 +90,8 @@ cdef class TargetMeshAccel:
         object py_region,
         object py_space,
         object py_rv3d,
+        object framebuffer,
+        tuple viewport_info,
         object vert_wrapper = None,
         object edge_wrapper = None,
         object face_wrapper = None
@@ -103,7 +105,7 @@ cdef class TargetMeshAccel:
         self.py_update_object(py_object)
         self.py_update_bmesh(py_bmesh)
         self.py_update_region(py_region)
-        self.py_update_view(py_space, py_rv3d)
+        self.py_update_view(py_space, py_rv3d, framebuffer, viewport_info)
 
     cpdef bint update(self, float margin_check, int selection_mode, bint debug=False):
         if debug:
@@ -558,15 +560,6 @@ cdef class TargetMeshAccel:
     # Depth Buffer handling.
     # ----------------------------------------------------------------------------------------
 
-    cdef void update_depth_buffer(self, float[:, ::1] depth_buffer, int width, int height) noexcept nogil:
-        # No need to free - memoryviews are managed by Python
-        self.depth_buffer = depth_buffer
-        self.depth_buffer_dimensions[0] = width
-        self.depth_buffer_dimensions[1] = height
-
-    cpdef void py_update_depth_buffer(self, np.ndarray[np.float32_t, ndim=2] depth_buffer, int width, int height):
-        self.update_depth_buffer(depth_buffer, width, height)
-
     cdef float get_depth_from_buffer(self, int x, int y) noexcept nogil:
         # Check if depth buffer exists and has valid dimensions
         cdef int width = self.depth_buffer_dimensions[0]
@@ -580,8 +573,12 @@ cdef class TargetMeshAccel:
         if x < 0 or x >= width or y < 0 or y >= height:
             return -1.0  # Out of bounds
         
-        # Use direct 2D indexing instead of calculating 1D offset
-        return self.depth_buffer[x, y]
+        # Calculate 1D index from 2D coordinates
+        # For OpenGL-style flipped y-axis:
+        cdef int index = (height - 1 - y) * width + x
+        
+        # Access the buffer using the 1D index
+        return self.depth_buffer.buf_as_float[index]
 
 
     # ----------------------------------------------------------------------------------------
@@ -680,7 +677,7 @@ cdef class TargetMeshAccel:
             self.view3d.view_dir,
             self.region, 
             self.rv3d, 
-            self.depth_buffer, 
+            self.depth_buffer.buf_as_float, 
             self.depth_buffer_dimensions[0], 
             self.depth_buffer_dimensions[1]
         )
@@ -1278,6 +1275,72 @@ cdef class TargetMeshAccel:
             self.use_symmetry.z = z
             self.py_set_dirty_accel()
 
+    cpdef void py_update_depth_buffer(self, object framebuffer, int width, int height):
+        print("py_update_depth_buffer --- begin")
+        if framebuffer is None:
+            return
+
+        if id(self.py_framebuffer) != id(framebuffer):
+            self.py_framebuffer = framebuffer
+
+        cdef:
+            object depth_buffer
+
+        depth_buffer = framebuffer.read_depth(0, 0, width, height)
+
+        self.depth_buffer = <BPyGPUBuffer*><uintptr_t>id(depth_buffer)
+        self.depth_buffer_dimensions[0] = width
+        self.depth_buffer_dimensions[1] = height
+
+        # Debug: Sample depth buffer in a grid pattern
+        self.debug_sample_depth_buffer(10)  # Sample every 10 pixels
+
+        print("py_update_depth_buffer --- end")
+    
+    cpdef void debug_sample_depth_buffer(self, int step):
+        """Sample the depth buffer in a grid pattern for debugging"""
+        cdef:
+            int width = self.depth_buffer_dimensions[0]
+            int height = self.depth_buffer_dimensions[1]
+            int x, y, index
+            float depth_value
+        
+        print(f"Depth buffer sampling (size: {width}x{height}):")
+        print("Format: x,y => index => depth_value")
+        
+        # Sample in a grid pattern
+        for y in range(0, height, step):
+            for x in range(0, width, step):
+                # Calculate the buffer index
+                index = (height - 1 - y) * width + x
+                
+                # Get the depth value
+                depth_value = self.depth_buffer.buf_as_float[index]
+                
+                # Print the sample
+                print(f"({x},{y}) => {index} => {depth_value:.6f}")
+            
+            # Add a separator between rows for easier reading
+            print("---")
+        
+        # Print some specific edge cases
+        print("\nCorner samples:")
+        # Top-left
+        index = (height - 1) * width
+        print(f"Top-left (0,0) => {index} => {self.depth_buffer.buf_as_float[index]:.6f}")
+        
+        # Top-right
+        index = (height - 1) * width + (width - 1)
+        print(f"Top-right ({width-1},0) => {index} => {self.depth_buffer.buf_as_float[index]:.6f}")
+        
+        # Bottom-left
+        index = 0
+        print(f"Bottom-left (0,{height-1}) => {index} => {self.depth_buffer.buf_as_float[index]:.6f}")
+        
+        # Bottom-right
+        index = width - 1
+        print(f"Bottom-right ({width-1},{height-1}) => {index} => {self.depth_buffer.buf_as_float[index]:.6f}")
+
     cpdef void py_update_bmesh(self, object py_bmesh):
         if not hasattr(self, 'py_bmesh') or id(self.py_bmesh) != id(py_bmesh):
             self.py_bmesh = py_bmesh
@@ -1315,7 +1378,7 @@ cdef class TargetMeshAccel:
 
         # print("region size:", self.region.winx, self.region.winy)
 
-    cpdef void py_update_view(self, object py_space, object py_rv3d):
+    cpdef void py_update_view(self, object py_space, object py_rv3d, object framebuffer, tuple viewport_info):
         cdef:
             bint is_perspective
             int i, j
@@ -1370,6 +1433,9 @@ cdef class TargetMeshAccel:
         view_dir = np.array((py_rv3d.view_matrix.to_3x3().inverted_safe() @ mathutils.Vector((0,0,-1))).normalized(), dtype=np.float32)
 
         self._update_view(proj_matrix, view_pos, view_dir, <bint>is_perspective, py_space.clip_start, py_space.clip_end)
+
+        if framebuffer is not None:
+            self.py_update_depth_buffer(framebuffer, viewport_info[2], viewport_info[3])
 
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel):
         if not self.is_dirty_geom_vis:
@@ -1598,7 +1664,7 @@ cdef bint point_visible_in_3d_view(float[3] co, float[3] no, View3D view3d) noex
 
 
 cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][4] proj_matrix, float[3] view_dir, 
-                           ARegion* region, RegionView3D* rv3d, float[:, ::1] depth_buffer, 
+                           ARegion* region, RegionView3D* rv3d, float* depth_buffer, # [:, ::1] depth_buffer, 
                            int buffer_width, int buffer_height) noexcept nogil:
     """
     Check if a vertex is visible in the current view
@@ -1667,7 +1733,16 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
         return False  # Outside viewport
     
     # Get the depth at the vertex's screen position
-    vertex_depth = depth_buffer[y, x]
+    # For y-flipped, row-major buffer (standard in Blender's framebuffer)
+    cdef int index
+    
+    # Compute the index from 2D coordinates 
+    # The buffer is stored in row-major order (y varies slowest, x varies fastest)
+    # Y is flipped because OpenGL has (0,0) at bottom-left while screen coords have (0,0) at top-left
+    index = (buffer_height - 1 - y) * buffer_width + x
+    
+    # Now access the float buffer directly
+    vertex_depth = depth_buffer[index]
     if vertex_depth < 0:
         return False  # Invalid depth value
     

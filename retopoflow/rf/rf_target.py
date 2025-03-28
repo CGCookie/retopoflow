@@ -105,6 +105,8 @@ class RetopoFlow_Target:
                 region,
                 space,
                 region_3d,
+                Globals.framebuffer,
+                Globals.viewport_info,
                 RFVert,
                 RFEdge,
                 RFFace
@@ -282,7 +284,7 @@ class RetopoFlow_Target:
             pixel_array = np.pad(np.repeat(x, 3, 2), ((0,0),(0,0),(0,1)), 'constant', constant_values=1).flatten().tolist()    
             framebuffer_image.pixels.foreach_set(pixel_array)
             
-        Globals.target_accel.py_update_depth_buffer(DEPTH_BUFFER, width, height)
+        # Globals.target_accel.py_update_depth_buffer(DEPTH_BUFFER, width, height)
 
     @timing
     def _generate_accel_data_struct(self, *, selected_only=None, force=False):
@@ -356,14 +358,12 @@ class RetopoFlow_Target:
                     case _:
                         selected_only = SelectedOnly.ALL
 
-                self.refresh_depth_buffer(linearize_depth_buffer=False, scale_factor=1, color=False)
-
                 actions = Actions.get_instance(None)
                 region = Globals.drawing.rgn
                 Globals.target_accel.py_update_region(region)
                 region3d = Globals.drawing.r3d
                 space = Globals.drawing.space
-                Globals.target_accel.py_update_view(space, region3d)
+                Globals.target_accel.py_update_view(space, region3d, Globals.framebuffer, Globals.viewport_info)
 
                 Globals.target_accel.py_update_bmesh(self.rftarget.bme)
                 Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)

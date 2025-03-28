@@ -18,6 +18,7 @@ from cpython.object cimport PyObject
 from .bl_types.bmesh_types cimport BMVert, BMEdge, BMFace, BMesh, BMesh, BMHeader, BMElem
 from .bl_types.bmesh_py_wrappers cimport BPy_BMesh
 from .bl_types cimport ARegion, RegionView3D
+from .bl_types.gpu_py_wrappers cimport BPyGPUBuffer
 from .vector_utils cimport bVec3
 from .bl_types.vec_types cimport rcti, rctf
 from .spatial_accel cimport SpatialAccel, spatial_accel_new, spatial_accel_free, spatial_accel_init, spatial_accel_cleanup, spatial_accel_reset
@@ -62,6 +63,7 @@ cdef class TargetMeshAccel:
         object py_region
         object py_rv3d
         object py_bmesh
+        object py_framebuffer
 
         object vert_wrapper
         object edge_wrapper
@@ -102,7 +104,8 @@ cdef class TargetMeshAccel:
         int totvisfaces
 
         # Depth buffer
-        float[:, ::1] depth_buffer
+        # float[:, ::1] depth_buffer
+        BPyGPUBuffer* depth_buffer
         int[2] depth_buffer_dimensions
 
         # Grid acceleration structure
@@ -120,8 +123,8 @@ cdef class TargetMeshAccel:
     cdef void project_vert_to_region_2d(self, BMVert* vert, float[2] point2d) noexcept nogil
     
     # Depth buffer handling
-    cdef void update_depth_buffer(self, float[:, ::1] depth_buffer, int width, int height) noexcept nogil
-    cpdef void py_update_depth_buffer(self, np.ndarray[np.float32_t, ndim=2] depth_buffer, int width, int height)
+    cpdef void py_update_depth_buffer(self, object framebuffer, int width, int height)
+    cpdef void debug_sample_depth_buffer(self, int step)
     cdef float get_depth_from_buffer(self, int x, int y) noexcept nogil
 
     cdef float compute_wpoint_depth(self, float[3] co) noexcept nogil
@@ -161,7 +164,7 @@ cdef class TargetMeshAccel:
 
     cpdef void py_update_object(self, object py_target_object)
     cpdef void py_update_region(self, object py_region)
-    cpdef void py_update_view(self, object py_space, object py_rv3d)
+    cpdef void py_update_view(self, object py_space, object py_rv3d, object framebuffer, tuple viewport_info)
     cpdef void py_update_bmesh(self, object py_bmesh)
 
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)
