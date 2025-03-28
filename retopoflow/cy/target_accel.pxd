@@ -25,6 +25,13 @@ from .spatial_accel cimport spatial_accel_add_element, spatial_accel_update_grid
 from .spatial_accel cimport GeomType as SpatialGeomType, GeomElement as SpatialGeomElement, ElementWithDistance as SpatialElementWithDistance
 
 
+cdef struct AccelPoint:
+    int type
+    int index
+    float[2] screen_pos
+    float depth
+    long long elem
+
 cdef enum SelectionState:
     ALL = 0
     SELECTED = 1
@@ -99,7 +106,11 @@ cdef class TargetMeshAccel:
         int[2] depth_buffer_dimensions
 
         # Grid acceleration structure
-        SpatialAccel* accel
+        AccelPoint* accel2d_points
+        float[4] accel2d_bbox
+        int accel2d_totpoints
+
+        # SpatialAccel* accel  # Test.
 
 
     # Space-conversion utilities.
@@ -129,7 +140,7 @@ cdef class TargetMeshAccel:
     cdef void set_dirty(self) noexcept nogil
     cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil
 
-    cdef void _build_accel_struct(self, bint debug=*) noexcept nogil
+    cdef bint _build_accel_struct(self, bint debug=*) noexcept nogil
     cdef void add_vert_to_grid(self, BMVert* vert, int insert_index) noexcept nogil
     cdef void add_edge_to_grid(self, BMEdge* edge, int insert_index, int num_samples) noexcept nogil
     cdef void add_face_to_grid(self, BMFace* face, int insert_index) noexcept nogil
@@ -140,7 +151,7 @@ cdef class TargetMeshAccel:
     # Python exposed methods.
     # ---------------------------------------------------------------------------------------
 
-    cpdef void update(self, float margin_check, int selection_mode, bint debug=*)
+    cpdef bint update(self, float margin_check, int selection_mode, bint debug=*)
 
     cpdef int ensure_bmesh(self)
 
@@ -155,7 +166,8 @@ cdef class TargetMeshAccel:
 
     cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel)
     cpdef void py_update_accel_struct(self)
-
+    
+    '''
     # Base nearest search method.
     cpdef object _find_nearest(self, float x, float y, float depth, SpatialGeomType geom_type, int k=*, float max_dist=*, bint wrapped=*)
 
@@ -169,6 +181,7 @@ cdef class TargetMeshAccel:
     cpdef list find_k_nearest_verts(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
     cpdef list find_k_nearest_edges(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
     cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
+    '''
 
     cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)

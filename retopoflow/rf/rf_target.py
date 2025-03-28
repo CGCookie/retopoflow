@@ -25,6 +25,7 @@ import traceback
 from itertools import chain
 from enum import Enum
 import numpy as np
+import ctypes
 
 import bpy
 
@@ -38,7 +39,8 @@ from ...addon_common.common.profiler import profiler, time_it, timing
 from ...addon_common.common.utils import iter_pairs, Dict
 from ...addon_common.common.maths import Point, Vec, Direction, Normal, Ray, XForm, BBox
 from ...addon_common.common.maths import Point2D, Vec2D, Direction2D
-from ...addon_common.common.maths_accel import Accel2D, Accel2D_CyWrapper
+from ...addon_common.common.maths_accel import Accel2D
+from ...addon_common.common.maths_accel_optimized import Accel2DOptimized, Accel2D_CyWrapper, AccelPointCtypes
 from ...addon_common.common.text import fix_string
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.useractions import Actions
@@ -368,7 +370,13 @@ class RetopoFlow_Target:
 
                 with time_it('[CYTHON] TargetMeshAccel.update()', enabled=True):
                     print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
-                    Globals.target_accel.update(1.0, selected_only.value, debug=True)
+                    if not Globals.target_accel.update(1.0, selected_only.value, debug=True):
+                        raise Exception('Error updating TargetMeshAccel.')
+                        accel_data.accel = None
+                        accel_data.verts = set()
+                        accel_data.edges = set()
+                        accel_data.faces = set()
+                        return accel_data
 
                 with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=True):
                     print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
@@ -381,14 +389,22 @@ class RetopoFlow_Target:
                 # accel_data.accel = Accel2D_CyWrapper(Globals.target_accel)
                 
                 # TODO: REMOVE THIS WHEN CYTHON ACCEL IS COMPLETE.
-                with time_it('[PYTHON] building accel struct', enabled=True):
+                '''with time_it('[PYTHON] building accel struct', enabled=True):
                     accel_data.accel = Accel2D(
                         f'RFTarget visible geometry ({selected_only=})',
                         accel_data.verts,
                         accel_data.edges,
                         accel_data.faces,
                         self.iter_point2D_symmetries
-                    )
+                    )'''
+
+                '''with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=True):
+                    accel_data.accel = Accel2DOptimized(
+                        f'RFTarget visible geometry ({selected_only=})',
+                        accel_data.verts, accel_data.edges, accel_data.faces,
+                        *Globals.target_accel.get_accel2d_points(),
+                        region.width, region.height
+                    )'''
 
             else:
                 # Fallback to the Python version.
