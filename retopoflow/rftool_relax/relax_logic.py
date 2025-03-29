@@ -182,11 +182,11 @@ class Relax_Logic:
             # TODO: should use loop rather than verts?
             an = Vector((0,0,0))
             vs = list(bmf.verts)
-            bmv1,bmv2 = vs[-2],vs[-1]
+            bmv1, bmv2 = vs[-2], vs[-1]
             v1 = bmv2.co - bmv1.co
             for bmv in vs:
-                bmv0,bmv1,bmv2 = bmv1,bmv2,bmv
-                v0,v1 = -v1,bmv2.co-bmv1.co
+                bmv0, bmv1, bmv2 = bmv1, bmv2, bmv
+                v0, v1 = -v1, bmv2.co - bmv1.co
                 an = an + v0.cross(v1)
             return an.normalized()
         def bmf_is_flipped(bmf):
@@ -205,7 +205,7 @@ class Relax_Logic:
             if opt_edge_length:
                 for bme in chk_edges:
                     if bme not in edges: continue
-                    bmv0,bmv1 = bme.verts
+                    bmv0, bmv1 = bme.verts
                     vec = bme_vector(bme)
                     edge_len = vec.length
                     f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
@@ -257,7 +257,7 @@ class Relax_Logic:
                     avg_rel_len = sum(rel.length for rel in rels) / cnt
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength * 2) #/ rel_len
+                        f = rel * ((avg_rel_len - rel_len) * strength * 0.5) / rel_len
                         add_force(bmv, f)
 
                 # push verts toward equal edge lengths
@@ -267,7 +267,7 @@ class Relax_Logic:
                         bmv0, bmv1 = bme.verts
                         vec = bme_vector(bme)
                         edge_len = vec.length
-                        f = vec * ((avg_face_edge_len - edge_len) * strength) / edge_len
+                        f = vec * ((avg_face_edge_len - edge_len) * strength * 0.5) / edge_len
                         add_force(bmv0, f * -0.5)
                         add_force(bmv1, f * 0.5)
 
