@@ -34,6 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.maths import point_to_bvec4, view_forward_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
@@ -107,15 +108,6 @@ class Relax_Logic:
         opt_face_angles     = relax.algorithm_average_face_angles
         opt_correct_flipped = relax.algorithm_correct_flipped_faces
 
-        offset = context.space_data.overlay.retopology_offset
-
-        def is_bmvert_hidden(bmv):
-            nonlocal context
-            point = self.matrix_world @ point_to_bvec4(bmv.co)
-            hit = raycast_valid_sources(context, point)
-            if not hit: return False
-            ray_e = hit['ray_world'][0]
-            return hit['distance'] < (ray_e.xyz - point.xyz).length - offset
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
@@ -137,7 +129,7 @@ class Relax_Logic:
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_mask_corner   == 'EXCLUDE' and len(bmv.link_edges) == 2: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
+            if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(context, bmv): continue
             if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
             if opt_mask_selected == 'ONLY' and not bmv.select: continue
             verts.add(bmv)

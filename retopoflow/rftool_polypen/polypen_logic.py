@@ -44,6 +44,7 @@ from ..common.bmesh import (
     NearestBMVert,
     NearestBMEdge,
 )
+from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.enums import ValueIntEnum
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
@@ -170,11 +171,20 @@ class PP_Logic:
             self.hit = None
             return
 
-        self.nearest.update(context, self.hit)
+        self.nearest.update(
+            context,
+            self.hit,
+            filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv),
+        )
         if self.nearest.bmv:
             self.hit = Vector(self.nearest.bmv.co)
 
-        self.nearest_bme.update(context, self.hit, ignore_selected=False)
+        self.nearest_bme.update(
+            context,
+            self.hit,
+            ignore_selected=False,
+            filter_fn=lambda bme: not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bme.verts)),
+        )
 
 
         ###########################################################################################

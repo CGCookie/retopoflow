@@ -26,6 +26,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMFace
+from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -175,7 +176,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
                 self.nearest_bmv.update(
                     context,
                     hit['co_local'],
-                    filter_fn=(lambda bmv:bmv.is_boundary or bmv.is_wire),
+                    filter_fn=(lambda bmv: (bmv.is_boundary or bmv.is_wire) and not is_bmvert_hidden(context, bmv)),
                     distance2d=self.snap_distance,
                 )
                 if not self.is_stroking():
@@ -190,7 +191,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
                 self.nearest_bmf.update(
                     context,
                     hit['co_local'],
-                    filter_fn=(lambda bmf:any(len(bme.link_faces)==1 for bme in bmf.edges)),
+                    filter_fn=(lambda bmf: any(len(bme.link_faces)==1 for bme in bmf.edges) and not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bmf.verts))),
                 )
                 if not self.is_stroking():
                     self.snap_bmf0 = self.nearest_bmf.bmf

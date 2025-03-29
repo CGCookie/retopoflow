@@ -34,6 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
@@ -82,13 +83,6 @@ class Tweak_Logic:
 
         offset = context.space_data.overlay.retopology_offset
 
-        def is_bmvert_hidden(bmv):
-            nonlocal context
-            point = self.matrix_world @ point_to_bvec4(bmv.co)
-            hit = raycast_valid_sources(context, point)
-            if not hit: return False
-            ray_e = hit['ray_world'][0]
-            return hit['distance'] < (ray_e.xyz - point.xyz).length - offset
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
@@ -102,7 +96,7 @@ class Tweak_Logic:
             if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if self.tweak.mask_corners  == 'EXCLUDE' and len(bmv.link_edges) == 2: continue
             if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if self.tweak.mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
+            if self.tweak.mask_occluded == 'EXCLUDE' and is_bmvert_hidden(context, bmv): continue
             if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
             if self.tweak.mask_selected == 'ONLY' and not bmv.select: continue
             self.verts.append((

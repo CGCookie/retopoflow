@@ -33,8 +33,8 @@ from .bmesh import (
     bme_vector,
     bme_length,
 )
-from .raycast import raycast_point_valid_sources
-from .maths import view_forward_direction, lerp
+from .raycast import raycast_point_valid_sources, raycast_valid_sources
+from .maths import view_forward_direction, lerp, point_to_bvec4
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
@@ -269,3 +269,11 @@ def generate_point_inside_bmf(bmf):
                 if x1 > px: crossings += 1
         return (crossings % 2) == 1
     return point_inside_bmf
+
+def is_bmvert_hidden(context, bmv):
+    point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
+    hit = raycast_valid_sources(context, point)
+    if not hit: return False
+    ray_e, hit_dist = hit['ray_world'][0], hit['distance']
+    offset = context.space_data.overlay.retopology_offset
+    return hit_dist < (ray_e.xyz - point.xyz).length - offset

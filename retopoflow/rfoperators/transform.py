@@ -36,8 +36,12 @@ from enum import Enum
 
 from ..preferences import RF_Prefs
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, NearestBMEdge, NearestBMFace
-from ..common.bmesh import nearest_bmv_world, nearest_bme_world
+from ..common.bmesh import (
+    get_bmesh_emesh,
+    NearestBMVert, NearestBMEdge, NearestBMFace,
+    nearest_bmv_world, nearest_bme_world,
+)
+from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources, size2D_to_size
 from ..common.maths import view_forward_direction, proportional_edit
@@ -114,9 +118,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
             if hit:
                 co = hit['co_local']
                 distance2d = props.tweaking_distance
-                self.nearest_bmv.update(context, co, distance2d=distance2d)
-                self.nearest_bme.update(context, co, distance2d=distance2d)
-                self.nearest_bmf.update(context, co, distance2d=distance2d)
+                self.nearest_bmv.update(context, co, distance2d=distance2d, filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv))
+                self.nearest_bme.update(context, co, distance2d=distance2d, filter_fn=lambda bme: not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bme.verts)))
+                self.nearest_bmf.update(context, co, distance2d=distance2d, filter_fn=lambda bmf: not any(map(lambda bmv:is_bmvert_hidden(context, bmv), bmf.verts)))
                 # bmesh.geometry.intersect_face_point(face, point)
                 # select hovered geometry
                 mode = context.tool_settings.mesh_select_mode
