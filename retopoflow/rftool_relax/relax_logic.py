@@ -94,6 +94,7 @@ class Relax_Logic:
 
         # gather options
         opt_mask_boundary   = relax.mask_boundary
+        opt_mask_corner     = relax.mask_corners
         opt_mask_symmetry   = relax.mask_symmetry
         opt_mask_occluded   = relax.mask_occluded
         opt_mask_selected   = relax.mask_selected
@@ -134,6 +135,7 @@ class Relax_Logic:
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv in nearest:
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if opt_mask_corner   == 'EXCLUDE' and len(bmv.link_edges) == 2: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(bmv): continue
             if opt_mask_selected == 'EXCLUDE' and bmv.select: continue

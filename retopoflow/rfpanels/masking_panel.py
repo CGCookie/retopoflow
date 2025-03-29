@@ -31,6 +31,7 @@ def draw_masking_options(context, layout):
 
     layout.prop(props, 'mask_selected', text="Selected")
     layout.prop(props, 'mask_boundary', text="Boundary")
+    layout.prop(props, 'mask_corners',  text="Corners")
     # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
     layout.prop(props, 'mask_occluded', text="Occluded")
 

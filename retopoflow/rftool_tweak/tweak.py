@@ -128,6 +128,15 @@ class RFOperator_Tweak(RFOperator):
         ],
         default='INCLUDE',
     )
+    mask_corners: bpy.props.EnumProperty(
+        name='Mask: Corners',
+        description='How to handle corner geometry (vertices with exactly two edges)',
+        items=[
+            ('EXCLUDE', 'Exclude', 'Tweak vertices not at a corner', 0),
+            ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being at corner', 1),
+        ],
+        default='INCLUDE',
+    )
     mask_symmetry: bpy.props.EnumProperty(
         name='Mask: Symmetry',
         description='How to handle geometry near symmetry plane',
@@ -224,6 +233,7 @@ class RFTool_Tweak(RFTool_Base):
                 draw_line_separator(layout)
                 layout.prop(props, 'mask_selected', text="Selected")
                 layout.prop(props, 'mask_boundary', text="Boundary")
+                layout.prop(props, 'mask_corners',  text="Corners")
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.prop(props, 'mask_occluded', text="Occluded")
             else:
