@@ -62,6 +62,7 @@ class Relax_Logic:
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
         self._time = time.time()
+        self.pressure = 1.0
 
         self.prev = {}
 
@@ -81,6 +82,8 @@ class Relax_Logic:
 
 
     def update(self, context, event):
+        if event.type == 'PEN': self.pressure = event.pressure
+
         if event.type != 'TIMER': return
 
         hit = raycast_valid_sources(context, mouse_from_event(event))
@@ -146,7 +149,7 @@ class Relax_Logic:
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
         self._time = cur_time
-        strength = (5.0 / opt_steps) * brush.strength * time_delta * event.pressure
+        strength = (5.0 / opt_steps) * brush.strength * time_delta * self.pressure
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
@@ -162,7 +165,8 @@ class Relax_Logic:
         def add_force(bmv, f):
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
-            displace[bmv] = displace.get(bmv, Vector((0,0,0))) + f
+            if bmv not in displace: displace[bmv] = Vector((0,0,0))
+            displace[bmv] += f
 
         def bme_length(bme):
             return bme_vector(bme).length
