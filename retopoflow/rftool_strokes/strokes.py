@@ -124,6 +124,11 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         min=0.0,
         max=1.0,
     )
+    force_nonstripL: bpy.props.BoolProperty(
+        name='Force non-L-Strip',
+        description='Force T-Strip or Equals-Strip to be inserted rather than L-Strip',
+        default=False,
+    )
 
     stroke_data = None
 
@@ -146,6 +151,10 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             'smooth_angle':       initial_smooth_angle,
             'smooth_density0':    initial_smooth_density0,
             'smooth_density1':    initial_smooth_density1,
+            'force_options':      {
+                'show strip-L force non': False,
+                'strip-L force non': False,
+            },
         }
         RFOperator_Stroke_Insert.strokes_reinsert(context)
     @staticmethod
@@ -159,6 +168,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             smooth_angle=data['smooth_angle'],
             smooth_density0=data['smooth_density0'],
             smooth_density1=data['smooth_density1'],
+            force_nonstripL=data['force_options']['strip-L force non'],
         )
 
     def draw(self, context):
@@ -191,6 +201,10 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             row.prop(self, 'smooth_density0', text='')
             row.prop(self, 'smooth_density1', text='')
 
+        if data['force_options']['show strip-L force non']:
+            grid.label(text='Force non-L-Strip')
+            grid.prop(self, 'force_nonstripL', text='')
+
     def execute(self, context):
         data = RFOperator_Stroke_Insert.stroke_data
         stroke3D = [pt for pt in data['stroke3D'] if pt]
@@ -212,26 +226,33 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
                 self.smooth_angle,
                 self.smooth_density0,
                 self.smooth_density1,
+                {
+                    'show strip-L force non': data['force_options']['show strip-L force non'],
+                    'strip-L force non': self.force_nonstripL,
+                },
             )
 
             if data['initial']:
                 data['initial'] = False
-                data['show_count'] = logic.show_count
                 data['show_extrapolate'] = logic.show_extrapolate
-                data['action'] = logic.show_action
                 self.bridging_offset = logic.bridging_offset
-                data['bridging_offset'] = self.bridging_offset
-                data['show_bridging_offset'] = logic.show_bridging_offset
-                data['show_smoothness'] = logic.show_smoothness
+                data['force_options']['show strip-L force non'] = logic.force_options['show strip-L force non']
+                data['force_options']['strip-L force non'] = logic.force_options['strip-L force non'] or False
             else:
-                data['extrapolate'] = self.extrapolate_mode
                 self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
-                data['bridging_offset'] = self.bridging_offset
-            self.cut_count = logic.cut_count
+            data['show_count'] = logic.show_count
+            data['action'] = logic.show_action
+            if logic.show_count: self.cut_count = logic.cut_count
             data['cut_count'] = self.cut_count
+            data['extrapolate'] = self.extrapolate_mode
+            data['show_smoothness'] = logic.show_smoothness
             data['smooth_angle'] = self.smooth_angle
+            data['show_bridging_offset'] = logic.show_bridging_offset
+            data['bridging_offset'] = self.bridging_offset
             data['smooth_density0'] = self.smooth_density0
             data['smooth_density1'] = self.smooth_density1
+            if logic.force_options['strip-L force non'] is not None: self.force_nonstripL = logic.force_options['strip-L force non']
+            data['force_options']['strip-L force non'] = self.force_nonstripL
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove

@@ -67,21 +67,27 @@ Table of Implemented:
 -------------+--------------------------------------------------------------------------
              :             Equals      T-shaped     I-shaped    C-shaped    L-shaped
 -------------+--------------------------------------------------------------------------
-             :    ╎        ═══════     ═══O═══      ═══O═══     O═════O     ╤═════O
-             :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
-     Strip/  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
-      Quad:  :    ╎        + + + +     + +╎+ +      + +╎+ +     ╎+ + +╎     │+ + +╎
-             :    ╎        ╌╌╌╌╌╌╌     + +╎+ +      ═══O═══     C╌╌╌╌╌C     O╌╌╌╌╌C
+             :    ┆        ═══════     ═══O═══      ═══O═══     O═════O     ╤═════O
+             :    ┆        + + + +     + +┆+ +      + +┆+ +     ┆+ + +┆     │+ + +┆
+     Strip/  :    ┆        + + + +     + +┆+ +      + +┆+ +     ┆+ + +┆     │+ + +┆
+      Quad:  :    ┆        + + + +     + +┆+ +      + +┆+ +     ┆+ + +┆     │+ + +┆
+             :    ┆        ╌╌╌╌╌╌╌     + +┆+ +      ═══O═══     C╌╌╌╌╌C     O╌╌╌╌╌C
+-------------+--------------------------------------------------------------------------
+             :             ╤══════                  ═══O═══
+             :             │ + + +                  + +┆+ +
+             :             │ + + +                  + +┆+ +
+             :             │ + + +                  + +┆+ +
+             :             O╌╌╌╌╌╌                  ───O───
 -------------+--------------------------------------------------------------------------
              :  ╭╌╌╌╮      ╭╌╌╌╌╌╮       +++        ┌─────┐
-             :  ╎   ╎      ╎+╔═╗+╎     ++╔═╗++      │+╔═╗+│
-     Cycle/  :  ╎   ╎      ╎+║ ║+╎     ++║ O╌╌      │+║ O╌O
-   Annulus:  :  ╎   ╎      ╎+╚═╝+╎     ++╚═╝++      │+╚═╝+│
+             :  ┆   ┆      ┆+╔═╗+┆     ++╔═╗++      │+╔═╗+│
+     Cycle/  :  ┆   ┆      ┆+║ ║+┆     ++║ O╌╌      │+║ O╌O
+   Annulus:  :  ┆   ┆      ┆+╚═╝+┆     ++╚═╝++      │+╚═╝+│
           :  :  ╰╌╌╌╯      ╰╌╌╌╌╌╯       +++        └─────┘
 -------------+--------------------------------------------------------------------------
 
 Key:
-     ╎╌ stroke
+     ┆╌ stroke
      C  corner in stroke (based on sharpness of stroke)
      ǁ═ selected boundary or wire edges
      │─ unselected boundary or wire edges
@@ -105,10 +111,11 @@ Questions/Thoughts:
 
 '''
 
+DEBUG = True
 
 
 class Strokes_Logic:
-    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset, smooth_angle, smooth_density0, smooth_density1):
+    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset, smooth_angle, smooth_density0, smooth_density1, force_options):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -133,6 +140,8 @@ class Strokes_Logic:
         self.show_extrapolate = True
         self.show_bridging_offset = False
         self.show_smoothness = False
+
+        self.force_options = force_options
 
         self.process_stroke()
         self.process_selected()
@@ -214,6 +223,17 @@ class Strokes_Logic:
         self.snap_bmv0_nosel,  self.snap_bmv1_nosel  = self.snap_bmv1_nosel,  self.snap_bmv0_nosel
 
     def insert(self):
+        if DEBUG:
+            def dbg(l): return len(l) if l is not None else None
+            print(f'')
+            print(f'{self.is_cycle=}')
+            print(f'  {dbg(self.longest_cycle0)=} {dbg(self.longest_cycle1)=}')
+            print(f'  {dbg(self.longest_strip0)=} {dbg(self.longest_strip1)=}')
+            print(f'  {self.snap_bmv0_strip0=} {self.snap_bmv0_strip1=} {self.snap_bmv1_strip0=} {self.snap_bmv1_strip1=}')
+            print(f'  {self.snap_bmv0_cycle0=} {self.snap_bmv0_cycle1=} {self.snap_bmv1_cycle0=} {self.snap_bmv1_cycle1=}')
+            print(f'  {self.snap_bmv0_sel=} {self.snap_bmv1_sel=}')
+            print(f'  {self.snap_bmv0_nosel=} {self.snap_bmv1_nosel=}')
+
         if self.is_cycle:
             if not self.longest_cycle0:
                 self.insert_cycle()
@@ -304,6 +324,7 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
     def insert_cycle(self):
+        if DEBUG: print(f'insert_cycle()')
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
@@ -337,6 +358,8 @@ class Strokes_Logic:
     # cycle bridging insertions
 
     def insert_cycle_equals(self):
+        if DEBUG: print(f'insert_cycle_equals()')
+
         assert self.is_cycle
         assert self.longest_cycle0
 
@@ -428,6 +451,9 @@ class Strokes_Logic:
         '''
         forced on: adapt extrapolation
         '''
+
+        if DEBUG: print(f'insert_cycle_T()')
+
         llc = len(self.longest_cycle0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -516,6 +542,8 @@ class Strokes_Logic:
         self.show_extrapolate = False
 
     def insert_cycle_I(self):
+        if DEBUG: print(f'insert_cycle_I()')
+
         llc = len(self.longest_cycle0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -667,6 +695,8 @@ class Strokes_Logic:
     # strip bridging insertions
 
     def insert_strip_T(self):
+        if DEBUG: print(f'insert_strip_T()')
+
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -797,6 +827,8 @@ class Strokes_Logic:
 
 
     def insert_strip_I(self):
+        if DEBUG: print(f'insert_strip_I()')
+
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -889,6 +921,8 @@ class Strokes_Logic:
 
 
     def insert_strip_C(self):
+        if DEBUG: print(f'insert_strip_C()')
+
         llc = len(self.longest_strip0)
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -977,6 +1011,8 @@ class Strokes_Logic:
 
 
     def insert_strip_L(self):
+        if DEBUG: print(f'insert_strip_L()')
+
         # fallback to insert_strip_T if we cannot make L-shape work
         M, Mi = self.matrix_world, self.matrix_world_inv
 
@@ -984,7 +1020,17 @@ class Strokes_Logic:
         elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
         else: return self.insert_strip_T()
 
-        if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-1]): return self.insert_strip_T()
+        if self.force_options['strip-L force non']: return self.insert_strip_T()
+        self.force_options['show strip-L force non'] = True
+        self.force_options['strip-L force non'] = False
+
+        # if snap_bmv0 is in longest strip but not one of the ends, fallback to inserting T
+        if len(self.longest_strip0) > 1:
+            longest_strip0_bmv0 = bme_unshared_bmv(self.longest_strip0[ 0], self.longest_strip0[ 1])
+            longest_strip0_bmv1 = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
+            print(f'{self.snap_bmv0=} {longest_strip0_bmv0=} {longest_strip0_bmv1=}')
+            if self.snap_bmv0 != longest_strip0_bmv0 and self.snap_bmv0 != longest_strip0_bmv1: return self.insert_strip_T()
+        # if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-2]): return self.insert_strip_T()
 
         # see if we can crawl along boundary from bmv1 and reach opposite end of longest_strip0 from bmv0
         # find opposite end of strip from bmv0
@@ -1003,7 +1049,7 @@ class Strokes_Logic:
             bmv = processing.pop(0)
             if bmv == self.snap_bmv0: return self.insert_strip_T()
             for bme in bmv.link_edges:
-                if bme.is_wire or bme.is_boundary:
+                if not bme.hide and (bme.is_wire or bme.is_boundary):
                     bmv_ = bme_other_bmv(bme, bmv)
                     if bmv_ not in path:
                         path[bmv_] = bmv
@@ -1074,6 +1120,8 @@ class Strokes_Logic:
 
 
     def insert_strip_equals(self):
+        if DEBUG: print(f'insert_strip_equals()')
+
         M, Mi = self.matrix_world, self.matrix_world_inv
 
         ###########################
@@ -1081,23 +1129,21 @@ class Strokes_Logic:
 
         # find top-left and top-right corners
         if len(self.longest_strip0) > 1:
-            bmv_tl = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1])
-            bmv_tr = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
-            bmv_tl1 = bmes_shared_bmv(self.longest_strip0[0], self.longest_strip0[1])
-            bmv_tr1 = bmes_shared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
+            bmv_tl  = bme_unshared_bmv(self.longest_strip0[ 0], self.longest_strip0[ 1])
+            bmv_tl1 = bmes_shared_bmv( self.longest_strip0[ 0], self.longest_strip0[ 1])
+            bmv_tr  = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
+            bmv_tr1 = bmes_shared_bmv( self.longest_strip0[-1], self.longest_strip0[-2])
             if len(self.longest_strip0) % 2 == 0:
                 i0 = len(self.longest_strip0) // 2 - 1
             else:
                 i0 = len(self.longest_strip0) // 2
             i1 = i0 + 1
             bmv_tmid0 = bme_unshared_bmv(self.longest_strip0[i0], self.longest_strip0[i1])
-            bmv_tmid1 = bmes_shared_bmv(self.longest_strip0[i0], self.longest_strip0[i1])
+            bmv_tmid1 = bmes_shared_bmv( self.longest_strip0[i0], self.longest_strip0[i1])
         else:
             bmv_tl, bmv_tr = self.longest_strip0[0].verts
-            bmv_tl1 = bmv_tr
-            bmv_tr1 = bmv_tl
-            bmv_tmid0 = bmv_tl
-            bmv_tmid1 = bmv_tr
+            bmv_tl1, bmv_tr1 = bmv_tr, bmv_tl
+            bmv_tmid0, bmv_tmid1 = bmv_tl, bmv_tr
 
         # build template for top edge (selected strip)
         strip_t_bmvs = get_strip_bmvs(self.longest_strip0, bmv_tl)
@@ -1113,39 +1159,14 @@ class Strokes_Logic:
         # build template for bottom edge (stroke)
         template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
 
-        def crawl_boundary(bmv_from, bmv_to):
-            path, processing = {bmv_to:None}, [bmv_to]
-            while processing:
-                bmv = processing.pop(0)
-                if bmv == bmv_from: break
-                for bme in bmv.link_edges:
-                    if not bme.hide and (bme.is_wire or bme.is_boundary):
-                        bmv_ = bme_other_bmv(bme, bmv)
-                        if bmv_ not in path:
-                            path[bmv_] = bmv
-                            processing.append(bmv_)
-            else:
-                return 0, None
-            bmv, bmvs = bmv_from, []
-            while bmv:
-                bmvs.append(bmv)
-                bmv = path[bmv]
-            l = len(bmvs)
-            bmv = bmvs[-1]
-            while True:
-                bmvs_next = [bme_other_bmv(bme, bmv) for bme in bmv.link_edges if not bme.hide and (bme.is_wire or bme.is_boundary)]
-                bmvs_next = [bmv_ for bmv_ in bmvs_next if bmv_ not in bmvs]
-                if len(bmvs_next) != 1:
-                    break
-                bmv = bmvs_next[0]
-                bmvs += [bmv]
-            return (l, bmvs)
-
         # find left and right sides
         template_l, strip_l_bmvs = None, None
         template_r, strip_r_bmvs = None, None
-        if self.snap_bmv0_nosel: il, strip_l_bmvs = crawl_boundary(bmv_tl, self.snap_bmv0)
-        if self.snap_bmv1_nosel: ir, strip_r_bmvs = crawl_boundary(bmv_tr, self.snap_bmv1)
+        if self.snap_bmv0_nosel: il, strip_l_bmvs = self.crawl_boundary({ bmv_tl }, self.snap_bmv0)
+        if self.snap_bmv1_nosel: ir, strip_r_bmvs = self.crawl_boundary({ bmv_tr }, self.snap_bmv1)
+        if strip_l_bmvs and strip_r_bmvs and bool(set(strip_r_bmvs) & set(strip_l_bmvs)):
+            # two side strips have overlapping edges, so set both to None
+            strip_l_bmvs, strip_r_bmvs = None, None
         if strip_l_bmvs and strip_r_bmvs:
             if self.cut_count is not None:
                 ll = max(1, min(self.cut_count, len(strip_l_bmvs)-1))
@@ -1289,10 +1310,14 @@ class Strokes_Logic:
             pt, pb = template_t[i_tb], template_b[i_tb]
             fitted_l = fit_template2D(template_l, pt, target=pb)
             fitted_r = fit_template2D(template_r, pt, target=pb)
+            at_l, at_r = (i_tb == 0), (i_tb == llc_tb - 1)
             for i_lr in range(llc_lr):
-                if   i_tb == 0        and strip_l_bmvs: bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
-                elif i_tb == llc_tb-1 and strip_r_bmvs: bmvs[i_lr][i_tb] = strip_r_bmvs[i_lr]
-                elif i_lr == 0:                         bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
+                at_t, at_b = (i_lr == 0), (i_lr == llc_lr - 1)
+                if   at_t:                                   bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
+                elif at_l and strip_l_bmvs:                  bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
+                elif at_r and strip_r_bmvs:                  bmvs[i_lr][i_tb] = strip_r_bmvs[i_lr]
+                elif at_b and at_l and self.snap_bmv0_nosel: bmvs[i_lr][i_tb] = self.snap_bmv0
+                elif at_b and at_r and self.snap_bmv1_nosel: bmvs[i_lr][i_tb] = self.snap_bmv1
                 else:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
@@ -1301,16 +1326,11 @@ class Strokes_Logic:
 
         ######################
         # fill in quads
-        bmfs = []
-        for i in range(llc_lr - 1):
-            for j in range(llc_tb - 1):
-                bmv00 = bmvs[i+0][j+0]
-                bmv01 = bmvs[i+0][j+1]
-                bmv10 = bmvs[i+1][j+0]
-                bmv11 = bmvs[i+1][j+1]
-                if not (bmv00 and bmv01 and bmv10 and bmv11): continue
-                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-                bmfs.append(bmf)
+        bmfs = list(filter(bool, [
+            self.create_quad(bmvs[i+0][j+0], bmvs[i+0][j+1], bmvs[i+1][j+1], bmvs[i+1][j+0])
+            for i in range(llc_lr - 1)
+            for j in range(llc_tb - 1)
+        ]))
         fwd = Mi @ view_forward_direction(self.context)
         check_bmf_normals(fwd, bmfs)
 
@@ -1322,3 +1342,55 @@ class Strokes_Logic:
         self.show_extrapolate = False
         self.cut_count = llc_lr - 1
         self.show_count = True # not strip_l_bmvs and not strip_r_bmvs
+
+
+    def create_quad(self, *fbmvs):
+        if not all(fbmvs):
+            print(f'Warning: at least one BMVert is None!  Not creating a quad!')
+            return None
+
+        ofbmvs = fbmvs
+        fbmvs = tuple(bmv for (i, bmv) in enumerate(fbmvs) if fbmvs.index(bmv) == i)
+
+        if len(fbmvs) < 3:
+            print(f'Warning: attempted creating a face that has only {len(fbmvs)} BMVerts!  Not creating a quad!')
+            return None
+
+        if len(fbmvs) != 4:
+            print(f'Warning: creating a BMFace with only {len(fbmvs)} BMVerts!')
+
+        try:
+            return self.bm.faces.new(fbmvs)
+        except Exception as e:
+            print(f'Caught and ignoring Exception {e} while attempting to create BMFace ({ofbmvs}, {fbmvs})')
+
+        return None
+
+    def crawl_boundary(self, bmvs_from, bmv_to):
+        path, processing = {bmv_to:None}, [bmv_to]
+        while processing:
+            bmv = processing.pop(0)
+            if bmv in bmvs_from: break
+            for bme in bmv.link_edges:
+                if not bme.hide and (bme.is_wire or bme.is_boundary):
+                    bmv_ = bme_other_bmv(bme, bmv)
+                    if bmv_ not in path:
+                        path[bmv_] = bmv
+                        processing.append(bmv_)
+        else:
+            return 0, None
+        # bmv is now bmv_from
+        bmvs = []
+        while bmv:
+            bmvs.append(bmv)
+            bmv = path[bmv]
+        l = len(bmvs)
+        bmv = bmvs[-1]
+        while True:
+            bmvs_next = [bme_other_bmv(bme, bmv) for bme in bmv.link_edges if not bme.hide and (bme.is_wire or bme.is_boundary)]
+            bmvs_next = [bmv_ for bmv_ in bmvs_next if bmv_ not in bmvs]
+            if len(bmvs_next) != 1:
+                break
+            bmv = bmvs_next[0]
+            bmvs += [bmv]
+        return (l, bmvs)
