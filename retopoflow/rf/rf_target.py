@@ -90,27 +90,29 @@ class RetopoFlow_Target:
         self.accel_data_unsel = Dict(get_default=None)
         self.accel_recompute = True
 
-
         Globals.target_accel = None
-        with time_it('[CYTHON] TargetMeshAccel initialization', enabled=True):
-            target = self.rftarget
-            actions = Actions.get_instance(None)
-            region_3d = actions.r3d
-            region = actions.region
-            space = actions.space
+        if CY_TargetMeshAccel is not None:
+            with time_it('[CYTHON] TargetMeshAccel initialization', enabled=True):
+                target = self.rftarget
+                actions = Actions.get_instance(None)
+                region_3d = actions.r3d
+                region = actions.region
+                space = actions.space
 
-            Globals.target_accel = CY_TargetMeshAccel(
-                target.obj,
-                target.bme,
-                region,
-                space,
-                region_3d,
-                Globals.framebuffer,
-                Globals.viewport_info,
-                RFVert,
-                RFEdge,
-                RFFace
-            )
+                Globals.target_accel = CY_TargetMeshAccel(
+                    target.obj,
+                    target.bme,
+                    region,
+                    space,
+                    region_3d,
+                    Globals.framebuffer,
+                    Globals.viewport_info,
+                    RFVert,
+                    RFEdge,
+                    RFFace
+                )
+        else:
+            print("[RetopoFlow] Cython modules where not found!")
 
         self._draw_count = 0
 
