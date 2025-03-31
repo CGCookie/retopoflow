@@ -43,6 +43,9 @@ from ...config.options import options, themes
 from ...addon_common.common.globals import Globals
 
 
+DEBUG_SELECTBOX = False
+
+
 class Select(RFTool):
     name        = 'Select'
     description = 'Select geometry'
@@ -108,7 +111,6 @@ class Select(RFTool):
         self.rfcontext.undo_push('invert selection')
         self.rfcontext.select_invert()
 
-    @timing
     @RFWidget.on_action('Select: Box')
     def selectbox(self):
         box = self.rfwidgets['selectbox']
@@ -119,36 +121,31 @@ class Select(RFTool):
         
         left, right = min(x0, x1), max(x0, x1)
         bottom, top = min(y0, y1), max(y0, y1)
-        
-        ## print(f"selectbox: left={left}, right={right}, bottom={bottom}, top={top}")
 
-        ctrl = box.mods['ctrl']
-        shift = box.mods['shift']
+        if Globals.target_accel is not None:
+            ctrl = box.mods['ctrl']
+            shift = box.mods['shift']
 
-        self.rfcontext.undo_push('select box')
+            self.rfcontext.undo_push('select box')
 
-        with time_it("[CYTHON] select box", enabled=True):
-            # Ensure matrix-world and persp-matrix are up to date.
-            # Globals.target_accel.py_update_object(self.py_object)
-            r3d = self.rfcontext.actions.r3d
-            space = Globals.drawing.space
-            Globals.target_accel.py_update_view(space, r3d, Globals.framebuffer, Globals.viewport_info)
+            with time_it("[CYTHON] select box", enabled=DEBUG_SELECTBOX):
+                # Ensure matrix-world and persp-matrix are up to date.
+                # Globals.target_accel.py_update_object(self.py_object)
+                r3d = self.rfcontext.actions.r3d
+                space = Globals.drawing.space
+                Globals.target_accel.py_update_view(space, r3d, Globals.framebuffer, Globals.viewport_info)
 
-            match options['select geometry']:
-                case 'Verts':
-                    Globals.target_accel.py_select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
-                case 'Edges':
-                    Globals.target_accel.py_select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
-                case 'Faces':
-                    Globals.target_accel.py_select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
+                match options['select geometry']:
+                    case 'Verts':
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
+                    case 'Edges':
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
+                    case 'Faces':
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
 
-        self.rfcontext.dirty(selectionOnly=True)
+            self.rfcontext.dirty(selectionOnly=True)
 
-        '''
-        with time_it("[PYTHON] select box (with Cython bmesh vis)", enabled=True):
-            (x0, y0), (x1, y1) = p0, p1
-            left, right = min(x0, x1), max(x0, x1)
-            bottom, top = min(y0, y1), max(y0, y1)
+        else:
             c0, c1, c2, c3 = Point2D((left, top)), Point2D((left, bottom)), Point2D((right, bottom)), Point2D((right, top))
             tri0, tri1 = (c0, c1, c2), (c0, c2, c3)
             get_point2D = self.rfcontext.get_point2D
@@ -202,7 +199,7 @@ class Select(RFTool):
             if   box.mods['ctrl']:  self.rfcontext.select(self.rfcontext.get_selected_verts() - verts, only=True)   # del verts from selection
             elif box.mods['shift']: self.rfcontext.select(verts, only=False)                                        # add vert to selection
             else:                   self.rfcontext.select(verts, only=True)                                         # replace selection
-    '''
+
 
     @FSM.on_state('move', 'enter')
     def move_enter(self):
