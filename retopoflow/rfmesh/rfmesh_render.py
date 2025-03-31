@@ -64,6 +64,9 @@ from .rfmesh import CY_MeshRenderAccel
 
 
 
+DEBUG_MESH_RENDER_ACCEL = False
+
+
 class RFMeshRender():
     '''
     RFMeshRender handles rendering RFMeshes.
@@ -193,7 +196,6 @@ class RFMeshRender():
             }
         self.dirty()
 
-    @timing
     @profiler.function
     def _gather_data(self):
         if not self.split:
@@ -278,13 +280,13 @@ class RFMeshRender():
                                 self.add_buffered_render(BufferedRender_Batch.TRIANGLES, _face_data, static)
 
                         if accel is not None:
-                            with time_it('[CYTHON] gather face data for RFMeshRender', enabled=True):
+                            with time_it('[CYTHON] gather face data for RFMeshRender', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 face_data = accel.gather_face_data()
-                            with time_it('[PYTHON] process face data', enabled=True):
+                            with time_it('[PYTHON] process face data', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 if face_data:
                                     _process_face_data(face_data)
                         else:
-                            with time_it('[PYTHON] gather face data for RFMeshRender', enabled=True):
+                            with time_it('[PYTHON] gather face data for RFMeshRender', enabled=False):
                                 tri_faces = [(bmf, list(bmvs))
                                             for bmf in faces
                                             if bmf.is_valid and not bmf.hide
@@ -313,13 +315,13 @@ class RFMeshRender():
                                 self.add_buffered_render(BufferedRender_Batch.LINES, _edge_data, static)
 
                         if accel is not None:
-                            with time_it('[CYTHON] gather edge data for RFMeshRender', enabled=True):
+                            with time_it('[CYTHON] gather edge data for RFMeshRender', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 edge_data = accel.gather_edge_data()
-                            with time_it('[PYTHON] process edge data', enabled=True):
+                            with time_it('[PYTHON] process edge data', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 if edge_data:
                                     _process_edge_data(edge_data)
                         else:
-                            with time_it('[PYTHON] gather edge data for RFMeshRender', enabled=True):
+                            with time_it('[PYTHON] gather edge data for RFMeshRender', enabled=False):
                                 edges = [bme for bme in edges if bme.is_valid and not bme.hide]
                                 l = len(edges)
                                 for i0 in range(0, l, edge_count):
@@ -344,13 +346,13 @@ class RFMeshRender():
                                 self.add_buffered_render(BufferedRender_Batch.POINTS, _vert_data, static)
 
                         if accel is not None:
-                            with time_it('[CYTHON] gather vert data for RFMeshRender', enabled=True):
+                            with time_it('[CYTHON] gather vert data for RFMeshRender', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 vert_data = accel.gather_vert_data()
-                            with time_it('[PYTHON] process vert data', enabled=True):
+                            with time_it('[PYTHON] process vert data', enabled=DEBUG_MESH_RENDER_ACCEL):
                                 if vert_data:
                                     _process_vert_data(vert_data)
                         else:
-                            with time_it('[PYTHON] gather vert data for RFMeshRender', enabled=True):
+                            with time_it('[PYTHON] gather vert data for RFMeshRender', enabled=False):
                                 verts = [bmv for bmv in verts if bmv.is_valid and not bmv.hide]
                                 l = len(verts)
                                 for i0 in range(0, l, vert_count):

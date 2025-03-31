@@ -67,13 +67,15 @@ class SelectedOnly(Enum):
     UNSELECTED = 2
 
 
+DEBUG_TARGET_ACCEL = False
+
+
 class RetopoFlow_Target:
     '''
     functions to work on target mesh (RFTarget)
     '''
 
     @profiler.function
-    @timing
     def setup_target(self):
         ''' target is the active object.  must be selected and visible '''
         tar_object = self.get_target()
@@ -92,7 +94,7 @@ class RetopoFlow_Target:
 
         Globals.target_accel = None
         if CY_TargetMeshAccel is not None:
-            with time_it('[CYTHON] TargetMeshAccel initialization', enabled=True):
+            with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
                 target = self.rftarget
                 actions = Actions.get_instance(None)
                 region_3d = actions.r3d
@@ -238,7 +240,6 @@ class RetopoFlow_Target:
         accel_data = self._generate_accel_data_struct(**kwargs)
         return accel_data.accel
 
-    @timing
     def refresh_depth_buffer(self, linearize_depth_buffer=True, scale_factor=10, color=False):
         if Globals.target_accel is None:
             return
@@ -288,7 +289,7 @@ class RetopoFlow_Target:
             
         # Globals.target_accel.py_update_depth_buffer(DEPTH_BUFFER, width, height)
 
-    @timing
+    ### @timing
     def _generate_accel_data_struct(self, *, selected_only=None, force=False):
         target_version = self.get_target_version(selection=selected_only)
         view_version = self.get_view_version()
@@ -370,8 +371,8 @@ class RetopoFlow_Target:
                 Globals.target_accel.py_update_bmesh(self.rftarget.bme)
                 Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)
 
-                with time_it('[CYTHON] TargetMeshAccel.update()', enabled=True):
-                    print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
+                with time_it('[CYTHON] TargetMeshAccel.update()', enabled=DEBUG_TARGET_ACCEL):
+                    if DEBUG_TARGET_ACCEL: print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
                     if not Globals.target_accel.update(1.0, selected_only.value, debug=True):
                         raise Exception('Error updating TargetMeshAccel.')
                         accel_data.accel = None
@@ -380,18 +381,18 @@ class RetopoFlow_Target:
                         accel_data.faces = set()
                         return accel_data
 
-                with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=True):
-                    print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
+                with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=DEBUG_TARGET_ACCEL):
+                    if DEBUG_TARGET_ACCEL: print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
                     accel_data.verts, accel_data.edges, accel_data.faces = Globals.target_accel.get_visible_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
 
-                # with time_it('[CYTHON] getting selected geometry', enabled=True):
+                # with time_it('[CYTHON] getting selected geometry', enabled=DEBUG_TARGET_ACCEL):
                 #     sel_verts, sel_edges, sel_faces = Globals.target_accel.get_selected_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
 
                 # Test Cython SpatialAccel structure (WIP, unstable).
                 # accel_data.accel = Accel2D_CyWrapper(Globals.target_accel)
                 
                 # TODO: REMOVE THIS WHEN CYTHON ACCEL IS COMPLETE.
-                '''with time_it('[PYTHON] building accel struct', enabled=True):
+                '''with time_it('[PYTHON] building accel struct', enabled=DEBUG_TARGET_ACCEL):
                     accel_data.accel = Accel2D(
                         f'RFTarget visible geometry ({selected_only=})',
                         accel_data.verts,
@@ -400,7 +401,7 @@ class RetopoFlow_Target:
                         self.iter_point2D_symmetries
                     )'''
 
-                with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=True):
+                with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=DEBUG_TARGET_ACCEL):
                     accel_data.accel = Accel2DOptimized(
                         # accel_data.verts, accel_data.edges, accel_data.faces,
                         self.rftarget.bme.verts, self.rftarget.bme.edges, self.rftarget.bme.faces,
@@ -423,14 +424,14 @@ class RetopoFlow_Target:
                         edges = self.get_unselected_edges()
                         faces = self.get_unselected_faces()
 
-                with time_it('getting visible geometry', enabled=True):
+                with time_it('getting visible geometry', enabled=False):
                     accel_data.verts = self.visible_verts(verts=verts)
                     accel_data.edges = self.visible_edges(edges=edges, verts=accel_data.verts)
                     accel_data.faces = self.visible_faces(faces=faces, verts=accel_data.verts)
                     print(f'[PYTHON] accel_data.verts={len(list(accel_data.verts))}')
                     print(f'[PYTHON] accel_data.edges={len(list(accel_data.edges))}')
                     print(f'[PYTHON] accel_data.faces={len(list(accel_data.faces))}')
-                with time_it('building accel struct', enabled=True):
+                with time_it('building accel struct', enabled=False):
                     accel_data.accel = Accel2D(
                         f'RFTarget visible geometry ({selected_only=})',
                         accel_data.verts,
@@ -446,8 +447,6 @@ class RetopoFlow_Target:
             traceback.print_exc()
             print("\nCall Stack:")
             traceback.print_stack()
-            import sys
-            sys.exit(-1)
 
         # remember important things that influence accel structure
         accel_data.target_version              = target_version
@@ -465,24 +464,24 @@ class RetopoFlow_Target:
     @staticmethod
     def filter_is_valid(bmelems): return filter(RFMesh.fn_is_valid, bmelems)
 
-    @timing
+    ### @timing
     def get_vis_verts(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts
-    @timing
+    ### @timing
     def get_vis_edges(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_edges
-    @timing
+    ### @timing
     def get_vis_faces(self, **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_faces
-    @timing
+    ### @timing
     def get_vis_geom(self,  **kwargs):
         self._generate_accel_data_struct(**kwargs)
         return self.accel_vis_verts, self.accel_vis_edges, self.accel_vis_faces
 
-    @timing
+    ### @timing
     def get_custom_vis_accel(self, selection_only=None, include_verts=True, include_edges=True, include_faces=True, symmetry=True):
         verts, edges, faces = self.visible_geom()
         if selection_only is not None:
@@ -496,7 +495,7 @@ class RetopoFlow_Target:
             self.iter_point2D_symmetries if symmetry else self.iter_point2D_nosymmetry,
         )
 
-    @timing
+    ### @timing
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -533,7 +532,7 @@ class RetopoFlow_Target:
                 return nearest_data['elem'], nearest_data['distance']
             return None, None
 
-    @timing
+    ### @timing
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -569,7 +568,7 @@ class RetopoFlow_Target:
                 return nearest_data['elem'], nearest_data['distance']
             return None, None
 
-    @timing
+    ### @timing
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         if point is None:
             if self.actions.is_navigating:
@@ -606,7 +605,6 @@ class RetopoFlow_Target:
                 return nearest_data['elem'], nearest_data['distance']
             return None, None
 
-    ### @timing
     def accel_nearest2D_geom(self, **kwargs):
         if (vert := self.accel_nearest2D_vert(**kwargs)[0]): return vert
         if (edge := self.accel_nearest2D_edge(**kwargs)[0]): return edge
