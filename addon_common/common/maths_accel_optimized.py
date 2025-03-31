@@ -83,14 +83,6 @@ class Accel2DOptimized:
             accel_faces
         )
         self.bm_wrapper = bm_wrapper
-        '''with time_it("DEBUG accel_points", enabled=True):
-            print("sizeof AccelPointCtypes:", ctypes.sizeof(AccelPointCtypes))
-            print(bbox)
-            print(num_points)
-            print(accel_points[0].type, accel_points[0].index)
-            print(accel_points[1].type, accel_points[1].index)
-            print(accel_points[2].type, accel_points[2].index)
-            print(accel_points[3].type, accel_points[3].index))'''
         self._init_with_accel_points(accel_points, num_points, region_width, region_height, bbox)
 
     def _init_with_accel_points(self, accel_points: ctypes.Array[AccelPointCtypes], num_points, region_width, region_height, bbox):
@@ -215,14 +207,14 @@ class Accel2D_CyWrapper:
             nearest['elem'] for nearest in res if fn_filter is None or fn_filter(nearest['elem'])
         }
 
-    @timing
+    @profiler.function
     def get_verts(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_verts)
 
-    @timing
+    @profiler.function
     def get_edges(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_edges)
 
-    @timing
+    @profiler.function
     def get_faces(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_faces)

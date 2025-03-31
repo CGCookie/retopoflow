@@ -254,14 +254,14 @@ class Accel2D_CyWrapper:
             nearest['elem'] for nearest in res if fn_filter is None or fn_filter(nearest['elem'])
         }
 
-    @timing
+    @profiler.function
     def get_verts(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_verts)
 
-    @timing
+    @profiler.function
     def get_edges(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_edges)
 
-    @timing
+    @profiler.function
     def get_faces(self, v2d, within):
         return self.get(v2d, within, nearest_fn=self.accel.find_k_nearest_faces)
