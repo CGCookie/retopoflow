@@ -16,3 +16,5 @@
 *.pyd binary
 *.so binary
 *.pyd binary
+*.so binary
+*.pyd binary
