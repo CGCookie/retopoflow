@@ -74,7 +74,7 @@ void main() {
     vec3 norm = normalize(vec3(vert_norm) * vec3(options.vert_scale));
 
     vec4 wpos = push_pos(options.matrix_m * pos);
-    vec3 wnorm = normalize(mat3(options.matrix_mn) * norm);
+    vec3 wnorm = normalize(mat4_to_mat3(options.matrix_mn) * norm);
 
     vec4 tpos = options.matrix_ti * wpos;
     vec3 tnorm = vec3(
@@ -90,7 +90,7 @@ void main() {
 
     vMNormal    = norm;
     vWNormal    = wnorm;
-    vCNormal    = normalize(mat3(options.matrix_vn) * wnorm);
+    vCNormal    = normalize(mat4_to_mat3(options.matrix_vn) * wnorm);
 
     vTPosition    = tpos;
     vWTPosition_x = options.matrix_t * vec4(0.0, tpos.y, tpos.z, 1.0);

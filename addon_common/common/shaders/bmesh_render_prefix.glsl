@@ -20,6 +20,19 @@ Created by Jonathan Denning
 */
 
 /////////////////////////////////////////////////////////////////////////
+// Metal API compatibility helper functions
+
+// Convert mat4 to mat3 explicitly (for Metal API compatibility)
+mat3 mat4_to_mat3(mat4 m) {
+    // Use component access for Metal compatibility, extracting the upper-left 3x3 matrix
+    return mat3(
+        m[0].x, m[0].y, m[0].z,
+        m[1].x, m[1].y, m[1].z,
+        m[2].x, m[2].y, m[2].z
+    );
+}
+
+/////////////////////////////////////////////////////////////////////////
 // common shader
 
 struct Options {
