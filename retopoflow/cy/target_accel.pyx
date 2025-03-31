@@ -1604,9 +1604,9 @@ cdef class TargetMeshAccel:
         # Get the size of the AccelPoint struct
         cdef size_t struct_size = sizeof(AccelPoint)
 
-        print("[CYTHON]  ctypes.sizeof(AccelPointCtypes):", ctypes.sizeof(AccelPointCtypes))
-        print("[CYTHON]  sizeof(AccelPoint):", sizeof(AccelPoint))
-        print("[CYTHON]  sizeof(self.accel2d_points):", sizeof(self.accel2d_points))
+        # print("[CYTHON]  ctypes.sizeof(AccelPointCtypes):", ctypes.sizeof(AccelPointCtypes))
+        # print("[CYTHON]  sizeof(AccelPoint):", sizeof(AccelPoint))
+        # print("[CYTHON]  sizeof(self.accel2d_points):", sizeof(self.accel2d_points))
 
         # Create a ctypes array type with the correct item size
         class AccelPointArray(ctypes.Structure):
