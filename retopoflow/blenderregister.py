@@ -771,6 +771,8 @@ if import_succeeded:
                     row.operator('cgcookie.retopoflow_cleardebugging',   text='Clear', icon='X')
 
             # ADDON UPDATER
+            # Not currently working, and no plans to fix since it will be replaced by the Superhive updater in v4
+            '''
             col = box.column(align=True)
             row = col.row(align=True)
             row.label(text='Updater')
@@ -782,7 +784,7 @@ if import_succeeded:
                 row.operator('cgcookie.retopoflow_updater',              text='', icon='SETTINGS')
                 row.operator('cgcookie.retopoflow_help_updatersystem',   text='', icon='HELP')
                 row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
-
+            '''
 
         def draw(self, context):
             layout = self.layout
