@@ -142,7 +142,7 @@ cdef class TargetMeshAccel:
     cdef void _update_object_transform(self, const float[:, ::1] matrix_world, const float[:, ::1] matrix_normal) nogil
     cdef void _reset(self, bint dirty=*) noexcept nogil
     cdef void set_dirty(self) noexcept nogil
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode, bint debug=*) noexcept nogil
 
     cdef bint _build_accel_struct(self, bint debug=*) noexcept nogil
     cdef void add_vert_to_grid(self, BMVert* vert, int insert_index) noexcept nogil
@@ -157,7 +157,7 @@ cdef class TargetMeshAccel:
 
     cpdef bint update(self, float margin_check, int selection_mode, bint debug=*)
 
-    cpdef int ensure_bmesh(self)
+    cpdef int ensure_bmesh(self, bint debug=*)
 
     cpdef void py_set_dirty_accel(self)
     cpdef void py_set_dirty_geom_vis(self)

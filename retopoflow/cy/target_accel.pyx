@@ -115,13 +115,13 @@ cdef class TargetMeshAccel:
             start_time = time.time()
             print("[CYTHON] TargetMeshAccel.update()")
 
-        self.ensure_bmesh()
+        self.ensure_bmesh(debug=debug)
         if debug:
             current_time = time.time()
             print(f"\t- Ensure BMesh took: {round(current_time - start_time, 5)} seconds")
             step_start_time = current_time
 
-        if self._compute_geometry_visibility_in_region(margin_check, selection_mode) != 0:
+        if self._compute_geometry_visibility_in_region(margin_check, selection_mode, debug=debug) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             return False
         if debug:
@@ -177,7 +177,7 @@ cdef class TargetMeshAccel:
 
         self.set_dirty()
 
-    cpdef int ensure_bmesh(self):
+    cpdef int ensure_bmesh(self, bint debug=False):
         """Ensure lookup tables are created for the bmesh and indices are updated (sorted in ascending order).
 
             ### Returns:
@@ -238,15 +238,18 @@ cdef class TargetMeshAccel:
                 ftable_dirty = True
 
         if vtable_dirty:
-            print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
+            if debug:
+                print(f"[CYTHON] py_bmesh.verts.ensure_lookup_table()\n")
             self.py_bmesh.verts.ensure_lookup_table()
 
         if etable_dirty:
-            print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
+            if debug:
+                print(f"[CYTHON] py_bmesh.edges.ensure_lookup_table()\n")
             self.py_bmesh.edges.ensure_lookup_table()
 
         if ftable_dirty:
-            print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
+            if debug:
+                print(f"[CYTHON] py_bmesh.faces.ensure_lookup_table()\n")
             self.py_bmesh.faces.ensure_lookup_table()
 
         if not vindices_dirty:
@@ -273,15 +276,18 @@ cdef class TargetMeshAccel:
 
         if vindices_dirty:
             self.py_bmesh.verts.index_update()
-            print(f"[CYTHON] py_bmesh.verts.index_update()")
+            if debug:
+                print(f"[CYTHON] py_bmesh.verts.index_update()")
         
         if eindices_dirty:
             self.py_bmesh.edges.index_update()
-            print(f"[CYTHON] py_bmesh.edges.index_update()")
+            if debug:
+                print(f"[CYTHON] py_bmesh.edges.index_update()")
 
         if findices_dirty:
             self.py_bmesh.faces.index_update()
-            print(f"[CYTHON] py_bmesh.faces.index_update()")
+            if debug:
+                print(f"[CYTHON] py_bmesh.faces.index_update()")
 
         if vtable_dirty or etable_dirty or ftable_dirty:
             self.set_dirty()
@@ -294,9 +300,8 @@ cdef class TargetMeshAccel:
             return 1
         return 0
 
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode) noexcept nogil:
+    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode, bint debug=False) noexcept nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
-            printf("[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             with gil:
                 print(f"[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
             return -1
@@ -363,8 +368,9 @@ cdef class TargetMeshAccel:
             vert = vtable[vert_idx]
             # Skip NULL/invalid vertices.
             if vert == NULL:
-                with gil:
-                    print(f"[CYTHON] vert {vert_idx} is NULL")
+                if debug:
+                    with gil:
+                        print(f"[CYTHON] vert {vert_idx} is NULL")
                 continue
 
             '''if selection_mode == SelectionState.SELECTED:
@@ -378,8 +384,6 @@ cdef class TargetMeshAccel:
 
             # Skip hidden vertices.
             if BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_HIDDEN):
-                with gil:
-                    print(f"[CYTHON] vert {vert_idx} is hidden")
                 continue
 
             if self.compute_vert_visibility(vert):
@@ -471,11 +475,11 @@ cdef class TargetMeshAccel:
                 self.visfaces[face_idx] = face
                 face_idx += 1
 
-
-        with gil:
-            print(f"[CYTHON] totvisverts: {totvisvert}")
-            print(f"[CYTHON] totvisedges: {totvisedge}")
-            print(f"[CYTHON] totvisfaces: {totvisface}")
+        if debug:
+            with gil:
+                print(f"[CYTHON] totvisverts: {totvisvert}")
+                print(f"[CYTHON] totvisedges: {totvisedge}")
+                print(f"[CYTHON] totvisfaces: {totvisface}")
 
         # Store vis states for verts/edges/faces.
         self.is_vert_visible = is_vert_visible
@@ -1623,7 +1627,7 @@ cdef class TargetMeshAccel:
         # Access the array through the pointer
         points_array = array_ptr.contents.array
 
-        print("[CYTHON]  ctypes.sizeof(array_ptr.contents.array):", ctypes.sizeof(points_array))
+        # print("[CYTHON]  ctypes.sizeof(array_ptr.contents.array):", ctypes.sizeof(points_array))
         
         return points_array, self.accel2d_totpoints, list(self.accel2d_bbox)
 

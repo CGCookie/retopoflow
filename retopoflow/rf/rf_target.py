@@ -373,7 +373,7 @@ class RetopoFlow_Target:
 
                 with time_it('[CYTHON] TargetMeshAccel.update()', enabled=DEBUG_TARGET_ACCEL):
                     if DEBUG_TARGET_ACCEL: print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
-                    if not Globals.target_accel.update(1.0, selected_only.value, debug=True):
+                    if not Globals.target_accel.update(1.0, selected_only.value, debug=DEBUG_TARGET_ACCEL):
                         raise Exception('Error updating TargetMeshAccel.')
                         accel_data.accel = None
                         accel_data.verts = set()
