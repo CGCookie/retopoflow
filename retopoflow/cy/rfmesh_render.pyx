@@ -36,6 +36,11 @@ cdef class MeshRenderAccel:
         self.mirror_z = mirror_z
         self.layer_pin = layer_pin
 
+    cpdef bint check_bmesh(self):
+        if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
+            return False
+        return True
+
     cdef float seam_elem(self, BMHeader* head) noexcept nogil:
         return <float>1.0 if BM_elem_flag_test(head, BMElemHFlag.BM_ELEM_SEAM) else <float>0.0
 
@@ -93,18 +98,19 @@ cdef class MeshRenderAccel:
     cpdef dict gather_vert_data(self):
         """Gather BMesh vert data"""
         if self.bmesh == NULL or self.bmesh.vtable == NULL:
-            print("[CYTHON] Error: gather_face_edge() - bmesh or etable is NULL\n")
+            print("[CYTHON] Error: gather_vert_data() - bmesh or vtable is NULL\n")
+            return {}
             return {
-                'vco': np.zeros((0, 3), dtype=np.float32),
-                'vno': np.zeros((0, 3), dtype=np.float32),
-                'sel': np.zeros(0, dtype=np.float32),
-                'warn': np.zeros(0, dtype=np.float32),
-                'pin': np.zeros(0, dtype=np.float32),
-                'seam': np.zeros(0, dtype=np.float32),
+                'vco': np.zeros((0, 3), dtype=np.float32),  # Still a 2D array with 3 components per vertex
+                'vno': np.zeros((0, 3), dtype=np.float32),  # Still a 2D array with 3 components per vertex
+                'sel': np.zeros(0, dtype=np.float32),  # Now explicitly a 2D array with 1 component per vertex
+                'warn': np.zeros(0, dtype=np.float32), # Now explicitly a 2D array with 1 component per vertex
+                'pin': np.zeros(0, dtype=np.float32),  # Now explicitly a 2D array with 1 component per vertex
+                'seam': np.zeros(0, dtype=np.float32), # Now explicitly a 2D array with 1 component per vertex
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0
             }
-        
+
         try:
             self.py_bmesh.verts[self.bmesh.totvert-1]
         except IndexError:
@@ -201,18 +207,19 @@ cdef class MeshRenderAccel:
     cpdef dict gather_edge_data(self):
         """Gather BMesh edge data"""
         if self.bmesh == NULL or self.bmesh.etable == NULL:
-            print("[CYTHON] Error: gather_face_edge() - bmesh or etable is NULL\n")
+            print("[CYTHON] Error: gather_edge_data() - bmesh or etable is NULL\n")
+            return {}
             return {
-                'vco': np.zeros((0, 3), dtype=np.float32),
-                'vno': np.zeros((0, 3), dtype=np.float32),
-                'sel': np.zeros(0, dtype=np.float32),
-                'warn': np.zeros(0, dtype=np.float32),
-                'pin': np.zeros(0, dtype=np.float32),
-                'seam': np.zeros(0, dtype=np.float32),
+                'vco': np.zeros((0, 3), dtype=np.float32),  # Still a 2D array with 3 components per vertex
+                'vno': np.zeros((0, 3), dtype=np.float32),  # Still a 2D array with 3 components per vertex
+                'sel': np.zeros(0, dtype=np.float32),  # Now explicitly a 2D array with 1 component per vertex
+                'warn': np.zeros(0, dtype=np.float32), # Now explicitly a 2D array with 1 component per vertex
+                'pin': np.zeros(0, dtype=np.float32),  # Now explicitly a 2D array with 1 component per vertex
+                'seam': np.zeros(0, dtype=np.float32), # Now explicitly a 2D array with 1 component per vertex
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0
             }
-        
+
         try:
             self.py_bmesh.edges[self.bmesh.totedge-1]
         except IndexError:
@@ -334,18 +341,19 @@ cdef class MeshRenderAccel:
         """Gather BMesh face data"""
         if self.bmesh == NULL or self.bmesh.ftable == NULL:
             print("[CYTHON] Error: gather_face_data() - bmesh or ftable is NULL\n")
+            return {}
             return {
-                'vco': np.zeros((0, 3), dtype=np.float32),
-                'vno': np.zeros((0, 3), dtype=np.float32),
-                'sel': np.zeros(0, dtype=np.float32),
-                'warn': np.zeros(0, dtype=np.float32),
-                'pin': np.zeros(0, dtype=np.float32),
-                'seam': np.zeros(0, dtype=np.float32),
+                'vco': np.zeros((0, 3), dtype=np.float32),    # 2D array with shape (0, 3)
+                'vno': np.zeros((0, 3), dtype=np.float32),    # 2D array with shape (0, 3)
+                'sel': np.zeros(0, dtype=np.float32),         # 1D array with shape (0,)
+                'warn': np.zeros(0, dtype=np.float32),        # 1D array with shape (0,)
+                'pin': np.zeros(0, dtype=np.float32),         # 1D array with shape (0,)
+                'seam': np.zeros(0, dtype=np.float32),        # 1D array with shape (0,)
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0,
                 'tri_count': 0
             }
-        
+
         try:
             self.py_bmesh.faces[self.bmesh.totface-1]
         except IndexError:

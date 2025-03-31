@@ -18,6 +18,8 @@ cdef class MeshRenderAccel:
         BMesh* bmesh
         bint mirror_x, mirror_y, mirror_z
         object layer_pin
+
+    cpdef bint check_bmesh(self)
     
     # Helper methods for element state
     cdef float sel_elem(self, BMHeader* head) noexcept nogil

@@ -109,7 +109,7 @@ cdef class TargetMeshAccel:
         self.py_update_region(py_region)
         self.py_update_view(py_space, py_rv3d, framebuffer, viewport_info)
 
-    cpdef bint update(self, float margin_check, int selection_mode, bint debug=False):
+    cpdef bint update(self, int selection_mode, bint debug=False):
         if debug:
             # Use Python objects for timing to avoid Cython conversion issues
             start_time = time.time()
@@ -121,7 +121,7 @@ cdef class TargetMeshAccel:
             print(f"\t- Ensure BMesh took: {round(current_time - start_time, 5)} seconds")
             step_start_time = current_time
 
-        if self._compute_geometry_visibility_in_region(margin_check, selection_mode, debug=debug) != 0:
+        if self._compute_geometry_visibility_in_region(selection_mode, debug=debug) != 0:
             print("[CYTHON] Error: Failed to compute geometry visibility in region\n")
             return False
         if debug:
@@ -300,7 +300,7 @@ cdef class TargetMeshAccel:
             return 1
         return 0
 
-    cdef int _compute_geometry_visibility_in_region(self, float margin_check, int selection_mode, bint debug=False) noexcept nogil:
+    cdef int _compute_geometry_visibility_in_region(self, int selection_mode, bint debug=False) noexcept nogil:
         if self.bmesh == NULL or self.bmesh.vtable == NULL or self.bmesh.etable == NULL or self.bmesh.ftable == NULL:
             with gil:
                 print(f"[CYTHON] Error: Accel2D._compute_geometry_visibility_in_region() - bmesh or vtable is NULL\n")
@@ -1101,7 +1101,7 @@ cdef class TargetMeshAccel:
 
         # Update mesh vis only.
         if self.is_dirty_geom_vis:
-            if self._compute_geometry_visibility_in_region(<float>1.0, <int>SelectionState.ALL) != 0:
+            if self._compute_geometry_visibility_in_region(<int>SelectionState.ALL) != 0:
                 with gil:
                     print("[CYTHON] Error updating visible geometry when select-box!")
                 return False
@@ -1437,10 +1437,10 @@ cdef class TargetMeshAccel:
         if framebuffer is not None:
             self.py_update_depth_buffer(framebuffer, viewport_info[2], viewport_info[3])
 
-    cpdef bint py_update_geometry_visibility(self, float margin_check, int selection_mode, bint update_accel):
+    cpdef bint py_update_geometry_visibility(self, int selection_mode, bint update_accel):
         if not self.is_dirty_geom_vis:
             return True
-        if self._compute_geometry_visibility_in_region(margin_check, selection_mode) == 0:
+        if self._compute_geometry_visibility_in_region(selection_mode) == 0:
             if update_accel:
                 self._build_accel_struct()
             return True

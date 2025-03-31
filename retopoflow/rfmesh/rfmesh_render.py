@@ -223,6 +223,8 @@ class RFMeshRender():
                 mirror_z=mirror_z,
                 layer_pin=layer_pin
             )
+            if not accel.check_bmesh():
+                accel = None
         else:
             accel = None
 
