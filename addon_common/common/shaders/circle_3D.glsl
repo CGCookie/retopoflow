@@ -34,10 +34,10 @@ uniform Options options;
 const float TAU = 6.28318530718;
 const bool srgbTarget = true;
 
-float radius()      { return options.settings[0]; }
-float width()       { return options.settings[1]; }
-float depth_near()  { return options.settings[2]; }
-float depth_far()   { return options.settings[3]; }
+float radius()      { return options.settings.x; }
+float width()       { return options.settings.y; }
+float depth_near()  { return options.settings.z; }
+float depth_far()   { return options.settings.w; }
 
 
 /////////////////////////////////////////////////////////////////////////
