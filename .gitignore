@@ -54,7 +54,7 @@ coverage.xml
 docs/_build/
 
 # Jekyll documentation
-docs/_site/
+_site/
 
 # PyBuilder
 target/

@@ -68,6 +68,7 @@ code {
 
 img {
     vertical-align: middle;
+    border-radius: 8px;
 }
 
 li img {
@@ -101,7 +102,8 @@ header .logo {
     padding-bottom: 16px;
 }
 header .tagline {
-    margin-top: -16px;
+    margin-top: -20px;
+    font-style: italic;
 }
 header ul {
     list-style: none;
