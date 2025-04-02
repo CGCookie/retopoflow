@@ -46,6 +46,15 @@ a:hover {
     font-weight: unset;
     color: rgb(255, 191, 73);
 }
+/*
+.outlink::after {
+    content: url("/images/icons/outlink_light.png");
+    margin-left: 8px;
+    opacity: 25%;
+    vertical-align: middle;
+    display: inline-block;
+  }
+*/
 
 code {
     /*display: inline-block;*/
@@ -62,10 +71,11 @@ img {
 }
 
 li img {
-    width: 24px;
-    height: 24px;
-    padding-top: 8px;
-    padding-right: 8px;
+    width: 32px;
+    height: 32px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-right: 12px;
 }
 
 h1 img {
@@ -84,6 +94,7 @@ th {
 /* undo theme styling on header and footer */
 header {
     padding-left: 1px;
+    position: absolute;
 }
 header .logo {
     max-width: 164px;
