@@ -52,6 +52,8 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+# Jekyll documentation
 docs/_site/
 
 # PyBuilder
