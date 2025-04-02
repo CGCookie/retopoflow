@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Retopoflow Debugging | Retopoflow 4</title>
+<title>Retopoflow Debugging | Retopoflow</title>
 <meta name="generator" content="Jekyll v3.9.5" />
 <meta property="og:title" content="Retopoflow Debugging" />
 <meta property="og:locale" content="en_US" />
@@ -14,7 +14,7 @@
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/debugging.html" />
 <meta property="og:url" content="http://localhost:4000/debugging.html" />
-<meta property="og:site_name" content="Retopoflow 4" />
+<meta property="og:site_name" content="Retopoflow" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Retopoflow Debugging" />
@@ -22,7 +22,7 @@
 {"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Retopoflow Debugging","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/debugging.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
+    <link rel="stylesheet" href="/assets/css/style.css?v=b52848a5be44fb8e919fa4ed67047eeb524bc743">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -85,62 +85,63 @@
 
       <h1 id="retopoflow-debugging">Retopoflow Debugging</h1>
 
-<p>If you run into an issue while using Retopoflow, you can report it via <a href="https://blendermarket.com/products/retopoflow">Product Support</a> on Blender Market or by creating an issue via GitHub Retopoflow <a href="https://github.com/CGCookie/retopoflow/issues/new/choose">Issues</a>.
-These Retopoflow issues covers bugs within Retopoflow or unexpected behavior of tools.</p>
+<p>If you run into an issue while using Retopoflow, you can report it via <a href="https://blendermarket.com/products/retopoflow">Product Support</a> on Superhive (formerly Blender Market) or by creating an issue on <a href="https://github.com/CGCookie/retopoflow/issues/new/choose">GitHub</a>.</p>
 
-<p>Note: support via GitHub will be limited to fixing Retopoflow bugs.
-The Blender Market route will provide you premium support.</p>
+<p>Those who have purchased Retopoflow are helped first.</p>
 
-<p>Whichever path of support you take, there are a few things to keep in mind to help us in debugging and fixing the issue as quickly as possible.
-The list below contain a few of these.</p>
+<p>We support official releases of Blender (as listed on the <a href="/installation.html">Installation</a> page) and cannot gurantee compatibility with pre-release or non-official versions of Blender or compatibility with other add-ons.</p>
+
+<p>There are a few things to keep in mind that will help us in debugging and fixing the issue as quickly as possible.</p>
 
 <ul>
   <li>
-    <p>Explain clearly the context.  For example, add a screenshot or share a .blend file that shows what the scene looked like before you had the issue, what action you did to cause the issue, and what was the result of the action.</p>
+    <p>Clearly explain the context.  Show or describe what the scene looked like before you had the issue, what action triggered the issue, and what was the result of the action.</p>
   </li>
   <li>
-    <p>Consider sharing your .blend file with us.  Often times, the .blend file has a particular setting that we have not tested, and having access to your file will make reproducing your issue easier.</p>
+    <p>Consider sharing your <code class="language-plaintext highlighter-rouge">.blend</code> file with us.  Often times, the file has a particular combination of Blender settings that we have not tested and having access to your file will make reproducing your issue easier.</p>
   </li>
   <li>
-    <p>Try to reproduce the issue on the default Blender scene, or try to reproduce the issue on another machine, especially a different system (OSX, Windows, Linux) if possible.</p>
+    <p>Try to reproduce the issue on the default Blender scene or try to reproduce the issue on another machine, especially a different operating system (OSX, Windows, Linux) if possible.</p>
   </li>
   <li>
-    <p>Be sure to include all of the terminal / console output in your post (see below).</p>
+    <p>Be sure to include all of the terminal / console output in your message (see below).</p>
   </li>
   <li>
-    <p>Be sure to include the machine information, Blender version, and Retopoflow version in your post.</p>
+    <p>Be sure to include your machine information, Blender version, and Retopoflow version in your message.</p>
   </li>
   <li>
-    <p>Be sure to reply to our questions.  If we are unable to reproduce the issue, and it goes without any activity for a time, we will close the issue.</p>
+    <p>Be sure to reply to our questions.  If we are unable to reproduce the issue and it goes without any activity for some time, we will close the issue.</p>
   </li>
 </ul>
 
 <h2 id="terminal--console-output">Terminal / Console Output</h2>
 
-<p>Sometimes an issue is caused by a different part of code than what is reported.
-By design, we do not report all the information in Retopoflow, but that information might be critical to solving the issue.
+<p>Sometimes an issue is caused by a different part of code than what is reported by the error in the UI.</p>
+
+<p>By design, we do not report all the information from Retopoflow, but that information might be critical to solving the issue.
 You can access the additional information through the system terminal / console.</p>
 
-<p>Note: There might be a lot of info in there (have to scroll), so be sure to copy <em>all</em> of the text from the terminal / console.</p>
+<p>Note: There might be a lot of info in there (have to scroll), but be sure to copy <em>all</em> of the text from the terminal / console. It’s ok to hit us with a wall of text!</p>
 
-<h3 id="built-in-deep-debugging">Built-in Deep Debugging</h3>
+<!--
+### Built-in Deep Debugging
 
-<p>This simplest way to report the terminal output is to enable Deep Debugging.</p>
+This simplest way to report the terminal output is to enable Deep Debugging.
 
-<p>Note: you will need to restart Blender after enabling.</p>
+Note: you will need to restart Blender after enabling.
 
-<p><img src="images/debugging_enable.png" alt="" /></p>
+![](images/debugging_enable.png)
 
-<p>When Deep Debugging is enabled, all terminal output will be redirected to a text file.</p>
 
-<ul>
-  <li>Start Blender, enabled Deep Debugging, restart Blender</li>
-  <li>Start Retopoflow</li>
-  <li>Once issue occurs, exit Retopoflow</li>
-  <li>Under the Retopoflow menu, choose Open Debugging Info</li>
-</ul>
+When Deep Debugging is enabled, all terminal output will be redirected to a text file.
 
-<p><img src="images/debugging_open.png" alt="" /></p>
+- Start Blender, enabled Deep Debugging, restart Blender
+- Start Retopoflow
+- Once issue occurs, exit Retopoflow
+- Under the Retopoflow menu, choose Open Debugging Info
+
+![](images/debugging_open.png)
+-->
 
 <h3 id="windows">Windows</h3>
 

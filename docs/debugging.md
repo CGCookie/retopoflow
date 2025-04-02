@@ -1,36 +1,36 @@
 # Retopoflow Debugging
 
-If you run into an issue while using Retopoflow, you can report it via [Product Support](https://blendermarket.com/products/retopoflow) on Blender Market or by creating an issue via GitHub Retopoflow [Issues](https://github.com/CGCookie/retopoflow/issues/new/choose).
-These Retopoflow issues covers bugs within Retopoflow or unexpected behavior of tools.
+If you run into an issue while using Retopoflow, you can report it via [Product Support](https://blendermarket.com/products/retopoflow) on Superhive (formerly Blender Market) or by creating an issue on [GitHub](https://github.com/CGCookie/retopoflow/issues/new/choose).
 
-Note: support via GitHub will be limited to fixing Retopoflow bugs.
-The Blender Market route will provide you premium support.
+Those who have purchased Retopoflow are helped first. 
 
-Whichever path of support you take, there are a few things to keep in mind to help us in debugging and fixing the issue as quickly as possible.
-The list below contain a few of these.
+We support official releases of Blender (as listed on the [Installation](./installation.md) page) and cannot gurantee compatibility with pre-release or non-official versions of Blender or compatibility with other add-ons. 
 
-- Explain clearly the context.  For example, add a screenshot or share a .blend file that shows what the scene looked like before you had the issue, what action you did to cause the issue, and what was the result of the action.
+There are a few things to keep in mind that will help us in debugging and fixing the issue as quickly as possible.
 
-- Consider sharing your .blend file with us.  Often times, the .blend file has a particular setting that we have not tested, and having access to your file will make reproducing your issue easier.
+- Clearly explain the context.  Show or describe what the scene looked like before you had the issue, what action triggered the issue, and what was the result of the action.
 
-- Try to reproduce the issue on the default Blender scene, or try to reproduce the issue on another machine, especially a different system (OSX, Windows, Linux) if possible.
+- Consider sharing your `.blend` file with us.  Often times, the file has a particular combination of Blender settings that we have not tested and having access to your file will make reproducing your issue easier.
 
-- Be sure to include all of the terminal / console output in your post (see below).
+- Try to reproduce the issue on the default Blender scene or try to reproduce the issue on another machine, especially a different operating system (OSX, Windows, Linux) if possible.
 
-- Be sure to include the machine information, Blender version, and Retopoflow version in your post.
+- Be sure to include all of the terminal / console output in your message (see below).
 
-- Be sure to reply to our questions.  If we are unable to reproduce the issue, and it goes without any activity for a time, we will close the issue.
+- Be sure to include your machine information, Blender version, and Retopoflow version in your message.
+
+- Be sure to reply to our questions.  If we are unable to reproduce the issue and it goes without any activity for some time, we will close the issue.
 
 
 ## Terminal / Console Output
 
-Sometimes an issue is caused by a different part of code than what is reported.
-By design, we do not report all the information in Retopoflow, but that information might be critical to solving the issue.
+Sometimes an issue is caused by a different part of code than what is reported by the error in the UI.
+
+By design, we do not report all the information from Retopoflow, but that information might be critical to solving the issue.
 You can access the additional information through the system terminal / console.
 
-Note: There might be a lot of info in there (have to scroll), so be sure to copy _all_ of the text from the terminal / console.
+Note: There might be a lot of info in there (have to scroll), but be sure to copy _all_ of the text from the terminal / console. It's ok to hit us with a wall of text! 
 
-
+<!--
 ### Built-in Deep Debugging
 
 This simplest way to report the terminal output is to enable Deep Debugging.
@@ -48,7 +48,7 @@ When Deep Debugging is enabled, all terminal output will be redirected to a text
 - Under the Retopoflow menu, choose Open Debugging Info
 
 ![](images/debugging_open.png)
-
+-->
 
 ### Windows
 
