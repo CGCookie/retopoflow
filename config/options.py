@@ -206,7 +206,7 @@ class Options:
 
         # BLENDER PANEL
         'expand advanced panel': False,
-        'expand help panel':     True,
+        'expand help panel':     False,
 
         # BLENDER UI
         'hide panels no overlap':   True,   # hide panels even when region overlap is disabled

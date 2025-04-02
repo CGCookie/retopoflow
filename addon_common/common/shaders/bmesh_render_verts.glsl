@@ -54,7 +54,7 @@ void main() {
     vec3 norm = normalize(vec3(vert_norm) * vec3(options.vert_scale));
 
     vec4 wpos = push_pos(options.matrix_m * pos);
-    vec3 wnorm = normalize(mat3(options.matrix_mn) * norm);
+    vec3 wnorm = normalize(mat4_to_mat3(options.matrix_mn) * norm);
 
     vec4 tpos = options.matrix_ti * wpos;
     vec3 tnorm = vec3(
@@ -66,7 +66,7 @@ void main() {
     vPPosition  = off + xyz4(options.matrix_p * options.matrix_v * wpos);
     vPCPosition = xyz4(options.matrix_p * options.matrix_v * wpos).xy;
 
-    vCNormal    = normalize(mat3(options.matrix_vn) * wnorm);
+    vCNormal    = normalize(mat4_to_mat3(options.matrix_vn) * wnorm);
 
     vTPosition    = tpos;
     vCTPosition_x = options.matrix_v * options.matrix_t * vec4(0.0, tpos.y, tpos.z, 1.0);
@@ -114,8 +114,8 @@ out vec4 outColor;
 out float gl_FragDepth;
 
 void main() {
-    float clip  = options.clip[1] - options.clip[0];
-    float focus = (view_distance() - options.clip[0]) / clip + 0.04;
+    float clip  = options.clip.y - options.clip.x;
+    float focus = (view_distance() - options.clip.x) / clip + 0.04;
     vec3  rgb   = vColor.rgb;
     float alpha = vColor.a;
 
@@ -133,7 +133,7 @@ void main() {
         // perspective projection
         vec3 v = xyz3(vCPosition);
         float l = length(v);
-        float l_clip = (l - options.clip[0]) / clip;
+        float l_clip = (l - options.clip.x) / clip;
         float d = -dot(vCNormal, v) / l;
         if(d <= 0.0) {
             if(cull_backfaces()) {
@@ -148,7 +148,7 @@ void main() {
         // orthographic projection
         vec3 v = vec3(0, 0, clip * 0.5); // + vCPosition.xyz / vCPosition.w;
         float l = length(v);
-        float l_clip = (l - options.clip[0]) / clip;
+        float l_clip = (l - options.clip.x) / clip;
         float d = dot(vCNormal, v) / l;
         if(d <= 0.0) {
             if(cull_backfaces()) {
