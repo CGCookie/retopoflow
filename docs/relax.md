@@ -1,4 +1,6 @@
-# ![](images/relax-icon.png) Relax
+# ![](images/icons/relax-icon.png) Relax Brush
+
+![](images/relax.jpg)
 
 <!--
 Quick Shortcut: {{ site.data.keymaps.relax_quick }}
@@ -65,3 +67,7 @@ The Relax Brush has several options to control which vertices are moved and how.
 **Straighten Edges** enables moving vertices so that their edge loops straighten out.
 
 **Correct Flipped Faces** attempts to make sure the direction of the face normals under the brush are consistent.
+
+## Selection
+
+Even though `Left Click` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift Left Click`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well. 

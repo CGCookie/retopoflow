@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>PolyPen | RetopoFlow</title>
+<title>PolyPen | Retopoflow 4</title>
 <meta name="generator" content="Jekyll v3.9.5" />
 <meta property="og:title" content="PolyPen" />
 <meta property="og:locale" content="en_US" />
@@ -14,7 +14,7 @@
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/polypen.html" />
 <meta property="og:url" content="http://localhost:4000/polypen.html" />
-<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:site_name" content="Retopoflow 4" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="PolyPen" />
@@ -22,7 +22,7 @@
 {"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"PolyPen","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/polypen.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -31,7 +31,7 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <h1><a href="http://localhost:4000/">Retopoflow</a></h1>
         <!--
         
           <img src="/images/retopoflow_3_feature.png" alt="Logo" />
@@ -47,20 +47,17 @@
         </ul>
 
         <ul>
-          <li><a href="general.html">RetopoFlow Mode</a></li>
-        </ul>
-
-        <ul>
-          <li><a href="contours.html">Contours</a></li>
-          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
-          <li><a href="strokes.html">Strokes</a></li>
-          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="tweak.html">Tweak</a></li>
-          <li><a href="relax.html">Relax</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="tweak.html">Tweak Brush</a></li>
+          <li><a href="relax.html">Relax Brush</a></li>
         </ul>
 
         <ul>
+          <li><a href="general.html">Retopoflow Mode</a></li>
           <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
           <li><a href="symmetry.html">Symmetry</a></li>
         </ul>
@@ -68,12 +65,15 @@
         <ul>
           <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="limitations.html">Limitations</a></li>
+          <!-- <li><a href="limitations.html">Limitations</a></li> -->
           <li><a href="debugging.html">Debugging</a></li>
         </ul>
 
         <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
           <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
@@ -83,7 +83,9 @@
       </header>
       <section>
 
-      <h1 id="-polypen"><img src="/images/polypen-icon.png" alt="" /> PolyPen</h1>
+      <h1 id="-polypen"><img src="/images/icons/polypen-icon.png" alt="" /> PolyPen</h1>
+
+<p><img src="images/polypen.jpg" alt="" /></p>
 
 <p>The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.</p>
@@ -113,7 +115,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 <p>PolyPen can also be used as a simple knife. To make a cut, hold <code class="language-plaintext highlighter-rouge">Ctrl</code> and either hover over a selected edge if there is a selection, or any edge if there is no selection. <code class="language-plaintext highlighter-rouge">Left Mouse Click</code> on the edge and then <code class="language-plaintext highlighter-rouge">Left Mouse Click</code> on any edge that is connected to the same face.</p>
 
-<p>PolyPen’s knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender’s knife. We plan to improve the knife functionalty going forward but in the meantime, for more advanced features, it is recommended to use Blender’s knife with the hotkey <code class="language-plaintext highlighter-rouge">K</code> and then use RetopoFlow’s <a href="mesh_cleanup.html">Mesh Cleanup operator</a> on the result to snap the new vertices to the surface of the source object.</p>
+<p>PolyPen’s knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender’s knife. We plan to improve the knife functionalty going forward but in the meantime, for more advanced features, it is recommended to use Blender’s knife with the hotkey <code class="language-plaintext highlighter-rouge">K</code> and then use Retopoflow’s <a href="mesh_cleanup.html">Mesh Cleanup operator</a> on the result to snap the new vertices to the surface of the source object.</p>
 
 <h2 id="selecting">Selecting</h2>
 
@@ -121,7 +123,7 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 <h2 id="transforming">Transforming</h2>
 
-<p>A <code class="language-plaintext highlighter-rouge">Left Click Drag</code> on components in PolyPen will perform a tweak action similar to Blender’s Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the <a href="general.html">RetopoFlow Mode</a> docs page under Common Settings.</p>
+<p>A <code class="language-plaintext highlighter-rouge">Left Click Drag</code> on components in PolyPen will perform a tweak action similar to Blender’s Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the <a href="general.html">Retopoflow Mode</a> docs page under Common Settings.</p>
 
 
       </section>

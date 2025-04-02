@@ -6,23 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>PolyStrips Help | RetopoFlow</title>
+<title>PolyStrips | Retopoflow 4</title>
 <meta name="generator" content="Jekyll v3.9.5" />
-<meta property="og:title" content="PolyStrips Help" />
+<meta property="og:title" content="PolyStrips" />
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="A suite of retopology tools for Blender" />
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/polystrips.html" />
 <meta property="og:url" content="http://localhost:4000/polystrips.html" />
-<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:site_name" content="Retopoflow 4" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
-<meta property="twitter:title" content="PolyStrips Help" />
+<meta property="twitter:title" content="PolyStrips" />
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"PolyStrips Help","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/polystrips.html"}</script>
+{"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"PolyStrips","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/polystrips.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -31,7 +31,7 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <h1><a href="http://localhost:4000/">Retopoflow</a></h1>
         <!--
         
           <img src="/images/retopoflow_3_feature.png" alt="Logo" />
@@ -47,20 +47,17 @@
         </ul>
 
         <ul>
-          <li><a href="general.html">RetopoFlow Mode</a></li>
-        </ul>
-
-        <ul>
-          <li><a href="contours.html">Contours</a></li>
-          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
-          <li><a href="strokes.html">Strokes</a></li>
-          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="tweak.html">Tweak</a></li>
-          <li><a href="relax.html">Relax</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="tweak.html">Tweak Brush</a></li>
+          <li><a href="relax.html">Relax Brush</a></li>
         </ul>
 
         <ul>
+          <li><a href="general.html">Retopoflow Mode</a></li>
           <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
           <li><a href="symmetry.html">Symmetry</a></li>
         </ul>
@@ -68,12 +65,15 @@
         <ul>
           <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="limitations.html">Limitations</a></li>
+          <!-- <li><a href="limitations.html">Limitations</a></li> -->
           <li><a href="debugging.html">Debugging</a></li>
         </ul>
 
         <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
           <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
@@ -83,146 +83,45 @@
       </header>
       <section>
 
-      <h1 id="-polystrips-help"><img src="/images/polystrips-icon.png" alt="" /> PolyStrips Help</h1>
+      <h1 id="-polystrips"><img src="/images/icons/polystrips-icon.png" alt="" /> PolyStrips</h1>
 
-<p>Shortcut: <code>2</code>, <code>Ctrl+Alt+P</code></p>
+<p><img src="images/polystrips.jpg" alt="" /></p>
 
-<p>The PolyStrips tool provides quick and easy ways to map out key face loops for complex models.
-For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.</p>
+<p>The PolyStrips tool provides quick and easy ways to map out key face loops for complex models, as well as adjust existing strips of faces.</p>
 
-<p>PolyStrips works by hand drawing strokes on to the high-resolution source object.
-The strokes are instantly converted into spline-based strips of polygons.</p>
+<h2 id="inserting">Inserting</h2>
 
-<p>Any continuous quad strip may be manipulated with PolyStrips via the auto-generated spline handles.</p>
+<p>To create a strip of quads with PolyStrips, hold down <code class="language-plaintext highlighter-rouge">Ctrl</code> and <code class="language-plaintext highlighter-rouge">Left Mouse Drag</code> on the surface of a source object.</p>
 
-<p><img src="/images/help_polystrips.png" alt="" /></p>
+<p>The size of the quads corresponds to the size of the brush that you see when you hold down <code class="language-plaintext highlighter-rouge">Ctrl</code>. To adjust the size, use the hotkey <code class="language-plaintext highlighter-rouge">F</code>.</p>
 
-<h2 id="creating">Creating</h2>
+<p>Right after you’ve drawn a strip, you’ll be able to adjust some of its properties.</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Ctrl Scroll</code> changes the segment count</li>
+  <li><code class="language-plaintext highlighter-rouge">Shift Scroll</code> changes the width</li>
+</ul>
 
-<table>
-  <tbody>
-    <tr>
-      <td><code>Ctrl+LMB</code>, <code>Ctrl+LMB+Double</code></td>
-      <td>:</td>
-      <td>draw strip of quads</td>
-    </tr>
-    <tr>
-      <td><code>F</code></td>
-      <td>:</td>
-      <td>adjust brush size</td>
-    </tr>
-    <tr>
-      <td><code>LMB+Drag</code></td>
-      <td>:</td>
-      <td>grab and move selected geometry</td>
-    </tr>
-    <tr>
-      <td><code>+</code>, <code>=</code>, <code>Shift+ArrowUp</code>, <code>Shift+WheelUp</code></td>
-      <td>:</td>
-      <td>increase segment counts in selected strip</td>
-    </tr>
-    <tr>
-      <td><code>-</code>, <code>Shift+ArrowDown</code>, <code>Shift+WheelDown</code></td>
-      <td>:</td>
-      <td>decrease segment counts in selected strip</td>
-    </tr>
-  </tbody>
-</table>
-
-<h2 id="selecting">Selecting</h2>
-
-<table>
-  <tbody>
-    <tr>
-      <td><code>LMB+Click</code>, <code>Shift+LMB+Click</code></td>
-      <td>:</td>
-      <td>select face</td>
-    </tr>
-    <tr>
-      <td><code>LMB+Drag</code>, <code>Shift+LMB+Drag</code></td>
-      <td>:</td>
-      <td>paint face selection</td>
-    </tr>
-    <tr>
-      <td><code>Ctrl+Shift+LMB+Click</code></td>
-      <td>:</td>
-      <td>select faces along shortest path</td>
-    </tr>
-    <tr>
-      <td><code>A</code></td>
-      <td>:</td>
-      <td>select / deselect all</td>
-    </tr>
-    <tr>
-      <td><code>Alt+A</code></td>
-      <td>:</td>
-      <td>deselect all</td>
-    </tr>
-  </tbody>
-</table>
+<p>These options are also available in Blender’s Adjust Last Operation panel, along with a <strong>Split Angle</strong> property that adjusts how sharp the curve needs to be in order to be considered a corner.</p>
 
 <h2 id="control-points">Control Points</h2>
 
-<p>The following actions apply to when the mouse is hovering over control points of selected strip.</p>
+<p>Any selected strip of quads will show control points and curve handles while you’re using PolyStrips. Simply <code class="language-plaintext highlighter-rouge">Left Click Drag</code> on the control points or handles to adjust the strip like a Bezier curve.</p>
 
-<table>
-  <tbody>
-    <tr>
-      <td><code>LMB+Drag</code></td>
-      <td>:</td>
-      <td>grab and move control point under mouse</td>
-    </tr>
-    <tr>
-      <td><code>Shift+LMB</code></td>
-      <td>:</td>
-      <td>grab and move all inner control points around neighboring outer control point</td>
-    </tr>
-    <tr>
-      <td><code>Ctrl+Shift+LMB</code></td>
-      <td>:</td>
-      <td>scale strip width by dragging on inner control point</td>
-    </tr>
-  </tbody>
-</table>
+<p>PolyStrips handles work great with Blender’s proportional editing. If you enable that (hotkey <code class="language-plaintext highlighter-rouge">O</code>), you can easily adjust sections of existing loops that are already surrounded by geometry.</p>
+
+<h2 id="selecting">Selecting</h2>
+
+<p>The default selection mode for PolyStrips is Face so that you can quickly select and tweak parts of strips. However, you can work in just Vertex and / or Edge select mode just as well if you prefer.</p>
+
+<p>It’s helpful to remember that even though <code class="language-plaintext highlighter-rouge">Ctrl Left Click</code> to select shortest path is blocked because <code class="language-plaintext highlighter-rouge">Ctrl</code> is used to create strips, you can always do the same thing with <code class="language-plaintext highlighter-rouge">Ctrl Shift Left Click</code>. So to easily select a part of a strip, <code class="language-plaintext highlighter-rouge">Left Click</code> to select one face and then <code class="language-plaintext highlighter-rouge">Ctrl Shift Left Click</code> on another.</p>
 
 <h2 id="transforming">Transforming</h2>
 
-<table>
-  <tbody>
-    <tr>
-      <td><code>LMB+Drag</code></td>
-      <td>:</td>
-      <td>grab and move selected geometry under mouse</td>
-    </tr>
-    <tr>
-      <td><code>G</code></td>
-      <td>:</td>
-      <td>grab and move selected geometry</td>
-    </tr>
-  </tbody>
-</table>
+<p>A <code class="language-plaintext highlighter-rouge">Left Click Drag</code> on components in PolyPen will perform a tweak action similar to Blender’s Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the <a href="general.html">Retopoflow Mode</a> docs page under Common Settings.</p>
 
-<h2 id="other">Other</h2>
+<h2 id="limitations">Limitations</h2>
 
-<table>
-  <tbody>
-    <tr>
-      <td><code>Backspace</code>, <code>Delete</code>, <code>X</code></td>
-      <td>:</td>
-      <td>delete/dissolve/collapse selected</td>
-    </tr>
-    <tr>
-      <td><code>V</code></td>
-      <td>:</td>
-      <td>rip selected edge</td>
-    </tr>
-    <tr>
-      <td><code>Alt+V</code></td>
-      <td>:</td>
-      <td>rip and fill selected edge</td>
-    </tr>
-  </tbody>
-</table>
+<p>It is not currently possible to adjust segment counts or other properties on existing strips, but that is on our to-do list.</p>
 
 
 

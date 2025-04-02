@@ -2,7 +2,7 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
-### 4.0.0 (unreleased)
+### 4.0.0 alpha (unreleased)
 
 RetopoFlow 4 is a complete rewrite of RetopoFlow that massively improves performance and integrates the tools directly into Blender's Edit Mode. 
 

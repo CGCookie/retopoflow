@@ -1,4 +1,7 @@
-# ![](images/tweak-icon.png) Tweak
+# ![](images/icons/tweak-icon.png) Tweak Brush
+
+![](images/tweak.jpg)
+
 <!--
 Quick Shortcut: {{ site.data.keymaps.tweak_quick }}
 -->
@@ -45,3 +48,7 @@ The Tweak Brush has several options to control which vertices are moved and how.
 **Occluded**
 - **Exclude** moves only unoccluded vertices.
 - **Include** moves all vertices within brush regardless of occlusion.
+
+## Selection
+
+Even though `Left Click` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift Left Click`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well. 

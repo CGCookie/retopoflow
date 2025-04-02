@@ -30,6 +30,7 @@ GEM
     faraday-net_http (3.1.0)
       net-http
     ffi (1.17.0-arm64-darwin)
+    ffi (1.17.0-x64-mingw-ucrt)
     ffi (1.17.0-x86_64-linux-gnu)
     forwardable-extended (2.6.0)
     gemoji (4.1.0)
@@ -221,6 +222,8 @@ GEM
       uri
     nokogiri (1.16.6-arm64-darwin)
       racc (~> 1.4)
+    nokogiri (1.16.6-x64-mingw-ucrt)
+      racc (~> 1.4)
     nokogiri (1.16.6-x86_64-linux)
       racc (~> 1.4)
     octokit (4.25.1)
@@ -260,12 +263,13 @@ GEM
       tzinfo (>= 1.0.0)
     unicode-display_width (1.8.0)
     uri (0.13.0)
-    wdm (0.1.1)
+    wdm (0.2.0)
     webrick (1.8.1)
     zeitwerk (2.6.16)
 
 PLATFORMS
   arm64-darwin-24
+  x64-mingw-ucrt
   x86_64-linux
 
 DEPENDENCIES
@@ -277,7 +281,7 @@ DEPENDENCIES
   minima (~> 2.0)
   tzinfo (~> 1.2)
   tzinfo-data
-  wdm (~> 0.1.0)
+  wdm (~> 0.2.0)
   webrick (~> 1.8)
 
 BUNDLED WITH

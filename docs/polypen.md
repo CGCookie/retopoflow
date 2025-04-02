@@ -1,4 +1,6 @@
-# ![](images/polypen-icon.png) PolyPen
+# ![](images/icons/polypen-icon.png) PolyPen
+
+![](images/polypen.jpg)
 
 The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
@@ -29,7 +31,7 @@ PolyPen can also be used to fill a quad between two edges. To fill in **Tri / Qu
 
 PolyPen can also be used as a simple knife. To make a cut, hold `Ctrl` and either hover over a selected edge if there is a selection, or any edge if there is no selection. `Left Mouse Click` on the edge and then `Left Mouse Click` on any edge that is connected to the same face.
 
-PolyPen's knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender's knife. We plan to improve the knife functionalty going forward but in the meantime, for more advanced features, it is recommended to use Blender's knife with the hotkey `K` and then use RetopoFlow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
+PolyPen's knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender's knife. We plan to improve the knife functionalty going forward but in the meantime, for more advanced features, it is recommended to use Blender's knife with the hotkey `K` and then use Retopoflow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
 
 ## Selecting
 
@@ -38,4 +40,4 @@ The default selection mode for PolyPen is Vertex + Edge so that you can quickly 
 
 ## Transforming
 
-A `Left Click Drag` on components in PolyPen will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [RetopoFlow Mode](general.html) docs page under Common Settings.
+A `Left Click Drag` on components in PolyPen will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.

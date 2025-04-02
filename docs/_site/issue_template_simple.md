@@ -1,6 +1,6 @@
 **PLEASE READ THE FOLLOWING AND USE THE TEMPLATE TO POST YOUR ISSUE**
 
-*Questions not directly related to the RetopoFlow project are considered general and should be posted elsewhere (e.g. git, blender, python, etc).*
+*Questions not directly related to the Retopoflow project are considered general and should be posted elsewhere (e.g. git, blender, python, etc).*
 
 **Before raising the issue, please check the following first:**
 

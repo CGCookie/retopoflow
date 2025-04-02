@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Mesh Cleanup | RetopoFlow</title>
+<title>Mesh Cleanup | Retopoflow 4</title>
 <meta name="generator" content="Jekyll v3.9.5" />
 <meta property="og:title" content="Mesh Cleanup" />
 <meta property="og:locale" content="en_US" />
@@ -14,7 +14,7 @@
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/mesh_cleanup.html" />
 <meta property="og:url" content="http://localhost:4000/mesh_cleanup.html" />
-<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:site_name" content="Retopoflow 4" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Mesh Cleanup" />
@@ -22,7 +22,7 @@
 {"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Mesh Cleanup","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/mesh_cleanup.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -31,7 +31,7 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <h1><a href="http://localhost:4000/">Retopoflow</a></h1>
         <!--
         
           <img src="/images/retopoflow_3_feature.png" alt="Logo" />
@@ -47,20 +47,17 @@
         </ul>
 
         <ul>
-          <li><a href="general.html">RetopoFlow Mode</a></li>
-        </ul>
-
-        <ul>
-          <li><a href="contours.html">Contours</a></li>
-          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
-          <li><a href="strokes.html">Strokes</a></li>
-          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="tweak.html">Tweak</a></li>
-          <li><a href="relax.html">Relax</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="tweak.html">Tweak Brush</a></li>
+          <li><a href="relax.html">Relax Brush</a></li>
         </ul>
 
         <ul>
+          <li><a href="general.html">Retopoflow Mode</a></li>
           <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
           <li><a href="symmetry.html">Symmetry</a></li>
         </ul>
@@ -68,12 +65,15 @@
         <ul>
           <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="limitations.html">Limitations</a></li>
+          <!-- <li><a href="limitations.html">Limitations</a></li> -->
           <li><a href="debugging.html">Debugging</a></li>
         </ul>
 
         <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
           <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
@@ -84,6 +84,22 @@
       <section>
 
       <h1 id="mesh-cleanup">Mesh Cleanup</h1>
+
+<p>Some operations that you can do in Edit Mode do not automatically snap the resulting mesh to the surface like RetopoFlow does. Or, you may find while working that you have common mesh issues like doubles or flipped faces.</p>
+
+<p>To fix all of the common retopology problems at once, you can use Retopoflow’s <strong>Clean Up</strong> operator. It can be found in the tool settings and in the pie menu (<code class="language-plaintext highlighter-rouge">W</code>) and be used on either all vertices or selected vertices only.</p>
+
+<p>The clean up operator can optionally:</p>
+<ul>
+  <li>Snap the mesh to the nearest source surface</li>
+  <li>Merge By Distance</li>
+  <li>Recalculate Normals</li>
+  <li>Flip Normals</li>
+  <li>Delete Loose Geometry</li>
+  <li>Fill Holes</li>
+</ul>
+
+<p>If you are working on a very dense mesh and do not need all of those operations, consider turning the unnecissary ones off to speed up the operation.</p>
 
 
       </section>

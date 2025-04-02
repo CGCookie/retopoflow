@@ -1,64 +1,39 @@
-# ![](images/polystrips-icon.png) PolyStrips Help
+# ![](images/icons/polystrips-icon.png) PolyStrips
 
-Shortcut: {{ site.data.keymaps.polystrips_tool }}
-
-
-The PolyStrips tool provides quick and easy ways to map out key face loops for complex models.
-For example, if you need to retopologize a human face, creature, or any other complex organic or hard-surface object.
-
-PolyStrips works by hand drawing strokes on to the high-resolution source object.
-The strokes are instantly converted into spline-based strips of polygons.
-
-Any continuous quad strip may be manipulated with PolyStrips via the auto-generated spline handles.
-
-![](images/help_polystrips.png)
-
-## Creating
+![](images/polystrips.jpg)
 
 
-| :--- | :--- | :--- |
-| {{ site.data.keymaps.insert }}         | : | draw strip of quads |
-| {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
-| {{ site.data.keymaps.action }}         | : | grab and move selected geometry |
-| {{ site.data.keymaps.increase_count }} | : | increase segment counts in selected strip |
-| {{ site.data.keymaps.decrease_count }} | : | decrease segment counts in selected strip |
+The PolyStrips tool provides quick and easy ways to map out key face loops for complex models, as well as adjust existing strips of faces.
 
+## Inserting
 
-## Selecting
+To create a strip of quads with PolyStrips, hold down `Ctrl` and `Left Mouse Drag` on the surface of a source object. 
 
+The size of the quads corresponds to the size of the brush that you see when you hold down `Ctrl`. To adjust the size, use the hotkey `F`.
 
-| :--- | :--- | :--- |
-| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select face |
-| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint face selection |
-| {{ site.data.keymaps.select_path_add }}                  | : | select faces along shortest path |
-| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
-| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
+Right after you've drawn a strip, you'll be able to adjust some of its properties. 
+- `Ctrl Scroll` changes the segment count
+- `Shift Scroll` changes the width
 
+These options are also available in Blender's Adjust Last Operation panel, along with a **Split Angle** property that adjusts how sharp the curve needs to be in order to be considered a corner. 
 
 ## Control Points
 
-The following actions apply to when the mouse is hovering over control points of selected strip.
+Any selected strip of quads will show control points and curve handles while you're using PolyStrips. Simply `Left Click Drag` on the control points or handles to adjust the strip like a Bezier curve. 
 
+PolyStrips handles work great with Blender's proportional editing. If you enable that (hotkey `O`), you can easily adjust sections of existing loops that are already surrounded by geometry.
 
-| :--- | :--- | :--- |
-| {{ site.data.keymaps.action }}      | : | grab and move control point under mouse |
-| {{ site.data.keymaps.action_alt0 }} | : | grab and move all inner control points around neighboring outer control point |
-| {{ site.data.keymaps.action_alt1 }} | : | scale strip width by dragging on inner control point |
+## Selecting
 
+The default selection mode for PolyStrips is Face so that you can quickly select and tweak parts of strips. However, you can work in just Vertex and / or Edge select mode just as well if you prefer.  
+
+It's helpful to remember that even though `Ctrl Left Click` to select shortest path is blocked because `Ctrl` is used to create strips, you can always do the same thing with `Ctrl Shift Left Click`. So to easily select a part of a strip, `Left Click` to select one face and then `Ctrl Shift Left Click` on another. 
 
 ## Transforming
 
+A `Left Click Drag` on components in PolyPen will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
 
-| :--- | :--- | :--- |
-| {{ site.data.keymaps.action }}  | : | grab and move selected geometry under mouse |
-| {{ site.data.keymaps.grab }}    | : | grab and move selected geometry |
+## Limitations
 
-
-## Other
-
-
-| :--- | :--- | :--- |
-| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
-| {{ site.data.keymaps.rip }}      | : | rip selected edge |
-| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
+It is not currently possible to adjust segment counts or other properties on existing strips, but that is on our to-do list. 
 

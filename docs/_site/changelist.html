@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Change List | RetopoFlow</title>
+<title>Change List | Retopoflow 4</title>
 <meta name="generator" content="Jekyll v3.9.5" />
 <meta property="og:title" content="Change List" />
 <meta property="og:locale" content="en_US" />
@@ -14,7 +14,7 @@
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/changelist.html" />
 <meta property="og:url" content="http://localhost:4000/changelist.html" />
-<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:site_name" content="Retopoflow 4" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Change List" />
@@ -22,7 +22,7 @@
 {"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Change List","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/changelist.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -31,7 +31,7 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <h1><a href="http://localhost:4000/">Retopoflow</a></h1>
         <!--
         
           <img src="/images/retopoflow_3_feature.png" alt="Logo" />
@@ -47,20 +47,17 @@
         </ul>
 
         <ul>
-          <li><a href="general.html">RetopoFlow Mode</a></li>
-        </ul>
-
-        <ul>
-          <li><a href="contours.html">Contours</a></li>
-          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
-          <li><a href="strokes.html">Strokes</a></li>
-          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="tweak.html">Tweak</a></li>
-          <li><a href="relax.html">Relax</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="tweak.html">Tweak Brush</a></li>
+          <li><a href="relax.html">Relax Brush</a></li>
         </ul>
 
         <ul>
+          <li><a href="general.html">Retopoflow Mode</a></li>
           <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
           <li><a href="symmetry.html">Symmetry</a></li>
         </ul>
@@ -68,12 +65,15 @@
         <ul>
           <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="limitations.html">Limitations</a></li>
+          <!-- <li><a href="limitations.html">Limitations</a></li> -->
           <li><a href="debugging.html">Debugging</a></li>
         </ul>
 
         <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
           <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
@@ -87,10 +87,38 @@
 
 <p>This document contains details about what has changed in RetopoFlow since version 2.x.</p>
 
-<h3 id="400-unreleased">4.0.0 (unreleased)</h3>
+<h3 id="400-alpha-unreleased">4.0.0 alpha (unreleased)</h3>
 
+<p>RetopoFlow 4 is a complete rewrite of RetopoFlow that massively improves performance and integrates the tools directly into Blender’s Edit Mode.</p>
+
+<p>Some key changes include:</p>
 <ul>
-  <li>A complete rewrite of RetopoFlow to integrate the tools into Blender’s Edit Mode</li>
+  <li>General
+    <ul>
+      <li>The tools are now in the Edit Mode toolbar</li>
+      <li>Ctrl scroll is now used instead of Shift scroll for adjusting insert count</li>
+    </ul>
+  </li>
+  <li>Contours
+    <ul>
+      <li>A new Fast method was added, which can improve performance on dense meshes and work in some cases where the mesh is split</li>
+    </ul>
+  </li>
+  <li>PolyStrips
+    <ul>
+      <li>Proportional Editing can now be used for smoothly affecting the surrounding geometry while adjusting existing strips</li>
+      <li>The angle at which new strips are split to create sharp corners can now be specified</li>
+      <li>Strip spacing is now calculated in world space</li>
+    </ul>
+  </li>
+  <li>Strokes
+    <ul>
+      <li>Several new stroke shapes are now supported so drawing new geometry feels more natural</li>
+      <li>Extrudes can now match the curvature of the original geometry if the method is set to Adapt</li>
+      <li>A smoothing control has been added for naturally blending between strokes created at different angles</li>
+      <li>The new default insert count, Average, always creates perfectly even quads when extruding</li>
+    </ul>
+  </li>
 </ul>
 
 <h3 id="343">3.4.3</h3>

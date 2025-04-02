@@ -1,8 +1,9 @@
-# ![](images/contours-icon.png) Contours
+# ![](images/icons/contours-icon.png) Contours
+
+![](images/contours.jpg)
 
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it's ideal for organic forms such as arms, fingers, legs, tentacles, tails, horns, etc.
-
 
 ## Inserting
 
@@ -24,8 +25,7 @@ After you create a new loop but before that loop is connected to any other geome
 **Method** is how Contours calculates the shape of the source mesh in order to create a new loop around it.
 - **Walk** calculates the faces under the stroke one by one until it complets a loop, ensuring that the shape is fully preserved. This can be slow on extremely dense meshes, and does not work on non-manifold geometry, but is still quite fast and gives the best results in the vast majority of cases. It works great for complex shapes like fingers, where screen-space or raycasting algorithms tend to fail.
 
-- **Fast** [?]
-
+- **Fast** and **Skip** are experimental options that can improve speed, but are currently not always accurate or stable. They are still in development and not guarenteed to work.
 
 ## Selecting
 
@@ -34,6 +34,6 @@ The default selection mode for Contours is Vertex + Edge because it is helpful t
 
 ## Transforming
 
-You can quickly slide loops around by simply clicking and dragging on an edge. [Not working yet]
+You can quickly slide loops around by simply clicking and dragging on an edge. [Not working yet in version 4]
 
-To rotate or twist a loop around the surface of the source, use the hotkey `Alt R`. [Not working yet]
+To rotate or twist a loop around the surface of the source, use the hotkey `Alt R`. [Not working yet in version 4]

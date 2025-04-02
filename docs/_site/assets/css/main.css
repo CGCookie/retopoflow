@@ -5,10 +5,15 @@
 @import "{{ site.theme }}";
 */
 
+
 body {
-    background: rgba(32, 32, 32, 1.0);
-    color: rgb(216, 216, 216);
-    font-size: 14px;
+    background: rgb(12, 12, 12);
+    color: rgb(224, 224, 224);
+    font-size: 16px;
+}
+
+section {
+    width: 600px
 }
 
 section a {
@@ -33,16 +38,27 @@ strong {
     color: white;
 }
 
+p a, li a {
+    color: rgb(255, 255, 255)
+}
+
+a:hover {
+    font-weight: unset;
+    color: rgb(255, 191, 73);
+}
+
 code {
     /*display: inline-block;*/
     border: 1px solid rgba(0,0,0,0.5);
-    background: rgba(64, 64, 64, 0.75);
+    background: rgba(65, 65, 65, 0.75);
     color: white;
-    padding: 2px 4px;
+    padding: 4px;
+    font-size: 14px;
+    border-radius: 4px;
 }
 
 img {
-    vertical-align: bottom;
+    vertical-align: middle;
 }
 
 li img {
@@ -53,13 +69,8 @@ li img {
 }
 
 h1 img {
-    width: 32px;
-    height: 32px;
-}
-
-a:hover {
-    font-weight: unset;
-    color: white;
+    width: 42px;
+    height: 42px;
 }
 
 th, td {
@@ -77,9 +88,11 @@ header {
 header ul {
     list-style: none;
     /*height: fit-content;*/
+    position: revert;
     height: auto;
-    background: rgba(32, 32, 32, 1.0);;
+    background: rgba(32, 32, 32, 0);;
     border: 0px;
+    padding-inline-start: 4px;
 }
 header li {
     width: auto;
@@ -91,12 +104,12 @@ header ul li a {
     line-height: unset;
     text-align: left;
     height: auto;
-    color: rgb(221, 221, 221);
+    color: rgb(255, 255, 255);
     font-size: 16px;
 }
 header ul li a:hover {
     font-weight: unset;
-    color: white;
+    color: rgb(255, 191, 73);
 }
 header ul li a:focus {
     font-weight: unset;
@@ -107,12 +120,14 @@ header ul li a:active {
     background: transparent;
 }
 footer {
-    color: rgb(96, 96, 96);
+    display: NONE;
+    color: rgba(32, 32, 32, 1.0);
     background-color: rgba(32, 32, 32, 1.0);
     position: fixed;
     bottom: 0;
 }
 footer a {
-    color: rgb(96, 96, 96);
+    display: NONE;
+    color: rgba(32, 32, 32, 1.0);
     text-decoration: underline;
 }

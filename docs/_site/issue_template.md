@@ -1,6 +1,6 @@
 **PLEASE READ THE FOLLOWING AND USE THE TEMPLATE TO POST YOUR ISSUE**
 
-*Questions not directly related to the RetopoFlow project are considered general and should be posted elsewhere (e.g. git, blender, python, etc).*
+*Questions not directly related to the Retopoflow project are considered general and should be posted elsewhere (e.g. git, blender, python, etc).*
 
 **Before raising the issue, please check the following first:**
 
@@ -14,7 +14,7 @@ Please prefix your issue name with one of the following: **[BUG]** **[PROPOSAL]*
 Issue Template
 -----------------------------------
 
-RetopoFlow Version: {*add here*}
+Retopoflow Version: {*add here*}
 
 Blender Version/Hash: {*add here*}
 

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- Begin Jekyll SEO tag v2.8.0 -->
-<title>Contours | RetopoFlow</title>
+<title>Contours | Retopoflow 4</title>
 <meta name="generator" content="Jekyll v3.9.5" />
 <meta property="og:title" content="Contours" />
 <meta property="og:locale" content="en_US" />
@@ -14,7 +14,7 @@
 <meta property="og:description" content="A suite of retopology tools for Blender" />
 <link rel="canonical" href="http://localhost:4000/contours.html" />
 <meta property="og:url" content="http://localhost:4000/contours.html" />
-<meta property="og:site_name" content="RetopoFlow" />
+<meta property="og:site_name" content="Retopoflow 4" />
 <meta property="og:type" content="website" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="Contours" />
@@ -22,7 +22,7 @@
 {"@context":"https://schema.org","@type":"WebPage","description":"A suite of retopology tools for Blender","headline":"Contours","publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"http://localhost:4000/images/retopoflow_3_feature.png"}},"url":"http://localhost:4000/contours.html"}</script>
 <!-- End Jekyll SEO tag -->
 
-    <link rel="stylesheet" href="/assets/css/style.css?v=56e65b17168e748e21604cf6cd8e5b07e8e5c2c8">
+    <link rel="stylesheet" href="/assets/css/style.css?v=ad82181ec902748fa08517d0c5a671a5db5dfede">
     <link rel="stylesheet" href="/assets/css/main.css">
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
@@ -31,7 +31,7 @@
   <body>
     <div class="wrapper">
       <header>
-        <h1><a href="http://localhost:4000/">RetopoFlow</a></h1>
+        <h1><a href="http://localhost:4000/">Retopoflow</a></h1>
         <!--
         
           <img src="/images/retopoflow_3_feature.png" alt="Logo" />
@@ -47,20 +47,17 @@
         </ul>
 
         <ul>
-          <li><a href="general.html">RetopoFlow Mode</a></li>
-        </ul>
-
-        <ul>
-          <li><a href="contours.html">Contours</a></li>
-          <!-- <li><a href="polystrips.html">PolyStrips</a></li> -->
-          <li><a href="strokes.html">Strokes</a></li>
-          <!-- <li><a href="patches.html">Patches</a></li> -->
           <li><a href="polypen.html">PolyPen</a></li>
-          <li><a href="tweak.html">Tweak</a></li>
-          <li><a href="relax.html">Relax</a></li>
+          <li><a href="polystrips.html">PolyStrips</a></li>
+          <li><a href="strokes.html">Strokes</a></li>
+          <li><a href="contours.html">Contours</a></li>
+          <!-- <li><a href="patches.html">Patches</a></li> -->
+          <li><a href="tweak.html">Tweak Brush</a></li>
+          <li><a href="relax.html">Relax Brush</a></li>
         </ul>
 
         <ul>
+          <li><a href="general.html">Retopoflow Mode</a></li>
           <li><a href="mesh_cleanup.html">Mesh Cleanup</a></li>
           <li><a href="symmetry.html">Symmetry</a></li>
         </ul>
@@ -68,12 +65,15 @@
         <ul>
           <li><a href="faq.html">FAQs</a></li>
           <li><a href="changelist.html">Change List</a></li>
-          <li><a href="limitations.html">Limitations</a></li>
+          <!-- <li><a href="limitations.html">Limitations</a></li> -->
           <li><a href="debugging.html">Debugging</a></li>
         </ul>
 
         <ul>
           <li><a href="https://github.com/CGCookie/retopoflow/issues" target="_blank">Report Issue</a></li>
+        </ul>
+
+        <ul>
           <li><a href="https://blendermarket.com/products/retopoflow" target="_blank">Blender Market</a></li>
           <li><a href="https://blenderartists.org/t/retopoflow-4/1569559" target="_blank">Blender Artists</a></li>
           <li><a href="https://www.youtube.com/@orangeturbine" target="_blank">YouTube</a></li>
@@ -83,7 +83,9 @@
       </header>
       <section>
 
-      <h1 id="-contours"><img src="/images/contours-icon.png" alt="" /> Contours</h1>
+      <h1 id="-contours"><img src="/images/icons/contours-icon.png" alt="" /> Contours</h1>
+
+<p><img src="/images/contours.jpg" alt="" /></p>
 
 <p>The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it’s ideal for organic forms such as arms, fingers, legs, tentacles, tails, horns, etc.</p>
@@ -112,7 +114,7 @@ For example, it’s ideal for organic forms such as arms, fingers, legs, tentacl
     <p><strong>Walk</strong> calculates the faces under the stroke one by one until it complets a loop, ensuring that the shape is fully preserved. This can be slow on extremely dense meshes, and does not work on non-manifold geometry, but is still quite fast and gives the best results in the vast majority of cases. It works great for complex shapes like fingers, where screen-space or raycasting algorithms tend to fail.</p>
   </li>
   <li>
-    <p><strong>Fast</strong> [?]</p>
+    <p><strong>Fast</strong> and <strong>Skip</strong> are experimental options that can improve speed, but are currently not always accurate or stable. They are still in development and not guarenteed to work.</p>
   </li>
 </ul>
 
@@ -122,9 +124,9 @@ For example, it’s ideal for organic forms such as arms, fingers, legs, tentacl
 
 <h2 id="transforming">Transforming</h2>
 
-<p>You can quickly slide loops around by simply clicking and dragging on an edge. [Not working yet]</p>
+<p>You can quickly slide loops around by simply clicking and dragging on an edge. [Not working yet in version 4]</p>
 
-<p>To rotate or twist a loop around the surface of the source, use the hotkey <code class="language-plaintext highlighter-rouge">Alt R</code>. [Not working yet]</p>
+<p>To rotate or twist a loop around the surface of the source, use the hotkey <code class="language-plaintext highlighter-rouge">Alt R</code>. [Not working yet in version 4]</p>
 
 
       </section>
