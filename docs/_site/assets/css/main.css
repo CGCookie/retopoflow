@@ -85,6 +85,13 @@ th {
 header {
     padding-left: 1px;
 }
+header .logo {
+    max-width: 164px;
+    padding-bottom: 16px;
+}
+header .tagline {
+    margin-top: -16px;
+}
 header ul {
     list-style: none;
     /*height: fit-content;*/
