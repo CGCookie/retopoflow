@@ -8,7 +8,7 @@ There is no longer a separate mode in Retopoflow 4, so there is no need for a me
 
 ## I cannot create new geometry!  Help!?
 
-All of the tools that create new geometry do so while holding `Ctrl`. See [General Help](general.md) for more actions.
+All of the tools that create new geometry do so while holding `Ctrl`. See the tools or [Retopoflow Mode](/v4/general.html) for more actions.
 
 ## Why is my geometry below the source mesh?
 

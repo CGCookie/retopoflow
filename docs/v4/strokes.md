@@ -1,6 +1,6 @@
-# ![](images/icons/strokes-icon.png) Strokes
+# ![](/images/icons/strokes-icon.png) Strokes
 
-![](images/strokes.jpg)
+![](/images/strokes.jpg)
 
 Strokes is an incredibly versetile tool for quickly sketching out patches of quads and filling holes in the topology.
 
@@ -60,7 +60,7 @@ The default selection mode for Contours is Vertex + Edge because it is helpful t
 
 ## Transforming
 
-A `Left Click Drag` on components in Strokes will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.md) docs page under Common Settings.
+A `Left Click Drag` on components in Strokes will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
 
 ## Limitations
 

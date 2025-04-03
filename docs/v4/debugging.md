@@ -4,7 +4,7 @@ If you run into an issue while using Retopoflow, you can report it via [Product 
 
 Those who have purchased Retopoflow are helped first. 
 
-We support official releases of Blender (as listed on the [Installation](./installation.md) page) and cannot gurantee compatibility with pre-release or non-official versions of Blender or compatibility with other add-ons. 
+We support official releases of Blender (as listed on the [Installation](./installation.html) page) and cannot gurantee compatibility with pre-release or non-official versions of Blender or compatibility with other add-ons. 
 
 There are a few things to keep in mind that will help us in debugging and fixing the issue as quickly as possible.
 

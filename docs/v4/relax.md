@@ -1,17 +1,17 @@
-# ![](images/icons/tweak-icon.png) Tweak Brush
+# ![](/images/icons/relax-icon.png) Relax Brush
 
-![](images/tweak.jpg)
+![](/images/relax.jpg)
 
 <!--
-Quick Shortcut: {{ site.data.keymaps.tweak_quick }}
+Quick Shortcut: {{ site.data.keymaps.relax_quick }}
 -->
 
-The Tweak Brush tool allows you to easily and interactively adjust vertex positions across the surface of the source mesh.
+The Relax Brush tool allows you to easily and interactively smooth out vertex positions while keeping them on the surface of the source mesh.
+
 
 ## Transforming
 
-To use the Tweak Brush, simply `Left Click Drag` on vertices. Which vertices are affected can be controlled in the **Masking** settings.
-
+To use the Relax Brush, simply `Left Click Drag` on vertices. Which vertices are affected can be controlled in the **Masking** settings.
 
 ## Brush Settings
 
@@ -26,7 +26,7 @@ To quickly switch between presets, use the {{ site.data.keymaps.pie_menu_alt0 }}
 
 ## Masking Settings
 
-The Tweak Brush has several options to control which vertices are moved and how.
+The Relax Brush has several options to control which vertices are moved and how.
 
 **Boundary**
 - **Exclude** does not affect vertices along the mesh boundary.
@@ -48,6 +48,25 @@ The Tweak Brush has several options to control which vertices are moved and how.
 **Occluded**
 - **Exclude** moves only unoccluded vertices.
 - **Include** moves all vertices within brush regardless of occlusion.
+
+
+## Algorithm Settings
+
+**Iterations** determines how many times the relax algorithm is run per update. A higher value leads to more agressive smoothing. It is recommended to try increasing the brush strength before increasing this setting.
+
+**Strength** multiplies how much each iteration affects the result.
+
+**Average Edge Lengths** enables adjusting the length of edges to move towards the average edge length under the brush.
+
+**Average Face Radius** enables adjusting the length of edges so that each face's radius moves towards the average of all face radii under the brush.
+
+**Average Face Angles** enables moving vertices so that the angle of each corner of each face moves towards the same value.
+
+**Average Face Lengths** enables adjusting the length of edges to move towards the average length of all edges that share the same face. This option is still experimental and can cause faces to flip.
+
+**Straighten Edges** enables moving vertices so that their edge loops straighten out.
+
+**Correct Flipped Faces** attempts to make sure the direction of the face normals under the brush are consistent.
 
 ## Selection
 

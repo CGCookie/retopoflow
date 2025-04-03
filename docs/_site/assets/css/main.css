@@ -46,16 +46,11 @@ a:hover {
     font-weight: unset;
     color: rgb(255, 191, 73);
 }
-/*
-.outlink::after {
+.outlink:hover:after {
     content: url("/images/icons/outlink_light.png");
     margin-left: 8px;
     opacity: 25%;
-    vertical-align: middle;
-    display: inline-block;
   }
-*/
-
 code {
     /*display: inline-block;*/
     border: 1px solid rgba(0,0,0,0.5);
@@ -68,6 +63,7 @@ code {
 
 img {
     vertical-align: middle;
+    border-radius: 8px;
 }
 
 li img {
@@ -96,12 +92,30 @@ header {
     padding-left: 1px;
     position: absolute;
 }
-header .logo {
-    max-width: 164px;
-    padding-bottom: 16px;
+header .title {
+    margin-bottom: 4px;
 }
 header .tagline {
-    margin-top: -16px;
+    font-style: italic;
+    margin: 0px;
+}
+header .logo {
+    max-width: 164px;
+    padding-top: 0px;
+    padding-bottom: 24px;
+}
+.version {
+    width: 164px;
+    margin-bottom: 16px;
+    margin-top: 16px;
+    padding: 8px;
+    padding-left: 0px;
+    background-color: rgb(15, 15, 15);
+    border-width: 0px;
+    border-radius: 8px;
+    border-color: rgba(241, 241, 241, 0.158);
+    color: white;
+    font-size: 16px;
 }
 header ul {
     list-style: none;

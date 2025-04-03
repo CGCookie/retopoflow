@@ -12,7 +12,7 @@ Another great place to learn the tools is our [YouTube channel](https://www.yout
 
 ## Versions 1-3
 
-Retopoflow has been completely refactored in version 4, and this documentation has been updated to match. For information on how to use the previous versions, please refer to the in-app documentation using the version you have. 
+Retopoflow has been completely refactored in version 4, and this documentation has been updated to match. For information on how to use version 3, switch to the previous docs by using the dropdown on the left.
 
 Even though we will not be adding new featues to it, Retopoflow 3 will still be supprted for at least two years after the official launch of 4.0.
 

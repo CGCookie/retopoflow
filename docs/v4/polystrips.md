@@ -1,6 +1,6 @@
-# ![](images/icons/polystrips-icon.png) PolyStrips
+# ![](/images/icons/polystrips-icon.png) PolyStrips
 
-![](images/polystrips.jpg)
+![](/images/polystrips.jpg)
 
 
 The PolyStrips tool provides quick and easy ways to map out key face loops for complex models, as well as adjust existing strips of faces.
