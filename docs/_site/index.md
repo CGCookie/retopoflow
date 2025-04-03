@@ -10,7 +10,7 @@ If you’re brand new to Retopoflow, check the [Quick Start page](quick_start.ht
 
 Another great place to learn the tools is our [YouTube channel](https://www.youtube.com/@orangeturbine).
 
-## Versions 1-3
+## Previous Versions
 
 Retopoflow has been completely refactored in version 4, and this documentation has been updated to match. For information on how to use version 3, switch to the previous docs by using the dropdown on the left.
 
@@ -30,3 +30,11 @@ You can get help with an issue or give feedback by reaching out to us in one of 
 Please provide as much information and detail as possible, such as steps to reproduce the issue, what behavior you expected to see vs what you actually saw, screenshots, and so on. 
 
 See the [Debugging](debugging.html) page for details on getting as much useful information as possible. Also, if possible, please consider sending us the `.blend` file.
+
+## Thank you!
+
+Retopoflow has been a passion project since 2013 and is what originally convinced us we should create a [marketplace](https://blendermarket.com/) for Blender tools, so that other creators could also work on their passion projects in a sustainable way. We're deeply thankful to the Blender community and, because of projects like this, are able to give back to help make it better for everybody. We are some of the biggest toplogy nerds in the world and are thrilled to be able to continue to innovate in this area because of your continued support.
+
+Happy modeling! 
+
+~ Jonathan Williamson, Dr. Jon Denning, Jonathan Lampel, and JF Matheu
