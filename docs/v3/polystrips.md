@@ -1,6 +1,6 @@
 # ![](images/polystrips-icon.png) PolyStrips Help
 
-Shortcut: {{polystrips tool}}
+Shortcut: {{ site.data.keymaps.polystrips_tool }}
 
 
 The PolyStrips tool provides quick and easy ways to map out key face loops for complex models.
@@ -15,49 +15,49 @@ Any continuous quad strip may be manipulated with PolyStrips via the auto-genera
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}}         | : | draw strip of quads |
-| {{brush radius}}   | : | adjust brush size |
-| {{action}}         | : | grab and move selected geometry |
-| {{increase count}} | : | increase segment counts in selected strip |
-| {{decrease count}} | : | decrease segment counts in selected strip |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }}         | : | draw strip of quads |
+| {{ site.data.keymaps.brush_radius }}   | : | adjust brush size |
+| {{ site.data.keymaps.action }}         | : | grab and move selected geometry |
+| {{ site.data.keymaps.increase_count }} | : | increase segment counts in selected strip |
+| {{ site.data.keymaps.decrease_count }} | : | decrease segment counts in selected strip |
 
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select face |
-| {{select paint, select paint add}}   | : | paint face selection |
-| {{select path add}}                  | : | select faces along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select face |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint face selection |
+| {{ site.data.keymaps.select_path_add }}                  | : | select faces along shortest path |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Control Points
 
 The following actions apply to when the mouse is hovering over control points of selected strip.
 
-|  |  |  |
-| --- | --- | --- |
-| {{action}}      | : | grab and move control point under mouse |
-| {{action alt0}} | : | grab and move all inner control points around neighboring outer control point |
-| {{action alt1}} | : | scale strip width by dragging on inner control point |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.action }}      | : | grab and move control point under mouse |
+| {{ site.data.keymaps.action_alt0 }} | : | grab and move all inner control points around neighboring outer control point |
+| {{ site.data.keymaps.action_alt1 }} | : | scale strip width by dragging on inner control point |
 
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{action}}  | : | grab and move selected geometry under mouse |
-| {{grab}}    | : | grab and move selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.action }}  | : | grab and move selected geometry under mouse |
+| {{ site.data.keymaps.grab }}    | : | grab and move selected geometry |
 
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}   | : | delete/dissolve/collapse selected |
-| {{rip}}      | : | rip selected edge |
-| {{rip fill}} | : | rip and fill selected edge |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |

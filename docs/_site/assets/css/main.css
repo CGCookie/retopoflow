@@ -13,7 +13,16 @@ body {
 }
 
 section {
-    width: 600px
+    width: 600px;
+}
+
+@media (min-width: 1600px) {
+    .wrapper {
+        width: 1080px;
+    }
+    section {
+        width: 800px;
+    }
 }
 
 section a {
@@ -89,8 +98,9 @@ th {
 
 /* undo theme styling on header and footer */
 header {
-    padding-left: 1px;
-    position: absolute;
+    padding-left: 0px;
+    width: 164px;
+    position: relative;
 }
 header .title {
     margin-bottom: 4px;
@@ -167,14 +177,17 @@ footer a {
 
 /* v3 docs images */
 img[alt='Pie menu'], 
-img[alt='Selection options'], 
-img[alt='Delete dialog and pie menu']
+img[alt='Selection options']
 {
-    max-height:350px;
+    max-height: 350px;
+    display: block;
+    margin: 0 auto;
 }
 
 
 img[alt='themes']
 {
     max-height: 200px;
+    display: block;
+    margin: 0 auto;
 }

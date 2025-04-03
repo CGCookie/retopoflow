@@ -4,7 +4,7 @@ RetopoFlow has a very basic keymap editor to allow some customization of interac
 
 Start the editor by clicking the Keymap button in the Config section of the RetopoFlow Blender menu.
 
-![](images/keymap_button.png max-height:150px)
+![](images/keymap_button.png)
 
 IMPORTANT: This editor is an early prototype, and not all keymap settings will work as expected.
 
@@ -16,10 +16,10 @@ Navigate the action categories to find lists of actions, each with a set of inte
 - Click the `Reset Keymap` button to reset that action's keymaps to the default interactions.
 - Click the `Reset All` button at the bottom to reset _all_ of the custom keymaps back to their default interactions.
 
-![](images/keymap_all.png max-height:400px)
+![](images/keymap_all.png)
 
 When editing an interaction, a window will display with all the ways to map an interaction to the action.
 
-![](images/keymap_insert.png max-height:300px)
+![](images/keymap_insert.png)
 
 

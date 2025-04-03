@@ -1,6 +1,6 @@
 # ![](images/contours-icon.png) Contours Help
 
-Shortcut: {{contours tool}}
+Shortcut: {{ site.data.keymaps.contours_tool }}
 
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it's ideal for organic forms, such as arms, legs, tentacles, tails, horns, etc.
@@ -15,40 +15,40 @@ You may draw strokes in any order, from any direction.
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}}                           | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
-| {{increase count}}                   | : | increase segment counts in selected loop |
-| {{decrease count}}                   | : | decrease segment counts in selected loop |
-| {{fill}}                             | : | bridge selected edge loops |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }}                    | : | draw contour stroke perpendicular to form. newly created contour extends selection if applicable. |
+| {{ site.data.keymaps.increase_count }}            | : | increase segment counts in selected loop |
+| {{ site.data.keymaps.decrease_count }}            | : | decrease segment counts in selected loop |
+| {{ site.data.keymaps.fill }}                      | : | bridge selected edge loops |
 
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select edge |
-| {{select smart, select smart add}}   | : | smart select loop |
-| {{select paint, select paint add}}   | : | paint edge selection |
-| {{select path add}}                  | : | select edges along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edge |
+| {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select loop |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint edge selection |
+| {{ site.data.keymaps.select_path_add }}                                          | : | select edges along shortest path |
+| {{ site.data.keymaps.select_all }}                                               | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                                             | : | deselect all |
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{action}}           | : | grab and slide selected geometry under mouse |
-| {{grab}}             | : | slide selected loop |
-| {{rotate plane}}     | : | rotate selected loop in plane |
-| {{rotate screen}}    | : | rotate selected loop in screen |
-| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.action }}           | : | grab and slide selected geometry under mouse |
+| {{ site.data.keymaps.grab }}             | : | slide selected loop |
+| {{ site.data.keymaps.rotate_plane }}     | : | rotate selected loop in plane |
+| {{ site.data.keymaps.rotate_screen }}    | : | rotate selected loop in screen |
+| {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}         | : | delete/dissolve/collapse selected |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}         | : | delete/dissolve/collapse selected |
 
 ## Tips
 

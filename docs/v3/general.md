@@ -1,11 +1,11 @@
 # General Help
 
-Help Shortcut: {{general help}}
+Help Shortcut: {{ site.data.keymaps.general_help }}
 
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
-For tool-specific help, select the tool from the Tools panel, and either press {{tool help}} or click Tool Help.
+For tool-specific help, select the tool from the Tools panel, and either press {{ site.data.keymaps.tool_help }} or click Tool Help.
 
-View the [table of contents](table_of_contents.html) for all built-in documentation by pressing {{all help}} at any time.
+View the [table of contents](table_of_contents.html) for all built-in documentation by pressing {{site.data.keymaps.all_help}} at any time.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -15,30 +15,29 @@ For more details, see the tooltips when hovering or the product documentation pa
 
 |  |  |  |
 | --- | --- | --- |
-| {{done,done alt0}} | : | quit RetopoFlow |
-| {{blender save}}   | : | save blend file (same as Blender's save) |
-| {{general help}}   | : | view general help (this document) |
-| {{all help}}       | : | view all help documents (table of contents) |
-| {{tool help}}      | : | view help for currently selected tool |
-| {{toggle ui}}      | : | toggle on/off main RF windows |
+| {{site.data.keymaps.done}}, {{site.data.keymaps.done_alt0}} | : | quit RetopoFlow |
+| {{ site.data.keymaps.blender_save }}   | : | save blend file (same as Blender's save) |
+| {{ site.data.keymaps.general_help }}   | : | view general help (this document) |
+| {{ site.data.keymaps.all_help }}       | : | view all help documents (table of contents) |
+| {{ site.data.keymaps.tool_help }}      | : | view help for currently selected tool |
+| {{ site.data.keymaps.toggle_ui }}      | : | toggle on/off main RF windows |
 
 ## Tool Shortcuts
 
 Pressing the tool's shortcut will automatically switch to that tool.
 The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
-|  |  |  |  |
-| --- | --- | --- | --- |
-| {{contours tool}}   | : | Contours   | [help](contours.html)   |
-| {{polystrips tool}} | : | PolyStrips | [help](polystrips.html) |
-| {{strokes tool}}    | : | Strokes    | [help](strokes.html)    |
-| {{patches tool}}    | : | Patches    | [help](patches.html)    |
-| {{polypen tool}}    | : | PolyPen    | [help](polypen.html)    |
-| {{knife tool}}      | : | Knife      | [help](knife.html)      |
-| {{loops tool}}      | : | Loops      | [help](loops.html)      |
-| {{tweak tool}}      | : | Tweak      | [help](tweak.html)      |
-| {{relax tool}}      | : | Relax      | [help](relax.html)      |
-| {{select tool}}     | : | Select     | [help](select.html)     |
+| :--- | :--- | :--- | :--- |
+| {{ site.data.keymaps.contours_tool }}   | : | Contours   | [help](contours.md)   |
+| {{ site.data.keymaps.polystrips_tool }} | : | PolyStrips | [help](polystrips.md) |
+| {{ site.data.keymaps.strokes_tool }}    | : | Strokes    | [help](strokes.md)    |
+| {{ site.data.keymaps.patches_tool }}    | : | Patches    | [help](patches.md)    |
+| {{ site.data.keymaps.polypen_tool }}    | : | PolyPen    | [help](polypen.md)    |
+| {{ site.data.keymaps.knife_tool }}      | : | Knife      | [help](knife.md)      |
+| {{ site.data.keymaps.loops_tool }}      | : | Loops      | [help](loops.md)      |
+| {{ site.data.keymaps.tweak_tool }}      | : | Tweak      | [help](tweak.md)      |
+| {{ site.data.keymaps.relax_tool }}      | : | Relax      | [help](relax.md)      |
+| {{ site.data.keymaps.select_tool }}     | : | Select     | [help](select.md)     |
 
 Note: selection and the undo stack is maintained between tools.
 
@@ -52,13 +51,12 @@ Press {{pie menu}} at any time to show the tool pie menu.
 Pressing the tool's quick shortcut will temporarily switch to that tool.
 RetopoFlow will switch back to the previously selected tool once you are done.
 
-|  |  |  |
-| --- | --- | --- |
-| {{loops quick}}  | : | Loops |
-| {{knife quick}}  | : | Knife |
-| {{tweak quick}}  | : | Tweak |
-| {{relax quick}}  | : | Relax |
-| {{select quick}} | : | Select |
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.loops_quick }}  | : | Loops |
+| {{ site.data.keymaps.knife_quick }}  | : | Knife |
+| {{ site.data.keymaps.tweak_quick }}  | : | Tweak |
+| {{ site.data.keymaps.relax_quick }}  | : | Relax |
+| {{ site.data.keymaps.select_quick }} | : | Select |
 
 
 ## Universal Shortcuts
@@ -66,38 +64,38 @@ RetopoFlow will switch back to the previously selected tool once you are done.
 The following shortcuts work across all the tools, although each tool may have a distinct way of performing the action.
 For example, pressing `G` in Contours will slide the selected loop.
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}}                                     | : | create new geometry with current tool / apply relax or tweak |
-| {{select single, select single add}}           | : | select single |
-| {{select paint, select paint add}}             | : | selection painting when mouse hovers geometry |
-| {{select box}}                                 | : | box select when mouse does not hover geometry |
-| {{select smart, select smart add}}             | : | smart selection |
-| {{select path add}}                            | : | select along shortest path |
-| {{select all}}                                 | : | select / deselect all |
-| {{deselect all}}                               | : | deselect all |
-| {{select invert}}                              | : | invert selection |
-| {{select linked}}                              | : | select all linked |
-| {{select linked mouse, deselect linked mouse}} | : | select / deselect all linked under mouse |
-| {{hide selected}}                              | : | hide selected geometry |
-| {{hide unselected}}                            | : | hide unselected geometry |
-| {{reveal hidden}}                              | : | reveal hidden geometry |
-| {{action}}                                     | : | transform selection when mouse hovers selected geometry |
-| {{grab}}                                       | : | grab and move selected geometry |
-| {{rotate}}                                     | : | rotate selected geometry |
-| {{scale}}                                      | : | scale selected geometry |
-| {{rip}}                                        | : | rip selected edge |
-| {{rip fill}}                                   | : | rip and fill selected edge |
-| {{smooth edge flow}}                           | : | smooths edge flow of selected geometry |
-| {{delete}}                                     | : | delete / dissolve dialog |
-| {{delete pie menu}}                            | : | delete / dissolve pie menu
-| {{blender undo}}                               | : | undo |
-| {{blender redo}}                               | : | redo |
-| {{pin}}                                        | : | pin selected geometry |
-| {{unpin}}                                      | : | unpin selected geometry |
-| {{unpin all}}                                  | : | unpin all pinned geometry |
-| {{mark seam}}                                  | : | mark selected edges as seam |
-| {{clear seam}}                                | : | unmark selected edges as seam |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }}                                     | : | create new geometry with current tool / apply relax or tweak |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }}           | : | select single |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}             | : | selection painting when mouse hovers geometry |
+| {{ site.data.keymaps.select_box }}                                 | : | box select when mouse does not hover geometry |
+| {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}             | : | smart selection |
+| {{ site.data.keymaps.select_path_add }}                            | : | select along shortest path |
+| {{ site.data.keymaps.select_all }}                                 | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                               | : | deselect all |
+| {{ site.data.keymaps.select_invert }}                              | : | invert selection |
+| {{ site.data.keymaps.select_linked }}                              | : | select all linked |
+| {{ site.data.keymaps.select_linked_mouse }}, {{ site.data.keymaps.deselect_linked_mouse }} | : | select / deselect all linked under mouse |
+| {{ site.data.keymaps.hide_selected }}                              | : | hide selected geometry |
+| {{ site.data.keymaps.hide_unselected }}                            | : | hide unselected geometry |
+| {{ site.data.keymaps.reveal_hidden }}                              | : | reveal hidden geometry |
+| {{ site.data.keymaps.action }}                                     | : | transform selection when mouse hovers selected geometry |
+| {{ site.data.keymaps.grab }}                                       | : | grab and move selected geometry |
+| {{ site.data.keymaps.rotate }}                                     | : | rotate selected geometry |
+| {{ site.data.keymaps.scale }}                                      | : | scale selected geometry |
+| {{ site.data.keymaps.rip }}                                        | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }}                                   | : | rip and fill selected edge |
+| {{ site.data.keymaps.smooth_edge_flow }}                           | : | smooths edge flow of selected geometry |
+| {{ site.data.keymaps.delete }}                                     | : | delete / dissolve dialog |
+| {{ site.data.keymaps.delete_pie_menu }}                            | : | delete / dissolve pie menu
+| {{ site.data.keymaps.blender_undo }}                               | : | undo |
+| {{ site.data.keymaps.blender_redo }}                               | : | redo |
+| {{ site.data.keymaps.pin }}                                        | : | pin selected geometry |
+| {{ site.data.keymaps.unpin }}                                      | : | unpin selected geometry |
+| {{ site.data.keymaps.unpin_all }}                                  | : | unpin all pinned geometry |
+| {{ site.data.keymaps.mark_seam }}                                  | : | mark selected edges as seam |
+| {{ site.data.keymaps.clear_seam }}                                | : | unmark selected edges as seam |
 
 
 General selection has a few options to help with selecting troublesome vertices (ex: just below surface of source).
@@ -110,8 +108,9 @@ Disable these options to make geometry easier to select.
 
 
 
-Pressing {{delete}} will bring up the Delete/Dissolve/Collapse dialog, allowing you to delete/dissolve/collapse the selected geometry.
-Pressing and holding {{delete pie menu}} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
+Pressing {{ site.data.keymaps.delete }} will bring up the Delete/Dissolve/Collapse dialog, allowing you to delete/dissolve/collapse the selected geometry.
+
+Pressing and holding {{ site.data.keymaps.delete_pie_menu }} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
 
 ![Delete dialog and pie menu](/v3/images/delete_dialog_pie.png)

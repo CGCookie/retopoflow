@@ -1,6 +1,6 @@
 # ![](images/polypen-icon.png) PolyPen Help
 
-Shortcut: {{polypen tool}}
+Shortcut: {{ site.data.keymaps.polypen_tool }}
 
 The PolyPen tool provides absolute control for creating complex topology on a vertex-by-vertex basis (e.g., low-poly game models).
 This tool lets you insert vertices, extrude edges, fill faces, and transform the subsequent geometry all within one tool and in just a few clicks.
@@ -9,46 +9,46 @@ This tool lets you insert vertices, extrude edges, fill faces, and transform the
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}} | : | insert geometry connected to selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }} | : | insert geometry connected to selected geometry |
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select geometry |
-| {{select paint, select paint add}}   | : | paint geometry selection |
-| {{select path add}}                  | : | select along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select geometry |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint geometry selection |
+| {{ site.data.keymaps.select_path_add }}                  | : | select along shortest path |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{grab}}             | : | grab and move selected geometry |
-| {{action}}           | : | grab and move selected geometry under mouse |
-| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
-| {{rotate}}           | : | rotate selected geometry |
-| {{scale}}            | : | scale selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
+| {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
+| {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
+| {{ site.data.keymaps.rotate }}           | : | rotate selected geometry |
+| {{ site.data.keymaps.scale }}            | : | scale selected geometry |
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}   | : | delete/dissolve/collapse selected |
-| {{rip}}      | : | rip selected edge |
-| {{rip fill}} | : | rip and fill selected edge |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
 
 
 ## Insertion Modes
 
 Creating vertices/edges/faces is dependent on the selected mode and the selected geometry.
-Switch between modes using the PolyPen Options, or hold {{pie menu alt0}} to bring up a the PolyPen pie menu.
+Switch between modes using the PolyPen Options, or hold {{ site.data.keymaps.pie_menu_alt0 }} to bring up a the PolyPen pie menu.
 
-![](images/help_polypen_modes_options_pie.png max-height:250px)
+![](images/help_polypen_modes_options_pie.png)
 
 
 

@@ -1,8 +1,8 @@
 # ![](images/select-icon.png) Select Help
 
-Shortcut: {{select tool}}
+Shortcut: {{ site.data.keymaps.select_tool }}
 
-Quick Shortcut: {{select quick}}
+Quick Shortcut: {{ site.data.keymaps.select_quick }}
 
 The select tool allows you to box select vertices.
 
@@ -13,20 +13,18 @@ Note: This tool is very basic at the moment.
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select box}}     | : | box select vertices |
-| {{select box del}} | : | remove vertices from selection |
-| {{select box add}} | : | add vertices to selection |
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_box }}     | : | box select vertices |
+| {{ site.data.keymaps.select_box_del }} | : | remove vertices from selection |
+| {{ site.data.keymaps.select_box_add }} | : | add vertices to selection |
 
 
 ## General
 
-|  |  |  |
-| --- | --- | --- |
-| {{grab}}     | : | grab and move selected geometry |
-| {{rotate}}   | : | rotate selected geometry |
-| {{scale}}    | : | scale selected geometry |
-| {{delete}}   | : | delete/dissolve/collapse selected |
-| {{rip}}      | : | rip selected edge |
-| {{rip fill}} | : | rip and fill selected edge |
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.grab }}     | : | grab and move selected geometry |
+| {{ site.data.keymaps.rotate }}   | : | rotate selected geometry |
+| {{ site.data.keymaps.scale }}    | : | scale selected geometry |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |

@@ -1,8 +1,8 @@
 # ![](images/knife-icon.png) Knife Help
 
-Shortcut: {{knife tool}}
+Shortcut: {{ site.data.keymaps.knife_tool }}
 
-Quick Shortcut: {{knife quick}}
+Quick Shortcut: {{ site.data.keymaps.knife_quick }}
 
 The Knife tool allows you to cut into the existing geometry similarly to Blender's Knife tool.
 
@@ -26,37 +26,34 @@ Until the face can split, the created vertices and edges will be non-manifold (p
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}} | : | insert geometry connected to selected geometry |
-| {{knife reset}} | : | resets the knife starting point |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }} | : | insert geometry connected to selected geometry |
+| {{ site.data.keymaps.knife_reset }} | : | resets the knife starting point |
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select geometry |
-| {{select paint, select paint add}}   | : | paint geometry selection |
-| {{select path add}}                  | : | select along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select geometry |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint geometry selection |
+| {{ site.data.keymaps.select_path_add }}                  | : | select along shortest path |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{grab}}             | : | grab and move selected geometry |
-| {{action}}           | : | grab and move selected geometry under mouse |
-| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
+| {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
+| {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}   | : | delete/dissolve/collapse selected |
-| {{rip}}      | : | rip selected edge |
-| {{rip fill}} | : | rip and fill selected edge |
 
-
-
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |

@@ -1,6 +1,6 @@
 # ![](images/strokes-icon.png) Strokes Help 
 
-Shortcut: {{strokes tool}}
+Shortcut: {{ site.data.keymaps.strokes_tool }}
 
 
 The Strokes tool helps fill in holes in your topology.
@@ -10,50 +10,50 @@ This tool lets you insert edge strips and extruding edges by brushing a stroke o
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}}         | : | insert edge strip and bridge from selected geometry |
-| {{increase count}} | : | increase span/loop counts in bridge |
-| {{decrease count}} | : | decrease span/loop counts in bridge |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }}         | : | insert edge strip and bridge from selected geometry |
+| {{ site.data.keymaps.increase_count }} | : | increase span/loop counts in bridge |
+| {{ site.data.keymaps.decrease_count }} | : | decrease span/loop counts in bridge |
 
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select edges |
-| {{select smart, select smart add}}   | : | smart select loop |
-| {{select paint, select paint add}}   | : | paint edge selection |
-| {{select path add}}                  | : | select edges along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select edges |
+| {{ site.data.keymaps.select_smart }}, {{ site.data.keymaps.select_smart_add }}   | : | smart select loop |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint edge selection |
+| {{ site.data.keymaps.select_path_add }}                  | : | select edges along shortest path |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{action}}        | : | grab and slide selected geometry under mouse |
-| {{grab}}          | : | slide selected loop |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.action }}        | : | grab and slide selected geometry under mouse |
+| {{ site.data.keymaps.grab }}          | : | slide selected loop |
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}         | : | delete/dissolve/collapse selected |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}         | : | delete/dissolve/collapse selected |
 
 
 ## Span Insertion Modes
 
 When extruding a strip, you can specify the number of spans to create using two different modes: Brush Size and Fixed.
-Switch between span insert modes using the Strokes Options, or hold {{pie menu alt0}} to bring up a the Strokes pie menu.
+Switch between span insert modes using the Strokes Options, or hold {{ site.data.keymaps.pie_menu_alt0 }} to bring up a the Strokes pie menu.
 
 If the Span Insert Mode is set to Brush Size, the number of spans will be created to have a size approximately the size of the brush.
 This means that a smaller brush will insert more, smaller spans, and a larger brush will insert fewer, larger spans.
 
 If the Span Insert Mode is set to Fixed, the number of spans will be exactly equal to the number specified by Fixed spans.
 
-![](images/help_strokes_modes_options_pie.png max-height:250px)
+![](images/help_strokes_modes_options_pie.png)
 
 
 ## Tips

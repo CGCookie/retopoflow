@@ -1,46 +1,59 @@
-# ![](images/loops-icon.png) Loops Help
+# ![](images/knife-icon.png) Knife Help
 
-Shortcut: {{loops tool}}
+Shortcut: {{ site.data.keymaps.knife_tool }}
 
-Quick Shortcut: {{loops quick}}
+Quick Shortcut: {{ site.data.keymaps.knife_quick }}
+
+The Knife tool allows you to cut into the existing geometry similarly to Blender's Knife tool.
+
+![](images/help_knife.png)
+
+Note: the Knife tool will only cut into existing geometry; it will not create new vertices, edges, or faces.
+
+If nothing is selected, the first insert will
+
+- insert a new detached vertex if the mouse is hovering a face,
+- split the hovered edge,
+- select the hovered vertex, or
+- set a knife starting point (does _not_ create a new vertex).
+
+The subsequent insertions will cut in new edges, splitting faces and edges accordingly.
+
+Note: an existing face will not be split until there are distinct entrance and exit vertices.
+Until the face can split, the created vertices and edges will be non-manifold (possibly detached) geometry.
 
 
-The Loops tool allows you to insert new edge loops along a face loop and slide any edge loop along the source mesh.
-The Loops tool also works on any strip of edges.
-
-![](images/help_loops.png)
 
 ## Creating
 
-|  |  |  |
-| --- | --- | --- |
-| {{insert}} | : | insert edge loop |
 
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.insert }} | : | insert geometry connected to selected geometry |
+| {{ site.data.keymaps.knife_reset }} | : | resets the knife starting point |
 
 ## Selecting
 
-|  |  |  |
-| --- | --- | --- |
-| {{select single, select single add}} | : | select edges |
-| {{select smart, select smart add}}   | : | smart select loop |
-| {{select paint, select paint add}}   | : | paint edge selection |
-| {{select path add}}                  | : | select edges along shortest path |
-| {{select all}}                       | : | select / deselect all |
-| {{deselect all}}                     | : | deselect all |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.select_single }}, {{ site.data.keymaps.select_single_add }} | : | select geometry |
+| {{ site.data.keymaps.select_paint }}, {{ site.data.keymaps.select_paint_add }}   | : | paint geometry selection |
+| {{ site.data.keymaps.select_path_add }}                  | : | select along shortest path |
+| {{ site.data.keymaps.select_all }}                       | : | select / deselect all |
+| {{ site.data.keymaps.deselect_all }}                     | : | deselect all |
 
 
 ## Transforming
 
-|  |  |  |
-| --- | --- | --- |
-| {{slide}}  | : | slide loop |
-| {{action}} | : | if mouse over unselected geometry, smart select loop under mouse. <br> grab and slide selected geometry under mouse |
-| {{smooth edge flow}} | : | smooths edge flow of selected geometry |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.grab }}             | : | grab and move selected geometry |
+| {{ site.data.keymaps.action }}           | : | grab and move selected geometry under mouse |
+| {{ site.data.keymaps.smooth_edge_flow }} | : | smooths edge flow of selected geometry |
 
 ## Other
 
-|  |  |  |
-| --- | --- | --- |
-| {{delete}}   | : | delete/dissolve/collapse selected |
-| {{rip}}      | : | rip selected edge |
-| {{rip fill}} | : | rip and fill selected edge |
+
+| :--- | :--- | :--- |
+| {{ site.data.keymaps.delete }}   | : | delete/dissolve/collapse selected |
+| {{ site.data.keymaps.rip }}      | : | rip selected edge |
+| {{ site.data.keymaps.rip_fill }} | : | rip and fill selected edge |
