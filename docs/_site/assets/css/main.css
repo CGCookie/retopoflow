@@ -164,3 +164,17 @@ footer a {
     color: rgba(32, 32, 32, 1.0);
     text-decoration: underline;
 }
+
+/* v3 docs images */
+img[alt='Pie menu'], 
+img[alt='Selection options'], 
+img[alt='Delete dialog and pie menu']
+{
+    max-height:350px;
+}
+
+
+img[alt='themes']
+{
+    max-height: 200px;
+}

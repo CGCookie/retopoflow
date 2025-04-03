@@ -36,9 +36,9 @@ To continue working on a previous retopology session:
 
 The following documents provide additional help.
 
-- [Table of Contents](table_of_contents.md)
-- [A Welcome to You from Us](welcome.md)
-- [General RetopoFlow Help](general.md)
+- [Table of Contents](table_of_contents.html)
+- [A Welcome to You from Us](welcome.html)
+- [General RetopoFlow Help](general.html)
 
 
 ## Terminology

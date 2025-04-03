@@ -4,12 +4,11 @@ RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Or
 
 This documentation covers the installation and usage of all tools included in the add-on.
 
-You can read about the features and purchase a copy on [our website](https://orangeturbine.com/downloads/retopoflow) or the [Blender Market](https://blendermarket.com/products/retopoflow/).
+You can read about the features and purchase a copy on the [Blender Market](https://blendermarket.com/products/retopoflow/).
 
 ![Blender Market](images/blendermarket_screenshot.png)
 
-If you’re brand new to RetopoFlow, check the [Quick Start page](https://docs.retopoflow.com/quick_start.html).
-Otherwise, jump right over to the [Table of Contents](https://docs.retopoflow.com/table_of_contents.html).
+If you’re brand new to RetopoFlow, check the [Quick Start page](quick_start.html).
 
 
 ## Requirements
@@ -70,28 +69,16 @@ If you have any issues with installing, please try the following steps:
 10. Enable RetopoFlow
 
 
-## Updating
-
-RetopoFlow 3 comes with a built-in updater.
-Once you've installed it the first time, simply check for updates using the RetopoFlow menu.
-If you need to update the add-on manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.
-
-The RetopoFlow updater will keep all of your previous settings intact.
-If you need to update manually for whatever reason, you can also keep your preferences by copying the `RetopoFlow_keymaps.json` and `RetopoFlow_options.json` files from the previous version's folder before installation and pasting them into the new version's folder after installation.
-
-See the [Updater page](https://docs.retopoflow.com/addon_updater.html) for more details.
-
-
 ## Getting Support
 
-Here are ways to get help with a problem or a question that the [documentation](https://docs.retopoflow.com) isn't answering:
+Here are ways to get help with a problem or a question that the documentation isn't answering:
 
 - Get high priority support from Orange Turbine by sending a message from your [Blender Market inbox](https://blendermarket.com/inbox) once you've purchased a copy.
 - Create a new [issue](https://github.com/CGCookie/retopoflow/issues/new/choose) on RetopoFlow's [GitHub page](https://github.com/CGCookie/retopoflow).
 - Reach out to us via email at [retopoflow@cgcookie.com](mailto:retopoflow@cgcookie.com).
 
 Please provide as much information and detail as possible, such as steps to reproduce the issue, what behavior you expected to see vs what you actually saw, screenshots, and so on.
-See [Debugging](https://docs.retopoflow.com/debugging.html) for details on getting as much useful information as possible.
+See [Debugging](debugging.html) for details on getting as much useful information as possible.
 Also, if possible, please consider sending us the `.blend` file.
 
 

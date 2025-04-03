@@ -33,12 +33,12 @@
       <header>
         
         <span id="logo" class="logo"><img src="/images/logos/v4.png" alt="Logo" /></span>
-        <h1 class="title"><a href="index.html">Retopoflow</a></h1>
+        <h1 class="title" id="title"><a href="/index.html">Retopoflow</a></h1>
         <p class="tagline">by <a class="outlink" href="https://orangeturbine.com/" target="_blank">Orange Turbine</a></p>
     
         <select name="version" class="version" id="version_menu" onchange="switch_versions(event)">
-          <option value="v4">Version 4</option>
           <option value="v3">Version 3</option>
+          <option value="v4">Version 4</option>
         </select> 
 
         <div id="navigation"></div>
@@ -70,12 +70,14 @@
     
         if (location.href.includes('v3')) {
           document.getElementById('version_menu').value = 'v3'
+          document.getElementById('title').innerHTML = `<a href="/v3/index.html">Retopoflow</a>`
           document.getElementById('logo').innerHTML = `<img src="/images/logos/v3.png" alt="Logo" class="logo" />`
           localStorage.setItem("version", 'v3');
         }
         else {
-          document.getElementById('version_menu').value = version
-          document.getElementById('logo').innerHTML = `<img src="/images/logos/${version}.png" alt="Logo" class="logo" />`
+          document.getElementById('version_menu').value = 'v4'
+          document.getElementById('title').innerHTML = `<a href="/index.html">Retopoflow</a>`
+          document.getElementById('logo').innerHTML = `<img src="/images/logos/v4.png" alt="Logo" class="logo" />`
         }
       </script>
 

@@ -7,7 +7,7 @@ Below are answers to some common questions with RetopoFlow.
 
 All of the tools (except Patches, Tweak, and Relax) create geometry using {{insert}} action.
 Selection uses the {{select single}} action.
-See [General Help](general.md) for more actions.
+See [General Help](general.html) for more actions.
 
 
 ## Q: Why can I not select the geometry?

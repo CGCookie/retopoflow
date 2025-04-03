@@ -5,7 +5,7 @@ Help Shortcut: {{general help}}
 When RetopoFlow Mode is enabled, certain shortcuts are available regardless of the tool selected.
 For tool-specific help, select the tool from the Tools panel, and either press {{tool help}} or click Tool Help.
 
-View the [table of contents](table_of_contents.md) for all built-in documentation by pressing {{all help}} at any time.
+View the [table of contents](table_of_contents.html) for all built-in documentation by pressing {{all help}} at any time.
 
 Below is a brief description of some of the features in RetopoFlow.
 For more details, see the tooltips when hovering or the product documentation page.
@@ -29,20 +29,20 @@ The shortcuts for each tool is a number at top of keyboard (not numpad numbers).
 
 |  |  |  |  |
 | --- | --- | --- | --- |
-| {{contours tool}}   | : | Contours   | [help](contours.md)   |
-| {{polystrips tool}} | : | PolyStrips | [help](polystrips.md) |
-| {{strokes tool}}    | : | Strokes    | [help](strokes.md)    |
-| {{patches tool}}    | : | Patches    | [help](patches.md)    |
-| {{polypen tool}}    | : | PolyPen    | [help](polypen.md)    |
-| {{knife tool}}      | : | Knife      | [help](knife.md)      |
-| {{loops tool}}      | : | Loops      | [help](loops.md)      |
-| {{tweak tool}}      | : | Tweak      | [help](tweak.md)      |
-| {{relax tool}}      | : | Relax      | [help](relax.md)      |
-| {{select tool}}     | : | Select     | [help](select.md)     |
+| {{contours tool}}   | : | Contours   | [help](contours.html)   |
+| {{polystrips tool}} | : | PolyStrips | [help](polystrips.html) |
+| {{strokes tool}}    | : | Strokes    | [help](strokes.html)    |
+| {{patches tool}}    | : | Patches    | [help](patches.html)    |
+| {{polypen tool}}    | : | PolyPen    | [help](polypen.html)    |
+| {{knife tool}}      | : | Knife      | [help](knife.html)      |
+| {{loops tool}}      | : | Loops      | [help](loops.html)      |
+| {{tweak tool}}      | : | Tweak      | [help](tweak.html)      |
+| {{relax tool}}      | : | Relax      | [help](relax.html)      |
+| {{select tool}}     | : | Select     | [help](select.html)     |
 
 Note: selection and the undo stack is maintained between tools.
 
-![Pie menu](images/pie_menu.png max-height:240px)
+![Pie menu](/v3/images/pie_menu.png)
 
 Press {{pie menu}} at any time to show the tool pie menu.
 
@@ -105,7 +105,7 @@ When `Occlusion Test` is enabled, geometry that is occluded by the source(s) are
 When `Backface Test` is enabled, geometry that is facing away are not selectable.
 Disable these options to make geometry easier to select.
 
-![Selection options](images/selection_options.png max-height:250px)
+![Selection options](/v3/images/selection_options.png)
 
 
 
@@ -114,7 +114,7 @@ Pressing {{delete}} will bring up the Delete/Dissolve/Collapse dialog, allowing 
 Pressing and holding {{delete pie menu}} will bring up a Delete/Dissolve pie menu, which has fewer options than the dialog but is generally faster.
 
 
-![Delete dialog and pie menu](images/delete_dialog_pie.png max-height:250px)
+![Delete dialog and pie menu](/v3/images/delete_dialog_pie.png)
 
 
 
@@ -145,7 +145,7 @@ The Clipping options control the near and far clipping planes.
 
 The Theme option changes the color of selected geometry.
 
-![](images/help_themes.png max-height:100px)
+![themes](/v3/images/help_themes.png)
 
 The Target Drawing options control the rendering of the target mesh.
 The Above and Below options control transparency of the target mesh.

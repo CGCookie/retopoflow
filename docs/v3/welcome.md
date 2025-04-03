@@ -10,11 +10,11 @@ The tools work because of our custom "Retopology Mode", which gets more informat
 
 ## Getting Started
 
-Check out our [quick start guide](quick_start.md) or our [video tutorials](https://cgcookie.com/courses/retopology-with-retopoflow-3) to learn the basics of using RetopoFlow.
+Check out our [quick start guide](quick_start.html) or our [video tutorials](https://cgcookie.com/courses/retopology-with-retopoflow-3) to learn the basics of using RetopoFlow.
 
 RetopoFlow also has a full documentation and help system within the app.
 
-You can find it in the Help section of the toolbar or, at any time, press {{general help}} to open the [general help document](general.md), {{all help}} to open the [table of contents](table_of_contents.md), or {{tool help}} to open the help documents for the currently selected tool.
+You can find it in the Help section of the toolbar or, at any time, press {{general help}} to open the [general help document](general.html), {{all help}} to open the [table of contents](table_of_contents.html), or {{tool help}} to open the help documents for the currently selected tool.
 
 
 ## Find an issue? Please let us know!
@@ -60,6 +60,3 @@ Cheers!
 
 <br>
 ---The CG Cookie Tool Development Team
-
-
-<label class="not-online"><input type="checkbox" checked="BoundBool('''options['welcome']''')">Show this Welcome note when RetopoFlow starts</label>
