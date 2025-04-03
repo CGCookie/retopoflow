@@ -6,7 +6,7 @@ Strokes is an incredibly versetile tool for quickly sketching out patches of qua
 
 ## Inserting
 
-To draw a new stroke, deselect everything, hold down `Ctrl`, and `Left Mouse Drag` on the surface of the source object.
+To draw a new stroke, deselect everything, hold down `Ctrl`, and `LMB Drag` on the surface of the source object.
 
 To turn the previous stroke into a patch of quads, keep the newly created geometry selected and draw a new stroke. Strokes will extrude the selection to the new stroke using evenly spaced quads.
 
@@ -60,7 +60,7 @@ The default selection mode for Contours is Vertex + Edge because it is helpful t
 
 ## Transforming
 
-A `Left Click Drag` on components in Strokes will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
+A `LMB Drag` on components in Strokes will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
 
 ## Limitations
 

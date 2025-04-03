@@ -11,7 +11,7 @@ The Relax Brush tool allows you to easily and interactively smooth out vertex po
 
 ## Transforming
 
-To use the Relax Brush, simply `Left Click Drag` on vertices. Which vertices are affected can be controlled in the **Masking** settings.
+To use the Relax Brush, simply `LMB Drag` on vertices. Which vertices are affected can be controlled in the **Masking** settings.
 
 ## Brush Settings
 
@@ -70,4 +70,4 @@ The Relax Brush has several options to control which vertices are moved and how.
 
 ## Selection
 
-Even though `Left Click` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift Left Click`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well. 
+Even though `LMB` to select is not available while using the Tweak Brush, you can still select and deselect by using `Shift LMB`. Box Select `B` and Lasso Select `Ctrl Right Mouse Drag` are always available as well. 

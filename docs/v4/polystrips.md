@@ -7,7 +7,7 @@ The PolyStrips tool provides quick and easy ways to map out key face loops for c
 
 ## Inserting
 
-To create a strip of quads with PolyStrips, hold down `Ctrl` and `Left Mouse Drag` on the surface of a source object. 
+To create a strip of quads with PolyStrips, hold down `Ctrl` and `LMB Drag` on the surface of a source object. 
 
 The size of the quads corresponds to the size of the brush that you see when you hold down `Ctrl`. To adjust the size, use the hotkey `F`.
 
@@ -19,7 +19,7 @@ These options are also available in Blender's Adjust Last Operation panel, along
 
 ## Control Points
 
-Any selected strip of quads will show control points and curve handles while you're using PolyStrips. Simply `Left Click Drag` on the control points or handles to adjust the strip like a Bezier curve. 
+Any selected strip of quads will show control points and curve handles while you're using PolyStrips. Simply `LMB Drag` on the control points or handles to adjust the strip like a Bezier curve. 
 
 PolyStrips handles work great with Blender's proportional editing. If you enable that (hotkey `O`), you can easily adjust sections of existing loops that are already surrounded by geometry.
 
@@ -27,11 +27,11 @@ PolyStrips handles work great with Blender's proportional editing. If you enable
 
 The default selection mode for PolyStrips is Face so that you can quickly select and tweak parts of strips. However, you can work in just Vertex and / or Edge select mode just as well if you prefer.  
 
-It's helpful to remember that even though `Ctrl Left Click` to select shortest path is blocked because `Ctrl` is used to create strips, you can always do the same thing with `Ctrl Shift Left Click`. So to easily select a part of a strip, `Left Click` to select one face and then `Ctrl Shift Left Click` on another. 
+It's helpful to remember that even though `Ctrl LMB` to select shortest path is blocked because `Ctrl` is used to create strips, you can always do the same thing with `Ctrl Shift LMB`. So to easily select a part of a strip, `LMB` to select one face and then `Ctrl Shift LMB` on another. 
 
 ## Transforming
 
-A `Left Click Drag` on components in PolyPen will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
+A `LMB Drag` on components in PolyPen will perform a tweak action similar to Blender's Tweak tool. The tweaking settings are shared across multiple tools and can be read about on the [Retopoflow Mode](general.html) docs page under Common Settings.
 
 ## Limitations
 

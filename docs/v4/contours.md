@@ -9,7 +9,7 @@ For example, it's ideal for organic forms such as arms, fingers, legs, tentacles
 
 The tool works by drawing strokes perpendicular to the form to create loops that define the contour of the shape.
 
-Hold `Ctrl` and `Left Mouse Drag` across the source geometry to cretate a new cut. The source geometry under the center of the stroke is what gets evaluated. You may draw strokes in any order, from any direction.
+Hold `Ctrl` and `LMB Drag` across the source geometry to cretate a new cut. The source geometry under the center of the stroke is what gets evaluated. You may draw strokes in any order, from any direction.
 
 - If there is no retopology geometry selected or under the stroke, a new loop will be created.
 - If the stroke is over existing geometry, a new cut will be inserted similar to a loop cut.
