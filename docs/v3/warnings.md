@@ -122,7 +122,7 @@ If Blender's auto save is disabled, any work done since the last time you saved 
 
 ## Auto Save / Save: Unsaved Blender File
 
-If you are working on an unsaved blend file, your changes will be saved to a temporary file (see path below) when you press {{blender save}}.
+If you are working on an unsaved blend file, your changes will be saved to a temporary file (see path below) when you press {{site.data.keymaps.blender_save}}.
 
 Temporary file path: `{`options.get_auto_save_filepath()`}`
 

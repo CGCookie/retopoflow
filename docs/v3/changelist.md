@@ -229,8 +229,8 @@ This version of RetopoFlow requires Blender 3.6 or later.
 - Tweak/Relax: brushes now do not become fully opaque (nor fully transparent) when strength is set to 1 (or 0)
 - Patches: improved code to detect good candidates for bridging two I-strips
 - PolyPen: PP-specific pie menu now shown in help doc
-- Added quit confirmation dialog when using {{done}}.  This dialog can be disabled.
-- Added Delete/Dissolve pie menu using {{delete pie menu}}
+- Added quit confirmation dialog when using {{site.data.keymaps.done}}.  This dialog can be disabled.
+- Added Delete/Dissolve pie menu using {{site.data.keymaps.delete_pie_menu}}
 - Other miscellaneous bug fixes
 
 ### RetopoFlow 2.x&rarr;3.00.0

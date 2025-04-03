@@ -1,6 +1,6 @@
 # Table of Contents
 
-Help Shortcut: {{all help}}
+Help Shortcut: {{site.data.keymaps.all_help}}
 
 Below are links to all of the help documents built into RetopoFlow.
 

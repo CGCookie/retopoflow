@@ -43,7 +43,7 @@ Note: selection and the undo stack is maintained between tools.
 
 ![Pie menu](/v3/images/pie_menu.png)
 
-Press {{pie menu}} at any time to show the tool pie menu.
+Press {{site.data.keymaps.pie_menu}} at any time to show the tool pie menu.
 
 
 ## Quick Tool Shortcuts
