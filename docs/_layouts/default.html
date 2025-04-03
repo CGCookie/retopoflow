@@ -16,7 +16,7 @@
     <div class="wrapper">
       <header>
         
-        <span id="logo"><img src="/images/logos/v4.png" alt="Logo" class="logo" /></span>
+        <span id="logo" class="logo"><img src="/images/logos/v4.png" alt="Logo" /></span>
         <h1 class="title"><a href="index.html">Retopoflow</a></h1>
         <p class="tagline">by <a class="outlink" href="https://orangeturbine.com/" target="_blank">Orange Turbine</a></p>
     
@@ -39,7 +39,12 @@
           let result = menu.options[menu.selectedIndex].value;
           version = result
           localStorage.setItem("version", result);
-          location.reload()
+          if (result == 'v3') {
+            location.href = '/v3/index.html'
+          }
+          else if (result == 'v4') {
+            location.href = '/index.html'
+          }
         }
 
         fetch(path)
@@ -47,8 +52,15 @@
           .then(data => {document.getElementById('navigation').innerHTML = data;})
           .catch(error => console.error('Error loading HTML:', error));
     
-        document.getElementById('version_menu').value = version
-        document.getElementById('logo').innerHTML = `<img src="/images/logos/${version}.png" alt="Logo" class="logo" />`
+        if (location.href.includes('v3')) {
+          document.getElementById('version_menu').value = 'v3'
+          document.getElementById('logo').innerHTML = `<img src="/images/logos/v3.png" alt="Logo" class="logo" />`
+          localStorage.setItem("version", 'v3');
+        }
+        else {
+          document.getElementById('version_menu').value = version
+          document.getElementById('logo').innerHTML = `<img src="/images/logos/${version}.png" alt="Logo" class="logo" />`
+        }
       </script>
 
       <section>

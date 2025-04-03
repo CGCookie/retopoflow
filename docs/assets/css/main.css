@@ -100,7 +100,8 @@ header .tagline {
     margin: 0px;
 }
 header .logo {
-    max-width: 164px;
+    width: 164px;
+    height: 164px;
     padding-top: 0px;
     padding-bottom: 24px;
 }
