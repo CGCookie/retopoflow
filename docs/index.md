@@ -6,7 +6,7 @@ Retopoflow is a suite of fun, sketch-based retopology tools for Blender, created
 
 You can read about the features and purchase a copy on [Superhive](https://blendermarket.com/products/retopoflow/) (formerly Blender Market).
 
-If you’re brand new to Retopoflow, check the [Quick Start page](quick_start.html).
+If you’re brand new to Retopoflow, check the [Quick Start page](/v4/quick_start.html).
 
 Another great place to learn the tools is our [YouTube channel](https://www.youtube.com/@orangeturbine).
 
@@ -29,7 +29,7 @@ You can get help with an issue or give feedback by reaching out to us in one of 
 
 Please provide as much information and detail as possible, such as steps to reproduce the issue, what behavior you expected to see vs what you actually saw, screenshots, and so on. 
 
-See the [Debugging](debugging.html) page for details on getting as much useful information as possible. Also, if possible, please consider sending us the `.blend` file.
+See the [Debugging](/v4/debugging.html) page for details on getting as much useful information as possible. Also, if possible, please consider sending us the `.blend` file.
 
 ## Thank you!
 
