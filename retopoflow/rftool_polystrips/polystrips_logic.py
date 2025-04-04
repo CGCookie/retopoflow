@@ -337,6 +337,7 @@ class PolyStrips_Logic:
             quad_count = (quad_count - 1) if snap0 and snap1 else quad_count
             nsamples = quad_count + (quad_count - 1)
             nsamples = (nsamples + 2) if not (snap0 or snap1) else nsamples
+            nsamples = max(2, nsamples)
             samples = [
                 find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
                 for i in range(nsamples)
