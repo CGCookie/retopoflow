@@ -130,69 +130,65 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         default=False,
     )
 
-    stroke_data = None
+    logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, extrapolate_mode, initial_smooth_angle, initial_smooth_density0, initial_smooth_density1):
-        RFOperator_Stroke_Insert.stroke_data = {
-            'initial':           True,
-            'action':            '',
-            'radius':            radius,
-            'stroke3D':          stroke3D,
-            'is_cycle':          is_cycle,
-            'span_insert_mode':  span_insert_mode,
-            'cut_count':         initial_cut_count,
-            'show_count':        True,
-            'extrapolate':       extrapolate_mode,
-            'show_extrapolate':  True,
-            'bridging_offset':   0,
-            'show_bridging_offset': False,
-            'show_smoothness':    False,
-            'smooth_angle':       initial_smooth_angle,
-            'smooth_density0':    initial_smooth_density0,
-            'smooth_density1':    initial_smooth_density1,
-            'force_options':      {
-                'show strip-L force non': False,
-                'strip-L force non': False,
-            },
-        }
+    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, initial_extrapolate_mode, initial_smooth_angle, initial_smooth_density0, initial_smooth_density1):
+        stroke3D = [pt for pt in stroke3D if pt]
+        length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
+        if length3D == 0: return
+
+        RFOperator_Stroke_Insert.logic = Strokes_Logic(
+            context,
+            radius,
+            stroke3D,
+            is_cycle,
+            span_insert_mode,
+            initial_cut_count,
+            initial_extrapolate_mode,
+            initial_smooth_angle,
+            initial_smooth_density0,
+            initial_smooth_density1,
+        )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
+
     @staticmethod
     def strokes_reinsert(context):
-        data = RFOperator_Stroke_Insert.stroke_data
+        logic = RFOperator_Stroke_Insert.logic
+
         bpy.ops.retopoflow.strokes_insert(
             'INVOKE_DEFAULT', True,
-            extrapolate_mode=data['extrapolate'],
-            cut_count=data['cut_count'],
-            bridging_offset=data['bridging_offset'],
-            smooth_angle=data['smooth_angle'],
-            smooth_density0=data['smooth_density0'],
-            smooth_density1=data['smooth_density1'],
-            force_nonstripL=data['force_options']['strip-L force non'],
+            extrapolate_mode=logic.extrapolate_mode,
+            cut_count=logic.cut_count or 0,
+            bridging_offset=logic.bridging_offset,
+            smooth_angle=logic.smooth_angle,
+            smooth_density0=logic.smooth_density0,
+            smooth_density1=logic.smooth_density1,
+            force_nonstripL=logic.force_nonstripL,
         )
 
     def draw(self, context):
         layout = self.layout
         grid = layout.grid_flow(row_major=True, columns=2)
-        data = RFOperator_Stroke_Insert.stroke_data
+        logic = RFOperator_Stroke_Insert.logic
 
-        if data['action']:
+        if logic.show_action:
             grid.label(text=f'Inserted')
-            grid.label(text=data['action'])
+            grid.label(text=logic.show_action)
 
-        if data['show_count']:
+        if logic.show_count:
             grid.label(text='Count')
             grid.prop(self, 'cut_count', text='')
 
-        if data['show_extrapolate']:
+        if logic.show_extrapolate_mode:
             grid.label(text='Extrapolation')
             grid.prop(self, 'extrapolate_mode', text='')
 
-        if data['show_bridging_offset']:
+        if logic.show_bridging_offset:
             grid.label(text='Shift')
             grid.prop(self, 'bridging_offset', text='')
 
-        if data['show_smoothness']:
+        if logic.show_smoothness:
             grid.label(text='Smoothing')
             grid.prop(self, 'smooth_angle', text='')
 
@@ -201,58 +197,28 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             row.prop(self, 'smooth_density0', text='')
             row.prop(self, 'smooth_density1', text='')
 
-        if data['force_options']['show strip-L force non']:
+        if logic.show_force_nonstripL:
             grid.label(text='Force non-L-Strip')
             grid.prop(self, 'force_nonstripL', text='')
 
     def execute(self, context):
-        data = RFOperator_Stroke_Insert.stroke_data
-        stroke3D = [pt for pt in data['stroke3D'] if pt]
-        if not stroke3D: return {'CANCELLED'}
-        length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(data['stroke3D'], data['is_cycle']))
-        if length3D == 0: return {'CANCELLED'}
+        """
+        NOTE: execute should not be called directly!
+              call via strokes_insert or strokes_reinsert
+        """
+
+        logic = RFOperator_Stroke_Insert.logic
+
+        logic.extrapolate_mode = self.extrapolate_mode
+        logic.fixed_span_count = self.cut_count
+        logic.bridging_offset  = self.bridging_offset
+        logic.smooth_angle     = self.smooth_angle
+        logic.smooth_density0  = self.smooth_density0
+        logic.smooth_density1  = self.smooth_density1
+        logic.force_nonstripL  = self.force_nonstripL
 
         try:
-            logic = Strokes_Logic(
-                context,
-                data['initial'],
-                data['radius'],
-                stroke3D,
-                data['is_cycle'],
-                data['span_insert_mode'] if data['initial'] else 'FIXED',
-                data['cut_count'] if data['initial'] else self.cut_count,
-                self.extrapolate_mode,
-                data['bridging_offset'] if data['initial'] else self.bridging_offset,
-                self.smooth_angle,
-                self.smooth_density0,
-                self.smooth_density1,
-                {
-                    'show strip-L force non': data['force_options']['show strip-L force non'],
-                    'strip-L force non': self.force_nonstripL,
-                },
-            )
-
-            if data['initial']:
-                data['initial'] = False
-                data['show_extrapolate'] = logic.show_extrapolate
-                self.bridging_offset = logic.bridging_offset
-                data['force_options']['show strip-L force non'] = logic.force_options['show strip-L force non']
-                data['force_options']['strip-L force non'] = logic.force_options['strip-L force non'] or False
-            else:
-                self.bridging_offset = clamp(self.bridging_offset, logic.min_bridging_offset, logic.max_bridging_offset)
-            data['show_count'] = logic.show_count
-            data['action'] = logic.show_action
-            if logic.show_count: self.cut_count = logic.cut_count
-            data['cut_count'] = self.cut_count
-            data['extrapolate'] = self.extrapolate_mode
-            data['show_smoothness'] = logic.show_smoothness
-            data['smooth_angle'] = self.smooth_angle
-            data['show_bridging_offset'] = logic.show_bridging_offset
-            data['bridging_offset'] = self.bridging_offset
-            data['smooth_density0'] = self.smooth_density0
-            data['smooth_density1'] = self.smooth_density1
-            if logic.force_options['strip-L force non'] is not None: self.force_nonstripL = logic.force_options['strip-L force non']
-            data['force_options']['strip-L force non'] = self.force_nonstripL
+            logic.update(context)
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -261,6 +227,14 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             debugger.print_exception()
             return {'CANCELLED'}
 
+        self.extrapolate_mode = logic.extrapolate_mode
+        self.bridging_offset  = logic.bridging_offset
+        self.smooth_angle     = logic.smooth_angle
+        self.smooth_density0  = logic.smooth_density0
+        self.smooth_density1  = logic.smooth_density1
+        self.force_nonstripL  = logic.force_nonstripL
+        if logic.show_count: self.cut_count = logic.fixed_span_count
+
         return {'FINISHED'}
 
     @staticmethod
@@ -268,41 +242,43 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         # add keymap to RFOperator_Stroke_Insert.rf_keymaps
         # note: still creating RFOperator_Stroke_Insert, so using RFOperator_Stroke_Insert_Keymaps.rf_keymaps
         RFOperator_Stroke_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
-        def wrapper(fn):
+        def wrapper(fn_action):
             @execute_operator(idname, description, options={'INTERNAL'})
-            @wraps(fn)
+            @wraps(fn_action)
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
                 if last_op != RFOperator_Stroke_Insert.bl_label: return
-                fn(context, RFOperator_Stroke_Insert.stroke_data)
+                fn_action(context, RFOperator_Stroke_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Stroke_Insert.strokes_reinsert(context)
             return wrapped
         return wrapper
 
     @create_redo_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
-    def decrease_spans(context, data):
-        data['cut_count'] -= 1
+    def decrease_spans(context, logic):
+        if logic.cut_count is None: return
+        logic.cut_count -= 1
 
     @create_redo_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
-    def increase_spans(context, data):
-        data['cut_count'] += 1
+    def increase_spans(context, logic):
+        if logic.cut_count is None: return
+        logic.cut_count += 1
 
     @create_redo_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
-    def decrease_shift(context, data):
-        data['bridging_offset'] -= 1
+    def decrease_shift(context, logic):
+        logic.bridging_offset -= 1
 
     @create_redo_operator('strokes_insert_shift_increased', 'Reinsert stroke with shifted spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'alt': 1})
-    def increase_shift(context, data):
-        data['bridging_offset'] += 1
+    def increase_shift(context, logic):
+        logic.bridging_offset += 1
 
     @create_redo_operator('strokes_insert_smooth_angle_decreased', 'Reinsert stroke with less smoothed angles', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
-    def decrease_smooth_angle(context, data):
-        data['smooth_angle'] -= 0.25
+    def decrease_smooth_angle(context, logic):
+        logic.smooth_angle -= 0.25
 
     @create_redo_operator('strokes_insert_smooth_angle_increased', 'Reinsert stroke with more smoothed angles', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    def increase_smooth_angle(context, data):
-        data['smooth_angle'] += 0.25
+    def increase_smooth_angle(context, logic):
+        logic.smooth_angle += 0.25
 
 
 class RFOperator_Strokes(RFOperator):

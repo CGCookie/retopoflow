@@ -111,37 +111,47 @@ Questions/Thoughts:
 
 '''
 
-DEBUG = True
+DEBUG = False
 
 
 class Strokes_Logic:
-    def __init__(self, context, initial, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate, bridging_offset, smooth_angle, smooth_density0, smooth_density1, force_options):
-        self.bm, self.em = get_bmesh_emesh(context)
-        bmops.flush_selection(self.bm, self.em)
-        self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
-        self.context, self.rgn, self.r3d = context, context.region, context.region_data
+    def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         self.radius = radius
         self.stroke3D = stroke3D
         self.is_cycle = is_cycle
+
         self.span_insert_mode = span_insert_mode
         self.fixed_span_count = fixed_span_count
-        self.extrapolate = extrapolate
-        self.cut_count = None if initial else fixed_span_count
-        self.bridging_offset = bridging_offset
+
+        self.show_extrapolate_mode = True
+        self.extrapolate_mode = extrapolate_mode
+
+        self.show_bridging_offset = False
+        self.bridging_offset = 0
         self.min_bridging_offset = 0
         self.max_bridging_offset = 0
+
+        self.show_smoothness = False
         self.smooth_angle = smooth_angle
         self.smooth_density0 = smooth_density0
         self.smooth_density1 = smooth_density1
 
+        self.show_force_nonstripL = False
+        self.force_nonstripL = False
+
         self.show_action = ''
         self.show_count = True
-        self.show_extrapolate = True
-        self.show_bridging_offset = False
-        self.show_smoothness = False
+        self.cut_count = None
+        self.initial = True
 
-        self.force_options = force_options
+
+    def update(self, context):
+        self.context, self.rgn, self.r3d = context, context.region, context.region_data
+
+        self.bm, self.em = get_bmesh_emesh(context)
+        bmops.flush_selection(self.bm, self.em)
+        self.matrix_world = context.edit_object.matrix_world
+        self.matrix_world_inv = self.matrix_world.inverted()
 
         self.process_stroke()
         self.process_selected()
@@ -154,6 +164,12 @@ class Strokes_Logic:
             print(f'Exception caught: {e}')
             debugger.print_exception()
         # bpy.ops.ed.undo_push(message=f'Strokes insert {time.time()}')
+
+        # now that we've done calculations on span count, switch to fixed so artist can adjust cut_count
+        if self.cut_count is not None:
+            self.span_insert_mode = 'FIXED'
+            self.fixed_span_count = self.cut_count
+        self.initial = False
 
     def process_stroke(self):
         # project 3D stroke points to screen
@@ -321,7 +337,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Strip'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
     def insert_cycle(self):
         if DEBUG: print(f'insert_cycle()')
@@ -351,7 +367,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Loop'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
 
     ##############################################################################
@@ -444,7 +460,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Equals-Loop'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
 
     def insert_cycle_T(self):
@@ -539,7 +555,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'T-Loop'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
     def insert_cycle_I(self):
         if DEBUG: print(f'insert_cycle_I()')
@@ -633,7 +649,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'I-Loop'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
 
     # ##############################################################################
@@ -780,7 +796,7 @@ class Strokes_Logic:
         for i_row, bme in enumerate(self.longest_strip0 + [None]):
             pt = self.project_bmv(bmv0)
 
-            if self.extrapolate == 'ADAPT':
+            if self.extrapolate_mode == 'ADAPT':
                 bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
                 vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
                 bme_angle = vec_screenspace_angle(vpn)
@@ -823,7 +839,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'T-Strip'
         self.show_count = True
-        self.show_extrapolate = True
+        self.show_extrapolate_mode = True
 
 
     def insert_strip_I(self):
@@ -917,7 +933,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'I-Strip'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
 
     def insert_strip_C(self):
@@ -1007,7 +1023,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'C-Strip'
         self.show_count = True
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
 
 
     def insert_strip_L(self):
@@ -1020,15 +1036,14 @@ class Strokes_Logic:
         elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
         else: return self.insert_strip_T()
 
-        if self.force_options['strip-L force non']: return self.insert_strip_T()
-        self.force_options['show strip-L force non'] = True
-        self.force_options['strip-L force non'] = False
+        if self.force_nonstripL: return self.insert_strip_T()
+        self.show_force_nonstripL = False  # will set to True if we add an L-strip
+        self.force_nonstripL = False
 
         # if snap_bmv0 is in longest strip but not one of the ends, fallback to inserting T
         if len(self.longest_strip0) > 1:
             longest_strip0_bmv0 = bme_unshared_bmv(self.longest_strip0[ 0], self.longest_strip0[ 1])
             longest_strip0_bmv1 = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
-            print(f'{self.snap_bmv0=} {longest_strip0_bmv0=} {longest_strip0_bmv1=}')
             if self.snap_bmv0 != longest_strip0_bmv0 and self.snap_bmv0 != longest_strip0_bmv1: return self.insert_strip_T()
         # if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-2]): return self.insert_strip_T()
 
@@ -1063,6 +1078,8 @@ class Strokes_Logic:
             cur = next_bmv
         llc_tb, llc_lr = len(strip_t)+1, len(strip_l)+1
         # strip_t is path from opposite to start of stroke, and strip_l is path from opposite to end of stroke
+
+        self.show_force_nonstripL = True
 
         # split stroke into two sides
         idx = find_sharpest_index(self.stroke2D)
@@ -1115,7 +1132,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
         self.show_action = 'L-Strip'
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
         self.show_count = False
 
 
@@ -1166,13 +1183,13 @@ class Strokes_Logic:
         if self.snap_bmv1_nosel: ir, strip_r_bmvs = self.crawl_boundary({ bmv_tr }, self.snap_bmv1)
         if strip_l_bmvs and strip_r_bmvs and bool(set(strip_r_bmvs) & set(strip_l_bmvs)):
             # two side strips have overlapping edges, so set both to None
+            print(f'Overlap detected')
             strip_l_bmvs, strip_r_bmvs = None, None
         if strip_l_bmvs and strip_r_bmvs:
-            if self.cut_count is not None:
-                ll = max(1, min(self.cut_count, len(strip_l_bmvs)-1))
-                lr = max(1, min(self.cut_count, len(strip_r_bmvs)-1))
+            if not self.initial and self.cut_count is not None:
+                ll = max(1, min(self.fixed_span_count, len(strip_l_bmvs)-1))
+                lr = max(1, min(self.fixed_span_count, len(strip_r_bmvs)-1))
                 ll, lr = min(ll, lr), min(ll, lr)
-                self.cut_count = ll
             else:
                 ll, lr = min(il, ir)-1, min(il, ir)-1
             strip_l_bmvs, strip_r_bmvs = strip_l_bmvs[:ll+1], strip_r_bmvs[:lr+1]
@@ -1181,9 +1198,8 @@ class Strokes_Logic:
             template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
             llc_lr = len(strip_l_bmvs)
         elif strip_l_bmvs and not strip_r_bmvs:
-            if self.cut_count is not None:
-                ll = max(1, min(self.cut_count, len(strip_l_bmvs)-1))
-                self.cut_count = ll
+            if not self.initial and self.cut_count is not None:
+                ll = max(1, min(self.fixed_span_count, len(strip_l_bmvs)-1))
             else:
                 ll = il - 1
             pt_prev = self.project_bmv(strip_l_bmvs[il-1])
@@ -1194,9 +1210,8 @@ class Strokes_Logic:
             template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
             llc_lr = len(strip_l_bmvs)
         elif strip_r_bmvs and not strip_l_bmvs:
-            if self.cut_count is not None:
-                lr = max(1, min(self.cut_count, len(strip_r_bmvs)-1))
-                self.cut_count = lr
+            if not self.initial and self.cut_count is not None:
+                lr = max(1, min(self.fixed_span_count, len(strip_r_bmvs)-1))
             else:
                 lr = ir - 1
             pt_prev = self.project_bmv(strip_r_bmvs[ir-1])
@@ -1339,7 +1354,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
         self.show_action = 'Equals-Strip'
-        self.show_extrapolate = False
+        self.show_extrapolate_mode = False
         self.cut_count = llc_lr - 1
         self.show_count = True # not strip_l_bmvs and not strip_r_bmvs
 
