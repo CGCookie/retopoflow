@@ -291,9 +291,17 @@ class Strokes_Logic:
         p = self.project_pt(bmv.co)
         return p.xy if p else None
     def bmv_closest(self, bmvs, pt3D):
+        off3D = self.context.space_data.overlay.retopology_offset  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
         pt2D = self.project_pt(pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
-        bmvs = [bmv for bmv in bmvs if (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+        bmvs = [
+            bmv
+            for bmv in bmvs
+            if (
+                (pt3D - bmv.co).length_squared < off3D * off3D and
+                (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20
+            )
+        ]
         if not bmvs: return None
         return min(bmvs, key=lambda bmv: (bmv.co - pt3D).length_squared)
 
