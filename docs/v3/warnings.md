@@ -78,10 +78,10 @@ Until we fix this, use one of the following to workaround this limitation:
 RetopoFlow is designed to perform well on _typical_ production retopology scenarios.
 Running RetopoFlow on source/target meshes beyond a reasonable range is possible, but it will result in slower performance and a poorer experience.
 
-A typical retopology workflow would involve <{[warning max sources]} polygons in total for all source meshes and <{[warning max target]} polygons for the target mesh.
+A typical retopology workflow would involve < 1 million polygons in total for all source meshes and < 20k polygons for the target mesh.
 Beyond these counts is the point at which Blender starts to slow down, and there's not a lot we can do to be faster than Blender itself.
 
-If your retopology target polygon count exceeds the {[warning max target]} count threshold, please try the following:
+If your retopology target polygon count exceeds the 20k count threshold, please try the following:
 
 - Capture the surface details using a normal or a bump map instead of through geometry
 - Use a Subdivision Surface modifier to smooth the mesh rather than additional edge loops
@@ -109,24 +109,19 @@ Running RetopoFlow with Quad View turned on or with multiple 3D Views can result
 If either Lock to Object or Lock to 3D View are enabled, navigating in RetopoFlow can be incorrect.
 Disable either of these settings in the 3D View Sidebar (`N`) before starting RetopoFlow.
 
-![View Locks](images/warning_viewlock.png max-height:103px)
-
 
 
 ## Auto Save / Save: Auto Save is Disabled
 
 If Blender's auto save is disabled, any work done since the last time you saved can be lost if Blender crashes. To enable auto save, go Edit > Preferences > Save & Load > Auto Save.
 
-<label class="not-online"><input type="checkbox" checked="BoundBool('''options['check auto save']''')">Warn if auto save is disabled</label>
-
 
 ## Auto Save / Save: Unsaved Blender File
 
 If you are working on an unsaved blend file, your changes will be saved to a temporary file (see path below) when you press {{site.data.keymaps.blender_save}}.
 
-Temporary file path: `{`options.get_auto_save_filepath()`}`
+Temporary file path: `{`site.data.options.get_auto_save_filepath()`}`
 
-<label class="not-online"><input type="checkbox" checked="BoundBool('''options['check unsaved']''')">Warn if file is unsaved</label>
 
 
 ## Auto Save / Save: Finish Auto Save Recovery
@@ -143,4 +138,3 @@ If a source mesh is detected to have inward facing normals, RetopoFlow will repo
 Inward facing normals will cause new geometry to be created incorrectly or to prevent it from being selected.
 
 Possible fix: exit RetopoFlow, switch to Edit Mode on the source mesh, recalculate normals, then try RetopoFlow again.
-
