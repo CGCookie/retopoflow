@@ -111,6 +111,12 @@ class RFCore:
         # bpy.types.VIEW3D_MT_editor_menus.append(RFCORE_PT_Panel.draw_popover)
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
 
+        bpy.types.Scene.retopoflow_tool = bpy.props.StringProperty(
+            name='RetopoFlow Tool',
+            description='RetopoFlow Tool to select after loading from file',
+        )
+        bpy.app.handlers.load_post.append(RFCore.handle_load_post)
+
         RFCore._is_registered = True
 
     @staticmethod
@@ -239,6 +245,7 @@ class RFCore:
         bpy.app.handlers.undo_post.append(RFCore.handle_undo_post)
         bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
+        bpy.app.handlers.save_pre.append(RFCore.handle_save_pre)
 
         for s in iter_all_view3d_spaces():
             RFCore.resetter['s.overlay.show_retopology'] = True
@@ -266,7 +273,11 @@ class RFCore:
             space = area.spaces.active
             r3d = space.region_3d
             with bpy.context.temp_override(area=area, region=region, space=space, region_3d=r3d):
-                bpy.ops.retopoflow.core()
+                try:
+                    bpy.ops.retopoflow.core()
+                except Exception as e:
+                    print(f'Caught Exception while trying to restart')
+                    print(f'    {e}')
         bpy.app.timers.register(rerun, first_interval=0.01)
 
     @staticmethod
@@ -298,6 +309,7 @@ class RFCore:
         # blender does not recognize them as invalid (bm.is_valid still True)
         get_object_bmesh.cache.clear()
 
+        bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre)
         bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
@@ -386,10 +398,27 @@ class RFCore:
         context.window.cursor_warp(x, y)
         RFCore.event_mouse = (x,y)
 
+    @staticmethod
+    def handle_save_pre(*args, **kwargs):
+        bpy.context.scene.retopoflow_tool = RFCore.selected_RFTool_idname
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+        bpy.app.handlers.save_post.append(RFCore.handle_save_post)
+
+    @staticmethod
+    def handle_save_post(*args, **kwargs):
+        bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
+        del bpy.types.Scene.retopoflow_tool
+
+    @staticmethod
+    @bpy.app.handlers.persistent
+    def handle_load_post(*args, **kwargs):
+        if not getattr(bpy.context.scene, 'retopoflow_tool', ''): return
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
 
     @staticmethod
     def handle_preview(context, area):
-        if len(area.spaces) == 0:
+        if not area or len(area.spaces) == 0:
             RFCore.remove_handlers()
             return
         if not RFOperator.active_operator(): return
