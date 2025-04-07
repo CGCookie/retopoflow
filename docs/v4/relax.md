@@ -1,6 +1,6 @@
 # ![](/images/icons/relax-icon.png) Relax Brush
 
-![](/images/relax.jpg)
+![](images/relax.jpg)
 
 <!--
 Quick Shortcut: {{ site.data.keymaps.relax_quick }}

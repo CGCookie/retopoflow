@@ -1,6 +1,6 @@
 # Welcome!
 
-![](images/bears.jpg)
+![](v4/images/bears.jpg)
 
 Retopoflow is a suite of fun, sketch-based retopology tools for Blender, created by [Orange Turbine](https://orangeturbine.com), that generate geometry which snaps to your high poly objects as you draw on their surface.
 

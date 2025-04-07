@@ -1,6 +1,6 @@
 # ![](/images/icons/tweak-icon.png) Tweak Brush
 
-![](/images/tweak.jpg)
+![](images/tweak.jpg)
 
 <!--
 Quick Shortcut: {{ site.data.keymaps.tweak_quick }}
