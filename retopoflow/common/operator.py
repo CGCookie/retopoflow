@@ -147,7 +147,6 @@ class RFOperator(bpy.types.Operator):
 
         # make sure RFOperator has only one running instance!
         if getattr(cls, '_is_running', False):
-            print(f'{cls}.poll: {getattr(cls, "_is_running", False)=}')
             return False
 
         if not cls.can_start(context):
