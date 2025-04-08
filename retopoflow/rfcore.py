@@ -211,6 +211,7 @@ class RFCore:
                 rftool.activate(context)
                 if rftool.rf_overlay:
                     if not context.region:
+                        print(f'>>>>>>>> NO context.region <<<<<<<<<<')
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
                         RFCore.quick_switch(rftool.bl_idname)
@@ -319,6 +320,9 @@ class RFCore:
 
         RFCore.running_in_areas.clear()
 
+        if not getattr(RFCore, 'is_saving', False):
+            bpy.context.scene.retopoflow_tool = ''
+
         RFCore.resetter.reset()
 
     @staticmethod
@@ -400,6 +404,7 @@ class RFCore:
 
     @staticmethod
     def handle_save_pre(*args, **kwargs):
+        RFCore.is_saving = True
         bpy.context.scene.retopoflow_tool = RFCore.selected_RFTool_idname
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
         bpy.app.handlers.save_post.append(RFCore.handle_save_post)
@@ -408,12 +413,14 @@ class RFCore:
     def handle_save_post(*args, **kwargs):
         bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
-        del bpy.types.Scene.retopoflow_tool
+        bpy.context.scene.retopoflow_tool = ''
+        del RFCore.is_saving
 
     @staticmethod
     @bpy.app.handlers.persistent
     def handle_load_post(*args, **kwargs):
         if not getattr(bpy.context.scene, 'retopoflow_tool', ''): return
+        # RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
 
     @staticmethod
@@ -429,6 +436,7 @@ class RFCore:
         except Exception as e:
             print(f'Caught exception while trying to draw preview {e}')
             RFCore.restart()
+
     @staticmethod
     def handle_postview(context, area):
         if len(area.spaces) == 0:
@@ -495,13 +503,14 @@ class RFCore:
         # switch away from RF
         print(f'LOAD PRE!!')
         # find 3D view area
-        for area in bpy.context.screen.areas:
-            if area.type != 'VIEW_3D': continue
-            for rgn in area.regions:
-                if rgn.type != 'WINDOW': continue
-                with bpy.context.temp_override(area=area, region=rgn):
-                    print(f'switching tool')
-                    bpy.ops.wm.tool_set_by_id(name='builtin.select')
+        # for area in bpy.context.screen.areas:
+        #     if area.type != 'VIEW_3D': continue
+        #     for rgn in area.regions:
+        #         if rgn.type != 'WINDOW': continue
+        #         with bpy.context.temp_override(area=area, region=rgn):
+        #             print(f'switching tool')
+        #             bpy.ops.wm.tool_set_by_id(name='builtin.select')
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select')
         RFCore.stop()
 
     @staticmethod

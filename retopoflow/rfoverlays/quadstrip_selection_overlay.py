@@ -98,7 +98,8 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
 
         @staticmethod
         def activate():
-            getattr(bpy.ops.retopoflow, idname)('INVOKE_DEFAULT')
+            op_self = getattr(bpy.ops.retopoflow, idname)
+            op_self('INVOKE_DEFAULT')
 
         def init(self, context, event):
             self.depsgraph_version = None
@@ -215,4 +216,4 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                 Drawing.draw2D_points(context, [pts[0], pts[3]], (1.0, 1.0, 1.0, 1.0), radius=16, border=2, borderColor=(0,0,0,0.5))
                 Drawing.draw2D_points(context, [pts[1], pts[2]], (0.0, 0.0, 0.0, 0.75), radius=16, border=2, borderColor=(1,1,1,0.5))
 
-    return type(opname, (RFOperator_QuadStrip_Selection_Overlay,RFOperator), {})
+    return type(opname, (RFOperator_QuadStrip_Selection_Overlay, RFOperator), {})

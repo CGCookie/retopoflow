@@ -134,15 +134,25 @@ class RFOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         # make sure RFCore is running
-        if not RFOperator.RFCore.is_running: return False
+        if not RFOperator.RFCore.is_running:
+            print(f'{cls}.poll: {RFOperator.RFCore.is_running=}')
+            return False
 
-        if not context.edit_object: return False
-        if context.edit_object.type != 'MESH': return False
+        if not context.edit_object:
+            print(f'{cls}.poll: {context.edit_object=}')
+            return False
+        if context.edit_object.type != 'MESH':
+            print(f'{cls}.poll: {context.edit_object.type=}')
+            return False
 
         # make sure RFOperator has only one running instance!
-        if getattr(cls, '_is_running', False): return False
+        if getattr(cls, '_is_running', False):
+            print(f'{cls}.poll: {getattr(cls, "_is_running", False)=}')
+            return False
 
-        if not cls.can_start(context): return False
+        if not cls.can_start(context):
+            print(f'{cls}.poll: {cls.can_start(context)=}')
+            return False
 
         return True
 
@@ -174,6 +184,7 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def stop(self):
+        print(f'stopping {self=}')
         if self._stop: return
         self._stop = True
         if self._draw_postpixel_overlay:
@@ -182,9 +193,9 @@ class RFOperator(bpy.types.Operator):
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
         if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+        type(self)._is_running = False
 
     def modal(self, context, event):
-        # print(f'{RFOperator.RFCore.is_running=}')
         if not RFOperator.RFCore.is_running or self._stop:
             ret = {'CANCELLED'}
         else:

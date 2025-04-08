@@ -290,7 +290,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
     @classmethod
     def can_start(cls, context):
         i = RFTool_PolyStrips.rf_overlay.instance
-        return False if not i or not hasattr(i, 'hovering') else bool(i.hovering)
+        return False if not i else getattr(i, 'hovering', False)
 
     def init(self, context, event):
         RFOperator_PolyStrips_Insert.logic = None
@@ -410,6 +410,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 pt0_new_edit  = Mi @ pt0_new_world
                 return pt0_new_edit
             pt0_new_world = raycast_point_valid_sources(context, pt0_new_screen)
+            if not pt0_new_world: return (pt0_cur_edit, pt1_cur_edit)
             pt0_new_edit = Mi @ pt0_new_world
             pt1_new_edit = pt1_cur_edit + (pt0_new_edit - pt0_cur_edit)
             return (pt0_new_edit, pt1_new_edit)
