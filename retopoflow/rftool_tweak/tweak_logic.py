@@ -39,7 +39,7 @@ from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign
+from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
 
 class Tweak_Logic:
     def __init__(self, context, event, brush, tweak):
@@ -51,12 +51,16 @@ class Tweak_Logic:
         self.matrix_world_inv = self.matrix_world.inverted()
 
         self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = 0
         for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
             if mod.use_axis[0]: self.mirror.add('x')
             if mod.use_axis[1]: self.mirror.add('y')
             if mod.use_axis[2]: self.mirror.add('z')
+            self.mirror_threshold = mod.merge_threshold
+            self.mirror_clip = mod.use_clip
 
         self.brush = brush
         self.tweak = tweak
@@ -141,9 +145,9 @@ class Tweak_Logic:
                     new_co = p
 
             if self.mirror:
-                if 'x' in self.mirror and sign(new_co.x) != sign(co.x): new_co.x = 0
-                if 'y' in self.mirror and sign(new_co.y) != sign(co.y): new_co.y = 0
-                if 'z' in self.mirror and sign(new_co.z) != sign(co.z): new_co.z = 0
+                if 'x' in self.mirror and sign_threshold(new_co.x, self.mirror_threshold) != sign_threshold(co.x, self.mirror_threshold): new_co.x = 0
+                if 'y' in self.mirror and sign_threshold(new_co.y, self.mirror_threshold) != sign_threshold(co.y, self.mirror_threshold): new_co.y = 0
+                if 'z' in self.mirror and sign_threshold(new_co.z, self.mirror_threshold) != sign_threshold(co.z, self.mirror_threshold): new_co.z = 0
                 new_co = nearest_point_valid_sources(context, new_co, world=False)
 
 

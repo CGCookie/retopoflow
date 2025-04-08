@@ -50,7 +50,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp, Color, sign
+from ...addon_common.common.maths import clamp, Color, sign, sign_threshold
 from ...addon_common.common.utils import iter_pairs
 
 from ..common.drawing import (
@@ -177,12 +177,16 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         self.moving = None
 
         self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = 0
         for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
             if mod.use_axis[0]: self.mirror.add('x')
             if mod.use_axis[1]: self.mirror.add('y')
             if mod.use_axis[2]: self.mirror.add('z')
+            self.mirror_threshold = mod.merge_threshold
+            self.mirror_clip = mod.use_clip
 
         self.bmfs = [(bmf, Vector(bmf.normal)) for bmf in { bmf for bmv in self.bmvs for bmf in bmv.link_faces }]
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -320,9 +324,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
 
             if self.mirror:
                 co_orig = self.bmvs_co_orig[bmv]
-                if 'x' in self.mirror and sign(co.x) != sign(co_orig.x): co.x = 0
-                if 'y' in self.mirror and sign(co.y) != sign(co_orig.y): co.y = 0
-                if 'z' in self.mirror and sign(co.z) != sign(co_orig.z): co.z = 0
+                if 'x' in self.mirror and sign_threshold(co.x, self.mirror_threshold) != sign_threshold(co_orig.x, self.mirror_threshold): co.x = 0
+                if 'y' in self.mirror and sign_threshold(co.y, self.mirror_threshold) != sign_threshold(co_orig.y, self.mirror_threshold): co.y = 0
+                if 'z' in self.mirror and sign_threshold(co.z, self.mirror_threshold) != sign_threshold(co_orig.z, self.mirror_threshold): co.z = 0
                 co = nearest_point_valid_sources(context, co, world=False)
 
             self.last_success[bmv] = co

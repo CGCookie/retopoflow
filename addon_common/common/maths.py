@@ -2102,6 +2102,8 @@ def sign(v):
     if v < 0: return -1
     return 0
 
+def sign_threshold(v, threshold):
+    return 0 if -threshold <= v <= threshold else sign(v)
 
 if __name__ == '__main__':
     # run tests

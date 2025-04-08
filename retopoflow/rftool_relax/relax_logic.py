@@ -39,7 +39,7 @@ from ..common.maths import point_to_bvec4, view_forward_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign
+from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
 
 
 class Relax_Logic:
@@ -53,12 +53,16 @@ class Relax_Logic:
         self.relax = relax
 
         self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = 0
         for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
             if mod.use_axis[0]: self.mirror.add('x')
             if mod.use_axis[1]: self.mirror.add('y')
             if mod.use_axis[2]: self.mirror.add('z')
+            self.mirror_threshold = mod.merge_threshold
+            self.mirror_clip = mod.use_clip
 
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
@@ -317,9 +321,9 @@ class Relax_Logic:
 
                 if self.mirror:
                     co_orig = self.prev[bmv]
-                    if 'x' in self.mirror and sign(co.x) != sign(co_orig.x): co.x = 0
-                    if 'y' in self.mirror and sign(co.y) != sign(co_orig.y): co.y = 0
-                    if 'z' in self.mirror and sign(co.z) != sign(co_orig.z): co.z = 0
+                    if 'x' in self.mirror and sign_threshold(co.x, self.mirror_threshold) != sign_threshold(co_orig.x, self.mirror_threshold): co.x = 0
+                    if 'y' in self.mirror and sign_threshold(co.y, self.mirror_threshold) != sign_threshold(co_orig.y, self.mirror_threshold): co.y = 0
+                    if 'z' in self.mirror and sign_threshold(co.z, self.mirror_threshold) != sign_threshold(co_orig.z, self.mirror_threshold): co.z = 0
                     co = nearest_point_valid_sources(context, co, world=False)
 
                 co_world = self.matrix_world @ Vector((*co, 1.0))
