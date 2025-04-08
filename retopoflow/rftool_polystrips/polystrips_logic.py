@@ -369,8 +369,7 @@ class PolyStrips_Logic:
             if snap0:
                 bme = snap0['bme']
                 bmv0, bmv1 = bme.verts[0], bme.verts[1]
-                co0, co1 = M @ bmv0.co, M @ bmv1.co
-                if r.dot(co1 - co0) > 0:
+                if r.dot(bmv1.co - bmv0.co) > 0:
                     bmv0, bmv1 = bmv1, bmv0
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
@@ -406,8 +405,7 @@ class PolyStrips_Logic:
             if snap1:
                 bme = snap1['bme']
                 bmv0, bmv1 = bme.verts[0], bme.verts[1]
-                co0, co1 = M @ bmv0.co, M @ bmv1.co
-                if r.dot(co1 - co0) > 0:
+                if r.dot(bmv1.co - bmv0.co) > 0:
                     bmv0, bmv1 = bmv1, bmv0
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
