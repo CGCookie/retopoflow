@@ -502,7 +502,7 @@ class RFCore:
     def handle_load_pre(path_blend):
         # switch away from RF
         print(f'LOAD PRE!!')
-        # find 3D view area
+        # # find 3D view area
         # for area in bpy.context.screen.areas:
         #     if area.type != 'VIEW_3D': continue
         #     for rgn in area.regions:
@@ -510,7 +510,8 @@ class RFCore:
         #         with bpy.context.temp_override(area=area, region=rgn):
         #             print(f'switching tool')
         #             bpy.ops.wm.tool_set_by_id(name='builtin.select')
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select')
+        if getattr(bpy.context.workspace, 'tools', None):
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select')
         RFCore.stop()
 
     @staticmethod

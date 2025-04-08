@@ -134,20 +134,13 @@ class RFOperator(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         # make sure RFCore is running
-        if not RFOperator.RFCore.is_running:
-            print(f'{cls}.poll: {RFOperator.RFCore.is_running=}')
-            return False
+        if not RFOperator.RFCore.is_running: return False
 
-        if not context.edit_object:
-            print(f'{cls}.poll: {context.edit_object=}')
-            return False
-        if context.edit_object.type != 'MESH':
-            print(f'{cls}.poll: {context.edit_object.type=}')
-            return False
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
 
         # make sure RFOperator has only one running instance!
-        if getattr(cls, '_is_running', False):
-            return False
+        if getattr(cls, '_is_running', False): return False
 
         if not cls.can_start(context):
             print(f'{cls}.poll: {cls.can_start(context)=}')
