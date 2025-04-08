@@ -1,6 +1,6 @@
 # ![](/images/icons/strokes-icon.png) Strokes
 
-![](/images/strokes.jpg)
+![](images/strokes.jpg)
 
 Strokes is an incredibly versetile tool for quickly sketching out patches of quads and filling holes in the topology.
 
@@ -17,23 +17,64 @@ After creating a new or extruded stroke, you can scroll with `Ctrl Mouse Wheel` 
 
 Strokes is context aware and adapts to the current selection, surrounding geometry, and shape of your stroke. The basic stroke types should feel intuitive right away, but diving into the more advanced stroke types will help you to work significantly faster.
 
-A basic edge **Strip** is created when you draw a new stroke that is not connected to any other geometry.
+You do not need to remember the names of the strokes while working, but they are listed here for clarity. 
 
-An **Equals Strip** is created when you extrude a set of selected edges by drawing a stroke that does not connect to any existing vertices. For best results, draw the stroke roughly paralell to the selected edges, or draw far enough away from them for the Smoothing setting to crete a nice blend.
+### Edge Strip 
 
-You can also create an Equals Strip by selecting a set of edges in a loop and drawing from a deselected vertex in that same loop to the corresponding vertex on the other side of the loop.
+A basic Edge Strip is created when you draw a new stroke that is not connected to any other geometry.
 
-A **T Strip** is created by starting the stroke over one of the selected vertices and drawing perpendicular to the selected edges. A yellow circle will appear around the cursor while you hold `Ctrl` to indicate that the stroke will be snapped to a vertex.
+### Equals Strip 
 
-A **C Strip** is created by starting a stroke from a vertex on one end of the selected edges and ending the stroke at the vertex on the other end. This allows you to explicitly define every side of the resulting patch for maximum control. The two sharpest angles in the stroke will be interpreted as the other two corners of the patch.
+An Equals Strip is created when you extrude a set of selected edges by drawing a stroke that does not connect to any existing vertices. For best results, draw the stroke roughly paralell to the selected edges, or draw far enough away from them for the Smoothing setting to crete a nice blend.
 
-An **I Strip** is created by starting a stroke from a vertex in the set of selected edges and ending the stroke on another vertex. This is most commonly used for bridging two pieces of disconnected geometry.
+![](images/strokes_equals_01.jpg)
 
-A **Loop** is created by drawing a stroke that ends in the same place that it starts. The yellow circle that indicates vertex snapping will be highlighted when the end of the stroke is close enough to the start to be considered a loop.
+You can also create an Equals Strip by selecting a set of edges in a loop and drawing from a deselected vertex in that same loop to the corresponding vertex on the other side of the loop. A yellow circle will appear around the cursor while you hold `Ctrl` to indicate that the stroke will be snapped to a vertex.
 
-An **Equals Loop** is created by drawing a second loop inside or outside a selected loop.
 
-A **T Loop** is created by drawing a stroke that connects to a vertex in a selected loop.
+![](images/strokes_equals_02.jpg)
+
+### T Strip
+
+A T Strip is created by starting the stroke over any of the selected vertices and drawing perpendicular to the selected edges. This type of strip has a special **Extrapolation** option that determines whether or not the newly created geometry follows the curve of the selected geometry. 
+
+![](images/strokes_t_01.jpg)
+
+### I Strip
+
+An I Strip is created by starting a stroke from a vertex in the set of selected edges and ending the stroke on another vertex. This is most commonly used for bridging two pieces of disconnected geometry.
+
+![](images/strokes_i_01.jpg)
+
+### L Strip
+
+An L Strip is created when you draw starting from the end of one selected set of vertices, create a corner, and end on a vertex that is connected to the original selection. 
+
+![](images/strokes_L_01.jpg)
+
+### C Strip
+
+A C Strip is created by starting a stroke from a vertex on one end of the selected edges and ending the stroke at the vertex on the other end. This allows you to explicitly define every side of the resulting patch for maximum control. The two sharpest angles in the stroke will be interpreted as the other two corners of the patch.
+
+![](images/strokes_c_01.jpg)
+
+### Loop
+
+A Loop is created by drawing a stroke that ends in the same place that it starts. The yellow circle that indicates vertex snapping will be highlighted when the end of the stroke is close enough to the start to be considered a loop.
+
+![](images/strokes_loop.jpg)
+
+### Equals Loop
+
+An Equals Loop is created by drawing a second loop inside or outside a selected loop.
+
+![](images/strokes_loop_equals.jpg)
+
+### T Loop
+
+A T Loop is created by drawing a stroke that starts at a vertex in a selected loop and moves inwards or outwards. This can also be used to bridge the loop to an outer or inner loop. 
+
+![](images/strokes_loop_t.jpg)
 
 
 ## Settings
@@ -46,7 +87,9 @@ A **T Loop** is created by drawing a stroke that connects to a vertex in a selec
 
 - **Average** uses the average width of the selected edges, which automatically gives you as perfectly square quads as possible. When creating a stroke with no edges selected, the brush size is used as a fallback.
 
-**Extrapolation** determines whether or not the newly created geometry follows the curve of the selected geometry when creating T Strips. **Linear** will extrude all of the edges in a straight line while **Adapt** will fan out the edges to maintain the original curvature.
+**Extrapolation** determines whether or not the newly created geometry follows the curve of the selected geometry when creating T Strips. **Flat** will extrude all of the edges in a straight line while **Adapt** will fan out the edges to maintain the original curvature.
+
+![](images/strokes_adapt.jpg)
 
 **Smoothing** is the factor for how much smooth blending is applied to the interpolated loops when creating Equals Strips and I Strips. A value of zero creates perfectly straight lines from the starting vertices to the ending vertices.
 

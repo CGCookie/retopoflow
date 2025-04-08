@@ -1,6 +1,6 @@
 # ![](/images/icons/contours-icon.png) Contours
 
-![](/images/contours.jpg)
+![](images/contours.jpg)
 
 The Contours tool gives you a quick and easy way to retopologize cylindrical forms.
 For example, it's ideal for organic forms such as arms, fingers, legs, tentacles, tails, horns, etc.
