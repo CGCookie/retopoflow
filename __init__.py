@@ -23,7 +23,7 @@ bl_info = {
     "name":         "RetopoFlow 4",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, JF Matheu, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
-    "blender":      (4, 3, 0),
+    "blender":      (4, 2, 0),
     "version":      (4, 0, 0, 'α', 7),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
