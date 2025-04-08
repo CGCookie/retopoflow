@@ -58,6 +58,7 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 import math
+from collections import deque
 
 r'''
 Table of Implemented:
@@ -1189,9 +1190,8 @@ class Strokes_Logic:
         template_r, strip_r_bmvs = None, None
         if self.snap_bmv0_nosel: il, strip_l_bmvs = self.crawl_boundary({ bmv_tl }, self.snap_bmv0)
         if self.snap_bmv1_nosel: ir, strip_r_bmvs = self.crawl_boundary({ bmv_tr }, self.snap_bmv1)
-        if strip_l_bmvs and strip_r_bmvs and bool(set(strip_r_bmvs) & set(strip_l_bmvs)):
+        if strip_l_bmvs and strip_r_bmvs and bool(set(strip_r_bmvs[:il]) & set(strip_l_bmvs[:ir])):
             # two side strips have overlapping edges, so set both to None
-            print(f'Overlap detected')
             strip_l_bmvs, strip_r_bmvs = None, None
         if strip_l_bmvs and strip_r_bmvs:
             if not self.initial and self.cut_count is not None:
@@ -1390,16 +1390,16 @@ class Strokes_Logic:
         return None
 
     def crawl_boundary(self, bmvs_from, bmv_to):
-        path, processing = {bmv_to:None}, [bmv_to]
+        path, processing = {bmv_to:None}, deque([bmv_to])
         while processing:
-            bmv = processing.pop(0)
+            bmv = processing.popleft()
             if bmv in bmvs_from: break
             for bme in bmv.link_edges:
-                if not bme.hide and (bme.is_wire or bme.is_boundary):
-                    bmv_ = bme_other_bmv(bme, bmv)
-                    if bmv_ not in path:
-                        path[bmv_] = bmv
-                        processing.append(bmv_)
+                if bme.hide or not (bme.is_wire or bme.is_boundary): continue
+                bmv_next = bme_other_bmv(bme, bmv)
+                if bmv_next in path: continue
+                path[bmv_next] = bmv
+                processing.append(bmv_next)
         else:
             return 0, None
         # bmv is now bmv_from
