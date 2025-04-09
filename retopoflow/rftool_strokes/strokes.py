@@ -61,7 +61,7 @@ from functools import wraps
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'strokes_brush',
     'Strokes Brush',
-    radius=40,
+    radius=50,
 )
 
 

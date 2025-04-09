@@ -71,7 +71,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
 
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
-        radius = kwargs.get('radius', 40)
+        radius = kwargs.get('radius', 50)
 
         snap_distance  = 10  # pixel distance when to consider snapping to vert or stroke end (cycle)
         far_distance   = 20  # mouse must move this far away from stroke start to start considering cycle
