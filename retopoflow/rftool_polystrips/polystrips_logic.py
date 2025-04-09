@@ -327,6 +327,10 @@ class PolyStrips_Logic:
                 self.nearest_point,
             )
 
+            if not stroke3D_local:
+                print(f'ERROR: stroke is empty')
+                continue
+
             ###########################################################################
             # sample the stroke and compute various properties of sample
 
