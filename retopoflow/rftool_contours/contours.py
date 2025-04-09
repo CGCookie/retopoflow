@@ -88,8 +88,8 @@ class RFOperator_Contours_Insert_Properties:
         name='Process Source Method',
         description="Source processing method",
         items=[
-            ('fast', 'Fast', 'Process source approximately (fast but inaccurate)'),
-            ('skip', 'Skip', 'Process source approximately by skipping about the source mesh'),
+            ('fast', 'Fast (experimental)', 'Process source approximately (fast but inaccurate)'),
+            ('skip', 'Skip (experimental)', 'Process source approximately by skipping about the source mesh'),
             ('walk', 'Walk', 'Process source accurately by walking the source mesh (slow but accurate)'),
         ],
         default='walk',
