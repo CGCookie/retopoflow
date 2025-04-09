@@ -319,8 +319,8 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
 
             co = raycast_point_valid_sources(context, co2d_orig + self.delta * factor, world=False)
             if not co:
-                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
-                co = nearest_point_valid_sources(context, co, world=False)
+                co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
+                co = nearest_point_valid_sources(context, co_world, world=False)
 
             if self.mirror:
                 co_orig = self.bmvs_co_orig[bmv]
