@@ -356,7 +356,11 @@ class RFCore:
 
     @staticmethod
     def is_top_modal(context):
-        return context.window.modal_operators[0].name == 'RetopoFlow Core'
+        op_name = 'RetopoFlow Core'
+        ops = context.window.modal_operators
+        if ops[0].name == op_name: return True
+        if len(ops) >= 2 and ops[0].name == 'Screencast Keys' and ops[1].name == op_name: return True
+        return False
 
     @staticmethod
     def handle_draw_cursor(context, area, mouse):

@@ -93,7 +93,11 @@ def create_falloff_brush(idname, label, **kwargs):
 
         @classmethod
         def is_top_modal(cls, context):
-            return context.window.modal_operators[0].name == cls.operator.bl_label
+            op_name = cls.operator.bl_label
+            ops = context.window.modal_operators
+            if ops[0].name == op_name: return True
+            if len(ops) >= 2 and ops[0].name == 'Screencast Keys' and ops[1].name == op_name: return True
+            return False
 
         def init(self):
             self.mouse = None
