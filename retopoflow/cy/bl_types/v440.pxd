@@ -162,8 +162,12 @@ cdef struct RegionView3D:
     char lpersp
     char lview
     char lview_axis_roll
-    char _pad8
+    char[4] _pad8
+    
+    # NDOF flags
+    char ndof_flag
+    float[3] ndof_ofs
     
     # Active rotation from NDOF or elsewhere.
-    float rot_angle
-    float[3] rot_axis
+    float ndof_rot_angle
+    float[3] ndof_rot_axis
