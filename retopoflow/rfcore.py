@@ -421,7 +421,9 @@ class RFCore:
     @staticmethod
     def handle_save_post(*args, **kwargs):
         bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
+        # if bpy.context.scene.retopoflow_tool: RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
+        if bpy.context.scene.retopoflow_tool:
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
         bpy.context.scene.retopoflow_tool = ''
         del RFCore.is_saving
 
@@ -429,8 +431,8 @@ class RFCore:
     @bpy.app.handlers.persistent
     def handle_load_post(*args, **kwargs):
         if not getattr(bpy.context.scene, 'retopoflow_tool', ''): return
-        # RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
+        RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
+        # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
 
     @staticmethod
     def handle_preview(context, area):
