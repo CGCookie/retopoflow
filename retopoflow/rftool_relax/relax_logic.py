@@ -319,16 +319,35 @@ class Relax_Logic:
                     if p is not None:
                         co = p
 
-                if self.mirror:
-                    co_orig = self.prev[bmv]
-                    if 'x' in self.mirror and sign_threshold(co.x, self.mirror_threshold) != sign_threshold(co_orig.x, self.mirror_threshold): co.x = 0
-                    if 'y' in self.mirror and sign_threshold(co.y, self.mirror_threshold) != sign_threshold(co_orig.y, self.mirror_threshold): co.y = 0
-                    if 'z' in self.mirror and sign_threshold(co.z, self.mirror_threshold) != sign_threshold(co_orig.z, self.mirror_threshold): co.z = 0
-                    co = nearest_point_valid_sources(context, co, world=False)
-
                 co_world = self.matrix_world @ Vector((*co, 1.0))
                 co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                bmv.co = self.matrix_world_inv @ co_world_snapped
+                co_local_snapped = self.matrix_world_inv @ co_world_snapped
+
+                if self.mirror:
+                    co_orig = self.prev[bmv]
+                    co = co_local_snapped
+                    t = self.mirror_threshold
+                    zero = {
+                        'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(co_orig.x, t)),
+                        'y': ('y' in self.mirror and sign_threshold(co.y, t) != sign_threshold(co_orig.y, t)),
+                        'z': ('z' in self.mirror and sign_threshold(co.z, t) != sign_threshold(co_orig.z, t)),
+                    }
+                    # iteratively zero out the component
+                    d = 1
+                    while d > 0.01:
+                        d = 0
+                        if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
+                        if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
+                        if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
+                        co_world = self.matrix_world @ Vector((*co, 1.0))
+                        co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                        co = self.matrix_world_inv @ co_world_snapped
+                    if zero['x']: co.x = 0
+                    if zero['y']: co.y = 0
+                    if zero['z']: co.z = 0
+                    co_local_snapped = co
+
+                bmv.co = co_local_snapped
                 # self.rfcontext.snap_vert(bmv)
             # self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')

@@ -130,7 +130,7 @@ class Tweak_Logic:
         mouse = Vector(mouse_from_event(event))
         delta = mouse - self.mouse
 
-        for (bmv, co, xy, strength) in self.verts:
+        for (bmv, co_orig, xy, strength) in self.verts:
             new_co = raycast_valid_sources(context, xy + delta * strength)
             if not new_co: continue
             new_co = new_co['co_local']
@@ -145,10 +145,27 @@ class Tweak_Logic:
                     new_co = p
 
             if self.mirror:
-                if 'x' in self.mirror and sign_threshold(new_co.x, self.mirror_threshold) != sign_threshold(co.x, self.mirror_threshold): new_co.x = 0
-                if 'y' in self.mirror and sign_threshold(new_co.y, self.mirror_threshold) != sign_threshold(co.y, self.mirror_threshold): new_co.y = 0
-                if 'z' in self.mirror and sign_threshold(new_co.z, self.mirror_threshold) != sign_threshold(co.z, self.mirror_threshold): new_co.z = 0
-                new_co = nearest_point_valid_sources(context, new_co, world=False)
+                co = new_co
+                t = self.mirror_threshold
+                zero = {
+                    'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(co_orig.x, t)),
+                    'y': ('y' in self.mirror and sign_threshold(co.y, t) != sign_threshold(co_orig.y, t)),
+                    'z': ('z' in self.mirror and sign_threshold(co.z, t) != sign_threshold(co_orig.z, t)),
+                }
+                # iteratively zero out the component
+                d = 1 # max dist from mirror
+                while d > 0.01:
+                    d = 0
+                    if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
+                    if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
+                    if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
+                    co_world = self.matrix_world @ Vector((*co, 1.0))
+                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                    co = self.matrix_world_inv @ co_world_snapped
+                if zero['x']: co.x = 0
+                if zero['y']: co.y = 0
+                if zero['z']: co.z = 0
+                new_co = co
 
 
             if new_co: bmv.co = new_co
