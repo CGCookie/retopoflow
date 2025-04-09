@@ -4,6 +4,7 @@ from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
 
+
 class RFTool_OT_SwitchToPatches(Operator):
     bl_idname = 'retopoflow.switch_to_patches'
     bl_label = 'Switch to Patches'
@@ -15,6 +16,7 @@ class RFTool_OT_SwitchToPatches(Operator):
     
     def execute(self, context):
         return {'FINISHED'}
+
 
 class RFMenu_MT_ToolPie(Menu):
     bl_idname = 'RF_MT_Tools'
@@ -57,6 +59,22 @@ class RFMenu_MT_ToolPie(Menu):
                 row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
                 row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
                 row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
+            
+        '''
+        elif active_tool == 'retopoflow.polystrips':
+            box.ui_units_x = 8
+            row = box.row()
+            row.emboss = 'NONE'
+            row.label(text='Radius')
+            grid = box.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column(align=True)
+            col.operator('retopoflow.polystrips', text='25').brush_radius=25
+            col.operator('retopoflow.polystrips', text='50').brush_radius=50
+            col = row.column(align=True)
+            col.operator('retopoflow.polystrips', text='75').brush_radius=75
+            col.operator('retopoflow.polystrips', text='100').brush_radius=100
+        '''
 
         row = box.row()
         row.emboss = 'NONE'
