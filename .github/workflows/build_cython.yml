@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11.9']  # Match exact Python version used by Blender
+        python-version: ['3.11.11']  # Match exact Python version used by Blender
         include:
           - os: macos-latest
             target: native
