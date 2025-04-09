@@ -51,6 +51,7 @@ from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.general_panel import draw_general_panel
+from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
 from functools import wraps
@@ -458,6 +459,8 @@ class RFTool_Strokes(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
+            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
+            
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Insert")
@@ -474,6 +477,7 @@ class RFTool_Strokes(RFTool_Base):
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_general_panel(context, layout)
+            draw_help_panel(context, layout)
 
     @classmethod
     def activate(cls, context):

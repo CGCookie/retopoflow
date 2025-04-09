@@ -56,6 +56,7 @@ from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.general_panel import draw_general_panel
+from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
 from .contours_logic import Contours_Logic
@@ -383,6 +384,7 @@ class RFTool_Contours(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
+            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
         else:
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
@@ -394,6 +396,7 @@ class RFTool_Contours(RFTool_Base):
                     panel.prop(props_contours, 'sample_width', text=f'Width')
             draw_cleanup_panel(context, layout)
             draw_general_panel(context, layout)
+            draw_help_panel(context, layout)
 
     @classmethod
     def activate(cls, context):
