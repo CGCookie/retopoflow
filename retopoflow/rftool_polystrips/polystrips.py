@@ -469,7 +469,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
 class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.polystrips'
-    bl_label = 'Poly Strips'
+    bl_label = 'PolyStrips'
     bl_description = 'Insert quad strip'
     # bl_space_type = 'VIEW_3D'
     # bl_region_type = 'TOOLS'
@@ -584,7 +584,7 @@ RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
 
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname = "retopoflow.polystrips"
-    bl_label = "Poly Strips"
+    bl_label = "PolyStrips"
     bl_description = "Insert quad strip"
     bl_icon = get_path_to_blender_icon('polystrips')
     bl_widget = None

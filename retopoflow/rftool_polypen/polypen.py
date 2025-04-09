@@ -144,7 +144,7 @@ PolyPen_Quad_Stability.generate_operators()
 
 class RFOperator_PolyPen(RFOperator):
     bl_idname = "retopoflow.polypen"
-    bl_label = 'Poly Pen'
+    bl_label = 'PolyPen'
     bl_description = 'Create complex topology on vertex-by-vertex basis'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
@@ -215,7 +215,7 @@ class RFOperator_PolyPen(RFOperator):
 
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
-    bl_label = "Poly Pen"
+    bl_label = "PolyPen"
     bl_description = "Create complex topology on vertex-by-vertex basis"
     bl_icon = get_path_to_blender_icon('polypen')
     bl_widget = None
