@@ -39,6 +39,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
     chain_rf_keymaps,
+    wrap_property,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
@@ -489,6 +490,16 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
     rf_status = ['LMB: Insert']
 
+
+    brush_radius: wrap_property(
+        RFBrush_Strokes, 'radius', 'int',
+        name='Radius',
+        description='Radius of Brush',
+        min=1,
+        max=1000,
+        subtype='PIXEL',
+    )
+
     stroke_smoothing: bpy.props.FloatProperty(
         name='Stroke Smoothing',
         description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
@@ -596,6 +607,7 @@ class RFTool_PolyStrips(RFTool_Base):
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
+            layout.prop(props_polystrips, 'brush_radius', text="Radius")
             layout.prop(props_polystrips, 'stroke_smoothing', text='Smoothing')
             layout.prop(props_polystrips, 'split_angle', text='Angle')
             layout.popover('RF_PT_TweakCommon')
@@ -609,6 +621,7 @@ class RFTool_PolyStrips(RFTool_Base):
             header, panel = layout.panel(idname='polystrips_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
+                panel.prop(props_polystrips, 'brush_radius', text="Radius")
                 panel.prop(props_polystrips, 'stroke_smoothing', text='Stroke Smoothing')
                 panel.prop(props_polystrips, 'split_angle')
             draw_tweaking_panel(context, layout)

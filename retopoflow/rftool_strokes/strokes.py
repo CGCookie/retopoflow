@@ -35,6 +35,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
     chain_rf_keymaps,
+    wrap_property
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
@@ -306,6 +307,15 @@ class RFOperator_Strokes(RFOperator):
     rf_status = ['LMB: Insert']
 
 
+    brush_radius: wrap_property(
+        RFBrush_Strokes, 'radius', 'int',
+        name='Radius',
+        description='Radius of Brush',
+        min=1,
+        max=1000,
+        subtype='PIXEL',
+    )
+
     span_insert_mode: bpy.props.EnumProperty(
         name='Span Count Method',
         description='Controls the number of spans when inserting',
@@ -446,6 +456,8 @@ class RFTool_Strokes(RFTool_Base):
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
                 row.prop(props_strokes, 'initial_cut_count', text="")
+            else:
+                row.prop(props_strokes, 'brush_radius', text="")
             layout.prop(props_strokes, 'extrapolate_mode', expand=True)
             #layout.label(text="Smoothing:")
             layout.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
@@ -460,7 +472,7 @@ class RFTool_Strokes(RFTool_Base):
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
-            
+
         else:
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Insert")
@@ -468,6 +480,8 @@ class RFTool_Strokes(RFTool_Base):
                 panel.prop(props_strokes, 'span_insert_mode', text='Count')
                 if props_strokes.span_insert_mode == 'FIXED':
                     panel.prop(props_strokes, 'initial_cut_count', text=" ")
+                else:
+                    panel.prop(props_strokes, 'brush_radius', text=" ")
                 row = panel.row()
                 row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation', expand=True)
                 panel.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
