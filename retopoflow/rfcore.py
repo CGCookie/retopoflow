@@ -133,7 +133,7 @@ class RFCore:
 
         if RFCore.selected_RFTool_idname:
             # RFTool is active, so switch away first!
-            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
 
         try:
             RFCore.stop()
@@ -190,7 +190,7 @@ class RFCore:
                                 )
                                 return
         bpy.app.timers.register(
-            lambda: switch('builtin.select', bl_idname),
+            lambda: switch('builtin.move', bl_idname),
             first_interval=0.1,
         )
 
@@ -410,7 +410,7 @@ class RFCore:
     def handle_save_pre(*args, **kwargs):
         RFCore.is_saving = True
         bpy.context.scene.retopoflow_tool = RFCore.selected_RFTool_idname
-        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
         bpy.app.handlers.save_post.append(RFCore.handle_save_post)
 
     @staticmethod
@@ -513,9 +513,9 @@ class RFCore:
         #         if rgn.type != 'WINDOW': continue
         #         with bpy.context.temp_override(area=area, region=rgn):
         #             print(f'switching tool')
-        #             bpy.ops.wm.tool_set_by_id(name='builtin.select')
+        #             bpy.ops.wm.tool_set_by_id(name='builtin.move')
         if getattr(bpy.context.workspace, 'tools', None):
-            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select')
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
         RFCore.stop()
 
     @staticmethod
@@ -553,13 +553,13 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore.restart()
             return False
             #RFCore.selected_RFTool_idname = None
-            #bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+            #bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
             #return False
             # def switch(state=0):
             #     if state == 0:
             #         bpy.app.timers.register(lambda: switch(1), first_interval=0.01)
             #     elif state == 1:
-            #         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.select_box')
+            #         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
             #         bpy.app.timers.register(lambda: switch(2), first_interval=0.01)
             #     else:
             #         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', RFCore.default_RFTool.bl_idname)
