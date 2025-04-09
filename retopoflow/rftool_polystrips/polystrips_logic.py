@@ -266,6 +266,7 @@ class PolyStrips_Logic:
 
         # break stroke into segments
         nstrip_count = len(strips) - 1
+        actual_strip_count = 0
         if self.strip_count != nstrip_count:
             # reset data
             self.count_mins, self.counts, self.widths = [], [], []
@@ -273,9 +274,9 @@ class PolyStrips_Logic:
         for i_strip, (i0, i1) in enumerate(iter_pairs(strips, False)):
             stroke3D_local = self.stroke3D_local[i0:i1]
 
+            limit_bmes0 = None
             if i0 == 0:
                 snap_bmf0 = snap_bmf_start
-                limit_bmes0 = None
             else:
                 snap_bmf0 = snap_bmf1
                 limit_bmes0 = [
@@ -283,8 +284,14 @@ class PolyStrips_Logic:
                     if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
                 ]
 
+            limit_bmes1 = None
             if i1 == nstroke:
                 snap_bmf1 = snap_bmf_end
+                if snap_bmf_end:
+                    limit_bmes1 = [
+                        bme for bme in snap_bmf_end.edges
+                        if bme.is_boundary and any(len(bmv.link_faces)>1 for bmv in bme.verts)
+                    ]
             else:
                 snap_bmf1 = None
                 # extend stroke by self.width
@@ -298,16 +305,18 @@ class PolyStrips_Logic:
             if snap0:
                 if snap0['error']:
                     self.error = True
-                    print(f'ERROR: {snap0["error"]}')
-                    return
+                    print(f'ERROR: {snap0["error"]} on snap0')
+                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
+                    continue
                 stroke3D_local = snap0['stroke']
 
-            snap1 = trim_stroke_to_bmf(stroke3D_local, snap_bmf1, False)
+            snap1 = trim_stroke_to_bmf(stroke3D_local, snap_bmf1, False, limit_bmes1)
             if snap1:
                 if snap1['error']:
                     self.error = True
-                    print(f'ERROR: {snap1["error"]}')
-                    return
+                    print(f'ERROR: {snap1["error"]} on snap1')
+                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
+                    continue
                 stroke3D_local = snap1['stroke']
 
             # warp stroke to better fit snapped geo
@@ -432,6 +441,7 @@ class PolyStrips_Logic:
             check_bmf_normals(fwd, bmfs)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
+            actual_strip_count += 1
 
         ########################################
         # select newly created geometry
@@ -442,7 +452,7 @@ class PolyStrips_Logic:
         self.count_mins = ncount_mins
         self.counts = ncounts
         self.widths = nwidths
-        self.strip_count = nstrip_count
+        self.strip_count = actual_strip_count
 
 
     def update_context(self, context):

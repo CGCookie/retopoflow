@@ -192,7 +192,7 @@ class RFOperator_PolyStrips_Insert(
     def draw(self, context):
         logic = RFOperator_PolyStrips_Insert.logic
         if not logic: return
-        
+
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
