@@ -253,8 +253,7 @@ class RFCore:
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.save_pre.append(RFCore.handle_save_pre)
 
-        for s in iter_all_view3d_spaces():
-            RFCore.resetter['s.overlay.show_retopology'] = True
+        # Setup tool settings
         RFCore.resetter['context.scene.tool_settings.use_snap'] = True
         RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
         RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
@@ -263,6 +262,12 @@ class RFCore:
         RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
         RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
+
+        # Setup viewport settings
+        RFCore.resetter['context.active_object.show_wire'] = True
+        RFCore.resetter['context.active_object.show_all_edges'] = True
+        for s in iter_all_view3d_spaces():
+            RFCore.resetter['s.overlay.show_retopology'] = True
 
         try:
             bpy.ops.retopoflow.core()
