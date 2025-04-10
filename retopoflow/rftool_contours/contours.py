@@ -402,8 +402,8 @@ class RFTool_Contours(RFTool_Base):
 
     @classmethod
     def activate(cls, context):
-        cls.resetter = Resetter('Contours')
         prefs = RF_Prefs.get_prefs(context)
+        cls.resetter = Resetter('Contours')
         if prefs.setup_automerge:
             cls.resetter['context.tool_settings.use_mesh_automerge'] = False
         if prefs.setup_snapping:

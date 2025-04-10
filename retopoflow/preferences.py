@@ -117,48 +117,6 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     #endregion
 
-    """ Cleaning """
-    #region
-    cleaning_use_snap: bpy.props.BoolProperty(
-        name='Snap to Surface',
-        description='Snaps the vertices to the visible source objects',
-        default=True
-    )
-    cleaning_use_merge: bpy.props.BoolProperty(
-        name='Merge by Distance',
-        description="Finds groups of vertices closer than the threshold and merges them together",
-        default=True
-    )
-    cleaning_merge_threshold: bpy.props.FloatProperty(
-        name='Merge Threshold',
-        description="Vertices less than this distance from each other will get merged together",
-        precision=4,
-        default=0.0001,
-        step=0.1,
-        min=0
-    )
-    cleaning_use_delete_loose: bpy.props.BoolProperty(
-        name='Delete Loose Verts',
-        description="Deletes vertices not connected to any edges",
-        default=True
-    )
-    cleaning_use_fill_holes: bpy.props.BoolProperty(
-        name='Fill Holes',
-        description="Fills boundary edges with faces",
-        default=True
-    )
-    cleaning_use_recalculate_normals: bpy.props.BoolProperty(
-        name='Recalculate Normals',
-        description="Computes an “outside” normal",
-        default=True
-    )
-    cleaning_flip_normals: bpy.props.BoolProperty(
-        name='Flip Normals',
-        description="Flips the normals after they are recalculated",
-        default=False
-    )
-    #endregion
-
     def draw(self, context):
         layout = self.layout
 
@@ -179,18 +137,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.prop(self, 'setup_retopo_overlay')
             panel.prop(self, 'setup_selection_mode')
             panel.prop(self, 'setup_snapping')
-            
+
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)
         header.label(text="Tweaking")
         if panel:
             draw_tweaking_options(context, panel)
-
-        from .rfpanels.mesh_cleanup_panel import draw_cleanup_options
-        header, panel = layout.panel(idname='cleanup_panel_prefs', default_closed=True)
-        header.label(text="Clean Up")
-        if panel:
-            draw_cleanup_options(context, panel, draw_operators=False)
+            
 
 def register():
     bpy.utils.register_class(RF_Prefs)

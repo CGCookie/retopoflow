@@ -43,6 +43,7 @@ from .rfpanels import (
 )
 
 from . import preferences
+from .rfprops import rfprops_scene
 
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
@@ -95,6 +96,7 @@ class RFCore:
 
         # register RF operator and RF tools
         preferences.register()
+        rfprops_scene.register()
         RFTool_Base.register_all()
         RFOperator.register_all()
         RFOperator_Execute.register_all()
@@ -164,6 +166,7 @@ class RFCore:
         help_panel.unregister()
         relax_algorithm_panel.unregister()
         tools_pie.unregister()
+        rfprops_scene.unregister()
         preferences.unregister()
 
 

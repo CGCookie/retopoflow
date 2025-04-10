@@ -24,8 +24,7 @@ import bpy
 
 
 def draw_cleanup_options(context, layout, draw_operators=True):
-    from ..preferences import RF_Prefs
-    props = RF_Prefs.get_prefs(context)
+    props = context.scene.retopoflow
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True

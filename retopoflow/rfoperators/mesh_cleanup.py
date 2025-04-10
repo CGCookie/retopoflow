@@ -24,7 +24,6 @@ import bpy, bmesh
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
-from ..preferences import RF_Prefs
 
 
 class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
@@ -60,7 +59,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
             }
 
     def execute(self, context):
-        props = RF_Prefs.get_prefs(context)
+        props = context.scene.retopoflow
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
