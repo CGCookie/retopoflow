@@ -265,6 +265,7 @@ class PolyStrips_Logic:
         nstroke = len(self.stroke3D_local)
 
         # break stroke into segments
+        bmfs = []
         nstrip_count = len(strips) - 1
         actual_strip_count = 0
         if self.strip_count != nstrip_count:
@@ -306,7 +307,7 @@ class PolyStrips_Logic:
                 if snap0['error']:
                     self.error = True
                     print(f'ERROR: {snap0["error"]} on snap0')
-                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
+                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1] if bmfs else None
                     continue
                 stroke3D_local = snap0['stroke']
 
@@ -315,9 +316,13 @@ class PolyStrips_Logic:
                 if snap1['error']:
                     self.error = True
                     print(f'ERROR: {snap1["error"]} on snap1')
-                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
+                    if snap_bmf1 is None: snap_bmf1 = bmfs[-1] if bmfs else None
                     continue
                 stroke3D_local = snap1['stroke']
+
+            if (stroke3D_local[0] - stroke3D_local[-1]).length == 0:
+                print(f'ERROR: ends of stroke are at the same location {len(stroke3D_local)=} {stroke3D_local[0]=} {stroke3D_local[-1]=}')
+                continue
 
             # warp stroke to better fit snapped geo
             stroke3D_local = warp_stroke(
