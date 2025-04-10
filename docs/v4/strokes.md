@@ -31,8 +31,9 @@ An Equals Strip is created when you extrude a set of selected edges by drawing a
 
 You can also create an Equals Strip by selecting a set of edges in a loop and drawing from a deselected vertex in that same loop to the corresponding vertex on the other side of the loop. A yellow circle will appear around the cursor while you hold `Ctrl` to indicate that the stroke will be snapped to a vertex.
 
-
 ![](images/strokes_equals_02.jpg)
+
+*Tip: you can `Ctrl Scroll` to adjust the count even when filling in an area with an Equals Strip.*
 
 ### T Strip
 
