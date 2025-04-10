@@ -133,9 +133,9 @@ class RFOperator_Tweak(RFOperator):
         name='Mask: Boundary',
         description='How to handle boundary geometry',
         items=[
-            ('EXCLUDE', 'Exclude', 'Tweak vertices not along boundary', 0),
-            ('SLIDE',   'Slide',   'Tweak vertices along boundary, but move them by sliding along boundary', 1),
-            ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being along boundary', 2),
+            ('INCLUDE', 'Include', 'Tweak vertices regardless of being along boundary', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Tweak vertices along boundary, but move them by sliding along boundary', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not tweak vertices along boundary', 'SELECT_DIFFERENCE', 0),
         ],
         default='INCLUDE',
     )
@@ -143,19 +143,19 @@ class RFOperator_Tweak(RFOperator):
         name='Mask: Symmetry',
         description='How to handle geometry near symmetry plane',
         items=[
-            ('EXCLUDE', 'Exclude', 'Tweak vertices not along symmetry plane', 0),
-            ('SLIDE',   'Slide',   'Tweak vertices along symmetry plane, but move them by sliding along symmetry plane', 1),
-            ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being along symmetry plane', 2),
+            ('INCLUDE', 'Include', 'Tweak vertices regardless of being along symmetry plane', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Tweak vertices along symmetry plane, but move them by sliding along symmetry plane', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not tweak vertices along symmetry plane', 'SELECT_DIFFERENCE', 0),
         ],
         default='SLIDE',
     )
     mask_selected: bpy.props.EnumProperty(
         name='Mask: Selected',
-        description='How to handle (un)selected geometry',
+        description='How to handle selected geometry',
         items=[
-            ('EXCLUDE', 'Exclude', 'Tweak only unselected vertices', 0),
-            ('ONLY',    'Only',    'Tweak only selected vertices', 1),
-            ('ALL',     'All',     'Tweak all vertices within brush, regardless of selection', 2),
+            ('ALL',     'All',     'Tweak vertices regardless of selection', 'SELECT_EXTEND', 2),
+            ('ONLY',    'Only',    'Tweak only selected vertices', 'SELECT_INTERSECT', 1),
+            ('EXCLUDE', 'Exclude', 'Tweak only unselected vertices', 'SELECT_DIFFERENCE', 0),
         ],
         default='ALL',
     )
@@ -224,8 +224,9 @@ class RFTool_Tweak(RFTool_Base):
             layout.prop(props, 'brush_falloff')
             if prefs.expand_masking:
                 draw_line_separator(layout)
-                layout.prop(props, 'mask_selected', text="Selected")
-                layout.prop(props, 'mask_boundary', text="Boundary")
+                layout.row(heading='Selected:', align=True).prop(props, 'mask_selected', expand=True, icon_only=True)
+                layout.separator()
+                layout.row(heading='Boundary:', align=True).prop(props, 'mask_boundary', expand=True, icon_only=True)
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
                 layout.prop(props, 'include_corners',   text="Corners")
