@@ -28,6 +28,12 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     E.G. scenes of different scales would require different merge thresholds.
     """
 
+    """ Saving """
+    saved_tool: bpy.props.StringProperty(
+        name='RetopoFlow Tool',
+        description='RetopoFlow Tool to select after loading from file',
+    )
+
     """ Cleaning """
     #region
     cleaning_use_snap: bpy.props.BoolProperty(

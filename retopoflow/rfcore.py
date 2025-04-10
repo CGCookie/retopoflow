@@ -115,11 +115,6 @@ class RFCore:
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
-
-        bpy.types.Scene.retopoflow_tool = bpy.props.StringProperty(
-            name='RetopoFlow Tool',
-            description='RetopoFlow Tool to select after loading from file',
-        )
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
 
         RFCore._is_registered = True
@@ -340,7 +335,7 @@ class RFCore:
         RFCore.running_in_areas.clear()
 
         if not getattr(RFCore, 'is_saving', False):
-            bpy.context.scene.retopoflow_tool = ''
+            bpy.context.scene.retopoflow.saved_tool = ''
 
         RFCore.resetter.reset()
 
@@ -428,25 +423,25 @@ class RFCore:
     @staticmethod
     def handle_save_pre(*args, **kwargs):
         RFCore.is_saving = True
-        bpy.context.scene.retopoflow_tool = RFCore.selected_RFTool_idname
+        bpy.context.scene.retopoflow.saved_tool = RFCore.selected_RFTool_idname
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
         bpy.app.handlers.save_post.append(RFCore.handle_save_post)
 
     @staticmethod
     def handle_save_post(*args, **kwargs):
         bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
-        # if bpy.context.scene.retopoflow_tool: RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
-        if bpy.context.scene.retopoflow_tool:
-            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
-        bpy.context.scene.retopoflow_tool = ''
+        # if bpy.context.scene.retopoflow.saved_tool: RFCore.quick_switch(bpy.context.scene.retopoflow.saved_tool)
+        if bpy.context.scene.retopoflow.saved_tool:
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
+        bpy.context.scene.retopoflow.saved_tool = ''
         del RFCore.is_saving
 
     @staticmethod
     @bpy.app.handlers.persistent
     def handle_load_post(*args, **kwargs):
-        if not getattr(bpy.context.scene, 'retopoflow_tool', ''): return
-        RFCore.quick_switch(bpy.context.scene.retopoflow_tool)
-        # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow_tool)
+        if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
+        RFCore.quick_switch(bpy.context.scene.retopoflow.saved_tool)
+        # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
 
     @staticmethod
     def handle_preview(context, area):
