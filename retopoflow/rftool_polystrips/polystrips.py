@@ -612,6 +612,7 @@ class RFTool_PolyStrips(RFTool_Base):
             layout.prop(props_polystrips, 'brush_radius', text="Radius")
             layout.prop(props_polystrips, 'stroke_smoothing', text='Smoothing')
             layout.prop(props_polystrips, 'split_angle', text='Angle')
+            draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
