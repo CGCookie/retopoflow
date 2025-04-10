@@ -692,32 +692,3 @@ class RFCORE_PT_Panel(RFRegisterClass, bpy.types.Panel):
     #     # row.label(text='New')
     #     # row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
     #     # row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
-
-
-# class RFCORE_MT_PIE_PieMenu(bpy.types.Menu):
-#     bl_idname = 'retopoflow.piemenu'
-#     bl_label = 'RetopoFlow Tool Switch'
-
-#     def draw(self, context):
-#         if context.mode != 'EDIT_MESH': return
-
-#         layout = self.layout
-#         pie = layout.menu_pie()
-#         # 4 - LEFT
-#         pie.operator(RFTool_Contours.bl_idname, text=RFTool_Contours.bl_label, icon="OBJECT_DATAMODE")
-#         # 6 - RIGHT
-#         # pie.operator(RFTool_PolyPen.bl_idname, text=RFTool_PolyPen.bl_label, icon="OBJECT_DATAMODE")
-#         pie.separator()
-#         # 2 - BOTTOM
-#         # pie.operator(RFTool_Relax.bl_idname, text=RFTool_Relax.bl_label, icon="OBJECT_DATAMODE")
-#         pie.separator()
-#         # 8 - TOP
-#         pie.separator()
-#         # 7 - TOP - LEFT
-#         pie.separator()
-#         # 9 - TOP - RIGHT
-#         pie.separator()
-#         # 1 - BOTTOM - LEFT
-#         pie.separator()
-#         # 3 - BOTTOM - RIGHT
-#         pie.separator()
