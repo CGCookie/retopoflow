@@ -658,37 +658,3 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
         return {'PASS_THROUGH'}
 
-
-
-class RFCORE_PT_Panel(RFRegisterClass, bpy.types.Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
-    bl_label = 'Start RetopoFlow'
-
-    @classmethod
-    def poll(cls, context):
-        return False
-
-    @staticmethod
-    def draw_popover(self, context):
-        if context.mode == 'OBJECT':
-            layout = self.layout
-            layout.separator()
-            row = layout.row(align=True)
-            row.label(text=f'RetopoFlow')
-            row.operator('retopoflow.newtarget_cursor', text="", icon='CURSOR')
-            row.operator('retopoflow.newtarget_active', text="", icon='MOD_MESHDEFORM')
-
-    def draw(self, context): pass
-
-    # def draw(self, context):
-    #     layout = self.layout
-
-    #     row = layout.row(align=True)
-    #     row.label(text='Continue')
-    #     row.operator('retopoflow.newtarget_cursor', text='Edit Active', icon='MOD_DATA_TRANSFER') # icon='EDITMODE_HLT')
-
-    #     # row = layout.row(align=True)
-    #     # row.label(text='New')
-    #     # row.operator('cgcookie.retopoflow_newtarget_cursor', text='Cursor', icon='ADD')
-    #     # row.operator('cgcookie.retopoflow_newtarget_active', text='Active', icon='ADD')
