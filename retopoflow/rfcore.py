@@ -268,6 +268,8 @@ class RFCore:
         RFCore.resetter['context.active_object.show_all_edges'] = True
         for s in iter_all_view3d_spaces():
             RFCore.resetter['s.overlay.show_retopology'] = True
+            RFCore.resetter['s.overlay.show_fade_inactive'] = True
+
 
         try:
             bpy.ops.retopoflow.core()
