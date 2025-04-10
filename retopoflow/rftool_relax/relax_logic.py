@@ -98,19 +98,19 @@ class Relax_Logic:
         relax = self.relax
 
         # gather options
-        opt_mask_boundary   = relax.mask_boundary
-        opt_mask_corner     = relax.mask_corners
-        opt_mask_symmetry   = relax.mask_symmetry
-        opt_mask_occluded   = relax.mask_occluded
-        opt_mask_selected   = relax.mask_selected
-        opt_steps           = relax.algorithm_iterations
-        opt_mult            = relax.algorithm_strength
-        opt_edge_length     = relax.algorithm_average_edge_lengths
-        opt_straight_edges  = relax.algorithm_straighten_edges
-        opt_face_radius     = relax.algorithm_average_face_radius
-        opt_face_sides      = relax.algorithm_average_face_lengths
-        opt_face_angles     = relax.algorithm_average_face_angles
-        opt_correct_flipped = relax.algorithm_correct_flipped_faces
+        opt_mask_boundary    = relax.mask_boundary
+        opt_mask_symmetry    = relax.mask_symmetry
+        opt_include_corner   = relax.include_corners
+        opt_include_occluded = relax.include_occluded
+        opt_mask_selected    = relax.mask_selected
+        opt_steps            = relax.algorithm_iterations
+        opt_mult             = relax.algorithm_strength
+        opt_edge_length      = relax.algorithm_average_edge_lengths
+        opt_straight_edges   = relax.algorithm_straighten_edges
+        opt_face_radius      = relax.algorithm_average_face_radius
+        opt_face_sides       = relax.algorithm_average_face_lengths
+        opt_face_angles      = relax.algorithm_average_face_angles
+        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -131,11 +131,11 @@ class Relax_Logic:
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv in nearest:
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
-            if opt_mask_corner   == 'EXCLUDE' and len(bmv.link_edges) == 2: continue
+            if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_mask_occluded == 'EXCLUDE' and is_bmvert_hidden(context, bmv): continue
+            if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
             if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
-            if opt_mask_selected == 'ONLY' and not bmv.select: continue
+            if opt_mask_selected == 'ONLY'    and not bmv.select: continue
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)

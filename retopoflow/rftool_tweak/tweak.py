@@ -119,6 +119,16 @@ class RFOperator_Tweak(RFOperator):
     )
 
 
+    include_corners: bpy.props.BoolProperty(
+        name='Corners',
+        description='Include corners (vertices with exactly two edges)',
+        default = True,
+    )
+    include_occluded: bpy.props.BoolProperty(
+        name='Occluded',
+        description='Include vertices that are hidden behind other geometry',
+        default = False,
+    )
     mask_boundary: bpy.props.EnumProperty(
         name='Mask: Boundary',
         description='How to handle boundary geometry',
@@ -126,15 +136,6 @@ class RFOperator_Tweak(RFOperator):
             ('EXCLUDE', 'Exclude', 'Tweak vertices not along boundary', 0),
             ('SLIDE',   'Slide',   'Tweak vertices along boundary, but move them by sliding along boundary', 1),
             ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being along boundary', 2),
-        ],
-        default='INCLUDE',
-    )
-    mask_corners: bpy.props.EnumProperty(
-        name='Mask: Corners',
-        description='How to handle corner geometry (vertices with exactly two edges)',
-        items=[
-            ('EXCLUDE', 'Exclude', 'Tweak vertices not at a corner', 0),
-            ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being at corner', 1),
         ],
         default='INCLUDE',
     )
@@ -147,15 +148,6 @@ class RFOperator_Tweak(RFOperator):
             ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being along symmetry plane', 2),
         ],
         default='SLIDE',
-    )
-    mask_occluded: bpy.props.EnumProperty(
-        name='Mask: Occluded',
-        description='How to handle occluded geometry',
-        items=[
-            ('EXCLUDE', 'Exclude', 'Tweak vertices not occluded by other geometry', 0),
-            ('INCLUDE', 'Include', 'Tweak all vertices within brush, regardless of being occluded', 1),
-        ],
-        default='EXCLUDE',
     )
     mask_selected: bpy.props.EnumProperty(
         name='Mask: Selected',
@@ -234,9 +226,10 @@ class RFTool_Tweak(RFTool_Base):
                 draw_line_separator(layout)
                 layout.prop(props, 'mask_selected', text="Selected")
                 layout.prop(props, 'mask_boundary', text="Boundary")
-                layout.prop(props, 'mask_corners',  text="Corners")
                 # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-                layout.prop(props, 'mask_occluded', text="Occluded")
+                layout.separator()
+                layout.prop(props, 'include_corners',   text="Corners")
+                layout.prop(props, 'include_occluded', text="Occluded")
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)

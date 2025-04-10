@@ -31,9 +31,9 @@ def draw_masking_options(context, layout):
 
     layout.prop(props, 'mask_selected', text="Selected")
     layout.prop(props, 'mask_boundary', text="Boundary")
-    layout.prop(props, 'mask_corners',  text="Corners")
     # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-    layout.prop(props, 'mask_occluded', text="Occluded")
+    layout.row(heading='Include').prop(props, 'include_corners',  text="Corners")
+    layout.prop(props, 'include_occluded', text="Occluded")
 
 def draw_masking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
