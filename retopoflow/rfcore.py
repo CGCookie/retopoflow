@@ -254,21 +254,27 @@ class RFCore:
         bpy.app.handlers.save_pre.append(RFCore.handle_save_pre)
 
         # Setup tool settings
-        RFCore.resetter['context.scene.tool_settings.use_snap'] = True
-        RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
-        RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_edit'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_nonedit'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
-        RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
+        prefs = preferences.RF_Prefs.get_prefs(context)
+        if prefs.setup_snapping:
+            RFCore.resetter['context.scene.tool_settings.use_snap'] = True
+            RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
+            RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
+            RFCore.resetter['context.scene.tool_settings.use_snap_edit'] = True
+            RFCore.resetter['context.scene.tool_settings.use_snap_nonedit'] = True
+            RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
+            RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
+            RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
 
         # Setup viewport settings
-        RFCore.resetter['context.active_object.show_wire'] = True
-        RFCore.resetter['context.active_object.show_all_edges'] = True
-        for s in iter_all_view3d_spaces():
-            RFCore.resetter['s.overlay.show_retopology'] = True
-            RFCore.resetter['s.overlay.show_fade_inactive'] = True
+        if prefs.setup_object_wires:
+            RFCore.resetter['context.active_object.show_wire'] = True
+            RFCore.resetter['context.active_object.show_all_edges'] = True
+            for s in iter_all_view3d_spaces():
+                RFCore.resetter['s.overlay.show_fade_inactive'] = True
+
+        if prefs.setup_retopo_overlay:
+            for s in iter_all_view3d_spaces():
+                RFCore.resetter['s.overlay.show_retopology'] = True
 
 
         try:

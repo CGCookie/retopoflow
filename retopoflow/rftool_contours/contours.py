@@ -59,6 +59,8 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
+from ..preferences import RF_Prefs
+
 from .contours_logic import Contours_Logic
 from functools import wraps
 import itertools
@@ -401,10 +403,14 @@ class RFTool_Contours(RFTool_Base):
     @classmethod
     def activate(cls, context):
         cls.resetter = Resetter('Contours')
-        cls.resetter['context.tool_settings.use_mesh_automerge'] = False
-        cls.resetter.store('context.tool_settings.snap_elements_base')
-        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
+        prefs = RF_Prefs.get_prefs(context)
+        if prefs.setup_automerge:
+            cls.resetter['context.tool_settings.use_mesh_automerge'] = False
+        if prefs.setup_snapping:
+            cls.resetter.store('context.tool_settings.snap_elements_base')
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+        if prefs.setup_selection_mode:
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
 
     @classmethod
     def deactivate(cls, context):

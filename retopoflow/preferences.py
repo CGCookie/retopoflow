@@ -61,6 +61,39 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     #endregion
 
+    """ Tool Switching """ 
+    #region
+    setup_automerge: bpy.props.BoolProperty(
+        name='Auto Merge',
+        description=("Automatically enables Auto Merge when using Retopoflow tools"),
+        default=True,
+    )
+    setup_fade_inactive: bpy.props.BoolProperty(
+        name='Fade Inactive',
+        description=("Automatically enables Fade Inactive Geometry when using Retopoflow tools"),
+        default=True,
+    )
+    setup_object_wires: bpy.props.BoolProperty(
+        name='Object Wires',
+        description=("Automatically enables wires for the active object when using Retopoflow tools, so you can see the result of modifiers"),
+        default=True,
+    )
+    setup_retopo_overlay: bpy.props.BoolProperty(
+        name='Retopology Overlay',
+        description=("Automatically enables the retopology overlay when using Retopoflow tools"),
+        default=True,
+    )
+    setup_selection_mode: bpy.props.BoolProperty(
+        name='Selection Mode',
+        description=("Automatically adjusts the selection mode for the selected Retopoflow tool"),
+        default=True,
+    )
+    setup_snapping: bpy.props.BoolProperty(
+        name='Snapping',
+        description=("Automatically adjusts Blender's snapping settings for the selected Retopoflow tool"),
+        default=True,
+    )
+    #endregion
 
     """ Tweaking """
     #region
@@ -135,6 +168,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if panel:
             draw_general_options(context, panel)
 
+        header, panel = layout.panel(idname='switching_prefs', default_closed=True)
+        header.label(text="Tool Switching")
+        if panel:
+            panel.use_property_split = True
+            row = panel.row(heading='Automatic')
+            row.prop(self, 'setup_automerge')
+            panel.prop(self, 'setup_fade_inactive')
+            panel.prop(self, 'setup_object_wires')
+            panel.prop(self, 'setup_retopo_overlay')
+            panel.prop(self, 'setup_selection_mode')
+            panel.prop(self, 'setup_snapping')
+            
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)
         header.label(text="Tweaking")

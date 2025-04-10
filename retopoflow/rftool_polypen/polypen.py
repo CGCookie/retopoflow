@@ -57,6 +57,8 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
+from ..preferences import RF_Prefs
+
 from .polypen_logic import PP_Logic
 
 
@@ -257,13 +259,16 @@ class RFTool_PolyPen(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
+        prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter("PolyPen")
-        cls.resetter['context.tool_settings.use_mesh_automerge'] = True
-        # cls.resetter['context.tool_settings.double_threshold'] = 0.01
-        # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
-        cls.resetter.store('context.tool_settings.snap_elements_base')
-        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+        if prefs.setup_automerge:
+            cls.resetter['context.tool_settings.use_mesh_automerge'] = True
+        if prefs.setup_snapping:
+            # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
+            cls.resetter.store('context.tool_settings.snap_elements_base')
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT', 'FACE_NEAREST'}
+        if prefs.setup_selection_mode:
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
     def deactivate(cls, context):

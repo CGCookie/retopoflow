@@ -60,6 +60,8 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
+from ..preferences import RF_Prefs
+
 import heapq
 from functools import wraps
 
@@ -631,11 +633,15 @@ class RFTool_PolyStrips(RFTool_Base):
 
     @classmethod
     def activate(cls, context):
+        prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('PolyStrips')
-        cls.resetter['context.tool_settings.use_mesh_automerge'] = True
-        cls.resetter['context.tool_settings.mesh_select_mode'] = [False, False, True]
-        cls.resetter.store('context.tool_settings.snap_elements_base')
-        cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
+        if prefs.setup_automerge:
+            cls.resetter['context.tool_settings.use_mesh_automerge'] = True
+        if prefs.setup_snapping:
+            cls.resetter.store('context.tool_settings.snap_elements_base')
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_PROJECT'}
+        if prefs.setup_selection_mode:
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [False, False, True]
 
     @classmethod
     def deactivate(cls, context):
