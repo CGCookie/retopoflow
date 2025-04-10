@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
 bl_info = {
-    "name":         "RetopoFlow 4",
+    "name":         "Retopoflow 4",
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, JF Matheu, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart",
     "blender":      (4, 2, 0),
