@@ -35,7 +35,7 @@ import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.maths import point_to_bvec4, view_forward_direction
+from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -48,6 +48,8 @@ class Relax_Logic:
         self.matrix_world_inv = self.matrix_world.inverted()
         self.mouse = None
         self.forward = view_forward_direction(context)
+        self.right = view_right_direction(context)
+        self.up = view_up_direction(context)
 
         self.brush = brush
         self.relax = relax
@@ -74,7 +76,7 @@ class Relax_Logic:
         self._boundary = []
         if relax.mask_boundary == 'SLIDE':
             self._boundary = [
-                (bme.verts[0].co, bme.verts[1].co)
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
                 for bme in self.bm.edges
                 if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
             ]
@@ -247,8 +249,12 @@ class Relax_Logic:
                 ctr = Point.average(bmv.co for bmv in bmvs)
                 rels = [bmv.co - ctr for bmv in bmvs]
                 bmf_z = bmf.normal.normalized()
-                bmf_y = bmf_z.cross(self.forward).normalized()
-                bmf_x = bmf_y.cross(bmf_z).normalized()
+                if abs(bmf_z.dot(self.forward)) < 0.95:
+                    bmf_y = bmf_z.cross(self.forward).normalized()
+                    bmf_x = bmf_y.cross(bmf_z).normalized()
+                else:
+                    bmf_x = self.up.cross(bmf_z).normalized()
+                    bmf_y = bmf_z.cross(bmf_x).normalized()
 
                 # push verts toward average dist from verts to face center
                 if opt_face_radius:
@@ -282,7 +288,7 @@ class Relax_Logic:
                         d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
                         angle = d10_2.angle_signed(d12_2)
                         angle_diff = angle_target - angle
-                        mag = angle_diff * 0.001 * strength
+                        mag = angle_diff * 0.05 * strength
                         add_force(bmv0, d10.cross(bmf_z).normalized() * -mag)
                         add_force(bmv2, d12.cross(bmf_z).normalized() * mag)
 
