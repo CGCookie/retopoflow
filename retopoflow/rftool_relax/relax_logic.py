@@ -233,7 +233,7 @@ class Relax_Logic:
             # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
                 for bmv in chk_verts:
-                    if bmv.is_boundary: continue
+                    if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
                     bmes = bmv.link_edges
                     #if len(bmes) != 4: continue
                     center = Point.average(bme.other_vert(bmv).co for bme in bmes)
