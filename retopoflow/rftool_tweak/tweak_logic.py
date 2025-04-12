@@ -145,7 +145,7 @@ class Tweak_Logic:
                     new_co = p
 
             if self.mirror:
-                co = new_co
+                co = Vector(new_co)
                 t = self.mirror_threshold
                 zero = {
                     'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(co_orig.x, t)),

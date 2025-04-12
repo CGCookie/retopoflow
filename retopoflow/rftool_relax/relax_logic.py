@@ -325,7 +325,7 @@ class Relax_Logic:
 
                 if self.mirror:
                     co_orig = self.prev[bmv]
-                    co = co_local_snapped
+                    co = Vector(co_local_snapped)
                     t = self.mirror_threshold
                     zero = {
                         'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(co_orig.x, t)),
