@@ -33,7 +33,7 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.maths import point_to_bvec4, view_forward_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -76,7 +76,7 @@ class Relax_Logic:
             self._boundary = [
                 (bme.verts[0].co, bme.verts[1].co)
                 for bme in self.bm.edges
-                if not bme.is_manifold
+                if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
             ]
 
     def cancel(self, context):
@@ -310,7 +310,7 @@ class Relax_Logic:
                 #     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
                 #     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
 
-                if opt_mask_boundary == 'SLIDE' and bmv.is_boundary:
+                if opt_mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
                     p, d = None, None
                     for (v0, v1) in self._boundary:
                         p_ = closest_point_segment(co, v0, v1)

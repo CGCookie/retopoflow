@@ -525,3 +525,23 @@ class NearestBMFace:
         elif filter_selected and self.bmf:
             if self.bmf.select: self.bmf = None
 
+
+
+def is_bmedge_boundary(bme, mirror, threshold, clip):
+    if not bme.is_boundary: return False
+    if not clip: return True
+    bmv0, bmv1 = bme.verts
+    co0, co1 = bmv0.co, bmv1.co
+    if 'x' in mirror and abs(co0.x) <= threshold and abs(co1.x) <= threshold: return False
+    if 'y' in mirror and abs(co0.y) <= threshold and abs(co1.y) <= threshold: return False
+    if 'z' in mirror and abs(co0.z) <= threshold and abs(co1.z) <= threshold: return False
+    return True
+
+def is_bmvert_boundary(bmv, mirror, threshold, clip):
+    if not bmv.is_boundary: return False
+    if not clip: return True
+    if 'x' in mirror and abs(bmv.co.x) <= threshold: return False
+    if 'y' in mirror and abs(bmv.co.y) <= threshold: return False
+    if 'z' in mirror and abs(bmv.co.z) <= threshold: return False
+    return True
+
