@@ -331,9 +331,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
 
         def draw_adjust(self, context):
             center2D = self.center2D
-            r = self.radius
             co = self.outer_color
-            Drawing.draw2D_smooth_circle(context, center2D, r, co, width=1)
+            instance: RFOperator_StrokeBrush_Adjust = RFOperator_StrokeBrush_Adjust.active_operator()
+            Drawing.draw2D_smooth_circle(context, center2D, self.radius, co, width=2.5)
+            if instance:
+                Drawing.draw2D_smooth_circle(context, center2D, instance.prev_radius, co, width=.5)
 
         def draw_stroke(self, context):
             if self.mouse:
