@@ -63,6 +63,7 @@ shader_2D_point,    ubos_2D_point,    batch_2D_point    = create_shader('point_2
 shader_2D_lineseg,  ubos_2D_lineseg,  batch_2D_lineseg  = create_shader('lineseg_2D.glsl')
 shader_2D_circle,   ubos_2D_circle,   batch_2D_circle   = create_shader('circle_2D.glsl', segments=64)
 shader_3D_circle,   ubos_3D_circle,   batch_3D_circle   = create_shader('circle_3D.glsl', segments=64)
+shader_smooth_circle_2D, ubos_smooth_circle_2D, batch_smooth_circle_2D = create_shader('smooth_circle_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
 shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle = create_shader('triangle_2D.glsl', pos=[(1,0), (0,1), (0,0)])
 
 
@@ -148,6 +149,152 @@ class Drawing:
         ubos_3D_circle.update_shader()
         batch_3D_circle.draw(shader_3D_circle)
         gpu.shader.unbind()
+
+    @staticmethod
+    def draw2D_smooth_circle(context, center:Point2D, radius:float, color:Color, *, width=0, smooth_threshold=1.5):
+        '''
+        Draw an anti-aliased 2D circle using a quad-based approach for efficient rendering
+        
+        Parameters:
+            context: Blender context
+            center: Center position in screen coordinates
+            radius: Circle radius in pixels
+            color: Circle color
+            width: Line width in pixels (0 for filled circle)
+            smooth_threshold: Smoothing factor for anti-aliasing (in pixels)
+        '''
+        area = context.area
+        radius = Drawing.scale(radius)
+        width = Drawing.scale(width)
+        smooth_threshold = Drawing.scale(smooth_threshold)
+        settings = (radius, width, smooth_threshold, 0.0)
+        
+        shader_smooth_circle_2D.bind()
+        ubos_smooth_circle_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_smooth_circle_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
+        ubos_smooth_circle_2D.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_smooth_circle_2D.options.color = color
+        ubos_smooth_circle_2D.options.settings = settings
+        ubos_smooth_circle_2D.update_shader()
+        batch_smooth_circle_2D.draw(shader_smooth_circle_2D)
+        gpu.shader.unbind()
+
+    @staticmethod
+    def draw_circle_3d(position, normal, color, radius: float, thickness: float, *, scale: float=1.0, segments=None, viewport_size=None):
+        """
+        Draw a circle oriented by the normal vector.
+
+        :arg position: 3D position where the circle will be drawn.
+        :type position: Sequence[float]
+        :arg normal: Normal vector to orient the circle.
+        :type normal: Sequence[float] | Vector
+        :arg color: Color of the circle (RGBA).
+        To use transparency blend must be set to ``ALPHA``, see: :func:`gpu.state.blend_set`.
+        :type color: Sequence[float]
+        :arg radius: Radius of the circle.
+        :type radius: float
+        :arg segments: How many segments will be used to draw the circle.
+            Higher values give better results but the drawing will take longer.
+            If None or not specified, an automatic value will be calculated.
+        :type segments: int | None
+        """
+        from math import sin, cos, pi
+        import gpu
+        from gpu.types import (
+            GPUBatch,
+            GPUVertBuf,
+            GPUVertFormat,
+        )
+
+        if segments is None:
+            if viewport_size is not None:
+                # Heuristic for calculating segments based on viewport size (or region size) and radius.
+                
+                # --- Configuration ---
+                base_target_segments = 32 # Target segments for ref_radius at ref_vp_dim
+                ref_radius = 0.1          # Reference world-space radius
+                ref_vp_dim = 1000.0       # Reference viewport dimension (min of width/height)
+                min_segments = 8
+                max_segments = 256
+                # Scaling factor limits to prevent extreme segment counts
+                radius_scale_min = 0.25
+                radius_scale_max = 4.0 
+                vp_scale_min = 0.5     
+                vp_scale_max = 2.0     
+
+                # --- Calculate Radius Scale ---
+                # Ensure radius is positive for scaling calculation
+                safe_radius = max(radius, 1e-6)
+                radius_scale = max(radius_scale_min, min(radius_scale_max, safe_radius / ref_radius))
+
+                # --- Calculate Viewport Scale ---
+                min_vp_dim = min(viewport_size[0], viewport_size[1])
+                vp_scale = max(vp_scale_min, min(vp_scale_max, min_vp_dim / ref_vp_dim))
+
+                # --- Calculate Final Segments ---
+                # Multiply base segments by both scale factors
+                scaled_segments = int(base_target_segments * radius_scale * vp_scale)
+
+                # --- Final Clamping ---
+                segments = max(min_segments, min(max_segments, scaled_segments))
+
+            else:
+                # Logic partially based on Blender's `draw_circle_2d` preset function.
+                max_pixel_error = 0.25
+                # Use world radius, ensure > 0...
+                calc_radius = max(radius, 1e-6)
+                # Clamp input
+                acos_input = max(-1.0, min(1.0, 1.0 - max_pixel_error / calc_radius))
+                angle_per_segment = math.acos(acos_input)
+                if angle_per_segment > 1e-7:
+                    # Calculate for full circle
+                    segments = int(math.ceil((2 * math.pi) / angle_per_segment))
+                else:
+                    segments = 256
+                # Apply limits
+                segments = max(8, min(256, segments))
+
+        if segments <= 0:
+            raise ValueError("Amount of segments must be greater than 0.")
+
+        # Calc rotation matrix to align the circle with the normal.
+        up = Vector((0.0, 0.0, 1.0))
+        normal_vec = Vector(normal).normalized()
+        if normal_vec.dot(up) > 0.9999: # Normal is already Z up
+            rotation_matrix = Matrix.Identity(4)
+        elif normal_vec.dot(up) < -0.9999: # Normal is Z down
+            rotation_matrix = Matrix.Rotation(pi, 4, 'X')
+        else:
+            axis = up.cross(normal_vec)
+            angle = up.angle(normal_vec)
+            rotation_matrix = Matrix.Rotation(angle, 4, axis)
+
+        with gpu.matrix.push_pop():
+            # Apply translation, rotation, and scale
+            gpu.matrix.translate(position)
+            gpu.matrix.multiply_matrix(rotation_matrix)
+            gpu.matrix.scale_uniform(radius * scale)
+
+            # vertices for the circle on the normal plane.
+            mul = (1.0 / (segments - 1)) * (pi * 2)
+            verts = [(sin(i * mul), cos(i * mul), 0.0) for i in range(segments)] # Add Z coordinate
+
+            fmt = GPUVertFormat()
+            pos_id = fmt.attr_add(id="pos", comp_type='F32', len=3, fetch_mode='FLOAT') # Change len to 3
+            vbo = GPUVertBuf(len=len(verts), format=fmt)
+            vbo.attr_fill(id=pos_id, data=verts)
+
+            batch = GPUBatch(type='LINE_STRIP', buf=vbo)
+            shader = gpu.shader.from_builtin('POLYLINE_UNIFORM_COLOR' if viewport_size is not None else 'UNIFORM_COLOR')
+            batch.program_set(shader)
+            shader.uniform_float("color", color)
+            if viewport_size:
+                shader.uniform_float("viewportSize", viewport_size)
+                shader.uniform_float("lineWidth", thickness)
+
+            if viewport_size is None: gpustate.line_width(thickness)
+            batch.draw()
+            if viewport_size is None: gpustate.line_width(1.0)
 
     @staticmethod
     def draw2D_linestrip(context, points, color0, *, color1=None, width=1, stipple=None, offset=0):
