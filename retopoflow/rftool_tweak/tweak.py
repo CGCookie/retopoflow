@@ -99,21 +99,22 @@ class RFOperator_Tweak(RFOperator):
     brush_radius: wrap_property(
         RFBrush_Tweak, 'radius', 'int',
         name='Radius',
-        description='Radius of Brush',
+        description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
+        subtype='PIXEL',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
         RFBrush_Tweak, 'falloff', 'float',
         name='Falloff',
-        description='Falloff of Brush',
+        description='How much strength the outside of the brush has as compared to the center',
         min=0.00,
         max=100.00,
     )
     brush_strength: wrap_property(
         RFBrush_Tweak, 'strength', 'float',
         name='Strength',
-        description='Strength of Brush',
+        description='Strength of the brush',
         min=0.01,
         max=1.00,
     )

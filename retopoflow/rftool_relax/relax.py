@@ -100,14 +100,15 @@ class RFOperator_Relax(RFOperator):
     brush_radius: wrap_property(
         RFBrush_Relax, 'radius', 'int',
         name='Radius',
-        description='Radius of Brush',
+        description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
+        subtype='PIXEL',
         min=1,
         max=1000,
     )
     brush_falloff: wrap_property(
         RFBrush_Relax, 'falloff', 'float',
         name='Falloff',
-        description='Falloff of Brush',
+        description='How much strength the outside of the brush has as compared to the center',
         min=0.00,
         max=100.00,
     )
