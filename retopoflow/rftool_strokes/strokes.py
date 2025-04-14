@@ -322,9 +322,9 @@ class RFOperator_Strokes(RFOperator):
         name='Span Count Method',
         description='Controls the number of spans when inserting',
         items=[
-            ('BRUSH',   'Brush Size', 'Insert spans based on brush size', 0),
-            ('FIXED',   'Fixed',      'Insert fixed number of spans',     1),
-            ('AVERAGE', 'Average',    'Insert spans based on average length of selected edges (fallback: brush size)', 2),
+            ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
+            ('FIXED',   'Fixed',      'Inserts a fixed number of spans',     1),
+            ('AVERAGE', 'Average',    'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
         ],
         default='AVERAGE',
     )
@@ -479,11 +479,11 @@ class RFTool_Strokes(RFTool_Base):
             header, panel = layout.panel(idname='strokes_spans_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_strokes, 'span_insert_mode', text='Count')
+                panel.prop(props_strokes, 'span_insert_mode', text='Method')
                 if props_strokes.span_insert_mode == 'FIXED':
-                    panel.prop(props_strokes, 'initial_cut_count', text=" ")
+                    panel.prop(props_strokes, 'initial_cut_count', text="Count")
                 else:
-                    panel.prop(props_strokes, 'brush_radius', text=" ")
+                    panel.prop(props_strokes, 'brush_radius', text="Radius")
                 row = panel.row()
                 row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation', expand=True)
                 panel.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
