@@ -333,18 +333,18 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
             center2D = self.center2D
             r = self.radius
             co = self.outer_color
-            Drawing.draw2D_circle(context, center2D, r, co, width=1)
+            Drawing.draw2D_smooth_circle(context, center2D, r, co, width=1)
 
         def draw_stroke(self, context):
             if self.mouse:
                 if (not self.is_stroking() and self.snap_bmv0) or (self.is_stroking() and self.snap_bmv1):
-                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
+                    Drawing.draw2D_smooth_circle(context, Point2D(self.mouse), self.snap_distance, self.snap_color, width=1)
                 elif self.stroke_cycle:
-                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.cycle_color, width=1)
+                    Drawing.draw2D_smooth_circle(context, Point2D(self.mouse), self.snap_distance, self.cycle_color, width=1)
                 elif self.hit:
-                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.inner_color, width=1)
+                    Drawing.draw2D_smooth_circle(context, Point2D(self.mouse), self.snap_distance, self.inner_color, width=1)
                 else:
-                    Drawing.draw2D_circle(context, Point2D(self.mouse), self.snap_distance, self.miss_color, width=1)
+                    Drawing.draw2D_smooth_circle(context, Point2D(self.mouse), self.snap_distance, self.miss_color, width=1)
 
             if self.operator and self.operator.is_active() and self.is_stroking():
                 Drawing.draw2D_linestrip(context, self.stroke, self.stroke_color, width=2, stipple=[5,5])
@@ -396,22 +396,21 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
             if not self.hit: return
 
             pb, n = self.hit_p, self.hit_n
-            ra = self.radius * self.hit_scale_above
-            rb = self.radius * self.hit_scale_below
-            rt = (2 + 4 * (1 - abs(self.hit_n.dot(self.hit_ray[1])))) * self.hit_scale_above
             co = self.outer_color
             pa = pb - self.push_above * self.hit_ray[1].xyz # * context.region_data.view_distance
 
             gpustate.blend('ALPHA')
             gpustate.depth_mask(False)
 
+            viewport_size = (context.region.width, context.region.height)
+
             # draw below
             gpustate.depth_test('GREATER')
-            Drawing.draw3D_circle(context, pb, rb, co * self.below_alpha, n=n, width=rt)
+            Drawing.draw_circle_3d(pb, n, co * self.below_alpha, self.radius, scale=self.hit_scale_above, thickness=1.0, viewport_size=viewport_size)
 
             # draw above
             gpustate.depth_test('LESS_EQUAL')
-            Drawing.draw3D_circle(context, pa, ra, co, n=n, width=rt)
+            Drawing.draw_circle_3d(pa, n, co, self.radius, scale=self.hit_scale_below, thickness=1.0, viewport_size=viewport_size)
 
             # reset
             gpustate.depth_test('LESS_EQUAL')
