@@ -468,7 +468,11 @@ class Strokes_Insert():
         bmv1,_ = self.rfcontext.accel_nearest2D_vert(point=s1, max_dist=options['strokes merge dist']) # self.rfwidgets['brush'].radius)
         bmv0 = bmv0 if bmv0 in sel_verts else None
         bmv1 = bmv1 if bmv1 in sel_verts else None
-        assert bmv0 and bmv1
+        if bmv0 is None and bmv1 is None:
+            self.rfcontext.alert_user(
+                'Could not find suitable vertices to extrude from. Make sure your selection is accurate (vertices from selected edges).'
+            )
+            return
 
         edges0,verts0 = [],[bmv0]
         while True:

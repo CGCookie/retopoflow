@@ -38,7 +38,7 @@ bl_info = {
     "description":  "A suite of retopology tools for Blender through a unified retopology mode",
     "author":       "Orange Turbine: Jonathan Denning, Jonathan Lampel, Jonathan Williamson, Patrick Moore, Patrick Crawford, Christopher Gearhart, JF Matheu",
     "blender":      (3, 6, 0),
-    "version":      (3, 4, 5),
+    "version":      (3, 4, 6),
     "doc_url":      "https://docs.retopoflow.com",
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "View 3D > Header",

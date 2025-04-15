@@ -54,30 +54,30 @@ uniform sampler2D image;
 
 const bool srgbTarget = true;
 
-bool image_use() { return options.image_settings[0] != 0; }
-int  image_fit() { return options.image_settings[1]; }
+bool image_use() { return options.image_settings.x != 0; }
+int  image_fit() { return int(options.image_settings.y); }
 
-float pos_l() { return options.lrtb[0]; }
-float pos_r() { return options.lrtb[1]; }
-float pos_t() { return options.lrtb[2]; }
-float pos_b() { return options.lrtb[3]; }
+float pos_l() { return options.lrtb.x; }
+float pos_r() { return options.lrtb.y; }
+float pos_t() { return options.lrtb.z; }
+float pos_b() { return options.lrtb.w; }
 
-float size_w() { return options.wh[0]; }
-float size_h() { return options.wh[1]; }
+float size_w() { return options.wh.x; }
+float size_h() { return options.wh.y; }
 
-float depth() { return options.depth[0]; }
+float depth() { return options.depth.x; }
 
-float margin_l() { return options.margin_lrtb[0]; }
-float margin_r() { return options.margin_lrtb[1]; }
-float margin_t() { return options.margin_lrtb[2]; }
-float margin_b() { return options.margin_lrtb[3]; }
-float padding_l() { return options.padding_lrtb[0]; }
-float padding_r() { return options.padding_lrtb[1]; }
-float padding_t() { return options.padding_lrtb[2]; }
-float padding_b() { return options.padding_lrtb[3]; }
+float margin_l() { return options.margin_lrtb.x; }
+float margin_r() { return options.margin_lrtb.y; }
+float margin_t() { return options.margin_lrtb.z; }
+float margin_b() { return options.margin_lrtb.w; }
+float padding_l() { return options.padding_lrtb.x; }
+float padding_r() { return options.padding_lrtb.y; }
+float padding_t() { return options.padding_lrtb.z; }
+float padding_b() { return options.padding_lrtb.w; }
 
-float border_width()  { return options.border_width_radius[0]; }
-float border_radius() { return options.border_width_radius[1]; }
+float border_width()  { return options.border_width_radius.x; }
+float border_radius() { return options.border_width_radius.y; }
 vec4 border_left_color()   { return options.border_left_color; }
 vec4 border_right_color()  { return options.border_right_color; }
 vec4 border_top_color()    { return options.border_top_color; }

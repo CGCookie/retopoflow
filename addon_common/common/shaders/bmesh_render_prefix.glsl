@@ -20,6 +20,19 @@ Created by Jonathan Denning
 */
 
 /////////////////////////////////////////////////////////////////////////
+// Metal API compatibility helper functions
+
+// Convert mat4 to mat3 explicitly (for Metal API compatibility)
+mat3 mat4_to_mat3(mat4 m) {
+    // Use component access for Metal compatibility, extracting the upper-left 3x3 matrix
+    return mat3(
+        m[0].x, m[0].y, m[0].z,
+        m[1].x, m[1].y, m[1].z,
+        m[2].x, m[2].y, m[2].z
+    );
+}
+
+/////////////////////////////////////////////////////////////////////////
 // common shader
 
 struct Options {
@@ -68,32 +81,32 @@ const bool srgbTarget = true;
 const bool debug_invert_backfacing = false;
 
 int mirror_view()   {
-    float v = options.mirror_settings[0];
+    float v = options.mirror_settings.x;
     if(v > 1.5) return 2;
     if(v > 0.5) return 1;
     return 0;
 }
-float mirror_effect() { return options.mirror_settings[1]; }
+float mirror_effect() { return options.mirror_settings.y; }
 
-float view_distance()       { return options.view_settings0[0]; }
-bool  is_view_perspective() { return options.view_settings0[1] > 0.5; }
-float focus_mult()          { return options.view_settings0[2]; }
-float alpha_backface()      { return options.view_settings0[3]; }
-bool  cull_backfaces()      { return options.view_settings1[0] > 0.5; }
-float unit_scaling_factor() { return options.view_settings1[1]; }
-float normal_offset()       { return options.view_settings1[2]; }
-bool  constrain_offset()    { return options.view_settings1[3] > 0.5; }
-float view_push()           { return options.view_settings2[0]; }
+float view_distance()       { return options.view_settings0.x; }
+bool  is_view_perspective() { return options.view_settings0.y > 0.5; }
+float focus_mult()          { return options.view_settings0.z; }
+float alpha_backface()      { return options.view_settings0.w; }
+bool  cull_backfaces()      { return options.view_settings1.x > 0.5; }
+float unit_scaling_factor() { return options.view_settings1.y; }
+float normal_offset()       { return options.view_settings1.z; }
+bool  constrain_offset()    { return options.view_settings1.w > 0.5; }
+float view_push()           { return options.view_settings2.x; }
 vec4  view_position()       { return options.view_position; }
 
-float clip_near() { return options.clip[0]; }
-float clip_far()  { return options.clip[1]; }
+float clip_near() { return options.clip.x; }
+float clip_far()  { return options.clip.y; }
 
-bool use_selection() { return options.use_settings0[0] > 0.5; }
-bool use_warning()   { return options.use_settings0[1] > 0.5; }
-bool use_pinned()    { return options.use_settings0[2] > 0.5; }
-bool use_seam()      { return options.use_settings0[3] > 0.5; }
-bool use_rounding()  { return options.use_settings1[0] > 0.5; }
+bool use_selection() { return options.use_settings0.x > 0.5; }
+bool use_warning()   { return options.use_settings0.y > 0.5; }
+bool use_pinned()    { return options.use_settings0.z > 0.5; }
+bool use_seam()      { return options.use_settings0.w > 0.5; }
+bool use_rounding()  { return options.use_settings1.x > 0.5; }
 
 float magic_offset()    { return options.offset.x; }
 float magic_dotoffset() { return options.dotoffset.x; }

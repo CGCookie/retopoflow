@@ -654,10 +654,13 @@ if import_succeeded:
                     self.layout.popover('VIEW3D_PT_RetopoFlow')
 
         def draw_rf_version(self, context, layout):
-            row = layout.row()
-            row.label(text=f'RetopoFlow {configoptions.retopoflow_product["version"]}{rf_label_extra}')
+            row = layout.row(align=True)
+            row.label(text=f'v{configoptions.retopoflow_product["version"]}{rf_label_extra}')
             if cookiecutter.is_broken:
                 row.label(text=f'BROKEN')
+            elif bpy.app.version >= (4, 2, 0) and False:
+                url = 'https://cgcookie.github.io/render_raw/'
+                row.operator('wm.url_open', text='Get v4', icon='FILE_PARENT').url = url
 
         def draw_start_edit(self, context, layout):
             if is_editing_target(context):
@@ -771,6 +774,8 @@ if import_succeeded:
                     row.operator('cgcookie.retopoflow_cleardebugging',   text='Clear', icon='X')
 
             # ADDON UPDATER
+            # Not currently working, and no plans to fix since it will be replaced by the Superhive updater in v4
+            '''
             col = box.column(align=True)
             row = col.row(align=True)
             row.label(text='Updater')
@@ -782,11 +787,10 @@ if import_succeeded:
                 row.operator('cgcookie.retopoflow_updater',              text='', icon='SETTINGS')
                 row.operator('cgcookie.retopoflow_help_updatersystem',   text='', icon='HELP')
                 row.operator('cgcookie.retopoflow_online_updatersystem', text='', icon='URL')
-
+            '''
 
         def draw(self, context):
             layout = self.layout
-
             self.draw_rf_version(context, layout)
             layout.separator()
             self.draw_start_edit(context, layout)
