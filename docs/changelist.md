@@ -6,7 +6,10 @@ This document contains details about what has changed in RetopoFlow since versio
 
 - Updated tool hotkey numbers (0-9) to match the toolbar order
 - Fixed issue with installing in Blender 4.4 on Mac
+- Updated RetopoFlow menu layout
 - Removed updater from menu since it does not work with recent Blender versions
+- Fixed crash when drawing a specific unsupported shape in Strokes
+- Fixed a couple misc. errors
 
 
 ### RetopoFlow 3.4.4&rarr;3.4.5
