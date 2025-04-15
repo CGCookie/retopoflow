@@ -47,6 +47,8 @@ An I Strip is created by starting a stroke from a vertex in the set of selected 
 
 ![](images/strokes_i_01.jpg)
 
+After creating an I Strip, you can use `Alt Scroll` to shift the bridge along the loop you connected to. 
+
 ### L Strip
 
 An L Strip is created when you draw starting from the end of one selected set of vertices, create a corner, and end on a vertex that is connected to the original selection. 
