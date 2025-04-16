@@ -265,13 +265,16 @@ class RFCore:
         if prefs.setup_object_wires:
             RFCore.resetter['context.active_object.show_wire'] = True
             RFCore.resetter['context.active_object.show_all_edges'] = True
+            def show_fade_inactive(space):
+                RFCore.resetter['space.overlay.show_fade_inactive'] = True
             for s in iter_all_view3d_spaces():
-                RFCore.resetter['s.overlay.show_fade_inactive'] = True
+                show_fade_inactive(s)
 
         if prefs.setup_retopo_overlay:
+            def show_retopology(space):
+                RFCore.resetter['space.overlay.show_retopology'] = True
             for s in iter_all_view3d_spaces():
-                RFCore.resetter['s.overlay.show_retopology'] = True
-
+                show_retopology(s)
 
         try:
             bpy.ops.retopoflow.core()
