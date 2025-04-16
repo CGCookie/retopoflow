@@ -85,6 +85,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         items=[
             ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
             ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
+            # ('ADAPT2', 'Adapt2', 'Adapts in a different way', 2),
         ],
         default='FLAT',
     )

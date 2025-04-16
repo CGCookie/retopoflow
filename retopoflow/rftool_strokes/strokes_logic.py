@@ -815,6 +815,17 @@ class Strokes_Logic:
                 for t in fitted[1:]:
                     co = raycast_point_valid_sources(self.context, t, world=False)
                     cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            # elif self.extrapolate_mode == 'ADAPT2':
+            #     bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
+            #     vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+            #     off0, off1 = template[:2]
+            #     vpo = off1 - off0
+            #     cur_bmvs = [bmv0]
+            #     offset0 = template[0]
+            #     for offset in template[1:]:
+            #         pt - offset0
+            #         co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
+            #         cur_bmvs.append(self.bm.verts.new(co) if co else None)
             else:
                 cur_bmvs = [bmv0]
                 offset0 = template[0]

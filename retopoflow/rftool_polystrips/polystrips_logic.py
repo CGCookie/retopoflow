@@ -273,6 +273,7 @@ class PolyStrips_Logic:
             self.count_mins, self.counts, self.widths = [], [], []
         ncount_mins, ncounts, nwidths = [], [], []
         for i_strip, (i0, i1) in enumerate(iter_pairs(strips, False)):
+            if i0 == i1: continue
             stroke3D_local = self.stroke3D_local[i0:i1]
 
             limit_bmes0 = None
