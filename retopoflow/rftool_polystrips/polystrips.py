@@ -496,7 +496,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     brush_radius: wrap_property(
         RFBrush_Strokes, 'radius', 'int',
         name='Radius',
-        description='Radius of Brush',
+        description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,
         max=1000,
         subtype='PIXEL',

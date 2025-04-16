@@ -2,6 +2,13 @@
 
 This document contains details about what has changed in RetopoFlow in version 3.
 
+### RetopoFlow 3.4.5→3.4.6
+- Added support for Blender 4.4 on Mac
+- Updated tool hotkey numbers to match toolbar order 
+- Updated the RetopoFlow menu layout
+- Fixed crash when drawing a specific unsupported shape in Strokes
+- Fixed a couple misc. errors
+
 ### RetopoFlow 3.4.4→3.4.5
 
 -Added ability for PolyStrips to create closed loops
