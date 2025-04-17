@@ -64,7 +64,7 @@ from time import time
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False), **kwargs):
+def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), **kwargs):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:
@@ -274,7 +274,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
                 pre = self.stroke[-1]
                 cur = Point2D(mouse)
                 delta_t = time() - self.last_time
-                smoothing_factor = 1.0 - RFBrush_Stroke.stroke_smooth ** (delta_t * 100)
+                smoothing_factor = 1.0 - RFBrush_Stroke.stroke_smooth ** (delta_t * 50)
                 pt = pre + (cur - pre) * smoothing_factor
                 if raycast_valid_sources(context, pt):
                     self.stroke += [pt]

@@ -64,6 +64,7 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'strokes_brush',
     'Strokes Brush',
     radius=50,
+    smoothing=0.5,
 )
 
 

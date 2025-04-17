@@ -69,7 +69,7 @@ from functools import wraps
 RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     'polystrips_brush',
     'PolyStrips Brush',
-    smoothing=0.9,
+    smoothing=0.5,
     snap=(False, False, True),
     radius=50,
 )
