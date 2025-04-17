@@ -809,17 +809,16 @@ class Strokes_Logic:
                 bmv = bme_other_bmv(bme, bmv)
                 prep_data += [(bmv, frame0.w2l_point(bmv.co))]
             bmvs = [[bmv for (bmv, _) in prep_data]]
-            for s1 in template[1:]:
-                d10 = (s1 - s0).normalized()
+            for (s0, s1, s2) in zip(template[:-1], template[1:], template[2:] + [template[-1]]):
+                d20 = (s2 - s0).normalized()
                 n1 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(self.context, (M @ bvec_point_to_bvec4(s1)).xyz))).xyz
-                frame1 = Frame(s1, y=d10, z=n1)
+                frame1 = Frame(s1, y=d20, z=n1)
                 cur_bmvs = []
                 for bmv, co_frame in prep_data:
                     co_local = frame1.l2w_point(co_frame)
                     co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(self.context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
                     cur_bmvs.append( self.bm.verts.new(co_local) )
                 bmvs.append(cur_bmvs)
-                s0 = s1
 
         else:
             # create template
