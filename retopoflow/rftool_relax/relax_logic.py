@@ -235,13 +235,15 @@ class Relax_Logic:
             # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
                 for bmv in chk_verts:
-                    if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
-                    bmes = bmv.link_edges
-                    center = Point.average(bme.other_vert(bmv).co for bme in bmes)
-                    # try reducing the force effect on boundary edges to prevent the mesh from shrinking into a single point
-                    # see issue #1504 for more details
-                    f = 0.02 if bmv.is_boundary else 0.1
-                    add_force(bmv, (center - bmv.co) * f)
+                    if bmv.is_boundary:
+                        # improve handling of boundary edges and verts when straightening edges
+                        # see issue #1504
+                        if opt_mask_boundary == 'EXCLUDE': continue
+                        if len(bmv.link_edges) == 2: continue  # ignore corners
+                        center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges if bme.is_boundary)
+                    else:
+                        center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
+                    add_force(bmv, (center - bmv.co) * 0.1)
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
