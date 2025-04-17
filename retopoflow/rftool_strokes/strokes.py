@@ -135,6 +135,12 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         default=False,
     )
 
+    untwist_bridge: bpy.props.BoolProperty(
+        name='Untwist Bridge',
+        description='Swap which ends are bridged to untwist a bridge',
+        default=False,
+    )
+
     logic = None
 
     @staticmethod
@@ -170,6 +176,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             smooth_density0=logic.smooth_density0,
             smooth_density1=logic.smooth_density1,
             force_nonstripL=logic.force_nonstripL,
+            untwist_bridge=logic.untwist_bridge,
         )
 
     def draw(self, context):
@@ -206,6 +213,10 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             grid.label(text='Force non-L-Strip')
             grid.prop(self, 'force_nonstripL', text='')
 
+        if logic.show_untwist_bridge:
+            grid.label(text='Untwist Bridge')
+            grid.prop(self, 'untwist_bridge', text='')
+
     def execute(self, context):
         """
         NOTE: execute should not be called directly!
@@ -221,6 +232,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         logic.smooth_density0  = self.smooth_density0
         logic.smooth_density1  = self.smooth_density1
         logic.force_nonstripL  = self.force_nonstripL
+        logic.untwist_bridge   = self.untwist_bridge
 
         try:
             logic.update(context)

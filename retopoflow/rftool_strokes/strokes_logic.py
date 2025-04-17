@@ -140,6 +140,9 @@ class Strokes_Logic:
         self.show_force_nonstripL = False
         self.force_nonstripL = False
 
+        self.show_untwist_bridge = False
+        self.untwist_bridge = False
+
         self.show_action = ''
         self.show_count = True
         self.cut_count = None
@@ -913,6 +916,9 @@ class Strokes_Logic:
         if v1.dot(v0) < 0:
             self.longest_strip1.reverse()
 
+        if self.untwist_bridge:
+            self.longest_strip1.reverse()
+
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
@@ -984,6 +990,7 @@ class Strokes_Logic:
         self.show_action = 'I-Strip'
         self.show_count = True
         self.show_extrapolate_mode = False
+        self.show_untwist_bridge = True
 
 
     def insert_strip_C(self):
