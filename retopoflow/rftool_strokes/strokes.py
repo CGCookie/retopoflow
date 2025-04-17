@@ -84,9 +84,9 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         name='Extrapolation',
         description='Controls how the new perpendicular edges are extrapolated from the selected edges',
         items=[
-            ('FLAT',          'Flat',          'Extrudes in a straight line',                        0),
+            ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
             ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Perpendicular', 'Adapts in a different way',                          2),
+            ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
         ],
         default='FLAT',
     )
@@ -189,45 +189,40 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
 
     def draw(self, context):
         layout = self.layout
-        grid = layout.grid_flow(row_major=True, columns=2)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
         logic = RFOperator_Stroke_Insert.logic
 
         if logic.show_action:
-            grid.label(text=f'Inserted')
-            grid.label(text=logic.show_action)
+            split = layout.split(factor=0.4)
+            col = split.column()
+            col.alignment='RIGHT'
+            col.label(text='Inserted')
+            split.label(text=logic.show_action)
 
         if logic.show_count:
-            grid.label(text='Count')
-            grid.prop(self, 'cut_count', text='')
-
-        if logic.show_is_cycle:
-            grid.label(text='Cyclic')
-            grid.prop(self, 'is_cycle', text='')
+            layout.prop(self, 'cut_count', text='Count')
 
         if logic.show_extrapolate_mode:
-            grid.label(text='Extrapolation')
-            grid.prop(self, 'extrapolate_mode', text='')
+            layout.prop(self, 'extrapolate_mode')
 
         if logic.show_bridging_offset:
-            grid.label(text='Shift')
-            grid.prop(self, 'bridging_offset', text='')
+            layout.prop(self, 'bridging_offset', text='Shift')
 
         if logic.show_smoothness:
-            grid.label(text='Smoothing')
-            grid.prop(self, 'smooth_angle', text='')
+            layout.prop(self, 'smooth_angle', text='Smooth Blending')
+            col=layout.column(align=True)
+            col.prop(self, 'smooth_density0', text='Spacing Start')
+            col.prop(self, 'smooth_density1', text='End')
 
-            grid.label(text='Spacing')
-            row = grid.row(align=True)
-            row.prop(self, 'smooth_density0', text='')
-            row.prop(self, 'smooth_density1', text='')
+        if logic.show_is_cycle:
+            layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
         if logic.show_force_nonstripL:
-            grid.label(text='Force non-L-Strip')
-            grid.prop(self, 'force_nonstripL', text='')
+            layout.row(heading='Force').prop(self, 'force_nonstripL', text='Non-L-Strip')
 
         if logic.show_untwist_bridge:
-            grid.label(text='Untwist Bridge')
-            grid.prop(self, 'untwist_bridge', text='')
+            layout.row(heading='Untwist').prop(self, 'untwist_bridge', text='Bridge')
 
     def execute(self, context):
         """
@@ -366,12 +361,12 @@ class RFOperator_Strokes(RFOperator):
     )
 
     extrapolate_mode: bpy.props.EnumProperty(
-        name='Extrapolation',
+        name='T-Strip Extrapolation',
         description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
-            ('FLAT',          'Flat',          'Extrudes in a straight line',                        0),
+            ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
             ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Perpendicular', 'Adapts in a different way',                          2),
+            ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
         ],
         default='FLAT',
     )
@@ -489,13 +484,15 @@ class RFTool_Strokes(RFTool_Base):
                 row.prop(props_strokes, 'initial_cut_count', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
-            layout.prop(props_strokes, 'extrapolate_mode', expand=True)
-            #layout.label(text="Smoothing:")
-            layout.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
-            #layout.label(text="Spacing:")
+            # layout.label(text="Smooth Blending:")
+            layout.prop(props_strokes, 'initial_smooth_angle', text='Smooth Blending', slider=True)
+            layout.label(text="Spacing:")
             row = layout.row(align=True)
-            row.prop(props_strokes, 'initial_smooth_density0', text='Spacing')
-            row.prop(props_strokes, 'initial_smooth_density1', text='')
+            row.prop(props_strokes, 'initial_smooth_density0', text='', slider=True)
+            row.prop(props_strokes, 'initial_smooth_density1', text='', slider=True)
+            row = layout.row(heading='T-Strips:', align=False)
+            row.prop(props_strokes, 'extrapolate_mode', expand=True)
+
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
@@ -513,12 +510,12 @@ class RFTool_Strokes(RFTool_Base):
                     panel.prop(props_strokes, 'initial_cut_count', text="Count")
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
-                row = panel.row()
-                row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
-                panel.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
+                panel.prop(props_strokes, 'initial_smooth_angle', text='Smooth Blending', slider=True)
                 col = panel.column(align=True)
-                col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
-                col.prop(props_strokes, 'initial_smooth_density1', text='End')
+                col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start', slider=True)
+                col.prop(props_strokes, 'initial_smooth_density1', text='End', slider=True)
+                panel.label(text='T-Strips')
+                panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_general_panel(context, layout)
