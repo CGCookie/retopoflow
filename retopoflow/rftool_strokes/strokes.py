@@ -164,7 +164,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         bpy.ops.retopoflow.strokes_insert(
             'INVOKE_DEFAULT', True,
             extrapolate_mode=logic.extrapolate_mode,
-            cut_count=logic.cut_count or 0,
+            cut_count=logic.fixed_span_count or 0,
             bridging_offset=logic.bridging_offset,
             smooth_angle=logic.smooth_angle,
             smooth_density0=logic.smooth_density0,
