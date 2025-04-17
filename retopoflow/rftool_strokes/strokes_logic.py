@@ -48,12 +48,12 @@ from ..common.bmesh_maths import (
     get_boundary_strips,
     get_longest_strip_cycle,
 )
-from ..common.raycast import raycast_point_valid_sources
-from ..common.maths import view_forward_direction, lerp
+from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
+from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import closest_point_segment, segment2D_intersection
+from ...addon_common.common.maths import closest_point_segment, segment2D_intersection, Frame
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
@@ -789,58 +789,88 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-        # create template
-        template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
-        # get orientation of stroke to selected strip
-        vx = Vector((1, 0))
-        bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
-        pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
-        vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
-        template_len = vstroke.length
-        angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
 
-        # use template to build spans
-        bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
-        bmvs = []
-        for i_row, bme in enumerate(self.longest_strip0 + [None]):
-            pt = self.project_bmv(bmv0)
+        if self.extrapolate_mode == 'PERPENDICULAR':
+            # create template
+            template = [ self.find_point3D(iv / (nverts - 1)) for iv in range(nverts) ]
 
-            if self.extrapolate_mode == 'ADAPT':
-                bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
-                vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
-                bme_angle = vec_screenspace_angle(vpn)
-                along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
-                fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
-                cur_bmvs = [bmv0]
-                for t in fitted[1:]:
-                    co = raycast_point_valid_sources(self.context, t, world=False)
-                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
-            # elif self.extrapolate_mode == 'ADAPT2':
-            #     bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
-            #     vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
-            #     off0, off1 = template[:2]
-            #     vpo = off1 - off0
-            #     cur_bmvs = [bmv0]
-            #     offset0 = template[0]
-            #     for offset in template[1:]:
-            #         pt - offset0
-            #         co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
-            #         cur_bmvs.append(self.bm.verts.new(co) if co else None)
-            else:
-                cur_bmvs = [bmv0]
-                offset0 = template[0]
-                for offset in template[1:]:
-                    co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
-                    cur_bmvs.append(self.bm.verts.new(co) if co else None)
+            s0, s1 = template[:2]
+            d10 = (s1 - s0).normalized()
+            n0 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(self.context, (M @ bvec_point_to_bvec4(s0)).xyz))).xyz
+            frame0 = Frame(s0, y=d10, z=n0)
+            bmv = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
+            prep_data = [(bmv, frame0.w2l_point(bmv.co))]
+            for bme in self.longest_strip0:
+                bmv = bme_other_bmv(bme, bmv)
+                prep_data += [(bmv, frame0.w2l_point(bmv.co))]
+            bmvs = [[bmv for (bmv, _) in prep_data]]
+            for s1 in template[1:]:
+                d10 = (s1 - s0).normalized()
+                n1 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(self.context, (M @ bvec_point_to_bvec4(s1)).xyz))).xyz
+                frame1 = Frame(s1, y=d10, z=n1)
+                cur_bmvs = []
+                for bmv, co_frame in prep_data:
+                    co_local = frame1.l2w_point(co_frame)
+                    co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(self.context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
+                    cur_bmvs.append( self.bm.verts.new(co_local) )
+                bmvs.append(cur_bmvs)
+                s0 = s1
 
-            bmvs.append(cur_bmvs)
-            if not bme: break
-            bmv0 = bme_other_bmv(bme, bmv0)
+        else:
+            # create template
+            template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
 
+            # get orientation of stroke to selected strip
+            vx = Vector((1, 0))
+            bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
+            pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
+            vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
+            template_len = vstroke.length
+            angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
+
+            # use template to build spans
+            bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
+            bmvs = []
+            for i_row, bme in enumerate(self.longest_strip0 + [None]):
+                pt = self.project_bmv(bmv0)
+
+                if self.extrapolate_mode == 'ADAPT':
+                    bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
+                    vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+                    bme_angle = vec_screenspace_angle(vpn)
+                    along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
+                    fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
+                    cur_bmvs = [bmv0]
+                    for t in fitted[1:]:
+                        co = raycast_point_valid_sources(self.context, t, world=False)
+                        cur_bmvs.append(self.bm.verts.new(co) if co else None)
+
+                else:
+                    cur_bmvs = [bmv0]
+                    offset0 = template[0]
+                    for offset in template[1:]:
+                        co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
+                        cur_bmvs.append(self.bm.verts.new(co) if co else None)
+
+                bmvs.append(cur_bmvs)
+                if not bme: break
+                bmv0 = bme_other_bmv(bme, bmv0)
+
+        # # fill in quads
+        # bmfs = []
+        # for i in range(llc):
+        #     for j in range(nverts - 1):
+        #         bmv00 = bmvs[i+0][j+0]
+        #         bmv01 = bmvs[i+0][j+1]
+        #         bmv10 = bmvs[i+1][j+0]
+        #         bmv11 = bmvs[i+1][j+1]
+        #         if not (bmv00 and bmv01 and bmv10 and bmv11): continue
+        #         bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+        #         bmfs.append(bmf)
         # fill in quads
         bmfs = []
-        for i in range(llc):
-            for j in range(nverts - 1):
+        for i in range(len(bmvs)-1):
+            for j in range(len(bmvs[i]) - 1):
                 bmv00 = bmvs[i+0][j+0]
                 bmv01 = bmvs[i+0][j+1]
                 bmv10 = bmvs[i+1][j+0]

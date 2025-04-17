@@ -74,6 +74,10 @@ def closest_point_linesegment(pt, p0, p1):
     f = clamp(v0t.dot(v01) / l01_squared, 0.0, 1.0)
     return p0 + v01 * f
 
+def bvec_point_to_bvec4(v):
+    return Vector((v[0], v[1], v[2], 1))
+def bvec_vector_to_bvec4(v):
+    return Vector((v[0], v[1], v[2], 0))
 def bvec_to_point(v):
     return Point((*point_to_bvec3(v), 1.0))
 def point_to_bvec3(pt):

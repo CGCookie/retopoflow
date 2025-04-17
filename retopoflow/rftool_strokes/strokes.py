@@ -83,9 +83,9 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         name='Extrapolation',
         description='Controls how the new perpendicular edges are extrapolated from the selected edges',
         items=[
-            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
-            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
-            # ('ADAPT2', 'Adapt2', 'Adapts in a different way', 2),
+            ('FLAT',          'Flat',          'Extrudes in a straight line',                        0),
+            ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
+            ('PERPENDICULAR', 'Perpendicular', 'Adapts in a different way',                          2),
         ],
         default='FLAT',
     )
@@ -342,8 +342,9 @@ class RFOperator_Strokes(RFOperator):
         name='Extrapolation',
         description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
-            ('FLAT',  'Flat',  'Extrudes in a straight line', 0),
-            ('ADAPT', 'Adapt', 'Fans the extrusion to match the original curvature', 1),
+            ('FLAT',          'Flat',          'Extrudes in a straight line',                        0),
+            ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
+            ('PERPENDICULAR', 'Perpendicular', 'Adapts in a different way',                          2),
         ],
         default='FLAT',
     )
@@ -486,7 +487,7 @@ class RFTool_Strokes(RFTool_Base):
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
                 row = panel.row()
-                row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation', expand=True)
+                row.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
                 panel.prop(props_strokes, 'initial_smooth_angle', text='Smoothing')
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start')
