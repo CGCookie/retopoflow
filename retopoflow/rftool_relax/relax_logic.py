@@ -237,9 +237,11 @@ class Relax_Logic:
                 for bmv in chk_verts:
                     if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
                     bmes = bmv.link_edges
-                    #if len(bmes) != 4: continue
                     center = Point.average(bme.other_vert(bmv).co for bme in bmes)
-                    add_force(bmv, (center - bmv.co) * 0.1)
+                    # try reducing the force effect on boundary edges to prevent the mesh from shrinking into a single point
+                    # see issue #1504 for more details
+                    f = 0.02 if bmv.is_boundary else 0.1
+                    add_force(bmv, (center - bmv.co) * f)
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
