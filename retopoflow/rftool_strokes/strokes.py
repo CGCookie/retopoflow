@@ -85,7 +85,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         description='Controls how the new perpendicular edges are extrapolated from the selected edges',
         items=[
             ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
-            ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
+            ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
             ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
         ],
         default='FLAT',
@@ -365,7 +365,7 @@ class RFOperator_Strokes(RFOperator):
         description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
             ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
-            ('ADAPT',         'Adapt',         'Fans the extrusion to match the original curvature', 1),
+            ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
             ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
         ],
         default='FLAT',
