@@ -86,7 +86,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         items=[
             ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
             ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
+            ('PERPENDICULAR', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
         ],
         default='FLAT',
     )
@@ -366,7 +366,7 @@ class RFOperator_Strokes(RFOperator):
         items=[
             ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
             ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Perpendicular', 'Rotates the inserted spans to match the curve of the stroke', 2),
+            ('PERPENDICULAR', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
         ],
         default='FLAT',
     )
