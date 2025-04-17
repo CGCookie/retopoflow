@@ -585,7 +585,6 @@ class Contours_Logic:
             ray_out_world = ray_from_point_through_point(self.context, npt_world, npt_world - vec_in)
             npt_world_in  = raycast_ray_valid_sources(self.context, ray_in_world,  world=True)
             npt_world_out = raycast_ray_valid_sources(self.context, ray_out_world, world=True)
-            print(f'{npt_world=} {npt_world_in=} {npt_world_out=}')
             if npt_world_in:
                 if npt_world_out:
                     # choose the closer
