@@ -169,7 +169,7 @@ class RFOperator_Relax(RFOperator):
     include_corners: bpy.props.BoolProperty(
         name='Corners',
         description='Include corners (vertices with exactly two edges)',
-        default = True,
+        default = False,
     )
     include_occluded: bpy.props.BoolProperty(
         name='Occluded',
