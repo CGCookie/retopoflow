@@ -136,6 +136,14 @@ def ray_from_point(context, point):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, point).normalized(), 0.0)),
     )
 
+def ray_from_point_through_point(context, pt0_world, pt1_world):
+    if not context.region_data: return (None, None)
+    d01 = (pt1_world - pt0_world).normalized()
+    return (
+        Vector((pt0_world[0], pt0_world[1], pt0_world[2], 1.0)),
+        Vector((d01[0], d01[1], d01[2], 0.0)),
+    )
+
 def plane_normal_from_points(context, p0, p1):
     if not context.region_data: return (None, None)
     if len(p0) > 2:

@@ -53,8 +53,9 @@ from ..common.maths import (
     lerp,
 )
 from ..common.raycast import (
-    raycast_valid_sources, raycast_point_valid_sources,
+    raycast_valid_sources, raycast_point_valid_sources, raycast_ray_valid_sources,
     nearest_point_valid_sources, nearest_normal_valid_sources, raycast_ray_valid_sources,
+    ray_from_point_through_point,
     size2D_to_size,
     vec_forward,
     mouse_from_event,
@@ -540,7 +541,7 @@ class Contours_Logic:
 
         # compute useful statistics about newly created geometry
         npoints = [Point(bmv.co) for bmv in nbmvs]
-        nplane_fit = Plane.fit_to_points(npoints)
+        nplane_fit = Plane.fit_to_points(npoints)   # local space
         if plane_fit.n.dot(nplane_fit.n) < 0: nplane_fit.n.negate()  # make sure both planes are oriented the same
         ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
 
@@ -561,7 +562,7 @@ class Contours_Logic:
         best = None
         for bmv in nbmvs:
             npt_local = bvec_to_point(bmv.co)
-            npt_world = point_to_bvec3(self.matrix_world @ npt_local)
+            npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(npt_local))
             npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
             npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
             closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
@@ -573,16 +574,38 @@ class Contours_Logic:
                 'closest_pt': closest_pt,
                 'dist': dist,
             }
-        print(f'{best=}')
 
-        # snap to surface
+        # raycast to nearest surface with fallback to snapping
+        o_world = self.matrix_world @ bvec_to_point(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
         for bmv in nbmvs:
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ npt_local)
-            npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
-            npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
-            closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
-            bmv.co = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
+            vec_in = o_world - npt_world
+            ray_in_world  = ray_from_point_through_point(self.context, npt_world, npt_world + vec_in)
+            ray_out_world = ray_from_point_through_point(self.context, npt_world, npt_world - vec_in)
+            npt_world_in  = raycast_ray_valid_sources(self.context, ray_in_world,  world=True)
+            npt_world_out = raycast_ray_valid_sources(self.context, ray_out_world, world=True)
+            print(f'{npt_world=} {npt_world_in=} {npt_world_out=}')
+            if npt_world_in:
+                if npt_world_out:
+                    # choose the closer
+                    d_in = (npt_world_in - npt_world).length
+                    d_out = (npt_world_out - npt_world).length
+                    npt_world_new = npt_world_in if d_in < d_out else npt_world_out
+                else:
+                    npt_world_new = npt_world_in
+            else:
+                if npt_world_out:
+                    npt_world_new = npt_world_out
+                else:
+                    # fallback to snapping
+                    npt_world_new = nearest_point_valid_sources(self.context, npt_world, world=True)
+            npt_local_snapped = self.matrix_world_inv @ npt_world_new
+            if False:
+                bmv.co = npt_local_snapped
+            else:
+                closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
+                bmv.co = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
 
 
         if not self.cyclic:
