@@ -321,6 +321,8 @@ class PolyStrips_Logic:
                     continue
                 stroke3D_local = snap1['stroke']
 
+            if not stroke3D_local: continue
+
             if (stroke3D_local[0] - stroke3D_local[-1]).length == 0:
                 print(f'ERROR: ends of stroke are at the same location {len(stroke3D_local)=} {stroke3D_local[0]=} {stroke3D_local[-1]=}')
                 continue
