@@ -142,6 +142,12 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         default=False,
     )
 
+    is_cycle: bpy.props.BoolProperty(
+        name='Cyclic',
+        description='Force stroke to be cyclic or strip',
+        default=False,
+    )
+
     logic = None
 
     @staticmethod
@@ -178,6 +184,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             smooth_density1=logic.smooth_density1,
             force_nonstripL=logic.force_nonstripL,
             untwist_bridge=logic.untwist_bridge,
+            is_cycle=logic.is_cycle,
         )
 
     def draw(self, context):
@@ -192,6 +199,10 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         if logic.show_count:
             grid.label(text='Count')
             grid.prop(self, 'cut_count', text='')
+
+        if logic.show_is_cycle:
+            grid.label(text='Cyclic')
+            grid.prop(self, 'is_cycle', text='')
 
         if logic.show_extrapolate_mode:
             grid.label(text='Extrapolation')
@@ -234,6 +245,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         logic.smooth_density1  = self.smooth_density1
         logic.force_nonstripL  = self.force_nonstripL
         logic.untwist_bridge   = self.untwist_bridge
+        logic.is_cycle         = self.is_cycle
 
         try:
             logic.update(context)
@@ -251,6 +263,8 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         self.smooth_density0  = logic.smooth_density0
         self.smooth_density1  = logic.smooth_density1
         self.force_nonstripL  = logic.force_nonstripL
+        self.untwist_bridge   = logic.untwist_bridge
+        self.is_cycle         = logic.is_cycle
         if logic.show_count: self.cut_count = logic.fixed_span_count
 
         return {'FINISHED'}

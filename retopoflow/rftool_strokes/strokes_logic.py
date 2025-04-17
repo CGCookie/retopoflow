@@ -119,6 +119,8 @@ class Strokes_Logic:
     def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         self.radius = radius
         self.stroke3D = stroke3D
+
+        self.show_is_cycle = True
         self.is_cycle = is_cycle
 
         self.span_insert_mode = span_insert_mode
