@@ -274,12 +274,12 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
     @create_redo_operator('strokes_insert_spans_decreased', 'Reinsert stroke with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
     def decrease_spans(context, logic):
         if logic.cut_count is None: return
-        logic.cut_count -= 1
+        logic.fixed_span_count -= 1
 
     @create_redo_operator('strokes_insert_spans_increased', 'Reinsert stroke with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
     def increase_spans(context, logic):
         if logic.cut_count is None: return
-        logic.cut_count += 1
+        logic.fixed_span_count += 1
 
     @create_redo_operator('strokes_insert_shift_decreased', 'Reinsert stroke with shifted spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'alt': 1})
     def decrease_shift(context, logic):
