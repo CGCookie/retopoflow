@@ -54,6 +54,7 @@ from ...addon_common.common.maths import Color, Frame
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.timerhandler import TimerHandler
 
+from time import time
 
 
 #########################################################
@@ -242,6 +243,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
                             self.stroke = [Point2D(mouse)]
                             self.stroke_far = False
                             self.stroke_cycle = False
+                            self.last_time = time()
 
                             self.timer = TimerHandler(120, context=context, enabled=True)
 
@@ -271,7 +273,9 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
             if self.is_stroking(): # and event.type == 'TIMER':
                 pre = self.stroke[-1]
                 cur = Point2D(mouse)
-                pt = pre + (cur - pre) * (1.0 - RFBrush_Stroke.stroke_smooth)
+                delta_t = time() - self.last_time
+                smoothing_factor = 1.0 - RFBrush_Stroke.stroke_smooth ** (delta_t * 100)
+                pt = pre + (cur - pre) * smoothing_factor
                 if raycast_valid_sources(context, pt):
                     self.stroke += [pt]
                 if (self.stroke[0] - self.stroke[-1]).length > Drawing.scale(self.far_distance):
@@ -299,6 +303,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.85, snap=(True,False,False
 
             self.mouse = mouse
             context.area.tag_redraw()
+            self.last_time = time()
 
         def _update(self, context):
             if context.area not in self.mouse_areas: return
