@@ -794,7 +794,6 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-
         if self.extrapolate_mode == 'PERPENDICULAR':
             # create template
             template = [ self.find_point3D(iv / (nverts - 1)) for iv in range(nverts) ]
@@ -819,6 +818,9 @@ class Strokes_Logic:
                     co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(self.context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
                     cur_bmvs.append( self.bm.verts.new(co_local) )
                 bmvs.append(cur_bmvs)
+            #sel_idx = next((i for (i,bmv) in enumerate(bmvs[0]) if bmv == self.snap_bmv0), -1)
+            #bmvs_select = [row[sel_idx] for row in bmvs]
+            bmvs_select = bmvs[-1]
 
         else:
             # create template
@@ -859,6 +861,7 @@ class Strokes_Logic:
                 bmvs.append(cur_bmvs)
                 if not bme: break
                 bmv0 = bme_other_bmv(bme, bmv0)
+            bmvs_select = [row[-1] for row in bmvs]
 
         # # fill in quads
         # bmfs = []
@@ -888,7 +891,7 @@ class Strokes_Logic:
 
         # select newly created geometry
         bmops.deselect_all(self.bm)
-        bmops.select_iter(self.bm, [row[-1] for row in bmvs])
+        bmops.select_iter(self.bm, bmvs_select)
 
         self.cut_count = nspans
         self.show_action = 'T-Strip'
