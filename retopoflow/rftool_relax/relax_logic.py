@@ -208,7 +208,7 @@ class Relax_Logic:
                     bmv0, bmv1 = bme.verts
                     vec = bme_vector(bme)
                     edge_len = vec.length
-                    f = vec * (0.1 * (avg_edge_len - edge_len) * strength) #/ edge_len
+                    f = vec * (10.0 * (avg_edge_len - edge_len) * strength) #/ edge_len
                     add_force(bmv0, -f)
                     add_force(bmv1, +f)
 
@@ -261,7 +261,7 @@ class Relax_Logic:
                     avg_rel_len = sum(rel.length for rel in rels) / cnt
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength * 0.5) / rel_len
+                        f = rel * ((avg_rel_len - rel_len) * strength * 5.0) / rel_len
                         add_force(bmv, f)
 
                 # push verts toward equal edge lengths
@@ -271,7 +271,7 @@ class Relax_Logic:
                         bmv0, bmv1 = bme.verts
                         vec = bme_vector(bme)
                         edge_len = vec.length
-                        f = vec * ((avg_face_edge_len - edge_len) * strength * 0.5) / edge_len
+                        f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0) / edge_len
                         add_force(bmv0, f * -0.5)
                         add_force(bmv1, f * 0.5)
 
