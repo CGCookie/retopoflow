@@ -510,6 +510,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         min=0.00,
         soft_max=0.95,
         max=1.0,
+        default=0.5,
     )
 
 
@@ -610,8 +611,8 @@ class RFTool_PolyStrips(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
             layout.prop(props_polystrips, 'brush_radius', text="Radius")
-            layout.prop(props_polystrips, 'stroke_smoothing', text='Smoothing')
-            layout.prop(props_polystrips, 'split_angle', text='Angle')
+            layout.prop(props_polystrips, 'stroke_smoothing', text='Stroke Smoothing', slider=True)
+            layout.prop(props_polystrips, 'split_angle')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
