@@ -50,6 +50,7 @@ from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..rfoperators.launch_browser import create_launch_browser_operator
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -213,7 +214,13 @@ class RFOperator_PolyPen(RFOperator):
         if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
 
-
+RFOperator_PolyPen_Launch_Help = create_launch_browser_operator(
+    'RFOperator_PolyPen_Launch_Help',
+    'retopoflow.polypen_launch_help',
+    'PolyPen: Launch Help Docs',
+    'https://docs.retopoflow.com/v4/polypen.html',
+    rf_keymap_press='F1',
+)
 
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
@@ -223,9 +230,11 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyPen,
         RFOperator_Translate_ScreenSpace,
+        RFOperator_PolyPen_Launch_Help,
     )
 
     def draw_settings(context, layout, tool):

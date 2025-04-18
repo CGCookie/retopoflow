@@ -53,6 +53,7 @@ from ...addon_common.common.utils import iter_pairs
 from .polystrips_logic import PolyStrips_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..rfoperators.launch_browser import create_launch_browser_operator
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -584,6 +585,13 @@ RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
     True,
 )
 
+RFOperator_PolyStrips_Launch_Help = create_launch_browser_operator(
+    'RFOperator_PolyStrips_Launch_Help',
+    'retopoflow.polystrips_launch_help',
+    'PolyStrips: Launch Help Docs',
+    'https://docs.retopoflow.com/v4/polystrips.html',
+    rf_keymap_press='F1',
+)
 
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname = "retopoflow.polystrips"
@@ -602,6 +610,7 @@ class RFTool_PolyStrips(RFTool_Base):
         RFOperator_PolyStrips_Edit,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate_ScreenSpace,
+        RFOperator_PolyStrips_Launch_Help,
     )
 
     def draw_settings(context, layout, tool):

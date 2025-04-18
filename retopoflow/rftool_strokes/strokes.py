@@ -48,6 +48,7 @@ from ...addon_common.common.utils import iter_pairs
 from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..rfoperators.launch_browser import create_launch_browser_operator
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -452,7 +453,13 @@ RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
     True,
 )
 
-
+RFOperator_Strokes_Launch_Help = create_launch_browser_operator(
+    'RFOperator_Strokes_Launch_Help',
+    'retopoflow.strokes_launch_help',
+    'Strokes: Launch Help Docs',
+    'https://docs.retopoflow.com/v4/strokes.html',
+    rf_keymap_press='F1',
+)
 
 class RFTool_Strokes(RFTool_Base):
     bl_idname = "retopoflow.strokes"
@@ -470,6 +477,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate_ScreenSpace,
+        RFOperator_Strokes_Launch_Help,
     )
 
     def draw_settings(context, layout, tool):

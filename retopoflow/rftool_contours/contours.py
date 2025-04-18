@@ -53,6 +53,7 @@ from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+from ..rfoperators.launch_browser import create_launch_browser_operator
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.general_panel import draw_general_panel
@@ -352,6 +353,13 @@ RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
     False,
 )
 
+RFOperator_Contours_Launch_Help = create_launch_browser_operator(
+    'RFOperator_Contours_Launch_Help',
+    'retopoflow.contours_launch_help',
+    'Contours: Launch Help Docs',
+    'https://docs.retopoflow.com/v4/contours.html',
+    rf_keymap_press='F1',
+)
 
 
 class RFTool_Contours(RFTool_Base):
@@ -369,6 +377,7 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Contours,
         RFOperator_Contours_Insert,
         RFOperator_Translate_BoundaryLoop,
+        RFOperator_Contours_Launch_Help,
     )
 
     def draw_settings(context, layout, tool):

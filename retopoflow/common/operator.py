@@ -301,6 +301,7 @@ class RFOperator(bpy.types.Operator):
 
 
 def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set()):
+    if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
     class RFOp:
         bl_idname = f"retopoflow.{idname}"
         bl_label = label

@@ -75,6 +75,8 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
+from ..rfoperators.launch_browser import create_launch_browser_operator
+
 from ..preferences import RF_Prefs
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
@@ -241,6 +243,15 @@ class RFOperator_Relax(RFOperator):
         if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
 
+RFOperator_Relax_Launch_Help = create_launch_browser_operator(
+    'RFOperator_Relax_Launch_Help',
+    'retopoflow.relax_launch_help',
+    'Relax: Launch Help Docs',
+    'https://docs.retopoflow.com/v4/relax.html',
+    rf_keymap_press='F1',
+)
+
+
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
@@ -256,6 +267,7 @@ class RFTool_Relax(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Relax,
         RFOperator_RelaxBrush_Adjust,
+        RFOperator_Relax_Launch_Help,
     )
 
     def draw_settings(context, layout, tool):
