@@ -74,7 +74,7 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
-from ..rfoperators.launch_browser import create_launch_browser_operator
+from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
 from ..preferences import RF_Prefs
 
@@ -221,6 +221,7 @@ class RFTool_Tweak(RFTool_Base):
         RFOperator_Tweak,
         RFOperator_TweakBrush_Adjust,
         RFOperator_Tweak_Launch_Help,
+        RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):

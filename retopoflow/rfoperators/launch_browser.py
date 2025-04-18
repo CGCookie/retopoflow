@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import re
 
-from ..common.operator import create_operator # invoke_operator, execute_operator, RFOperator
+from ..common.operator import create_operator
 
 def key_type(k): return re.sub(r'(ctrl|shift|alt|oskey)\+', '', k, flags=re.IGNORECASE)
 def ctrl(k):     return 1 if 'ctrl+'  in k.lower() else 0
@@ -52,3 +52,12 @@ def create_launch_browser_operator(name, idname, label, url, *, rf_keymaps=None,
         ))
 
     return op
+
+RFOperator_Launch_NewIssue = create_launch_browser_operator(
+    'RFOperator_Launch_NewIssue',
+    'retopoflow.launch_newissue',
+    'Report a new issue with RetopoFlow',
+    'https://github.com/CGCookie/retopoflow/issues/new/choose',
+    rf_keymap_press='F2',
+)
+

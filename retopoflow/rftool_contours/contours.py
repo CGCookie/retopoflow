@@ -53,7 +53,7 @@ from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
-from ..rfoperators.launch_browser import create_launch_browser_operator
+from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.general_panel import draw_general_panel
@@ -378,6 +378,7 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Contours_Insert,
         RFOperator_Translate_BoundaryLoop,
         RFOperator_Contours_Launch_Help,
+        RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):

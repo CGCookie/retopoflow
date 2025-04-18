@@ -75,7 +75,7 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
-from ..rfoperators.launch_browser import create_launch_browser_operator
+from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
 from ..preferences import RF_Prefs
 
@@ -268,6 +268,7 @@ class RFTool_Relax(RFTool_Base):
         RFOperator_Relax,
         RFOperator_RelaxBrush_Adjust,
         RFOperator_Relax_Launch_Help,
+        RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):
