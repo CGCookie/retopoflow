@@ -108,6 +108,7 @@ class Contours_Logic:
         try:
             if not self.process_source(): return
             self.process_target()
+            self.find_boundary_for_bridging()
             self.insert()
         except Exception as e:
             print(f'Exception caught: {e}')
@@ -123,319 +124,6 @@ class Contours_Logic:
                 return self.process_source_walk()
             case _:
                 assert False, f'Unhandled source processing method "{self.process_source_method}"'
-
-    def process_source_fast(self):
-        context = self.context
-        plane_cut = self.plane
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
-
-        center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
-        nsamples = 100
-        dirs_plane = [
-            Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0, 0))
-            for d in range(nsamples)
-        ]
-
-        center_world = plane_cut.l2w_point(center_plane)
-        dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
-        rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
-        points_world = [
-            raycast_ray_valid_sources(self.context, ray_world, world=True)
-            for ray_world in rays_world
-        ]
-
-        points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
-        cyclic = True
-        mirror_clipped_loop = False
-
-        ####################################################################################################
-        # compute useful statistics about points
-
-        plane_fit = Plane.fit_to_points(points)
-        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
-        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
-
-        self.points = points                            # points where cut crosses source (target space)
-        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
-        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
-        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
-        self.path_length = path_length                  # length of path of points (target space)
-        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
-
-        return True
-
-    def process_source_skip(self):
-        context = self.context
-        plane_cut = self.plane
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
-
-        pt = self.hit['co_world']
-        pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
-        dist = 0.5 * ((pt - pt0).length + (pt - pt1).length) / 2
-        direction = (pt0 - pt).normalized()
-        pt_start = pt
-        dist_pre = 0
-
-        points = [pt]
-        has_shrunk = False
-        for i in range(10000):
-            # print(f'{pt=} {direction=}')
-            pt_next = pt + direction * dist
-            for _ in range(10):
-                pt_next = nearest_point_valid_sources(context, pt_next, world=True)
-                pt_next = plane_cut.w2l_point(pt_next)
-                pt_next.z = 0
-                pt_next = Vector(plane_cut.l2w_point(pt_next))
-            dist_next = (pt_next - pt_start).length
-            if dist_next < dist_pre:
-                has_shrunk = True
-            elif has_shrunk and dist_next < dist * 4:
-                print(f'WRAPPED AFTER {i}!')
-                break
-            points += [pt_next]
-            direction = (pt_next - pt).normalized()
-            # print(f'{pt=} {pt_next=} {direction=}')
-            pt = pt_next
-            dist_pre = dist_next
-        else:
-            print('gah')
-            return False
-
-        cyclic = True
-        mirror_clipped_loop = False
-
-        points = [self.matrix_world_inv @ pt for pt in points]
-        plane_fit = Plane.fit_to_points(points)
-        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
-        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
-
-        self.points = points
-        self.cyclic = cyclic
-        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
-        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
-        self.path_length = path_length                  # length of path of points (target space)
-        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
-
-        return True
-
-    def process_source_cuts(self):
-        hit_bm = get_object_bmesh(hit_obj)
-        hit_bmf = hit_bm.faces[self.hit['face_index']]
-
-        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
-        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
-        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
-        def bme_intersect_plane(bme):
-            co0, co1 = (M @ bmv.co for bmv in bme.verts)
-            s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
-            if (s0 < 0 and s1 < 0) or (s0 > 0 and s1 > 0): return None
-            return co0 + (co1 - co0) * (s0 / (s0 - s1))
-        def intersect_plane(bmelem):
-            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
-            return fn(bmelem)
-
-        cut_bmes = [bme for bme in hit_bm.edges if bme_intersect_plane(bme)]
-
-    def process_source_walk(self):
-        '''
-        gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
-        '''
-        context = self.context
-        plane_cut = self.plane
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
-        hit_bm = get_object_bmesh(hit_obj)
-        hit_bmf = hit_bm.faces[self.hit['face_index']]
-
-        # TODO: walk from hit_bmf to find bmf that crosses plane_cut
-
-
-        ####################################################################################################
-        # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
-        # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
-
-        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
-        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
-        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
-        def bme_intersect_plane(bme):
-            co0, co1 = (M @ bmv.co for bmv in bme.verts)
-            s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
-            if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
-            return co0 + (co1 - co0) * (s0 / (s0 - s1))
-        def intersect_plane(bmelem):
-            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
-            return fn(bmelem)
-
-        bmf_graph = {}
-        bmf_intersections = defaultdict(dict)
-        working = { hit_bmf }
-        while working:
-            bmf = working.pop()
-            if bmf in bmf_graph: continue  # already processed
-            bmf_graph[bmf] = set()
-            for bmelem in chain(bmf.verts, bmf.edges):
-                co = intersect_plane(bmelem)
-                if not co: continue
-                bmfs = set(bmelem.link_faces) - {bmf}
-                working |= bmfs
-                bmf_graph[bmf] |= bmfs
-                bmf_intersections[bmf][bmelem] = co
-                for bmf_ in bmfs:
-                    bmf_intersections[bmf][bmf_] = co
-                    bmf_intersections[bmf_][bmf] = co
-
-        ####################################################################################################
-        # find longest cycle or path in bmf_graph
-
-        def find_cycle_or_path():
-            longest_path = []
-            longest_cycle = []
-
-            start_bmfs = {
-                bmf for bmf in bmf_intersections
-                if any(
-                    (type(bmelem) is BMVert) or (type(bmelem) is BMEdge and len(bmelem.link_faces) == 1)
-                    for bmelem in bmf_intersections[bmf]
-                )
-            }
-            if not start_bmfs: start_bmfs = set(bmf_graph.keys())
-
-            for start_bmf in start_bmfs:
-                working = [(start_bmf, iter(bmf_graph[start_bmf]))]
-                touched = { start_bmf }
-                while working:
-                    cur_bmf, cur_iter = working[-1]
-                    next_bmf = next(cur_iter, None)
-
-                    if not next_bmf:
-                        if len(working) > len(longest_path):
-                            # found new longest path!
-                            longest_path = [bmf for (bmf, _) in working]
-
-                        working.pop()
-                        touched.remove(cur_bmf)
-                        continue
-
-                    if next_bmf in touched:
-                        # already in path/cycle
-                        if next_bmf == start_bmf and len(working) > 2 and len(working) > len(longest_cycle):
-                            # found new longest cycle!
-                            longest_cycle = [bmf for (bmf, _) in working]
-                        continue
-
-                    touched.add(next_bmf)
-                    working.append((next_bmf, iter(bmf_graph[next_bmf])))
-
-                # if we found a large enough cycle, we can declare victory!
-                # NOTE: we cannot do the same for path, because we might have
-                #       started crawling in the middle of the path
-                if len(longest_cycle) > 50:
-                    break
-
-            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
-            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
-
-        path, cyclic = find_cycle_or_path()
-        if len(path) < 2:
-            print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
-            return False
-
-
-        ####################################################################################################
-        # find points in order
-
-        points = []
-        def add_path_end(bmf):
-            bmelem = next((
-                bmelem for bmelem in bmf_intersections[bmf]
-                if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
-            ), None)
-            return [ self.matrix_world_inv @ bmf_intersections[bmf][bmelem] ] if bmelem else []
-        if not cyclic: points += add_path_end(path[0])
-        points += [
-            self.matrix_world_inv @ bmf_intersections[bmf0][bmf1]
-            for (bmf0, bmf1) in iter_pairs(path, cyclic)
-        ]
-        if not cyclic: points += add_path_end(path[-1])
-
-
-        ####################################################################################################
-        # subdivide for better circle-fitting
-        subdiv = 10
-        points = [
-            pt
-            for (p0, p1) in iter_pairs(points, cyclic)
-            for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
-        ]
-        if not cyclic: points += add_path_end(path[-1])
-        points = [
-            p0 for (p0, p1) in iter_pairs(points, cyclic)
-            if (p0 - p1).length > 0
-        ]
-
-
-
-        ####################################################################################################
-        # handle cutting across mirror planes
-
-        mirror_clipped_loop = False
-        if has_mirror_x(context) and any(pt.x < 0 for pt in points):
-            # NOTE: considers ONLY the positive x side of mirror!
-            l = len(points)
-            bpoints = []
-            if cyclic:
-                start_indices = [i for i in range(l) if points[i].x < 0 and points[(i+1)%l].x >= 0]
-                for start_index in start_indices:
-                    npoints = []
-                    for offset in range(l):
-                        i0, i1 = (start_index + offset) % l, (start_index + offset + 1) % l
-                        pt0, pt1 = points[i0], points[i1]
-                        if pt0.x >= 0:
-                            npoints.append(pt0)
-                            if pt1.x < 0:
-                                npoints.append(pt_x0(pt0, pt1))
-                                break
-                        elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
-                    if len(npoints) > len(bpoints): bpoints = npoints
-                mirror_clipped_loop = True
-            else:
-                npoints = []
-                for i in range(l):
-                    if points[i].x >= 0:
-                        if i > 0 and points[i-1].x < 0:
-                            npoints.append(pt_x0(points[i-1], points[i]))
-                        npoints.append(points[i])
-                    else:
-                        if i > 0 and points[i-1].x >= 0:
-                            npoints.append(pt_x0(points[i-1], points[i]))
-                        if len(npoints) > len(bpoints): bpoints = npoints
-                        npoints = []
-            points = bpoints
-            cyclic = False
-        # TODO: handle other mirror planes!
-
-        if len(points) < 3:
-            print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
-            return False
-
-
-        ####################################################################################################
-        # compute useful statistics about points
-
-        plane_fit = Plane.fit_to_points(points)
-        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
-        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
-
-        self.points = points                            # points where cut crosses source (target space)
-        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
-        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
-        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
-        self.path_length = path_length                  # length of path of points (target space)
-        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
-
-        return True
 
     def process_target(self):
         # did we hit current geometry and need to insert an edge loop?
@@ -493,8 +181,74 @@ class Contours_Logic:
             self.cyclic = self.cyclic_ring
 
         # should we bridge with currently selected geometry?
-        self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3)
+        self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3, only_boundary=False)
         self.bridge = bool(self.sel_path) and (self.cyclic == self.sel_cyclic)
+
+    def find_boundary_for_bridging(self):
+        if not self.bridge: return
+
+        print(f'-----------------------------------------------------')
+
+        sel_paths = []
+
+        if any(len(bme.link_faces) == 0 for bme in self.sel_path):
+            # all are wires; no walking needed
+            return
+        if all(len(bme.link_faces) == 1 for bme in self.sel_path):
+            print(f'selection is a boundary')
+            sel_paths.append((self.sel_path, self.sel_cyclic))
+        touched = set()
+        working = set(self.sel_path)
+        while working:
+            # step out 1 ring
+            print(f'stepping out 1 ring {len(working)=}')
+            nworking = set()
+            for bme0 in working:
+                if bme0 in touched: continue
+                touched.add(bme0)
+                for bmf in bme0.link_faces:
+                    if not bmf_is_quad(bmf): continue
+                    bme1 = quad_bmf_opposite_bme(bmf, bme0)
+                    if bme1 in touched: continue
+                    nworking.add(bme1)
+            # crawl around boundary
+            boundary = {
+                bme for bme in nworking
+                if bme.is_boundary
+            }
+            print(f'{len(nworking)=} {len(boundary)=} {boundary=}')
+            touched_boundary = set()
+            for bme_init in boundary:
+                if bme_init in touched_boundary: continue
+                current = [bme_init]
+                boundary_cyclic = False
+                for i in range(2):
+                    while True:
+                        bme0 = current[-1]
+                        if bme0 in touched_boundary:
+                            boundary_cyclic = True
+                            break
+                        touched_boundary.add(bme0)
+                        for bme1 in [bme for bmv in bme0.verts for bme in bmv.link_edges]:
+                            if bme1 not in boundary: continue
+                            if bme1 in touched_boundary: continue
+                            current.append(bme1)
+                            break
+                    current.reverse()
+                    if i == 0:
+                        touched_boundary.remove(current[-1])  # remove so we can walk the other direction
+                touched_boundary.add(bme_init)
+                sel_paths.append((current, boundary_cyclic))
+            working = nworking
+        print(f'found {len(sel_paths)} possible boundaries')
+        for p in sel_paths:
+            print(f'- {len(p[0])=} {p}')
+        best_path, best_cyclic, best_dist = None, None, float('inf')
+        for (bmes, cyclic) in sel_paths:
+            d = min(((self.hit['co_local'] - bmv.co).length for bme in bmes for bmv in bme.verts))
+            if d > best_dist: continue
+            best_path, best_cyclic, best_dist = bmes, cyclic, d
+        self.sel_path, self.sel_cyclic = best_path, best_cyclic
 
     def insert(self):
         if self.edge_ring:
@@ -728,4 +482,303 @@ class Contours_Logic:
         # select newly created geometry
         bmops.deselect_all(self.bm)
         bmops.select_iter(self.bm, nbmvs)
+
+
+    #######################################################
+    # different methods for processing source
+
+    def process_source_fast(self):
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+
+        center_plane = Vector((self.circle_hit[0], self.circle_hit[1], 0, 1))
+        nsamples = 100
+        dirs_plane = [
+            Vector((math.cos(2 * math.pi * d/nsamples), math.sin(2 * math.pi * d/nsamples), 0, 0))
+            for d in range(nsamples)
+        ]
+
+        center_world = plane_cut.l2w_point(center_plane)
+        dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
+        rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
+        points_world = [
+            raycast_ray_valid_sources(self.context, ray_world, world=True)
+            for ray_world in rays_world
+        ]
+
+        points = [ self.matrix_world_inv @ pt_world for pt_world in points_world if pt_world ]
+        cyclic = True
+        mirror_clipped_loop = False
+
+        ####################################################################################################
+        # compute useful statistics about points
+
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        self.points = points                            # points where cut crosses source (target space)
+        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
+
+    def process_source_skip(self):
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+
+        pt = self.hit['co_world']
+        pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
+        dist = 0.5 * ((pt - pt0).length + (pt - pt1).length) / 2
+        direction = (pt0 - pt).normalized()
+        pt_start = pt
+        dist_pre = 0
+
+        points = [pt]
+        has_shrunk = False
+        for i in range(10000):
+            # print(f'{pt=} {direction=}')
+            pt_next = pt + direction * dist
+            for _ in range(10):
+                pt_next = nearest_point_valid_sources(context, pt_next, world=True)
+                pt_next = plane_cut.w2l_point(pt_next)
+                pt_next.z = 0
+                pt_next = Vector(plane_cut.l2w_point(pt_next))
+            dist_next = (pt_next - pt_start).length
+            if dist_next < dist_pre:
+                has_shrunk = True
+            elif has_shrunk and dist_next < dist * 4:
+                print(f'WRAPPED AFTER {i}!')
+                break
+            points += [pt_next]
+            direction = (pt_next - pt).normalized()
+            # print(f'{pt=} {pt_next=} {direction=}')
+            pt = pt_next
+            dist_pre = dist_next
+        else:
+            print('gah')
+            return False
+
+        cyclic = True
+        mirror_clipped_loop = False
+
+        points = [self.matrix_world_inv @ pt for pt in points]
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        self.points = points
+        self.cyclic = cyclic
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
+
+    def process_source_walk(self):
+        '''
+        gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
+        '''
+        context = self.context
+        plane_cut = self.plane
+        hit_obj = self.hit['object']
+        M = hit_obj.matrix_world
+        hit_bm = get_object_bmesh(hit_obj)
+        hit_bmf = hit_bm.faces[self.hit['face_index']]
+
+        # TODO: walk from hit_bmf to find bmf that crosses plane_cut
+
+
+        ####################################################################################################
+        # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
+        # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
+
+        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
+        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
+        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
+        def bme_intersect_plane(bme):
+            co0, co1 = (M @ bmv.co for bmv in bme.verts)
+            s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
+            if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
+            return co0 + (co1 - co0) * (s0 / (s0 - s1))
+        def intersect_plane(bmelem):
+            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
+            return fn(bmelem)
+
+        bmf_graph = {}
+        bmf_intersections = defaultdict(dict)
+        working = { hit_bmf }
+        while working:
+            bmf = working.pop()
+            if bmf in bmf_graph: continue  # already processed
+            bmf_graph[bmf] = set()
+            for bmelem in chain(bmf.verts, bmf.edges):
+                co = intersect_plane(bmelem)
+                if not co: continue
+                bmfs = set(bmelem.link_faces) - {bmf}
+                working |= bmfs
+                bmf_graph[bmf] |= bmfs
+                bmf_intersections[bmf][bmelem] = co
+                for bmf_ in bmfs:
+                    bmf_intersections[bmf][bmf_] = co
+                    bmf_intersections[bmf_][bmf] = co
+
+        ####################################################################################################
+        # find longest cycle or path in bmf_graph
+
+        def find_cycle_or_path():
+            longest_path = []
+            longest_cycle = []
+
+            start_bmfs = {
+                bmf for bmf in bmf_intersections
+                if any(
+                    (type(bmelem) is BMVert) or (type(bmelem) is BMEdge and len(bmelem.link_faces) == 1)
+                    for bmelem in bmf_intersections[bmf]
+                )
+            }
+            if not start_bmfs: start_bmfs = set(bmf_graph.keys())
+
+            for start_bmf in start_bmfs:
+                working = [(start_bmf, iter(bmf_graph[start_bmf]))]
+                touched = { start_bmf }
+                while working:
+                    cur_bmf, cur_iter = working[-1]
+                    next_bmf = next(cur_iter, None)
+
+                    if not next_bmf:
+                        if len(working) > len(longest_path):
+                            # found new longest path!
+                            longest_path = [bmf for (bmf, _) in working]
+
+                        working.pop()
+                        touched.remove(cur_bmf)
+                        continue
+
+                    if next_bmf in touched:
+                        # already in path/cycle
+                        if next_bmf == start_bmf and len(working) > 2 and len(working) > len(longest_cycle):
+                            # found new longest cycle!
+                            longest_cycle = [bmf for (bmf, _) in working]
+                        continue
+
+                    touched.add(next_bmf)
+                    working.append((next_bmf, iter(bmf_graph[next_bmf])))
+
+                # if we found a large enough cycle, we can declare victory!
+                # NOTE: we cannot do the same for path, because we might have
+                #       started crawling in the middle of the path
+                if len(longest_cycle) > 50:
+                    break
+
+            is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
+            return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+
+        path, cyclic = find_cycle_or_path()
+        if len(path) < 2:
+            print(f'CONTOURS ERROR: PATH IS UNEXPECTEDLY TOO SHORT')
+            return False
+
+
+        ####################################################################################################
+        # find points in order
+
+        points = []
+        def add_path_end(bmf):
+            bmelem = next((
+                bmelem for bmelem in bmf_intersections[bmf]
+                if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
+            ), None)
+            return [ self.matrix_world_inv @ bmf_intersections[bmf][bmelem] ] if bmelem else []
+        if not cyclic: points += add_path_end(path[0])
+        points += [
+            self.matrix_world_inv @ bmf_intersections[bmf0][bmf1]
+            for (bmf0, bmf1) in iter_pairs(path, cyclic)
+        ]
+        if not cyclic: points += add_path_end(path[-1])
+
+
+        ####################################################################################################
+        # subdivide for better circle-fitting
+        subdiv = 10
+        points = [
+            pt
+            for (p0, p1) in iter_pairs(points, cyclic)
+            for pt in (lerp(i / subdiv, p0, p1) for i in range(subdiv))
+        ]
+        if not cyclic: points += add_path_end(path[-1])
+        points = [
+            p0 for (p0, p1) in iter_pairs(points, cyclic)
+            if (p0 - p1).length > 0
+        ]
+
+
+
+        ####################################################################################################
+        # handle cutting across mirror planes
+
+        mirror_clipped_loop = False
+        if has_mirror_x(context) and any(pt.x < 0 for pt in points):
+            # NOTE: considers ONLY the positive x side of mirror!
+            l = len(points)
+            bpoints = []
+            if cyclic:
+                start_indices = [i for i in range(l) if points[i].x < 0 and points[(i+1)%l].x >= 0]
+                for start_index in start_indices:
+                    npoints = []
+                    for offset in range(l):
+                        i0, i1 = (start_index + offset) % l, (start_index + offset + 1) % l
+                        pt0, pt1 = points[i0], points[i1]
+                        if pt0.x >= 0:
+                            npoints.append(pt0)
+                            if pt1.x < 0:
+                                npoints.append(pt_x0(pt0, pt1))
+                                break
+                        elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
+                    if len(npoints) > len(bpoints): bpoints = npoints
+                mirror_clipped_loop = True
+            else:
+                npoints = []
+                for i in range(l):
+                    if points[i].x >= 0:
+                        if i > 0 and points[i-1].x < 0:
+                            npoints.append(pt_x0(points[i-1], points[i]))
+                        npoints.append(points[i])
+                    else:
+                        if i > 0 and points[i-1].x >= 0:
+                            npoints.append(pt_x0(points[i-1], points[i]))
+                        if len(npoints) > len(bpoints): bpoints = npoints
+                        npoints = []
+            points = bpoints
+            cyclic = False
+        # TODO: handle other mirror planes!
+
+        if len(points) < 3:
+            print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
+            return False
+
+
+        ####################################################################################################
+        # compute useful statistics about points
+
+        plane_fit = Plane.fit_to_points(points)
+        circle_fit = hyperLSQ([list(plane_fit.w2l_point(pt).xy) for pt in points])
+        path_length = sum((pt0 - pt1).length for (pt0, pt1) in iter_pairs(points, cyclic))
+
+        self.points = points                            # points where cut crosses source (target space)
+        self.cyclic = cyclic                            # is cut cyclic (loop) or a strip?
+        self.plane_fit = plane_fit                      # plane that fits cut points (target space)
+        self.circle_fit = circle_fit                    # circle that fits points (plane_fit space)
+        self.path_length = path_length                  # length of path of points (target space)
+        self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
+
+        return True
 

@@ -233,14 +233,14 @@ def get_boundary_strips_cycles(bmes):
 
 
 # finds closest path of selected, connected, boundary/wire BMEdges
-def find_selected_cycle_or_path(bm, point_closest):
+def find_selected_cycle_or_path(bm, point_closest, *, only_boundary=True):
     selected = bmops.get_all_selected(bm)
 
     # find edge loop on boundary or are wires
     t = mirror_threshold(bpy.context)
     def use_bme(bme):
         if bme not in selected[BMEdge]: return False
-        if len(bme.link_faces) > 1: return False
+        if only_boundary and len(bme.link_faces) > 1: return False
         if has_mirror_x(bpy.context) and all(abs(bmv.co.x) <= t for bmv in bme.verts): return False
         return True
 
