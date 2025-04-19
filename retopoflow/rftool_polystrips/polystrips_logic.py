@@ -59,6 +59,7 @@ from ..common.maths import (
     point_to_bvec4,
     distance_point_linesegment,
     distance_point_bmedge,
+    xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
@@ -449,7 +450,7 @@ class PolyStrips_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            fwd = Mi @ view_forward_direction(self.context)
+            fwd = xform_direction(Mi, view_forward_direction(self.context))
             check_bmf_normals(fwd, bmfs)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]

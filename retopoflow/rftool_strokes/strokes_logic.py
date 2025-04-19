@@ -50,6 +50,7 @@ from ..common.bmesh_maths import (
 )
 from ..common.raycast import raycast_point_valid_sources, nearest_normal_valid_sources, nearest_point_valid_sources
 from ..common.maths import view_forward_direction, lerp, bvec_to_point, point_to_bvec3, bvec_point_to_bvec4, bvec_vector_to_bvec4
+from ..common.maths import xform_point, xform_vector, xform_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
@@ -464,7 +465,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -559,7 +560,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -653,7 +654,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -886,7 +887,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -983,7 +984,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -1074,7 +1075,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row
@@ -1185,7 +1186,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row
@@ -1406,7 +1407,7 @@ class Strokes_Logic:
             for i in range(llc_lr - 1)
             for j in range(llc_tb - 1)
         ]))
-        fwd = Mi @ view_forward_direction(self.context)
+        fwd = xform_direction(Mi, view_forward_direction(self.context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row

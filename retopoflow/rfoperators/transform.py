@@ -44,7 +44,7 @@ from ..common.bmesh import (
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.operator import invoke_operator, execute_operator, RFOperator
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources, size2D_to_size
-from ..common.maths import view_forward_direction, proportional_edit
+from ..common.maths import view_forward_direction, proportional_edit, xform_direction
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.blender import get_path_from_addon_common
@@ -366,7 +366,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        forward = (self.matrix_world_inv @ Vector((*view_forward_direction(context), 0.0))).xyz
+        forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         for bmf, _ in self.bmfs:
             if not bmf.is_valid: continue
             bmf.normal_update()

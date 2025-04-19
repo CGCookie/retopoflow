@@ -94,6 +94,13 @@ def lerp_map(v, vm, vM, m, M):
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
+def xform_point(M, p):
+    return point_to_bvec3(M @ bvec_point_to_bvec4(p))
+def xform_vector(M, v):
+    return vector_to_bvec3(M @ bvec_vector_to_bvec4(v))
+def xform_direction(M, d):
+    return vector_to_bvec3(M @ bvec_vector_to_bvec4(d)).normalized()
+
 
 # return point on line segment where x/y/z is 0
 # used for splitting line segments that cross mirror plane

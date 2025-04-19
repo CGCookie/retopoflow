@@ -35,7 +35,7 @@ import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction
+from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction, xform_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
@@ -47,9 +47,9 @@ class Relax_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.mouse = None
-        self.forward = view_forward_direction(context)
-        self.right = view_right_direction(context)
-        self.up = view_up_direction(context)
+        self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
+        self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
+        self.up = xform_direction(self.matrix_world_inv, view_up_direction(context))
 
         self.brush = brush
         self.relax = relax

@@ -32,7 +32,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit
+from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit, xform_direction
 from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size2D_to_size
 from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
 from ..common.operator import (
@@ -312,7 +312,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
         self.M, self.Mi = M, Mi
-        self.fwd = (Mi @ view_forward_direction(context)).normalized()
+        self.fwd = xform_direction(Mi, view_forward_direction(context))
         self.curve = self.curves[self.hovering[0]]
         self.curve.tessellate_uniform()
         strip_inds = self.strips_indices[self.hovering[0]]

@@ -709,7 +709,7 @@ class PP_Logic:
                 else:
                     bmf = self.bm.faces.new((bmv0,bmv1,bmv))
                     bmf.normal_update()
-                    if view_forward_direction(context).dot(bmf.normal) > 0:
+                    if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
                         bmf.normal_flip()
                 select_later += [bmf]
 
@@ -718,7 +718,7 @@ class PP_Logic:
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
                 bmf.normal_update()
-                if view_forward_direction(context).dot(bmf.normal) > 0:
+                if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
                     bmf.normal_flip()
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
@@ -731,7 +731,7 @@ class PP_Logic:
                 else:         bmv3 = self.bm.verts.new(self.hit3)
                 bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
                 bmf.normal_update()
-                if view_forward_direction(context).dot(bmf.normal) > 0:
+                if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
                     bmf.normal_flip()
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
