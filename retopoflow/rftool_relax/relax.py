@@ -252,6 +252,12 @@ RFOperator_Relax_Launch_Help = create_launch_browser_operator(
 )
 
 
+@execute_operator('switch_to_relax', 'RetopoFlow: Switch to Relax')
+def switch_rftool(context):
+    import bl_ui
+    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.relax')  # matches bl_idname of RFTool_Base below
+
+
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"

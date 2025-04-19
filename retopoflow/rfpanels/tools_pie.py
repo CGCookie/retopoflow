@@ -85,31 +85,31 @@ class RFMenu_MT_ToolPie(Menu):
 
     def draw(self, context):
         layout = self.layout
-        pie = layout.menu_pie() 
+        pie = layout.menu_pie()
 
-        # West   
-        pie.operator('wm.tool_set_by_id', text='Poly Strips', icon_value=RF_icons['POLYSTRIPS'].icon_id).name='retopoflow.polystrips'
+        # West
+        pie.operator('retopoflow.switch_to_polystrips', text='PolyStrips', icon_value=RF_icons['POLYSTRIPS'].icon_id)
 
         # East
-        pie.operator('wm.tool_set_by_id', text='Tweak', icon_value=RF_icons['TWEAK'].icon_id).name='retopoflow.tweak'
+        pie.operator('retopoflow.switch_to_tweak', text='Tweak', icon_value=RF_icons['TWEAK'].icon_id)
 
         # South
         self.draw_bottom_menu(pie)
 
-        # North 
-        pie.operator('wm.tool_set_by_id', text='Contours', icon_value=RF_icons['CONTOURS'].icon_id).name='retopoflow.contours'
+        # North
+        pie.operator('retopoflow.switch_to_contours', text='Contours', icon_value=RF_icons['CONTOURS'].icon_id)
 
         # Northwest
-        pie.operator('wm.tool_set_by_id', text='Strokes', icon_value=RF_icons['STROKES'].icon_id).name='retopoflow.strokes'
+        pie.operator('retopoflow.switch_to_strokes', text='Strokes', icon_value=RF_icons['STROKES'].icon_id)
 
         # Northeast
         pie.operator('retopoflow.switch_to_patches', text='Patches', icon_value=RF_icons['PATCHES'].icon_id)
 
         # Southwest
-        pie.operator('wm.tool_set_by_id', text='Poly Pen', icon_value=RF_icons['POLYPEN'].icon_id).name='retopoflow.polypen'
+        pie.operator('retopoflow.switch_to_polypen', text='PolyPen', icon_value=RF_icons['POLYPEN'].icon_id)
 
-        # Southeast 
-        pie.operator('wm.tool_set_by_id', text='Relax', icon_value=RF_icons['RELAX'].icon_id).name='retopoflow.relax'
+        # Southeast
+        pie.operator('retopoflow.switch_to_relax', text='Relax', icon_value=RF_icons['RELAX'].icon_id)
 
 
 keymaps = []

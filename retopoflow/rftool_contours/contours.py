@@ -361,6 +361,10 @@ RFOperator_Contours_Launch_Help = create_launch_browser_operator(
     rf_keymap_press='F1',
 )
 
+@execute_operator('switch_to_contours', 'RetopoFlow: Switch to Contours')
+def switch_rftool(context):
+    import bl_ui
+    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.contours')  # matches bl_idname of RFTool_Base below
 
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"

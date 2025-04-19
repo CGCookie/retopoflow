@@ -593,6 +593,12 @@ RFOperator_PolyStrips_Launch_Help = create_launch_browser_operator(
     rf_keymap_press='F1',
 )
 
+@execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips')
+def switch_rftool(context):
+    import bl_ui
+    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polystrips')  # matches bl_idname of RFTool_Base below
+
+
 class RFTool_PolyStrips(RFTool_Base):
     bl_idname = "retopoflow.polystrips"
     bl_label = "PolyStrips"
