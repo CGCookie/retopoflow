@@ -33,6 +33,12 @@ map_icons = {
 }
 
 
+def poll_retopoflow(context):
+    if not context.edit_object: return False
+    if context.edit_object.type != 'MESH': return False
+    return True
+
+
 class RFRegisterClass:
     @classmethod
     def register(cls): pass
@@ -85,9 +91,7 @@ class RFOperator_Execute(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if not context.edit_object: return False
-        if context.edit_object.type != 'MESH': return False
-        return True
+        return poll_retopoflow(context)
 
     @classmethod
     def register(cls): pass

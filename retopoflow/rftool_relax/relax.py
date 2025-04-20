@@ -50,7 +50,7 @@ from ..common.drawing import (
     CC_3D_TRIANGLES,
 )
 from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator
+from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator, poll_retopoflow
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
 from ..common.maths import view_forward_direction, lerp
 from ...addon_common.common import bmesh_ops as bmops
@@ -252,7 +252,7 @@ RFOperator_Relax_Launch_Help = create_launch_browser_operator(
 )
 
 
-@execute_operator('switch_to_relax', 'RetopoFlow: Switch to Relax')
+@execute_operator('switch_to_relax', 'RetopoFlow: Switch to Relax', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     import bl_ui
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.relax')  # matches bl_idname of RFTool_Base below

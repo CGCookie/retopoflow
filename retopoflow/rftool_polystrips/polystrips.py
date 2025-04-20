@@ -39,7 +39,7 @@ from ..common.operator import (
     execute_operator,
     RFOperator, RFOperator_Execute,
     chain_rf_keymaps,
-    wrap_property,
+    wrap_property, poll_retopoflow,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
@@ -593,7 +593,7 @@ RFOperator_PolyStrips_Launch_Help = create_launch_browser_operator(
     rf_keymap_press='F1',
 )
 
-@execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips')
+@execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     import bl_ui
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polystrips')  # matches bl_idname of RFTool_Base below
