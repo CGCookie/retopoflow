@@ -115,9 +115,9 @@ class RFOperator_Contours_Insert(
         default=0,
     )
 
-    cycle: bpy.props.BoolProperty(
+    is_cycle: bpy.props.BoolProperty(
         name='Cyclic Cut',
-        description='Force cut to be cyclic or not',
+        description='Force cut to be cyclic or strip',
         default=False,  # will be set on initial cut
     )
 
@@ -125,46 +125,45 @@ class RFOperator_Contours_Insert(
 
     @staticmethod
     def insert(context, hit, plane, circle_hit, span_count, process_source_method, hits):
-        RFOperator_Contours_Insert.contours_data = {
-            'initial':         True,
-            'action':          '',
-            'hit':             hit,
-            'plane':           plane,
-            'circle_hit':      circle_hit,
-            'show_span_count': False,
-            'span_count':      span_count,
-            'show_twist':      False,
-            'twist':           0,
-            'hits':            hits,
-            'process_source_method': process_source_method,
-        }
+        RFOperator_Contours_Insert.logic = Contours_Logic(
+            context,
+            hit,
+            plane,
+            circle_hit,
+            span_count,
+            process_source_method,
+            hits,
+        )
         RFOperator_Contours_Insert.reinsert(context)
 
     @staticmethod
     def reinsert(context):
-        data = RFOperator_Contours_Insert.contours_data
+        logic = RFOperator_Contours_Insert.logic
         bpy.ops.retopoflow.contours_insert(
             'INVOKE_DEFAULT', True,
-            span_count=data['span_count'],
-            twist=data['twist'],
-            process_source_method=data['process_source_method'],
-            # cycle=data['cycle'],
+            span_count=logic.span_count,
+            process_source_method=logic.process_source_method,
+            twist=logic.twist,
+            is_cycle=logic.cyclic,
         )
 
     def draw(self, context):
         layout = self.layout
         grid = layout.grid_flow(row_major=True, columns=2)
-        data = RFOperator_Contours_Insert.contours_data
+        logic = RFOperator_Contours_Insert.logic
 
-        if data['action']:
+        grid.label(text=f'Cyclic')
+        grid.prop(self, 'is_cycle', text='')
+
+        if logic.action:
             grid.label(text=f'Inserted')
-            grid.label(text=data['action'])
+            grid.label(text=logic.action)
 
-        if data['show_span_count']:
+        if logic.show_span_count:
             grid.label(text=f'Spans')
             grid.prop(self, 'span_count', text='')
 
-        if data['show_twist']:
+        if logic.show_twist:
             grid.label(text=f'Twist')
             grid.prop(self, 'twist', text='')
 
@@ -172,27 +171,15 @@ class RFOperator_Contours_Insert(
         grid.prop(self, 'process_source_method', text='')
 
     def execute(self, context):
-        data = RFOperator_Contours_Insert.contours_data
+        logic = RFOperator_Contours_Insert.logic
+
+        logic.span_count            = self.span_count
+        logic.process_source_method = self.process_source_method
+        logic.twist                 = self.twist
+        logic.cyclic                = self.is_cycle
+
         try:
-            logic = Contours_Logic(
-                context,
-                data['initial'],
-                data['hit'],
-                data['plane'],
-                data['span_count'] if data['initial'] else self.span_count,
-                self.twist,
-                data['circle_hit'],
-                data['hits'],
-                self.process_source_method,
-            )
-            if data['initial']:
-                data['initial'] = False
-            data['action'] = logic.action
-            data['show_span_count'] = logic.show_span_count
-            data['span_count'] = logic.span_count
-            # self.twist = logic.twist
-            data['show_twist'] = logic.show_twist
-            data['twist'] = self.twist
+            logic.update(context)
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -200,6 +187,11 @@ class RFOperator_Contours_Insert(
             print(f'{type(self).__name__}.execute: Caught Exception {e}')
             debugger.print_exception()
             return {'CANCELLED'}
+
+        self.span_count            = logic.span_count
+        self.process_source_method = logic.process_source_method
+        self.twist                 = logic.twist
+        self.is_cycle              = logic.cyclic
 
         return {'FINISHED'}
 
@@ -214,27 +206,27 @@ class RFOperator_Contours_Insert(
             def wrapped(context):
                 last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
                 if last_op != RFOperator_Contours_Insert.bl_label: return
-                fn(context, RFOperator_Contours_Insert.contours_data)
+                fn(context, RFOperator_Contours_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Contours_Insert.reinsert(context)
             return wrapped
         return wrapper
 
     @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
-    def decrease_spans(context, data):
-        data['span_count'] -= 1
+    def decrease_spans(context, logic):
+        logic.span_count -= 1
 
     @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
-    def increase_spans(context, data):
-        data['span_count'] += 1
+    def increase_spans(context, logic):
+        logic.span_count += 1
 
     @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
-    def decrease_spans(context, data):
-        if data['show_twist']: data['twist'] -= 5
+    def decrease_spans(context, logic):
+        if logic.show_twist: logic.twist -= 5
 
     @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    def increase_spans(context, data):
-        if data['show_twist']: data['twist'] += 5
+    def increase_spans(context, logic):
+        if logic.show_twist: logic.twist += 5
 
 
 

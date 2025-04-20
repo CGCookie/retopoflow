@@ -86,24 +86,31 @@ from ..common.drawing import (
 
 
 class Contours_Logic:
-    def __init__(self, context, initial, hit, plane, span_count, twist, circle_hit, hits, process_source_method):
+    def __init__(self, context, hit, plane, circle_hit, span_count, process_source_method, hits):
+        self.hit = hit
+        self.plane = plane
+        self.circle_hit = circle_hit
+        self.process_source_method = process_source_method
+        self.hits = hits
+
+        self.action = ''
+        self.initial = True
+
+        self.show_span_count = False
+        self.span_count = span_count
+
+        self.show_twist = False
+        self.twist = 0
+
+        self.cyclic = False
+
+    def update(self, context):
+        self.context, self.rgn, self.r3d = context, context.region, context.region_data
+
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
-        self.context, self.rgn, self.r3d = context, context.region, context.region_data
-
-        self.plane = plane            # world space
-        self.hit   = hit
-        self.hits  = hits
-        self.circle_hit = circle_hit  # plane space
-        self.process_source_method = process_source_method
-
-        self.action = ''
-        self.span_count = span_count
-        self.show_span_count = False
-        self.twist = twist % 360
-        self.show_twist = False
 
         try:
             if not self.process_source(): return
@@ -114,7 +121,15 @@ class Contours_Logic:
             print(f'Exception caught: {e}')
             debugger.print_exception()
 
+        self.initial = False
+
     def process_source(self):
+        # process source only once, unless settings have changed
+        if not self.initial and self.last_process_source_method == self.process_source_method:
+            # print(f'skipping re-processing source')
+            return True
+        self.last_process_source_method = self.process_source_method
+
         match self.process_source_method:
             case 'fast':
                 return self.process_source_fast()
@@ -176,9 +191,10 @@ class Contours_Logic:
                     bme = quad_bmf_opposite_bme(next_bmf, bme)
                     pre_bmf = next_bmf
                 first_attempt = False
-            # update cyclic to match cut-into geometry
-            # TODO: DO NOT OVERRIDE THIS HERE...
-            self.cyclic = self.cyclic_ring
+            if self.edge_ring:
+                # update cyclic to match cut-into geometry
+                # TODO: DO NOT OVERRIDE THIS HERE...
+                self.cyclic = self.cyclic_ring
 
         # should we bridge with currently selected geometry?
         self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3, only_boundary=False)
@@ -187,7 +203,7 @@ class Contours_Logic:
     def find_boundary_for_bridging(self):
         if not self.bridge: return
 
-        print(f'-----------------------------------------------------')
+        # print(f'-----------------------------------------------------')
 
         sel_paths = []
 
@@ -195,13 +211,13 @@ class Contours_Logic:
             # all are wires; no walking needed
             return
         if all(len(bme.link_faces) == 1 for bme in self.sel_path):
-            print(f'selection is a boundary')
+            # print(f'selection is a boundary')
             sel_paths.append((self.sel_path, self.sel_cyclic))
         touched = set()
         working = set(self.sel_path)
         while working:
             # step out 1 ring
-            print(f'stepping out 1 ring {len(working)=}')
+            # print(f'stepping out 1 ring {len(working)=}')
             nworking = set()
             for bme0 in working:
                 if bme0 in touched: continue
@@ -216,7 +232,7 @@ class Contours_Logic:
                 bme for bme in nworking
                 if bme.is_boundary
             }
-            print(f'{len(nworking)=} {len(boundary)=} {boundary=}')
+            # print(f'{len(nworking)=} {len(boundary)=} {boundary=}')
             touched_boundary = set()
             for bme_init in boundary:
                 if bme_init in touched_boundary: continue
@@ -240,9 +256,8 @@ class Contours_Logic:
                 touched_boundary.add(bme_init)
                 sel_paths.append((current, boundary_cyclic))
             working = nworking
-        print(f'found {len(sel_paths)} possible boundaries')
-        for p in sel_paths:
-            print(f'- {len(p[0])=} {p}')
+        # print(f'found {len(sel_paths)} possible boundaries')
+        # for p in sel_paths: print(f'- {len(p[0])=} {p}')
         best_path, best_cyclic, best_dist = None, None, float('inf')
         for (bmes, cyclic) in sel_paths:
             d = min(((self.hit['co_local'] - bmv.co).length for bme in bmes for bmv in bme.verts))
