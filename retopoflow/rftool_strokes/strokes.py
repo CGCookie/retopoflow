@@ -75,31 +75,78 @@ class RFOperator_Stroke_Insert_Keymaps:
     #       is not yet created!
     rf_keymaps = []
 
-class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Execute):
-    bl_idname = 'retopoflow.strokes_insert'
-    bl_label = 'Insert Stroke'
-    bl_description = 'Insert edge strips and extrude edges into a patch'
-    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+class RFOperator_Stroke_Insert_Properties:
+    '''
+    bpy properties that are shared between insert operator and the modal operator
+    used to prevent duplicate code across both operators
+    '''
 
     extrapolate_mode: bpy.props.EnumProperty(
-        name='Extrapolation',
-        description='Controls how the new perpendicular edges are extrapolated from the selected edges',
+        name='T-Strip Extrapolation',
+        description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
-            ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
-            ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
+            ('FLAT',          'Flat',   'Extrudes in a straight line', 0),
+            ('ADAPT',         'Fan',    'Fans the extrusion to match the original curvature', 1),
             ('PERPENDICULAR', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
         ],
         default='FLAT',
     )
 
+    span_insert_mode: bpy.props.EnumProperty(
+        name='Span Count Method',
+        description='Controls the number of spans when inserting',
+        items=[
+            ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
+            ('FIXED',   'Fixed',      'Inserts a fixed number of spans',     1),
+            ('AVERAGE', 'Average',    'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
+        ],
+        default='AVERAGE',
+    )
+
     cut_count: bpy.props.IntProperty(
-        name='Count',
+        name='Cut Count',
         description='Number of vertices or loops to create in a new stroke',
         default=8,
         min=1,
         soft_max=32,
         max=256,
     )
+
+    smooth_angle: bpy.props.FloatProperty(
+        name='Smooth Blending',
+        description='Factor for how much smoothing is applied to the interpolated loops when creating Equals Strips and I Strips. Zero is linear.',
+        default=1.0,
+        min=-0.5,
+        soft_min=0.0,
+        soft_max=1.0,
+        max=1.5,
+    )
+
+    smooth_density0: bpy.props.FloatProperty(
+        name='Start Spacing',
+        description='Spacing of the interpolated loops near the start of the stroke',
+        default=0.5,
+        min=0.0,
+        max=1.0,
+    )
+
+    smooth_density1: bpy.props.FloatProperty(
+        name='End Spacing',
+        description='Spacing of the interpolated loops near the end of the stroke',
+        default=0.5,
+        min=0.0,
+        max=1.0,
+    )
+
+class RFOperator_Stroke_Insert(
+        RFOperator_Stroke_Insert_Keymaps,
+        RFOperator_Stroke_Insert_Properties,
+        RFOperator_Execute,
+    ):
+    bl_idname = 'retopoflow.strokes_insert'
+    bl_label = 'Insert Stroke'
+    bl_description = 'Insert edge strips and extrude edges into a patch'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     bridging_offset: bpy.props.IntProperty(
         name='Bridging Offset',
@@ -152,7 +199,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
     logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, initial_cut_count, initial_extrapolate_mode, initial_smooth_angle, initial_smooth_density0, initial_smooth_density1):
+    def strokes_insert(context, radius, stroke3D, is_cycle, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -163,11 +210,11 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
             stroke3D,
             is_cycle,
             span_insert_mode,
-            initial_cut_count,
-            initial_extrapolate_mode,
-            initial_smooth_angle,
-            initial_smooth_density0,
-            initial_smooth_density1,
+            cut_count,
+            extrapolate_mode,
+            smooth_angle,
+            smooth_density0,
+            smooth_density1,
         )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
 
@@ -309,7 +356,7 @@ class RFOperator_Stroke_Insert(RFOperator_Stroke_Insert_Keymaps, RFOperator_Exec
         logic.smooth_angle += 0.25
 
 
-class RFOperator_Strokes(RFOperator):
+class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.strokes'
     bl_label = 'Strokes'
     bl_description = 'Insert edge strips and extrude edges into a patch'
@@ -332,7 +379,6 @@ class RFOperator_Strokes(RFOperator):
 
     rf_status = ['LMB: Insert']
 
-
     brush_radius: wrap_property(
         RFBrush_Strokes, 'radius', 'int',
         name='Radius',
@@ -341,63 +387,6 @@ class RFOperator_Strokes(RFOperator):
         max=1000,
         subtype='PIXEL',
     )
-
-    span_insert_mode: bpy.props.EnumProperty(
-        name='Span Count Method',
-        description='Controls the number of spans when inserting',
-        items=[
-            ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
-            ('FIXED',   'Fixed',      'Inserts a fixed number of spans',     1),
-            ('AVERAGE', 'Average',    'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
-        ],
-        default='AVERAGE',
-    )
-
-    initial_cut_count: bpy.props.IntProperty(
-        name='Initial Count',
-        description='Number of vertices or loops to create in a new stroke',
-        default=8,
-        min=1,
-        max=100,
-    )
-
-    extrapolate_mode: bpy.props.EnumProperty(
-        name='T-Strip Extrapolation',
-        description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
-        items=[
-            ('FLAT',          'Flat',          'Extrudes in a straight line', 0),
-            ('ADAPT',         'Fan',         'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
-        ],
-        default='FLAT',
-    )
-
-    initial_smooth_angle: bpy.props.FloatProperty(
-        name='Initial Smoothing',
-        description='Factor for how much smoothing is applied to the interpolated loops when creating Equals Strips and I Strips. Zero is linear.',
-        default=1.0,
-        min=-0.5,
-        soft_min=0.0,
-        soft_max=1.0,
-        max=1.5,
-    )
-
-    initial_smooth_density0: bpy.props.FloatProperty(
-        name='Initial Start Spacing',
-        description='Initial spacing of the interpolated loops near the start of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-
-    initial_smooth_density1: bpy.props.FloatProperty(
-        name='Initial End Spacing',
-        description='Initial spacing of the interpolated loops near the end of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-
 
     def init(self, context, event):
         RFTool_Strokes.rf_brush.set_operator(self)
@@ -420,11 +409,11 @@ class RFOperator_Strokes(RFOperator):
             stroke3D,
             is_cycle,
             self.span_insert_mode,
-            self.initial_cut_count,
+            self.cut_count,
             self.extrapolate_mode,
-            self.initial_smooth_angle,
-            self.initial_smooth_density0,
-            self.initial_smooth_density1,
+            self.smooth_angle,
+            self.smooth_density0,
+            self.smooth_density1,
         )
 
     def update(self, context, event):
@@ -497,15 +486,15 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(align=True)
             row.prop(props_strokes, 'span_insert_mode', text='')
             if props_strokes.span_insert_mode == 'FIXED':
-                row.prop(props_strokes, 'initial_cut_count', text="")
+                row.prop(props_strokes, 'cut_count', text="")
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
             # layout.label(text="Smooth Blending:")
-            layout.prop(props_strokes, 'initial_smooth_angle', text='Smooth Blending', slider=True)
+            layout.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
             layout.label(text="Spacing:")
             row = layout.row(align=True)
-            row.prop(props_strokes, 'initial_smooth_density0', text='', slider=True)
-            row.prop(props_strokes, 'initial_smooth_density1', text='', slider=True)
+            row.prop(props_strokes, 'smooth_density0', text='', slider=True)
+            row.prop(props_strokes, 'smooth_density1', text='', slider=True)
             row = layout.row(heading='T-Strips:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
 
@@ -523,13 +512,13 @@ class RFTool_Strokes(RFTool_Base):
             if panel:
                 panel.prop(props_strokes, 'span_insert_mode', text='Method')
                 if props_strokes.span_insert_mode == 'FIXED':
-                    panel.prop(props_strokes, 'initial_cut_count', text="Count")
+                    panel.prop(props_strokes, 'cut_count', text="Count")
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
-                panel.prop(props_strokes, 'initial_smooth_angle', text='Smooth Blending', slider=True)
+                panel.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
                 col = panel.column(align=True)
-                col.prop(props_strokes, 'initial_smooth_density0', text='Spacing Start', slider=True)
-                col.prop(props_strokes, 'initial_smooth_density1', text='End', slider=True)
+                col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
+                col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
                 panel.label(text='T-Strips')
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
             draw_tweaking_panel(context, layout)
