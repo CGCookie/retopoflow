@@ -154,30 +154,6 @@ class RFOperator_Stroke_Insert(
         default=0,
     )
 
-    smooth_angle: bpy.props.FloatProperty(
-        name='Smoothing',
-        description='Factor for how much smoothing is applied to the interpolated loops. Zero is linear.',
-        default=1.0,
-        min=-0.5,
-        soft_min=0.0,
-        soft_max=1.0,
-        max=1.5,
-    )
-
-    smooth_density0: bpy.props.FloatProperty(
-        name='Spacing Start',
-        description='Spacing of the interpolated loops near the start of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
-    smooth_density1: bpy.props.FloatProperty(
-        name='Spacing End',
-        description='Spacing of the interpolated loops near the end of the stroke',
-        default=0.5,
-        min=0.0,
-        max=1.0,
-    )
     force_nonstripL: bpy.props.BoolProperty(
         name='Force non-L-Strip',
         description='Force T-Strip or Equals-Strip to be inserted rather than L-Strip',
