@@ -2,7 +2,7 @@
 
 RetopoFlow is a suite of Blender tools that automatically generate geometry which snaps to your source objects as you draw on the surface. 
 
-The tools work because of our custom "Retopology Mode", which gets more information about the objects you're drawing on than Blender can give in Edit Mode. It also alows us to display the polygons in a cleaner, more helful style. 
+The tools work because of our custom "Retopology Mode", which gets more information about the objects you're drawing on than Blender can give in Edit Mode. It also alows us to display the polygons in a cleaner, more helpful style. 
 
 <label class="not-online"><input type="checkbox" checked="BoundBool('''options['welcome']''')">Show this Welcome note when RetopoFlow starts</label>
 
