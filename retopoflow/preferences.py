@@ -137,6 +137,15 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.prop(self, 'setup_retopo_overlay')
             panel.prop(self, 'setup_selection_mode')
             panel.prop(self, 'setup_snapping')
+            panel.separator()
+            panel.label(text=('You can assign a custom hotkey for any tool by:'), icon='INFO')
+            row=panel.split(factor=0.4)
+            row.separator()
+            col = row.column()
+            col.label(text=('1. Right Clicking'))
+            col.label(text=('2. Choosing Assign Shortcut'))
+            col.label(text=('3. Saving Preferences'))
+            panel.separator()
 
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)
