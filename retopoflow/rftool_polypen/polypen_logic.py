@@ -53,7 +53,7 @@ from ..common.maths import (
     distance_point_linesegment,
     distance_point_bmedge,
     distance2d_point_bmedge,
-    clamp,
+    clamp, xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
