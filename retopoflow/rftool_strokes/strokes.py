@@ -364,6 +364,16 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         subtype='PIXEL',
     )
 
+    stroke_smoothing: bpy.props.FloatProperty(
+        name='Stroke Smoothing',
+        description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
+        get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
+        set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
+        min=0.00,
+        max=1.0,
+        default=0.5,
+    )
+
     def init(self, context, event):
         RFTool_Strokes.rf_brush.set_operator(self)
         RFTool_Strokes.rf_brush.reset_nearest(context)
@@ -466,6 +476,7 @@ class RFTool_Strokes(RFTool_Base):
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
             # layout.label(text="Smooth Blending:")
+            layout.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
             layout.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
             layout.label(text="Spacing:")
             row = layout.row(align=True)
@@ -491,6 +502,7 @@ class RFTool_Strokes(RFTool_Base):
                     panel.prop(props_strokes, 'cut_count', text="Count")
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
+                panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
                 panel.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
