@@ -509,7 +509,6 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
         set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
         min=0.00,
-        soft_max=0.95,
         max=1.0,
         default=0.5,
     )
