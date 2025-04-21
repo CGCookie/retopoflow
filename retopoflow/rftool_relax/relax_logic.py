@@ -81,6 +81,8 @@ class Relax_Logic:
                 if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
             ]
 
+        self.bvh = BVHTree.FromBMesh(self.bm)
+
     def cancel(self, context):
         for (bmv, co) in self.prev.items():
             bmv.co = co
@@ -120,8 +122,8 @@ class Relax_Logic:
 
         # collect data for smoothing
         radius = brush.get_scaled_radius()
-        bvh = BVHTree.FromBMesh(self.bm)
-        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], radius) }
+        bvh = self.bvh # BVHTree.FromBMesh(self.bm)
+        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], radius*2.0) }
         nearest_bmverts = { bmv for i in nearest_bmface_inds for bmv in self.bm.faces[i].verts }
         if False:
             # Debug: select all verts under brush
