@@ -825,7 +825,7 @@ class ModifierWrapper_Mirror:
     '''
     @staticmethod
     def create_new(obj: bpy.types.Object):
-        mod = ModifierWrapper_Mirror(obj, obj.modifiers.new(type='MIRROR'))
+        mod = ModifierWrapper_Mirror(obj, obj.modifiers.new("Mirror", type='MIRROR'))
         mod.set_defaults()
         return mod
 
