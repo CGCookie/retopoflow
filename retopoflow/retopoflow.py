@@ -114,6 +114,8 @@ class RetopoFlow(
     #     self.scene = scene_duplicate(name='RetopoFlow')
 
     def start(self):
+        bpy.ops.ed.undo_push(message="RetopoFlow Entry")
+
         sw = StopWatch()
 
         RetopoFlow.instance = self
@@ -172,6 +174,8 @@ class RetopoFlow(
         self.unmark_sources_target()  # DO THIS AS ONE OF LAST
         sessionoptions.clear()
         RetopoFlow.instance = None
+        
+        bpy.ops.ed.undo_push(message="RetopoFlow Exit")
 
 
 
