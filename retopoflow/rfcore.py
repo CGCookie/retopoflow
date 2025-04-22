@@ -29,7 +29,7 @@ import random
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
-from .common.bmesh import get_object_bmesh
+from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources
 
@@ -557,6 +557,59 @@ RFCore_NewTarget_Cursor.RFCore = RFCore
 RFBrush_Base.RFCore = RFCore
 
 
+class InvalidationManager:
+    run_next = 0
+    bm = None
+    em = None
+    pre = []
+    post = []
+
+    @classmethod
+    def run_test(cls, context):
+        if not cls.bm:
+            cls.bm, cls.em = get_bmesh_emesh(context)
+            cls.run_next = 0
+
+        if not cls.bm.is_valid:
+            print(f'DETECTED INVALIDATION!')
+
+            cls.pre = [
+                fn
+                for fn in bpy.app.handlers.depsgraph_update_pre
+                if not fn.__module__.endswith('retopoflow.rfcore')
+            ]
+            cls.post = [
+                fn
+                for fn in bpy.app.handlers.depsgraph_update_post
+                if not fn.__module__.endswith('retopoflow.rfcore')
+            ]
+            cls.bm, cls.em = get_bmesh_emesh(context)
+            cls.run_next = time.time() + 1
+
+        if cls.run_next < time.time():
+            # TODO: keep list of all callbacks.  if callbacks haven't changed, no need to
+            #       run the test again!
+            bmesh.update_edit_mesh(cls.em)
+            cls.run_next = time.time() + 1
+
+    @classmethod
+    def prevent_invalidation(cls):
+        for fn in cls.pre:
+            bpy.app.handlers.depsgraph_update_pre.remove(fn)
+        for fn in cls.post:
+            bpy.app.handlers.depsgraph_update_post.remove(fn)
+
+    @classmethod
+    def resume_invalidation(cls):
+        for fn in cls.pre:
+            bpy.app.handlers.depsgraph_update_pre.append(fn)
+        for fn in cls.post:
+            bpy.app.handlers.depsgraph_update_post.append(fn)
+
+RFOperator.InvalidationManager = InvalidationManager
+# RFBrush_Base.InvalidationManager = InvalidationManager
+
+
 class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.core"
     bl_label = "RetopoFlow Core"
@@ -593,6 +646,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         self.running_in_area = None
         RFCore_Operator.running_operators += 1
         self.is_running = True
+
     def __del__(self):
         print(f'RFCore_Operator.__del__!!!')
         print(f'    {self}')
@@ -651,6 +705,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             # print(f'EXITING!')
             print(f'RFCore_Operator exiting')
             return {'FINISHED'}
+
+        InvalidationManager.run_test(context)
 
         if not RFCore.event_mouse:
             # print(f'IN CONTROL!')

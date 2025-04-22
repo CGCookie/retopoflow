@@ -102,6 +102,7 @@ class RFOperator_Execute(bpy.types.Operator):
 class RFOperator(bpy.types.Operator):
     active_operators = []
     RFCore = None
+    InvalidationManager = None
     tickled = None
 
     _subclasses = []
@@ -175,6 +176,8 @@ class RFOperator(bpy.types.Operator):
         else:
             self._draw_postpixel_overlay = None
 
+        self.InvalidationManager.prevent_invalidation()
+
         self.init(context, event)
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
@@ -189,6 +192,7 @@ class RFOperator(bpy.types.Operator):
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
         if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+        self.InvalidationManager.resume_invalidation()
         type(self)._is_running = False
 
     def modal(self, context, event):
