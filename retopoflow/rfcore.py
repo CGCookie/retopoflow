@@ -562,7 +562,7 @@ class InvalidationManager:
         'depsgraph_update_pre': [],
         'depsgraph_update_post': [],
     }
-    preventing = False
+    preventing = 0
     # run_next = 0
     # bm = None
     # em = None
@@ -597,8 +597,8 @@ class InvalidationManager:
 
     @classmethod
     def prevent_invalidation(cls):
-        if cls.preventing: return
-        cls.preventing = True
+        cls.preventing += 1
+        if cls.preventing > 1: return
         for callback_name in cls.watching:
             callbacks = getattr(bpy.app.handlers, callback_name)
             cls.watching[callback_name] = [
@@ -610,8 +610,8 @@ class InvalidationManager:
 
     @classmethod
     def resume_invalidation(cls):
-        if not cls.preventing: return
-        cls.preventing = False
+        cls.preventing -= 1
+        if cls.preventing > 0: return
         for callback_name in cls.watching:
             callbacks = getattr(bpy.app.handlers, callback_name)
             for fn in cls.watching[callback_name]:
