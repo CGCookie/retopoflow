@@ -509,7 +509,6 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
         set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
         min=0.00,
-        soft_max=0.95,
         max=1.0,
         default=0.5,
     )
@@ -627,7 +626,7 @@ class RFTool_PolyStrips(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
             layout.prop(props_polystrips, 'brush_radius', text="Radius")
-            layout.prop(props_polystrips, 'stroke_smoothing', text='Stroke Smoothing', slider=True)
+            layout.prop(props_polystrips, 'stroke_smoothing', text='Stabilize', slider=True)
             layout.prop(props_polystrips, 'split_angle')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
@@ -642,7 +641,7 @@ class RFTool_PolyStrips(RFTool_Base):
             header.label(text="Insert")
             if panel:
                 panel.prop(props_polystrips, 'brush_radius', text="Radius")
-                panel.prop(props_polystrips, 'stroke_smoothing', text='Stroke Smoothing')
+                panel.prop(props_polystrips, 'stroke_smoothing', text='Stabilize', slider=True)
                 panel.prop(props_polystrips, 'split_angle')
             draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)

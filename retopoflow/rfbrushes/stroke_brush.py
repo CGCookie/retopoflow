@@ -39,7 +39,7 @@ from ..common.drawing import (
 )
 from ..common.icons import get_path_to_blender_icon
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp
+from ..common.maths import view_forward_direction, lerp, log_map
 from ..common.operator import (
     invoke_operator, execute_operator,
     RFOperator, RFRegisterClass,
@@ -97,7 +97,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             return cls.stroke_smooth
         @classmethod
         def set_stroke_smooth(cls, value):
-            cls.stroke_smooth = clamp(value, 0.00, 0.99)
+            cls.stroke_smooth = clamp(value, 0.00, 1.00)
 
         def init(self):
             self.mouse = None
@@ -274,7 +274,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 pre = self.stroke[-1]
                 cur = Point2D(mouse)
                 delta_t = time() - self.last_time
-                smoothing_factor = 1.0 - RFBrush_Stroke.stroke_smooth ** (delta_t * 50)
+                smoothing_mapped = log_map(RFBrush_Stroke.stroke_smooth, from_max=1.1)
+                smoothing_factor = 1.0 - smoothing_mapped ** (delta_t * 50)
                 pt = pre + (cur - pre) * smoothing_factor
                 if raycast_valid_sources(context, pt):
                     self.stroke += [pt]
