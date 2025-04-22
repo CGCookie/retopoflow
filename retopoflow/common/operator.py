@@ -192,7 +192,6 @@ class RFOperator(bpy.types.Operator):
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
         if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
-        self.InvalidationManager.resume_invalidation()
         type(self)._is_running = False
 
     def modal(self, context, event):
@@ -253,6 +252,7 @@ class RFOperator(bpy.types.Operator):
             if RFOperator.active_operators:
                 # other RF operators on stack, so tickle them so they can see the changes
                 RFOperator.tickle(context)
+            self.InvalidationManager.resume_invalidation()
             type(self)._is_running = False
 
         return ret

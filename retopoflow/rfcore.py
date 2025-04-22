@@ -558,53 +558,64 @@ RFBrush_Base.RFCore = RFCore
 
 
 class InvalidationManager:
-    run_next = 0
-    bm = None
-    em = None
-    pre = []
-    post = []
+    watching = {
+        'depsgraph_update_pre': [],
+        'depsgraph_update_post': [],
+    }
+    preventing = False
+    # run_next = 0
+    # bm = None
+    # em = None
+    # changed = True
 
     @classmethod
     def run_test(cls, context):
-        if not cls.bm:
-            cls.bm, cls.em = get_bmesh_emesh(context)
-            cls.run_next = 0
+        return
+        # if cls.preventing: return
 
-        if not cls.bm.is_valid:
-            print(f'DETECTED INVALIDATION!')
+        # if not cls.bm or not cls.bm.is_valid:
+        #     invalid = cls.bm and not cls.bm.is_valid
+        #     if invalid: print(f'DETECTED INVALIDATION!')
+        #     cls.bm, cls.em = get_bmesh_emesh(context)
+        #     cls.run_next = time.time() + 1 if invalid else 0
 
-            cls.pre = [
-                fn
-                for fn in bpy.app.handlers.depsgraph_update_pre
-                if not fn.__module__.endswith('retopoflow.rfcore')
-            ]
-            cls.post = [
-                fn
-                for fn in bpy.app.handlers.depsgraph_update_post
-                if not fn.__module__.endswith('retopoflow.rfcore')
-            ]
-            cls.bm, cls.em = get_bmesh_emesh(context)
-            cls.run_next = time.time() + 1
+        # cls.changed = False
+        # for callback_name in cls.watching:
+        #     fns = {
+        #         fn
+        #         for fn in getattr(bpy.app.handlers, callback_name)
+        #         if not fn.__module__.endswith('retopoflow.rfcore')
+        #     }
+        #     if fns == cls.watching[callback_name]: continue
+        #     cls.watching[callback_name] = fns
+        #     cls.changed = True
 
-        if cls.run_next < time.time():
-            # TODO: keep list of all callbacks.  if callbacks haven't changed, no need to
-            #       run the test again!
-            bmesh.update_edit_mesh(cls.em)
-            cls.run_next = time.time() + 1
+        # if cls.changed or cls.run_next < time.time():
+        #     print(f'{cls.changed=}')
+        #     bmesh.update_edit_mesh(cls.em)
+        #     cls.run_next = time.time() + 1
 
     @classmethod
     def prevent_invalidation(cls):
-        for fn in cls.pre:
-            bpy.app.handlers.depsgraph_update_pre.remove(fn)
-        for fn in cls.post:
-            bpy.app.handlers.depsgraph_update_post.remove(fn)
+        if cls.preventing: return
+        cls.preventing = True
+        for callback_name in cls.watching:
+            callbacks = getattr(bpy.app.handlers, callback_name)
+            cls.watching[callback_name] = [
+                fn for fn in callbacks
+                if not fn.__module__.endswith('retopoflow.rfcore')
+            ]
+            for fn in cls.watching[callback_name]:
+                callbacks.remove(fn)
 
     @classmethod
     def resume_invalidation(cls):
-        for fn in cls.pre:
-            bpy.app.handlers.depsgraph_update_pre.append(fn)
-        for fn in cls.post:
-            bpy.app.handlers.depsgraph_update_post.append(fn)
+        if not cls.preventing: return
+        cls.preventing = False
+        for callback_name in cls.watching:
+            callbacks = getattr(bpy.app.handlers, callback_name)
+            for fn in cls.watching[callback_name]:
+                callbacks.append(fn)
 
 RFOperator.InvalidationManager = InvalidationManager
 # RFBrush_Base.InvalidationManager = InvalidationManager
