@@ -32,7 +32,10 @@ from bpy_extras.view3d_utils import (
     location_3d_to_region_2d,
 )
 
-from .maths import point_to_bvec3, vector_to_bvec3, point_to_bvec4, vector_to_bvec4
+from .maths import (
+    point_to_bvec3, vector_to_bvec3, point_to_bvec4, vector_to_bvec4,
+    xform_point, xform_vector, xform_direction, xform_normal,
+)
 
 def mouse_from_event(event): return (event.mouse_region_x, event.mouse_region_y)
 
@@ -321,27 +324,27 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
 
 def nearest_normal_valid_sources(context, point, *, world=True):
     point_world = Vector((*point, 1.0))
-    best_hit = None
+    best_no_world = None
     best_dist = float('inf')
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted()
+        Mit = Mi.transposed()
         point_local = Mi @ point
         result, co, normal, idx = obj.closest_point_on_mesh(point_local)
         if not result: continue
-        co_world = M @ Vector((*co, 1.0))
-        no_world = M @ Vector((*normal, 0.0))
+        co_world = xform_point(M, co)
+        no_world = xform_normal(Mit, normal)
         dist = distance_between_locations(point_world, co_world)
         # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue
-        best_hit = no_world
+        best_no_world = no_world
         best_dist = dist
-    if not best_hit: return None
+    if not best_no_world: return None
 
-    hit = Vector((*vector_to_bvec3(best_hit), 0.0))
-    if not world:
-        M = context.active_object.matrix_world
-        Mi = M.inverted()
-        hit = Mi @ hit
-    return vector_to_bvec3(hit)
+    if world: return best_no_world
+
+    M = context.active_object.matrix_world
+    Mt = M.transposed()
+    return xform_direction(Mt, best_no_world)

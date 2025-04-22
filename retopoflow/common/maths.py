@@ -100,6 +100,8 @@ def xform_vector(M, v):
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(v))
 def xform_direction(M, d):
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(d)).normalized()
+def xform_normal(Mit, d):
+    return vector_to_bvec3(Mit @ bvec_vector_to_bvec4(d)).normalized()
 
 
 # return point on line segment where x/y/z is 0
