@@ -9,10 +9,10 @@ from .list_base cimport ListBase
 
 # #BMHeader.htype (char)
 class BMHeaderType(Enum):
-    BM_VERT = 1
-    BM_EDGE = 2
-    BM_LOOP = 4
-    BM_FACE = 8
+    HTYPE_VERT = 1
+    HTYPE_EDGE = 2
+    HTYPE_LOOP = 4
+    HTYPE_FACE = 8
 
 
 # Basic structures needed for BMesh elements
