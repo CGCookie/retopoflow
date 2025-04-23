@@ -1,14 +1,13 @@
 # distutils: language=c++
 # cython: language_level=3
 
-from enum import Enum
 from libc.stdint cimport uint32_t
 
 from .list_base cimport ListBase
 
 
 # #BMHeader.htype (char)
-class BMHeaderType(Enum):
+cdef enum BMHeaderType:
     HTYPE_VERT = 1
     HTYPE_EDGE = 2
     HTYPE_LOOP = 4
