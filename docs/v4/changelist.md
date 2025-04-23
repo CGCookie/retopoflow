@@ -2,7 +2,21 @@
 
 This document contains details about what has changed in Retopoflow in version 4.x.
 
-### 4.0.0 alpha
+### 4.0.0 beta 2
+
+New:
+- Contours can now extend from the correct boundary regardless of which loop is selected
+- Improved Relax performance
+- Disabled Relax Face Radius and Face Angles options by default since they are not always stable
+- Renamed Stroke Smoothing to Stabilize to match Blender's term
+- Added Stabilize control to Strokes
+- F1 now opens documentation and F2 reports an issue
+
+Fixed:
+- Fixed crash when a conflicting add-on listens for mesh changes and frees bmesh while we're using it
+- Fixed issue with flipped normals when the retopology object's origin is far away
+
+### 4.0.0 beta 1
 
 Retopoflow 4 is a complete rewrite of Retopoflow that massively improves performance and integrates the tools directly into Blender's Edit Mode. 
 
