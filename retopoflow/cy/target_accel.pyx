@@ -42,6 +42,10 @@ import mathutils
 cdef float finf = <float>1e1000
 
 
+# Specific Debug constants.
+cdef bint DEBUG_SELECT_BOX = True
+
+
 # Define a ctypes version of the AccelPoint struct that matches the Cython definition
 class AccelPointCtypes(ctypes.Structure):
     _fields_ = [
@@ -1203,6 +1207,37 @@ cdef class TargetMeshAccel:
                     if loop == <BMLoop*>face.l_first:
                         break
 
+        # Debug selection.
+        cdef int num_verts_selected = 0
+        cdef int num_edges_selected = 0
+        cdef int num_faces_selected = 0
+
+        if DEBUG_SELECT_BOX:
+            # Check how many verts, edges, and faces are selected.
+            for i in range(self.totvisverts):
+                vert = self.visverts[i]
+                if vert == NULL:
+                    continue
+                if BM_elem_flag_test(&vert.head, BMElemHFlag.BM_ELEM_SELECT):
+                    num_verts_selected += 1
+
+            for i in range(self.totvisedges):
+                edge = self.visedges[i]
+                if edge == NULL:
+                    continue
+                if BM_elem_flag_test(&edge.head, BMElemHFlag.BM_ELEM_SELECT):
+                    num_edges_selected += 1
+
+            for i in range(self.totvisfaces):
+                face = self.visfaces[i]
+                if face == NULL:
+                    continue
+                if BM_elem_flag_test(&face.head, BMElemHFlag.BM_ELEM_SELECT):
+                    num_faces_selected += 1
+
+            with gil:
+                print(f"[CYTHON] Selected: {num_verts_selected} verts, {num_edges_selected} edges, {num_faces_selected} faces")
+
         return selection_changed
 
     
@@ -1721,17 +1756,20 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
     if dot_product >= 0:  # If not facing camera
         return False
 
+    # NOTE: Early return for testing
+    return True
+
     # Project the 3D point to 2D screen space
     location_3d_to_region_2d(region, rv3d.persmat, world_pos, &region_pos[0])
     
     # Convert to pixel coordinates
     x = <int>region_pos[0]
     y = <int>region_pos[1]
-    
+
     # Check if coordinates are within viewport
     if not (0 <= x < buffer_width and 0 <= y < buffer_height):
         return False  # Outside viewport
-    
+
     # Get the depth at the vertex's screen position
     # For y-flipped, row-major buffer (standard in Blender's framebuffer)
     cdef int index
