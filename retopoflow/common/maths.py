@@ -100,13 +100,6 @@ def lerp_map(v, vm, vM, m, M):
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
-def log_map(value, from_min=0, from_max=1, to_min=0, to_max=1):
-    if value == 0:
-        return 0
-    safety = 0.11
-    curved = math.log(value + safety, 10) + 1
-    return map_range(curved, from_min, from_max, to_min, to_max)
-
 def xform_point(M, p):
     return point_to_bvec3(M @ bvec_point_to_bvec4(p))
 def xform_vector(M, v):
