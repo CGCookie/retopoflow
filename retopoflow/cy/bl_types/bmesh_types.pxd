@@ -1,9 +1,18 @@
 # distutils: language=c++
 # cython: language_level=3
 
+from enum import Enum
 from libc.stdint cimport uint32_t
 
 from .list_base cimport ListBase
+
+
+# #BMHeader.htype (char)
+class BMHeaderType(Enum):
+    BM_VERT = 1
+    BM_EDGE = 2
+    BM_LOOP = 4
+    BM_FACE = 8
 
 
 # Basic structures needed for BMesh elements
@@ -13,7 +22,7 @@ cdef struct BMHeader:
     char htype
     char hflag
     char api_flag
-    char _pad
+    # char _pad
 
 # Just a wrapper for all elem types to get unified access to BMHeader data
 cdef struct BMElem:
@@ -61,8 +70,8 @@ cdef struct BMFace:
 cdef struct BMesh:
     int totvert, totedge, totloop, totface
     int totvertsel, totedgesel, totfacesel
-    char elem_index_dirty
-    char elem_table_dirty
+    char elem_index_dirty  # BMHeaderType
+    char elem_table_dirty  # BMHeaderType
     void* vpool  # BLI_mempool*
     void* epool  # BLI_mempool*
     void* lpool  # BLI_mempool*
@@ -87,5 +96,3 @@ cdef struct BMesh:
     void* act_face  # BMFace*
     ListBase errorstack
     void* py_handle  # Python object reference
-
-
