@@ -18,13 +18,13 @@ cdef enum BMElemHFlag:
 
 # Helper functions to check flags
 cdef inline bint BM_elem_flag_test(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
-    return head.hflag & hflag
+    return <bint>((head.hflag & <char>hflag) != 0)
 
 cdef inline void BM_elem_flag_set(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
-    head.hflag |= hflag
+    head.hflag |= <char>hflag
 
 cdef inline void BM_elem_flag_clear(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
-    head.hflag &= ~hflag
+    head.hflag &= ~<char>hflag
 
 cdef inline void BM_elem_flag_toggle(BMHeader* head, BMElemHFlag hflag) noexcept nogil:
-    head.hflag ^= hflag
+    head.hflag ^= <char>hflag
