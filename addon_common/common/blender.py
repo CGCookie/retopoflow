@@ -824,9 +824,8 @@ class ModifierWrapper_Mirror:
     normalize the mirror modifier API across 2.79 and 2.80
     '''
     @staticmethod
-    def create_new(obj):
-        bpy.ops.object.modifier_add(type='MIRROR')
-        mod = ModifierWrapper_Mirror(obj, obj.modifiers[-1])
+    def create_new(obj: bpy.types.Object):
+        mod = ModifierWrapper_Mirror(obj, obj.modifiers.new("Mirror", type='MIRROR'))
         mod.set_defaults()
         return mod
 
