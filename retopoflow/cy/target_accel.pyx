@@ -43,7 +43,8 @@ cdef float finf = <float>1e1000
 
 
 # Specific Debug constants.
-cdef bint DEBUG_SELECT_BOX = True
+cdef bint DEBUG_SELECT_BOX_SELECTED_GEOM = True
+cdef bint DEBUG_SELECT_BOX_MATRICES = True
 
 
 # Define a ctypes version of the AccelPoint struct that matches the Cython definition
@@ -1132,22 +1133,24 @@ cdef class TargetMeshAccel:
             if self.deselect_all(GeomType.BM_ALL):
                 selection_changed = True
 
-        '''print("[PYTHON] PERSPECTIVE MATRIX:")
-        mat = self.py_rv3d.perspective_matrix
-        for i in range(4):
-            for j in range(4):
-                print("\t", mat[i][j])
-        print("[PYTHON]", self.py_region.width, self.py_region.height)
-        print("[CYTHON] PERSPECTIVE MATRIX:")
-        for i in range(4):
-            for j in range(4):
-                print("\t", perspmat[j][i])
-        print("[CYTHON] REGION SIZE:", self.region.winx, self.region.winy)'''
+        if DEBUG_SELECT_BOX_MATRICES:
+            with gil:
+                print("[PYTHON] PERSPECTIVE MATRIX:")
+                mat = self.py_rv3d.perspective_matrix
+                for i in range(4):
+                    for j in range(4):
+                        print("\t", mat[i][j])
+                print("[PYTHON]", self.py_region.width, self.py_region.height)
+                print("[CYTHON] PERSPECTIVE MATRIX:")
+                for i in range(4):
+                    for j in range(4):
+                        print("\t", self.rv3d.persmat[j][i])
+                print("[CYTHON] REGION SIZE:", self.region.winx, self.region.winy)
 
-        '''print("[CYTHON] MATRIX WORLD:")
-        for i in range(4):
-            for j in range(4):
-                print("\t", mw[j][i])'''
+                print("[CYTHON] MATRIX WORLD:")
+                for i in range(4):
+                    for j in range(4):
+                        print("\t", self.matrix_world[j][i])
 
         # Iterate over visible geometry based on type
         if select_geometry_type == GeomType.BM_VERT:
@@ -1212,7 +1215,7 @@ cdef class TargetMeshAccel:
         cdef int num_edges_selected = 0
         cdef int num_faces_selected = 0
 
-        if DEBUG_SELECT_BOX:
+        if DEBUG_SELECT_BOX_SELECTED_GEOM:
             # Check how many verts, edges, and faces are selected.
             for i in range(self.totvisverts):
                 vert = self.visverts[i]
