@@ -15,6 +15,8 @@ To start retopologizing in Blender after installing Retopoflow:
 
 All of the Retopoflow tools require some other object in the scene that the new geometry can snap to. You can also create a new retopology object yourself or select an existing retopology object, enter Edit Mode on it, and switch to any of the RetopoFlow tools in the toolbar.
 
+If you are seeing the retopology mesh through the source object, decrease the retopology overlay's offset distance in either Blender's Edit Mode Overlays popover or Retopoflow's General options.
+
 
 Enjoy!
 

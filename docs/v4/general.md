@@ -3,11 +3,13 @@ In previous versions, Retopoflow tools were only accessable in a special mode th
 
 Entering a Retopoflow tool will adjust Blender's settings for:
 - The selection mode
-- The retopology overlay
 - Snapping
 - Auto-merging vertices
+- The retopology overlay
+- Fading inactive geometry
+- Object wireframes (for seeing the result of modifiers)
 
-Switching out of a Retopoflow tool will restore all of your previous settings.
+Switching out of a Retopoflow tool will restore all of your previous settings. You can enable or disable any of these automatic behaviors in Retopoflow's preferences.
 
 ## Terminology
 
@@ -15,8 +17,10 @@ Switching out of a Retopoflow tool will restore all of your previous settings.
 | Source Object(s) | : | The original object(s) that you are re-creating.  These meshes typically have a high polygon count with poor topology and edge flow (ex: result of Dyntopo in Sculpt Mode) |
 | Retopology Object    | : | The new object that stores the retopologized surface.  This mesh typically has a low polygon count with good topology and edge flow. |
 
+You must have at least one source object to draw on for the Retopoflow tools to function.
+
 Any mesh object that is visible and not the active retopolgoy object is considered a source object.
-This means that you can hide or move objects to different scenes to change which source objects will be retopologized. 
+This means that you can hide or move objects to different scenes to change which source objects will be retopologized.
 
 You can also mark objects as non-selectable in the Outliner and in Retopoflow's Options menu (far right in the tool header) choose Exclude Non-Selectable to keep those objects visible but not acting as sources.
 
@@ -32,7 +36,7 @@ The tools in Retopoflow can be used in any selection mode, but are generally mor
 
 *Tip: In Blender, you can always enable multiple selection modes by holding* `Shift` *while choosing them.*
 
-Blender's default shortcut for loop selection is `Alt Left Click` or `Double Click` depending on your preferences. In Retopoflow, you can always use both! 
+Blender's default shortcut for loop selection is `Alt Left Click` or `Double Click` depending on your preferences. In Retopoflow, you can always use both!
 
 ## Altered Operators
 
@@ -42,7 +46,7 @@ Retopoflow has slightly altered versions of a few Blender operators in order to 
 
 ## Common Settings
 
-All settings for the Retopoflow tools can be found in the 3D View tool header, the sidebar in the Tool tab, or the Tool tab of the Properties Editor when the tool is active in the 3D View toolbar. 
+All settings for the Retopoflow tools can be found in the 3D View tool header, the sidebar in the Tool tab, or the Tool tab of the Properties Editor when the tool is active in the 3D View toolbar.
 
 The insert tools share the same **Tweak** settings for how big the selection hitbox is, whether vertices are auto-merged, and how big the auto-merge threshold is while using `LMB Drag` on geometry to tweak it. *These settings are not the same as the Tweak Brush tool settings.*
 
@@ -58,11 +62,13 @@ The far right side of the tool settings in any Retopoflow tool is the General Op
 
 - Choose to exclude non-selectable objects from being a snapping source
     - This is the same as Blender's option of the same name in the Snapping settings
-- Adjust the retopology overlay's color and depth
+- Adjust the retopology overlay's color and offset distance
 - Adjust how much non-active objects are faded
 - Choose to expand or collapse the Retopoflow tools in the toolbar
 - Choose to expand or collapse the masking options in the tool header for the brush tools
 
+If you are seeing the retopology object through the source object, decrease the retopology offset distance.
+
 ## Switching Tools
 
-You can quickly switch between Retopoflow tools and access some of their common settings by using the Retopoflow pie menu. It is currently mapped to the hotkey `W` while a Retopoflow tool is active. 
+You can quickly switch between Retopoflow tools and access some of their common settings by using the Retopoflow pie menu. It is currently mapped to the hotkey `W` while a Retopoflow tool is active.
