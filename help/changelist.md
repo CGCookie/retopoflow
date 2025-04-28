@@ -2,6 +2,35 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.6&rarr;3.4.7
+- Fixed issue with undo after exiting sometimes causing loss of work 
+- Updated online help links to work with new docs website 
+
+### RetopoFlow 3.4.5&rarr;3.4.6
+
+- Updated tool hotkey numbers (0-9) to match the toolbar order
+- Fixed issue with installing in Blender 4.4 on Mac
+- Updated RetopoFlow menu layout
+- Removed updater from menu since it does not work with recent Blender versions
+- Fixed crash when drawing a specific unsupported shape in Strokes
+- Fixed a couple misc. errors
+
+
+### RetopoFlow 3.4.4&rarr;3.4.5
+
+- Added ability for PolyStrips to create closed loops
+- Improved RetopoFlow mode startup time
+- Improved performance when parts of the mesh are hidden
+- Fixed occasional crossed quads when filling holes with Strokes
+- Fixed Contours sometimes twisting when filling between two loops
+- Fixed auto-save file sometimes having cleared object rotation
+- Fixed orbiting around selection when parts of the mesh are hidden
+- Fixed several miscellaneous errors
+
+### RetopoFlow 3.4.3&rarr;3.4.4
+
+- Added compatability with Blender extensions
+
 ### RetopoFlow 3.4.2&rarr;3.4.3
 
 - Fixed text rendering bug
