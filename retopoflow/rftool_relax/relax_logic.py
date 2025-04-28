@@ -134,6 +134,7 @@ class Relax_Logic:
         nearest = nearest_bmverts # self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv in nearest:
+            if bmv.hide: continue
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
