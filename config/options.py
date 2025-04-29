@@ -219,7 +219,8 @@ class Options:
         'tools autohide':       True,   # should tool's options auto-hide/-show when switching tools?
         
         # PERFORMANCE SETTINGS
-        'use cython': False,  # enable Cython accel modules to speed up RF
+        'use cython accel tools': False,  # enable Cython accel modules to speed up RF tools
+        'use cython accel render': False,  # enable Cython accel modules to speed up RF mesh rendering
 
         # DEBUG, PROFILE, INSTRUMENT SETTINGS
         'profiler':             False,  # enable profiler?

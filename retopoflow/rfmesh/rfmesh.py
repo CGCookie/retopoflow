@@ -1022,7 +1022,7 @@ class RFMesh():
     ### @timing
     def visible_verts(self, is_visible, verts=None):
         
-        if options['use cython'] and Globals.target_accel is not None:
+        if options['use cython accel tools'] and Globals.target_accel is not None:
             vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, wrapped=True)
             if verts == None:
                 return vis_verts
@@ -1036,7 +1036,7 @@ class RFMesh():
 
     ### @timing
     def visible_edges(self, is_visible, verts=None, edges=None):
-        if options['use cython'] and Globals.target_accel is not None:
+        if options['use cython accel tools'] and Globals.target_accel is not None:
             _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, edges=True, wrapped=True)
             # if verts != None:
             #     verts_indices = {v.index for v in verts}
@@ -1060,7 +1060,7 @@ class RFMesh():
 
     ### @timing
     def visible_faces(self, is_visible, verts=None, faces=None):
-        if options['use cython'] and Globals.target_accel is not None:
+        if options['use cython accel tools'] and Globals.target_accel is not None:
             _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, faces=True, wrapped=True)
             # if verts != None:
             #     verts_indices = {v.index for v in verts}

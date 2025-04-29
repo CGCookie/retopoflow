@@ -93,28 +93,31 @@ class RetopoFlow_Target:
         self.accel_recompute = True
 
         Globals.target_accel = None
-        if options['use cython'] and Globals.CY_TargetMeshAccel is not None:
-            with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
-                target = self.rftarget
-                actions = Actions.get_instance(None)
-                region_3d = actions.r3d
-                region = actions.region
-                space = actions.space
-
-                Globals.target_accel = Globals.CY_TargetMeshAccel(
-                    target.obj,
-                    target.bme,
-                    region,
-                    space,
-                    region_3d,
-                    Globals.framebuffer,
-                    Globals.viewport_info,
-                    RFVert,
-                    RFEdge,
-                    RFFace
-                )
+        if options['use cython accel tools'] and Globals.CY_TargetMeshAccel is not None:
+            self.setup_target_accel()
 
         self._draw_count = 0
+
+    def setup_target_accel(self):
+        with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
+            target = self.rftarget
+            actions = Actions.get_instance(None)
+            region_3d = actions.r3d
+            region = actions.region
+            space = actions.space
+
+            Globals.target_accel = Globals.CY_TargetMeshAccel(
+                target.obj,
+                target.bme,
+                region,
+                space,
+                region_3d,
+                Globals.framebuffer,
+                Globals.viewport_info,
+                RFVert,
+                RFEdge,
+                RFFace
+            )
 
     @property
     def accel_vis_verts(self): return self.accel_data_all.verts
@@ -346,7 +349,10 @@ class RetopoFlow_Target:
         accel_data.recompute = False
 
         try:
-            if options['use cython'] and Globals.target_accel is not None:
+            if options['use cython accel tools']:
+                if Globals.target_accel is None:
+                    self.setup_target_accel()
+
                 # TEST CYTHON ALTERNATIVE:
                 # Use accelerated functions for geometry processing
                 match selected_only:

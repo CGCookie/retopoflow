@@ -215,7 +215,7 @@ class RFMeshRender():
         
         # Create accelerator instance
         CY_MeshRenderAccel = Globals.CY_MeshRenderAccel
-        if CY_MeshRenderAccel is not None:
+        if options['use cython accel render'] and CY_MeshRenderAccel is not None:
             accel = CY_MeshRenderAccel(
                 self.bmesh, 
                 mirror_x=mirror_x,

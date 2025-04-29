@@ -155,8 +155,12 @@ def mirror_changed(self):
                     <h1 title="Performance Settings">Performance</h1>
                     <div class="contents">
                         <label>
-                            <input type="checkbox" checked="self._var_use_cython" title="If enabled, Cython will be used to speed up RetopoFlow tools. (Select tool does not have occluded geometry into account yet)">
-                            Accelerate Processing
+                            <input type="checkbox" checked="self._var_use_cy_accel_tools" title="If enabled, Cython will be used to speed up RetopoFlow tools. (Select tool does not have occluded geometry into account yet)">
+                            Accelerate Tools
+                        </label>
+                        <label>
+                            <input type="checkbox" checked="self._var_use_cy_accel_render" title="If enabled, Cython will be used to speed up RetopoFlow rendering.">
+                            Accelerate Rendering
                         </label>
                     </div>
                 </div>
