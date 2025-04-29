@@ -67,9 +67,6 @@ class SelectedOnly(Enum):
     UNSELECTED = 2
 
 
-DEBUG_TARGET_ACCEL = False
-
-
 class RetopoFlow_Target:
     '''
     functions to work on target mesh (RFTarget)
@@ -99,7 +96,7 @@ class RetopoFlow_Target:
         self._draw_count = 0
 
     def setup_target_accel(self):
-        with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
+        with time_it('[CYTHON] TargetMeshAccel initialization', enabled=options['debug cython accel tools']):
             target = self.rftarget
             actions = Actions.get_instance(None)
             region_3d = actions.r3d
@@ -352,6 +349,8 @@ class RetopoFlow_Target:
             if options['use cython accel tools']:
                 if Globals.target_accel is None:
                     self.setup_target_accel()
+                    
+                use_cy_debug = options['debug cython accel tools']
 
                 # TEST CYTHON ALTERNATIVE:
                 # Use accelerated functions for geometry processing
@@ -375,9 +374,9 @@ class RetopoFlow_Target:
                 Globals.target_accel.py_update_bmesh(self.rftarget.bme)
                 Globals.target_accel.py_set_symmetry(mm.x, mm.y, mm.z)
 
-                with time_it('[CYTHON] TargetMeshAccel.update()', enabled=DEBUG_TARGET_ACCEL):
-                    if DEBUG_TARGET_ACCEL: print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
-                    if not Globals.target_accel.update(selected_only.value, debug=DEBUG_TARGET_ACCEL):
+                with time_it('[CYTHON] TargetMeshAccel.update()', enabled=use_cy_debug):
+                    if use_cy_debug: print(f'[CYTHON] TargetMeshAccel.update()     <----- begin')
+                    if not Globals.target_accel.update(selected_only.value, debug=use_cy_debug):
                         raise Exception('Error updating TargetMeshAccel.')
                         accel_data.accel = None
                         accel_data.verts = set()
@@ -385,18 +384,18 @@ class RetopoFlow_Target:
                         accel_data.faces = set()
                         return accel_data
 
-                with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=DEBUG_TARGET_ACCEL):
-                    if DEBUG_TARGET_ACCEL: print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
+                with time_it('[CYTHON] TargetMeshAccel.get_visible_geom()', enabled=use_cy_debug):
+                    if use_cy_debug: print(f'[CYTHON] TargetMeshAccel.get_visible_geom()     <----- begin')
                     accel_data.verts, accel_data.edges, accel_data.faces = Globals.target_accel.get_visible_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
 
-                # with time_it('[CYTHON] getting selected geometry', enabled=DEBUG_TARGET_ACCEL):
+                # with time_it('[CYTHON] getting selected geometry', enabled=use_cy_debug):
                 #     sel_verts, sel_edges, sel_faces = Globals.target_accel.get_selected_geom(self.rftarget.bme, verts=True, edges=True, faces=True)
 
                 # Test Cython SpatialAccel structure (WIP, unstable).
                 # accel_data.accel = Accel2D_CyWrapper(Globals.target_accel)
                 
                 # TODO: REMOVE THIS WHEN CYTHON ACCEL IS COMPLETE.
-                '''with time_it('[PYTHON] building accel struct', enabled=DEBUG_TARGET_ACCEL):
+                '''with time_it('[PYTHON] building accel struct', enabled=use_cy_debug):
                     accel_data.accel = Accel2D(
                         f'RFTarget visible geometry ({selected_only=})',
                         accel_data.verts,
@@ -405,7 +404,7 @@ class RetopoFlow_Target:
                         self.iter_point2D_symmetries
                     )'''
 
-                with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=DEBUG_TARGET_ACCEL):
+                with time_it('[CYTHON+PYTHON] building Python Accel2DOptimized struct from Cython pre-computed accel2d_points', enabled=use_cy_debug):
                     accel_data.accel = Accel2DOptimized(
                         # accel_data.verts, accel_data.edges, accel_data.faces,
                         self.rftarget.bme.verts, self.rftarget.bme.edges, self.rftarget.bme.faces,

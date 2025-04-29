@@ -176,6 +176,10 @@ def mirror_changed(self):
                             <input type="checkbox" checked="BoundBool('''self.cc_debug_actions_enabled''')" title="Check to print (most) input actions to text block">
                             Print Actions
                         </label>
+                        <label>
+                            <input type="checkbox" checked="BoundBool('''options['debug cython accel tools']''')" title="Check to print Cython acceleration tools debug info">
+                            Print Accel Tools
+                        </label>
                     </div>
                 </details>
                 <button title="Reset RetopoFlow back to factory settings" on_mouseclick="reset_options(self)">Reset All Settings</button>
