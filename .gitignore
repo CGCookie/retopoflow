@@ -8,6 +8,8 @@ retopoflow/cy/**/*.c
 retopoflow/cy/**/*.h
 retopoflow/cy/_tests/
 retopoflow/cy/_html/
+# This file is switched out based on the target Blender version to compile for.
+retopoflow/cy/bl_types/__init__.pxd
 
 # do not include the CG Cookie built indicator file
 .cgcookie

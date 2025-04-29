@@ -43,8 +43,8 @@ cdef float finf = <float>1e1000
 
 
 # Specific Debug constants.
-cdef bint DEBUG_SELECT_BOX_SELECTED_GEOM = True
-cdef bint DEBUG_SELECT_BOX_MATRICES = True
+cdef bint DEBUG_SELECT_BOX_SELECTED_GEOM = False
+cdef bint DEBUG_SELECT_BOX_MATRICES = False
 
 
 # Define a ctypes version of the AccelPoint struct that matches the Cython definition

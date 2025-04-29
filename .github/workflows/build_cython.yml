@@ -1,4 +1,4 @@
-name: Build Cython Extensions
+name: Build and Commit Cython Extensions
 
 on:
   push:
@@ -7,6 +7,8 @@ on:
       - 'retopoflow/cy/*.pxd'
       - 'cy_setup.py'
       - '.github/workflows/build_cython.yml'
+    branches:
+      - v3-performance # Or specific branches where commits should happen
   pull_request:
     paths:
       - 'retopoflow/cy/*.pyx'
@@ -16,152 +18,186 @@ on:
 
 jobs:
   build:
-    name: Build on ${{ matrix.os }}
+    name: Build B${{ matrix.blender-version }} on ${{ matrix.os }} (${{ matrix.target || 'default' }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ['3.11.11']  # Match exact Python version used by Blender
+        blender-version: ['4.3', '4.4']
+        python-version: ['3.11'] # Assuming 3.11 for both
         include:
+          # Blender 4.3 Dependencies
+          - blender-version: '4.3'
+            numpy-version: '1.24.4'
+            cython-version: '3.0.11'
+            output-suffix: '43'
+          # Blender 4.4 Dependencies
+          - blender-version: '4.4'
+            numpy-version: '1.26.4'
+            cython-version: '3.0.11'
+            output-suffix: '44'
+
+          # macOS specific targets
           - os: macos-latest
-            target: native
+            target: native # For arm64 build
             compile_target: arm64
           - os: macos-latest
-            target: intel
+            target: intel # For x86_64 build
             compile_target: x86_64
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
-    # Windows-specific setup for Visual Studio 2022 - using default toolset
     - name: Set up MSVC (Visual Studio 2022)
       if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        # Use default VS2022 toolset without specifying a version
-        arch: x64       # Target 64-bit architecture
+        arch: x64
 
-    # Debug information for build environment
-    - name: Debug build environment
+    - name: Debug build environment info
       shell: bash
       run: |
-        python -c "import sys; print(f'Python version: {sys.version}')"
-        python -c "import platform; print(f'Platform: {platform.platform()}')"
-        python -c "import os; print(f'Environment: {os.environ.get(\"PLAT_NAME\", \"unknown\")}')"
-        python -c "import platform; print(f'Machine: {platform.machine()}')"
-        python -c "import sysconfig; print(f'Platform tag: {sysconfig.get_platform()}')"
+        echo "Python Version: $(python --version)"
+        echo "Platform: $(python -c 'import platform; print(platform.platform())')"
+        echo "Machine: $(python -c 'import platform; print(platform.machine())')"
+        echo "OS Env PLAT_NAME: ${{ env.PLAT_NAME || 'N/A' }}"
+        echo "Compile Target: ${{ matrix.compile_target || 'N/A' }}"
+        echo "Blender Version: ${{ matrix.blender-version }}"
+        echo "Numpy Version: ${{ matrix.numpy-version }}"
+        echo "Cython Version: ${{ matrix.cython-version }}"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install cython numpy setuptools wheel
+        python -m pip install numpy==${{ matrix.numpy-version }} cython==${{ matrix.cython-version }} setuptools wheel
 
-    # Platform-specific build commands
+    # --- Build Commands --- Use cy_setup.py directly
     - name: Build Cython extensions (Windows)
       if: matrix.os == 'windows-latest'
       shell: cmd
       run: |
-        echo "Building with MSVC for Windows..."
-        python cy_setup.py build_ext --inplace --compiler=msvc
+        echo "Building B${{ matrix.blender-version }} for Windows..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
+        if %errorlevel% neq 0 exit /b %errorlevel%
 
     - name: Build Cython extensions (macOS)
       if: matrix.os == 'macos-latest'
       shell: bash
       env:
         TARGET_ARCH: ${{ matrix.compile_target }}
-        ARCHFLAGS: ${{ matrix.target == 'intel' && '-arch x86_64' || matrix.target == 'native' && '-arch arm64' || '' }}
+        ARCHFLAGS: "-arch ${{ matrix.compile_target }}"
       run: |
-        echo "Building for macOS with arch: $TARGET_ARCH..."
-        python cy_setup.py build_ext --inplace
+        echo "Building B${{ matrix.blender-version }} for macOS with arch: $TARGET_ARCH..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
 
     - name: Build Cython extensions (Linux)
       if: matrix.os == 'ubuntu-latest'
       shell: bash
       run: |
-        echo "Building for Linux..."
-        python cy_setup.py build_ext --inplace
+        echo "Building B${{ matrix.blender-version }} for Linux..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
 
-    - name: List compiled extensions
+    - name: List compiled files in output dir
       shell: bash
       run: |
-        cd retopoflow/cy
-        echo "Current directory contents:"
-        ls -la
-        
-        echo -e "\nSearching for compiled files recursively:"
-        find . -type f \( -name "*.so" -o -name "*.pyd" \) || true
-        
-        # For Windows, show more details about the .pyd files
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          echo -e "\nDetails of Windows .pyd files:"
-          # Use dir instead of dumpbin as it's more universally available
-          dir *.pyd || true
-        fi
-        
-        # Don't fail if no files are found
-        if ! find . -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
-          echo "No compiled extensions found. This might indicate a build issue."
-          # Continue without failing
-          exit 0
+        echo "Checking for compiled files in retopoflow/compiled/b${{ matrix.output-suffix }} ..."
+        ls -lR retopoflow/compiled/b${{ matrix.output-suffix }} || echo "Directory not found or empty."
+        echo "Searching for .so/.pyd files..."
+        find retopoflow/compiled/b${{ matrix.output-suffix }} -type f \( -name "*.so" -o -name "*.pyd" \) -print
+        if ! find retopoflow/compiled/b${{ matrix.output-suffix }} -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
+          echo "Warning: No compiled extensions found in expected output directory!"
         fi
 
-    - name: Upload compiled extensions
+    - name: Upload compiled version directory
       uses: actions/upload-artifact@v4
-      if: always()  # Try to upload even if previous step failed
+      if: always()
       with:
-        name: compiled-extensions-${{ matrix.os }}-${{ matrix.target || 'default' }}
-        path: |
-          retopoflow/cy/**/*.so
-          retopoflow/cy/**/*.pyd
-        if-no-files-found: warn  # Change from error to warn
+        name: compiled-b${{ matrix.output-suffix }}-${{ matrix.os }}-${{ matrix.target || 'default' }}
+        path: retopoflow/compiled/b${{ matrix.output-suffix }}
+        if-no-files-found: warn
         retention-days: 7
 
-  commit-files:
+  commit-compiled-files:
     needs: build
     runs-on: ubuntu-latest
+    # Only run this job on pushes to the main branch (or specific branches)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository code
+      uses: actions/checkout@v4
       with:
-        # Add this to ensure we have the full git history
+        # Need fetch-depth 0 for git push
         fetch-depth: 0
 
-    - name: Download all artifacts
+    - name: Download all compiled artifacts
       uses: actions/download-artifact@v4
       with:
-        path: artifacts
-        merge-multiple: true
+        path: artifacts # Download all artifacts into 'artifacts/' directory
 
-    - name: Copy compiled files to cy folder
+    - name: List downloaded artifacts
+      run: ls -lR artifacts
+
+    - name: Merge compiled artifacts into retopoflow/compiled
+      shell: bash
       run: |
-        mkdir -p retopoflow/cy
-        # Copy files preserving directory structure
-        cd artifacts
-        find . -type f \( -name "*.so" -o -name "*.pyd" \) -exec cp -f --parents --preserve=mode,timestamps {} ../retopoflow/cy/ \;
-        cd ..
-        ls -la retopoflow/cy/
-        find retopoflow/cy -type f \( -name "*.so" -o -name "*.pyd" \)
+        echo "Creating final retopoflow/compiled directory..."
+        # Remove existing compiled dir first to ensure clean state, handle case where it doesn't exist
+        rm -rf retopoflow/compiled || true
+        mkdir -p retopoflow/compiled
+
+        echo "Merging compiled artifacts..."
+        # Iterate through downloaded artifact directories (e.g., artifacts/compiled-b43-ubuntu-latest-default)
+        # Use find to handle varying artifact directory names robustly
+        find artifacts -mindepth 1 -maxdepth 1 -type d -name 'compiled-b*' -print0 | while IFS= read -r -d $'' artifact_dir; do
+          echo " Processing artifact: $artifact_dir"
+          # Extract the 'bXX' part (e.g., b43, b44)
+          version_dir_name=$(basename "$artifact_dir" | cut -d'-' -f2)
+          source_compiled_dir="$artifact_dir/$version_dir_name" # Path to the bXX directory inside the artifact folder
+          target_compiled_dir="retopoflow/compiled/$version_dir_name" # Target path in the final structure
+
+          echo "  Source: $source_compiled_dir"
+          echo "  Target: $target_compiled_dir"
+
+          if [ -d "$source_compiled_dir" ]; then
+            # Ensure target parent exists before copying the directory itself
+            mkdir -p "$(dirname "$target_compiled_dir")"
+            # Copy the entire bXX directory
+            cp -a "$source_compiled_dir" "$target_compiled_dir"
+            echo "  Copied directory $version_dir_name."
+          else
+            echo "  Warning: Source directory $source_compiled_dir not found within artifact $artifact_dir. Skipping."
+          fi
+        done
+
+    - name: Verify final compiled structure
+      run: |
+        echo "Final compiled directory structure:"
+        ls -lR retopoflow/compiled
+        echo "Checking for expected binaries:"
+        find retopoflow/compiled -type f \( -name "*.so" -o -name "*.pyd" \) -print
 
     - name: Configure Git
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        # Ensure Git treats these files as binary
-        echo "*.so binary" >> .gitattributes
-        echo "*.pyd binary" >> .gitattributes
+        # Add .gitattributes entry to ensure git treats compiled files as binary
+        echo "retopoflow/compiled/** binary" >> .gitattributes
+        git add .gitattributes
 
     - name: Commit and push changes
       run: |
-        # Add .gitattributes first
-        git add .gitattributes
-        
-        # Find and add all .so and .pyd files recursively
-        find retopoflow/cy -type f \( -name "*.so" -o -name "*.pyd" \) -exec git add {} \;
-        
-        git commit -m "Update compiled Cython extensions [skip ci]" || echo "No changes to commit"
-        git push
+        git add retopoflow/compiled
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes detected in compiled files."
+        else
+          git commit -m "Update compiled Cython extensions [skip ci]"
+          echo "Pushing changes..."
+          git push
+        fi

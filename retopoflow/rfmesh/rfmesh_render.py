@@ -60,7 +60,6 @@ from ...config.options import options
 from .rfmesh_wrapper import (
     BMElemWrapper, RFVert, RFEdge, RFFace, RFEdgeSequence,
 )
-from .rfmesh import CY_MeshRenderAccel
 
 
 
@@ -215,6 +214,7 @@ class RFMeshRender():
         layer_pin = self.rfmesh.layer_pin
         
         # Create accelerator instance
+        CY_MeshRenderAccel = Globals.CY_MeshRenderAccel
         if CY_MeshRenderAccel is not None:
             accel = CY_MeshRenderAccel(
                 self.bmesh, 

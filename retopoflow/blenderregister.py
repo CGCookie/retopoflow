@@ -40,6 +40,9 @@ from ..addon_common.common.decorators import add_cache
 from ..addon_common.cookiecutter.cookiecutter import CookieCutter
 
 
+BLENDER_VERSION = bpy.app.version
+BLENDER_VERSIONS_SUPPORTED_BY_CYTHON = {43, 44}
+
 import_succeeded = False
 
 try:
@@ -1243,7 +1246,72 @@ if not import_succeeded:
             box.operator('cgcookie.retopoflow_web_blendermarket', icon='URL')
 
 
+def load_versioned_cython_module():
+    version_key = f"b{BLENDER_VERSION[0]}{BLENDER_VERSION[1]}"
+    base = Path(__file__).parent / "compiled" / version_key
+
+    if not base.exists():
+        raise ImportError(f"No compiled Cython binaries for Blender {version_key}")
+
+    # Check if we have some /compiled folder already in sys.path
+    for p in sys.path:
+        if 'retopoflow/compiled/b' in p:
+            print(f"[Cython Loader] Using existing compiled path: {p}")
+            # remove it 
+            sys.path.remove(p)
+
+    sys.path.insert(0, str(base.resolve()))
+    print(f"[Cython Loader] Using compiled path: {base}")
+
+
+def load_cython_accel_module():
+    """
+    Load the cython accel module for the current Blender version.
+    """
+    USE_CYTHON = False
+    CY_TargetMeshAccel = None
+    CY_MeshRenderAccel = None
+
+    # Cython modules need the retopoflow module to be absolute, but new extension platform of Blender makes it harder,
+    # so we have to use this HACK. Compiling for both dev and prod package paths can also lead to issues when testing or developing,
+    # so this workaround is a way of having a unified solution without requiring any environment-specific settings for the Cython setup.
+    try:
+        # Ensure the correct versioned compiled directory is in sys.path
+        load_versioned_cython_module()
+
+        # Directly import using the expected path structure within the versioned dir
+        # The path added to sys.path ('.../compiled/bXX') contains the 'retopoflow' directory.
+        from retopoflow.cy.target_accel import TargetMeshAccel as CY_TargetMeshAccel
+        from retopoflow.cy.rfmesh_render import MeshRenderAccel as CY_MeshRenderAccel
+        USE_CYTHON = True
+        print("RetopoFlow: Successfully loaded Cython acceleration modules.") # , CY_TargetMeshAccel, CY_MeshRenderAccel)
+
+    except ImportError as e:
+        # Provide more context on import failure
+        print(f"RetopoFlow: Failed to import Cython modules. Check compilation for Blender {BLENDER_VERSION}.")
+        print(f"Error details: {e}")
+        # import sys
+        # print("Current sys.path:", sys.path) # Uncomment for deep debugging
+    except Exception as e:
+        print(f'Error: RetopoFlow encountered an unexpected issue loading Cython modules, falling back to Python implementation: {e}')
+
+    # Assign to Globals regardless of whether Cython loaded successfully or not
+    # Ensure Globals can be imported relative to this file
+    try:
+        from ..addon_common.common.globals import Globals
+        Globals.CY_TargetMeshAccel = CY_TargetMeshAccel
+        Globals.CY_MeshRenderAccel = CY_MeshRenderAccel
+        Globals.USE_CYTHON = USE_CYTHON
+    except ImportError:
+        print("RetopoFlow: CRITICAL ERROR - Failed to import Globals from addon_common. Addon might not function correctly.")
+        # Depending on addon requirements, might need to raise error or set a global failure flag
+
 def register():
+    if (BLENDER_VERSION[0] * 10 + BLENDER_VERSION[1]) in BLENDER_VERSIONS_SUPPORTED_BY_CYTHON:
+        load_cython_accel_module()
+    else:
+        print(f"RetopoFlow: Cython accel module does not support Blender version: {BLENDER_VERSION}")
+
     for cls in RF_classes: bpy.utils.register_class(cls)
     bpy.types.VIEW3D_MT_editor_menus.append(VIEW3D_PT_RetopoFlow.draw_popover)
 

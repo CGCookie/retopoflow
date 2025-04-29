@@ -65,30 +65,6 @@ import sys
 import os
 
 
-# Define fallback flag
-USE_CYTHON = False
-
-# Cython modules need the retopoflow module to be absolute, but new extension platform of Blender makes it harder,
-# so we have to use this HACK. Compiling for both dev and prod package paths can also lead to issues when testing or developing,
-# so this workaround is a way of having a unified solution without requiring any environment-specific settings for the Cython setup.
-try:
-    # Production environment.
-    import bl_ext.user_default.retopoflow.retopoflow
-    sys.modules['retopoflow'] = sys.modules['bl_ext.user_default.retopoflow.retopoflow']
-except Exception:
-    # Development environment.
-    import bl_ext.vscode_development.retopoflow.retopoflow
-    sys.modules['retopoflow'] = sys.modules['bl_ext.vscode_development.retopoflow.retopoflow']
-
-try:
-    from retopoflow.cy.target_accel import TargetMeshAccel as CY_TargetMeshAccel
-    from retopoflow.cy.rfmesh_render import MeshRenderAccel as CY_MeshRenderAccel
-except Exception as e:
-    print(f'Error: Could not import TargetMeshAccel, falling back to Python implementation: {e}')
-    CY_TargetMeshAccel = None
-    CY_MeshRenderAccel = None
-
-
 class RFMesh():
     '''
     RFMesh wraps a mesh object, providing extra machinery such as
@@ -1045,7 +1021,8 @@ class RFMesh():
 
     ### @timing
     def visible_verts(self, is_visible, verts=None):
-        if CY_TargetMeshAccel is not None and Globals.target_accel is not None:
+        
+        if Globals.target_accel is not None:
             vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, wrapped=True)
             if verts == None:
                 return vis_verts
@@ -1059,7 +1036,7 @@ class RFMesh():
 
     ### @timing
     def visible_edges(self, is_visible, verts=None, edges=None):
-        if CY_TargetMeshAccel is not None and Globals.target_accel is not None:
+        if Globals.target_accel is not None:
             _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, edges=True, wrapped=True)
             # if verts != None:
             #     verts_indices = {v.index for v in verts}
@@ -1083,7 +1060,7 @@ class RFMesh():
 
     ### @timing
     def visible_faces(self, is_visible, verts=None, faces=None):
-        if CY_TargetMeshAccel is not None and Globals.target_accel is not None:
+        if Globals.target_accel is not None:
             _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, faces=True, wrapped=True)
             # if verts != None:
             #     verts_indices = {v.index for v in verts}

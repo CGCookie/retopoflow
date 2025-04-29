@@ -45,7 +45,7 @@ from ...addon_common.common.text import fix_string
 from ...addon_common.common.globals import Globals
 from ...addon_common.common.useractions import Actions
 
-from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace, CY_TargetMeshAccel
+from ..rfmesh.rfmesh import RFMesh, RFVert, RFEdge, RFFace
 from ..rfmesh.rfmesh import RFSource, RFTarget
 from ..rfmesh.rfmesh_render import RFMeshRender
 
@@ -93,7 +93,7 @@ class RetopoFlow_Target:
         self.accel_recompute = True
 
         Globals.target_accel = None
-        if CY_TargetMeshAccel is not None:
+        if Globals.CY_TargetMeshAccel is not None:
             with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
                 target = self.rftarget
                 actions = Actions.get_instance(None)
@@ -101,7 +101,7 @@ class RetopoFlow_Target:
                 region = actions.region
                 space = actions.space
 
-                Globals.target_accel = CY_TargetMeshAccel(
+                Globals.target_accel = Globals.CY_TargetMeshAccel(
                     target.obj,
                     target.bme,
                     region,
