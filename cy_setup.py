@@ -320,14 +320,20 @@ def main():
             # Build for specific architecture
             build_for_architecture(target_arch)
         else:
-            # Build for both architectures on Apple Silicon Mac
-            if platform.machine() == 'arm64':
-                print("Building universal binaries (arm64 + x86_64)")
-                build_for_architecture('arm64')
-                build_for_architecture('x86_64')
-            else:
-                print("Building only x86_64 binary (Intel Mac)")
-                build_for_architecture('x86_64')
+            # This block is likely NOT executed when run via the GitHub Action,
+            # because the action sets TARGET_ARCH. Commenting out to avoid confusion.
+            # # Build for both architectures on Apple Silicon Mac
+            # if platform.machine() == 'arm64':
+            #     print("Building universal binaries (arm64 + x86_64)")
+            #     build_for_architecture('arm64')
+            #     build_for_architecture('x86_64')
+            # else:
+            #     print("Building only x86_64 binary (Intel Mac)")
+            #     build_for_architecture('x86_64')
+            # If TARGET_ARCH is not set, default to native architecture (or handle error)
+            print("Warning: TARGET_ARCH not set, building for native architecture only.")
+            native_arch = platform.machine() # e.g., 'arm64' or 'x86_64'
+            build_for_architecture(native_arch)
     else:
         # For non-macOS platforms, use regular build without arch flags
         build_for_architecture(None)

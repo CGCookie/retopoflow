@@ -18,33 +18,35 @@ on:
 
 jobs:
   build:
-    name: Build B${{ matrix.blender-version }} on ${{ matrix.os }} (${{ matrix.target || 'default' }})
-    runs-on: ${{ matrix.os }}
+    name: Build B${{ matrix.config.blender }} on ${{ matrix.config.os }} (${{ matrix.config.target || 'default' }})
+    runs-on: ${{ matrix.config.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        blender-version: ['4.3', '4.4']
-        python-version: ['3.11'] # Assuming 3.11 for both
-        include:
-          # Blender 4.3 Dependencies
-          - blender-version: '4.3'
-            numpy-version: '1.24.4'
-            cython-version: '3.0.11'
-            output-suffix: '43'
-          # Blender 4.4 Dependencies
-          - blender-version: '4.4'
-            numpy-version: '1.26.4'
-            cython-version: '3.0.11'
-            output-suffix: '44'
+        # Define the 8 core build configurations explicitly
+        config:
+          # Linux
+          - { os: ubuntu-latest, blender: '4.3', target: default, compile_target: default }
+          - { os: ubuntu-latest, blender: '4.4', target: default, compile_target: default }
+          # Windows
+          - { os: windows-latest, blender: '4.3', target: default, compile_target: default }
+          - { os: windows-latest, blender: '4.4', target: default, compile_target: default }
+          # macOS Arm64
+          - { os: macos-latest, blender: '4.3', target: native, compile_target: arm64 }
+          - { os: macos-latest, blender: '4.4', target: native, compile_target: arm64 }
+          # macOS x86_64
+          - { os: macos-latest, blender: '4.3', target: intel, compile_target: x86_64 }
+          - { os: macos-latest, blender: '4.4', target: intel, compile_target: x86_64 }
+        python-version: ['3.11'] # Common factor, keep here
 
-          # macOS specific targets
-          - os: macos-latest
-            target: native # For arm64 build
-            compile_target: arm64
-          - os: macos-latest
-            target: intel # For x86_64 build
-            compile_target: x86_64
+    env:
+      # Define Blender version specific dependencies here
+      NUMPY_VERSION_4_3: '1.24.4'
+      OUTPUT_SUFFIX_4_3: '43'
+      NUMPY_VERSION_4_4: '1.26.4'
+      OUTPUT_SUFFIX_4_4: '44'
+      # Common Cython version
+      CYTHON_VERSION: '3.0.11'
 
     steps:
     - uses: actions/checkout@v4
@@ -54,8 +56,25 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Set Version Specific Vars based on Blender Version
+      id: vars
+      shell: bash
+      run: |
+        bl_ver="${{ matrix.config.blender }}"
+        if [[ "$bl_ver" == "4.3" ]]; then
+          echo "NUMPY_VERSION=${{ env.NUMPY_VERSION_4_3 }}" >> $GITHUB_OUTPUT
+          echo "OUTPUT_SUFFIX=${{ env.OUTPUT_SUFFIX_4_3 }}" >> $GITHUB_OUTPUT
+        elif [[ "$bl_ver" == "4.4" ]]; then
+          echo "NUMPY_VERSION=${{ env.NUMPY_VERSION_4_4 }}" >> $GITHUB_OUTPUT
+          echo "OUTPUT_SUFFIX=${{ env.OUTPUT_SUFFIX_4_4 }}" >> $GITHUB_OUTPUT
+        else
+          echo "Error: Unknown Blender version $bl_ver"
+          exit 1
+        fi
+        echo "CYTHON_VERSION=${{ env.CYTHON_VERSION }}" >> $GITHUB_OUTPUT # Output common Cython version too
+
     - name: Set up MSVC (Visual Studio 2022)
-      if: matrix.os == 'windows-latest'
+      if: matrix.config.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
       with:
         arch: x64
@@ -67,50 +86,53 @@ jobs:
         echo "Platform: $(python -c 'import platform; print(platform.platform())')"
         echo "Machine: $(python -c 'import platform; print(platform.machine())')"
         echo "OS Env PLAT_NAME: ${{ env.PLAT_NAME || 'N/A' }}"
-        echo "Compile Target: ${{ matrix.compile_target || 'N/A' }}"
-        echo "Blender Version: ${{ matrix.blender-version }}"
-        echo "Numpy Version: ${{ matrix.numpy-version }}"
-        echo "Cython Version: ${{ matrix.cython-version }}"
+        echo "Compile Target: ${{ matrix.config.compile_target || 'N/A' }}"
+        echo "Blender Version: ${{ matrix.config.blender }}"
+        echo "Numpy Version: ${{ steps.vars.outputs.NUMPY_VERSION }}"
+        echo "Cython Version: ${{ steps.vars.outputs.CYTHON_VERSION }}"
+        echo "Output Suffix: b${{ steps.vars.outputs.OUTPUT_SUFFIX }}"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy==${{ matrix.numpy-version }} cython==${{ matrix.cython-version }} setuptools wheel
+        python -m pip install numpy==${{ steps.vars.outputs.NUMPY_VERSION }} cython==${{ steps.vars.outputs.CYTHON_VERSION }} setuptools wheel
 
     # --- Build Commands --- Use cy_setup.py directly
     - name: Build Cython extensions (Windows)
-      if: matrix.os == 'windows-latest'
+      if: matrix.config.os == 'windows-latest'
       shell: cmd
       run: |
-        echo "Building B${{ matrix.blender-version }} for Windows..."
-        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
+        echo "Building B${{ matrix.config.blender }} for Windows..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.config.blender }}
         if %errorlevel% neq 0 exit /b %errorlevel%
 
     - name: Build Cython extensions (macOS)
-      if: matrix.os == 'macos-latest'
+      if: matrix.config.os == 'macos-latest'
       shell: bash
       env:
-        TARGET_ARCH: ${{ matrix.compile_target }}
-        ARCHFLAGS: "-arch ${{ matrix.compile_target }}"
+        TARGET_ARCH: ${{ matrix.config.compile_target }}
+        ARCHFLAGS: "-arch ${{ matrix.config.compile_target }}"
       run: |
-        echo "Building B${{ matrix.blender-version }} for macOS with arch: $TARGET_ARCH..."
-        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
+        set -e
+        echo "Building B${{ matrix.config.blender }} for macOS with arch: $TARGET_ARCH..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.config.blender }}
 
     - name: Build Cython extensions (Linux)
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.config.os == 'ubuntu-latest'
       shell: bash
       run: |
-        echo "Building B${{ matrix.blender-version }} for Linux..."
-        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.blender-version }}
+        set -e
+        echo "Building B${{ matrix.config.blender }} for Linux..."
+        python cy_setup.py build_ext --inplace --force --blender-version ${{ matrix.config.blender }}
 
     - name: List compiled files in output dir
       shell: bash
       run: |
-        echo "Checking for compiled files in retopoflow/compiled/b${{ matrix.output-suffix }} ..."
-        ls -lR retopoflow/compiled/b${{ matrix.output-suffix }} || echo "Directory not found or empty."
+        echo "Checking for compiled files in retopoflow/compiled/b${{ steps.vars.outputs.OUTPUT_SUFFIX }} ..."
+        ls -lR retopoflow/compiled/b${{ steps.vars.outputs.OUTPUT_SUFFIX }} || echo "Directory not found or empty."
         echo "Searching for .so/.pyd files..."
-        find retopoflow/compiled/b${{ matrix.output-suffix }} -type f \( -name "*.so" -o -name "*.pyd" \) -print
-        if ! find retopoflow/compiled/b${{ matrix.output-suffix }} -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
+        find retopoflow/compiled/b${{ steps.vars.outputs.OUTPUT_SUFFIX }} -type f \( -name "*.so" -o -name "*.pyd" \) -print
+        if ! find retopoflow/compiled/b${{ steps.vars.outputs.OUTPUT_SUFFIX }} -type f \( -name "*.so" -o -name "*.pyd" \) | grep -q .; then
           echo "Warning: No compiled extensions found in expected output directory!"
         fi
 
@@ -118,8 +140,8 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: compiled-b${{ matrix.output-suffix }}-${{ matrix.os }}-${{ matrix.target || 'default' }}
-        path: retopoflow/compiled/b${{ matrix.output-suffix }}
+        name: compiled-b${{ steps.vars.outputs.OUTPUT_SUFFIX }}-${{ matrix.config.os }}-${{ matrix.config.target || 'default' }}
+        path: retopoflow/compiled/b${{ steps.vars.outputs.OUTPUT_SUFFIX }}
         if-no-files-found: warn
         retention-days: 7
 
