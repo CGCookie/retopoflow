@@ -152,28 +152,24 @@ jobs:
         mkdir -p retopoflow/compiled
 
         echo "Merging compiled artifacts..."
-        # Iterate through downloaded artifact directories (e.g., artifacts/compiled-b43-ubuntu-latest-default)
-        # Use find to handle varying artifact directory names robustly
-        find artifacts -mindepth 1 -maxdepth 1 -type d -name 'compiled-b*' -print0 | while IFS= read -r -d $'' artifact_dir; do
-          echo " Processing artifact: $artifact_dir"
-          # Extract the 'bXX' part (e.g., b43, b44)
-          version_dir_name=$(basename "$artifact_dir" | cut -d'-' -f2)
-          source_compiled_dir="$artifact_dir/$version_dir_name" # Path to the bXX directory inside the artifact folder
-          target_compiled_dir="retopoflow/compiled/$version_dir_name" # Target path in the final structure
+        # --- New Merge Logic --- 
+        # Find all bXX directories directly within the downloaded artifact folders
+        find artifacts -mindepth 2 -maxdepth 2 -type d \( -name 'b43' -o -name 'b44' \) -print0 | while IFS= read -r -d $'\0' source_bXX_dir; do
+            version_dir_name=$(basename "$source_bXX_dir") # Extract b43 or b44
+            target_compiled_dir="retopoflow/compiled/$version_dir_name"
 
-          echo "  Source: $source_compiled_dir"
-          echo "  Target: $target_compiled_dir"
+            echo " Processing source dir: $source_bXX_dir"
+            echo "  Target dir: $target_compiled_dir"
 
-          if [ -d "$source_compiled_dir" ]; then
-            # Ensure target parent exists before copying the directory itself
-            mkdir -p "$(dirname "$target_compiled_dir")"
-            # Copy the entire bXX directory
-            cp -a "$source_compiled_dir" "$target_compiled_dir"
-            echo "  Copied directory $version_dir_name."
-          else
-            echo "  Warning: Source directory $source_compiled_dir not found within artifact $artifact_dir. Skipping."
-          fi
+            # Ensure the target version directory exists within retopoflow/compiled
+            mkdir -p "$target_compiled_dir"
+            
+            # Copy the *contents* of the source bXX directory into the target bXX directory
+            # Use 'cp -a SOURCE/. TARGET/' pattern to merge contents
+            cp -a "$source_bXX_dir/." "$target_compiled_dir/"
+            echo "  Copied contents."
         done
+        # --- End New Merge Logic ---
 
     - name: Verify final compiled structure
       run: |
