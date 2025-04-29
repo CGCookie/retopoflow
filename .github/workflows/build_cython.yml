@@ -126,8 +126,8 @@ jobs:
   commit-compiled-files:
     needs: build
     runs-on: ubuntu-latest
-    # Only run this job on pushes to the main branch (or specific branches)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Only run this job on pushes to the specified branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/v3-performance'
     steps:
     - name: Checkout repository code
       uses: actions/checkout@v4
