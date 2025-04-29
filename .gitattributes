@@ -18,3 +18,4 @@
 *.pyd binary
 *.so binary
 *.pyd binary
+retopoflow/compiled/** binary
