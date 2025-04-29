@@ -122,7 +122,7 @@ class Select(RFTool):
         left, right = min(x0, x1), max(x0, x1)
         bottom, top = min(y0, y1), max(y0, y1)
 
-        if Globals.target_accel is not None:
+        if options['use cython'] and Globals.target_accel is not None:
             ctrl = box.mods['ctrl']
             shift = box.mods['shift']
 

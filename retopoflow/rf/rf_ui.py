@@ -294,6 +294,7 @@ class RetopoFlow_UI:
         self.ui_hide = False
 
         self._var_auto_hide_options = BoundBool('''options['tools autohide']''', on_change=self.update_ui)
+        self._var_use_cython = BoundBool('''options['use cython']''', on_change=lambda : setattr(self.rftarget, 'accel_recompute', True))
 
         rf_starting_tool = getattr(self, 'rf_starting_tool', None) or options['starting tool']
 

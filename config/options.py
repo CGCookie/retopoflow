@@ -217,6 +217,9 @@ class Options:
         'show options window':  True,   # show options window
         'show geometry window': True,   # show geometry counts window
         'tools autohide':       True,   # should tool's options auto-hide/-show when switching tools?
+        
+        # PERFORMANCE SETTINGS
+        'use cython': False,  # enable Cython accel modules to speed up RF
 
         # DEBUG, PROFILE, INSTRUMENT SETTINGS
         'profiler':             False,  # enable profiler?

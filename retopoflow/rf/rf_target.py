@@ -93,7 +93,7 @@ class RetopoFlow_Target:
         self.accel_recompute = True
 
         Globals.target_accel = None
-        if Globals.CY_TargetMeshAccel is not None:
+        if options['use cython'] and Globals.CY_TargetMeshAccel is not None:
             with time_it('[CYTHON] TargetMeshAccel initialization', enabled=DEBUG_TARGET_ACCEL):
                 target = self.rftarget
                 actions = Actions.get_instance(None)
@@ -113,8 +113,6 @@ class RetopoFlow_Target:
                     RFEdge,
                     RFFace
                 )
-        else:
-            print("[RetopoFlow] Cython modules where not found!")
 
         self._draw_count = 0
 
@@ -348,7 +346,7 @@ class RetopoFlow_Target:
         accel_data.recompute = False
 
         try:
-            if Globals.target_accel is not None:
+            if options['use cython'] and Globals.target_accel is not None:
                 # TEST CYTHON ALTERNATIVE:
                 # Use accelerated functions for geometry processing
                 match selected_only:
@@ -411,6 +409,11 @@ class RetopoFlow_Target:
                     )
 
             else:
+                if Globals.target_accel is not None:
+                    # NOTE: this is a hack to force the Python version to be used else where.
+                    # in case user disabled the performance option.
+                    Globals.target_accel = None
+
                 # Fallback to the Python version.
                 match selected_only:
                     case None:
