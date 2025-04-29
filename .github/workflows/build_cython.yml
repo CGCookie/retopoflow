@@ -153,33 +153,48 @@ jobs:
         rm -rf retopoflow/compiled || true
         mkdir -p retopoflow/compiled
 
-        echo "Merging compiled artifacts..."
-        # Find all bXX directories directly within the downloaded artifact folders
-        find artifacts -mindepth 2 -maxdepth 2 -type d \\( -name 'b43' -o -name 'b44' \\) -print0 | while IFS= read -r -d $'\\0' source_bXX_dir; do
-            version_dir_name=$(basename "$source_bXX_dir") # Extract b43 or b44
+        echo "Merging artifact contents directly into retopoflow/compiled/bXX/ ..."
+
+        # Iterate through each downloaded artifact directory (e.g., artifacts/compiled-b43-...)
+        find artifacts -mindepth 1 -maxdepth 1 -type d -name 'compiled-b*' -print0 | while IFS= read -r -d $'\0' artifact_dir; do
+            artifact_name=$(basename "$artifact_dir")
+            echo "============================================"
+            echo " Processing artifact dir: $artifact_name"
+
+            # Extract the bXX version (e.g., b43, b44) from the artifact directory name
+            if [[ "$artifact_name" =~ compiled-(b[0-9]+)- ]]; then
+                version_dir_name="${BASH_REMATCH[1]}" # Extracts 'b43' or 'b44'
+                echo "  Detected version: $version_dir_name"
+            else
+                echo "  Warning: Could not determine bXX version from artifact name '$artifact_name'. Skipping."
+                echo "============================================"
+                continue
+            fi
+
+            # Define the source directory (the root of the artifact)
+            source_dir="$artifact_dir"
+            # Construct the target directory path in the workspace
             target_compiled_dir="retopoflow/compiled/$version_dir_name"
 
-            echo "============================================"
-            echo " Processing source dir: $source_bXX_dir"
+            echo "  Source dir (artifact root): $source_dir"
             echo "  Target dir: $target_compiled_dir"
-
-            # List contents of source directory for debugging
-            echo "  Source contents:"
-            ls -lA "$source_bXX_dir" || echo "  Warning: Could not list source directory $source_bXX_dir"
 
             # Ensure the target version directory exists within retopoflow/compiled
             mkdir -p "$target_compiled_dir"
 
-            # Copy the *contents* of the source bXX directory into the target bXX directory
+            # List contents of the artifact directory before copy
+            echo "  Source contents in $source_dir:"
+            ls -lA "$source_dir" || echo "  Warning: Could not list source directory $source_dir"
+
+            # Copy the *contents* of the artifact directory into the target bXX directory
             # Use 'cp -a SOURCE/. TARGET/' pattern to merge contents
-            echo "  Executing copy command..."
-            cp -a "$source_bXX_dir/." "$target_compiled_dir/" || echo "  ERROR: Copy command failed for $source_bXX_dir"
-            echo "  Copy finished for $source_bXX_dir."
+            echo "  Executing copy command: cp -a '$source_dir/.' '$target_compiled_dir/'"
+            cp -a "$source_dir/." "$target_compiled_dir/" || echo "  ERROR: Copy command failed for '$source_dir'"
+            echo "  Copy finished for $source_dir."
             echo "============================================"
 
         done
         echo "Finished merging loop."
-
 
     - name: Verify final compiled structure
       run: |
