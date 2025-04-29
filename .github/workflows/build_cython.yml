@@ -146,53 +146,64 @@ jobs:
     - name: Merge compiled artifacts into retopoflow/compiled
       shell: bash
       run: |
+        set -e # Exit immediately if a command exits with a non-zero status.
+
         echo "Creating final retopoflow/compiled directory..."
         # Remove existing compiled dir first to ensure clean state, handle case where it doesn't exist
         rm -rf retopoflow/compiled || true
         mkdir -p retopoflow/compiled
 
         echo "Merging compiled artifacts..."
-        # --- New Merge Logic --- 
         # Find all bXX directories directly within the downloaded artifact folders
-        find artifacts -mindepth 2 -maxdepth 2 -type d \( -name 'b43' -o -name 'b44' \) -print0 | while IFS= read -r -d $'\0' source_bXX_dir; do
+        find artifacts -mindepth 2 -maxdepth 2 -type d \\( -name 'b43' -o -name 'b44' \\) -print0 | while IFS= read -r -d $'\\0' source_bXX_dir; do
             version_dir_name=$(basename "$source_bXX_dir") # Extract b43 or b44
             target_compiled_dir="retopoflow/compiled/$version_dir_name"
 
+            echo "============================================"
             echo " Processing source dir: $source_bXX_dir"
             echo "  Target dir: $target_compiled_dir"
 
+            # List contents of source directory for debugging
+            echo "  Source contents:"
+            ls -lA "$source_bXX_dir" || echo "  Warning: Could not list source directory $source_bXX_dir"
+
             # Ensure the target version directory exists within retopoflow/compiled
             mkdir -p "$target_compiled_dir"
-            
+
             # Copy the *contents* of the source bXX directory into the target bXX directory
             # Use 'cp -a SOURCE/. TARGET/' pattern to merge contents
-            cp -a "$source_bXX_dir/." "$target_compiled_dir/"
-            echo "  Copied contents."
+            echo "  Executing copy command..."
+            cp -a "$source_bXX_dir/." "$target_compiled_dir/" || echo "  ERROR: Copy command failed for $source_bXX_dir"
+            echo "  Copy finished for $source_bXX_dir."
+            echo "============================================"
+
         done
-        # --- End New Merge Logic ---
+        echo "Finished merging loop."
+
 
     - name: Verify final compiled structure
       run: |
-        echo "Final compiled directory structure:"
-        ls -lR retopoflow/compiled
+        echo "Final compiled directory structure after merge:"
+        ls -lR retopoflow/compiled || echo "Warning: retopoflow/compiled directory not found or empty after merge attempt."
         echo "Checking for expected binaries:"
-        find retopoflow/compiled -type f \( -name "*.so" -o -name "*.pyd" \) -print
+        find retopoflow/compiled -type f \\( -name "*.so" -o -name "*.pyd" \\) -print || echo "Warning: No .so or .pyd files found."
 
-    - name: Configure Git
+    - name: Configure Git and .gitattributes
       run: |
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
-        # Add .gitattributes entry to ensure git treats compiled files as binary
-        echo "retopoflow/compiled/** binary" >> .gitattributes
-        git add .gitattributes
 
     - name: Commit and push changes
       run: |
+        echo "Staging compiled files..."
         git add retopoflow/compiled
+
+        echo "Checking for staged changes..."
         # Check if there are changes to commit
         if git diff --staged --quiet; then
-          echo "No changes detected in compiled files."
+          echo "No changes detected in compiled files or .gitattributes to commit."
         else
+          echo "Changes detected. Committing..."
           git commit -m "Update compiled Cython extensions [skip ci]"
           echo "Pushing changes..."
           git push
