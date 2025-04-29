@@ -23,8 +23,8 @@ __pycache__/
 *.so
 
 # But include our specific Cython compiled files
-!retopoflow/cy/*.so
-!retopoflow/cy/*.pyd
+!retopoflow/compiled/**/*.so
+!retopoflow/compiled/**/*.pyd
 
 # Distribution / packaging
 .Python
