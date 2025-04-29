@@ -201,7 +201,7 @@ jobs:
         echo "Final compiled directory structure after merge:"
         ls -lR retopoflow/compiled || echo "Warning: retopoflow/compiled directory not found or empty after merge attempt."
         echo "Checking for expected binaries:"
-        find retopoflow/compiled -type f \\( -name "*.so" -o -name "*.pyd" \\) -print || echo "Warning: No .so or .pyd files found."
+        find retopoflow/compiled -type f \( -name "*.so" -o -name "*.pyd" \) -print || echo "Warning: No .so or .pyd files found."
 
     - name: Configure Git and .gitattributes
       run: |
