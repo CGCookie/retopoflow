@@ -32,7 +32,7 @@ from ..rftool_base import RFTool_Base
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
-from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit, xform_direction
+from ..common.maths import point_to_bvec4, view_forward_direction, proportional_edit, xform_direction, view_right_direction
 from ..common.raycast import raycast_point_valid_sources, mouse_from_event, size2D_to_size
 from ..common.raycast import is_point_hidden, nearest_point_valid_sources, raycast_valid_sources
 from ..common.operator import (
@@ -313,6 +313,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
         self.M, self.Mi = M, Mi
         self.fwd = xform_direction(Mi, view_forward_direction(context))
+        self.right = xform_direction(Mi, view_right_direction(context))
         self.curve = self.curves[self.hovering[0]]
         self.curve.tessellate_uniform()
         strip_inds = self.strips_indices[self.hovering[0]]
@@ -344,6 +345,10 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             all_bmvs = { bmv: 0.0 for bmv in bmvs }
         # all data is local to edit!
         data = {}
+        bmv_selected_count = 0
+        bmv_merged_2d_coords = Vector((0.0, 0.0))
+        bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
+        rgn, r3d = context.region, context.region_data
         for (bmv, distance) in all_bmvs.items():
             t = self.curve.approximate_t_at_point_tessellation(bmv.co)
             o = self.curve.eval(t)
@@ -355,6 +360,18 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 Vector(bmv.co),
                 distance,
             )
+            # Proportional Edit Origin.
+            if bmv.select:
+                bmv_selected_count += 1
+                co_world = M @ bmv.co
+                bmv_merged_3d_coords += co_world
+                screen_co = location_3d_to_region_2d(rgn, r3d, co_world)
+                if screen_co:
+                    bmv_merged_2d_coords += screen_co
+
+        self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count  # used to calculate proportional edit radius.
+        self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count  # used for the 2D circle origin.
+
         self.grab = {
             'mouse':    Vector(mouse),
             'current':  Vector(mouse),
@@ -454,21 +471,19 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
-    def draw_postview(self, context):
+
+    def draw_postpixel(self, context):
+        ''' Draw proportional edit circle in 2D space. '''
         if not context.tool_settings.use_proportional_edit: return
-        hit = raycast_valid_sources(context, self.grab['current'])
-        if not hit: return
-        pt = hit['co_world']
-        radius = context.tool_settings.proportional_distance
-        color = Color((1,1,1,0.75))
-        n = hit['no_world']  #view_forward_direction(context)
-        width = 3 * size2D_to_size(context, hit['distance'])
+        print("draw_postview called for draw proportional edit circle in 2D space.")
+        print(self.selection_origin_2d, context.tool_settings.proportional_distance)
         gpustate.blend('ALPHA')
-        gpustate.depth_mask(False)
-        gpustate.depth_test('ALWAYS')  # ALWAYS, NONE
-        Drawing.draw3D_circle(context, pt, radius, color, n=n, width=width)
-        gpustate.depth_test('LESS_EQUAL')
-        gpustate.depth_mask(True)
+        rgn, r3d = context.region, context.region_data
+        pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
+        radius = location_3d_to_region_2d(rgn, r3d, pt)[0] - self.selection_origin_2d[0]
+        Drawing.draw2D_smooth_circle(context, self.selection_origin_2d, radius, Color((0.2,0.2,0.2,0.8)), width=2)
+        gpustate.blend('NONE')
+
 
 class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator):
     bl_idname = 'retopoflow.polystrips'
