@@ -137,6 +137,7 @@ class Relax_Logic:
             if bmv.hide: continue
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
+            if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
             if opt_mask_selected == 'EXCLUDE' and bmv.select: continue

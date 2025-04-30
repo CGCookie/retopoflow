@@ -98,11 +98,12 @@ class Tweak_Logic:
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
             if (bmv.co - hit['co_local']).length > radius3D: continue
             if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
-            if self.tweak.include_corners  == False and len(bmv.link_edges) == 2: continue
+            if self.tweak.include_corners  == False  and len(bmv.link_edges) == 2: continue
+            if self.tweak.include_corners == False   and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if self.tweak.include_occluded == False and is_bmvert_hidden(context, bmv): continue
+            if self.tweak.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
             if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
-            if self.tweak.mask_selected == 'ONLY' and not bmv.select: continue
+            if self.tweak.mask_selected == 'ONLY'    and not bmv.select: continue
             self.verts.append((
                 bmv,
                 Vector(bmv.co),
