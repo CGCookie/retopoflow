@@ -26,7 +26,7 @@ from mathutils import Vector, Matrix
 from gpu_extras.batch import batch_for_shader
 
 import math
-from typing import List
+from typing import List, Tuple
 
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
@@ -151,7 +151,7 @@ class Drawing:
         gpu.shader.unbind()
 
     @staticmethod
-    def draw2D_smooth_circle(context, center:Point2D, radius:float, color:Color, *, width=0, smooth_threshold=1.5):
+    def draw2D_smooth_circle(context, center:Point2D | Vector | Tuple[float, float], radius:float, color:Color, *, width=0, smooth_threshold=1.5):
         '''
         Draw an anti-aliased 2D circle using a quad-based approach for efficient rendering
         
@@ -172,7 +172,7 @@ class Drawing:
         shader_smooth_circle_2D.bind()
         ubos_smooth_circle_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
         ubos_smooth_circle_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
-        ubos_smooth_circle_2D.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_smooth_circle_2D.options.center = (*center, 0.0, 0.0)
         ubos_smooth_circle_2D.options.color = color
         ubos_smooth_circle_2D.options.settings = settings
         ubos_smooth_circle_2D.update_shader()
