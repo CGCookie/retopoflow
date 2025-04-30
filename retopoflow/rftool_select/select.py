@@ -43,8 +43,6 @@ from ...config.options import options, themes
 from ...addon_common.common.globals import Globals
 
 
-DEBUG_SELECTBOX = False
-
 
 class Select(RFTool):
     name        = 'Select'
@@ -127,8 +125,10 @@ class Select(RFTool):
             shift = box.mods['shift']
 
             self.rfcontext.undo_push('select box')
+            
+            use_cy_debug = options['debug cython accel tools']
 
-            with time_it("[CYTHON] select box", enabled=DEBUG_SELECTBOX):
+            with time_it("[CYTHON] select box", enabled=use_cy_debug):
                 # Ensure matrix-world and persp-matrix are up to date.
                 # Globals.target_accel.py_update_object(self.py_object)
                 r3d = self.rfcontext.actions.r3d
@@ -137,11 +137,11 @@ class Select(RFTool):
 
                 match options['select geometry']:
                     case 'Verts':
-                        Globals.target_accel.py_select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift)  # For vertex selection
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 0, use_ctrl=ctrl, use_shift=shift, debug=use_cy_debug)  # For vertex selection
                     case 'Edges':
-                        Globals.target_accel.py_select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift)  # For edge selection 
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 1, use_ctrl=ctrl, use_shift=shift, debug=use_cy_debug)  # For edge selection 
                     case 'Faces':
-                        Globals.target_accel.py_select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift)  # For face selection
+                        Globals.target_accel.py_select_box(left, right, bottom, top, 2, use_ctrl=ctrl, use_shift=shift, debug=use_cy_debug)  # For face selection
 
             self.rfcontext.dirty(selectionOnly=True)
 

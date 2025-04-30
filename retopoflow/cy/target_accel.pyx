@@ -43,7 +43,6 @@ cdef float finf = <float>1e1000
 
 
 # Specific Debug constants.
-cdef bint DEBUG_SELECT_BOX_SELECTED_GEOM = False
 cdef bint DEBUG_SELECT_BOX_MATRICES = False
 
 
@@ -1101,7 +1100,7 @@ cdef class TargetMeshAccel:
         self.project_vert_to_region_2d(vert, screen_pos)
         return (box[0] <= screen_pos[0] <= box[1]) and (box[2] <= screen_pos[1] <= box[3])
 
-    cdef bint select_box(self, float left, float right, float bottom, float top, GeomType select_geometry_type, bint use_ctrl=False, bint use_shift=False) noexcept nogil:
+    cdef bint select_box(self, float left, float right, float bottom, float top, GeomType select_geometry_type, bint use_ctrl=False, bint use_shift=False, bint debug=False) noexcept nogil:
         """Select geometry within the given box coordinates"""
 
         # Update mesh vis only.
@@ -1215,7 +1214,7 @@ cdef class TargetMeshAccel:
         cdef int num_edges_selected = 0
         cdef int num_faces_selected = 0
 
-        if DEBUG_SELECT_BOX_SELECTED_GEOM:
+        if debug:
             # Check how many verts, edges, and faces are selected.
             for i in range(self.totvisverts):
                 vert = self.visverts[i]
@@ -1488,8 +1487,8 @@ cdef class TargetMeshAccel:
         self._build_accel_struct()
 
 
-    cpdef bint py_select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False):
-        self.select_box(left, right, bottom, top, <GeomType>select_geometry_type, use_ctrl, use_shift)
+    cpdef bint py_select_box(self, float left, float right, float bottom, float top, int select_geometry_type, bint use_ctrl=False, bint use_shift=False, bint debug=False):
+        self.select_box(left, right, bottom, top, <GeomType>select_geometry_type, use_ctrl, use_shift, debug)
 
 
     '''
