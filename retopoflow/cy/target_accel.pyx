@@ -1759,7 +1759,7 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
         return False
 
     # NOTE: Early return for testing
-    return True
+    # return True
 
     # Project the 3D point to 2D screen space
     location_3d_to_region_2d(region, rv3d.persmat, world_pos, &region_pos[0])
@@ -1779,8 +1779,9 @@ cdef bint is_wpoint_visible(float[3] world_pos, float[3] world_normal, float[4][
     # Compute the index from 2D coordinates 
     # The buffer is stored in row-major order (y varies slowest, x varies fastest)
     # Y is flipped because OpenGL has (0,0) at bottom-left while screen coords have (0,0) at top-left
-    index = (buffer_height - 1 - y) * buffer_width + x
-    
+    # index = (buffer_height - 1 - y) * buffer_width + x
+    index = y * buffer_width + x
+
     # Now access the float buffer directly
     if index < 0 or index >= (buffer_height * buffer_width):
         return False
