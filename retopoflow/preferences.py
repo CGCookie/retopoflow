@@ -76,7 +76,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
     setup_object_wires: bpy.props.BoolProperty(
         name='Object Wires',
         description=("Automatically enables wires for the active object when using Retopoflow tools, so you can see the result of modifiers"),
-        default=True,
+        default=False,
     )
     setup_retopo_overlay: bpy.props.BoolProperty(
         name='Retopology Overlay',
