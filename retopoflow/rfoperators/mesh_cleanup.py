@@ -23,6 +23,7 @@ import bpy, bmesh
 
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
+from ..common.selection import get_selected, restore_selected
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
 
 
@@ -61,6 +62,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     def execute(self, context):
         props = context.scene.retopoflow
 
+        select_mode = context.tool_settings.mesh_select_mode[:]
+
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -69,19 +72,47 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
-        # This needs to be updated whenever a component gets removed
+        # Needs to be updated before ops whenever a component gets removed
         components = self.get_components(bm)
 
-        # Remove unnecissary verts first
+        # Remove unnecissary components first
         if props.cleaning_use_merge:
             bmesh.ops.remove_doubles(bm, verts=components['verts'], dist=props.cleaning_merge_threshold)
-            components = self.get_components(bm)
+
+        if props.cleaning_use_delete_ngons:
+            for f in components['faces']:
+                if f.is_valid and len(f.edges) > 4:
+                    bm.faces.remove(f)
+
+        if props.cleaning_use_delete_faceless:
+            for e in components['edges']:
+                if e.is_valid and e.is_wire:
+                    bm.edges.remove(e)
 
         if props.cleaning_use_delete_loose:
+            # This comes last since it cleans up verts left over from the previous operations
             for v in components['verts']:
-                if not v.link_edges:
+                if v.is_valid and not v.link_edges:
                     bm.verts.remove(v)
-            components = self.get_components(bm)
+            
+        components = self.get_components(bm)
+
+        # Add any necissary geometry
+        if props.cleaning_use_triangulate_concave:
+            bmesh.ops.connect_verts_concave(bm, faces=components['faces'])
+
+        if props.cleaning_use_triangulate_nonplanar:
+            bmesh.ops.connect_verts_nonplanar(bm, angle_limit=0.1, faces=components['faces']) # Angle limit is radians
+
+        if props.cleaning_use_triangulate_concave:
+            bmesh.ops.connect_verts_concave(bm, faces=components['faces'])
+
+        if props.cleaning_use_triangulate_ngons:
+            to_triangulate = []
+            for f in components['faces']:
+                if len(f.edges) > 4:
+                    to_triangulate.append(f)
+            bmesh.ops.triangulate(bm, faces=to_triangulate)
 
         # Clean up remaining components 
         if props.cleaning_use_fill_holes:
@@ -103,5 +134,15 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bm.to_mesh(mesh)
         bm.free()
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        context.tool_settings.mesh_select_mode = select_mode
+
+        if props.cleaning_use_delete_interior:
+            # Not ideal to use bpy.ops, but select interior faces is a fairly complex algorithm
+            # that would be a lot slower if written in python 
+            selection = get_selected(context)
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.mesh.select_interior_faces()
+            bpy.ops.mesh.delete(type='FACE')
+            restore_selected(context, selection)
 
         return {'FINISHED'}

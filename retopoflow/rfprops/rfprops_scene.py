@@ -59,6 +59,21 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         description="Deletes vertices not connected to any edges",
         default=True
     )
+    cleaning_use_delete_faceless: bpy.props.BoolProperty(
+        name='Delete Faceless Edges',
+        description="Deletes Edges that have no faces",
+        default=True
+    )
+    cleaning_use_delete_interior: bpy.props.BoolProperty(
+        name='Delete Interior Faces',
+        description="Deletes faces that are inside manifold geometry",
+        default=False
+    )
+    cleaning_use_delete_ngons: bpy.props.BoolProperty(
+        name='Delete N-Gons',
+        description="Deletes faces that have more than four sides",
+        default=False
+    )
     cleaning_use_fill_holes: bpy.props.BoolProperty(
         name='Fill Holes',
         description="Fills boundary edges with faces",
@@ -72,6 +87,21 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     cleaning_flip_normals: bpy.props.BoolProperty(
         name='Flip Normals',
         description="Flips the normals after they are recalculated",
+        default=False
+    )
+    cleaning_use_triangulate_concave: bpy.props.BoolProperty(
+        name='Triangulate Concave Faces',
+        description="Splits concave faces so that all resulting faces are convex",
+        default=False
+    )
+    cleaning_use_triangulate_nonplanar: bpy.props.BoolProperty(
+        name='Triangulate Non-Planar Faces',
+        description="Splits faces that are not flat",
+        default=False
+    )
+    cleaning_use_triangulate_ngons: bpy.props.BoolProperty(
+        name='Triangulate N-gons',
+        description="Splits n-gons, into quads if possible",
         default=False
     )
     #endregion

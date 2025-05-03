@@ -54,8 +54,21 @@ def draw_cleanup_options(context, layout, draw_operators=True):
 
     col = grid.column()
     row = col.row(heading='Delete')
-    row.prop(props, 'cleaning_use_delete_loose', text='Loose')
+    row.prop(props, 'cleaning_use_delete_loose', text='Loose Vertices')
+    col.prop(props, 'cleaning_use_delete_faceless', text='Faceless Edges')
+    col.prop(props, 'cleaning_use_delete_interior', text='Interior Faces')
+    col.prop(props, 'cleaning_use_delete_ngons', text='N-Gons')
     col.separator()
+
+    col = grid.column()
+    row = col.row(heading='Triangulate')
+    row.prop(props, 'cleaning_use_triangulate_concave', text='Concave Faces')
+    col.prop(props, 'cleaning_use_triangulate_nonplanar', text='Non-Planar Faces')
+    row = col.row()
+    row.enabled = not props.cleaning_use_delete_ngons
+    row.prop(props, 'cleaning_use_triangulate_ngons', text='N-Gons')
+    col.separator()
+
     row = col.row(heading='Fill')
     row.prop(props, 'cleaning_use_fill_holes', text='Holes')
 
@@ -78,6 +91,7 @@ class RFMenu_PT_MeshCleanup(bpy.types.Panel):
     bl_idname = "RF_PT_MeshCleanup"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
+    bl_ui_units_x = 11
 
     def draw(self, context):
         draw_cleanup_options(context, self.layout)
