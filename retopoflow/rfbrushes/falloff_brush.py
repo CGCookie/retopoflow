@@ -62,6 +62,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.timerhandler import TimerHandler
+from ..common.easing import CubicEaseOut
 
 
 def create_falloff_brush(idname, label, **kwargs):
@@ -113,9 +114,21 @@ def create_falloff_brush(idname, label, **kwargs):
 
 
         def get_scaled_radius(self):
+            if not self.hit_scale: return 0.0 # Handle case where hit_scale might not be set yet
             return self.hit_scale * self.radius
         def get_strength_dist(self, dist:float):
-            return self.strength * clamp(1.0 - math.pow(dist / self.get_scaled_radius(), self.falloff), 0.0, 1.0)
+            scaled_radius = self.get_scaled_radius()
+            if scaled_radius <= 0: return 0.0 # Avoid division by zero or negative radius!
+            
+            # Calculate the normalized [0.0-1.0] distance factor (0 at center, 1 at edge)
+            normalized_dist_factor = clamp(dist / scaled_radius, 0.0, 1.0)
+
+            # Apply CubicEaseOut easing to the falloff effect to smooth the falloff based on distance to center!
+            # Note that we need to invert our initial factor from 0.0-1.0 to 1.0-0.0 range (1 at center, 0 at edge).
+            eased_falloff = CubicEaseOut(start=1.0, end=0.0, duration=2.0).ease(normalized_dist_factor)
+
+            # Multiply the eased falloff factor by the overall brush strength.
+            return self.strength * eased_falloff
         def get_strength_Point(self, point:Point):
             if not self.hit_p: return 0.0
             return self.get_strength_dist((point - self.hit_p).length)
