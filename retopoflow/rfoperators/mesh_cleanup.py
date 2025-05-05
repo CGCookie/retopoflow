@@ -62,8 +62,6 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     def execute(self, context):
         props = context.scene.retopoflow
 
-        select_mode = context.tool_settings.mesh_select_mode[:]
-
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -72,8 +70,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bm = bmesh.new()
         bm.from_mesh(mesh)
 
-        # Needs to be updated before ops whenever a component gets removed
-        components = self.get_components(bm)
+        components = self.get_components(bm) # Needs to be updated before ops if a component gets removed
 
         # Remove unnecissary components first
         if props.cleaning_use_merge:
@@ -134,15 +131,39 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         bm.to_mesh(mesh)
         bm.free()
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        context.tool_settings.mesh_select_mode = select_mode
 
+        # Not ideal to do outside the main bmesh section, 
+        # but select interior faces is a fairly complex algorithm
         if props.cleaning_use_delete_interior:
-            # Not ideal to use bpy.ops, but select interior faces is a fairly complex algorithm
-            # that would be a lot slower if written in python 
-            selection = get_selected(context)
+            prev_select_mode = context.tool_settings.mesh_select_mode
+            prev_selection = get_selected(context)
+            prev_faces = prev_selection[obj.name]['faces']
+            prev_edges = prev_selection[obj.name]['edges']
+            context.tool_settings.mesh_select_mode[2] = True # At least one needs to be true to mark the others false
+            context.tool_settings.mesh_select_mode[0] = False
+            context.tool_settings.mesh_select_mode[1] = False
             bpy.ops.mesh.select_all(action='DESELECT')
             bpy.ops.mesh.select_interior_faces()
-            bpy.ops.mesh.delete(type='FACE')
-            restore_selected(context, selection)
+            interior_faces = get_selected(context)
+            selected_interior_faces = [f for f in interior_faces[obj.name]['faces'] if f in prev_faces]
+            selected_interior_edges = [e for e in interior_faces[obj.name]['edges'] if e in prev_edges]
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            removed = {obj.name: {'verts': [], 'edges': [], 'faces': []}}
+            for f in bm.faces:
+                if f.index in selected_interior_faces:
+                    removed[obj.name]['faces'].append(f.index)
+                    bm.faces.remove(f)
+            bm.edges.ensure_lookup_table()
+            for e in bm.edges:
+                if e.index in selected_interior_edges and e.is_wire:
+                    removed[obj.name]['edges'].append(e.index)
+                    bm.edges.remove(e)
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            bm.to_mesh(mesh)
+            bm.free()
+            restore_selected(context, prev_selection, skip=removed)
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            context.tool_settings.mesh_select_mode = prev_select_mode
 
         return {'FINISHED'}

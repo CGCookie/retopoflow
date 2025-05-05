@@ -26,37 +26,35 @@ from typing import Literal
 
 def get_selected(
         context,
-        component: Literal['verts', 'edges', 'faces', 'auto'] = 'auto', 
         objects: list[Object] = [], 
-        is_bmesh: bool = False
+        bm: Object = None
     ):
     selected = {} # {'object_name': {'verts': [], 'edges': [], 'faces': []} }
 
     if not objects:
         objects = [context.active_object]
 
-    if component == 'auto':
-        if context.tool_settings.mesh_select_mode[:][0]:
-            component = 'verts'
-        elif context.tool_settings.mesh_select_mode[:][1]:
-            component = 'edges'
-        else:
-            component = 'faces'
-
     for obj in objects:
+        is_bmesh = bm != None
         if not is_bmesh:
-            bm = bmesh.from_edit_mesh(obj.data)
+            if context.mode == 'EDIT_MESH':
+                bm = bmesh.from_edit_mesh(obj.data)
+            else:
+                bm = bmesh.from_mesh(obj.data)
 
         if obj.name not in selected.keys():
             selected[obj.name] = {'verts': [], 'edges': [], 'faces': []}
         
-        if component == 'verts':
-            {selected[obj.name]['verts'].append(x.index) for x in bm.verts if x.select}
-            {selected[obj.name]['faces'].append(x.index) for x in bm.faces if x.select}
-        elif component == 'edges':
-            {selected[obj.name]['edges'].append(x.index) for x in bm.edges if x.select}
-        elif component == 'faces':
-            {selected[obj.name]['faces'].append(x.index) for x in bm.faces if x.select}
+        bm.verts.index_update()
+        bm.edges.index_update()
+        bm.faces.index_update()
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+
+        {selected[obj.name]['verts'].append(x.index) for x in bm.verts if x.select}
+        {selected[obj.name]['edges'].append(x.index) for x in bm.edges if x.select}
+        {selected[obj.name]['faces'].append(x.index) for x in bm.faces if x.select}
 
         if not is_bmesh:
             bm.free()
@@ -66,15 +64,14 @@ def get_selected(
 
 def restore_selected(
         context,
-        selection: dict[str, dict[Literal['verts', 'edges', 'faces', 'auto'], list]],
+        selection: dict[str, dict[Literal['verts', 'edges', 'faces'], list]],
         objects: list[Object] = [],
-        is_bmesh = False,
+        bm: Object = None,
+        skip: dict[str, dict[Literal['verts', 'edges', 'faces'], list]] = {'verts': [], 'edges': [], 'faces': []}
     ):
 
     if not objects:
         objects = [context.active_object]
-
-    bpy.ops.mesh.select_all(False, action='DESELECT')
 
     for obj in objects:
         if (
@@ -85,24 +82,49 @@ def restore_selected(
             # Saves a bmesh conversion if not needed
             continue
 
+        is_bmesh = bm != None
         if not is_bmesh:
-            bm = bmesh.from_edit_mesh(obj.data)
+            if context.mode == 'EDIT_MESH':
+                bm = bmesh.from_edit_mesh(obj.data)
+            else:
+                bm = bmesh.new()
+                bm.from_mesh(obj.data)
+
+        {v.select_set(False) for v in bm.verts}
+        {e.select_set(False) for e in bm.edges}
+        {f.select_set(False) for f in bm.faces}
 
         if selection[obj.name]['verts']:
             components = selection[obj.name]['verts']
             bm.verts.ensure_lookup_table()
             for idx in components:
-                bm.verts[idx].select_set(True)
+                if idx >= len(bm.verts) - 1: 
+                    continue
+                v = bm.verts[idx]
+                if v.is_valid and v.index not in skip[obj.name]['verts']:
+                    v.select_set(True)
         if selection[obj.name]['edges']:
             components = selection[obj.name]['edges']
             bm.edges.ensure_lookup_table()
             for idx in components:
-                bm.edges[idx].select_set(True)
+                if idx >= len(bm.edges) - 1: 
+                    continue
+                e = bm.edges[idx]
+                if e.is_valid and e.index not in skip[obj.name]['edges']:
+                    e.select_set(True)
         if selection[obj.name]['faces']:
             components = selection[obj.name]['faces']
             bm.faces.ensure_lookup_table()
             for idx in components:
-                bm.faces[idx].select_set(True)
+                if idx >= len(bm.faces) - 1: 
+                    continue
+                f = bm.faces[idx]
+                if f.is_valid and f.index not in skip[obj.name]['faces']:
+                    f.select_set(True)
 
         if not is_bmesh:
+            if context.mode == 'EDIT_MESH':
+                bmesh.update_edit_mesh(obj.data)
+            else:
+                bm.to_mesh(obj.data)
             bm.free()
