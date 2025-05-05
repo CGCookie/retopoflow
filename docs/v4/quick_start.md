@@ -17,9 +17,7 @@ All of the Retopoflow tools require some other object in the scene that the new 
 
 If you are seeing the retopology mesh through the source object, decrease the retopology overlay's offset distance in either Blender's Edit Mode Overlays popover or Retopoflow's General options.
 
-For a more in-depth explanation of how Retopoflow works, read the [Retopoflow Mode](/v4/general.html) page or watch the full walkthrough tutorial below.
+For a more in-depth explanation of how Retopoflow works, read the [Retopoflow Mode](/v4/general.html) page or watch the [full walkthrough tutorial on YouTube](https://www.youtube.com/watch?v=o5hSMSVtGnU&t=110s).
 
 Enjoy!
-
-https://www.youtube.com/watch?v=o5hSMSVtGnU&t=110s
 
