@@ -82,7 +82,7 @@ RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'tweak_brush',
     'Tweak Brush',
     radius=100,
-    fill_color=Color.from_ints(255, 145,  0, 255),
+    color=Color.from_ints(255, 145,  0, 255),
 )
 
 class RFOperator_Tweak(RFOperator):

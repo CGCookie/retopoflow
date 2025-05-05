@@ -83,7 +83,7 @@ RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
     'relax_brush',
     'Relax Brush',
     radius=200,
-    fill_color=Color.from_ints(0, 200, 255, 255),
+    color=Color.from_ints(0, 200, 255, 255),
 )
 
 class RFOperator_Relax(RFOperator):

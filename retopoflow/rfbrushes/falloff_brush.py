@@ -73,11 +73,8 @@ def create_falloff_brush(idname, label, **kwargs):
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
-        fill_color      = kwargs.get('fill_color',  Color.from_ints(0, 135, 255, 255))
-        outer_color     = Color((1,1,1,1))     # outer circle
-        inner_color     = Color((1,1,1,0.5))   # inner circle
-        min_color       = Color((1,1,1,0.5))   # tiny circle at very center (only when adjusting)
-        below_alpha     = Color((1,1,1,0.25))  # multiplied against fill_color when occluded
+        color      = kwargs.get('color',  Color.from_ints(0, 135, 255, 255))
+        below_alpha     = Color((1,1,1,0.25))  # multiplied against color when occluded
         brush_min_alpha = 0.100
         brush_max_alpha = 0.700
         depth_fill      = 0.998 # see note on gl_FragDepth in circle_3D.glsl
@@ -204,8 +201,7 @@ def create_falloff_brush(idname, label, **kwargs):
             center2D = self.center2D
 
             r = self.radius if adjust == 'RADIUS' else context.region.height * 0.25 * 0.5
-            co, ci, cf = self.outer_color, self.inner_color, self.fill_color # * fillscale
-            cm = self.min_color
+            color = self.color
 
             # Inner radius should be based on strength instead of falloff
             # Clamp inner radius between min_radius (0.24*r) and outer radius (r)
@@ -214,8 +210,6 @@ def create_falloff_brush(idname, label, **kwargs):
             inner_radius = min_radius + self.strength * (r - min_radius)
             
             # Calculate falloff for filled area
-            ff = math.pow(0.5, 1.0 / max(self.falloff, 0.0001))
-            fs = (1-ff) * self.radius
             gpustate.blend('ALPHA')
             
             text_value = None
@@ -223,25 +217,25 @@ def create_falloff_brush(idname, label, **kwargs):
             # Draw - falloff - filled circle ring
             if adjust == 'FALLOFF':
                 # Draw circle (40% of radius) for brush-falloff reference for 0.0-2.0 range reference.
-                Drawing.draw2D_smooth_circle(context, center2D, r * 0.4, cf, width=0.5)
+                Drawing.draw2D_smooth_circle(context, center2D, r * 0.4, color, width=0.5)
                 text_value = f"{round(self.falloff, 2)}"
                 gradient_factor = 1.0 - self.falloff / 100
                 if gradient_factor <= 0.01:
                     gradient_factor = 0.01
                 fillscale = Color((1, 1, 1, lerp(self.strength * clamp(self.falloff, 0.0, 1.0), self.brush_min_alpha, self.brush_max_alpha)))
-                Drawing.draw2D_smooth_circle(context, center2D, r, cf * fillscale, width=0, smooth_threshold=r*gradient_factor)
+                Drawing.draw2D_smooth_circle(context, center2D, r, color * fillscale, width=0, smooth_threshold=r*gradient_factor)
 
             if adjust == 'RADIUS':
-                Drawing.draw2D_smooth_circle(context, center2D, active_op.prev_radius, cf, width=0.5)
+                Drawing.draw2D_smooth_circle(context, center2D, active_op.prev_radius, color, width=0.5)
 
             # Draw outer - brush radius - circle border
-            Drawing.draw2D_smooth_circle(context, center2D, r, cf, width=2 if adjust == 'RADIUS' else 0.5)
+            Drawing.draw2D_smooth_circle(context, center2D, r, color, width=2 if adjust == 'RADIUS' else 0.5)
 
             if adjust == 'STRENGTH':
                 # Draw inner - strength-based - circle border
-                Drawing.draw2D_smooth_circle(context, center2D, inner_radius, cf, width=2)
+                Drawing.draw2D_smooth_circle(context, center2D, inner_radius, color, width=2)
                 # Draw minimum circle (10% of radius) for brush-trength control.
-                Drawing.draw2D_smooth_circle(context, center2D, min_radius, cf, width=0.5)
+                Drawing.draw2D_smooth_circle(context, center2D, min_radius, color, width=0.5)
                 
                 text_value = f"{round(self.strength, 2)}"
                 
@@ -263,19 +257,19 @@ def create_falloff_brush(idname, label, **kwargs):
             # Calculate position and orientation
             p = self.hit_p - self.hit_ray[1].xyz * self.offset
             n = self.hit_n
-            
+
             # Calculate outer radius based on actual brush radius and scale
             ro = self.radius
-            
+
             # Calculate minimum radius (24% of outer radius)
             rmin = 0.24 * ro
-            
+
             # Calculate inner radius based on strength
             # Map strength 0.0 → min_radius, strength 1.0 → outer_radius
             ri = rmin + self.strength * (ro - rmin)
-            
-            # Colors (now using fill color)
-            co, ci = self.fill_color, self.fill_color  # self.outer_color, self.inner_color
+
+            # Color.
+            color = self.color
             # Ensure below_alpha has alpha component 'a'
             below_alpha_val = self.below_alpha.a if hasattr(self.below_alpha, 'a') else self.below_alpha[3] if isinstance(self.below_alpha, (list, tuple)) and len(self.below_alpha) == 4 else 0.25
 
@@ -286,16 +280,15 @@ def create_falloff_brush(idname, label, **kwargs):
 
             # draw above
             gpustate.depth_test('LESS_EQUAL')
-            Drawing.draw_circle_3d(position=p, normal=n, color=co, radius=ro, thickness=2, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
-            Drawing.draw_circle_3d(position=p, normal=n, color=ci, radius=ri, thickness=1, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
+            Drawing.draw_circle_3d(position=p, normal=n, color=color, radius=ro, thickness=2, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
+            Drawing.draw_circle_3d(position=p, normal=n, color=color, radius=ri, thickness=1, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
 
             # draw below
             gpustate.depth_test('GREATER')
             # Adjust alpha for drawing below
-            co_below = Color((*co[:3], co.a * below_alpha_val))
-            ci_below = Color((*ci[:3], ci.a * below_alpha_val))
-            Drawing.draw_circle_3d(position=p, normal=n, color=co_below, radius=ro, thickness=2, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
-            Drawing.draw_circle_3d(position=p, normal=n, color=ci_below, radius=ri, thickness=1, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
+            color_below = Color((*color[:3], color.a * below_alpha_val))
+            Drawing.draw_circle_3d(position=p, normal=n, color=color_below, radius=ro, thickness=2, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
+            Drawing.draw_circle_3d(position=p, normal=n, color=color_below, radius=ri, thickness=1, scale=self.hit_scale_offset, segments=None, viewport_size=viewport_size)
 
             # reset
             gpustate.depth_test('LESS_EQUAL')
