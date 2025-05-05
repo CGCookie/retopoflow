@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will help you get started with RetopoFlow {{ site.data.options.rf_version }}.
+This guide will help you get started with RetopoFlow 4.x.
 
 ## The Short, Short Version
 
@@ -17,7 +17,9 @@ All of the Retopoflow tools require some other object in the scene that the new 
 
 If you are seeing the retopology mesh through the source object, decrease the retopology overlay's offset distance in either Blender's Edit Mode Overlays popover or Retopoflow's General options.
 
+For a more in-depth explanation of how Retopoflow works, read the [Retopoflow Mode](/v4/general.html) page or watch the full walkthrough tutorial below.
 
 Enjoy!
 
-*For a more in-depth explanation of how Retopoflow works, read the [Retopoflow Mode](/v4/general.html) page.*
+https://www.youtube.com/watch?v=o5hSMSVtGnU&t=110s
+
