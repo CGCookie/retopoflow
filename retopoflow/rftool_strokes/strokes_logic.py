@@ -352,6 +352,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Strip'
         self.show_count = True
+        self.show_is_cycle = True
         self.show_extrapolate_mode = False
 
     def insert_cycle(self):
@@ -382,6 +383,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Loop'
         self.show_count = True
+        self.show_is_cycle = True
         self.show_extrapolate_mode = False
 
 
@@ -475,6 +477,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'Equals-Loop'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
 
 
@@ -570,6 +573,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'T-Loop'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
 
     def insert_cycle_I(self):
@@ -664,6 +668,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'I-Loop'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
 
 
@@ -897,6 +902,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'T-Strip'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = True
 
 
@@ -994,6 +1000,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'I-Strip'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
         self.show_untwist_bridge = True
 
@@ -1085,6 +1092,7 @@ class Strokes_Logic:
         self.cut_count = nspans
         self.show_action = 'C-Strip'
         self.show_count = True
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
 
 
@@ -1194,6 +1202,7 @@ class Strokes_Logic:
         bmops.select_iter(self.bm, bmvs[-1])
 
         self.show_action = 'L-Strip'
+        self.show_is_cycle = False
         self.show_extrapolate_mode = False
         self.show_count = False
 
@@ -1418,6 +1427,7 @@ class Strokes_Logic:
         self.show_extrapolate_mode = False
         self.cut_count = llc_lr - 1
         self.show_count = True # not strip_l_bmvs and not strip_r_bmvs
+        self.show_is_cycle = False
 
 
     def create_quad(self, *fbmvs):
