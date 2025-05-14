@@ -40,7 +40,7 @@ def create_falloff_brush(idname, label, **kwargs):
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
         radius   = kwargs.get('radius',   200)
-        falloff  = kwargs.get('falloff',  0.5)
+        falloff  = kwargs.get('falloff',  0.35)
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
