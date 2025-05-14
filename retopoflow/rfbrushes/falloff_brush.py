@@ -19,49 +19,20 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
-import bmesh
 import bpy
-import gpu
-import os
-from itertools import chain
-from random import random
-from bmesh.types import BMVert, BMEdge, BMFace
-from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector, Matrix, Euler
-from mathutils.bvhtree import BVHTree
+from mathutils import Vector, Matrix
 
 import math
-import time
-from typing import List
-from enum import Enum
-
-from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.drawing import (
     Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
 )
-from ..common.icons import get_path_to_blender_icon
-from ..common.operator import RFOperator, wrap_property, chain_rf_keymaps, execute_operator
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, size2D_to_size_point, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame, clamp
-from ...addon_common.common.blender import get_path_from_addon_common
+from ..common.operator import RFOperator, execute_operator
+from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
+from ..common.maths import lerp
+from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
-from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
-from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.timerhandler import TimerHandler
 from ..common.easing import CubicEaseOut
 
 
@@ -69,7 +40,7 @@ def create_falloff_brush(idname, label, **kwargs):
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
         radius   = kwargs.get('radius',   200)
-        falloff  = kwargs.get('falloff',  1.5)
+        falloff  = kwargs.get('falloff',  0.5)
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
@@ -113,6 +84,7 @@ def create_falloff_brush(idname, label, **kwargs):
         def get_scaled_radius(self):
             if not self.hit_scale: return 0.0 # Handle case where hit_scale might not be set yet
             return self.hit_scale * self.radius
+
         def get_strength_dist(self, dist:float):
             scaled_radius = self.get_scaled_radius()
             if scaled_radius <= 0: return 0.0 # Avoid division by zero or negative radius!
@@ -122,10 +94,11 @@ def create_falloff_brush(idname, label, **kwargs):
 
             # Apply CubicEaseOut easing to the falloff effect to smooth the falloff based on distance to center!
             # Note that we need to invert our initial factor from 0.0-1.0 to 1.0-0.0 range (1 at center, 0 at edge).
-            eased_falloff = CubicEaseOut(start=1.0, end=0.0, duration=2.0).ease(normalized_dist_factor)
+            eased_falloff = CubicEaseOut(start=1.0, end=0.0, duration=10.0*self.falloff).ease(normalized_dist_factor)
 
-            # Multiply the eased falloff factor by the overall brush strength.
+            # Multiply the falloff factor by the overall brush strength.
             return self.strength * eased_falloff
+
         def get_strength_Point(self, point:Point):
             if not self.hit_p: return 0.0
             return self.get_strength_dist((point - self.hit_p).length)
@@ -191,7 +164,7 @@ def create_falloff_brush(idname, label, **kwargs):
             if not RFBrush_Falloff.operator: return
             if context.area not in self.mouse_areas: return
             if not RFOperator_FalloffBrush_Adjust.is_active(): return
-            
+
             if RFBrush_Falloff.operator.is_active() or RFOperator_FalloffBrush_Adjust.is_active():
                 active_op = RFOperator.active_operator()
             else:
@@ -208,10 +181,10 @@ def create_falloff_brush(idname, label, **kwargs):
             min_radius = 0.24 * r
             # With inverted mapping: strength 0.0 → min_radius, strength 1.0 → max_radius
             inner_radius = min_radius + self.strength * (r - min_radius)
-            
+
             # Calculate falloff for filled area
             gpustate.blend('ALPHA')
-            
+
             text_value = None
 
             # Draw - falloff - filled circle ring
@@ -236,9 +209,9 @@ def create_falloff_brush(idname, label, **kwargs):
                 Drawing.draw2D_smooth_circle(context, center2D, inner_radius, color, width=2)
                 # Draw minimum circle (10% of radius) for brush-trength control.
                 Drawing.draw2D_smooth_circle(context, center2D, min_radius, color, width=0.5)
-                
+
                 text_value = f"{round(self.strength, 2)}"
-                
+
             if text_value:
                 text_w = Drawing.get_text_width(text_value)
                 text_h = Drawing.get_line_height(text_value)
@@ -275,7 +248,7 @@ def create_falloff_brush(idname, label, **kwargs):
 
             gpustate.blend('ALPHA')
             gpustate.depth_mask(True) # Keep depth mask enabled
-            
+
             viewport_size = (context.region.width, context.region.height)
 
             # draw above
@@ -321,24 +294,30 @@ def create_falloff_brush(idname, label, **kwargs):
             ],
             default='NONE',
         )
-        
+
+
         #################################################################################
         # these are hacks to launch falloff brush operator with certain set properties
+
         @staticmethod
         @execute_operator(f'{idname}_radius',   f'Adjust {label} Radius')
         def adjust_radius(context):
             op = getattr(bpy.ops.retopoflow, f'{idname}')
             op('INVOKE_DEFAULT', adjust='RADIUS')
+
         @staticmethod
         @execute_operator(f'{idname}_strength', f'Adjust {label} Strength')
         def adjust_strength(context):
             op = getattr(bpy.ops.retopoflow, f'{idname}')
             op('INVOKE_DEFAULT', adjust='STRENGTH')
+
         @staticmethod
         @execute_operator(f'{idname}_falloff',  f'Adjust {label} Falloff')
         def adjust_falloff(context):
             op = getattr(bpy.ops.retopoflow, f'{idname}')
             op('INVOKE_DEFAULT', adjust='FALLOFF')
+
+
         #################################################################################
 
         def get_vis_radius(self, context):
@@ -346,21 +325,23 @@ def create_falloff_brush(idname, label, **kwargs):
 
         def dist_to_radius(self, d, context=None):
             RFBrush_Falloff.radius = max(5, int(d))
+
         def radius_to_dist(self, context=None):
             return RFBrush_Falloff.radius
+
         def dist_to_strength(self, d, context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
             min_radius = 0.24 * vis_radius
             max_radius = vis_radius
-            
+
             # Map distance d to a strength value:
             # - When d is near min_radius, strength should be 0.0
             # - When d is near max_radius, strength should be 1.0
             # - Ensure that at max_radius we get exactly 1.0
             normalized_dist = clamp((d - min_radius) / (max_radius - min_radius), 0.0, 1.0)
             RFBrush_Falloff.strength = normalized_dist
-            
+
         def strength_to_dist(self, context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
@@ -369,41 +350,30 @@ def create_falloff_brush(idname, label, **kwargs):
             # Convert strength to distance based on the same mapping:
             # strength 0.0 → min_radius, strength 1.0 → max_radius
             return min_radius + RFBrush_Falloff.strength * (max_radius - min_radius)
-            
+
         def dist_to_falloff(self, d, context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
-            
+
             # Normalize distance as percentage of visualization radius (0.0 to 1.0)
             norm_dist = clamp(d / vis_radius, 0.0, 1.0)
-            
-            # Apply non-linear mapping:
-            # - First 40% of radius maps to falloff values 0.0-1.0
-            # - Remaining 60% of radius maps to falloff values 1.0-100.0
-            # - Ensure that at radius (norm_dist = 1.0) we get exactly 100.0
-            if norm_dist <= 0.4:
-                # Map 0.0-0.4 to 0.0-1.0
-                RFBrush_Falloff.falloff = (norm_dist / 0.4) * 1.0
-            else:
-                # Map 0.4-1.0 to 1.0-100.0
-                normalized_remaining = (norm_dist - 0.4) / 0.6  # Normalize the remaining distance
-                RFBrush_Falloff.falloff = 1.0 + (normalized_remaining * 98.0)  # Map to 1.0-100.0
-                
+
+            # Map distance directly to falloff value (0.0 to 1.0)
+            # - 0.0 distance = 0.0 falloff (no falloff)
+            # - 1.0 distance = 1.0 falloff (maximum falloff)
+            RFBrush_Falloff.falloff = norm_dist
+
         def falloff_to_dist(self, context):
             # Use visualization radius instead of actual brush radius
             vis_radius = self.get_vis_radius(context)
+
+            # Get current falloff value (should be between 0.0 and 1.0)
+            falloff = clamp(RFBrush_Falloff.falloff, 0.0, 1.0)
             
-            # Apply inverse mapping to convert falloff back to distance
-            falloff = RFBrush_Falloff.falloff
-            
-            if falloff <= 1.0:
-                # Map 0.0-1.0 to 0.0-0.4 of radius
-                normalized_dist = (falloff / 1.0) * 0.4
-            else:
-                # Map 1.0-100.0 to 0.4-1.0 of radius
-                normalized_dist = 0.4 + ((falloff - 1.0) / 98.0) * 0.6
-                
-            return normalized_dist * vis_radius
+            # Map falloff directly to distance
+            # - 0.0 falloff = 0.0 distance (no falloff)
+            # - 1.0 falloff = 1.0 distance (maximum falloff)
+            return falloff * vis_radius
 
         def can_init(self, context, event):
             if self.adjust == 'NONE': return False
@@ -424,16 +394,16 @@ def create_falloff_brush(idname, label, **kwargs):
 
             # Get the initial value and convert it to distance
             dist = self._var_to_dist_fn(context)
-            
+
             # Store the initial radius for radius adjustment
             self.prev_radius = RFBrush_Falloff.radius
-            
+
             # Store the initial value for potential cancellation
             self._change_pre = dist
-            
+
             # Get the mouse position
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-            
+
             # Set the center point for the adjustment
             # For radius adjustment, we want to start from the current radius
             # For strength and falloff, we want to start from the current value's position
@@ -444,7 +414,7 @@ def create_falloff_brush(idname, label, **kwargs):
                 # This ensures that moving to the edge will reach the maximum value
                 angle = 0.0  # We'll use horizontal direction for consistency
                 RFBrush_Falloff.center2D = mouse - Vec2D((dist * math.cos(angle), dist * math.sin(angle)))
-            
+
             context.area.tag_redraw()
 
         def update(self, context, event):
@@ -459,10 +429,10 @@ def create_falloff_brush(idname, label, **kwargs):
 
             if event.type == 'MOUSEMOVE':
                 mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
-                
+
                 # Calculate distance from center to mouse
                 dist = (RFBrush_Falloff.center2D - mouse).length
-                
+
                 # For radius adjustment, we want to use the raw distance
                 # For strength and falloff, we want to ensure we can reach the maximum value
                 if self.adjust != 'RADIUS':

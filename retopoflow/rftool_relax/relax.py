@@ -111,8 +111,9 @@ class RFOperator_Relax(RFOperator):
         RFBrush_Relax, 'falloff', 'float',
         name='Falloff',
         description='How much strength the outside of the brush has as compared to the center',
-        min=0.00,
-        max=100.00,
+        min=0.1,
+        default=0.35,
+        max=1.00,
     )
     brush_strength: wrap_property(
         RFBrush_Relax, 'strength', 'float',
