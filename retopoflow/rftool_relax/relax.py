@@ -288,8 +288,8 @@ class RFTool_Relax(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Brush:")
             layout.prop(props, 'brush_radius')
-            layout.prop(props, 'brush_strength')
-            layout.prop(props, 'brush_falloff')
+            layout.prop(props, 'brush_strength', slider=True)
+            layout.prop(props, 'brush_falloff', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
             if prefs.expand_masking:
                 draw_line_separator(layout)
@@ -314,8 +314,8 @@ class RFTool_Relax(RFTool_Base):
             header.label(text="Brush")
             if panel:
                 panel.prop(props, 'brush_radius')
-                panel.prop(props, 'brush_strength')
-                panel.prop(props, 'brush_falloff')
+                panel.prop(props, 'brush_strength', slider=True)
+                panel.prop(props, 'brush_falloff', slider=True)
             draw_relax_algo_panel(context, layout)
             draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)
