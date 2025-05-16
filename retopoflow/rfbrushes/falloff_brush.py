@@ -33,14 +33,13 @@ from ..common.maths import lerp
 from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
-from ..common.easing import CubicEaseOut
 
 
 def create_falloff_brush(idname, label, **kwargs):
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
         radius   = kwargs.get('radius',   200)
-        falloff  = kwargs.get('falloff',  0.35)
+        falloff  = kwargs.get('falloff',  0.5)
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
@@ -85,19 +84,37 @@ def create_falloff_brush(idname, label, **kwargs):
             if not self.hit_scale: return 0.0 # Handle case where hit_scale might not be set yet
             return self.hit_scale * self.radius
 
-        def get_strength_dist(self, dist:float):
+        def get_strength_dist(self, dist: float):
             scaled_radius = self.get_scaled_radius()
-            if scaled_radius <= 0: return 0.0 # Avoid division by zero or negative radius!
-            
-            # Calculate the normalized [0.0-1.0] distance factor (0 at center, 1 at edge)
+            # Avoid division by zero or negative radius!
+            if scaled_radius <= 0: return 0.0
+
+            # Brush strength, values between [0, 1].
+            strength = self.strength
+
+            # Brush falloff, values between [0, 1]:
+            # - 0.0: no-falloff, affects with the same strength no matter the distance from the center.
+            # - 1.0: max falloff effect, the more 'dist' is closed to the center, the more strength is has.
+            falloff = self.falloff
+
+            # Normalized [0.0, 1.0] distance factor (0 at center, 1 at edge).
             normalized_dist_factor = clamp(dist / scaled_radius, 0.0, 1.0)
 
-            # Apply CubicEaseOut easing to the falloff effect to smooth the falloff based on distance to center!
-            # Note that we need to invert our initial factor from 0.0-1.0 to 1.0-0.0 range (1 at center, 0 at edge).
-            eased_falloff = CubicEaseOut(start=1.0, end=0.0, duration=10.0*self.falloff).ease(normalized_dist_factor)
+            # Apply cubic ease curve to the falloff
+            # This creates a smooth transition between center and edge
+            # The curve is: 1 - (1 - x)^3 where x is the normalized distance
+            falloff_factor = 1.0 - (1.0 - normalized_dist_factor) ** 3
 
-            # Multiply the falloff factor by the overall brush strength.
-            return self.strength * eased_falloff
+            # Apply falloff to strength...
+            # When falloff is 0, strength is constant
+            # When falloff is 1, strength follows the cubic curve
+            strength_in_dist = strength * (1.0 - falloff * falloff_factor)
+
+            # Clamp result to [0, 1]?, ideally we could map range, based on min/max values to [0, 1] range,
+            # in order to ensure a richer range of values without clipping, but that's something todo at tool level.
+            strength_in_dist = clamp(strength_in_dist, 0.0, 1.0)
+
+            return strength_in_dist
 
         def get_strength_Point(self, point:Point):
             if not self.hit_p: return 0.0
