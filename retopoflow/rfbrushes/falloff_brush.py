@@ -206,14 +206,13 @@ def create_falloff_brush(idname, label, **kwargs):
 
             # Draw - falloff - filled circle ring
             if adjust == 'FALLOFF':
+                fillscale = Color((1, 1, 1, .64))
+                center_color = color * fillscale
+                edge_color = (center_color[0], center_color[1], center_color[2], 0.0)
+                Drawing.draw2D_radial_gradient(context, center2D, r, center_color, edge_color, t=self.falloff, easing_type=2)  # 2 == cubic easing function.
                 # Draw circle (40% of radius) for brush-falloff reference for 0.0-2.0 range reference.
                 Drawing.draw2D_smooth_circle(context, center2D, r * 0.4, color, width=0.5)
                 text_value = f"{round(self.falloff, 2)}"
-                gradient_factor = 1.0 - self.falloff / 100
-                if gradient_factor <= 0.01:
-                    gradient_factor = 0.01
-                fillscale = Color((1, 1, 1, lerp(self.strength * clamp(self.falloff, 0.0, 1.0), self.brush_min_alpha, self.brush_max_alpha)))
-                Drawing.draw2D_smooth_circle(context, center2D, r, color * fillscale, width=0, smooth_threshold=r*gradient_factor)
 
             if adjust == 'RADIUS':
                 Drawing.draw2D_smooth_circle(context, center2D, active_op.prev_radius, color, width=0.5)

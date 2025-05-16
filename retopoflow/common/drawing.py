@@ -65,6 +65,7 @@ shader_2D_circle,   ubos_2D_circle,   batch_2D_circle   = create_shader('circle_
 shader_3D_circle,   ubos_3D_circle,   batch_3D_circle   = create_shader('circle_3D.glsl', segments=64)
 shader_smooth_circle_2D, ubos_smooth_circle_2D, batch_smooth_circle_2D = create_shader('smooth_circle_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
 shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle = create_shader('triangle_2D.glsl', pos=[(1,0), (0,1), (0,0)])
+shader_radial_gradient_2D, ubos_radial_gradient_2D, batch_radial_gradient_2D = create_shader('radial_gradient_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
 
 
 from contextlib import contextmanager
@@ -177,6 +178,34 @@ class Drawing:
         ubos_smooth_circle_2D.options.settings = settings
         ubos_smooth_circle_2D.update_shader()
         batch_smooth_circle_2D.draw(shader_smooth_circle_2D)
+        gpu.shader.unbind()
+
+    @staticmethod
+    def draw2D_radial_gradient(context, center:Point2D, radius:float, color_center:Color, color_edge:Color, *, t=1.0, easing_type=0):
+        '''
+        Draw a radial gradient from center to edge with easing functions
+        
+        Parameters:
+            context: Blender context
+            center: Center position in screen coordinates
+            radius: Circle radius in pixels
+            color_center: Color at the center of the gradient
+            color_edge: Color at the edge of the gradient
+            t: Controls gradient edge position (1.0 = at radius, <1.0 = softer, >1.0 = sharper)
+            easing_type: Type of easing function (0: linear, 1: quadratic, 2: cubic, 3: sine)
+        '''
+        area = context.area
+        radius = Drawing.scale(radius)
+        
+        shader_radial_gradient_2D.bind()
+        ubos_radial_gradient_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_radial_gradient_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
+        ubos_radial_gradient_2D.options.center = (center.x, center.y, 0.0, 0.0)
+        ubos_radial_gradient_2D.options.color_center = color_center
+        ubos_radial_gradient_2D.options.color_edge = color_edge
+        ubos_radial_gradient_2D.options.radius_t_easing = (radius, t, float(easing_type), 0.0)
+        ubos_radial_gradient_2D.update_shader()
+        batch_radial_gradient_2D.draw(shader_radial_gradient_2D)
         gpu.shader.unbind()
 
     @staticmethod
