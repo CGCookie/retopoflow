@@ -33,6 +33,7 @@ from ..common.maths import lerp
 from ...addon_common.common.maths import Color, clamp
 from ...addon_common.common import gpustate
 from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D
+from ..common.easing import CubicEaseIn
 
 
 def create_falloff_brush(idname, label, **kwargs):
@@ -100,10 +101,10 @@ def create_falloff_brush(idname, label, **kwargs):
             # Normalized [0.0, 1.0] distance factor (0 at center, 1 at edge).
             normalized_dist_factor = clamp(dist / scaled_radius, 0.0, 1.0)
 
-            # Apply cubic ease curve to the falloff
-            # This creates a smooth transition between center and edge
-            # The curve is: 1 - (1 - x)^3 where x is the normalized distance
-            falloff_factor = 1.0 - (1.0 - normalized_dist_factor) ** 3
+            # Apply cubic ease curve to the falloff using CubicEaseIn
+            # This creates a smooth transition between center and edge with a convex curve
+            cubic_ease = CubicEaseIn()
+            falloff_factor = cubic_ease(normalized_dist_factor)
 
             # Apply falloff to strength...
             # When falloff is 0, strength is constant
