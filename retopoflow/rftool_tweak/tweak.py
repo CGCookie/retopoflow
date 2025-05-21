@@ -105,14 +105,15 @@ class RFOperator_Tweak(RFOperator):
         subtype='PIXEL',
         min=1,
         max=1000,
+        default=100,
     )
     brush_falloff: wrap_property(
         RFBrush_Tweak, 'falloff', 'float',
         name='Falloff',
         description='How much strength the outside of the brush has as compared to the center',
         min=0.0,
-        default=0.5,
         max=1.00,
+        default=1.00,
     )
     brush_strength: wrap_property(
         RFBrush_Tweak, 'strength', 'float',
@@ -120,6 +121,7 @@ class RFOperator_Tweak(RFOperator):
         description='Strength of the brush',
         min=0.01,
         max=1.00,
+        default=0.75,
     )
 
 

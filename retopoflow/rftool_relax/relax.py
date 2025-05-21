@@ -106,14 +106,15 @@ class RFOperator_Relax(RFOperator):
         subtype='PIXEL',
         min=1,
         max=1000,
+        default=100,
     )
     brush_falloff: wrap_property(
         RFBrush_Relax, 'falloff', 'float',
         name='Falloff',
         description='How much strength the outside of the brush has as compared to the center',
         min=0.0,
-        default=0.5,
         max=1.00,
+        default=1.00,
     )
     brush_strength: wrap_property(
         RFBrush_Relax, 'strength', 'float',
@@ -121,6 +122,7 @@ class RFOperator_Relax(RFOperator):
         description='Strength of Brush',
         min=0.01,
         max=1.00,
+        default=0.75,
     )
 
     algorithm_iterations: bpy.props.IntProperty(

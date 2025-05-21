@@ -39,8 +39,8 @@ from ..common.easing import CubicEaseIn
 def create_falloff_brush(idname, label, **kwargs):
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
-        radius   = kwargs.get('radius',   200)
-        falloff  = kwargs.get('falloff',  0.5)
+        radius   = kwargs.get('radius',   100)
+        falloff  = kwargs.get('falloff',  1.00)
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
