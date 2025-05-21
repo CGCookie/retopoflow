@@ -36,7 +36,6 @@ from .common.raycast import prep_raycast_valid_sources
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 
-from .rfoperators import mesh_cleanup
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from .rfpanels import (
     general_panel, help_panel, mesh_cleanup_panel, masking_panel, relax_algorithm_panel, tweaking_panel, tools_pie
@@ -72,6 +71,7 @@ class RFCore:
     # lose "control" any time another modal operator gains control (ex: orbit view, box select, etc.).
     is_running     = False  # RFCore modal operator is running
     is_controlling = False  # RFCore is top modal operator
+    is_paused      = False  # Allows for switching modes and tools in functions
     event_mouse    = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
     depsgraph_version = 0
 
@@ -197,6 +197,8 @@ class RFCore:
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
+        if RFCore.is_paused: return 
+
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
 
@@ -302,6 +304,14 @@ class RFCore:
     def tag_redraw_areas():
         for a in RFCore.running_in_areas:
             a.tag_redraw()
+
+    @staticmethod
+    def pause():
+        RFCore.is_paused = True
+
+    @staticmethod
+    def resume(context):
+        RFCore.is_paused = False
 
     @staticmethod
     def stop():
