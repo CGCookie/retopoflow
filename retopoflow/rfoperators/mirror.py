@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
+from ..common.operator import RFRegisterClass
 from ..common.append import append_node
 from ..common.object import clear_transforms
 
@@ -120,16 +121,12 @@ def setup_mirror(context):
     
     mod = get_mirror_mod(obj)
     if mod:
-        props_obj.mirror_x = mod.use_axis[0]
-        props_obj.mirror_y = mod.use_axis[1]
-        props_obj.mirror_z = mod.use_axis[2]
+        props_obj.mirror_axis = mod.use_axes
         props_obj.mirror_clipping = mod.use_clip
     else:
-        props_obj.mirror_x = False
-        props_obj.mirror_y = False
-        props_obj.mirror_z = False
+        props_obj.mirror_axis = (False, False, False)
 
-    if props_obj.mirror_x or props_obj.mirror_y or props_obj.mirror_z:
+    if props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]:
         if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
             mod.show_in_editmode = False
             mod.show_on_cage = False
@@ -150,15 +147,13 @@ def set_mirror_mod(context):
     obj = context.active_object
     props_obj = obj.retopoflow
     mod = get_mirror_mod(obj)
-    use_mirror = props_obj.mirror_x or props_obj.mirror_y or props_obj.mirror_z
+    use_mirror = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
 
     if not mod and use_mirror:
         mod = obj.modifiers.new('Mirror', 'MIRROR')
 
     if mod:
-        mod.use_axis[0] = props_obj.mirror_x 
-        mod.use_axis[1] = props_obj.mirror_y
-        mod.use_axis[2] = props_obj.mirror_z
+        mod.use_axis = props_obj.mirror_axis
         mod.use_clip = props_obj.mirror_clipping
 
     if use_mirror:
@@ -166,7 +161,6 @@ def set_mirror_mod(context):
             mod.show_in_editmode = False
             mod.show_on_cage = False
             setup_solid_preview(context)
-
 
 
 def cleanup_mirror(context):
@@ -178,3 +172,31 @@ def cleanup_mirror(context):
 
     if mod:
         mod.show_in_editmode = props_obj.mirror_prev_edit
+
+
+class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
+    bl_idname = "retopoflow.applymirror"
+    bl_label = "Apply Mirror"
+    bl_description = "Apply the mirror modifier while in Edit Mode"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO'}
+
+    rf_label = "Apply Mirror"
+    RFCore = None
+
+    def execute(self, context):
+        from ..rfcore import RFCore
+        RFCore.pause()
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        obj = context.active_object
+        props_obj = obj.retopoflow
+        mod = get_mirror_mod(obj)
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        props_obj.mirror_axis = (False, False, False)
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        RFCore.resume()
+
+        return {'FINISHED'}

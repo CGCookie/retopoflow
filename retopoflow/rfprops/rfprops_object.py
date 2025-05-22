@@ -31,22 +31,11 @@ class RFProps_Object(bpy.types.PropertyGroup):
 
     """ Mirror """
     #region
-    mirror_x: bpy.props.BoolProperty(
-        name='Mirror X',
-        description='Enables mirroring the edited meshes across the X axis',
-        default=False, 
-        update=lambda self, context: set_mirror_mod(context)
-    )
-    mirror_y: bpy.props.BoolProperty(
-        name='Mirror Y',
-        description='Enables mirroring the edited meshes across the Y axis',
-        default=False, 
-        update=lambda self, context: set_mirror_mod(context)
-    )
-    mirror_z: bpy.props.BoolProperty(
-        name='Mirror Z',
-        description='Enables mirroring the edited meshes across the Z axis',
-        default=False, 
+    mirror_axis: bpy.props.BoolVectorProperty(
+        name='Axes',
+        description='Enables the mirror modifier on the X, Y, or Z axis',
+        size=3,
+        default=(False, False, False),
         update=lambda self, context: set_mirror_mod(context)
     )
     mirror_clipping: bpy.props.BoolProperty(

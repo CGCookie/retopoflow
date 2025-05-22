@@ -37,18 +37,17 @@ def draw_mirror_options(context, layout, draw_operators=True):
     layout.label(text='Modifier')
     row=layout.row(align=True, heading='Axis')
     if mod:
-        button = layout.row(align=True, heading='Axis')
-        button.prop(mod, 'use_axis', index=0, text='X', toggle=True)
-        button.prop(mod, 'use_axis', index=1, text='Y', toggle=True)
-        button.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
+        row.prop(mod, 'use_axis', index=0, text='X', toggle=True)
+        row.prop(mod, 'use_axis', index=1, text='Y', toggle=True)
+        row.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
         col = layout.column()
         col.enabled = mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]
     else:
-        row.prop(props_obj, 'mirror_x', text='X', toggle=True)
-        row.prop(props_obj, 'mirror_y', text='Y', toggle=True)
-        row.prop(props_obj, 'mirror_z', text='Z', toggle=True)
+        row.prop(props_obj, 'mirror_axis', index=0, text='X', toggle=True)
+        row.prop(props_obj, 'mirror_axis', index=1, text='Y', toggle=True)
+        row.prop(props_obj, 'mirror_axis', index=2, text='Z', toggle=True)
         col = layout.column()
-        col.enabled = props_obj.mirror_x or props_obj.mirror_y or props_obj.mirror_z
+        col.enabled = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
     if mod:
         col.prop(mod, 'use_clip', text='Clipping')
     else:
@@ -64,6 +63,9 @@ def draw_mirror_options(context, layout, draw_operators=True):
         row = col.row()
         row.enabled = props.mirror_displace != 0
         row.prop(props, 'mirror_displace_boundaries', text='Boundaries')
+
+    layout.separator()
+    layout.operator('retopoflow.applymirror')
 
 
 def draw_mirror_panel(context, layout):
@@ -87,9 +89,9 @@ def draw_mirror_popover(context, layout):
             button.prop(mod, 'use_axis', index=1, text='Y', toggle=True)
             button.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
         else:
-            button.prop(obj.retopoflow, 'mirror_x', text='X', toggle=True)
-            button.prop(obj.retopoflow, 'mirror_y', text='Y', toggle=True)
-            button.prop(obj.retopoflow, 'mirror_z', text='Z', toggle=True)
+            button.prop(obj.retopoflow, 'mirror_axis', index=0, text='X', toggle=True)
+            button.prop(obj.retopoflow, 'mirror_axis', index=1, text='Y', toggle=True)
+            button.prop(obj.retopoflow, 'mirror_axis', index=2, text='Z', toggle=True)
     row.popover('RF_PT_Mirror', text='', icon='MOD_MIRROR')
 
 
