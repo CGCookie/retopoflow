@@ -33,30 +33,53 @@ def get_mirror_mod(obj):
     return modifiers[0] if modifiers else None
 
 
-def setup_solid_preview(context):
-    from ..rfcore import RFCore
-    RFCore.pause()
-    bpy.ops.object.mode_set(mode='OBJECT')
-
+def setup_nodes_preview(context):
     props = context.scene.retopoflow
     mirror_obj = context.active_object
     mirror_mod = get_mirror_mod(mirror_obj)
     props_obj = mirror_obj.retopoflow
-    preview_name = mirror_obj.name + '_mirror_preview'
     node_name = 'Retopoflow Mirror Display'
-    node_group = append_node('.' + node_name)
+    
+    if '.' + node_name not in [x.name for x in bpy.data.node_groups]:
+        from ..rfcore import RFCore
+        RFCore.pause()
+        bpy.ops.object.mode_set(mode='OBJECT')
+        node_group = append_node('.' + node_name)
+        bpy.ops.object.mode_set(mode='EDIT')
+        RFCore.resume()
+    else:
+        node_group = bpy.data.node_groups['.' + node_name]
 
+    preview_name = mirror_obj.name + '_mirror_preview'
     if preview_name in [x.name for x in bpy.data.objects]:
         preview_obj = bpy.data.objects[preview_name]
     else:
         mesh = bpy.data.meshes.new(preview_name)
         preview_obj = bpy.data.objects.new(preview_name, mesh)
-
+    if preview_obj.name not in context.collection.objects:
+        context.collection.objects.link(preview_obj)
     clear_transforms(preview_obj)
     preview_obj.parent = mirror_obj
-    preview_obj.show_wire = props.mirror_wires
-    preview_obj.show_all_edges = props.mirror_wires
-    preview_obj.display_type = 'WIRE' if props.mirror_display == 'WIRE' else 'SOLID'
+
+    if props.mirror_display == 'WIRE':
+        # Workaround for grease pencil not showing up in 
+        # geo nodes if a GP obj isn't in the scene
+        gp_name = mirror_obj.name + '_mirror_preview_gp'
+        if gp_name in [x.name for x in bpy.data.objects]:
+            gp_obj = bpy.data.objects[gp_name]
+        else:
+            gp = bpy.data.grease_pencils_v3.new(gp_name)
+            gp_obj = bpy.data.objects.new(gp_name, gp)
+        if gp_obj.name not in context.collection.objects:
+            context.collection.objects.link(gp_obj)    
+        gp_obj.parent = mirror_obj
+
+    preview_obj.show_wire = props.mirror_wires and props.mirror_display == 'SOLID'
+    preview_obj.show_all_edges = True
+    if bpy.app.version < (4, 3, 0) and props.mirror_display == 'WIRE':
+        preview_obj.display_type = 'WIRE'
+    else:
+        preview_obj.display_type = 'SOLID'
 
     if node_name in [x.name for x in preview_obj.modifiers]:
         mod = preview_obj.modifiers[node_name]
@@ -90,28 +113,31 @@ def setup_solid_preview(context):
     var_z.targets[0].id = mirror_obj
     var_z.targets[0].data_path = mirror_mod.path_from_id() + ".use_axis[2]"
 
-    mod['Socket_7'] = props.mirror_colors
     mod['Socket_5'] = context.space_data.overlay.retopology_offset
     mod['Socket_6'] = props.mirror_displace
     mod['Socket_9'] = props.mirror_displace_boundaries
+    mod['Socket_11'] = props.mirror_display == 'WIRE'
+    mod['Socket_10'] = props.mirror_wire_thickness
 
-    if preview_obj.name not in context.collection.objects:
-        context.collection.objects.link(preview_obj)
+    for i in ['X', 'Y', 'Z']:
+        material = bpy.data.materials[f'.Retopoflow Mirror {i}']
+        material.diffuse_color[3] = props.mirror_opacity
+        material.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = props.mirror_opacity
+        bpy.data.materials[f'.Retopoflow Wire {i}'].grease_pencil.color[3] = props.mirror_opacity
 
-    bpy.ops.object.mode_set(mode='EDIT')
-    RFCore.resume()
 
-
-def cleanup_solid_preview(context):
+def cleanup_nodes_preview(context):
     mirror_obj = context.active_object
     preview_name = mirror_obj.name + '_mirror_preview'
+    gp_name = mirror_obj.name + '_mirror_preview_gp'
 
     if preview_name in [x.name for x in bpy.data.objects]:
         preview_obj = bpy.data.objects[preview_name]
-    else:
-        return
-    
-    bpy.data.meshes.remove(preview_obj.data)
+        bpy.data.meshes.remove(preview_obj.data)
+
+    if gp_name in [x.name for x in bpy.data.objects]:
+        gp_obj = bpy.data.objects[gp_name]
+        bpy.data.grease_pencils_v3.remove(gp_obj.data)    
 
 
 def setup_mirror(context):  
@@ -130,16 +156,16 @@ def setup_mirror(context):
         if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
             mod.show_in_editmode = False
             mod.show_on_cage = False
-            setup_solid_preview(context)
+            setup_nodes_preview(context)
         elif props.mirror_display == 'APPLIED':
             mod.show_in_editmode = True
             mod.show_on_cage = True
-            cleanup_solid_preview(context)
+            cleanup_nodes_preview(context)
         else:
             mod.show_on_cage = False
-            cleanup_solid_preview(context)
+            cleanup_nodes_preview(context)
     else:
-        cleanup_solid_preview(context)
+        cleanup_nodes_preview(context)
 
 
 def set_mirror_mod(context):
@@ -160,7 +186,7 @@ def set_mirror_mod(context):
         if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
             mod.show_in_editmode = False
             mod.show_on_cage = False
-            setup_solid_preview(context)
+            setup_nodes_preview(context)
 
 
 def cleanup_mirror(context):
@@ -168,10 +194,12 @@ def cleanup_mirror(context):
     props_obj = obj.retopoflow
     mod = get_mirror_mod(obj)
 
-    cleanup_solid_preview(context)
+    cleanup_nodes_preview(context)
 
     if mod:
         mod.show_in_editmode = props_obj.mirror_prev_edit
+        if not (mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]):
+            obj.modifiers.remove(mod)
 
 
 class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):

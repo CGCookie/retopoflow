@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from ..rfoperators.mirror import setup_solid_preview, setup_mirror
+from ..rfoperators.mirror import setup_nodes_preview, setup_mirror
 
 
 class RFProps_Scene(bpy.types.PropertyGroup):
@@ -119,7 +119,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
             ('SOLID', 'Solid', 'The mirrored geometry is overlaid as a solid object'),
             ('APPLIED', 'Applied', 'The mirrored geometry is displayed as applied to the vertices'),
         ],
-        default='SOLID',
+        default='APPLIED',
         update=lambda self, context: setup_mirror(context)
     )
     mirror_displace: bpy.props.FloatProperty(
@@ -131,25 +131,35 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         min=0,
         max=1,
         default=1,
-        update=lambda self, context: setup_solid_preview(context)
+        update=lambda self, context: setup_nodes_preview(context)
     )
     mirror_displace_boundaries: bpy.props.BoolProperty(
         name='Displace Boundaries',
         description='Displays the wireframe on top of the mirrored geometry',
         default=True,
-        update=lambda self, context: setup_solid_preview(context)
+        update=lambda self, context: setup_nodes_preview(context)
     )
     mirror_wires: bpy.props.BoolProperty(
         name='Wireframe',
         description='Displays the wireframe on top of the mirrored geometry',
         default=True,
-        update=lambda self, context: setup_solid_preview(context)
+        update=lambda self, context: setup_nodes_preview(context)
     )
-    mirror_colors: bpy.props.BoolProperty(
-        name='Axis Colors',
-        description='Adds an RGB material to the material preview for the XYZ axes',
-        default=True,
-        update=lambda self, context: setup_solid_preview(context)
+    mirror_wire_thickness: bpy.props.FloatProperty(
+        name='Wire Thickness',
+        description='Size of the wireframe display in world space',
+        default=0.2,
+        min=0.2,
+        max=50,
+        update=lambda self, context: setup_nodes_preview(context)
+    )
+    mirror_opacity: bpy.props.FloatProperty(
+        name='Opacity',
+        description='Controls how solid or transparent the mirror preview is',
+        default=0.5,
+        min=0,
+        max=1,
+        update=lambda self, context: setup_nodes_preview(context)
     )
 
 def register():

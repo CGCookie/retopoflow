@@ -42,23 +42,26 @@ def draw_mirror_options(context, layout, draw_operators=True):
         row.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
         col = layout.column()
         col.enabled = mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]
+        col.prop(mod, 'use_clip', text='Clipping')
     else:
         row.prop(props_obj, 'mirror_axis', index=0, text='X', toggle=True)
         row.prop(props_obj, 'mirror_axis', index=1, text='Y', toggle=True)
         row.prop(props_obj, 'mirror_axis', index=2, text='Z', toggle=True)
         col = layout.column()
         col.enabled = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
-    if mod:
-        col.prop(mod, 'use_clip', text='Clipping')
-    else:
         col.prop(props_obj, 'mirror_clipping')
+
     col.label(text='Preview')
     col.prop(props, 'mirror_display')
-    if props.mirror_display == 'SOLID':
-        col.prop(props, 'mirror_colors')
-        col.prop(props, 'mirror_wires')
+
     if props.mirror_display == 'SOLID' or props.mirror_display == 'WIRE':
+        col.prop(props, 'mirror_opacity', text='Opacity', slider=True)
+        if props.mirror_display == 'SOLID':
+            col.prop(props, 'mirror_wires')
+        if props.mirror_display == 'WIRE' and bpy.app.version >= (4, 3, 0):
+            col.prop(props, 'mirror_wire_thickness', text='Thickness')
         col.separator()
+
         col.prop(props, 'mirror_displace', slider=True)
         row = col.row()
         row.enabled = props.mirror_displace != 0
