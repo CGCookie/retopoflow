@@ -121,7 +121,7 @@ def setup_mirror(context):
     
     mod = get_mirror_mod(obj)
     if mod:
-        props_obj.mirror_axis = mod.use_axes
+        props_obj.mirror_axis = mod.use_axis
         props_obj.mirror_clipping = mod.use_clip
     else:
         props_obj.mirror_axis = (False, False, False)
