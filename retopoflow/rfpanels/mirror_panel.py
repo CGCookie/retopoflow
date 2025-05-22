@@ -41,12 +41,14 @@ def draw_mirror_options(context, layout, draw_operators=True):
         button.prop(mod, 'use_axis', index=0, text='X', toggle=True)
         button.prop(mod, 'use_axis', index=1, text='Y', toggle=True)
         button.prop(mod, 'use_axis', index=2, text='Z', toggle=True)
+        col = layout.column()
+        col.enabled = mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]
     else:
         row.prop(props_obj, 'mirror_x', text='X', toggle=True)
         row.prop(props_obj, 'mirror_y', text='Y', toggle=True)
         row.prop(props_obj, 'mirror_z', text='Z', toggle=True)
-    col = layout.column()
-    col.enabled = props_obj.mirror_x or props_obj.mirror_y or props_obj.mirror_z
+        col = layout.column()
+        col.enabled = props_obj.mirror_x or props_obj.mirror_y or props_obj.mirror_z
     if mod:
         col.prop(mod, 'use_clip', text='Clipping')
     else:
