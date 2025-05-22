@@ -20,7 +20,8 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from ..rfoperators.mirror import setup_nodes_preview, setup_mirror
+from ..common.viewport import update_retopo_overlay
+from ..rfoperators.mirror import update_nodes_preview, update_mirror_mod
 
 
 class RFProps_Scene(bpy.types.PropertyGroup):
@@ -34,6 +35,23 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     saved_tool: bpy.props.StringProperty(
         name='RetopoFlow Tool',
         description='RetopoFlow Tool to select after loading from file',
+    )
+
+    """ Display """
+    retopo_offset: bpy.props.FloatProperty(
+        name='Retopology Offset',
+        description=(
+            "Controls the size of Blender's retopology overlay (how much it pokes through the mesh)"
+            " and some of Retopoflow's effects that are based on it"
+        ),
+        min=0,
+        #soft_max=1,
+        max=10,
+        default=0.01,
+        precision=3,
+        step=0.001,
+        subtype='DISTANCE',
+        update=lambda self, context: update_retopo_overlay(context)
     )
 
     """ Cleaning """
@@ -115,12 +133,12 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         description='How the mirrored geometry is previewed',
         items=[
             ('NONE', 'None', 'The mirrored geometry is not previewed'),
+            ('APPLIED', 'Applied', 'The mirrored geometry is displayed as applied to the vertices'),
             ('WIRE', 'Wire', 'The mirrored geometry is overlaid as a wireframe'),
             ('SOLID', 'Solid', 'The mirrored geometry is overlaid as a solid object'),
-            ('APPLIED', 'Applied', 'The mirrored geometry is displayed as applied to the vertices'),
         ],
         default='APPLIED',
-        update=lambda self, context: setup_mirror(context)
+        update=lambda self, context: update_mirror_mod(context)
     )
     mirror_displace: bpy.props.FloatProperty(
         name='Displace',
@@ -131,19 +149,25 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         min=0,
         max=1,
         default=1,
-        update=lambda self, context: setup_nodes_preview(context)
+        update=lambda self, context: update_nodes_preview(context)
     )
     mirror_displace_boundaries: bpy.props.BoolProperty(
         name='Displace Boundaries',
-        description='Displays the wireframe on top of the mirrored geometry',
+        description='Include mesh boundaries in the displacement',
         default=True,
-        update=lambda self, context: setup_nodes_preview(context)
+        update=lambda self, context: update_nodes_preview(context)
+    )
+    mirror_displace_connected: bpy.props.BoolProperty(
+        name='Displace Connected',
+        description='Include connected vertices (usually along the center line) in the displacement',
+        default=False,
+        update=lambda self, context: update_nodes_preview(context)
     )
     mirror_wires: bpy.props.BoolProperty(
         name='Wireframe',
         description='Displays the wireframe on top of the mirrored geometry',
         default=True,
-        update=lambda self, context: setup_nodes_preview(context)
+        update=lambda self, context: update_nodes_preview(context)
     )
     mirror_wire_thickness: bpy.props.FloatProperty(
         name='Wire Thickness',
@@ -151,7 +175,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default=0.2,
         min=0.2,
         max=50,
-        update=lambda self, context: setup_nodes_preview(context)
+        update=lambda self, context: update_nodes_preview(context)
     )
     mirror_opacity: bpy.props.FloatProperty(
         name='Opacity',
@@ -159,8 +183,9 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default=0.5,
         min=0,
         max=1,
-        update=lambda self, context: setup_nodes_preview(context)
+        update=lambda self, context: update_nodes_preview(context)
     )
+
 
 def register():
     bpy.utils.register_class(RFProps_Scene)

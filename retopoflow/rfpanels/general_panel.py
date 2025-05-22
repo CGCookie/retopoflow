@@ -24,6 +24,7 @@ from ..preferences import RF_Prefs
 
 def draw_general_options(context, layout):
     props = RF_Prefs.get_prefs(context)
+    props_scene = context.scene.retopoflow
     theme = context.preferences.themes[0].view_3d
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
@@ -45,7 +46,8 @@ def draw_general_options(context, layout):
         row.label(text='Overlay')
         split = row.split(align=True, factor=1/3)
         split.prop(theme, 'face_retopology', text='')
-        split.prop(context.space_data.overlay, 'retopology_offset', text='')
+        split.prop(props_scene, 'retopo_offset', text='')
+        #split.prop(context.space_data.overlay, 'retopology_offset', text='')
         row = col.row(heading='Fade Sources')
         row.prop(context.space_data.overlay, 'show_fade_inactive', text='')
         row2 = row.row()

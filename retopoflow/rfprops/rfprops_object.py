@@ -21,7 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 
-from ..rfoperators.mirror import set_mirror_mod
+from ..rfoperators.mirror import update_mirror_mod
 
 
 class RFProps_Object(bpy.types.PropertyGroup):
@@ -36,13 +36,13 @@ class RFProps_Object(bpy.types.PropertyGroup):
         description='Enables the mirror modifier on the X, Y, or Z axis',
         size=3,
         default=(False, False, False),
-        update=lambda self, context: set_mirror_mod(context)
+        update=lambda self, context: update_mirror_mod(context)
     )
     mirror_clipping: bpy.props.BoolProperty(
         name='Clipping',
         description='Keeps vertices stuck to the mirror axis during transforms',
         default=True, 
-        update=lambda self, context: set_mirror_mod(context)
+        update=lambda self, context: update_mirror_mod(context)
     )
     mirror_prev_edit: bpy.props.BoolProperty(default=True)
 

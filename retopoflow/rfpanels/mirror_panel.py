@@ -61,11 +61,14 @@ def draw_mirror_options(context, layout, draw_operators=True):
         if props.mirror_display == 'WIRE' and bpy.app.version >= (4, 3, 0):
             col.prop(props, 'mirror_wire_thickness', text='Thickness')
         col.separator()
-
+        col.prop(props, 'retopo_offset', text='Overlay')
         col.prop(props, 'mirror_displace', slider=True)
         row = col.row()
         row.enabled = props.mirror_displace != 0
         row.prop(props, 'mirror_displace_boundaries', text='Boundaries')
+        row = col.row()
+        row.enabled = props.mirror_displace != 0 and props.mirror_displace_boundaries
+        row.prop(props, 'mirror_displace_connected', text='Connected')
 
     layout.separator()
     layout.operator('retopoflow.applymirror')

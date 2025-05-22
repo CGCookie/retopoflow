@@ -27,10 +27,49 @@ from ..common.append import append_node
 from ..common.object import clear_transforms
 
 
+mirror_node_tree_name = 'Retopoflow Mirror Display'
+
+
 def get_mirror_mod(obj):
     # Just uses last mirror in stack
     modifiers = list(reversed([x for x in obj.modifiers if x.type == 'MIRROR']))
     return modifiers[0] if modifiers else None
+
+
+def update_nodes_preview(context, preview_mod=None):
+    props = context.scene.retopoflow
+    mirror_obj = context.active_object
+    preview_name = mirror_obj.name + '_mirror_preview'
+
+    if preview_name not in [x.name for x in bpy.data.objects]: 
+        return 
+
+    preview_obj = bpy.data.objects[preview_name]
+    node_name = mirror_node_tree_name
+    mod = preview_obj.modifiers[node_name] if preview_mod == None else preview_mod
+
+    preview_obj.show_wire = props.mirror_wires and props.mirror_display == 'SOLID'
+    preview_obj.show_all_edges = True
+    if bpy.app.version < (4, 3, 0) and props.mirror_display == 'WIRE':
+        preview_obj.display_type = 'WIRE'
+    else:
+        preview_obj.display_type = 'SOLID'
+
+    mod['Socket_5'] = context.space_data.overlay.retopology_offset
+    mod['Socket_6'] = props.mirror_displace
+    mod['Socket_9'] = props.mirror_displace_boundaries
+    mod['Socket_12'] = props.mirror_displace_connected
+    mod['Socket_11'] = props.mirror_display == 'WIRE'
+    mod['Socket_10'] = props.mirror_wire_thickness
+
+    # Hack to get it to update while in other object's edit mode
+    mod.show_in_editmode = True
+
+    for i in ['X', 'Y', 'Z']:
+        material = bpy.data.materials[f'.Retopoflow Mirror {i}']
+        material.diffuse_color[3] = props.mirror_opacity
+        material.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = props.mirror_opacity
+        bpy.data.materials[f'.Retopoflow Wire {i}'].grease_pencil.color[3] = props.mirror_opacity
 
 
 def setup_nodes_preview(context):
@@ -38,7 +77,7 @@ def setup_nodes_preview(context):
     mirror_obj = context.active_object
     mirror_mod = get_mirror_mod(mirror_obj)
     props_obj = mirror_obj.retopoflow
-    node_name = 'Retopoflow Mirror Display'
+    node_name = mirror_node_tree_name
     
     if '.' + node_name not in [x.name for x in bpy.data.node_groups]:
         from ..rfcore import RFCore
@@ -74,13 +113,6 @@ def setup_nodes_preview(context):
             context.collection.objects.link(gp_obj)    
         gp_obj.parent = mirror_obj
 
-    preview_obj.show_wire = props.mirror_wires and props.mirror_display == 'SOLID'
-    preview_obj.show_all_edges = True
-    if bpy.app.version < (4, 3, 0) and props.mirror_display == 'WIRE':
-        preview_obj.display_type = 'WIRE'
-    else:
-        preview_obj.display_type = 'SOLID'
-
     if node_name in [x.name for x in preview_obj.modifiers]:
         mod = preview_obj.modifiers[node_name]
         props_obj.mirror_prev_edit = mod.show_in_editmode
@@ -113,17 +145,7 @@ def setup_nodes_preview(context):
     var_z.targets[0].id = mirror_obj
     var_z.targets[0].data_path = mirror_mod.path_from_id() + ".use_axis[2]"
 
-    mod['Socket_5'] = context.space_data.overlay.retopology_offset
-    mod['Socket_6'] = props.mirror_displace
-    mod['Socket_9'] = props.mirror_displace_boundaries
-    mod['Socket_11'] = props.mirror_display == 'WIRE'
-    mod['Socket_10'] = props.mirror_wire_thickness
-
-    for i in ['X', 'Y', 'Z']:
-        material = bpy.data.materials[f'.Retopoflow Mirror {i}']
-        material.diffuse_color[3] = props.mirror_opacity
-        material.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = props.mirror_opacity
-        bpy.data.materials[f'.Retopoflow Wire {i}'].grease_pencil.color[3] = props.mirror_opacity
+    update_nodes_preview(context, mod)
 
 
 def cleanup_nodes_preview(context):
@@ -140,19 +162,21 @@ def cleanup_nodes_preview(context):
         bpy.data.grease_pencils_v3.remove(gp_obj.data)    
 
 
-def setup_mirror(context):  
+def update_mirror_mod(context, modifier=None):
     props = context.scene.retopoflow
     obj = context.active_object
     props_obj = obj.retopoflow
-    
-    mod = get_mirror_mod(obj)
-    if mod:
-        props_obj.mirror_axis = mod.use_axis
-        props_obj.mirror_clipping = mod.use_clip
-    else:
-        props_obj.mirror_axis = (False, False, False)
+    use_mirror = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
+    mod = get_mirror_mod(obj) if modifier == None else modifier
 
-    if props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]:
+    if not mod and use_mirror:
+        mod = obj.modifiers.new('Mirror', 'MIRROR')
+
+    if mod:
+        mod.use_axis = props_obj.mirror_axis
+        mod.use_clip = props_obj.mirror_clipping
+
+    if mod and use_mirror:
         if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
             mod.show_in_editmode = False
             mod.show_on_cage = False
@@ -168,25 +192,16 @@ def setup_mirror(context):
         cleanup_nodes_preview(context)
 
 
-def set_mirror_mod(context):
-    props = context.scene.retopoflow
+def setup_mirror(context):
     obj = context.active_object
     props_obj = obj.retopoflow
+    
     mod = get_mirror_mod(obj)
-    use_mirror = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
-
-    if not mod and use_mirror:
-        mod = obj.modifiers.new('Mirror', 'MIRROR')
-
     if mod:
-        mod.use_axis = props_obj.mirror_axis
-        mod.use_clip = props_obj.mirror_clipping
-
-    if use_mirror:
-        if props.mirror_display == 'SOLID' or props.mirror_display=='WIRE':
-            mod.show_in_editmode = False
-            mod.show_on_cage = False
-            setup_nodes_preview(context)
+        props_obj.mirror_axis = mod.use_axis
+        props_obj.mirror_clipping = mod.use_clip
+    else:
+        props_obj.mirror_axis = (False, False, False)
 
 
 def cleanup_mirror(context):
