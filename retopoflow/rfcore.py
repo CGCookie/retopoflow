@@ -278,6 +278,15 @@ class RFCore:
             for s in iter_all_view3d_spaces():
                 show_fade_inactive(s)
 
+        # Set up retopology overlay
+        offset = context.space_data.overlay.retopology_offset
+        props = context.scene.retopoflow
+        if bpy.app.version < (4, 5, 0) and props.override_default_offset and offset > 0.2 and offset <0.20001:
+            # Fixing Blender's bad default
+            context.space_data.overlay.retopology_offset = 0.01
+            print("Switching from Blender's default overlay distance to a smaller value")
+        props.override_default_offset = False # Should only happen on initial load
+        props.retopo_offset = context.space_data.overlay.retopology_offset
         if prefs.setup_retopo_overlay:
             def show_retopology(space):
                 RFCore.resetter['space.overlay.show_retopology'] = True

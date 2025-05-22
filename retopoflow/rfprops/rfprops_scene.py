@@ -53,6 +53,9 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         subtype='DISTANCE',
         update=lambda self, context: update_retopo_overlay(context)
     )
+    override_default_offset: bpy.props.BoolProperty(
+        default=True
+    )
 
     """ Cleaning """
     #region
@@ -159,7 +162,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     )
     mirror_displace_connected: bpy.props.BoolProperty(
         name='Displace Connected',
-        description='Include connected vertices (usually along the center line) in the displacement',
+        description='Include vertices connected to the original mesh (usually along the center line) in the displacement',
         default=False,
         update=lambda self, context: update_nodes_preview(context)
     )
