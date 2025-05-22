@@ -119,7 +119,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
             ('SOLID', 'Solid', 'The mirrored geometry is overlaid as a solid object'),
             ('APPLIED', 'Applied', 'The mirrored geometry is displayed as applied to the vertices'),
         ],
-        default='NONE',
+        default='SOLID',
         update=lambda self, context: setup_mirror(context)
     )
     mirror_displace: bpy.props.FloatProperty(
