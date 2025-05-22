@@ -61,6 +61,7 @@ def draw_mirror_options(context, layout, draw_operators=True):
         if props.mirror_display == 'WIRE' and bpy.app.version >= (4, 3, 0):
             col.prop(props, 'mirror_wire_thickness', text='Thickness')
         col.separator()
+
         col.prop(props, 'retopo_offset', text='Overlay')
         col.prop(props, 'mirror_displace', slider=True)
         row = col.row()
@@ -69,6 +70,17 @@ def draw_mirror_options(context, layout, draw_operators=True):
         row = col.row()
         row.enabled = props.mirror_displace != 0 and props.mirror_displace_boundaries
         row.prop(props, 'mirror_displace_connected', text='Connected')
+
+        if context.space_data.shading.color_type not in ['MATERIAL', 'TEXTURE']:
+            col.separator()
+            box = col.box()
+            message = box.column(align=True)
+            row=message.row()
+            row.alignment='CENTER'
+            row.label(text=('Axis colors can only be seen when'))
+            row=message.row()
+            row.alignment='CENTER'
+            row.label(text=('viewport is set to Material or Texture'))
 
     layout.separator()
     layout.operator('retopoflow.applymirror')
@@ -106,7 +118,7 @@ class RFMenu_PT_Mirror(bpy.types.Panel):
     bl_idname = "RF_PT_Mirror"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
-    # bl_ui_units_x = 11
+    bl_ui_units_x = 12
 
     def draw(self, context):
         draw_mirror_options(context, self.layout)
