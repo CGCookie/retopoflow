@@ -70,6 +70,7 @@ from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.masking_panel import draw_masking_panel
+from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
@@ -260,6 +261,7 @@ class RFTool_Tweak(RFTool_Base):
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
+            draw_mirror_popover(context, layout)
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
 
@@ -272,6 +274,7 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props, 'brush_falloff', slider=True)
             draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)
 

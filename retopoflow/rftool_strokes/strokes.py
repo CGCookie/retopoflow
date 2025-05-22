@@ -52,6 +52,7 @@ from ..rfoperators.launch_browser import create_launch_browser_operator, RFOpera
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
@@ -477,11 +478,11 @@ class RFTool_Strokes(RFTool_Base):
                 row.prop(props_strokes, 'brush_radius', text="")
             # layout.label(text="Smooth Blending:")
             layout.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
-            layout.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
-            layout.label(text="Spacing:")
-            row = layout.row(align=True)
-            row.prop(props_strokes, 'smooth_density0', text='', slider=True)
-            row.prop(props_strokes, 'smooth_density1', text='', slider=True)
+            layout.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
+            # layout.label(text="Spacing:")
+            # row = layout.row(align=True)
+            # row.prop(props_strokes, 'smooth_density0', text='', slider=True)
+            # row.prop(props_strokes, 'smooth_density1', text='', slider=True)
             row = layout.row(heading='T-Strips:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
 
@@ -490,6 +491,7 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
+            draw_mirror_popover(context, layout)
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
 
@@ -503,13 +505,14 @@ class RFTool_Strokes(RFTool_Base):
                 else:
                     panel.prop(props_strokes, 'brush_radius', text="Radius")
                 panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
-                panel.prop(props_strokes, 'smooth_angle', text='Smooth Blending', slider=True)
+                panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
                 panel.label(text='T-Strips')
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
             draw_tweaking_panel(context, layout)
+            draw_mirror_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)

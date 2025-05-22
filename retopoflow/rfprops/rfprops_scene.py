@@ -20,6 +20,8 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from ..rfoperators.mirror import setup_solid_preview, setup_mirror
+
 
 class RFProps_Scene(bpy.types.PropertyGroup):
     """
@@ -106,6 +108,49 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     )
     #endregion
 
+    """ Mirror """
+    #region
+    mirror_display: bpy.props.EnumProperty(
+        name='Display',
+        description='How the mirrored geometry is previewed',
+        items=[
+            ('NONE', 'None', 'The mirrored geometry is not previewed'),
+            ('WIRE', 'Wire', 'The mirrored geometry is overlaid as a wireframe'),
+            ('SOLID', 'Solid', 'The mirrored geometry is overlaid as a solid object'),
+            ('APPLIED', 'Applied', 'The mirrored geometry is displayed as applied to the vertices'),
+        ],
+        default='NONE',
+        update=lambda self, context: setup_mirror(context)
+    )
+    mirror_displace: bpy.props.FloatProperty(
+        name='Displace',
+        description=(
+            'Displaces non-boundary vertices as a factor of the retopology overlay distance for better visibility.'
+            ' If the effect is too extreme, you likely need to reduce the retopology overlay distance instead.'
+        ),
+        min=0,
+        max=1,
+        default=1,
+        update=lambda self, context: setup_solid_preview(context)
+    )
+    mirror_displace_boundaries: bpy.props.BoolProperty(
+        name='Displace Boundaries',
+        description='Displays the wireframe on top of the mirrored geometry',
+        default=True,
+        update=lambda self, context: setup_solid_preview(context)
+    )
+    mirror_wires: bpy.props.BoolProperty(
+        name='Wireframe',
+        description='Displays the wireframe on top of the mirrored geometry',
+        default=True,
+        update=lambda self, context: setup_solid_preview(context)
+    )
+    mirror_colors: bpy.props.BoolProperty(
+        name='Axis Colors',
+        description='Adds an RGB material to the material preview for the XYZ axes',
+        default=True,
+        update=lambda self, context: setup_solid_preview(context)
+    )
 
 def register():
     bpy.utils.register_class(RFProps_Scene)

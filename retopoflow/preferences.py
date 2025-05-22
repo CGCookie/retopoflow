@@ -43,6 +43,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
         ),
         default=True,
     )
+    expand_mirror: bpy.props.BoolProperty(
+        name='Expand Mirror Axes',
+        description=(
+            'Show the X, Y, and Z axis toggles next to the mirror menu'
+        ),
+        default=True,
+    )
     expand_tools: bpy.props.BoolProperty(
         name='Expand Tools',
         description=(

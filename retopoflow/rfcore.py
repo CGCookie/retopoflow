@@ -36,13 +36,15 @@ from .common.raycast import prep_raycast_valid_sources
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 
+from .rfoperators import mesh_cleanup, mirror
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from .rfpanels import (
-    general_panel, help_panel, mesh_cleanup_panel, masking_panel, relax_algorithm_panel, tweaking_panel, tools_pie
+    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
+    relax_algorithm_panel, tweaking_panel, tools_pie
 )
 
 from . import preferences
-from .rfprops import rfprops_scene
+from .rfprops import rfprops_scene, rfprops_object
 
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
@@ -71,7 +73,7 @@ class RFCore:
     # lose "control" any time another modal operator gains control (ex: orbit view, box select, etc.).
     is_running     = False  # RFCore modal operator is running
     is_controlling = False  # RFCore is top modal operator
-    is_paused      = False  # Allows for switching modes and tools in functions
+    is_paused      = False  # Allows for switching modes and tools in operators without restarting RF
     event_mouse    = None   # keeps track of last mouse update, hack used to determine if RFCore is top modal operator
     depsgraph_version = 0
 
@@ -97,6 +99,7 @@ class RFCore:
         # register RF operator and RF tools
         preferences.register()
         rfprops_scene.register()
+        rfprops_object.register()
         RFTool_Base.register_all()
         RFOperator.register_all()
         RFOperator_Execute.register_all()
@@ -106,6 +109,7 @@ class RFCore:
         masking_panel.register()
         general_panel.register()
         help_panel.register()
+        mirror_panel.register()
         tools_pie.register()
         relax_algorithm_panel.register()
 
@@ -157,9 +161,11 @@ class RFCore:
         masking_panel.unregister()
         general_panel.unregister()
         help_panel.unregister()
+        mirror_panel.unregister()
         relax_algorithm_panel.unregister()
         tools_pie.unregister()
         rfprops_scene.unregister()
+        rfprops_object.unregister()
         preferences.unregister()
 
 
@@ -278,6 +284,8 @@ class RFCore:
             for s in iter_all_view3d_spaces():
                 show_retopology(s)
 
+        mirror.setup_mirror(context)
+
         try:
             bpy.ops.retopoflow.core()
         except:
@@ -310,8 +318,9 @@ class RFCore:
         RFCore.is_paused = True
 
     @staticmethod
-    def resume(context):
+    def resume():
         RFCore.is_paused = False
+
 
     @staticmethod
     def stop():
@@ -349,6 +358,8 @@ class RFCore:
 
         if not getattr(RFCore, 'is_saving', False):
             bpy.context.scene.retopoflow.saved_tool = ''
+
+        mirror.cleanup_mirror(bpy.context)
 
         RFCore.resetter.reset()
 

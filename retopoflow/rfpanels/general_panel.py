@@ -61,6 +61,7 @@ def draw_general_options(context, layout):
     row = col.row(heading='Expand')
     row.prop(props, 'expand_tools', text='Tools')
     col.prop(props, 'expand_masking', text='Masking Options')
+    col.prop(props, 'expand_mirror', text='Mirror Axes')
 
 
 def draw_general_panel(context, layout):

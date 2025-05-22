@@ -55,6 +55,7 @@ from ..rfoperators.launch_browser import create_launch_browser_operator, RFOpera
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
 from ..rfpanels.general_panel import draw_general_panel
+from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
@@ -252,10 +253,11 @@ class RFTool_PolyPen(RFTool_Base):
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
             draw_line_separator(layout)
-            layout.popover('RF_PT_TweakCommon')
+            layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
+            draw_mirror_popover(context, layout)
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
 
@@ -266,8 +268,9 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
-            draw_tweaking_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_tweaking_panel(context, layout)
+            draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)
 
