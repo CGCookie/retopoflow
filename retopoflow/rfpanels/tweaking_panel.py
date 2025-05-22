@@ -50,7 +50,7 @@ def draw_tweaking_options(context, layout):
 
 
 def draw_tweaking_panel(context, layout):
-    header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
+    header, panel = layout.panel(idname='tweak_panel_common', default_closed=True)
     header.label(text="Tweaking")
     if panel:
         draw_tweaking_options(context, panel)
