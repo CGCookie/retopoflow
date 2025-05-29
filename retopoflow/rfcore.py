@@ -31,7 +31,8 @@ from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
-from .common.raycast import prep_raycast_valid_sources
+from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
+from .common.interface import show_message
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
@@ -299,6 +300,8 @@ class RFCore:
             bpy.ops.retopoflow.core()
         except:
             pass
+        
+        
 
     @staticmethod
     def restart():
@@ -703,6 +706,13 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         self.running_in_area = context.area
         self.is_running = True
         RFCore.running_in_areas.append(context.area)
+
+        # Display an alert message if no sources are detected.
+        source_count = len(list(iter_all_valid_sources(context)))
+        if source_count == 0:
+            show_message(message="No sources detected.\nRetopoflow needs an object that is not being edited to snap to", title="RetopoFlow", icon="ERROR")
+            self.report({'ERROR'}, "No sources detected. Retopoflow needs an object that is not being edited to snap to")
+
         print(f'RFCore_Operator executing')
         return {'RUNNING_MODAL'}
 
