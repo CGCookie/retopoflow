@@ -408,7 +408,11 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             # prevents object selection with Ctrl+LMB Click
             return {'RUNNING_MODAL'}
 
-        if not RFTool_Strokes.rf_brush.is_stroking():
+        if RFTool_Strokes.rf_brush.is_stroking():
+            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
+                self.RFCore.handle_update(context, event)
+                return {'RUNNING_MODAL'}
+        else:
             if not event.ctrl:
                 Cursors.restore()
                 self.tickle(context)

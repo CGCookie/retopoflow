@@ -328,11 +328,17 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             Cursors.restore()
             self.tickle(context)
             return {'CANCELLED'}
-        if not RFTool_Contours.rf_brush.is_stroking():
+
+        if RFTool_Contours.rf_brush.is_stroking():
+            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
+                self.RFCore.handle_update(context, event)
+                return {'RUNNING_MODAL'}
+        else:
             if not event.ctrl:
                 Cursors.restore()
                 self.tickle(context)
                 return {'FINISHED'}
+
 
         Cursors.set('CROSSHAIR')
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
