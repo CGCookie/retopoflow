@@ -323,7 +323,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         bmfs = [ self.bm.faces[i] for i in strip_inds]
         bmvs = [ bmv for bmf in bmfs for bmv in bmf.verts ]
         # gather neighboring geo
-        if bmvs and context.tool_settings.use_proportional_edit:
+        if bmvs and use_proportional_edit:
             connected_only = context.tool_settings.use_proportional_connected
             if connected_only:
                 all_bmvs = {}
@@ -482,9 +482,16 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         if not context.tool_settings.use_proportional_edit: return
         gpustate.blend('ALPHA')
         rgn, r3d = context.region, context.region_data
+
         pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
         radius = location_3d_to_region_2d(rgn, r3d, pt)[0] - self.selection_origin_2d[0]
-        Drawing.draw2D_smooth_circle(context, self.selection_origin_2d, radius, Color((0.2,0.2,0.2,0.8)), width=2)
+        if self.grab['handle'] in {0, 3}:
+            # Drag handles.
+            center = self.selection_origin_2d
+        else:
+            # Curve manipulation handles.
+            center = location_3d_to_region_2d(rgn, r3d, self.grab['prev'][self.grab['handle']])
+        Drawing.draw2D_smooth_circle(context, center, radius, Color((0.2,0.2,0.2,0.8)), width=2)
         gpustate.blend('NONE')
 
 
