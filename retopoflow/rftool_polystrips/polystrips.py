@@ -310,6 +310,8 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         mouse = mouse_from_event(event)
         M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
+        
+        use_proportional_edit = context.tool_settings.use_proportional_edit
 
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
         self.M, self.Mi = M, Mi
@@ -346,10 +348,11 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             all_bmvs = { bmv: 0.0 for bmv in bmvs }
         # all data is local to edit!
         data = {}
-        bmv_selected_count = 0
-        bmv_merged_2d_coords = Vector((0.0, 0.0))
-        bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
-        rgn, r3d = context.region, context.region_data
+        if use_proportional_edit:
+            bmv_selected_count = 0
+            bmv_merged_2d_coords = Vector((0.0, 0.0))
+            bmv_merged_3d_coords = Vector((0.0, 0.0, 0.0))
+            rgn, r3d = context.region, context.region_data
         for (bmv, distance) in all_bmvs.items():
             t = self.curve.approximate_t_at_point_tessellation(bmv.co)
             o = self.curve.eval(t)
@@ -362,7 +365,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 distance,
             )
             # Proportional Edit Origin.
-            if bmv.select:
+            if use_proportional_edit and bmv.select:
                 bmv_selected_count += 1
                 co_world = M @ bmv.co
                 bmv_merged_3d_coords += co_world
@@ -370,8 +373,9 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 if screen_co:
                     bmv_merged_2d_coords += screen_co
 
-        self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count  # used to calculate proportional edit radius.
-        self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count  # used for the 2D circle origin.
+        if use_proportional_edit:
+            self.selection_origin_3d = bmv_merged_3d_coords / bmv_selected_count  # used to calculate proportional edit radius.
+            self.selection_origin_2d = bmv_merged_2d_coords / bmv_selected_count  # used for the 2D circle origin.
 
         self.grab = {
             'mouse':    Vector(mouse),
@@ -476,8 +480,6 @@ class RFOperator_PolyStrips_Edit(RFOperator):
     def draw_postpixel(self, context):
         ''' Draw proportional edit circle in 2D space. '''
         if not context.tool_settings.use_proportional_edit: return
-        print("draw_postview called for draw proportional edit circle in 2D space.")
-        print(self.selection_origin_2d, context.tool_settings.proportional_distance)
         gpustate.blend('ALPHA')
         rgn, r3d = context.region, context.region_data
         pt = self.selection_origin_3d + context.tool_settings.proportional_distance * self.right
