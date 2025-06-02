@@ -23,7 +23,8 @@ import blf
 import bmesh
 import bpy
 import gpu
-from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Context, Event
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -31,7 +32,7 @@ from mathutils.bvhtree import BVHTree
 import heapq
 import math
 import time
-from typing import List
+from typing import List, Optional
 from enum import Enum
 
 from ..preferences import RF_Prefs
@@ -63,6 +64,110 @@ from ..common.drawing import (
     CC_2D_TRIANGLE_FAN,
     CC_3D_TRIANGLES,
 )
+
+
+class ProportionalEditGraphic:
+    center_2d: Vector | None = None
+    center_3d: Vector | None = None
+    distance: float | None = None
+
+    def __init__(self, context: Context, event: Event, bm: BMesh):
+        if not context.tool_settings.use_proportional_edit:
+            return
+
+        # Based on the pivot point, we should calculate the proportional editing circle graphic center.
+        pivot_point = context.tool_settings.transform_pivot_point
+        pivot_co = None
+        
+        if pivot_point == 'BOUNDING_BOX_CENTER':
+            ob = context.active_object
+            bb = ob.bound_box
+            # Calculate bounding box center in local coordinates.
+            center_local = Vector((
+                (min(v[0] for v in bb) + max(v[0] for v in bb)) / 2,
+                (min(v[1] for v in bb) + max(v[1] for v in bb)) / 2,
+                (min(v[2] for v in bb) + max(v[2] for v in bb)) / 2
+            ))
+            # Convert to world coordinates.
+            pivot_co = ob.matrix_world @ center_local
+        elif pivot_point == 'CURSOR':
+            pivot_co = context.scene.cursor.location
+        elif pivot_point in {'INDIVIDUAL_ORIGINS', 'MEDIAN_POINT'}:
+            sel_coords = []
+            for bmv in bm.verts:
+                if bmv.select:
+                    sel_coords.append(bmv.co)
+            if sel_coords:
+                pivot_co = sum(sel_coords, Vector()) / len(sel_coords)
+        elif pivot_point == 'ACTIVE_ELEMENT':
+            active_elem = bm.select_history.active
+            if isinstance(active_elem, BMVert):
+                pivot_co = active_elem.co
+            elif isinstance(active_elem, BMEdge):
+                pivot_co = (active_elem.verts[0].co + active_elem.verts[1].co) / 2
+            elif isinstance(active_elem, BMFace):
+                pivot_co = active_elem.calc_center_median()
+
+        # If no pivot point was set, use the object's location.
+        if pivot_co is None:
+            pivot_co = context.active_object.location
+
+        self.center_3d = pivot_co
+        self.center_2d = location_3d_to_region_2d(context.region, context.region_data, pivot_co)
+
+        # For distance calculation: use active element location, otherwise object location
+        '''active_elem = bm.select_history.active
+        if active_elem:
+            if isinstance(active_elem, BMVert):
+                distance_co = active_elem.co
+            elif isinstance(active_elem, BMEdge):
+                distance_co = (active_elem.verts[0].co + active_elem.verts[1].co) / 2
+            elif isinstance(active_elem, BMFace):
+                distance_co = active_elem.calc_center_median()
+            else:
+                distance_co = context.active_object.location
+        else:
+            # Fallback to object location
+            distance_co = context.active_object.location
+
+        # Project the distance location to 2D to calculate view distance
+        distance_2d = location_3d_to_region_2d(context.region, context.region_data, distance_co)
+        if distance_2d:
+            # Use the distance from camera to this point
+            self.distance = (distance_co - context.region_data.view_location).length if context.region_data else 1.0
+        else:
+            self.distance = context.region_data.view_distance if context.region_data else 1.0'''
+
+    def draw_2d(self, context):
+        if not context.tool_settings.use_proportional_edit:
+            return
+        if self.center_2d is None or self.center_3d is None: # or self.distance is None:
+            return
+
+        # Use the same radius calculation as the working 3D version
+        prop_dist_world = context.tool_settings.proportional_distance
+        
+        # Convert 3D world distance to 2D screen distance using the same approach as size2D_to_size
+        # This replicates how the 3D circle radius gets projected to screen space
+        radius_3d_point = self.center_3d + Vector((prop_dist_world, 0, 0))
+        radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point)
+        
+        if radius_2d_point is None:
+            return
+
+        # Calculate 2D radius as the distance between projected center and radius point
+        radius = (radius_2d_point - self.center_2d).length
+
+        # Internally Blender proportional editing circle is based on the 3d view grid color.
+        # default grid color: Color((0.33,0.33,0.33,0.5))
+        col_off = 20/255
+        color_in = Color((0.33+col_off,0.33+col_off,0.33+col_off,1.0))  # lighter than grid color. full alpha
+        color_out = Color((0.33-col_off,0.33-col_off,0.33-col_off,1.0))  # darker than grid color. full alpha
+
+        gpustate.blend('ALPHA')
+        Drawing.draw2D_smooth_circle(context, self.center_2d, radius, color_out, width=3)
+        Drawing.draw2D_smooth_circle(context, self.center_2d, radius-1, color_in, width=1)
+        gpustate.blend('NONE')
 
 
 class RFOperator_Translate_ScreenSpace(RFOperator):
@@ -163,6 +268,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     co = M @ bmv.co
                     d = min((co - co_sel).length for co_sel in cos_sel)
                     all_bmvs[bmv] = d
+
+            max_dist = max(all_bmvs.values())
+            self.proportional_edit_graphic = ProportionalEditGraphic(context, event, self.bm)
         else:
             all_bmvs = { bmv: 0.0 for bmv in self.bmvs }
 
@@ -249,20 +357,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     co = self.matrix_world @ bmv.co
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
-        if context.tool_settings.use_proportional_edit:
-            hit = raycast_valid_sources(context, self.mouse)
-            if hit:
-                pt = hit['co_world']
-                radius = context.tool_settings.proportional_distance
-                color = Color((1,1,1,0.75))
-                n = hit['no_world']  #view_forward_direction(context)
-                width = 3 * size2D_to_size(context, hit['distance'])
-                gpustate.blend('ALPHA')
-                gpustate.depth_mask(False)
-                gpustate.depth_test('ALWAYS')  # ALWAYS, NONE
-                Drawing.draw3D_circle(context, pt, radius, color, n=n, width=width)
-                gpustate.depth_test('LESS_EQUAL')
-                gpustate.depth_mask(True)
+        self.proportional_edit_graphic.draw_2d(context)
 
     def automerge(self, context, event):
         prop_use = context.tool_settings.use_proportional_edit
@@ -454,6 +549,9 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
                     co = M @ bmv.co
                     d = min((co - co_sel).length for co_sel in cos_sel)
                     all_bmvs[bmv] = d
+
+            max_dist = max(all_bmvs.values())
+            self.proportional_edit_graphic = ProportionalEditGraphic(context, event, self.bm)
         else:
             all_bmvs = { bmv: 0.0 for bmv in self.bmvs }
 
@@ -522,20 +620,8 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
                     co = self.matrix_world @ bmv.co
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
-        if context.tool_settings.use_proportional_edit:
-            hit = raycast_valid_sources(context, self.mouse)
-            if hit:
-                pt = hit['co_world']
-                radius = context.tool_settings.proportional_distance
-                color = Color((1,1,1,0.75))
-                n = hit['no_world']  #view_forward_direction(context)
-                width = 3 * size2D_to_size(context, hit['distance'])
-                gpustate.blend('ALPHA')
-                gpustate.depth_mask(False)
-                gpustate.depth_test('ALWAYS')  # ALWAYS, NONE
-                Drawing.draw3D_circle(context, pt, radius, color, n=n, width=width)
-                gpustate.depth_test('LESS_EQUAL')
-                gpustate.depth_mask(True)
+
+        self.proportional_edit_graphic.draw_2d(context)
 
     def cancel_reset(self, context, event):
         for bmv, co in self.bmvs_co_orig.items(): bmv.co = co
