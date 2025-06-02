@@ -121,20 +121,19 @@ class Relax_Logic:
             return False
 
         # collect data for smoothing
-        radius = brush.get_scaled_radius()
-        bvh = self.bvh # BVHTree.FromBMesh(self.bm)
-        nearest_bmface_inds = { i for (v,n,i,d) in bvh.find_nearest_range(hit['co_local'], radius*2.0) }
-        nearest_bmverts = { bmv for i in nearest_bmface_inds for bmv in self.bm.faces[i].verts }
+        radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
+
         if False:
             # Debug: select all verts under brush
             bmops.deselect_all(self.bm)
             for bmelem in nearest_bmverts:
                 bmops.select(self.bm, bmelem)
             bmops.flush_selection(self.bm, self.em)
-        nearest = nearest_bmverts # self.rfcontext.nearest_verts_point(hit_pos, radius, bmverts=self._bmverts)
+
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
-        for bmv in nearest:
+        for bmv in self.bm.verts:
             if bmv.hide: continue
+            if (bmv.co - hit['co_local']).length > radius3D: continue
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
@@ -308,9 +307,9 @@ class Relax_Logic:
 
             # compute max displacement length
             displace_max = max(displace[bmv].length * (opt_mult * vert_strength[bmv]) for bmv in displace)
-            if displace_max > radius * 0.125:
+            if displace_max > radius3D * 0.125:
                 # limit the displace_max
-                mult = radius * 0.125 / displace_max
+                mult = radius3D * 0.125 / displace_max
             else:
                 mult = 1.0
 
