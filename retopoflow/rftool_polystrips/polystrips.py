@@ -491,7 +491,16 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         else:
             # Curve manipulation handles.
             center = location_3d_to_region_2d(rgn, r3d, self.grab['prev'][self.grab['handle']])
-        Drawing.draw2D_smooth_circle(context, center, radius, Color((0.2,0.2,0.2,0.8)), width=2)
+
+        # Internally Blender proportional editing circle is based on the 3d view grid color.
+        # default grid color: Color((0.33,0.33,0.33,0.5))
+        col_off = 20/255
+        color_in = Color((0.33+col_off,0.33+col_off,0.33+col_off,1.0))  # lighter than grid color. full alpha
+        color_out = Color((0.33-col_off,0.33-col_off,0.33-col_off,1.0))  # darker than grid color. full alpha
+
+        gpustate.blend('ALPHA')
+        Drawing.draw2D_smooth_circle(context, center, radius, color_out, width=3)
+        Drawing.draw2D_smooth_circle(context, center, radius-1, color_in, width=1)
         gpustate.blend('NONE')
 
 
