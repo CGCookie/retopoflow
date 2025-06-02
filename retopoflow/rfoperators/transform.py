@@ -19,57 +19,39 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
 import bmesh
 import bpy
-import gpu
 from bpy.types import Context, Event
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
-from mathutils import Vector, Matrix
-from mathutils.bvhtree import BVHTree
+from mathutils import Vector
 
 import heapq
-import math
-import time
-from typing import List, Optional
-from enum import Enum
 
 from ..preferences import RF_Prefs
-from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
     NearestBMVert, NearestBMEdge, NearestBMFace,
     nearest_bmv_world, nearest_bme_world,
 )
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources, size2D_to_size
+from ..common.operator import execute_operator, RFOperator
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
 from ..common.maths import view_forward_direction, proportional_edit, xform_direction
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
 from ...addon_common.common.colors import Color4
-from ...addon_common.common.maths import clamp, Color, sign, sign_threshold
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.maths import Color, sign_threshold
 
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
 )
 
 
 class ProportionalEditGraphic:
     center_2d: Vector | None = None
     center_3d: Vector | None = None
-    distance: float | None = None
 
     def __init__(self, context: Context, event: Event, bm: BMesh):
         if not context.tool_settings.use_proportional_edit:
@@ -115,43 +97,20 @@ class ProportionalEditGraphic:
         self.center_3d = pivot_co
         self.center_2d = location_3d_to_region_2d(context.region, context.region_data, pivot_co)
 
-        # For distance calculation: use active element location, otherwise object location
-        '''active_elem = bm.select_history.active
-        if active_elem:
-            if isinstance(active_elem, BMVert):
-                distance_co = active_elem.co
-            elif isinstance(active_elem, BMEdge):
-                distance_co = (active_elem.verts[0].co + active_elem.verts[1].co) / 2
-            elif isinstance(active_elem, BMFace):
-                distance_co = active_elem.calc_center_median()
-            else:
-                distance_co = context.active_object.location
-        else:
-            # Fallback to object location
-            distance_co = context.active_object.location
-
-        # Project the distance location to 2D to calculate view distance
-        distance_2d = location_3d_to_region_2d(context.region, context.region_data, distance_co)
-        if distance_2d:
-            # Use the distance from camera to this point
-            self.distance = (distance_co - context.region_data.view_location).length if context.region_data else 1.0
-        else:
-            self.distance = context.region_data.view_distance if context.region_data else 1.0'''
-
     def draw_2d(self, context):
         if not context.tool_settings.use_proportional_edit:
             return
-        if self.center_2d is None or self.center_3d is None: # or self.distance is None:
+        if self.center_2d is None or self.center_3d is None:
             return
 
         # Use the same radius calculation as the working 3D version
         prop_dist_world = context.tool_settings.proportional_distance
-        
+
         # Convert 3D world distance to 2D screen distance using the same approach as size2D_to_size
         # This replicates how the 3D circle radius gets projected to screen space
         radius_3d_point = self.center_3d + Vector((prop_dist_world, 0, 0))
         radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point)
-        
+
         if radius_2d_point is None:
             return
 
