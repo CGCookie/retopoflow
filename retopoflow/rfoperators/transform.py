@@ -660,7 +660,7 @@ class RFOperator_Translate(RFOperator):
     use_native: bpy.props.BoolProperty(
         name='Use Native',
         description="Use Blender's built-in translate rather than the custom Retopoflow translate",
-        default=True,
+        default=False,
     )
     snap_method: bpy.props.EnumProperty(
         name='Snapping Method',
@@ -706,12 +706,6 @@ class RFOperator_Translate(RFOperator):
         else:
             move_hovered = self.move_hovered and props.tweaking_move_hovered_mouse
 
-        if self.snap_method == 'AUTO':
-            if context.scene.tool_settings.snap_elements_individual == {'FACE_PROJECT'}:
-                self.snap_method = 'PROJECTED'
-            else:
-                self.snap_method = 'NEAREST'
-
         if move_hovered:
             hit = raycast_valid_sources(context, mouse_from_event(event))
             if hit:
@@ -742,6 +736,12 @@ class RFOperator_Translate(RFOperator):
         self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
         # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
+
+        if self.snap_method == 'AUTO':
+            if len(self.bmvs) < 3 or context.scene.tool_settings.snap_elements_individual == {'FACE_PROJECT'}:
+                self.snap_method = 'PROJECTED'
+            else:
+                self.snap_method = 'NEAREST'
 
         # gather neighboring geo
         if self.bmvs and context.tool_settings.use_proportional_edit:
