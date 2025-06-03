@@ -119,10 +119,10 @@ class ProportionalEditGraphic:
         radius = (radius_2d_point - self.center_2d).length
 
         # Internally Blender proportional editing circle is based on the 3d view grid color.
-        # default grid color: Color((0.33,0.33,0.33,0.5))
+        grid = context.preferences.themes[0].view_3d.grid
         col_off = 20/255
-        color_in = Color((0.33+col_off,0.33+col_off,0.33+col_off,1.0))  # lighter than grid color. full alpha
-        color_out = Color((0.33-col_off,0.33-col_off,0.33-col_off,1.0))  # darker than grid color. full alpha
+        color_in = Color((grid[0]+col_off, grid[1]+col_off, grid[2]+col_off, 1.0))  # lighter than grid color. full alpha
+        color_out = Color((grid[0]-col_off, grid[1]-col_off, grid[2]-col_off, 1.0))  # darker than grid color. full alpha
 
         gpustate.blend('ALPHA')
         Drawing.draw2D_smooth_circle(context, self.center_2d, radius, color_out, width=3)
