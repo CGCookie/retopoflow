@@ -535,6 +535,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         min=1,
         max=1000,
         subtype='PIXEL',
+        default=50,
     )
 
     stroke_smoothing: bpy.props.FloatProperty(
