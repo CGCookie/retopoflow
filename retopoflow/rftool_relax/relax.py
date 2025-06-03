@@ -292,7 +292,6 @@ class RFTool_Relax(RFTool_Base):
             layout.label(text="Brush:")
             layout.prop(props, 'brush_radius')
             layout.prop(props, 'brush_strength', slider=True)
-            layout.prop(props, 'brush_falloff', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
             if prefs.expand_masking:
                 draw_line_separator(layout)
