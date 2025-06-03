@@ -52,10 +52,8 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame, clamp, Direction, Vec, Point, Point2D, Vec2D, Plane
 from ...addon_common.common.timerhandler import TimerHandler
-
-from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
-
 import time
+
 
 class RFBrush_Cut(RFBrush_Base):
     # brush visualization settings
