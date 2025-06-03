@@ -640,6 +640,7 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
         #     if forward.dot(bmf.normal) > 0:
         #         bmf.normal_flip()
 
+
 class RFOperator_Translate(RFOperator):
     bl_idname = "retopoflow.translate"
     bl_label = 'Translate'
@@ -648,7 +649,7 @@ class RFOperator_Translate(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (f'{bl_idname}_grab', {'type': 'G',         'value': 'PRESS'}, None),
+        (f'{bl_idname}_grab', {'type': 'G', 'value': 'PRESS'}, None),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
@@ -656,6 +657,11 @@ class RFOperator_Translate(RFOperator):
     color_highlight_border = Color4((255/255, 255/255, 40/255, 1.0))
     color_highlight_fill = Color4((255/255, 255/255, 40/255, 0.0))
 
+    use_native: bpy.props.BoolProperty(
+        name='Use Native',
+        description="Use Blender's built-in translate rather than the custom Retopoflow translate",
+        default=True,
+    )
     snap_method: bpy.props.EnumProperty(
         name='Snapping Method',
         description='Whether the snapping happens in screen space, world space, or is automatic',
@@ -729,6 +735,10 @@ class RFOperator_Translate(RFOperator):
                     #self.bm.select_history.validate()
                     bmops.flush_selection(self.bm, self.em)
 
+        if self.use_native:
+            bpy.ops.transform.translate('INVOKE_DEFAULT')
+            return {'FINISHED'}
+
         self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
         # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
@@ -793,7 +803,10 @@ class RFOperator_Translate(RFOperator):
         self.highlight = set()
         # Cursors.set('NONE')  # PAINT_CROSS
 
-    def update(self, context, event):
+    def update(self, context, event):     
+        if self.use_native: 
+            return {'FINISHED'}
+        
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
             # self.RFCore.cursor_warp(context, self.mouse_orig)
@@ -828,7 +841,7 @@ class RFOperator_Translate(RFOperator):
         return {'RUNNING_MODAL'}
 
     def draw_postpixel(self, context):
-        if self.highlight:
+        if not self.use_native and self.highlight:
             theme = context.preferences.themes[0]
             with Drawing.draw(context, CC_2D_POINTS) as draw:
                 draw.point_size(theme.view_3d.vertex_size + 4)
