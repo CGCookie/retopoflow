@@ -228,7 +228,6 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     d = min((co - co_sel).length for co_sel in cos_sel)
                     all_bmvs[bmv] = d
 
-            max_dist = max(all_bmvs.values())
             self.proportional_edit_graphic = ProportionalEditGraphic(context, event, self.bm)
         else:
             all_bmvs = { bmv: 0.0 for bmv in self.bmvs }
@@ -316,7 +315,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     co = self.matrix_world @ bmv.co
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
-        self.proportional_edit_graphic.draw_2d(context)
+        
+        if hasattr(self, 'proportional_edit_graphic'):
+            self.proportional_edit_graphic.draw_2d(context)
 
     def automerge(self, context, event):
         prop_use = context.tool_settings.use_proportional_edit
@@ -509,7 +510,6 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
                     d = min((co - co_sel).length for co_sel in cos_sel)
                     all_bmvs[bmv] = d
 
-            max_dist = max(all_bmvs.values())
             self.proportional_edit_graphic = ProportionalEditGraphic(context, event, self.bm)
         else:
             all_bmvs = { bmv: 0.0 for bmv in self.bmvs }
@@ -580,7 +580,8 @@ class RFOperator_Translate_BoundaryLoop(RFOperator):
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
 
-        self.proportional_edit_graphic.draw_2d(context)
+        if hasattr(self, 'proportional_edit_graphic'):
+            self.proportional_edit_graphic.draw_2d(context)
 
     def cancel_reset(self, context, event):
         for bmv, co in self.bmvs_co_orig.items(): bmv.co = co
@@ -754,7 +755,6 @@ class RFOperator_Translate(RFOperator):
                     d = min((co - co_sel).length for co_sel in cos_sel)
                     all_bmvs[bmv] = d
 
-            max_dist = max(all_bmvs.values())
             self.proportional_edit_graphic = ProportionalEditGraphic(context, event, self.bm)
         else:
             all_bmvs = { bmv: 0.0 for bmv in self.bmvs }
@@ -837,8 +837,10 @@ class RFOperator_Translate(RFOperator):
                     co = self.matrix_world @ bmv.co
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
-        self.proportional_edit_graphic.draw_2d(context)
-    
+
+        if hasattr(self, 'proportional_edit_graphic'):
+            self.proportional_edit_graphic.draw_2d(context)
+
     def automerge(self, context, event):
         prop_use = context.tool_settings.use_proportional_edit
         if not context.tool_settings.use_mesh_automerge or prop_use: return
