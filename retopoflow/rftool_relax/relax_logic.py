@@ -119,6 +119,12 @@ class Relax_Logic:
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
+        
+        def is_bmvert_on_ngon(bmv):
+            for bmf in bmv.link_faces:
+                if len(bmf.edges) > 4:
+                    return True
+            return False
 
         # collect data for smoothing
         radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
@@ -133,6 +139,8 @@ class Relax_Logic:
         verts,edges,faces,vert_strength = set(),set(),set(),dict()
         for bmv in self.bm.verts:
             if bmv.hide: continue
+            if len(bmv.link_faces) == 0: continue
+            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
             if (bmv.co - hit['co_local']).length > radius3D: continue
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
