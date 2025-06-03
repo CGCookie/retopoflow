@@ -103,13 +103,14 @@ class ProportionalEditGraphic:
         if self.center_2d is None or self.center_3d is None:
             return
 
-        # Use the same radius calculation as the working 3D version
         prop_dist_world = context.tool_settings.proportional_distance
 
-        # Convert 3D world distance to 2D screen distance using the same approach as size2D_to_size
-        # This replicates how the 3D circle radius gets projected to screen space
-        radius_3d_point = self.center_3d + Vector((prop_dist_world, 0, 0))
-        radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point)
+        # Use view's right vector to ensure consistent screen-space projection regardless of view angle to calculate the final radius.
+        # This way we virtually have a 3D circle (`center_3d` as center, `radius_3d_point` as radius) that we can project to 2D.
+        view_matrix = context.region_data.view_matrix
+        right_vector = Vector((view_matrix[0][0], view_matrix[1][0], view_matrix[2][0])).normalized()
+        radius_3d_point = self.center_3d + right_vector * prop_dist_world
+        radius_2d_point = location_3d_to_region_2d(context.region, context.region_data, radius_3d_point, default=None)
 
         if radius_2d_point is None:
             return
