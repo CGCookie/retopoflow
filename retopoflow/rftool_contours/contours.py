@@ -52,7 +52,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
-from ..rfoperators.transform import RFOperator_Translate_BoundaryLoop
+from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -379,7 +379,7 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
-        RFOperator_Translate_BoundaryLoop,
+        RFOperator_Translate,
         RFOperator_Contours_Launch_Help,
         RFOperator_Launch_NewIssue,
     )

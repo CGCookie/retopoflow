@@ -49,7 +49,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
-from ..rfoperators.transform import RFOperator_Translate_ScreenSpace
+from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -240,7 +240,7 @@ class RFTool_PolyPen(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyPen,
-        RFOperator_Translate_ScreenSpace,
+        RFOperator_Translate,
         RFOperator_PolyPen_Launch_Help,
         RFOperator_Launch_NewIssue,
     )
