@@ -204,13 +204,29 @@ class RFCore:
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
-        if RFCore.is_paused: return 
+        if RFCore.is_paused: return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
 
         if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
-            RFCore.start(context)
+            # need to start RFCore in the correct context
+            if context.area.type == 'VIEW_3D': RFCore.start(context)
+            else:
+                started = False
+                for wm in bpy.data.window_managers:
+                    for win in wm.windows:
+                        for area in win.screen.areas:
+                            if area.type != 'VIEW_3D': continue
+                            for space in area.spaces:
+                                if space.type != 'VIEW_3D': continue
+                                for rgn in area.regions:
+                                    if started: break
+                                    if rgn.type != 'WINDOW': continue
+                                    with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
+                                        RFCore.start(bpy.context)
+                                    started = True
+                assert started, f'Could not start after tool changed!?'
 
         # XXX: resizing the Blender window will cause tool change to change to current tool???
         if prev_selected_RFTool_idname != RFCore.selected_RFTool_idname:
