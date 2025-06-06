@@ -117,8 +117,10 @@ DEBUG = False
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
+    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         self.radius = radius
+        self.snap_distance = snap_distance
+        print(self.snap_distance)
         self.stroke3D = stroke3D
 
         self.show_is_cycle = True
@@ -215,6 +217,7 @@ class Strokes_Logic:
     def process_snapped(self):
         self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
         self.snap_bmv1 = self.bmv_closest(self.bm.verts, self.stroke3D[-1])
+        print(self.snap_bmv0, self.snap_bmv1)
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)
@@ -298,15 +301,16 @@ class Strokes_Logic:
         p = self.project_pt(bmv.co)
         return p.xy if p else None
     def bmv_closest(self, bmvs, pt3D):
-        off3D = self.context.space_data.overlay.retopology_offset  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
         pt2D = self.project_pt(pt3D)
+        off3D2 = self.context.space_data.overlay.retopology_offset ** 2  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+        sd2 = self.snap_distance ** 2
         bmvs = [
             bmv
             for bmv in bmvs
             if (
-                (pt3D - bmv.co).length_squared < off3D * off3D and
-                (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20
+                # (pt3D - bmv.co).length_squared < off3D2 and
+                (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared <= sd2
             )
         ]
         if not bmvs: return None

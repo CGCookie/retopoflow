@@ -255,6 +255,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                         self.operator.process_stroke(
                             context,
                             self.radius,
+                            self.snap_distance,
                             self.stroke,
                             self.stroke_cycle,
                             [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
