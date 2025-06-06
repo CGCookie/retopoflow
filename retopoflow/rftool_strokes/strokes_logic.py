@@ -1348,8 +1348,8 @@ class Strokes_Logic:
             if negate:
                 dir_t_ortho.negate()
                 dir_b_ortho.negate()
-            angle_t = math.asin(dir_lt.x * dir_t_ortho.y - dir_lt.y * dir_t_ortho.x) * self.smooth_angle
-            angle_b = math.asin(dir_lb.x * dir_b_ortho.y - dir_lb.y * dir_b_ortho.x) * self.smooth_angle
+            angle_t = math.asin(clamp(dir_lt.x * dir_t_ortho.y - dir_lt.y * dir_t_ortho.x, -1, 1)) * self.smooth_angle
+            angle_b = math.asin(clamp(dir_lb.x * dir_b_ortho.y - dir_lb.y * dir_b_ortho.x, -1, 1)) * self.smooth_angle
             vec_lt = Vector((
                 vec_lt.x * math.cos(angle_t) - vec_lt.y * math.sin(angle_t),
                 vec_lt.x * math.sin(angle_t) + vec_lt.y * math.cos(angle_t),
@@ -1371,8 +1371,8 @@ class Strokes_Logic:
             if negate:
                 dir_t_ortho.negate()
                 dir_b_ortho.negate()
-            angle_t = math.asin(dir_rt.x * dir_t_ortho.y - dir_rt.y * dir_t_ortho.x)
-            angle_b = math.asin(dir_rb.x * dir_b_ortho.y - dir_rb.y * dir_b_ortho.x)
+            angle_t = math.asin(clamp(dir_rt.x * dir_t_ortho.y - dir_rt.y * dir_t_ortho.x, -1, 1))
+            angle_b = math.asin(clamp(dir_rb.x * dir_b_ortho.y - dir_rb.y * dir_b_ortho.x, -1, 1))
             angle_t *= self.smooth_angle
             angle_b *= self.smooth_angle
             vec_rt = Vector((
