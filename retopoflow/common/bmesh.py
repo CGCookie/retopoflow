@@ -357,15 +357,21 @@ def nearest_bme_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.8
     for bme in bm.edges:
         bmv0, bmv1 = bme.verts
         co0, co1 = bmv0.co, bmv1.co
-        a, b = co1 - co0, co_local - co0
-        bl = b.length
-        bd = b / bl
-        p = co0 + bd * clamp(a.dot(bd), 0, bl)
-        bmvco_2d = location_3d_to_region_2d(context.region, context.region_data, (matrix @ Vector((*bmv.co.xyz, 1.0))).xyz)
-        if not bmvco_2d: continue
-        if (bmvco_2d.xy - co_2d.xy).length_squared > distance2d_squared: continue
-        dist = (co_local - p).length_squared
-        if dist > distance_squared: continue
+
+        co0_2d = location_3d_to_region_2d(context.region, context.region_data, (matrix @ Vector((*co0.xyz, 1.0))).xyz)
+        co1_2d = location_3d_to_region_2d(context.region, context.region_data, (matrix @ Vector((*co1.xyz, 1.0))).xyz)
+        av, bv = co1_2d - co0_2d, co_2d - co0_2d
+        bl = bv.length
+        bd = bv / bl
+        p = co0_2d + bd * clamp(av.dot(bd), 0, bl)
+        if (p - co_2d.xy).length_squared > distance2d_squared: continue  # check against screen-space distance
+
+        av, bv = co1 - co0, co_local - co0
+        bl = bv.length
+        bd = bv / bl
+        p = co0 + bd * clamp(av.dot(bd), 0, bl)
+        dist = (p - co_local).length_squared
+        if dist > distance_squared: continue  # check against world-space distance
         if dist >= closest_dist: continue
         closest, closest_dist = bme, dist
     return closest
