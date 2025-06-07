@@ -120,7 +120,6 @@ class Strokes_Logic:
     def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         self.radius = radius
         self.snap_distance = snap_distance
-        print(self.snap_distance)
         self.stroke3D = stroke3D
 
         self.show_is_cycle = True
@@ -217,7 +216,6 @@ class Strokes_Logic:
     def process_snapped(self):
         self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
         self.snap_bmv1 = self.bmv_closest(self.bm.verts, self.stroke3D[-1])
-        print(self.snap_bmv0, self.snap_bmv1)
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)
