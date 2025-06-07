@@ -148,7 +148,7 @@ class RFOperator(bpy.types.Operator):
         if getattr(cls, '_is_running', False): return False
 
         if not cls.can_start(context):
-            print(f'{cls}.poll: {cls.can_start(context)=}')
+            # print(f'{cls}.poll: {cls.can_start(context)=}')
             return False
 
         return True
