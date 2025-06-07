@@ -315,14 +315,15 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         self.mirror = set()
         self.mirror_clip = False
-        self.mirror_threshold = 0
+        self.mirror_threshold = Vector((0, 0, 0))
         for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
             if mod.use_axis[0]: self.mirror.add('x')
             if mod.use_axis[1]: self.mirror.add('y')
             if mod.use_axis[2]: self.mirror.add('z')
-            self.mirror_threshold = mod.merge_threshold
+            mt, scale = mod.merge_threshold, context.edit_object.scale
+            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
             self.mirror_clip = mod.use_clip
 
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
@@ -487,9 +488,9 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             if self.mirror:
                 t = self.mirror_threshold
                 zero = {
-                    'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(pt_edit_orig.x, t)),
-                    'y': ('y' in self.mirror and sign_threshold(co.y, t) != sign_threshold(pt_edit_orig.y, t)),
-                    'z': ('z' in self.mirror and sign_threshold(co.z, t) != sign_threshold(pt_edit_orig.z, t)),
+                    'x': ('x' in self.mirror and (sign_threshold(co.x, t.x) != sign_threshold(pt_edit_orig.x, t.x) or sign_threshold(pt_edit_orig.x, t.x) == 0)),
+                    'y': ('y' in self.mirror and (sign_threshold(co.y, t.y) != sign_threshold(pt_edit_orig.y, t.y) or sign_threshold(pt_edit_orig.y, t.y) == 0)),
+                    'z': ('z' in self.mirror and (sign_threshold(co.z, t.z) != sign_threshold(pt_edit_orig.z, t.z) or sign_threshold(pt_edit_orig.z, t.z) == 0)),
                 }
                 # iteratively zero out the component
                 for _ in range(1000):
