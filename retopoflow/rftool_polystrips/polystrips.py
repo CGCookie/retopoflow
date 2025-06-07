@@ -46,7 +46,7 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import clamp, Frame, Direction2D, Color
+from ...addon_common.common.maths import clamp, Frame, Direction2D, Color, sign_threshold
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 
@@ -313,6 +313,18 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         use_proportional_edit = context.tool_settings.use_proportional_edit
 
+        self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = 0
+        for mod in context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
+            self.mirror_threshold = mod.merge_threshold
+            self.mirror_clip = mod.use_clip
+
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
         self.M, self.Mi = M, Mi
         self.fwd = xform_direction(Mi, view_forward_direction(context))
@@ -453,7 +465,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             self.grab['only'] = [
                 bmv_idx
                 for bmv_idx in data
-                if data[bmv_idx][-1] <= prop_dist_world
+                if data[bmv_idx][3] <= prop_dist_world
             ]
 
         for bmv_idx in self.grab['only']:
@@ -470,7 +482,31 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             f = Frame(o, x=fwd, z=z)
             pt_edit_new = M @ f.l2w_point(pt_curve_orig)
             pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-            bmv.co = nearest_point_valid_sources(context, pt_edit_new, world=False)
+            co = nearest_point_valid_sources(context, pt_edit_new, world=False)
+
+            if self.mirror:
+                t = self.mirror_threshold
+                zero = {
+                    'x': ('x' in self.mirror and sign_threshold(co.x, t) != sign_threshold(pt_edit_orig.x, t)),
+                    'y': ('y' in self.mirror and sign_threshold(co.y, t) != sign_threshold(pt_edit_orig.y, t)),
+                    'z': ('z' in self.mirror and sign_threshold(co.z, t) != sign_threshold(pt_edit_orig.z, t)),
+                }
+                # iteratively zero out the component
+                for _ in range(1000):
+                    d = 0
+                    if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
+                    if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
+                    if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
+                    co_world = M @ Vector((*co, 1.0))
+                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                    co = Mi @ co_world_snapped
+                    if d < 0.001: break  # break out if change was below threshold
+                if zero['x']: co.x = 0
+                if zero['y']: co.y = 0
+                if zero['z']: co.z = 0
+
+            bmv.co = co
+
 
         bmesh.update_edit_mesh(em)
         context.area.tag_redraw()
