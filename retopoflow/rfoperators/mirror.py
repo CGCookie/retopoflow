@@ -228,6 +228,10 @@ class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
     rf_label = "Apply Mirror"
     RFCore = None
 
+    @classmethod
+    def poll(cls, context):
+        return get_mirror_mod(context.active_object) is not None
+
     def execute(self, context):
         from ..rfcore import RFCore
         RFCore.pause()
