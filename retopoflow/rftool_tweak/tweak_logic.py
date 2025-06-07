@@ -162,8 +162,7 @@ class Tweak_Logic:
                     'z': ('z' in self.mirror and sign_threshold(co.z, t) != sign_threshold(co_orig.z, t)),
                 }
                 # iteratively zero out the component
-                d = 1 # max dist from mirror
-                while d > 0.01:
+                for _ in range(1000):
                     d = 0
                     if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
                     if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
@@ -171,6 +170,7 @@ class Tweak_Logic:
                     co_world = self.matrix_world @ Vector((*co, 1.0))
                     co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
                     co = self.matrix_world_inv @ co_world_snapped
+                    if d < 0.001: break  # break out if change was below threshold
                 if zero['x']: co.x = 0
                 if zero['y']: co.y = 0
                 if zero['z']: co.z = 0
