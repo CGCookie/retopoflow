@@ -310,7 +310,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
 
         mouse = mouse_from_event(event)
         M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
-        
+
         use_proportional_edit = context.tool_settings.use_proportional_edit
 
         self.bm, self.em = get_bmesh_emesh(bpy.context, ensure_lookup_tables=True)
@@ -563,7 +563,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
 
-    def process_stroke(self, context, radius2D, stroke2D, is_cycle, snapped_geo):
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, is_cycle, snapped_geo):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         if not snap_bmf0:
             l = len(stroke2D)
