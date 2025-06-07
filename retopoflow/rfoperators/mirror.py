@@ -229,6 +229,7 @@ class RFOperator_AddMirror(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not context.active_object: return False
         return get_mirror_mod(context.active_object) is None
 
     def execute(self, context):
@@ -249,6 +250,7 @@ class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        if not context.active_object: return False
         return get_mirror_mod(context.active_object) is not None
 
     def execute(self, context):
