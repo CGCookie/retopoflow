@@ -216,6 +216,25 @@ def cleanup_mirror(context):
         if not (mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]):
             obj.modifiers.remove(mod)
 
+class RFOperator_AddMirror(RFRegisterClass, bpy.types.Operator):
+    bl_idname = 'retopoflow.addmirror'
+    bl_label = 'Add Mirror Modifier'
+    bl_description = "Add a mirror modifier"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO'}
+
+    rf_label = "Add Mirror"
+    RFCore = None
+
+    @classmethod
+    def poll(cls, context):
+        return get_mirror_mod(context.active_object) is None
+
+    def execute(self, context):
+        obj = context.active_object
+        obj.modifiers.new('Mirror', 'MIRROR')
+        return {'FINISHED'}
 
 class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.applymirror"

@@ -35,6 +35,7 @@ def draw_mirror_options(context, layout, draw_operators=True):
     layout.use_property_decorate = False
 
     layout.label(text='Modifier')
+
     row=layout.row(align=True, heading='Axis')
     if mod:
         row.prop(mod, 'use_axis', index=0, text='X', toggle=True)
@@ -51,39 +52,42 @@ def draw_mirror_options(context, layout, draw_operators=True):
         col.enabled = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
         col.prop(props_obj, 'mirror_clipping')
 
-    col.label(text='Preview')
-    col.prop(props, 'mirror_display')
+    if mod:
+        col.label(text='Preview')
+        col.prop(props, 'mirror_display')
 
-    if props.mirror_display == 'SOLID' or props.mirror_display == 'WIRE':
-        col.prop(props, 'mirror_opacity', text='Opacity', slider=True)
-        if props.mirror_display == 'SOLID':
-            col.prop(props, 'mirror_wires')
-        if props.mirror_display == 'WIRE' and bpy.app.version >= (4, 3, 0):
-            col.prop(props, 'mirror_wire_thickness', text='Thickness')
-        col.separator()
-
-        col.prop(props, 'retopo_offset', text='Overlay')
-        col.prop(props, 'mirror_displace', slider=True)
-        row = col.row()
-        row.enabled = props.mirror_displace != 0
-        row.prop(props, 'mirror_displace_boundaries', text='Boundaries')
-        row = col.row()
-        row.enabled = props.mirror_displace != 0 and props.mirror_displace_boundaries
-        row.prop(props, 'mirror_displace_connected', text='Connected')
-
-        if context.space_data.shading.color_type not in ['MATERIAL', 'TEXTURE']:
+        if props.mirror_display == 'SOLID' or props.mirror_display == 'WIRE':
+            col.prop(props, 'mirror_opacity', text='Opacity', slider=True)
+            if props.mirror_display == 'SOLID':
+                col.prop(props, 'mirror_wires')
+            if props.mirror_display == 'WIRE' and bpy.app.version >= (4, 3, 0):
+                col.prop(props, 'mirror_wire_thickness', text='Thickness')
             col.separator()
-            box = col.box()
-            message = box.column(align=True)
-            row=message.row()
-            row.alignment='CENTER'
-            row.label(text=('Axis colors can only be seen when'))
-            row=message.row()
-            row.alignment='CENTER'
-            row.label(text=('viewport is set to Material or Texture'))
 
-    layout.separator()
-    layout.operator('retopoflow.applymirror')
+            col.prop(props, 'retopo_offset', text='Overlay')
+            col.prop(props, 'mirror_displace', slider=True)
+            row = col.row()
+            row.enabled = props.mirror_displace != 0
+            row.prop(props, 'mirror_displace_boundaries', text='Boundaries')
+            row = col.row()
+            row.enabled = props.mirror_displace != 0 and props.mirror_displace_boundaries
+            row.prop(props, 'mirror_displace_connected', text='Connected')
+
+            if context.space_data.shading.color_type not in ['MATERIAL', 'TEXTURE']:
+                col.separator()
+                box = col.box()
+                message = box.column(align=True)
+                row=message.row()
+                row.alignment='CENTER'
+                row.label(text=('Axis colors can only be seen when'))
+                row=message.row()
+                row.alignment='CENTER'
+                row.label(text=('viewport is set to Material or Texture'))
+
+        layout.separator()
+        layout.operator('retopoflow.applymirror')
+    else:
+        layout.operator('retopoflow.addmirror')
 
 
 def draw_mirror_panel(context, layout):
