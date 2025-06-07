@@ -181,6 +181,7 @@ class RFCore:
     def quick_switch(bl_idname):
         def switch(*bl_idnames):
             if not bl_idnames: return
+            if bl_idnames[0] is None: return
             print(f'quick switch! {bl_idnames}')
             for wm in bpy.data.window_managers:
                 for win in wm.windows:
@@ -316,8 +317,7 @@ class RFCore:
             bpy.ops.retopoflow.core()
         except:
             pass
-        
-        
+
 
     @staticmethod
     def restart():
@@ -527,7 +527,8 @@ class RFCore:
             except Exception as e:
                 print(f'Caught exception while trying to draw postview {e}')
                 debugger.print_exception()
-                RFCore.restart()
+                RFCore.quick_switch(RFCore.selected_RFTool_idname)
+                # RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         brush = selected_RFTool.rf_brush
@@ -560,6 +561,7 @@ class RFCore:
             return
 
         RFCore.depsgraph_version += 1
+        # print(f"{bpy.data.window_managers[0].windows[0].screen.show_fullscreen=}")
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
         #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
@@ -747,9 +749,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         if not context.area:
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
-            print(f'no context.area, exiting')
-            # RFCore.restart()
-            print(f'RFCore_Operator exiting')
+            print(f'RFCore_Operator restarting due to no context.area')
+            RFCore.quick_switch(RFCore.selected_RFTool_idname)
             return {'FINISHED'}
         if context.area.type != 'VIEW_3D':
             print(f'area type changed, exiting')
