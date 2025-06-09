@@ -68,15 +68,15 @@ class GridCell:
 class Accel2DOptimized:
     # Selection tolerance factor - makes selection more forgiving like the original Accel2D
     # 1.0 = exact distance matching, >1.0 = more forgiving.
-    SELECTION_TOLERANCE = 10
+    SELECTION_TOLERANCE = 1.3
     
     # Grid cell tolerance - adds extra neighboring cells to search area
     # 0 = only cells that intersect with search area, >0 = additional neighboring cells.
-    GRID_CELL_TOLERANCE = 0
+    GRID_CELL_TOLERANCE = 1
     
     # Use legacy selection behavior (no distance checking, just grid cells like original Accel2D)
     # If True, ignores SELECTION_TOLERANCE and behaves exactly like the original one.
-    USE_LEGACY_SELECTION = False
+    USE_LEGACY_SELECTION = True
     
     @profiler.function
     def __init__(self,
