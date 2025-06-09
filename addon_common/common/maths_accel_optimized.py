@@ -66,6 +66,18 @@ class GridCell:
 
 
 class Accel2DOptimized:
+    # Selection tolerance factor - makes selection more forgiving like the original Accel2D
+    # 1.0 = exact distance matching, >1.0 = more forgiving.
+    SELECTION_TOLERANCE = 10
+    
+    # Grid cell tolerance - adds extra neighboring cells to search area
+    # 0 = only cells that intersect with search area, >0 = additional neighboring cells.
+    GRID_CELL_TOLERANCE = 0
+    
+    # Use legacy selection behavior (no distance checking, just grid cells like original Accel2D)
+    # If True, ignores SELECTION_TOLERANCE and behaves exactly like the original one.
+    USE_LEGACY_SELECTION = False
+    
     @profiler.function
     def __init__(self,
                  accel_verts: list,
@@ -100,7 +112,7 @@ class Accel2DOptimized:
         
         # Determine grid size based on point density
         # Use square root of number of points for grid size, with a minimum size
-        grid_size = max(16, min(256, int(sqrt(num_points) * 1.5)))
+        grid_size = max(32, min(256, int(sqrt(num_points) * 1.5)))
         self.grid_size_x = grid_size
         self.grid_size_y = grid_size
 
@@ -147,11 +159,23 @@ class Accel2DOptimized:
         
         min_cell_i, min_cell_j = self._point_to_cell(min_x, min_y)
         max_cell_i, max_cell_j = self._point_to_cell(max_x, max_y)
-        
+
+        # Expand search area by grid cell tolerance for more forgiving selection
+        if self.GRID_CELL_TOLERANCE > 0:
+            min_cell_i = max(0, min_cell_i - self.GRID_CELL_TOLERANCE)
+            min_cell_j = max(0, min_cell_j - self.GRID_CELL_TOLERANCE)
+            max_cell_i = min(self.grid_size_x - 1, max_cell_i + self.GRID_CELL_TOLERANCE)
+            max_cell_j = min(self.grid_size_y - 1, max_cell_j + self.GRID_CELL_TOLERANCE)
+
         # Collect elements from cells
         result = set()
         
-        within_sq = within * within
+        # Add a tolerance factor to make selection more forgiving, similar to original Accel2D
+        # The original didn't do exact distance checking, making it more forgiving
+        tolerance_factor = self.SELECTION_TOLERANCE
+        within_sq = (within * tolerance_factor) * (within * tolerance_factor)
+        
+        print(f"{within=} -> {within_sq=}")
 
         for i in range(min_cell_i, max_cell_i + 1):
             for j in range(min_cell_j, max_cell_j + 1):
@@ -163,10 +187,12 @@ class Accel2DOptimized:
                 # Get elements from cell
                 for cell_elem in self.grid[cell_key].get_by_type(elem_type):
                     # Check if elem screen_pos is within distance fron origin in v2d.
-                    dist_sq = (cell_elem.screen_pos[0] - v2d.x)**2 + (cell_elem.screen_pos[1] - v2d.y)**2
-                    if dist_sq > within_sq:
-                        # Outside of distance.
-                        continue
+                    # Skip distance check if using legacy selection behavior
+                    if not self.USE_LEGACY_SELECTION:
+                        dist_sq = (cell_elem.screen_pos[0] - v2d.x)**2 + (cell_elem.screen_pos[1] - v2d.y)**2
+                        if dist_sq > within_sq:
+                            # Outside of distance.
+                            continue
                     
                     # We supose indices are updated!
                     rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
