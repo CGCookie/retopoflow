@@ -370,7 +370,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         RFBrush_Strokes, 'snap_distance', 'int',
         name='Snap',
         description='Distance for brush to snap to existing geometry',
-        min=1,
+        min=5,
         max=100,
         subtype='PIXEL',
         default=10,

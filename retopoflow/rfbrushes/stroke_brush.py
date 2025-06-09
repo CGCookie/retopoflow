@@ -179,7 +179,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     context,
                     hit['co_local'],
                     filter_fn=(lambda bmv: (bmv.is_boundary or bmv.is_wire) and not is_bmvert_hidden(context, bmv)),
-                    distance2d=self.snap_distance,
+                    distance2d=self.snap_distance - 3,
                 )
                 if not self.is_stroking():
                     self.snap_bmv0 = self.nearest_bmv.bmv
