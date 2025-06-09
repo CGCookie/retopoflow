@@ -50,7 +50,6 @@ def draw_mirror_options(context, layout, draw_operators=True):
         row.prop(props_obj, 'mirror_axis', index=2, text='Z', toggle=True)
         col = layout.column()
         col.enabled = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
-        col.prop(props_obj, 'mirror_clipping')
 
     if mod:
         col.label(text='Preview')
