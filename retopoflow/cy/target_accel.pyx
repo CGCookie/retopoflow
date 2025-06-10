@@ -738,6 +738,13 @@ cdef class TargetMeshAccel:
 
         with nogil, parallel():
             if verts:
+                with gil:
+                    try:
+                        py_bm_verts[0]
+                        py_bm_verts[len(py_bm_verts)]
+                    except:
+                        py_bm_verts.ensure_lookup_table()
+
                 for i in prange(self.totvisverts):
                     vert = visverts[i]
                     if vert is NULL:
@@ -750,6 +757,13 @@ cdef class TargetMeshAccel:
                             vis_py_verts.append(py_bm_verts[vert.head.index])
 
             if edges:
+                with gil:
+                    try:
+                        py_bm_edges[0]
+                        py_bm_edges[len(py_bm_edges)]
+                    except:
+                        py_bm_edges.ensure_lookup_table()
+
                 for j in prange(self.totvisedges):
                     edge = visedges[j]
                     if edge is NULL:
@@ -762,6 +776,13 @@ cdef class TargetMeshAccel:
                             vis_py_edges.append(py_bm_edges[edge.head.index])
 
             if faces:
+                with gil:
+                    try:
+                        py_bm_faces[0]
+                        py_bm_faces[len(py_bm_faces)]
+                    except:
+                        py_bm_faces.ensure_lookup_table()
+
                 for k in prange(self.totvisfaces):
                     face = visfaces[k]
                     if face is NULL:
