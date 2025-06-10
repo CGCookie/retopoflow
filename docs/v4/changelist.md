@@ -2,6 +2,26 @@
 
 This document contains details about what has changed in Retopoflow in version 4.x.
 
+### 4.0.0 beta 3
+
+New:
+- A Mirroring panel with quick actions was added to the tool settings
+- There is now a warning if entering Retopoflow when no sources are detected
+- You can now control the merge distance of the Strokes brush
+
+Improved:
+- All tools now use Face Nearest snapping by default
+- Masking corners in Tweak and Relax now respects concave corners
+- The Tweak and Relax brush falloff control is now much more user friendly
+- Strokes bridges can now be untwisted in edge cases where they are twisted
+- Improved visualization for proportional editing
+- Fixed several issues with mirror modifier clipping
+- Fixed conflict with keymaps that use Ctrl LMB Drag as box or lasso select
+- Fixed case where Relax would mangle n-gons if they had multiple sides on a boundary
+- Fixed case where Relax would affect vertices outside of the brush
+- Fixed Strokes merge circle sometimes highlighting when the result would not be merged
+- Fixed Retopoflow exiting when maximizing the 3D View
+
 ### 4.0.0 beta 2
 
 New:
