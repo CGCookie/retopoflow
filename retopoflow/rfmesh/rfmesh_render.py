@@ -212,10 +212,10 @@ class RFMeshRender():
         mirror_z = 'z' in mirror_axes
 
         layer_pin = self.rfmesh.layer_pin
-        
-        # Create accelerator instance
+
+        # Create accelerator instance - only use when no split to avoid ghost mesh
         CY_MeshRenderAccel = Globals.CY_MeshRenderAccel
-        if options['use cython accel render'] and CY_MeshRenderAccel is not None:
+        if options['use cython accel render'] and CY_MeshRenderAccel is not None and not self.split:
             accel = CY_MeshRenderAccel(
                 self.bmesh, 
                 mirror_x=mirror_x,
