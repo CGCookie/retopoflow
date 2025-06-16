@@ -193,9 +193,16 @@ class Accel2DOptimized:
                             continue
                     
                     # We supose indices are updated!
-                    rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
-                    if rf_elem.is_valid:
-                        result.add(self.bm_wrapper[cell_elem.type](rf_elem))
+                    try:
+                        rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
+                        if rf_elem.is_valid:
+                            result.add(self.bm_wrapper[cell_elem.type](rf_elem))
+                    except IndexError as e:
+                        print(f"Error getting element {cell_elem.type} {cell_elem.index} - {e}")
+                        print(f"Accel geom: {self.accel_geom}")
+                        print(f"BM wrapper: {self.bm_wrapper}")
+                        print(f"Cell key: {cell_key}")
+                        print(f"Cell elem: {cell_elem}")
 
         return result
 
