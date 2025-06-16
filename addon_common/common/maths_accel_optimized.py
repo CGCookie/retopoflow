@@ -175,8 +175,6 @@ class Accel2DOptimized:
         tolerance_factor = self.SELECTION_TOLERANCE
         within_sq = (within * tolerance_factor) * (within * tolerance_factor)
         
-        print(f"{within=} -> {within_sq=}")
-
         for i in range(min_cell_i, max_cell_i + 1):
             for j in range(min_cell_j, max_cell_j + 1):
                 cell_key = (i, j)
