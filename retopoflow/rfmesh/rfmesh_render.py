@@ -306,7 +306,7 @@ class RFMeshRender():
                                         'seam': [ seam_face(bmf)    for bmf, verts in tri_faces[i0:i1] for _   in verts ],
                                         'idx': None,  # list(range(len(tri_faces)*3)),
                                     }
-                                _process_face_data(face_data)
+                                    _process_face_data(face_data)
 
                     if self.load_edges:
                         def _process_edge_data(_edge_data: dict):
