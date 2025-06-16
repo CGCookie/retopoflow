@@ -48,6 +48,10 @@ def draw_tweaking_options(context, layout):
     row = col.row(heading='Keyboard')
     row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
 
+    col = grid.column()
+    col.label(text='Transform')
+    col.prop(props, 'tweaking_use_native', text='Native')
+
 
 def draw_tweaking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=True)

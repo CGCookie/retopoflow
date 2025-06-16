@@ -114,12 +114,23 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     tweaking_move_hovered_mouse: bpy.props.BoolProperty(
         name='Mouse Auto Select',
-        description=('Selects the geometry under the cursor, if any, before transforming using the mouse'),
+        description='Selects the geometry under the cursor, if any, before transforming using the mouse',
         default=True,
     )
     tweaking_move_hovered_keyboard: bpy.props.BoolProperty(
         name='Keyboard Auto Select',
-        description=('Selects the geometry under the cursor, if any, before transforming using keyboard shortcuts'),
+        description='Selects the geometry under the cursor, if any, before transforming using keyboard shortcuts',
+        default=False,
+    )
+    tweaking_use_native: bpy.props.BoolProperty(
+        name='Use Native Transform',
+        description=(
+            "Uses Blender's transform for tweaking rather than Retopoflow's. "
+            "This allows you to use all of Blender's built-in features, but means that snapping will affect the source and retopology objects the same. "
+            "\n\n"
+            "For example, using the native transform with vertex snapping means that the selection will snap to the individual vertices of the high poly source, "
+            "while using it without vertex snapping means that you will not be able to snap the vertices of the low poly retopology object to each other."
+        ),
         default=False,
     )
     #endregion

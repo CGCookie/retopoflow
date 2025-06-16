@@ -694,6 +694,7 @@ class RFOperator_Translate(RFOperator):
     def init(self, context, event):
         # print(f'STARTING TRANSLATE')
         props = RF_Prefs.get_prefs(context)
+        self.use_native = props.tweaking_use_native
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
