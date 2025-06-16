@@ -47,6 +47,7 @@ def draw_tweaking_options(context, layout):
     row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
     row = col.row(heading='Keyboard')
     row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
+    col.separator()
 
     col = grid.column()
     col.label(text='Transform')
