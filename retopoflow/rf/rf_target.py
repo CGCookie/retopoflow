@@ -528,6 +528,9 @@ class RetopoFlow_Target:
                 max_dist = self.drawing.scale(max_dist)
                 verts = vis_accel.get_verts(p2d, max_dist)
 
+            if verts is None:
+                return None, None
+
             if selected_only is not None:
                 verts = { bmv for bmv in verts if bmv.select == selected_only }
 
