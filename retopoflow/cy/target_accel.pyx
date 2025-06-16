@@ -712,7 +712,7 @@ cdef class TargetMeshAccel:
     ______________________________________________________________________________________________________________
     '''
 
-    cpdef tuple[list, list, list] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True):
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True, object filter_verts=None, object filter_edges=None, object filter_faces=None):
         """Return sets of visible geometry"""
         if not self.bmesh or not self.bmesh.vtable:
             printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
@@ -725,15 +725,18 @@ cdef class TargetMeshAccel:
             BMVert** visverts = self.visverts
             BMEdge** visedges = self.visedges
             BMFace** visfaces = self.visfaces
-            list vis_py_verts = []
-            list vis_py_edges = []
-            list vis_py_faces = []
+            set vis_py_verts = set()
+            set vis_py_edges = set()
+            set vis_py_faces = set()
             object py_bm_verts = py_bmesh.verts
             object py_bm_edges = py_bmesh.edges
             object py_bm_faces = py_bmesh.faces
             object vert_wrapper = self.vert_wrapper
             object edge_wrapper = self.edge_wrapper
             object face_wrapper = self.face_wrapper
+            object py_vert
+            object py_edge
+            object py_face
             int i, j, k
 
         with nogil, parallel():
@@ -744,17 +747,17 @@ cdef class TargetMeshAccel:
                         py_bm_verts[len(py_bm_verts)]
                     except:
                         py_bm_verts.ensure_lookup_table()
+                        py_bm_verts.index_update()
 
                 for i in prange(self.totvisverts):
                     vert = visverts[i]
                     if vert is NULL:
                         continue
-                    if wrapped:
-                        with gil:
-                            vis_py_verts.append(vert_wrapper(py_bm_verts[vert.head.index]))
-                    else:
-                        with gil:
-                            vis_py_verts.append(py_bm_verts[vert.head.index])
+                    with gil:
+                        py_vert = py_bm_verts[vert.head.index]
+                        if filter_verts is not None and py_vert not in filter_verts:
+                            continue
+                        vis_py_verts.add(vert_wrapper(py_vert) if wrapped else py_vert)
 
             if edges:
                 with gil:
@@ -763,17 +766,18 @@ cdef class TargetMeshAccel:
                         py_bm_edges[len(py_bm_edges)]
                     except:
                         py_bm_edges.ensure_lookup_table()
+                        py_bm_edges.index_update()
 
                 for j in prange(self.totvisedges):
                     edge = visedges[j]
                     if edge is NULL:
                         continue
-                    if wrapped:
-                        with gil:
-                            vis_py_edges.append(edge_wrapper(py_bm_edges[edge.head.index]))
-                    else:
-                        with gil:
-                            vis_py_edges.append(py_bm_edges[edge.head.index])
+                    with gil:
+                        py_edge = py_bm_edges[edge.head.index]
+                        if filter_edges is not None and py_edge not in filter_edges:
+                            continue
+                        vis_py_edges.add(edge_wrapper(py_edge) if wrapped else py_edge)
+
 
             if faces:
                 with gil:
@@ -782,17 +786,17 @@ cdef class TargetMeshAccel:
                         py_bm_faces[len(py_bm_faces)]
                     except:
                         py_bm_faces.ensure_lookup_table()
+                        py_bm_faces.index_update()
 
                 for k in prange(self.totvisfaces):
                     face = visfaces[k]
                     if face is NULL:
                         continue
-                    if wrapped:
-                        with gil:
-                            vis_py_faces.append(face_wrapper(py_bm_faces[face.head.index]))
-                    else:
-                        with gil:
-                            vis_py_faces.append(py_bm_faces[face.head.index])
+                    with gil:
+                        py_face = py_bm_faces[face.head.index]
+                        if filter_faces is not None and py_face not in filter_faces:
+                            continue
+                        vis_py_faces.add(face_wrapper(py_face) if wrapped else py_face)
 
         return vis_py_verts, vis_py_edges, vis_py_faces
 

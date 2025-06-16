@@ -986,32 +986,16 @@ class RFMesh():
         return _check_vert_vis
 
     ### @timing
-    def visible_verts(self, is_visible, verts=None):
-        
+    def visible_verts(self, is_visible, verts=None) -> set[RFVert]:
         if options['use cython accel tools'] and Globals.target_accel is not None:
-            vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, wrapped=True)
-            if verts == None:
-                return vis_verts
-            vis_verts_indices = {v.index for v in vis_verts}
-            return [v for v in verts if v.index in vis_verts_indices]
-        else:
-            # OLD - slower - METHOD. D:
-            is_vis = self._gen_is_vis(is_visible)
-            verts = self.bme.verts if verts is None else map(self._unwrap, verts)
-            return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
+            vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, wrapped=True, filter_verts=verts)
+            return vis_verts
 
     ### @timing
-    def visible_edges(self, is_visible, verts=None, edges=None):
+    def visible_edges(self, is_visible, verts=None, edges=None) -> set[RFEdge]:
         if options['use cython accel tools'] and Globals.target_accel is not None:
-            _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, edges=True, wrapped=True)
-            # if verts != None:
-            #     verts_indices = {v.index for v in verts}
-            if edges == None:
-                return vis_edges
-            vis_edges_indices = {e.index for e in vis_edges}
-            return [e for e in edges if e.index in vis_edges_indices]
-        else:
-            is_valid = RFMesh.fn_is_valid
+            _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, edges=True, wrapped=True, filter_edges=edges)  # already filters by visible verts
+            return vis_edges
 
             # Get visible vertices first
             if verts:
@@ -1025,17 +1009,10 @@ class RFMesh():
             return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     ### @timing
-    def visible_faces(self, is_visible, verts=None, faces=None):
+    def visible_faces(self, is_visible, verts=None, faces=None) -> set[RFFace]:
         if options['use cython accel tools'] and Globals.target_accel is not None:
-            _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, faces=True, wrapped=True)
-            # if verts != None:
-            #     verts_indices = {v.index for v in verts}
-            if faces == None:
-                return vis_faces
-            vis_faces_indices = {f.index for f in vis_faces}
-            return [f for f in faces if f.index in vis_faces_indices]
-        else:
-            is_valid = RFMesh.fn_is_valid
+            _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, faces=True, wrapped=True, filter_faces=faces)  # already filters by visible verts
+            return vis_faces
 
             # Get visible vertices first
             if verts:
