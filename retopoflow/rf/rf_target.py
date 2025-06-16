@@ -701,14 +701,6 @@ class RetopoFlow_Target:
         xyz,_,_,_ = self.raycast_sources_Point2D(point)
         return xyz
 
-    def nearest_vert_point(self, point, verts=None):
-        xyz = self.get_point3D(point)
-        if xyz is None: return None
-        return self.rftarget.nearest_bmvert_Point(xyz, verts=verts)
-
-    def nearest_vert_mouse(self, verts=None):
-        return self.nearest_vert_point(self.actions.mouse, verts=verts)
-
     def nearest_verts_point(self, point, max_dist:float, bmverts=None):
         xyz = self.get_point3D(point)
         if xyz is None: return None
@@ -716,13 +708,6 @@ class RetopoFlow_Target:
 
     def nearest_verts_mouse(self, max_dist:float):
         return self.nearest_verts_point(self.actions.mouse, max_dist)
-
-    def nearest_edges_Point(self, point, max_dist:float):
-        max_dist = self.drawing.scale(max_dist)
-        return self.rftarget.nearest_bmedges_Point(point, max_dist)
-
-    def nearest_edge_Point(self, point:Point, edges=None):
-        return self.rftarget.nearest_bmedge_Point(point, edges=edges)
 
 
     #######################################

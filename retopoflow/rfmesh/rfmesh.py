@@ -749,40 +749,6 @@ class RFMesh():
             nearest.append((self._wrap_bmvert(bmv), d3d))
         return nearest
 
-    def nearest_bmedge_Point(self, point:Point, edges=None):
-        if edges is None:
-            edges = [bme for bme in self.bme.edges if bme.is_valid and not bme.hide]
-        else:
-            edges = [self._unwrap(bme) for bme in edges if bme.is_valid and not bme.hide]
-        l2w_point = self.xform.l2w_point
-        be,bd,bpp = None,None,None
-        for bme in self.bme.edges:
-            bmv0,bmv1 = l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)
-            diff = bmv1 - bmv0
-            l = diff.length
-            d = diff / l
-            pp = bmv0 + d * max(0, min(l, (point - bmv0).dot(d)))
-            dist = (point - pp).length
-            if be is None or dist < bd: be,bd,bpp = bme,dist,pp
-        if be is None: return (None,None)
-        return (self._wrap_bmedge(be), (point-self.xform.l2w_point(bpp)).length)
-
-    def nearest_bmedges_Point(self, point:Point, dist3d:float):
-        l2w_point = self.xform.l2w_point
-        nearest = []
-        for bme in self.bme.edges:
-            if not bme.is_valid: continue
-            if bme.hide: continue
-            bmv0,bmv1 = l2w_point(bme.verts[0].co), l2w_point(bme.verts[1].co)
-            diff = bmv1 - bmv0
-            l = diff.length
-            d = diff / l
-            pp = bmv0 + d * max(0, min(l, (point - bmv0).dot(d)))
-            dist = (point - pp).length
-            if dist > dist3d: continue
-            nearest.append((self._wrap_bmedge(bme), dist))
-        return nearest
-
     def nearest2D_bmverts_Point2D(self, xy:Point2D, dist2D:float, Point_to_Point2Ds, *, verts=None, fwd=None):
         # TODO: compute distance from camera to point
         # TODO: sort points based on 3d distance
