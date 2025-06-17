@@ -278,9 +278,9 @@ class RetopoFlow_Target:
 
         recompute = force or (needs_recomputed and not any(delay_recompute))
 
-        if options['use cython accel tools'] and Globals.target_accel is not None:
+        if not recompute and options['use cython accel tools'] and Globals.target_accel is not None:
             res = Globals.target_accel.ensure_bmesh()
-            if res == -1:
+            if res != 0:
                 accel_data.verts.clear()
                 accel_data.edges.clear()
                 accel_data.faces.clear()
@@ -458,12 +458,12 @@ class RetopoFlow_Target:
     ### @timing
     def accel_nearest2D_vert(self, point=None, max_dist=None, vis_accel=None, selected_only=None):
         if point is None:
-            '''if self.actions.is_navigating:
+            if self.actions.is_navigating:
                 return (None, None)
             if self.actions.is_idle:
                 return (None, None)
             if is_outside_working_area(self):
-                return (None, None)'''
+                return (None, None)
             point = self.actions.mouse
         p2d = self.get_point2D(point)
 
@@ -498,12 +498,12 @@ class RetopoFlow_Target:
     ### @timing
     def accel_nearest2D_edge(self, point=None, max_dist=None, vis_accel=None, selected_only=None, edges_only=None):
         if point is None:
-            '''if self.actions.is_navigating:
+            if self.actions.is_navigating:
                 return (None, None)
             if self.actions.is_idle:
                 return (None, None)
             if is_outside_working_area(self):
-                return (None, None)'''
+                return (None, None)
             point = self.actions.mouse
         p2d = self.get_point2D(point)
         if not vis_accel:
@@ -537,12 +537,12 @@ class RetopoFlow_Target:
     ### @timing
     def accel_nearest2D_face(self, point=None, max_dist=None, vis_accel=None, selected_only=None, faces_only=None):
         if point is None:
-            '''if self.actions.is_navigating:
+            if self.actions.is_navigating:
                 return (None, None)
             if self.actions.is_idle:
                 return (None, None)
             if is_outside_working_area(self):
-                return (None, None)'''
+                return (None, None)
             point = self.actions.mouse
         p2d = self.get_point2D(point)
 
