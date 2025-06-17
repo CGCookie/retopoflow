@@ -564,6 +564,9 @@ class RetopoFlow_Target:
             else:
                 max_dist = self.drawing.scale(max_dist)
                 edges = vis_accel.get_edges(p2d, max_dist)
+            
+            if edges is None:
+                return None, None
 
             if selected_only is not None:
                 edges = { bme for bme in edges if bme.select == selected_only }
@@ -601,6 +604,9 @@ class RetopoFlow_Target:
             else:
                 max_dist = self.drawing.scale(max_dist)
                 faces = vis_accel.get_faces(p2d, max_dist)
+                
+            if faces is None:
+                return None, None
 
             if selected_only is not None:
                 faces = { bmf for bmf in faces if bmf.select == selected_only }
