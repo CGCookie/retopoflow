@@ -111,6 +111,9 @@ cdef class MeshRenderAccel:
                 'count': 0
             }
 
+        if self.bmesh.totvert == 0:
+            return {}
+
         try:
             self.py_bmesh.verts[self.bmesh.totvert-1]
         except IndexError:
@@ -151,6 +154,9 @@ cdef class MeshRenderAccel:
             import traceback
             print(f"Error in gather_vert_data: {str(e)}")
             print(traceback.format_exc())
+        
+        if totvalidverts == 0:
+            return {}
 
         # Allocate NumPy arrays with the exact size needed
         vco = np.zeros((totvalidverts, 3), dtype=np.float32)
@@ -219,6 +225,9 @@ cdef class MeshRenderAccel:
                 'indices': np.zeros(0, dtype=np.int32),
                 'count': 0
             }
+        
+        if self.bmesh.totedge == 0:
+            return {}
 
         try:
             self.py_bmesh.edges[self.bmesh.totedge-1]
@@ -257,6 +266,9 @@ cdef class MeshRenderAccel:
                 continue
             valid_indices[i] = totvalidedges
             totvalidedges += 1
+
+        if totvalidedges == 0:
+            return {}
 
         # Each edge has 2 vertices, so we need 2 * totvalidedges entries,
         # Allocate NumPy arrays with the exact size needed.
@@ -353,6 +365,9 @@ cdef class MeshRenderAccel:
                 'count': 0,
                 'tri_count': 0
             }
+    
+        if self.bmesh.totface == 0:
+            return {}
 
         try:
             self.py_bmesh.faces[self.bmesh.totface-1]
@@ -406,7 +421,10 @@ cdef class MeshRenderAccel:
             # Each face with n vertices needs (n-2) triangles.
             total_triangles += face.len - 2
             totvalidfaces += 1
-        
+
+        if totvalidfaces == 0:
+            return {}
+
         # Allocate all arrays at once.
         indices = np.zeros(totvalidfaces, dtype=np.int32)
         tri_counts = np.zeros(totvalidfaces, dtype=np.int32)
