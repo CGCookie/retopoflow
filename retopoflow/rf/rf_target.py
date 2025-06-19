@@ -679,9 +679,9 @@ class RetopoFlow_Target:
     def visible_faces(self, verts=None, faces=None): return self.rftarget.visible_faces(self.gen_is_visible(), verts=verts, faces=faces)
     def visible_geom(self): return (verts := self.visible_verts()), self.visible_edges(verts=verts), self.visible_faces(verts=verts)
 
-    def nonvisible_verts(self):             return self.rftarget.visible_verts(self.gen_is_nonvisible())
-    def nonvisible_edges(self, verts=None): return self.rftarget.visible_edges(self.gen_is_nonvisible(), verts=verts)
-    def nonvisible_faces(self, verts=None): return self.rftarget.visible_faces(self.gen_is_nonvisible(), verts=verts)
+    def nonvisible_verts(self):             return self.rftarget.visible_verts(self.gen_is_nonvisible(), invert=True)
+    def nonvisible_edges(self, verts=None): return self.rftarget.visible_edges(self.gen_is_nonvisible(), verts=verts, invert=True)
+    def nonvisible_faces(self, verts=None): return self.rftarget.visible_faces(self.gen_is_nonvisible(), verts=verts, invert=True)
     def nonvisible_geom(self): return (verts := self.nonvisible_verts()), self.nonvisible_edges(verts=verts), self.nonvisible_faces(verts=verts)
 
     def iter_verts(self): yield from self.rftarget.iter_verts()

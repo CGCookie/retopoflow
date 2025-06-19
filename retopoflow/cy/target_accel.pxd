@@ -187,7 +187,7 @@ cdef class TargetMeshAccel:
     cpdef list find_k_nearest_faces(self, float x, float y, float depth, int k=*, float max_dist=*, bint wrapped=*)
     '''
 
-    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*, bint wrapped=*, object filter_verts=*, object filter_edges=*, object filter_faces=*)
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert=*, bint wrapped=*, object filter_verts=*, object filter_edges=*, object filter_faces=*)
     cpdef tuple[set, set, set] get_selected_geom(self, object py_bmesh, bint verts=*, bint edges=*, bint faces=*, bint invert_selection=*)
 
     # Select-Box.

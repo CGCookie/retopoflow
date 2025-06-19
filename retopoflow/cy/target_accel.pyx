@@ -712,7 +712,7 @@ cdef class TargetMeshAccel:
     ______________________________________________________________________________________________________________
     '''
 
-    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert_selection=False, bint wrapped=True, object filter_verts=None, object filter_edges=None, object filter_faces=None):
+    cpdef tuple[set, set, set] get_visible_geom(self, object py_bmesh, bint verts=True, bint edges=True, bint faces=True,  bint invert=False, bint wrapped=True, object filter_verts=None, object filter_edges=None, object filter_faces=None):
         """Return sets of visible geometry"""
         if not self.bmesh or not self.bmesh.vtable:
             printf("Accel2D.get_visible_geom() - bmesh or vtable is NULL\n")
@@ -777,7 +777,6 @@ cdef class TargetMeshAccel:
                         if filter_edges is not None and py_edge not in filter_edges:
                             continue
                         vis_py_edges.add(edge_wrapper(py_edge) if wrapped else py_edge)
-
 
             if faces:
                 with gil:
