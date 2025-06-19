@@ -15,8 +15,9 @@ def block_if_idle_or_outside_working_area(default_return=None):
         def wrapped(self, *args, **kwargs):
             if self.actions.is_navigating:
                 return default_return
-            if self.actions.is_idle:
-                return default_return
+            # BUG: this is causing issues with some tools (e.g. PolyPen)
+            # if self.actions.is_idle:
+            #     return default_return
             if is_outside_working_area(self):
                 return default_return
             return fn(self, *args, **kwargs)
