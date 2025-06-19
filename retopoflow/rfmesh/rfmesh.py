@@ -929,67 +929,14 @@ class RFMesh():
             return is_visible(p, n) or is_visible(p + m * n, n)
         return is_vis
 
-    def _gen_is_vis_fast(self, screen_margin=0) -> callable:
-        # Get mesh data
-        matrix_world = self.obj.matrix_world
-        matrix_normal = matrix_world.inverted_safe().transposed().to_3x3()
-        
-        # Get view parameters
-        actions = Actions.get_instance(None)
-        if actions is None:
-            raise Exception("No actions instance found")
-        r3d = actions.r3d
-        view_matrix = r3d.view_matrix
-        proj_matrix = r3d.window_matrix @ view_matrix
-
-        # Get view direction based on view type
-        if r3d.is_perspective:
-            view_position = view_matrix.inverted().translation
-        else:
-            view_vector = view_matrix.inverted().col[2].xyz
-
-        vis_func = RFMesh.fn_is_valid_revealed
-
-        def _check_vert_vis(v: RFVert | BMVert) -> bool:
-            if not vis_func(v):
-                return False
-
-            # Get world space position and normal
-            world_pos = matrix_world @ v.co
-            world_normal = (matrix_normal @ v.normal).normalized()
-
-            # Check normal direction relative to view
-            if r3d.is_perspective:
-                view_dir = (world_pos - view_position).normalized()
-            else:
-                view_dir = view_vector
-
-            # Skip if normal is facing away (dot product > 0 means angle > 90°)
-            if world_normal.dot(view_dir) > 0:
-                return False
-
-            # Project point to screen space
-            screen_pos = proj_matrix @ world_pos.to_4d()
-            if screen_pos.w <= 0.0:  # Behind camera
-                return False
-
-            # Perform perspective divide
-            screen_pos = screen_pos.to_3d() / screen_pos.w
-
-            # Check if point is within view bounds (including margin)
-            if abs(screen_pos.x) > 1 + screen_margin or \
-            abs(screen_pos.y) > 1 + screen_margin:
-                return False
-
-            return True
-
-        return _check_vert_vis
-
     ### @timing
     def visible_verts(self, is_visible, verts=None, invert=False) -> set[RFVert]:
         if not invert and options['use cython accel tools'] and Globals.target_accel is not None:
             vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, edges=False, faces=False, wrapped=True, invert=invert)
             return vis_verts
+        is_vis = self._gen_is_vis(is_visible)
+        verts = self.bme.verts if verts is None else map(self._unwrap, verts)
+        return { self._wrap_bmvert(bmv) for bmv in filter(is_vis, verts) }
 
     ### @timing
     def visible_edges(self, is_visible, verts=None, edges=None, invert=False) -> set[RFEdge]:
@@ -997,16 +944,23 @@ class RFMesh():
             _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, verts=False, edges=True, faces=False, wrapped=True, invert=invert)  # already filters by visible verts
             return vis_edges
 
-            # Get visible vertices first
-            if verts:
-                vis_verts = set(map(self._unwrap, verts))
-            else:
-                is_vert_vis = self._gen_is_vis(is_visible)
-                vis_verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+        edges = self.bme.edges if edges is None else map(self._unwrap, edges)
 
-            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in vis_verts for bmv in bme.verts)
-            edges = self.bme.edges if edges is None else map(self._unwrap, edges)
-            return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
+        is_valid = RFMesh.fn_is_valid
+
+        # Edge is visible if ANY of its vertices are visible
+        if verts:
+            verts = set(map(self._unwrap, verts))
+            is_edge_vis = lambda bme: is_valid(bme) and any(bmv in verts for bmv in bme.verts)
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
+
+            is_edge_vis = lambda bme: (
+                is_valid(bme) and 
+                any(is_vert_vis(bmv) for bmv in bme.verts)
+            )
+ 
+        return { self._wrap_bmedge(bme) for bme in filter(is_edge_vis, edges) }
 
     ### @timing
     def visible_faces(self, is_visible, verts=None, faces=None, invert=False) -> set[RFFace]:
@@ -1014,16 +968,18 @@ class RFMesh():
             _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, verts=False, edges=False, faces=True, wrapped=True, invert=invert)  # already filters by visible verts
             return vis_faces
 
-            # Get visible vertices first
-            if verts:
-                verts = set(map(self._unwrap, verts))
-            else:
-                is_vert_vis = self._gen_is_vis(is_visible)
-                verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+        is_valid = RFMesh.fn_is_valid
 
-            is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
-            faces = self.bme.faces if faces is None else map(self._unwrap, faces)
-            return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
+        # Get visible vertices first
+        if verts:
+            verts = set(map(self._unwrap, verts))
+        else:
+            is_vert_vis = self._gen_is_vis(is_visible)
+            verts = set(bmv for bmv in self.bme.verts if is_vert_vis(bmv))
+
+        is_face_vis = lambda bmf: is_valid(bmf) and all(bmv in verts for bmv in bmf.verts)
+        faces = self.bme.faces if faces is None else map(self._unwrap, faces)
+        return { self._wrap_bmface(bme) for bme in filter(is_face_vis, faces) }
 
 
     ##########################################################
