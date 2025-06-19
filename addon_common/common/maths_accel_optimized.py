@@ -24,6 +24,7 @@ import ctypes
 from itertools import chain
 import numpy as np
 from typing import List, Set, Dict, Tuple, Optional, Union, Any
+from bmesh.types import BMVert, BMEdge, BMFace
 
 from .maths import zero_threshold, BBox2D, Point2D, clamp, Vec2D, Vec, mid
 from .profiler import profiler, time_it, timing
@@ -196,8 +197,16 @@ class Accel2DOptimized:
                     try:
                         rf_elem = self.accel_geom[cell_elem.type][cell_elem.index]
                         if rf_elem.is_valid:
-                            result.add(self.bm_wrapper[cell_elem.type](rf_elem))
-                    except IndexError as e:
+                            # Ensure we're getting the right type of element
+                            if cell_elem.type == BM_VERT and isinstance(rf_elem, BMVert):
+                                result.add(self.bm_wrapper[BM_VERT](rf_elem))
+                            elif cell_elem.type == BM_EDGE and isinstance(rf_elem, BMEdge):
+                                result.add(self.bm_wrapper[BM_EDGE](rf_elem))
+                            elif cell_elem.type == BM_FACE and isinstance(rf_elem, BMFace):
+                                result.add(self.bm_wrapper[BM_FACE](rf_elem))
+                            else:
+                                raise ValueError(f"Invalid element type: {cell_elem.type}, {cell_elem.index}")
+                    except (IndexError, ValueError) as e:
                         print(f"Error getting element {cell_elem.type} {cell_elem.index} - {e}")
                         print(f"Accel geom: {self.accel_geom}")
                         print(f"BM wrapper: {self.bm_wrapper}")
