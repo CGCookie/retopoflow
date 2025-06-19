@@ -987,13 +987,13 @@ class RFMesh():
 
     ### @timing
     def visible_verts(self, is_visible, verts=None, invert=False) -> set[RFVert]:
-        if options['use cython accel tools'] and Globals.target_accel is not None:
+        if not invert and options['use cython accel tools'] and Globals.target_accel is not None:
             vis_verts, _e, _f = Globals.target_accel.get_visible_geom(self.bme, verts=True, edges=False, faces=False, wrapped=True, invert=invert)
             return vis_verts
 
     ### @timing
     def visible_edges(self, is_visible, verts=None, edges=None, invert=False) -> set[RFEdge]:
-        if options['use cython accel tools'] and Globals.target_accel is not None:
+        if not invert and options['use cython accel tools'] and Globals.target_accel is not None:
             _v, vis_edges, _f = Globals.target_accel.get_visible_geom(self.bme, verts=False, edges=True, faces=False, wrapped=True, invert=invert)  # already filters by visible verts
             return vis_edges
 
@@ -1010,7 +1010,7 @@ class RFMesh():
 
     ### @timing
     def visible_faces(self, is_visible, verts=None, faces=None, invert=False) -> set[RFFace]:
-        if options['use cython accel tools'] and Globals.target_accel is not None:
+        if not invert and options['use cython accel tools'] and Globals.target_accel is not None:
             _v, _e, vis_faces = Globals.target_accel.get_visible_geom(self.bme, verts=False, edges=False, faces=True, wrapped=True, invert=invert)  # already filters by visible verts
             return vis_faces
 
