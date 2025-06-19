@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "retopoflow"
-version = "3.4.6"
+version = "3.4.7"
 name = "RetopoFlow 3"
 tagline = "A suite of retopology tools for Blender through a unified retopology mode"
 maintainer = "Orange Turbine - Dr. Jon Denning, Jonathan Williamson, Jonathan Lampel, JF Matheu <orangeturbine@cgcookie.com>"
