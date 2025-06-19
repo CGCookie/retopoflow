@@ -824,36 +824,6 @@ class RetopoFlow_Target:
         self.rftarget.snap_selected_verts(self.nearest_sources_Point)
         self.recalculate_face_normals(verts=bmvs)
 
-#    def snap_verts_filter(self, fn_filter):
-#        self.undo_push('snap filtered verts')
-#        self.rftarget.snap_verts_filter(self.nearest_source_Point, fn_filter)
-#
-#    def snap_all_verts(self):
-#        self.undo_push('snap all verts')
-#        self.rftarget.snap_all_verts(self.nearest_sources_Point)
-#
-#    def snap_all_nonhidden_verts(self):
-#        self.undo_push('snap all visible verts')
-#        self.rftarget.snap_all_nonhidden_verts(self.nearest_sources_Point)
-#
-#    def snap_selected_verts(self):
-#        self.undo_push('snap visible and selected verts')
-#        self.rftarget.snap_selected_verts(self.nearest_sources_Point)
-#
-#    def snap_unselected_verts(self):
-#        self.undo_push('snap visible and unselected verts')
-#        self.rftarget.snap_unselected_verts(self.nearest_sources_Point)
-#
-#    def snap_visible_verts(self):
-#        self.undo_push('snap visible verts')
-#        nonvisible_verts = self.nonvisible_verts()
-#        self.rftarget.snap_verts_filter(self.nearest_sources_Point, lambda v: not v.hide and v not in nonvisible_verts)
-#
-#    def snap_nonvisible_verts(self):
-#        self.undo_push('snap non-visible verts')
-#        nonvisible_verts = self.nonvisible_verts()
-#        self.rftarget.snap_verts_filter(self.nearest_sources_Point, lambda v: not v.hide and v in nonvisible_verts)
-
     def remove_all_doubles(self):
         self.undo_push('remove all doubles')
         self.rftarget.remove_all_doubles(options['remove doubles dist'])
