@@ -401,9 +401,17 @@ def enumerate_reversed(l):
 def iter_pairs(items, wrap, repeat=False):
     if not items: return
     while True:
-        for i0,i1 in zip(items[:-1],items[1:]): yield i0,i1
+        yield from zip(items[:-1], items[1:])
         if wrap: yield items[-1],items[0]
         if not repeat: return
+
+def rip(zipped):
+    # inverse of zip
+    # zip([1,2], [3,4])   => [(1,3), (2,4)]  (technically, zip is a generator)
+    # rip([(1,3), (2,4)]) => [1,2], [3,4]
+    # return zip(*zipped)  # returns wrong type
+    return map(list, zip(*zipped))
+    # return ([a for (a,_) in zipped], [b for (_,b) in zipped])
 
 def rotate_cycle(cycle, offset):
     l = len(cycle)

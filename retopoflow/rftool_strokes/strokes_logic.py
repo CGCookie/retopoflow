@@ -55,8 +55,8 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import closest_point_segment, segment2D_intersection, Frame
-from ...addon_common.common.maths import clamp
-from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.maths import clamp, sign_threshold
+from ...addon_common.common.utils import iter_pairs, rip
 
 import math
 from collections import deque
@@ -116,14 +116,24 @@ Questions/Thoughts:
 DEBUG = False
 
 
+# TODO: make sure that any part of stroke that is at the mirror **SHOULD** be have a vertex!
+#       for example, the shape of number 8.  right now the top and bottom points are guaranteed
+#       to be on the mirror, but the middle is not.  think of them as endpoints or corners.
+#       in fact, corners **SHOULD** have a vertex, too, similar to corners in PolyStrips.
+
+# TODO: if two endpoints are on the same mirror, then all verts between them should also be on that mirror too
+
+
 class Strokes_Logic:
-    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
+    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         self.radius = radius
         self.snap_distance = snap_distance
         self.stroke3D = stroke3D
 
         self.show_is_cycle = True
         self.is_cycle = is_cycle
+        self.snapped_geo = snapped_geo
+        self.snapped_mirror = snapped_mirror
 
         self.span_insert_mode = span_insert_mode
         self.fixed_span_count = fixed_span_count
@@ -180,8 +190,9 @@ class Strokes_Logic:
         self.initial = False
 
     def process_stroke(self):
-        # project 3D stroke points to screen
-        self.stroke2D = [self.project_pt(pt) for pt in self.stroke3D if pt]
+        # project 3D stroke points to screen  (assuming stroke3D has no Nones)
+        self.stroke2D = [ self.project_pt(pt3D) for pt3D in self.stroke3D ]
+
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))

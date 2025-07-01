@@ -566,7 +566,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
 
     brush_radius: wrap_property(
-        RFBrush_Strokes, 'radius', 'int',
+        RFBrush_Strokes, 'stroke_radius', 'int',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,
@@ -600,7 +600,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     def reset(self):
         RFTool_PolyStrips.rf_brush.reset()
 
-    def process_stroke(self, context, radius2D, snap_distance, stroke2D, is_cycle, snapped_geo):
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
         if not snap_bmf0:
             l = len(stroke2D)

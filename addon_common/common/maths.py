@@ -24,7 +24,7 @@ import random
 import numpy as np
 from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 from typing import List
-from itertools import chain
+from itertools import chain, combinations
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
@@ -2104,6 +2104,11 @@ def sign(v):
 
 def sign_threshold(v, threshold):
     return 0 if -threshold <= v <= threshold else sign(v)
+
+def all_combinations(things):
+    if not things: return
+    for i in range(1, len(things)+1):
+        yield from combinations(things, i)
 
 if __name__ == '__main__':
     # run tests

@@ -176,7 +176,7 @@ class RFOperator_Stroke_Insert(
     logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
+    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -187,6 +187,8 @@ class RFOperator_Stroke_Insert(
             snap_distance,
             stroke3D,
             is_cycle,
+            snapped_geo,
+            snapped_mirror,
             span_insert_mode,
             cut_count,
             extrapolate_mode,
@@ -358,7 +360,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     rf_status = ['LMB: Insert']
 
     brush_radius: wrap_property(
-        RFBrush_Strokes, 'radius', 'int',
+        RFBrush_Strokes, 'stroke_radius', 'int',
         name='Radius',
         description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
         min=1,
@@ -398,15 +400,15 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     def reset(self):
         RFTool_Strokes.rf_brush.reset()
 
-    def process_stroke(self, context, radius, snap_distance, stroke2D, is_cycle, snapped_geo):
-        snap_bmv0, snap_bmv1 = snapped_geo[0]
-        stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
+    def process_stroke(self, context, radius, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         RFOperator_Stroke_Insert.strokes_insert(
             context,
             radius,
             snap_distance,
             stroke3D,
             is_cycle,
+            snapped_geo,
+            snapped_mirror,
             self.span_insert_mode,
             self.cut_count,
             self.extrapolate_mode,
