@@ -147,6 +147,7 @@ class RFCore:
             debugger.print_exception()
 
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
+        bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 
         # unwrap tool change function
         RFCore._unwrap_activate_tool()
@@ -491,6 +492,7 @@ class RFCore:
     @staticmethod
     @bpy.app.handlers.persistent
     def handle_load_post(*args, **kwargs):
+        if not hasattr(bpy.context.scene, 'retopoflow'): return
         if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
         RFCore.quick_switch(bpy.context.scene.retopoflow.saved_tool)
         # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
