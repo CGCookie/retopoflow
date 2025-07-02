@@ -222,7 +222,7 @@ class Relax_Logic:
                     bmv0, bmv1 = bme.verts
                     vec = bme_vector(bme)
                     edge_len = vec.length
-                    f = vec * (10.0 * (avg_edge_len - edge_len) * strength) #/ edge_len
+                    f = vec * (10.0 * (avg_edge_len - edge_len) * strength)
                     add_force(bmv0, -f)
                     add_force(bmv1, +f)
 
@@ -257,7 +257,8 @@ class Relax_Logic:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges if bme.is_boundary)
                     else:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
-                    add_force(bmv, (center - bmv.co) * 0.1)
+                    vec = center - bmv.co
+                    add_force(bmv, vec * vec.length)
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
@@ -279,7 +280,7 @@ class Relax_Logic:
                     avg_rel_len = sum(rel.length for rel in rels) / cnt
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength * 5.0) / rel_len
+                        f = rel * ((avg_rel_len - rel_len) * strength * 10.0)
                         add_force(bmv, f)
 
                 # push verts toward equal edge lengths
@@ -289,7 +290,7 @@ class Relax_Logic:
                         bmv0, bmv1 = bme.verts
                         vec = bme_vector(bme)
                         edge_len = vec.length
-                        f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0) / edge_len
+                        f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
                         add_force(bmv0, f * -0.5)
                         add_force(bmv1, f * 0.5)
 
@@ -306,7 +307,7 @@ class Relax_Logic:
                         d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
                         angle = d10_2.angle_signed(d12_2)
                         angle_diff = angle_target - angle
-                        mag = angle_diff * 0.05 * strength
+                        mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
                         add_force(bmv0, d10.cross(bmf_z).normalized() * -mag)
                         add_force(bmv2, d12.cross(bmf_z).normalized() * mag)
 
