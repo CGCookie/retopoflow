@@ -87,6 +87,7 @@ class Tweak_Logic:
         if not hit: return
 
         offset = context.space_data.overlay.retopology_offset
+        M = self.matrix_world
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -97,7 +98,7 @@ class Tweak_Logic:
         for bmv in self.bm.verts:
             if bmv.hide: continue
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
-            if (bmv.co - hit['co_local']).length > radius3D: continue
+            if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
             if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if self.tweak.include_corners  == False  and len(bmv.link_edges) == 2: continue
             if self.tweak.include_corners == False   and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
