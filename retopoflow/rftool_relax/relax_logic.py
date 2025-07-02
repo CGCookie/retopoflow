@@ -117,10 +117,12 @@ class Relax_Logic:
         opt_face_angles      = relax.algorithm_average_face_angles
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
+        M = self.matrix_world
+
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
-        
+
         def is_bmvert_on_ngon(bmv):
             for bmf in bmv.link_faces:
                 if len(bmf.edges) > 4:
@@ -142,7 +144,7 @@ class Relax_Logic:
             if bmv.hide: continue
             if len(bmv.link_faces) == 0: continue
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if (bmv.co - hit['co_local']).length > radius3D: continue
+            if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
             if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
@@ -178,7 +180,7 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += f
+            displace[bmv] += M @ f
 
         def bme_length(bme):
             return bme_vector(bme).length
@@ -315,7 +317,7 @@ class Relax_Logic:
             if len(displace) <= 1: continue
 
             # compute max displacement length
-            displace_max = max(displace[bmv].length * (opt_mult * vert_strength[bmv]) for bmv in displace)
+            displace_max = max((M @ displace[bmv]).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
             if displace_max > radius3D * 0.125:
                 # limit the displace_max
                 mult = radius3D * 0.125 / displace_max
