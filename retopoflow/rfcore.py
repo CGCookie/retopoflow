@@ -425,6 +425,7 @@ class RFCore:
     def is_top_modal(context):
         op_name = 'RetopoFlow Core'
         ops = context.window.modal_operators
+        if not ops: return False
         if ops[0].name == op_name: return True
         if len(ops) >= 2 and ops[0].name == 'Screencast Keys' and ops[1].name == op_name: return True
         return False
