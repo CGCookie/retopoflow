@@ -724,7 +724,7 @@ class RFOperator_Translate(RFOperator):
                 if mode[0] and not nearest_bmelem: nearest_bmelem = self.nearest_bmv.bmv
                 if mode[1] and not nearest_bmelem: nearest_bmelem = self.nearest_bme.bme
                 if mode[2] and not nearest_bmelem: nearest_bmelem = self.nearest_bmf.bmf
-                
+
                 if nearest_bmelem:
                     bmops.deselect_all(self.bm)
                     bmops.select(self.bm, nearest_bmelem)
@@ -806,10 +806,10 @@ class RFOperator_Translate(RFOperator):
         self.highlight = set()
         # Cursors.set('NONE')  # PAINT_CROSS
 
-    def update(self, context, event):     
-        if self.use_native: 
+    def update(self, context, event):
+        if self.use_native:
             return {'FINISHED'}
-        
+
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
             # self.RFCore.cursor_warp(context, self.mouse_orig)
@@ -916,12 +916,11 @@ class RFOperator_Translate(RFOperator):
                     co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
                     co = nearest_point_valid_sources(context, co_world, world=False)
             elif self.snap_method == 'NEAREST':
-                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta * factor, co_orig)
+                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta * factor, self.matrix_world @ co_orig)
                 co = nearest_point_valid_sources(context, co, world=True)
-                bmv.co = self.matrix_world_inv @ co
+                co = self.matrix_world_inv @ co
 
             if self.mirror:
-                co_orig = self.bmvs_co_orig[bmv]
                 t = self.mirror_threshold
                 zero = {
                     'x': ('x' in self.mirror and (sign_threshold(co.x, t.x) != sign_threshold(co_orig.x, t.x) or sign_threshold(co_orig.x, t.x) == 0)),
