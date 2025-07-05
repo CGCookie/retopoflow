@@ -127,16 +127,18 @@ def ray_from_mouse(context, event):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
     )
 
-def ray_from_point(context, point):
+def ray_from_point(context, point_screen_or_world):
     # if point is 2d, treat as being in screen space
     # if 3d, treat as world space
-    if not context.region_data: return (None, None)
-    if len(point) > 2:
-        point = location_3d_to_region_2d(context.region, context.region_data, point)
-        if not point: return (None, None)
+    if not context.region_data or not point_screen_or_world: return (None, None)
+    if len(point_screen_or_world) > 2:
+        point_world = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        if not point_world: return (None, None)
+    else:
+        point_world = point_screen_or_world
     return (
-        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point), 1.0)),
-        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point).normalized(), 0.0)),
+        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_world), 1.0)),
+        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_world).normalized(), 0.0)),
     )
 
 def ray_from_point_through_point(context, pt0_world, pt1_world):
@@ -262,8 +264,8 @@ def raycast_valid_sources(context, point):
     #     hit = Mi @ hit
     # return hit.xyz
 
-def raycast_point_valid_sources(context, point_world, **kwargs):
-    ray_world = ray_from_point(context, point_world)
+def raycast_point_valid_sources(context, point_screen_or_world, **kwargs):
+    ray_world = ray_from_point(context, point_screen_or_world)
     return raycast_ray_valid_sources(context, ray_world, **kwargs)
 
 def raycast_ray_valid_sources(context, ray_world, *, world=True):

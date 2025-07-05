@@ -60,6 +60,7 @@ from ...addon_common.common.utils import iter_pairs, rip
 
 import math
 from collections import deque
+from itertools import takewhile
 
 r'''
 Table of Implemented:
@@ -125,10 +126,10 @@ DEBUG = False
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
+    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode):
         self.radius = radius
         self.snap_distance = snap_distance
-        self.stroke3D = stroke3D
+        self.stroke3D_original = stroke3D
 
         self.show_is_cycle = True
         self.is_cycle = is_cycle
@@ -157,6 +158,9 @@ class Strokes_Logic:
         self.show_untwist_bridge = False
         self.untwist_bridge = False
 
+        self.show_mirror_mode = False
+        self.mirror_mode = mirror_mode
+
         self.show_action = ''
         self.show_count = True
         self.cut_count = None
@@ -171,9 +175,12 @@ class Strokes_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
 
-        self.process_stroke()
+        self.stroke3D = list(self.stroke3D_original)
+
+        self.process_mirror()
+        self.process_stroke_details()
         self.process_selected()
-        self.process_snapped()
+        self.process_snap_geometry()
 
         # TODO: handle gracefully if these functions fail
         try:
@@ -189,7 +196,86 @@ class Strokes_Logic:
             self.fixed_span_count = self.cut_count
         self.initial = False
 
-    def process_stroke(self):
+    def process_mirror(self):
+        self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = 0
+        for mod in self.context.edit_object.modifiers:
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
+            self.mirror_threshold = mod.merge_threshold
+            self.mirror_clip = mod.use_clip
+
+        if not self.mirror or not self.mirror_clip: return  # no mirroring or clipping
+
+        def get_mirror_side(pt3D_local):
+            return (
+                1 if 'x' not in self.mirror else sign_threshold(pt3D_local.x, self.mirror_threshold),
+                1 if 'y' not in self.mirror else sign_threshold(pt3D_local.y, self.mirror_threshold),
+                1 if 'z' not in self.mirror else sign_threshold(pt3D_local.z, self.mirror_threshold),
+            )
+        sides = [ get_mirror_side(pt) for pt in self.stroke3D ]
+        all_sides = set(sides)
+
+        if len(all_sides) == 1: return  # stroke is entirely on one side of mirror
+
+        self.show_mirror_mode = True
+
+        match self.mirror_mode:
+            case 'CLIP':
+                # clip (clamp) to mirror
+                new_stroke = []
+                side0 = None
+                for (pt, side) in zip(self.stroke3D, sides):
+                    if side0 is None:
+                        new_stroke += [pt]
+                        if 0 not in sides: side0 = side
+                    elif side == side0:
+                        new_stroke += [pt]
+                    else:
+                        # snap
+                        s = Vector((
+                            1 if side[0] == side0[0] else 0,
+                            1 if side[1] == side0[1] else 0,
+                            1 if side[2] == side0[2] else 0,
+                        ))
+                        new_stroke += [pt * s]
+                self.stroke3D = new_stroke
+
+            case 'TRIM':
+                # trim to mirror
+                new_stroke = []
+                side0 = None
+                pt_prev = None
+                for (pt, side) in zip(self.stroke3D, sides):
+                    if side0 is None:
+                        new_stroke += [pt]
+                        if 0 not in sides: side0 = side
+                    elif side == side0:
+                        new_stroke += [pt]
+                    else:
+                        if 0 in side:
+                            new_stroke += [pt]
+                        else:
+                            pt0, pt1 = pt, pt_prev
+                            for _ in range(100):
+                                pt = pt0 + (pt1 - pt0) * 0.5
+                                s = get_mirror_side(pt)
+                                if 0 in s:
+                                    new_stroke += [pt]
+                                    break
+                                if s == side0: pt0 = pt
+                                else:          pt1 = pt
+                        break
+                    pt_prev = pt
+                self.stroke3D = new_stroke
+
+
+    def process_stroke_details(self):
+
         # project 3D stroke points to screen  (assuming stroke3D has no Nones)
         self.stroke2D = [ self.project_pt(pt3D) for pt3D in self.stroke3D ]
 
@@ -224,7 +310,7 @@ class Strokes_Logic:
         fix_strip(self.longest_strip0)
         fix_strip(self.longest_strip1)
 
-    def process_snapped(self):
+    def process_snap_geometry(self):
         self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
         self.snap_bmv1 = self.bmv_closest(self.bm.verts, self.stroke3D[-1])
 
@@ -249,13 +335,14 @@ class Strokes_Logic:
     def reverse_stroke(self):
         self.stroke2D.reverse()
         self.stroke3D.reverse()
-        self.snap_bmv0,        self.snap_bmv1        = self.snap_bmv1,        self.snap_bmv0
-        self.snap_bmv0_cycle0, self.snap_bmv1_cycle0 = self.snap_bmv1_cycle0, self.snap_bmv0_cycle0
-        self.snap_bmv0_cycle1, self.snap_bmv1_cycle1 = self.snap_bmv1_cycle1, self.snap_bmv0_cycle1
-        self.snap_bmv0_strip0, self.snap_bmv1_strip0 = self.snap_bmv1_strip0, self.snap_bmv0_strip0
-        self.snap_bmv0_strip1, self.snap_bmv1_strip1 = self.snap_bmv1_strip1, self.snap_bmv0_strip1
-        self.snap_bmv0_sel,    self.snap_bmv1_sel    = self.snap_bmv1_sel,    self.snap_bmv0_sel
-        self.snap_bmv0_nosel,  self.snap_bmv1_nosel  = self.snap_bmv1_nosel,  self.snap_bmv0_nosel
+        self.snap_bmv0,         self.snap_bmv1         = self.snap_bmv1,         self.snap_bmv0
+        self.snap_bmv0_cycle0,  self.snap_bmv1_cycle0  = self.snap_bmv1_cycle0,  self.snap_bmv0_cycle0
+        self.snap_bmv0_cycle1,  self.snap_bmv1_cycle1  = self.snap_bmv1_cycle1,  self.snap_bmv0_cycle1
+        self.snap_bmv0_strip0,  self.snap_bmv1_strip0  = self.snap_bmv1_strip0,  self.snap_bmv0_strip0
+        self.snap_bmv0_strip1,  self.snap_bmv1_strip1  = self.snap_bmv1_strip1,  self.snap_bmv0_strip1
+        self.snap_bmv0_sel,     self.snap_bmv1_sel     = self.snap_bmv1_sel,     self.snap_bmv0_sel
+        self.snap_bmv0_nosel,   self.snap_bmv1_nosel   = self.snap_bmv1_nosel,   self.snap_bmv0_nosel
+        self.snapped_mirror[0], self.snapped_mirror[1] = self.snapped_mirror[1], self.snapped_mirror[0]
 
     def insert(self):
         if DEBUG:
@@ -753,7 +840,7 @@ class Strokes_Logic:
         if self.snap_bmv1_strip0:
             self.reverse_stroke()
 
-        # bridge if stroke ended on another compatible cycle
+        # bridge if stroke ended on another compatible strip
         strips = get_boundary_strips(self.snap_bmv1)
         if strips and len(strips) in {1, 2}:
             # determine where on selected stroke crossed

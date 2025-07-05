@@ -98,8 +98,8 @@ class RFOperator_Stroke_Insert_Properties:
         description='Controls the number of spans when inserting',
         items=[
             ('BRUSH',   'Brush Radius', 'Inserts spans the size of the brush', 0),
-            ('FIXED',   'Fixed',      'Inserts a fixed number of spans',     1),
-            ('AVERAGE', 'Average',    'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
+            ('FIXED',   'Fixed',        'Inserts a fixed number of spans',     1),
+            ('AVERAGE', 'Average',      'Inserts spans based on average length of selected edges. If there are no selected edges it uses the brush radius', 2),
         ],
         default='AVERAGE',
     )
@@ -139,6 +139,16 @@ class RFOperator_Stroke_Insert_Properties:
         max=1.0,
     )
 
+    mirror_mode: bpy.props.EnumProperty(
+        name='Mirror Method',
+        description='Controls what should happen to stroke that crosses a mirror',
+        items=[
+            ('CLIP', 'Clip', 'Clip stroke to mirror', 0),
+            ('TRIM', 'Trim', 'Trim stroke to mirror', 1),
+        ],
+        default='CLIP',
+    )
+
 class RFOperator_Stroke_Insert(
         RFOperator_Stroke_Insert_Keymaps,
         RFOperator_Stroke_Insert_Properties,
@@ -176,7 +186,7 @@ class RFOperator_Stroke_Insert(
     logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1):
+    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -195,6 +205,7 @@ class RFOperator_Stroke_Insert(
             smooth_angle,
             smooth_density0,
             smooth_density1,
+            mirror_mode,
         )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
 
@@ -213,6 +224,7 @@ class RFOperator_Stroke_Insert(
             force_nonstripL=logic.force_nonstripL,
             untwist_bridge=logic.untwist_bridge,
             is_cycle=logic.is_cycle,
+            mirror_mode=logic.mirror_mode,
         )
 
     def draw(self, context):
@@ -252,6 +264,9 @@ class RFOperator_Stroke_Insert(
         if logic.show_untwist_bridge:
             layout.row(heading='Untwist').prop(self, 'untwist_bridge', text='Bridge')
 
+        if logic.show_mirror_mode:
+            layout.prop(self, 'mirror_mode', text='Mirror Mode')
+
     def execute(self, context):
         """
         NOTE: execute should not be called directly!
@@ -269,6 +284,7 @@ class RFOperator_Stroke_Insert(
         logic.force_nonstripL  = self.force_nonstripL
         logic.untwist_bridge   = self.untwist_bridge
         logic.is_cycle         = self.is_cycle
+        logic.mirror_mode      = self.mirror_mode
 
         try:
             logic.update(context)
@@ -288,6 +304,7 @@ class RFOperator_Stroke_Insert(
         self.force_nonstripL  = logic.force_nonstripL
         self.untwist_bridge   = logic.untwist_bridge
         self.is_cycle         = logic.is_cycle
+        self.mirror_mode      = logic.mirror_mode
         if logic.show_count: self.cut_count = logic.fixed_span_count
 
         return {'FINISHED'}
@@ -415,6 +432,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             self.smooth_angle,
             self.smooth_density0,
             self.smooth_density1,
+            self.mirror_mode,
         )
 
     def update(self, context, event):
@@ -525,6 +543,7 @@ class RFTool_Strokes(RFTool_Base):
                 panel.prop(props_strokes, 'snap_radius', text="Snap")
                 panel.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
                 panel.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
+                panel.prop(props_strokes, 'mirror_mode', text='Mirror Mode')
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)

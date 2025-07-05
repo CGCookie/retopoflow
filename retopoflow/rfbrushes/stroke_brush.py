@@ -200,9 +200,10 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 )
                 if not self.is_stroking():
                     self.snap_bmv0 = self.nearest_bmv.bmv
-                    self.snap_mirror_0 = self.get_snap_mirror(context, hit['co_local'])
                     self.snap_bmv1 = None
+                    self.snap_mirror_0 = self.get_snap_mirror(context, hit['co_local'])
                     self.snap_mirror_1 = None
+                    self.snap_mirror_all = False
                 elif self.snap_bmv0 != self.nearest_bmv.bmv:
                     self.snap_bmv1 = self.nearest_bmv.bmv
                 else:
@@ -357,6 +358,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
             self.stroke_original += [pt2D]
             self.stroke3D_original += [pt3D]
+            self.snap_mirror_all = False
 
             if not self.mirror or not self.mirror_clip:
                 self.stroke = self.stroke_original
@@ -395,6 +397,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
                     for co in self.stroke3D
                 ]
+                self.snap_mirror_all = True
                 return True
 
             # handle: stroke comes near mirror at least once
@@ -404,13 +407,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     co.y if 'y' in snap else 0,
                     co.z if 'z' in snap else 0,
                 )).length
-            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
+
             # note: cannot all be snaps, because case above (all near mirror) would have handled it
-            sides = [self.get_mirror_side(co) for co in self.stroke3D_original]
-            pre = []
-            i0 = 0
-            i1 = len(self.stroke3D_original)
-            post = []
+            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
+            sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
+            pre, i0, i1, post = [], 0, len(self.stroke3D_original), []
             if self.snap_mirror_0:
                 closest = Vector(self.stroke3D_original[0])
                 for i in range(len(snaps)):
@@ -453,19 +454,19 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             return True
 
         def process_stroke(self, context):
-            # tessellate stroke
-            new_stroke = []
-            for (co0, co1) in iter_pairs(self.stroke, False):
-                new_stroke += [co0]
-                d = co1 - co0
-                l = d.length
-                lt = int(l / 0.5)
-                for i in range(lt):
-                    co = co0 + d * (i / lt)
-                    new_stroke += [co]
-            new_stroke += [self.stroke[-1]]
-            self.stroke = new_stroke
-            self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
+            # # tessellate stroke
+            # new_stroke = []
+            # for (co0, co1) in iter_pairs(self.stroke, False):
+            #     new_stroke += [co0]
+            #     d = co1 - co0
+            #     l = d.length
+            #     lt = int(l / 0.5)
+            #     for i in range(lt):
+            #         co = co0 + d * (i / lt)
+            #         new_stroke += [co]
+            # new_stroke += [self.stroke[-1]]
+            # self.stroke = new_stroke
+            # self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
 
             self.operator.process_stroke(
                 context,
@@ -475,7 +476,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.stroke3D,
                 self.stroke_cycle,
                 [(self.snap_bmv0, self.snap_bmv1), (None, None), (self.snap_bmf0, self.snap_bmf1)],
-                (self.snap_mirror_0, self.snap_mirror_1),
+                [self.snap_mirror_0, self.snap_mirror_1, self.snap_mirror_all],
             )
 
         def _update(self, context):
