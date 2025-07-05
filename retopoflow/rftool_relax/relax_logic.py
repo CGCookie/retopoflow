@@ -118,6 +118,7 @@ class Relax_Logic:
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
         M = self.matrix_world
+        Mi = self.matrix_world_inv
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -155,7 +156,7 @@ class Relax_Logic:
             verts.add(bmv)
             edges.update(bmv.link_edges)
             faces.update(bmv.link_faces)
-            vert_strength[bmv] = brush.get_strength_Point(self.matrix_world @ bmv.co)
+            vert_strength[bmv] = brush.get_strength_Point(M @ bmv.co)
         # self.rfcontext.select(verts)
 
         if not verts or not edges: return
@@ -180,7 +181,7 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += M @ f
+            displace[bmv] += (M @ Vector((*f.xyz, 0.0))).xyz
 
         def bme_length(bme):
             return bme_vector(bme).length
@@ -318,7 +319,7 @@ class Relax_Logic:
             if len(displace) <= 1: continue
 
             # compute max displacement length
-            displace_max = max((M @ displace[bmv]).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
+            displace_max = max((M @ Vector((*displace[bmv].xyz, 0.0))).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
             if displace_max > radius3D * 0.125:
                 # limit the displace_max
                 mult = radius3D * 0.125 / displace_max
@@ -328,7 +329,7 @@ class Relax_Logic:
             # update
             for bmv in displace:
                 if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
-                co = bmv.co + displace[bmv] * (opt_mult * vert_strength[bmv]) * mult
+                co = bmv.co + (displace[bmv] * (opt_mult * vert_strength[bmv] * mult))
 
                 # TODO: IMPLEMENT!
                 # if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
@@ -344,9 +345,9 @@ class Relax_Logic:
                     if p is not None:
                         co = p
 
-                co_world = self.matrix_world @ Vector((*co, 1.0))
+                co_world = M @ Vector((*co.xyz, 1.0))
                 co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                co_local_snapped = self.matrix_world_inv @ co_world_snapped
+                co_local_snapped = Mi @ co_world_snapped
 
                 if self.mirror:
                     co_orig = self.prev[bmv]
@@ -363,9 +364,9 @@ class Relax_Logic:
                         if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
                         if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                         if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
-                        co_world = self.matrix_world @ Vector((*co, 1.0))
+                        co_world = M @ Vector((*co, 1.0))
                         co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                        co = self.matrix_world_inv @ co_world_snapped
+                        co = Mi @ co_world_snapped
                         if d < 0.001: break  # break out if change was below threshold
                     if zero['x']: co.x = 0
                     if zero['y']: co.y = 0
