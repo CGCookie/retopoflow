@@ -877,6 +877,12 @@ class Strokes_Logic:
             #bmvs_select = [row[sel_idx] for row in bmvs]
             bmvs_select = bmvs[-1]
 
+            # rotate bmvs so bmvs[*][0] is original selected geometry instead of bmvs[0][*]
+            bmvs = [
+                [ bmvs[i][j] for i in range(len(bmvs)) ]
+                for j in range(len(bmvs[0]))
+            ]
+
         else:
             # create template
             template = [ self.find_point2D(iv / (nverts - 1)) for iv in range(nverts) ]
@@ -917,6 +923,25 @@ class Strokes_Logic:
                 if not bme: break
                 bmv0 = bme_other_bmv(bme, bmv0)
             bmvs_select = [row[-1] for row in bmvs]
+
+        side = self.get_mirror_side(bmvs[0][0].co)
+        if 0 in side:
+            for bmv in bmvs[0]:
+                if side[0] == 0: bmv.co.x = 0
+                if side[1] == 0: bmv.co.y = 0
+                if side[2] == 0: bmv.co.z = 0
+        side = self.get_mirror_side(bmvs[-1][0].co)
+        if 0 in side:
+            for bmv in bmvs[-1]:
+                if side[0] == 0: bmv.co.x = 0
+                if side[1] == 0: bmv.co.y = 0
+                if side[2] == 0: bmv.co.z = 0
+        side = self.get_mirror_side(self.stroke3D[-1])
+        if 0 in side:
+            for row in bmvs:
+                if side[0] == 0: row[-1].co.x = 0
+                if side[1] == 0: row[-1].co.y = 0
+                if side[2] == 0: row[-1].co.z = 0
 
         # # fill in quads
         # bmfs = []
