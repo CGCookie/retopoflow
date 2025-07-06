@@ -776,61 +776,6 @@ class Strokes_Logic:
         self.show_extrapolate_mode = False
 
 
-    # ##############################################################################
-    # # generalized bridging
-
-    # def bridge(self, top=None, *, bottom=None, left=None, right=None, select=None, lr_cycle=False):
-    #     '''
-    #     each side (top, bottom, left, right) can be either a list of bmvs or template as 2D points
-    #     top must not be None
-    #     select is a string to indicate which side to leave selected at end (None=leave all unselected)
-    #     if lc_cycle is True, connect left and right sides to create an annulus
-    #     '''
-
-    #     assert top
-
-    #     nverts_tb, nverts_lr = len(top), None
-    #     top_template = [self.project_bmv(bmv) for bmv in top] if isinstance(top[0], BMVert) else top
-
-    #     ...
-
-    #     ######################
-    #     # build spans
-    #     bmvs = [[None for _ in range(llc_tb)] for _ in range(llc_lr)]
-    #     for i_tb in range(llc_tb):
-    #         pt, pb = template_t[i_tb], template_b[i_tb]
-    #         fitted_l = fit_template2D(template_l, pt, target=pb)
-    #         fitted_r = fit_template2D(template_r, pt, target=pb)
-    #         for i_lr in range(llc_lr):
-    #             if   i_tb == 0        and strip_l_bmvs: bmvs[i_lr][i_tb] = strip_l_bmvs[i_lr]
-    #             elif i_tb == llc_tb-1 and strip_r_bmvs: bmvs[i_lr][i_tb] = strip_r_bmvs[i_lr]
-    #             elif i_lr == 0:                         bmvs[i_lr][i_tb] = strip_t_bmvs[i_tb]
-    #             else:
-    #                 v = i_tb / (llc_tb - 1)
-    #                 p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-    #                 co = raycast_point_valid_sources(self.context, p, world=False)
-    #                 bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
-
-    #     ######################
-    #     # fill in quads
-    #     bmfs = []
-    #     for i in range(llc_lr - 1):
-    #         for j in range(llc_tb - 1):
-    #             bmv00 = bmvs[i+0][j+0]
-    #             bmv01 = bmvs[i+0][j+1]
-    #             bmv10 = bmvs[i+1][j+0]
-    #             bmv11 = bmvs[i+1][j+1]
-    #             if not (bmv00 and bmv01 and bmv10 and bmv11): continue
-    #             bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
-    #             bmfs.append(bmf)
-    #     fwd = Mi @ view_forward_direction(self.context)
-    #     check_bmf_normals(fwd, bmfs)
-
-    #     # select bottom row
-    #     bmops.deselect_all(self.bm)
-    #     bmops.select_iter(self.bm, bmvs[-1])
-
-
     ##############################################################################
     # strip bridging insertions
 
