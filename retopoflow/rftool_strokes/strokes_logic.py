@@ -1352,6 +1352,15 @@ class Strokes_Logic:
             self.reverse_stroke()
         #if vec_tltr.dot(vec_tls0) > vec_tltr.dot(vec_tls1): self.reverse_stroke()
 
+        if self.mirror and self.mirror_clip:
+            tl_mirror, tr_mirror = self.get_mirror_side(bmv_tl.co), self.get_mirror_side(bmv_tr.co)
+            bl_mirror, br_mirror = self.get_mirror_side(self.stroke3D[0]), self.get_mirror_side(self.stroke3D[-1])
+            left_mirror_snap  = set(a for (tl,bl,a) in zip(tl_mirror, bl_mirror, 'xyz') if (tl == 0 == bl))
+            right_mirror_snap = set(a for (tr,br,a) in zip(tr_mirror, br_mirror, 'xyz') if (tr == 0 == br))
+        else:
+            left_mirror_snap, right_mirror_snap = set(), set()
+
+
         # build template for bottom edge (stroke)
         template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
 
@@ -1515,6 +1524,14 @@ class Strokes_Logic:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
                     co = raycast_point_valid_sources(self.context, p, world=False)
+                    if left_mirror_snap and at_l:
+                        if 'x' in left_mirror_snap: co.x = 0
+                        if 'y' in left_mirror_snap: co.y = 0
+                        if 'z' in left_mirror_snap: co.z = 0
+                    if right_mirror_snap and at_r:
+                        if 'x' in right_mirror_snap: co.x = 0
+                        if 'y' in right_mirror_snap: co.y = 0
+                        if 'z' in right_mirror_snap: co.z = 0
                     bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
 
         ######################
