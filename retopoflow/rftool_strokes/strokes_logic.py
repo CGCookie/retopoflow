@@ -196,6 +196,13 @@ class Strokes_Logic:
             self.fixed_span_count = self.cut_count
         self.initial = False
 
+    def get_mirror_side(self, pt3D_local):
+        return (
+            1 if 'x' not in self.mirror else sign_threshold(pt3D_local.x, self.mirror_threshold),
+            1 if 'y' not in self.mirror else sign_threshold(pt3D_local.y, self.mirror_threshold),
+            1 if 'z' not in self.mirror else sign_threshold(pt3D_local.z, self.mirror_threshold),
+        )
+
     def process_mirror(self):
         self.mirror = set()
         self.mirror_clip = False
@@ -211,13 +218,7 @@ class Strokes_Logic:
 
         if not self.mirror or not self.mirror_clip: return  # no mirroring or clipping
 
-        def get_mirror_side(pt3D_local):
-            return (
-                1 if 'x' not in self.mirror else sign_threshold(pt3D_local.x, self.mirror_threshold),
-                1 if 'y' not in self.mirror else sign_threshold(pt3D_local.y, self.mirror_threshold),
-                1 if 'z' not in self.mirror else sign_threshold(pt3D_local.z, self.mirror_threshold),
-            )
-        sides = [ get_mirror_side(pt) for pt in self.stroke3D ]
+        sides = [ self.get_mirror_side(pt) for pt in self.stroke3D ]
         all_sides = set(sides)
 
         if len(all_sides) == 1: return  # stroke is entirely on one side of mirror
@@ -263,12 +264,19 @@ class Strokes_Logic:
                             pt0, pt1 = pt, pt_prev
                             for _ in range(100):
                                 pt = pt0 + (pt1 - pt0) * 0.5
-                                s = get_mirror_side(pt)
+                                s = self.get_mirror_side(pt)
                                 if 0 in s:
                                     new_stroke += [pt]
                                     break
                                 if s == side0: pt0 = pt
                                 else:          pt1 = pt
+                            else:
+                                s = Vector((
+                                    0 if side[0] != side0[0] else 1,
+                                    0 if side[1] != side0[1] else 1,
+                                    0 if side[2] != side0[2] else 1,
+                                ))
+                                new_stroke += [s * pt]
                         break
                     pt_prev = pt
                 self.stroke3D = new_stroke
