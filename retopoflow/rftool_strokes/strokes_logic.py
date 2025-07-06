@@ -252,33 +252,33 @@ class Strokes_Logic:
                 side0 = None
                 pt_prev = None
                 for (pt, side) in zip(self.stroke3D, sides):
-                    if side0 is None:
+                    if side0 is None or side == side0:
                         new_stroke += [pt]
-                        if 0 not in side: side0 = side
-                    elif side == side0:
+                        if not side0 and 0 not in side: side0 = side
+                        pt_prev = pt
+                        continue
+
+                    if 0 in side:
                         new_stroke += [pt]
-                    else:
-                        if 0 in side:
-                            new_stroke += [pt]
-                        else:
-                            pt0, pt1 = pt, pt_prev
-                            for _ in range(100):
-                                pt = pt0 + (pt1 - pt0) * 0.5
-                                s = self.get_mirror_side(pt)
-                                if 0 in s:
-                                    new_stroke += [pt]
-                                    break
-                                if s == side0: pt0 = pt
-                                else:          pt1 = pt
-                            else:
-                                s = Vector((
-                                    0 if side[0] != side0[0] else 1,
-                                    0 if side[1] != side0[1] else 1,
-                                    0 if side[2] != side0[2] else 1,
-                                ))
-                                new_stroke += [s * pt]
                         break
-                    pt_prev = pt
+
+                    pt0, pt1 = pt, pt_prev
+                    for _ in range(100):
+                        pt = pt0 + (pt1 - pt0) * 0.5
+                        s = self.get_mirror_side(pt)
+                        if 0 in s:
+                            new_stroke += [pt]
+                            break
+                        if s == side0: pt0 = pt
+                        else:          pt1 = pt
+                    else:
+                        s = Vector((
+                            0 if side[0] != side0[0] else 1,
+                            0 if side[1] != side0[1] else 1,
+                            0 if side[2] != side0[2] else 1,
+                        ))
+                        new_stroke += [s * pt]
+                    break
                 self.stroke3D = new_stroke
 
 
@@ -1524,14 +1524,16 @@ class Strokes_Logic:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
                     co = raycast_point_valid_sources(self.context, p, world=False)
-                    if left_mirror_snap and at_l:
-                        if 'x' in left_mirror_snap: co.x = 0
-                        if 'y' in left_mirror_snap: co.y = 0
-                        if 'z' in left_mirror_snap: co.z = 0
+                    if left_mirror_snap:
+                        zs = 0 if at_l else 1 # (i_tb / (llc_tb - 1))**0.25
+                        if 'x' in left_mirror_snap: co.x *= zs
+                        if 'y' in left_mirror_snap: co.y *= zs
+                        if 'z' in left_mirror_snap: co.z *= zs
                     if right_mirror_snap and at_r:
-                        if 'x' in right_mirror_snap: co.x = 0
-                        if 'y' in right_mirror_snap: co.y = 0
-                        if 'z' in right_mirror_snap: co.z = 0
+                        zs = 0 if at_r else 1 # 1 - (i_tb / (llc_tb - 1))**0.25
+                        if 'x' in right_mirror_snap: co.x *= zs
+                        if 'y' in right_mirror_snap: co.y *= zs
+                        if 'z' in right_mirror_snap: co.z *= zs
                     bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
 
         ######################
