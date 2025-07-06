@@ -253,7 +253,7 @@ class Strokes_Logic:
                 for (pt, side) in zip(self.stroke3D, sides):
                     if side0 is None:
                         new_stroke += [pt]
-                        if 0 not in sides: side0 = side
+                        if 0 not in side: side0 = side
                     elif side == side0:
                         new_stroke += [pt]
                     else:
