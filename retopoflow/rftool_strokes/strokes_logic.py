@@ -590,10 +590,6 @@ class Strokes_Logic:
 
 
     def insert_cycle_T(self):
-        '''
-        forced on: adapt extrapolation
-        '''
-
         if DEBUG: print(f'insert_cycle_T()')
 
         llc = len(self.longest_cycle0)
@@ -908,7 +904,7 @@ class Strokes_Logic:
         nspans = max(1, nspans)
         nverts = nspans + 1
 
-        if self.extrapolate_mode == 'PERPENDICULAR':
+        if self.extrapolate_mode == 'FOLLOW':
             # create template
             template = [ self.find_point3D(iv / (nverts - 1)) for iv in range(nverts) ]
 
@@ -954,7 +950,7 @@ class Strokes_Logic:
             for i_row, bme in enumerate(self.longest_strip0 + [None]):
                 pt = self.project_bmv(bmv0)
 
-                if self.extrapolate_mode == 'ADAPT':
+                if self.extrapolate_mode == 'FAN':
                     bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
                     vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
                     bme_angle = vec_screenspace_angle(vpn)

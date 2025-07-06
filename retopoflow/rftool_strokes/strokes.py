@@ -86,9 +86,9 @@ class RFOperator_Stroke_Insert_Properties:
         name='T-Strip Extrapolation',
         description='Controls how the new perpendicular edges are extrapolated from the selected edges when inserting T Strips',
         items=[
-            ('FLAT',          'Flat',   'Extrudes in a straight line', 0),
-            ('ADAPT',         'Fan',    'Fans the extrusion to match the original curvature', 1),
-            ('PERPENDICULAR', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
+            ('FLAT',   'Flat',   'Extrudes in a straight line', 0),
+            ('FAN',    'Fan',    'Fans the extrusion to match the curve of selected geometry', 1),
+            ('FOLLOW', 'Follow', 'Rotates the inserted spans to follow the curve of the stroke', 2),
         ],
         default='FLAT',
     )
