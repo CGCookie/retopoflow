@@ -143,10 +143,10 @@ class RFOperator_Stroke_Insert_Properties:
         name='Mirror Method',
         description='Controls what should happen to stroke that crosses a mirror',
         items=[
-            ('CLIP', 'Clip', 'Clip stroke to mirror', 0),
-            ('TRIM', 'Trim', 'Trim stroke to mirror', 1),
+            ('TRIM', 'Trim', 'Trim stroke to mirror', 0),
+            ('CLIP', 'Clip', 'Clip stroke to mirror', 1),
         ],
-        default='CLIP',
+        default='TRIM',
     )
 
 class RFOperator_Stroke_Insert(
