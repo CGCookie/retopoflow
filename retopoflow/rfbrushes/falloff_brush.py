@@ -37,6 +37,8 @@ from ..common.easing import CubicEaseIn
 
 
 def create_falloff_brush(idname, label, **kwargs):
+    fn_disable = kwargs.get('fn_disable', None)
+
     class RFBrush_Falloff(RFBrush_Base):
         # brush settings
         radius   = kwargs.get('radius',   100)
@@ -44,7 +46,7 @@ def create_falloff_brush(idname, label, **kwargs):
         strength = kwargs.get('strength', 0.75)
 
         # brush visualization settings
-        color      = kwargs.get('color',  Color.from_ints(0, 135, 255, 255))
+        color           = kwargs.get('color',  Color.from_ints(0, 135, 255, 255))
         below_alpha     = Color((1,1,1,0.25))  # multiplied against color when occluded
         brush_min_alpha = 0.100
         brush_max_alpha = 0.700
@@ -79,6 +81,7 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit_y = None
             self.hit_z = None
             self.hit_rmat = None
+            self.disabled = False
 
 
         def get_scaled_radius(self):
@@ -122,6 +125,12 @@ def create_falloff_brush(idname, label, **kwargs):
             return self.get_strength_dist((point - self.hit_p).length)
 
         def update(self, context, event, *, force=False):
+            if fn_disable:
+                d = fn_disable(event)
+                if self.disabled != d: context.area.tag_redraw()
+                self.disabled = d
+            if self.disabled: return
+
             if not force:
                 if not RFBrush_Falloff.operator: return
                 if event.type != 'MOUSEMOVE': return
@@ -184,6 +193,7 @@ def create_falloff_brush(idname, label, **kwargs):
             if not RFBrush_Falloff.operator: return
             if context.area not in self.mouse_areas: return
             if not RFOperator_FalloffBrush_Adjust.is_active(): return
+            if self.disabled: return
 
             if RFBrush_Falloff.operator.is_active() or RFOperator_FalloffBrush_Adjust.is_active():
                 active_op = RFOperator.active_operator()
@@ -243,6 +253,7 @@ def create_falloff_brush(idname, label, **kwargs):
             if context.area not in self.mouse_areas: return
             if RFOperator_FalloffBrush_Adjust.is_active(): return
             if not self.RFCore or not (self.RFCore.is_top_modal(context) or self.is_top_modal(context)): return
+            if self.disabled: return
             self._update(context)
             if not self.hit or self.hit_n is None: return # Ensure we have a hit and a normal
 

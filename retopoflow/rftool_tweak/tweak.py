@@ -66,6 +66,7 @@ from ...addon_common.common.timerhandler import TimerHandler
 
 from .tweak_logic import Tweak_Logic
 
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -84,6 +85,7 @@ RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'Tweak Brush',
     radius=100,
     color=Color.from_ints(255, 145,  0, 255),
+    fn_disable=lambda event: event.shift and not event.ctrl,
 )
 
 class RFOperator_Tweak(RFOperator):
@@ -233,6 +235,7 @@ class RFTool_Tweak(RFTool_Base):
         RFOperator_TweakBrush_Adjust,
         RFOperator_Tweak_Launch_Help,
         RFOperator_Launch_NewIssue,
+        RFOperator_Relax_QuickSwitch,
     )
 
     def draw_settings(context, layout, tool):
