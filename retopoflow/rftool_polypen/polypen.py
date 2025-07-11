@@ -187,11 +187,15 @@ class RFOperator_PolyPen(RFOperator):
         self.logic = PP_Logic(context, event)
         self.tickle(context)
         self.done = False
+        self.shift_held = False
 
     def reset(self):
         self.logic.reset()
 
     def update(self, context, event):
+        if self.shift_held != event.shift:
+            self.shift_held = event.shift
+            context.area.tag_redraw()
         if not event.ctrl:
             self.done = True
         if self.done:
@@ -214,6 +218,7 @@ class RFOperator_PolyPen(RFOperator):
 
     def draw_postpixel(self, context):
         if not self.RFCore.is_current_area(context): return
+        if self.shift_held: return
         self.logic.draw(context)
 
 RFOperator_PolyPen_Launch_Help = create_launch_browser_operator(

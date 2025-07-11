@@ -47,6 +47,7 @@ from ...addon_common.common.utils import iter_pairs
 
 from .strokes_logic import Strokes_Logic
 
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
@@ -499,6 +500,8 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate,
+        RFOperator_Relax_QuickSwitch,
+        RFOperator_Tweak_QuickSwitch,
         RFOperator_Strokes_Launch_Help,
         RFOperator_Launch_NewIssue,
     )

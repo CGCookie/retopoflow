@@ -108,6 +108,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
         def init(self):
             self.mouse = None
 
+            self.shift_held = False
+
             self.hit = False
             self.hit_p = None
             self.hit_n = None
@@ -228,6 +230,10 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             if not self.RFCore.is_current_area(context):
                 self.reset()
                 return
+
+            if self.shift_held != event.shift:
+                self.shift_held = event.shift
+                context.area.tag_redraw()
 
             if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
                 self.clear_stroke()
@@ -650,6 +656,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         def draw_postpixel(self, context):
             if not self.RFCore.is_current_area(context): return
+            if self.shift_held: return
             #if context.area not in self.mouse_areas: return
 
             gpustate.blend('ALPHA')
@@ -700,6 +707,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
         def draw_postview(self, context):
             if not self.RFCore.is_current_area(context): return
             if context.area not in self.mouse_areas: return
+            if self.shift_held: return
 
             if RFOperator_StrokeBrush_Adjust.is_active(): return
 
