@@ -75,6 +75,7 @@ RFBrush_Strokes, RFOperator_StrokesBrush_Adjust = create_stroke_brush(
     smoothing=0.5,
     snap=(False, False, True),
     radius=50,
+    draw_leftright=True,
 )
 
 class RFOperator_PolyStrips_Insert_Keymaps:

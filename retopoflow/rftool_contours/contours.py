@@ -340,7 +340,6 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
                 self.tickle(context)
                 return {'FINISHED'}
 
-
         Cursors.set('CROSSHAIR')
         return {'PASS_THROUGH'} # allow other operators, such as UNDO!!!
 

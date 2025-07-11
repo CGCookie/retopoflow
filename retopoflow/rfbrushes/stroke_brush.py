@@ -66,7 +66,7 @@ from time import time
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius=50):
+def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius=50, draw_leftright=False):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:
@@ -114,6 +114,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.hit_p = None
             self.hit_n = None
             self.hit_pl = None
+            self.hit_nl = None
             self.hit_scale = None
             self.hit_depth = None
             self.hit_x = None
@@ -124,7 +125,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.mirror = set()
             self.mirror_clip = False
             self.mirror_threshold = 0
-            self.snap_mirror_ratio = 0.90  # [0,1] ratio of stroke near mirror to snap whole stroke
+            # self.snap_mirror_ratio = 0.90  # [0,1] ratio of stroke near mirror to snap whole stroke
 
             # reset snap to nearest
             self.reset()
@@ -154,6 +155,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             if self.operator:
                 self.matrix_world = context.edit_object.matrix_world
                 self.matrix_world_inv = self.matrix_world.inverted()
+                self.matrix_world_ti = self.matrix_world.inverted().transposed()
                 self.bm, self.em = get_bmesh_emesh(context)
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
@@ -162,6 +164,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             elif context.edit_object:
                 self.matrix_world = context.edit_object.matrix_world
                 self.matrix_world_inv = self.matrix_world.inverted()
+                self.matrix_world_ti = self.matrix_world.inverted().transposed()
                 self.bm, self.em = get_bmesh_emesh(context)
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
@@ -171,6 +174,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             else:
                 self.matrix_world = None
                 self.matrix_world_inv = None
+                self.matrix_world_ti = None
                 self.bm, self.em = None, None
                 self.reset()
 
@@ -353,19 +357,41 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.snap_mirror_0 = False
             self.snap_mirror_1 = False
 
+            self.stroke3D_left = None
+            self.stroke3D_right = None
+
         def add_stroke_point(self, context, pt2D):
             hit = raycast_valid_sources(context, pt2D)
             if not hit: return False
+
+            if self.stroke_original:
+                # if current point is too close to previous point, skip
+                pt2D_prev = self.stroke_original[-1]
+                if (pt2D - pt2D_prev).length < 2: return False
 
             pt3D = hit['co_local']
 
             if self.stroke_original is None:
                 self.stroke_original = []
                 self.stroke3D_original = []
+                self.stroke3D_left = []
+                self.stroke3D_right = []
 
             self.stroke_original += [pt2D]
             self.stroke3D_original += [pt3D]
             self.snap_mirror_all = False
+
+            if len(self.stroke3D_original) > 5:
+                pt0 = self.stroke3D_original[-5]
+                pt1 = pt3D
+                v_forward = pt1 - pt0
+                l_forward = v_forward.length
+                if l_forward > 0:
+                    n = hit['no_local']
+                    d_forward = v_forward / l_forward
+                    d_right = d_forward.cross(n)
+                    self.stroke3D_left += [pt1 - d_right * self.stroke_radius * size2D_to_size(context, hit['distance'])]
+                    self.stroke3D_right += [pt1 + d_right * self.stroke_radius * size2D_to_size(context, hit['distance'])]
 
             if not self.snap_mirror_0 and not self.snap_mirror_1:
                 self.stroke = self.stroke_original
@@ -574,6 +600,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.hit_p = hit['co_world']
             self.hit_n = hit['no_world']
             self.hit_pl = hit['co_local']
+            self.hit_nl = hit['no_local']
             self.hit_depth = hit['distance']
             self.hit_x = Vec(rmat @ Direction.X)
             self.hit_y = Vec(rmat @ Direction.Y)
@@ -615,7 +642,30 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     ]
                     Drawing.draw2D_linestrip(context, mcos, self.stroke_mirror_color, width=2, stipple=[5,5])
 
+                    if draw_leftright:
+                        mcos = [
+                            mco for co in self.stroke3D_left
+                            if (mco := location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ (co * s)))
+                        ]
+                        Drawing.draw2D_linestrip(context, mcos, [0,0,1,0.25], width=1, stipple=[3,3])
+                        mcos = [
+                            mco for co in self.stroke3D_right
+                            if (mco := location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ (co * s)))
+                        ]
+                        Drawing.draw2D_linestrip(context, mcos, [1,0,0,0.25], width=1, stipple=[3,3])
+
                 Drawing.draw2D_linestrip(context, self.stroke, self.stroke_color, width=2, stipple=[5,5])
+                if draw_leftright:
+                    mcos = [
+                        mco for co in self.stroke3D_left
+                        if (mco := location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co))
+                    ]
+                    Drawing.draw2D_linestrip(context, mcos, [0,0,1,0.5], width=1, stipple=[3,3])
+                    mcos = [
+                        mco for co in self.stroke3D_right
+                        if (mco := location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co))
+                    ]
+                    Drawing.draw2D_linestrip(context, mcos, [1,0,0,0.5], width=1, stipple=[3,3])
 
                 if self.stroke_cycle:
                     Drawing.draw2D_linestrip(context, [self.stroke[0], self.stroke[-1]], self.cycle_color, width=2)
@@ -752,6 +802,22 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             # draw above
             gpustate.depth_test('LESS_EQUAL')
             Drawing.draw_circle_3d(pa, n, co, self.stroke_radius, scale=self.hit_scale_below, thickness=thickness, viewport_size=viewport_size)
+            if draw_leftright:
+                for axes in all_combinations(self.mirror):
+                    s = Vector((
+                        0 if 'x' in self.snap_mirror else (-1 if 'x' in axes else 1),
+                        0 if 'y' in self.snap_mirror else (-1 if 'y' in axes else 1),
+                        0 if 'z' in self.snap_mirror else (-1 if 'z' in axes else 1),
+                    ))
+                    Drawing.draw_circle_3d(
+                        self.matrix_world @ (self.hit_pl * s),
+                        self.matrix_world_ti @ (self.hit_nl * s),
+                        co,
+                        self.stroke_radius,
+                        scale=self.hit_scale_below,
+                        thickness=thickness,
+                        viewport_size=viewport_size,
+                    )
 
             # reset
             gpustate.depth_test('LESS_EQUAL')
