@@ -52,6 +52,7 @@ from ...addon_common.common.utils import iter_pairs
 
 from .polystrips_logic import PolyStrips_Logic
 
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
@@ -691,6 +692,8 @@ class RFTool_PolyStrips(RFTool_Base):
         RFOperator_PolyStrips_Edit,
         RFOperator_StrokesBrush_Adjust,
         RFOperator_Translate,
+        RFOperator_Relax_QuickSwitch,
+        RFOperator_Tweak_QuickSwitch,
         RFOperator_PolyStrips_Launch_Help,
         RFOperator_Launch_NewIssue,
     )

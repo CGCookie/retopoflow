@@ -65,8 +65,8 @@ class RFRegisterClass:
             op.unregister()
             bpy.utils.unregister_class(op)
 
-def chain_rf_keymaps(*classes):
-    return tuple( keymap for cls in classes for keymap in cls.rf_keymaps )
+def chain_rf_keymaps(*classes, extra=[]):
+    return tuple( [keymap for cls in classes for keymap in cls.rf_keymaps] + extra )
 
 class RFOperator_Execute(bpy.types.Operator):
     _subclasses = []
@@ -308,8 +308,30 @@ class RFOperator(bpy.types.Operator):
     def depsgraph_update(cls): pass
 
 
-def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set()):
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False):
     if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
+
+    if fn_invoke:
+        if not pass_self:
+            fn_invoke_pre = fn_invoke
+            fn_invoke = lambda self, context, event: fn_invoke_pre(context, event)
+    else:
+        fn_invoke = lambda self, context, event: self.execute(context)
+
+    if fn_exec:
+        if not pass_self:
+            fn_exec_pre = fn_exec
+            fn_exec = lambda self, context: fn_exec_pre(context)
+    else:
+        fn_exec = lambda self, context: {'CANCELLED'}
+
+    if fn_modal:
+        if not pass_self:
+            fn_modal_pre = fn_modal
+            fn_modal = lambda self, context, event: fn_modal_pre(context, event)
+    else:
+        fn_modal = lambda self, context, event: {'FINISHED'}
+
     class RFOp:
         bl_idname = f"retopoflow.{idname}"
         bl_label = label
@@ -322,13 +344,13 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
         def poll(cls, context):
             return fn_poll(context) if fn_poll else True
         def invoke(self, context, event):
-            ret = fn_invoke(context, event) if fn_invoke else self.execute(context)
+            ret = fn_invoke(self, context, event)
             return ret if ret is not None else {'FINISHED'}
         def execute(self, context):
-            ret = fn_exec(context) if fn_exec else {'CANCELLED'}
+            ret = fn_exec(self, context)
             return ret if ret is not None else {'FINISHED'}
         def modal(self, context, event):
-            ret = fn_modal(context, event) if fn_modal else {'FINISHED'}
+            ret = fn_modal(self, context, event)
             return ret if ret is not None else {'FINISHED'}
 
     opname = f'RETOPOFLOW_OT_{name}'
@@ -357,8 +379,11 @@ def execute_operator(name, label, **kwargs):
 def modal_operator(name, label, **kwargs):
     idname = name.lower()
     if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
+    def fn_execute(self, context):
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
     def get(fn):
-        create_operator(name, idname, label, fn_exec=fn, **kwargs)
+        create_operator(name, idname, label, fn_exec=fn_execute, fn_modal=fn, pass_self=True, **kwargs)
         fn.bl_idname = f'retopoflow.{idname}'
         return fn
     return get

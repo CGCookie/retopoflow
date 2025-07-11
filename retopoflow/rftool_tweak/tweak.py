@@ -169,6 +169,7 @@ class RFOperator_Tweak(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
+        RFTool_Tweak.rf_brush.update(context, event, force=True)
         self.logic = Tweak_Logic(context, event, RFTool_Tweak.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)

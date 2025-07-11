@@ -121,9 +121,10 @@ def create_falloff_brush(idname, label, **kwargs):
             if not self.hit_p: return 0.0
             return self.get_strength_dist((point - self.hit_p).length)
 
-        def update(self, context, event):
-            if not RFBrush_Falloff.operator: return
-            if event.type != 'MOUSEMOVE': return
+        def update(self, context, event, *, force=False):
+            if not force:
+                if not RFBrush_Falloff.operator: return
+                if event.type != 'MOUSEMOVE': return
 
             mouse = mouse_from_event(event)
 
@@ -147,6 +148,7 @@ def create_falloff_brush(idname, label, **kwargs):
 
             self.mouse = mouse
             context.area.tag_redraw()
+            if force: self._update(context)
 
         def _update(self, context):
             if context.area not in self.mouse_areas: return
@@ -304,7 +306,7 @@ def create_falloff_brush(idname, label, **kwargs):
             name=f'{label} Property',
             description=f'Property of {label} to adjust',
             items=[
-                ('NONE',     'None',     f'Adjust Nothing',              -1), # prevents default
+                ('NONE',     'None',     f'Adjust Nothing',          -1), # prevents default
                 ('RADIUS',   'Radius',   f'Adjust {label} Radius',    0),
                 ('STRENGTH', 'Strength', f'Adjust {label} Strength',  1),
                 ('FALLOFF',  'Falloff',  f'Adjust {label} Falloff',   2),
@@ -386,7 +388,7 @@ def create_falloff_brush(idname, label, **kwargs):
 
             # Get current falloff value (should be between 0.0 and 1.0)
             falloff = clamp(RFBrush_Falloff.falloff, 0.0, 1.0)
-            
+
             # Map falloff directly to distance
             # - 0.0 falloff = 0.0 distance (no falloff)
             # - 1.0 falloff = 1.0 distance (maximum falloff)

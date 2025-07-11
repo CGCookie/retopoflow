@@ -214,7 +214,6 @@ class RFOperator_Relax(RFOperator):
     )
 
     def init(self, context, event):
-        # print(f'STARTING POLYPEN')
         self.logic = Relax_Logic(context, event, RFTool_Relax.rf_brush, self)
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)

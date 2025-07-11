@@ -49,6 +49,7 @@ from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import clamp
 from ...addon_common.common.utils import iter_pairs
 
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
@@ -229,6 +230,7 @@ def switch_rftool(context):
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polypen')  # matches bl_idname of RFTool_Base below
 
 
+
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
@@ -243,6 +245,8 @@ class RFTool_PolyPen(RFTool_Base):
         RFOperator_Translate,
         RFOperator_PolyPen_Launch_Help,
         RFOperator_Launch_NewIssue,
+        RFOperator_Relax_QuickSwitch,
+        RFOperator_Tweak_QuickSwitch,
     )
 
     def draw_settings(context, layout, tool):

@@ -179,7 +179,20 @@ class RFCore:
         RFCore_NewTarget_Active.draw_menu_item(self, context)
 
     @staticmethod
-    def quick_switch(bl_idname):
+    def switch_to_tool(bl_idname):
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                for area in win.screen.areas:
+                    if area.type != 'VIEW_3D': continue
+                    for space in area.spaces:
+                        if space.type != 'VIEW_3D': continue
+                        for rgn in area.regions:
+                            if rgn.type != 'WINDOW': continue
+                            with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
+                                bpy.ops.wm.tool_set_by_id(name=bl_idname)
+
+    @staticmethod
+    def quick_switch_to_reset(bl_idname):
         def switch(*bl_idnames):
             if not bl_idnames: return
             if bl_idnames[0] is None: return
@@ -242,7 +255,7 @@ class RFCore:
                         print(f'>>>>>>>> NO context.region <<<<<<<<<<')
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
-                        RFCore.quick_switch(rftool.bl_idname)
+                        RFCore.quick_switch_to_reset(rftool.bl_idname)
                     else:
                         try:
                             print(f'Activating {rftool.rf_overlay}')
@@ -484,7 +497,7 @@ class RFCore:
     @staticmethod
     def handle_save_post(*args, **kwargs):
         bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
-        # if bpy.context.scene.retopoflow.saved_tool: RFCore.quick_switch(bpy.context.scene.retopoflow.saved_tool)
+        # if bpy.context.scene.retopoflow.saved_tool: RFCore.quick_switch_to_reset(bpy.context.scene.retopoflow.saved_tool)
         if bpy.context.scene.retopoflow.saved_tool:
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
         bpy.context.scene.retopoflow.saved_tool = ''
@@ -495,7 +508,7 @@ class RFCore:
     def handle_load_post(*args, **kwargs):
         if not hasattr(bpy.context.scene, 'retopoflow'): return
         if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
-        RFCore.quick_switch(bpy.context.scene.retopoflow.saved_tool)
+        RFCore.quick_switch_to_reset(bpy.context.scene.retopoflow.saved_tool)
         # bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
 
     @staticmethod
@@ -530,7 +543,7 @@ class RFCore:
             except Exception as e:
                 print(f'Caught exception while trying to draw postview {e}')
                 debugger.print_exception()
-                RFCore.quick_switch(RFCore.selected_RFTool_idname)
+                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
                 # RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
@@ -753,7 +766,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             # THIS HAPPENS WHEN THE UI LAYOUT IS CHANGED WHILE RUNNING
             # WORKAROUND: restart modal operator with correct context
             print(f'RFCore_Operator restarting due to no context.area')
-            RFCore.quick_switch(RFCore.selected_RFTool_idname)
+            RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
             return {'FINISHED'}
         if context.area.type != 'VIEW_3D':
             print(f'area type changed, exiting')
