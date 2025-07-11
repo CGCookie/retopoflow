@@ -52,6 +52,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
+from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
 
@@ -380,6 +381,8 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Contours,
         RFOperator_Contours_Insert,
         RFOperator_Translate,
+        RFOperator_Relax_QuickSwitch,
+        RFOperator_Tweak_QuickSwitch,
         RFOperator_Contours_Launch_Help,
         RFOperator_Launch_NewIssue,
     )

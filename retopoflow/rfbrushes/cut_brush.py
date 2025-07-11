@@ -70,6 +70,7 @@ class RFBrush_Cut(RFBrush_Base):
     def init(self):
         self.operator = None
         self.reset()
+        self.shift_held = False
 
     def set_operator(self, operator):
         # this is called whenever operator using brush is started
@@ -92,6 +93,11 @@ class RFBrush_Cut(RFBrush_Base):
         if not self.RFCore.is_current_area(context):
             self.reset()
             return
+
+        if event.shift != self.shift_held:
+            self.shift_held = event.shift
+            context.area.tag_redraw()
+        if self.shift_held: return {'PASS_THROUGH'}
 
         if event.type in {'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
             self.reset()
@@ -120,6 +126,7 @@ class RFBrush_Cut(RFBrush_Base):
     def draw_postpixel(self, context):
         if not self.RFCore.is_current_area(context): return
         #if context.area not in self.mouse_areas: return
+        if self.shift_held: return
 
         gpustate.blend('ALPHA')
 
