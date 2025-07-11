@@ -361,8 +361,64 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.stroke3D_original += [pt3D]
             self.snap_mirror_all = False
 
-            self.stroke = self.stroke_original
-            self.stroke3D = self.stroke3D_original
+            if not self.snap_mirror_0 and not self.snap_mirror_1:
+                self.stroke = self.stroke_original
+                self.stroke3D = self.stroke3D_original
+                return True
+
+            # stroke start or end touch mirror, so snap!
+
+            def get_mirror_dist(co, snap):
+                return Vector((
+                    co.x if 'x' in snap else 0,
+                    co.y if 'y' in snap else 0,
+                    co.z if 'z' in snap else 0,
+                )).length
+
+            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
+            sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
+            pre, i0, i1, post = [], 0, len(self.stroke3D_original), []
+            if self.snap_mirror_0:
+                closest = Vector(self.stroke3D_original[0])
+                for i in range(len(snaps)):
+                    if snaps[i]:
+                        # still snapping
+                        co = self.stroke3D_original[i]
+                        if get_mirror_dist(co, self.snap_mirror_0) < get_mirror_dist(closest, self.snap_mirror_0):
+                            closest = co
+                        continue
+                    # found where we don't snap anymore!
+                    pre = [Vector((
+                        0 if 'x' in self.snap_mirror_0 else closest.x,
+                        0 if 'y' in self.snap_mirror_0 else closest.y,
+                        0 if 'z' in self.snap_mirror_0 else closest.z,
+                    ))]
+                    i0 = i
+                    break
+            if self.snap_mirror_1:
+                closest = Vector(self.stroke3D_original[-1])
+                for i in range(1, len(snaps)):
+                    if snaps[-i]:
+                        # still snapping
+                        co = self.stroke3D_original[-i]
+                        if get_mirror_dist(co, self.snap_mirror_1) < get_mirror_dist(closest, self.snap_mirror_1):
+                            closest = co
+                        continue
+                    # found where we don't snap anymore!
+                    post = [Vector((
+                        0 if 'x' in self.snap_mirror_1 else closest.x,
+                        0 if 'y' in self.snap_mirror_1 else closest.y,
+                        0 if 'z' in self.snap_mirror_1 else closest.z,
+                    ))]
+                    i1 = len(self.stroke3D_original) - i
+                    break
+            self.stroke3D = pre + self.stroke3D_original[i0:i1] + post
+            self.stroke = [
+                location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
+                for co in self.stroke3D
+            ]
+
+
             return True
 
             #####################################################
