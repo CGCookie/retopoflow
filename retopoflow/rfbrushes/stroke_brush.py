@@ -122,6 +122,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.mirror = set()
             self.mirror_clip = False
             self.mirror_threshold = 0
+            self.snap_mirror_ratio = 0.90  # [0,1] ratio of stroke near mirror to snap whole stroke
 
             # reset snap to nearest
             self.reset()
@@ -360,113 +361,122 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.stroke3D_original += [pt3D]
             self.snap_mirror_all = False
 
-            if not self.mirror or not self.mirror_clip:
-                self.stroke = self.stroke_original
-                self.stroke3D = self.stroke3D_original
-                return True
-
-            t = self.mirror_threshold
-            along_mirror = sum(
-                1 if self.get_snap_mirror(context, co) else 0
-                for co in self.stroke3D_original
-            )
-
-            # handle: no stroke is near mirror
-            if along_mirror == 0:
-                self.stroke = self.stroke_original
-                self.stroke3D = self.stroke3D_original
-                return True
-
-            # handle: almost all of stroke is near mirror
-            if along_mirror / len(self.stroke3D_original) > 0.70:
-                # find which mirror we're closest to, then snap stroke entirely to that mirror
-                counts = {}
-                for co in self.stroke3D_original:
-                    snap = ''.join(sorted(self.get_snap_mirror(context, co)))
-                    counts[snap] = counts.get(snap, 0) + 1
-                snap = max(counts.items(), key=lambda kv:kv[1])[0]
-                self.stroke3D = [
-                    Vector((
-                        0 if 'x' in snap else co.x,
-                        0 if 'y' in snap else co.y,
-                        0 if 'z' in snap else co.z,
-                    ))
-                    for co in self.stroke3D_original
-                ]
-                self.stroke = [
-                    location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
-                    for co in self.stroke3D
-                ]
-                self.snap_mirror_all = True
-                return True
-
-            # handle: stroke comes near mirror at least once
-            def get_mirror_dist(co, snap):
-                return Vector((
-                    co.x if 'x' in snap else 0,
-                    co.y if 'y' in snap else 0,
-                    co.z if 'z' in snap else 0,
-                )).length
-
-            # note: cannot all be snaps, because case above (all near mirror) would have handled it
-            snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
-            sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
-            pre, i0, i1, post = [], 0, len(self.stroke3D_original), []
-            if self.snap_mirror_0:
-                closest = Vector(self.stroke3D_original[0])
-                for i in range(len(snaps)):
-                    if snaps[i]:
-                        # still snapping
-                        co = self.stroke3D_original[i]
-                        if get_mirror_dist(co, snaps[0]) < get_mirror_dist(closest, snaps[0]):
-                            closest = co
-                        continue
-                    # found where we don't snap anymore!
-                    pre = [Vector((
-                        0 if 'x' in snaps[0] else closest.x,
-                        0 if 'y' in snaps[0] else closest.y,
-                        0 if 'z' in snaps[0] else closest.z,
-                    ))]
-                    i0 = i
-                    break
-            if self.snap_mirror_1:
-                closest = Vector(self.stroke3D_original[-1])
-                for i in range(1, len(snaps)):
-                    if snaps[-i]:
-                        # still snapping
-                        co = self.stroke3D_original[-i]
-                        if get_mirror_dist(co, snaps[-1]) < get_mirror_dist(closest, snaps[-1]):
-                            closest = co
-                        continue
-                    # found where we don't snap anymore!
-                    post = [Vector((
-                        0 if 'x' in snaps[-1] else closest.x,
-                        0 if 'y' in snaps[-1] else closest.y,
-                        0 if 'z' in snaps[-1] else closest.z,
-                    ))]
-                    i1 = -i + 1
-                    break
-            self.stroke3D = pre + self.stroke3D_original[i0:i1] + post
-            self.stroke = [
-                location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
-                for co in self.stroke3D
-            ]
+            self.stroke = self.stroke_original
+            self.stroke3D = self.stroke3D_original
             return True
+
+            #####################################################
+            # THE FOLLOWING IS COMMENTED OUT FOR NOW
+            # MIGHT TRY TO REVISIT THIS LATER
+            # SEE ISSUE #1416 FOR CONTEXT
+
+            # if not self.mirror or not self.mirror_clip:
+            #     self.stroke = self.stroke_original
+            #     self.stroke3D = self.stroke3D_original
+            #     return True
+
+            # t = self.mirror_threshold
+            # along_mirror = sum(
+            #     1 if self.get_snap_mirror(context, co) else 0
+            #     for co in self.stroke3D_original
+            # )
+
+            # # handle: no stroke is near mirror
+            # if along_mirror == 0:
+            #     self.stroke = self.stroke_original
+            #     self.stroke3D = self.stroke3D_original
+            #     return True
+
+            # # handle: almost all of stroke is near mirror
+            # if along_mirror / len(self.stroke3D_original) > self.snap_mirror_ratio:
+            #     # find which mirror we're closest to, then snap stroke entirely to that mirror
+            #     counts = {}
+            #     for co in self.stroke3D_original:
+            #         snap = ''.join(sorted(self.get_snap_mirror(context, co)))
+            #         counts[snap] = counts.get(snap, 0) + 1
+            #     snap = max(counts.items(), key=lambda kv:kv[1])[0]
+            #     self.stroke3D = [
+            #         Vector((
+            #             0 if 'x' in snap else co.x,
+            #             0 if 'y' in snap else co.y,
+            #             0 if 'z' in snap else co.z,
+            #         ))
+            #         for co in self.stroke3D_original
+            #     ]
+            #     self.stroke = [
+            #         location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
+            #         for co in self.stroke3D
+            #     ]
+            #     self.snap_mirror_all = True
+            #     return True
+
+            # # handle: stroke comes near mirror at least once
+            # def get_mirror_dist(co, snap):
+            #     return Vector((
+            #         co.x if 'x' in snap else 0,
+            #         co.y if 'y' in snap else 0,
+            #         co.z if 'z' in snap else 0,
+            #     )).length
+
+            # # note: cannot all be snaps, because case above (all near mirror) would have handled it
+            # snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
+            # sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
+            # pre, i0, i1, post = [], 0, len(self.stroke3D_original), []
+            # if self.snap_mirror_0:
+            #     closest = Vector(self.stroke3D_original[0])
+            #     for i in range(len(snaps)):
+            #         if snaps[i]:
+            #             # still snapping
+            #             co = self.stroke3D_original[i]
+            #             if get_mirror_dist(co, snaps[0]) < get_mirror_dist(closest, snaps[0]):
+            #                 closest = co
+            #             continue
+            #         # found where we don't snap anymore!
+            #         pre = [Vector((
+            #             0 if 'x' in snaps[0] else closest.x,
+            #             0 if 'y' in snaps[0] else closest.y,
+            #             0 if 'z' in snaps[0] else closest.z,
+            #         ))]
+            #         i0 = i
+            #         break
+            # if self.snap_mirror_1:
+            #     closest = Vector(self.stroke3D_original[-1])
+            #     for i in range(1, len(snaps)):
+            #         if snaps[-i]:
+            #             # still snapping
+            #             co = self.stroke3D_original[-i]
+            #             if get_mirror_dist(co, snaps[-1]) < get_mirror_dist(closest, snaps[-1]):
+            #                 closest = co
+            #             continue
+            #         # found where we don't snap anymore!
+            #         post = [Vector((
+            #             0 if 'x' in snaps[-1] else closest.x,
+            #             0 if 'y' in snaps[-1] else closest.y,
+            #             0 if 'z' in snaps[-1] else closest.z,
+            #         ))]
+            #         i1 = -i + 1
+            #         break
+            # self.stroke3D = pre + self.stroke3D_original[i0:i1] + post
+            # self.stroke = [
+            #     location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
+            #     for co in self.stroke3D
+            # ]
+            # return True
 
         def process_stroke(self, context):
             # # tessellate stroke
-            # new_stroke = []
-            # for (co0, co1) in iter_pairs(self.stroke, False):
-            #     new_stroke += [co0]
-            #     d = co1 - co0
-            #     l = d.length
-            #     lt = int(l / 0.5)
-            #     for i in range(lt):
-            #         co = co0 + d * (i / lt)
-            #         new_stroke += [co]
-            # new_stroke += [self.stroke[-1]]
-            # self.stroke = new_stroke
-            # self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
+            new_stroke = []
+            for (co0, co1) in iter_pairs(self.stroke, False):
+                new_stroke += [co0]
+                d = co1 - co0
+                l = d.length
+                lt = int(l / 0.5)
+                for i in range(lt):
+                    co = co0 + d * (i / lt)
+                    new_stroke += [co]
+            new_stroke += [self.stroke[-1]]
+            self.stroke = new_stroke
+            self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
 
             self.operator.process_stroke(
                 context,
@@ -602,25 +612,33 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         def get_snap_mirror(self, context, pt3D_local, *, max_dist=None):
             s = set()
-            if not pt3D_local or not self.mirror or not self.mirror_clip:
-                return s
+            if not pt3D_local or not self.mirror or not self.mirror_clip: return s
+
             if max_dist is None: max_dist = self.snap_distance
             pt2D = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local)
+            if not pt2D: return s
+
             if 'x' in self.mirror:
                 pt3D_local_mirror = pt3D_local * Vector((-1, 1, 1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
-                dist = (pt2D - pt2D_mirror).length
-                if dist < max_dist: s.add('x')
+                if pt2D_mirror:
+                    dist = (pt2D - pt2D_mirror).length
+                    if dist < max_dist: s.add('x')
+
             if 'y' in self.mirror:
                 pt3D_local_mirror = pt3D_local * Vector((1, -1, 1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
-                dist = (pt2D - pt2D_mirror).length
-                if dist < max_dist: s.add('y')
+                if pt2D_mirror:
+                    dist = (pt2D - pt2D_mirror).length
+                    if dist < max_dist: s.add('y')
+
             if 'z' in self.mirror:
                 pt3D_local_mirror = pt3D_local * Vector((1, 1, -1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
-                dist = (pt2D - pt2D_mirror).length
-                if dist < max_dist: s.add('z')
+                if pt2D_mirror:
+                    dist = (pt2D - pt2D_mirror).length
+                    if dist < max_dist: s.add('z')
+
             return s
 
         def draw_postview(self, context):

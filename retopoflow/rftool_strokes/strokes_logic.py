@@ -129,7 +129,7 @@ class Strokes_Logic:
     def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode):
         self.radius = radius
         self.snap_distance = snap_distance
-        self.stroke3D_original = stroke3D
+        self.stroke3D_original = stroke3D    # stroke can change, so keep a copy of original
 
         self.show_is_cycle = True
         self.is_cycle = is_cycle
@@ -166,6 +166,8 @@ class Strokes_Logic:
         self.cut_count = None
         self.initial = True
 
+        self.failure_message = None
+
 
     def update(self, context):
         self.context, self.rgn, self.r3d = context, context.region, context.region_data
@@ -175,12 +177,15 @@ class Strokes_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
 
-        self.stroke3D = list(self.stroke3D_original)
+        self.stroke3D = list(self.stroke3D_original)  # stroke can change, so keep a copy of original
 
-        self.process_mirror()
-        self.process_stroke_details()
-        self.process_selected()
-        self.process_snap_geometry()
+        self.process_selected()          # gather details about selected geometry
+        self.process_mirror()            # can change stroke, depends on selected geo
+        if not self.stroke3D:
+            self.failure_message = 'Stroke was not compatible with settings'
+            return
+        self.process_stroke_details()    # must happen after stroke is finalized
+        self.process_snap_geometry()     # should probably happen after stroke is finalized
 
         # TODO: handle gracefully if these functions fail
         try:
@@ -221,65 +226,69 @@ class Strokes_Logic:
         sides = [ self.get_mirror_side(pt) for pt in self.stroke3D ]
         all_sides = set(sides)
 
-        if len(all_sides) == 1: return  # stroke is entirely on one side of mirror
+        if not self.sel_edges:
+            # nothing selected, so check against where the stroke started
+            if len(all_sides) == 1: return  # stroke is entirely on one side of mirror or along mirror
+            counts = {}
+            for side in sides:
+                if 0 in side: continue
+                counts[side] = counts.get(side, 0) + 1
+            correct_side = max(counts.keys(), key=lambda k:counts[k])
+        else:
+            # check against selected geometry
+            sel_sides = [ self.get_mirror_side(bmv.co) for bme in self.sel_edges for bmv in bme.verts ]
+            correct_side = next(side for side in sel_sides if 0 not in side)
+            if all(side == correct_side for side in all_sides if 0 not in side): return   # stroke and selected geometry all on same side of mirror (or along)
 
         self.show_mirror_mode = True
 
+        new_stroke = []
+
         match self.mirror_mode:
-            case 'CLIP':
-                # clip (clamp) to mirror
-                new_stroke = []
-                side0 = None
+            case 'CLAMP':
+                # clamp to mirror
                 for (pt, side) in zip(self.stroke3D, sides):
-                    if side0 is None:
-                        new_stroke += [pt]
-                        if 0 not in side: side0 = side
-                    elif side == side0:
-                        new_stroke += [pt]
-                    else:
-                        # snap
-                        s = Vector((
-                            1 if side[0] == side0[0] else 0,
-                            1 if side[1] == side0[1] else 0,
-                            1 if side[2] == side0[2] else 0,
-                        ))
-                        new_stroke += [pt * s]
-                self.stroke3D = new_stroke
+                    # snap
+                    s = Vector((
+                        1 if side[0] == correct_side[0] else 0,
+                        1 if side[1] == correct_side[1] else 0,
+                        1 if side[2] == correct_side[2] else 0,
+                    ))
+                    new_stroke += [pt * s]
 
             case 'TRIM':
                 # trim to mirror
-                new_stroke = []
-                side0 = None
-                pt_prev = None
+                longest_stroke = None
+                current_stroke = []
+                prev_pt, prev_side = self.stroke3D[0], sides[0]
                 for (pt, side) in zip(self.stroke3D, sides):
-                    if side0 is None or side == side0:
-                        new_stroke += [pt]
-                        if not side0 and 0 not in side: side0 = side
-                        pt_prev = pt
+                    if prev_side == side:
+                        if side == correct_side: current_stroke += [pt]
+                        prev_pt = pt
                         continue
-
-                    if 0 in side:
-                        new_stroke += [pt]
-                        break
-
-                    pt0, pt1 = pt, pt_prev
+                    # switched sides
+                    (pt0, pt1) = (prev_pt, pt) if prev_side == correct_side else (pt, prev_pt)
                     for _ in range(100):
                         pt = pt0 + (pt1 - pt0) * 0.5
                         s = self.get_mirror_side(pt)
-                        if 0 in s:
-                            new_stroke += [pt]
-                            break
-                        if s == side0: pt0 = pt
-                        else:          pt1 = pt
-                    else:
-                        s = Vector((
-                            0 if side[0] != side0[0] else 1,
-                            0 if side[1] != side0[1] else 1,
-                            0 if side[2] != side0[2] else 1,
-                        ))
-                        new_stroke += [s * pt]
-                    break
-                self.stroke3D = new_stroke
+                        if 0 in s: break
+                        (pt0, pt1) = (pt, pt1) if s == correct_side else (pt0, pt)
+                    s = Vector((
+                        0 if side[0] != correct_side[0] else 1,
+                        0 if side[1] != correct_side[1] else 1,
+                        0 if side[2] != correct_side[2] else 1,
+                    ))
+                    current_stroke += [s * pt]
+                    if prev_side == correct_side:
+                        if longest_stroke is None or len(current_stroke) > len(longest_stroke):
+                            longest_stroke = current_stroke
+                        current_stroke = []
+                    prev_pt, prev_side = pt, side
+                if longest_stroke is None or len(current_stroke) > len(longest_stroke):
+                    longest_stroke = current_stroke
+                new_stroke = longest_stroke
+
+        self.stroke3D = new_stroke
 
 
     def process_stroke_details(self):

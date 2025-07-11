@@ -143,10 +143,10 @@ class RFOperator_Stroke_Insert_Properties:
         name='Mirror Method',
         description='Controls what should happen to stroke that crosses a mirror',
         items=[
-            ('TRIM', 'Trim', 'Trim stroke to mirror', 0),
-            ('CLIP', 'Clip', 'Clip stroke to mirror', 1),
+            ('CLAMP', 'Clamp', 'Clamp stroke to mirror', 0),
+            ('TRIM',  'Trim',  'Trim stroke to mirror',  1),
         ],
-        default='TRIM',
+        default='CLAMP',
     )
 
 class RFOperator_Stroke_Insert(
@@ -239,6 +239,9 @@ class RFOperator_Stroke_Insert(
             col.alignment='RIGHT'
             col.label(text='Inserted')
             split.label(text=logic.show_action)
+
+        if logic.failure_message:
+            layout.label(text=logic.failure_message, icon='WARNING_LARGE')
 
         if logic.show_count:
             layout.prop(self, 'cut_count', text='Count')
