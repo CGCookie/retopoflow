@@ -288,6 +288,17 @@ class Strokes_Logic:
                     longest_stroke = current_stroke
                 new_stroke = longest_stroke
 
+            case 'REFLECT':
+                # reflect by mirror
+                for (pt, side) in zip(self.stroke3D, sides):
+                    # snap
+                    s = Vector((
+                        1 if side[0] == correct_side[0] else -1,
+                        1 if side[1] == correct_side[1] else -1,
+                        1 if side[2] == correct_side[2] else -1,
+                    ))
+                    new_stroke += [pt * s]
+
         self.stroke3D = new_stroke
 
 

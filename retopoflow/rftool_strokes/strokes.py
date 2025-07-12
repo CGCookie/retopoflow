@@ -144,8 +144,9 @@ class RFOperator_Stroke_Insert_Properties:
         name='Mirror Method',
         description='Controls what should happen to stroke that crosses a mirror',
         items=[
-            ('CLAMP', 'Clamp', 'Clamp stroke to mirror', 0),
-            ('TRIM',  'Trim',  'Trim stroke to mirror',  1),
+            ('CLAMP',   'Clamp',   'Clamp stroke to mirror',          0),
+            ('TRIM',    'Trim',    'Trim stroke to mirror',           1),
+            ('REFLECT', 'Reflect', 'Reflect stroke based on mirror',  2),
         ],
         default='CLAMP',
     )
