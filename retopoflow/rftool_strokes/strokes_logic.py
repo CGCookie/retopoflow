@@ -178,6 +178,8 @@ class Strokes_Logic:
         self.matrix_world_inv = self.matrix_world.inverted()
 
         self.stroke3D = list(self.stroke3D_original)  # stroke can change, so keep a copy of original
+        self.important_indices = []
+        self.important_lengths = {}
 
         self.process_selected()          # gather details about selected geometry
         self.process_mirror()            # can change stroke, depends on selected geo
@@ -300,6 +302,27 @@ class Strokes_Logic:
                     new_stroke += [pt * s]
 
         self.stroke3D = new_stroke
+
+        l = len(self.stroke3D)
+        self.important_indices = {0, l-1}
+        i0 = 0
+        while i0 < l:
+            if 0 not in self.get_mirror_side(self.stroke3D[i0]):
+                # not near mirror
+                i0 += 1
+                continue
+            # found first pt near mirror, so find next pt that's right before we leave the mirror
+            i1 = next((i1 for i1 in range(i0, l-1) if 0 not in self.get_mirror_side(self.stroke3D[i1+1])), l-1)
+            if i0 != l - 2: self.important_indices.add(i0)
+            if i1 != 1:     self.important_indices.add(i1)
+            i0 = i1 + 1
+        self.important_indices = list(sorted(self.important_indices))
+        self.important_lengths = {
+            i:sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D[:i+1], False))
+            for i in self.important_indices
+        }
+        # print(self.important_indices)
+        # print([self.get_mirror_side(self.stroke3D[i]) for i in self.important_indices])
 
 
     def process_stroke_details(self):
@@ -453,18 +476,52 @@ class Strokes_Logic:
             case _:
                 assert False, f'Unhandled {self.span_insert_mode=}'
         nspans = max(1, nspans)
+        if self.important_indices: nspans = max(nspans, len(self.important_indices)-1)
         nverts = nspans + 1
 
-        bmvs = []
-        for iv in range(nverts):
-            if iv == 0 and self.snap_bmv0:
+        if self.important_indices:
+            len_stroke = len(self.stroke3D)
+            len_spans = len(self.important_indices)
+            # print(len_stroke, len_spans)
+            segment_spans = [[i0, i1, self.important_lengths[i1]-self.important_lengths[i0], 1] for (i0,i1) in iter_pairs(self.important_indices, False)]
+            additional_inds = nverts - len(self.important_indices)
+            for _ in range(additional_inds):
+                segment_spans.sort(key=lambda ss: ss[2] / ss[3])
+                segment_spans[-1][3] += 1
+            segment_spans.sort(key=lambda ss: ss[0])
+            # print(segment_spans)
+
+            bmvs = []
+            # print(f'{nverts=}')
+            if self.snap_bmv0:
+                # print('snap first')
                 bmvs += [self.snap_bmv0]
-            elif iv == nverts - 1 and self.snap_bmv1:
-                bmvs += [self.snap_bmv1]
             else:
-                v = iv / (nverts-1)
-                pt = self.find_point3D(v)
-                bmvs += [self.bm.verts.new(pt)]
+                bmvs += [self.bm.verts.new(self.find_point3D(0))]
+            for (i0,i1,_,c) in segment_spans:
+                l0 = self.important_lengths[i0]
+                l1 = self.important_lengths[i1]
+                for p in range(c):
+                    # print(f'{i0=} {i1=} {p=} {c=}')
+                    if p == c - 1 and i1 == len_stroke - 1 and self.snap_bmv1:
+                        # print('snap last')
+                        bmvs += [self.snap_bmv1]
+                        break
+                    v = (l0 + (l1 - l0) * (p + 1) / c) / self.length3D
+                    pt = self.find_point3D(v)
+                    bmvs += [self.bm.verts.new(pt)]
+        else:
+            bmvs = []
+            for iv in range(nverts):
+                if iv == 0 and self.snap_bmv0:
+                    bmvs += [self.snap_bmv0]
+                elif iv == nverts - 1 and self.snap_bmv1:
+                    bmvs += [self.snap_bmv1]
+                else:
+                    v = iv / (nverts-1)
+                    pt = self.find_point3D(v)
+                    bmvs += [self.bm.verts.new(pt)]
+
         bmes = []
         for ie in range(nspans):
             bmv0, bmv1 = bmvs[ie], bmvs[ie+1]

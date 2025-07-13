@@ -449,31 +449,54 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             snaps = [self.get_snap_mirror(context, co) for co in self.stroke3D_original]
             sides = [self.get_mirror_side(co)          for co in self.stroke3D_original]
 
+            all_sides = set(sides)
             all_snaps = { tuple(snap) for snap in snaps }
-            if all_snaps == { tuple() }:
+            if all_snaps == { tuple() } and len(all_sides) == 1:
                 # mirror is there, but the stroke did not touch
                 self.stroke = self.stroke_original
                 self.stroke3D = self.stroke3D_original
                 return True
 
-            # print(f'stroke touches mirror')
+            DEBUG = False
+
+            if DEBUG: print(f'stroke touches mirror')
             l = len(self.stroke_original)
             self.stroke3D = []
-            # print(f'0-', end='')
+            if DEBUG: print(f'0-', end='')
             i0 = 0
+            last_side = sides[0]
             while i0 < l:
-                if not snaps[i0]:
-                    # not near mirror
+                if sides[i0] != last_side:
+                    last_side = sides[i0]
+                    if not snaps[i0-1] and not snaps[i0]:  # safe to check i0-1
+                        # crossed mirror without getting near it
+                        if DEBUG: print(f'{i0-1} crossed mirror {i0}-', end='')
+                        pt0 = self.stroke3D_original[i0-1]
+                        pt1 = self.stroke3D_original[i0]
+                        for _ in range(100):
+                            pt = pt0 + (pt1 - pt0) * 0.5
+                            (pt0, pt1) = (pt0, pt) if sides[i0] == self.get_mirror_side(pt) else (pt, pt1)
+                        snap = self.get_snap_mirror(context, pt)  # possible (although unlikely) that snap is empty!
+                        self.stroke3D += [pt * Vector((
+                            0 if 'x' in snap else 1,
+                            0 if 'y' in snap else 1,
+                            0 if 'z' in snap else 1,
+                        ))]
+                        i0 += 1
+                        continue
+
+                if not snaps[i0] and sides[i0] == last_side:
+                    # not near mirror and did not cross mirror
                     self.stroke3D += [self.stroke3D_original[i0]]
                     i0 += 1
                     continue
 
                 # near mirror
                 i1 = next((i1 for i1 in range(i0, l-1) if not snaps[i1+1]), l - 1)
-                # print(f'{i0} {i1}-', end='')
 
                 if i1 == l - 1:
                     # rest of stroke is near mirror
+                    if DEBUG: print(f'{i0} rest near mirror {i1}-', end='')
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
                         0 if 'x' in snaps[i0] else 1,
                         0 if 'y' in snaps[i0] else 1,
@@ -489,6 +512,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
                 pt0, pt1 = self.stroke_original[i0], self.stroke_original[i1]
                 if (pt0 - pt1).length > 20:
+                    if DEBUG: print(f'{i0} stretch near mirror {i1}-', end='')
                     # long stretch of stroke is near mirror, so snap it all
                     self.stroke3D += [self.stroke3D_original[i0] * Vector((
                         0 if 'x' in snaps[i0] else 1,
@@ -505,14 +529,17 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
                 # stroke either crosses or bounces off mirror
                 # find point of stroke closest to mirror
-                pt = min(self.stroke3D_original[i0:i1+1], key=lambda pt:self.get_mirror_dist(pt, self.get_snap_mirror(context, pt)))
+                fn_dist = lambda pt: self.get_mirror_dist(pt, self.get_snap_mirror(context, pt))
+                i_min = min(range(i0,i1+1), key=lambda i:fn_dist(self.stroke3D_original[i]))
+                if DEBUG: print(f'{i0} cross/bounce at {i_min} {i1}-', end='')
+                pt = self.stroke3D_original[i_min]
                 self.stroke3D += [pt * Vector((
                     0 if 'x' in snaps[i0] else 1,
                     0 if 'y' in snaps[i0] else 1,
                     0 if 'z' in snaps[i0] else 1,
                 ))]
                 i0 = i1 + 1
-            # print(f'{l-1}')
+            if DEBUG: print(f'{l-1}')
 
             self.stroke = [
                 location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
@@ -523,18 +550,18 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         def process_stroke(self, context):
             # # tessellate stroke
-            new_stroke = []
-            for (co0, co1) in iter_pairs(self.stroke, False):
-                new_stroke += [co0]
-                d = co1 - co0
-                l = d.length
-                lt = int(l / 0.5)
-                for i in range(lt):
-                    co = co0 + d * (i / lt)
-                    new_stroke += [co]
-            new_stroke += [self.stroke[-1]]
-            self.stroke = new_stroke
-            self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
+            # new_stroke = []
+            # for (co0, co1) in iter_pairs(self.stroke, False):
+            #     new_stroke += [co0]
+            #     d = co1 - co0
+            #     l = d.length
+            #     lt = int(l / 0.5)
+            #     for i in range(lt):
+            #         co = co0 + d * (i / lt)
+            #         new_stroke += [co]
+            # new_stroke += [self.stroke[-1]]
+            # self.stroke = new_stroke
+            # self.stroke3D = [raycast_valid_sources(context, pt2D)['co_local'] for pt2D in self.stroke]
 
             self.operator.process_stroke(
                 context,
@@ -719,6 +746,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             if not pt2D: return s
 
             if 'x' in self.mirror:
+                if abs(pt3D_local.x) <= self.mirror_threshold: s.add('x')
                 pt3D_local_mirror = pt3D_local * Vector((-1, 1, 1, 1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
                 if pt2D_mirror:
@@ -726,6 +754,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     if dist < max_dist: s.add('x')
 
             if 'y' in self.mirror:
+                if abs(pt3D_local.y) <= self.mirror_threshold: s.add('y')
                 pt3D_local_mirror = pt3D_local * Vector((1, -1, 1, 1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
                 if pt2D_mirror:
@@ -733,6 +762,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     if dist < max_dist: s.add('y')
 
             if 'z' in self.mirror:
+                if abs(pt3D_local.z) <= self.mirror_threshold: s.add('z')
                 pt3D_local_mirror = pt3D_local * Vector((1, 1, -1, 1))
                 pt2D_mirror = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt3D_local_mirror)
                 if pt2D_mirror:
