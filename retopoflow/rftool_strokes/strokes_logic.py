@@ -126,7 +126,7 @@ DEBUG = False
 
 
 class Strokes_Logic:
-    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode):
+    def __init__(self, context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, fixed_span_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode, mirror_correct):
         self.radius = radius
         self.snap_distance = snap_distance
         self.stroke3D_original = stroke3D    # stroke can change, so keep a copy of original
@@ -160,6 +160,8 @@ class Strokes_Logic:
 
         self.show_mirror_mode = False
         self.mirror_mode = mirror_mode
+        self.show_mirror_correct = False
+        self.mirror_correct = mirror_correct
 
         self.show_action = ''
         self.show_count = True
@@ -231,11 +233,18 @@ class Strokes_Logic:
         if not self.sel_edges:
             # nothing selected, so check against where the stroke started
             if len(all_sides) == 1: return  # stroke is entirely on one side of mirror or along mirror
-            counts = {}
-            for side in sides:
-                if 0 in side: continue
-                counts[side] = counts.get(side, 0) + 1
-            correct_side = max(counts.keys(), key=lambda k:counts[k])
+            match self.mirror_correct:
+                case 'MOST':
+                    counts = {}
+                    for side in sides:
+                        if 0 in side: continue
+                        counts[side] = counts.get(side, 0) + 1
+                    correct_side = max(counts.keys(), key=lambda k:counts[k])
+                case 'FIRST':
+                    correct_side = next((side for side in sides if 0 not in side))
+                case 'LAST':
+                    correct_side = next((side for side in sides[::-1] if 0 not in side))
+            self.show_mirror_correct = True
         else:
             # check against selected geometry
             sel_sides = [ self.get_mirror_side(bmv.co) for bme in self.sel_edges for bmv in bme.verts ]

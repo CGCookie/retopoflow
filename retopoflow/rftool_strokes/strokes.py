@@ -150,6 +150,16 @@ class RFOperator_Stroke_Insert_Properties:
         ],
         default='CLAMP',
     )
+    mirror_correct: bpy.props.EnumProperty(
+        name='Mirror Correct Side',
+        description='Select how to determine correct side of mirror',
+        items=[
+            ('MOST',  'Most',  'Side of mirror with majority of stroke is correct', 0),
+            ('FIRST', 'First', 'Start of stroke determines correct side of mirror', 1),
+            ('LAST',  'Last',  'End of stroke determines correct side of mirror',   2),
+        ],
+        default='MOST',
+    )
 
 class RFOperator_Stroke_Insert(
         RFOperator_Stroke_Insert_Keymaps,
@@ -188,7 +198,7 @@ class RFOperator_Stroke_Insert(
     logic = None
 
     @staticmethod
-    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode):
+    def strokes_insert(context, radius, snap_distance, stroke3D, is_cycle, snapped_geo, snapped_mirror, span_insert_mode, cut_count, extrapolate_mode, smooth_angle, smooth_density0, smooth_density1, mirror_mode, mirror_correct):
         stroke3D = [pt for pt in stroke3D if pt]
         length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke3D, is_cycle))
         if length3D == 0: return
@@ -208,6 +218,7 @@ class RFOperator_Stroke_Insert(
             smooth_density0,
             smooth_density1,
             mirror_mode,
+            mirror_correct,
         )
         RFOperator_Stroke_Insert.strokes_reinsert(context)
 
@@ -227,6 +238,7 @@ class RFOperator_Stroke_Insert(
             untwist_bridge=logic.untwist_bridge,
             is_cycle=logic.is_cycle,
             mirror_mode=logic.mirror_mode,
+            mirror_correct=logic.mirror_correct,
         )
 
     def draw(self, context):
@@ -271,6 +283,8 @@ class RFOperator_Stroke_Insert(
 
         if logic.show_mirror_mode:
             layout.prop(self, 'mirror_mode', text='Mirror Mode')
+        if logic.show_mirror_correct:
+            layout.prop(self, 'mirror_correct', text='Mirror Side')
 
     def execute(self, context):
         """
@@ -290,6 +304,7 @@ class RFOperator_Stroke_Insert(
         logic.untwist_bridge   = self.untwist_bridge
         logic.is_cycle         = self.is_cycle
         logic.mirror_mode      = self.mirror_mode
+        logic.mirror_correct   = self.mirror_correct
 
         try:
             logic.update(context)
@@ -310,6 +325,7 @@ class RFOperator_Stroke_Insert(
         self.untwist_bridge   = logic.untwist_bridge
         self.is_cycle         = logic.is_cycle
         self.mirror_mode      = logic.mirror_mode
+        self.mirror_correct   = logic.mirror_correct
         if logic.show_count: self.cut_count = logic.fixed_span_count
 
         return {'FINISHED'}
@@ -438,6 +454,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             self.smooth_density0,
             self.smooth_density1,
             self.mirror_mode,
+            self.mirror_correct,
         )
 
     def update(self, context, event):
@@ -553,7 +570,9 @@ class RFTool_Strokes(RFTool_Base):
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
-                panel.prop(props_strokes, 'mirror_mode', text='Mirror Mode')
+                col = panel.column(align=True)
+                col.prop(props_strokes, 'mirror_mode', text='Mirror Mode')
+                col.prop(props_strokes, 'mirror_correct', text='Side')
                 panel.label(text='T-Strips')
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
             draw_tweaking_panel(context, layout)
