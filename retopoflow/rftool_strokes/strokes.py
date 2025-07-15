@@ -145,8 +145,8 @@ class RFOperator_Stroke_Insert_Properties:
         description='Controls what should happen to stroke that crosses a mirror',
         items=[
             ('CLAMP',   'Clamp',   'Clamp stroke to mirror',          0),
-            ('TRIM',    'Trim',    'Trim stroke to mirror',           1),
-            ('REFLECT', 'Reflect', 'Reflect stroke based on mirror',  2),
+            ('REFLECT', 'Reflect', 'Reflect stroke based on mirror',  1),
+            ('TRIM',    'Trim',    'Trim stroke to mirror',           2),
         ],
         default='CLAMP',
     )
@@ -154,11 +154,11 @@ class RFOperator_Stroke_Insert_Properties:
         name='Mirror Correct Side',
         description='Select how to determine correct side of mirror',
         items=[
-            ('MOST',  'Most',  'Side of mirror with majority of stroke is correct', 0),
-            ('FIRST', 'First', 'Start of stroke determines correct side of mirror', 1),
-            ('LAST',  'Last',  'End of stroke determines correct side of mirror',   2),
+            ('FIRST', 'Start', 'Start of stroke determines correct side of mirror', 0),
+            ('LAST',  'End',  'End of stroke determines correct side of mirror',   1),
+            ('MOST',  'Most',  'Side of mirror with majority of stroke is correct', 2),
         ],
-        default='MOST',
+        default='FIRST',
     )
 
 class RFOperator_Stroke_Insert(
@@ -570,11 +570,11 @@ class RFTool_Strokes(RFTool_Base):
                 col = panel.column(align=True)
                 col.prop(props_strokes, 'smooth_density0', text='Spacing Start', slider=True)
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
-                col = panel.column(align=True)
-                col.prop(props_strokes, 'mirror_mode', text='Mirror Mode')
-                col.prop(props_strokes, 'mirror_correct', text='Side')
                 panel.label(text='T-Strips')
                 panel.prop(props_strokes, 'extrapolate_mode', text='Extrapolation')
+                panel.label(text='Mirror')
+                panel.prop(props_strokes, 'mirror_mode', text='Mode')
+                panel.prop(props_strokes, 'mirror_correct', text='Side')
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_cleanup_panel(context, layout)
