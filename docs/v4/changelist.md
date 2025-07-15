@@ -2,6 +2,25 @@
 
 This document contains details about what has changed in Retopoflow in version 4.x.
 
+### 4.0.0 beta 4
+
+New:
+- Added quick hotkeys for Tweak and Relax
+    - Shift drag for Relax
+    - Ctrl Shift drag for Tweak
+- Added option to use Blender's native transform to the Tweaking panel
+    - Allows snapping to the edges and verts of the source object
+    - Allows all bonus features like edge slide and constraints
+    - Great for low poly or hard surface objects but not for high poly organic sculpts
+- Strokes now takes into account the line of symmetry when a mirror is enabled
+    - New options for behavior at the line of symmetry and determining which side is being mirrored
+
+Improved:
+- Fixed issue with Tweak and Relax not working when the retopo object scale was extreme
+- Fixed issue with transforms not working when the retopo object was not at world origin
+- Fixed crash when restoring factory defaults while Retopoflow is enabled
+
+
 ### 4.0.0 beta 3
 
 New:
