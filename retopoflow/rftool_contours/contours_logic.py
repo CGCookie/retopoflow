@@ -532,6 +532,16 @@ class Contours_Logic:
         mirror_clipped_loop = False
 
         ####################################################################################################
+        # handle cutting across mirror planes
+
+        points, mirror_clipped_loop = self.handle_mirrors(context, points)
+        if mirror_clipped_loop: cyclic = False
+
+        if len(points) < 3:
+            print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
+            return False
+
+        ####################################################################################################
         # compute useful statistics about points
 
         plane_fit = Plane.fit_to_points(points)
@@ -587,6 +597,20 @@ class Contours_Logic:
 
         cyclic = True
         mirror_clipped_loop = False
+
+        ####################################################################################################
+        # handle cutting across mirror planes
+
+        points, mirror_clipped_loop = self.handle_mirrors(context, points)
+        if mirror_clipped_loop: cyclic = False
+
+        if len(points) < 3:
+            print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
+            return False
+
+
+        ####################################################################################################
+        # compute useful statistics about points
 
         points = [self.matrix_world_inv @ pt for pt in points]
         plane_fit = Plane.fit_to_points(points)
@@ -744,78 +768,8 @@ class Contours_Logic:
         ####################################################################################################
         # handle cutting across mirror planes
 
-        mirror_clipped_loop = False
-
-        if has_mirror_x(context) and any(pt.x < 0 for pt in points) and any(pt.x >= 0 for pt in points):
-            x_pos = self.hit['co_local'].x > 0
-            def correct(pt): return x_pos == (pt.x >= 0)
-            l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_x0(points[0], points[1])] + points[1:-2] + [pt_x0(points[-2], points[-1])]
-            mirror_clipped_loop = True
-            cyclic = False
-
-        if has_mirror_y(context) and any(pt.y < 0 for pt in points) and any(pt.y >= 0 for pt in points):
-            y_pos = self.hit['co_local'].y > 0
-            def correct(pt): return y_pos == (pt.y >= 0)
-            l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_y0(points[0], points[1])] + points[1:-2] + [pt_y0(points[-2], points[-1])]
-            mirror_clipped_loop = True
-            cyclic = False
-
-        if has_mirror_z(context) and any(pt.z < 0 for pt in points) and any(pt.z >= 0 for pt in points):
-            z_pos = self.hit['co_local'].z > 0
-            def correct(pt): return z_pos == (pt.z >= 0)
-            l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
-            points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
-            points = points[:idx+1]
-            points = [pt_z0(points[0], points[1])] + points[1:-2] + [pt_z0(points[-2], points[-1])]
-            mirror_clipped_loop = True
-            cyclic = False
-
-        # if has_mirror_x(context) and any(pt.x < 0 for pt in points):
-        #     # NOTE: considers ONLY the positive x side of mirror!
-        #     l = len(points)
-        #     bpoints = []
-        #     if cyclic:
-        #         start_indices = [i for i in range(l) if points[i].x < 0 and points[(i+1)%l].x >= 0]
-        #         for start_index in start_indices:
-        #             npoints = []
-        #             for offset in range(l):
-        #                 i0, i1 = (start_index + offset) % l, (start_index + offset + 1) % l
-        #                 pt0, pt1 = points[i0], points[i1]
-        #                 if pt0.x >= 0:
-        #                     npoints.append(pt0)
-        #                     if pt1.x < 0:
-        #                         npoints.append(pt_x0(pt0, pt1))
-        #                         break
-        #                 elif pt1.x >= 0: npoints.append(pt_x0(pt0, pt1))
-        #             if len(npoints) > len(bpoints): bpoints = npoints
-        #         mirror_clipped_loop = True
-        #     else:
-        #         npoints = []
-        #         for i in range(l):
-        #             if points[i].x >= 0:
-        #                 if i > 0 and points[i-1].x < 0:
-        #                     npoints.append(pt_x0(points[i-1], points[i]))
-        #                 npoints.append(points[i])
-        #             else:
-        #                 if i > 0 and points[i-1].x >= 0:
-        #                     npoints.append(pt_x0(points[i-1], points[i]))
-        #                 if len(npoints) > len(bpoints): bpoints = npoints
-        #                 npoints = []
-        #     points = bpoints
-        #     cyclic = False
-        # # TODO: handle other mirror planes!
+        points, mirror_clipped_loop = self.handle_mirrors(context, points)
+        if mirror_clipped_loop: cyclic = False
 
         if len(points) < 3:
             print(f'CONTOURS: TOO FEW POINTS FOUND TO FIT PLANE')
@@ -837,4 +791,43 @@ class Contours_Logic:
         self.mirror_clipped_loop = mirror_clipped_loop  # did cyclic loop cross mirror plane?
 
         return True
+
+
+    def handle_mirrors(self, context, points):
+        mirror_clipped_loop = False
+
+        if has_mirror_x(context) and any(pt.x <= 0 for pt in points) and any(pt.x > 0 for pt in points):
+            x_pos = self.hit['co_local'].x > 0
+            def correct(pt): return x_pos == (pt.x > 0)
+            l = len(points)
+            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            points = points[idx:] + points[:idx]
+            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            points = points[:idx+1]
+            points = [pt_x0(points[0], points[1])] + points[1:-2] + [pt_x0(points[-2], points[-1])]
+            mirror_clipped_loop = True
+
+        if has_mirror_y(context) and any(pt.y <= 0 for pt in points) and any(pt.y > 0 for pt in points):
+            y_pos = self.hit['co_local'].y > 0
+            def correct(pt): return y_pos == (pt.y > 0)
+            l = len(points)
+            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            points = points[idx:] + points[:idx]
+            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            points = points[:idx+1]
+            points = [pt_y0(points[0], points[1])] + points[1:-2] + [pt_y0(points[-2], points[-1])]
+            mirror_clipped_loop = True
+
+        if has_mirror_z(context) and any(pt.z <= 0 for pt in points) and any(pt.z > 0 for pt in points):
+            z_pos = self.hit['co_local'].z > 0
+            def correct(pt): return z_pos == (pt.z > 0)
+            l = len(points)
+            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            points = points[idx:] + points[:idx]
+            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            points = points[:idx+1]
+            points = [pt_z0(points[0], points[1])] + points[1:-2] + [pt_z0(points[-2], points[-1])]
+            mirror_clipped_loop = True
+
+        return (points, mirror_clipped_loop)
 
