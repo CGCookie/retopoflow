@@ -14,6 +14,7 @@ New:
     - Great for low poly or hard surface objects but not for high poly organic sculpts
 - Strokes now takes into account the line of symmetry when a mirror is enabled
     - New options for behavior at the line of symmetry and determining which side is being mirrored
+- PolyStrips has a new stroke preview that shows the width of the resulting strip. 
 
 Improved:
 - Fixed issue with Tweak and Relax not working when the retopo object scale was extreme
