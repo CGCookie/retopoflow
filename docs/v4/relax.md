@@ -8,6 +8,8 @@ Quick Shortcut: {{ site.data.keymaps.relax_quick }}
 
 The Relax Brush tool allows you to easily and interactively smooth out vertex positions while keeping them on the surface of the source mesh.
 
+You can quickly use the Relax tool while in any other Retopoflow tool with `Shift LMB Drag`.
+
 
 ## Transforming
 

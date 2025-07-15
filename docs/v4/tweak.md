@@ -8,6 +8,8 @@ Quick Shortcut: {{ site.data.keymaps.tweak_quick }}
 
 The Tweak Brush tool allows you to easily and interactively adjust vertex positions across the surface of the source mesh.
 
+You can quickly use the Tweak tool while in any other Retopoflow tool with `Shift Ctrl LMB Drag`.
+
 ## Transforming
 
 To use the Tweak Brush, simply `LMB Drag` on vertices. Which vertices are affected can be controlled in the **Masking** settings.
