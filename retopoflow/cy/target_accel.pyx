@@ -261,21 +261,21 @@ cdef class TargetMeshAccel:
             step = max(self.bmesh.totvert // 5, 1)  # Ensure minimum step of 1
             for i in range(0, min(self.bmesh.totvert, 5 * step), step):
                 if self.py_bmesh.verts[i].index != i:
-                    self.vindices_dirty = True
+                    vindices_dirty = True
                     break
         
         if not eindices_dirty:
             step = max(self.bmesh.totedge // 5, 1)  # Ensure minimum step of 1
             for i in range(0, min(self.bmesh.totedge, 5 * step), step):
                 if self.py_bmesh.edges[i].index != i:
-                    self.eindices_dirty = True
+                    eindices_dirty = True
                     break
 
         if not findices_dirty:
             step = max(self.bmesh.totface // 5, 1)  # Ensure minimum step of 1
             for i in range(0, min(self.bmesh.totface, 5 * step), step):
                 if self.py_bmesh.faces[i].index != i:
-                    self.findices_dirty = True
+                    findices_dirty = True
                     break
 
         if vindices_dirty:
