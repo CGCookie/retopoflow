@@ -155,7 +155,7 @@ class RFOperator_Stroke_Insert_Properties:
         description='Select how to determine correct side of mirror',
         items=[
             ('FIRST', 'Start', 'Start of stroke determines correct side of mirror', 0),
-            ('LAST',  'End',  'End of stroke determines correct side of mirror',   1),
+            ('LAST',  'End',   'End of stroke determines correct side of mirror',   1),
             ('MOST',  'Most',  'Side of mirror with majority of stroke is correct', 2),
         ],
         default='FIRST',

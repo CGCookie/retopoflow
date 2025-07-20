@@ -32,6 +32,7 @@ from ..common.bmesh import (
     bmvs_shared_bme,
     bme_vector,
     bme_length,
+    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
 from ..common.bmesh_maths import (
     find_point_at,
@@ -70,6 +71,7 @@ from ...addon_common.common.maths import (
     clamp, sign,
     Direction,
     closest_points_segments,
+    sign_threshold,
 )
 from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumerate_direction
 
@@ -161,7 +163,7 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle):
+    def __init__(self, context, radius2D, stroke3D_local, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -180,17 +182,19 @@ class PolyStrips_Logic:
         # store passed parameters
         M, Mi = self.matrix_world, self.matrix_world_inv
         self.radius2D = radius2D
-        self.stroke3D_local = stroke3D_local
+        self.stroke3D_local_orig = stroke3D_local
         self.is_cycle = is_cycle
         self.snap_bmf0_index = snap_bmf0.index if snap_bmf0 else None
         self.snap_bmf1_index = snap_bmf1.index if snap_bmf1 else None
         self.split_angle = split_angle  # clamp!?
+        self.mirror_correct = mirror_correct
+        self.show_mirror_correct = False
 
         #################################
         # initial settings
         self.initial = True
         self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
-        self.initial_width = self.compute_length3D(self.stroke3D_local, self.is_cycle) / (self.initial_count * 2 - 1)
+        self.initial_width = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle) / (self.initial_count * 2 - 1)
         self.strip_count = 0
         self.count_mins = []
         self.counts = []
@@ -242,6 +246,58 @@ class PolyStrips_Logic:
     def create(self, context):
         if self.error: return
         self.update_context(context)
+
+        ##############################
+        # handle mirror
+        self.stroke3D_local = self.stroke3D_local_orig
+        self.mirror = set()
+        if has_mirror_x(context): self.mirror.add('x')
+        if has_mirror_y(context): self.mirror.add('y')
+        if has_mirror_z(context): self.mirror.add('z')
+        self.show_mirror_correct = bool(self.mirror)
+        self.mirror_threshold = mirror_threshold(context)
+        mirror_counts = {'x':[0,0,0], 'y':[0,0,0], 'z':[0,0,0]}
+        self.mirror_side = Vector((1,1,1))
+        if self.mirror:
+            match self.mirror_correct:
+                case 'FIRST':
+                    if 'x' in self.mirror:
+                        self.mirror_side.x = next((s for co in self.stroke3D_local if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
+                    if 'y' in self.mirror:
+                        self.mirror_side.y = next((s for co in self.stroke3D_local if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
+                    if 'z' in self.mirror:
+                        self.mirror_side.x = next((s for co in self.stroke3D_local if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
+                case 'LAST':
+                    if 'x' in self.mirror:
+                        self.mirror_side.x = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
+                    if 'y' in self.mirror:
+                        self.mirror_side.y = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
+                    if 'z' in self.mirror:
+                        self.mirror_side.x = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
+                case 'MOST':
+                    if 'x' in self.mirror:
+                        count_neg = sum(1 if sign_threshold(co.x, self.mirror_threshold) < 0 else 0 for co in self.stroke3D_local)
+                        count_pos = sum(1 if sign_threshold(co.x, self.mirror_threshold) > 0 else 0 for co in self.stroke3D_local)
+                        if count_neg > count_pos: self.mirror_side.x = -1
+                    if 'y' in self.mirror:
+                        count_neg = sum(1 if sign_threshold(co.y, self.mirror_threshold) < 0 else 0 for co in self.stroke3D_local)
+                        count_pos = sum(1 if sign_threshold(co.y, self.mirror_threshold) > 0 else 0 for co in self.stroke3D_local)
+                        if count_neg > count_pos: self.mirror_side.y = -1
+                    if 'z' in self.mirror:
+                        count_neg = sum(1 if sign_threshold(co.z, self.mirror_threshold) < 0 else 0 for co in self.stroke3D_local)
+                        count_pos = sum(1 if sign_threshold(co.z, self.mirror_threshold) > 0 else 0 for co in self.stroke3D_local)
+                        if count_neg > count_pos: self.mirror_side.z = -1
+
+            self.stroke3D_local = [
+                co * Vector((
+                    0 if 'x' in self.mirror and sign_threshold(co.x, self.mirror_threshold) != self.mirror_side.x else 1,
+                    0 if 'y' in self.mirror and sign_threshold(co.y, self.mirror_threshold) != self.mirror_side.y else 1,
+                    0 if 'z' in self.mirror and sign_threshold(co.z, self.mirror_threshold) != self.mirror_side.z else 1,
+                ))
+                for co in self.stroke3D_local
+            ]
+
+
 
         bvh = self.bvh
         M, Mi = self.matrix_world, self.matrix_world_inv
@@ -438,6 +494,20 @@ class PolyStrips_Logic:
             # snap newly created bmverts to source
             for bmv in chain(bmvs[0], bmvs[1]):
                 bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
+
+            ######################################################
+            # handle mirror
+            m,mt = self.mirror,self.mirror_threshold
+            mx,my,my = self.mirror_side
+            for bmvs_ in bmvs:
+                for bmv in bmvs_:
+                    co = bmv.co
+                    v = Vector((
+                        0 if 'x' in m and sign_threshold(co.x, mt) != mx else 1,
+                        0 if 'y' in m and sign_threshold(co.y, mt) != my else 1,
+                        0 if 'z' in m and sign_threshold(co.z, mt) != mz else 1,
+                    ))
+                    bmv.co = v * co
 
 
             ######################################################

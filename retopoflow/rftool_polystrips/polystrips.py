@@ -103,6 +103,17 @@ class RFOperator_PolyStrips_Insert_Properties:
         max=2.35619449,
     )
 
+    mirror_correct: bpy.props.EnumProperty(
+        name='Mirror Correct Side',
+        description='Select how to determine correct side of mirror',
+        items=[
+            ('FIRST', 'Start', 'Start of stroke determines correct side of mirror', 0),
+            ('LAST',  'End',   'End of stroke determines correct side of mirror',   1),
+            ('MOST',  'Most',  'Side of mirror with majority of stroke is correct', 2),
+        ],
+        default='FIRST',
+    )
+
 
 class RFOperator_PolyStrips_Insert(
         RFOperator_PolyStrips_Insert_Keymaps,
@@ -157,7 +168,7 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle):
+    def polystrips_insert(context, radius2D, stroke3D, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
         logic = RFOperator_PolyStrips_Insert.logic
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
@@ -168,33 +179,30 @@ class RFOperator_PolyStrips_Insert(
             snap_bmf0,
             snap_bmf1,
             split_angle,
+            mirror_correct,
         )
         logic = RFOperator_PolyStrips_Insert.logic
         if not logic or logic.error: return
-        count0, width0 = logic.count0, logic.width0
-        count1, width1 = logic.count1, logic.width1
-        count2, width2 = logic.count2, logic.width2
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            count0=count0, width0=width0,
-            count1=count1, width1=width1,
-            count2=count2, width2=width2,
+            count0=logic.count0, width0=logic.width0,
+            count1=logic.count1, width1=logic.width1,
+            count2=logic.count2, width2=logic.width2,
             split_angle=logic.split_angle,
+            mirror_correct=logic.mirror_correct,
         )
 
     @staticmethod
     def polystrips_reinsert(context):
         logic = RFOperator_PolyStrips_Insert.logic
         if not logic or logic.error: return
-        count0, width0 = logic.count0, logic.width0
-        count1, width1 = logic.count1, logic.width1
-        count2, width2 = logic.count2, logic.width2
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
-            count0=count0, width0=width0,
-            count1=count1, width1=width1,
-            count2=count2, width2=width2,
+            count0=logic.count0, width0=logic.width0,
+            count1=logic.count1, width1=logic.width1,
+            count2=logic.count2, width2=logic.width2,
             split_angle=logic.split_angle,
+            mirror_correct=logic.mirror_correct,
         )
 
     def draw(self, context):
@@ -227,6 +235,9 @@ class RFOperator_PolyStrips_Insert(
 
             layout.prop(self, 'split_angle')
 
+        if logic.show_mirror_correct:
+            layout.prop(self, 'mirror_correct', text='Mirror Side')
+
     def execute(self, context):
         try:
             logic = RFOperator_PolyStrips_Insert.logic
@@ -234,10 +245,12 @@ class RFOperator_PolyStrips_Insert(
             logic.count1, logic.width1 = self.count1, self.width1
             logic.count2, logic.width2 = self.count2, self.width2
             logic.split_angle = self.split_angle
+            logic.mirror_correct = self.mirror_correct
             logic.create(context)
             self.count0, self.width0 = logic.count0, logic.width0
             self.count1, self.width1 = logic.count1, logic.width1
             self.count2, self.width2 = logic.count2, logic.width2
+            self.mirror_correct = logic.mirror_correct
         except Exception as e:
             # TODO: revisit how this issue (#1376) is handled.
             #       right now, the operator is simply cancelled, which could leave mesh in a weird state or remove
@@ -630,6 +643,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
             length2D,
             snap_bmf0, snap_bmf1,
             self.split_angle,
+            self.mirror_correct,
         )
 
     def update(self, context, event):
@@ -724,6 +738,7 @@ class RFTool_PolyStrips(RFTool_Base):
                 panel.prop(props_polystrips, 'brush_radius', text="Radius")
                 panel.prop(props_polystrips, 'stroke_smoothing', text='Stabilize', slider=True)
                 panel.prop(props_polystrips, 'split_angle')
+                panel.prop(props_polystrips, 'mirror_correct', text='Mirror Side')
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_cleanup_panel(context, layout)
