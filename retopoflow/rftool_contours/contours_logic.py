@@ -796,35 +796,49 @@ class Contours_Logic:
     def handle_mirrors(self, context, points):
         mirror_clipped_loop = False
 
-        if has_mirror_x(context) and any(pt.x <= 0 for pt in points) and any(pt.x > 0 for pt in points):
-            x_pos = self.hit['co_local'].x > 0
-            def correct(pt): return x_pos == (pt.x > 0)
+        mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
+
+        sel_bmvs = bmops.get_all_selected_bmverts(self.bm)
+        if sel_bmvs:
+            # use selected geometry to find side
+            sx = next(((1 if not mx or bmv.co.x > 0 else -1) for bmv in sel_bmvs if not mx or bmv.co.x != 0), 1)
+            sy = next(((1 if not my or bmv.co.y > 0 else -1) for bmv in sel_bmvs if not my or bmv.co.y != 0), 1)
+            sz = next(((1 if not mz or bmv.co.z > 0 else -1) for bmv in sel_bmvs if not mz or bmv.co.z != 0), 1)
+        else:
+            # use cut to determine side
+            co = self.hit['co_local']
+            sx = 1 if not mx or co.x > 0 else -1
+            sy = 1 if not my or co.y > 0 else -1
+            sz = 1 if not mz or co.z > 0 else -1
+
+        def correct_x(co): return not mx or (1 if co.x > 0 else -1) == sx
+        def correct_y(co): return not my or (1 if co.y > 0 else -1) == sy
+        def correct_z(co): return not mz or (1 if co.z > 0 else -1) == sz
+        def correct_xyz(co): return correct_x(co) and correct_y(co) and correct_z(co)
+
+        if mx and any(not correct_x(pt) for pt in points) and any(correct_x(pt) for pt in points):
             l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            idx = next((i for i in range(l) if not correct_x(points[i]) and correct_x(points[(i+1)%l])), 0)
             points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            idx = next((i for i in range(1, l) if correct_x(points[i-1]) and not correct_x(points[i])), 0)
             points = points[:idx+1]
             points = [pt_x0(points[0], points[1])] + points[1:-2] + [pt_x0(points[-2], points[-1])]
             mirror_clipped_loop = True
 
-        if has_mirror_y(context) and any(pt.y <= 0 for pt in points) and any(pt.y > 0 for pt in points):
-            y_pos = self.hit['co_local'].y > 0
-            def correct(pt): return y_pos == (pt.y > 0)
+        if my and any(not correct_y(pt) for pt in points) and any(correct_y(pt) > 0 for pt in points):
             l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            idx = next((i for i in range(l) if not correct_y(points[i]) and correct_y(points[(i+1)%l])), 0)
             points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            idx = next((i for i in range(1, l) if correct_y(points[i-1]) and not correct_y(points[i])), 0)
             points = points[:idx+1]
             points = [pt_y0(points[0], points[1])] + points[1:-2] + [pt_y0(points[-2], points[-1])]
             mirror_clipped_loop = True
 
-        if has_mirror_z(context) and any(pt.z <= 0 for pt in points) and any(pt.z > 0 for pt in points):
-            z_pos = self.hit['co_local'].z > 0
-            def correct(pt): return z_pos == (pt.z > 0)
+        if mz and any(not correct_z(pt) for pt in points) and any(correct_z(pt) for pt in points):
             l = len(points)
-            idx = next((i for i in range(l) if not correct(points[i]) and correct(points[(i+1)%l])), 0)
+            idx = next((i for i in range(l) if not correct_z(points[i]) and correct_z(points[(i+1)%l])), 0)
             points = points[idx:] + points[:idx]
-            idx = next((i for i in range(1, l) if correct(points[i-1]) and not correct(points[i])), 0)
+            idx = next((i for i in range(1, l) if correct_z(points[i-1]) and not correct_z(points[i])), 0)
             points = points[:idx+1]
             points = [pt_z0(points[0], points[1])] + points[1:-2] + [pt_z0(points[-2], points[-1])]
             mirror_clipped_loop = True
