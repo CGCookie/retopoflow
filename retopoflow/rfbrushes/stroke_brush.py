@@ -419,7 +419,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.stroke3D_right = []
                 for i in range(len(self.stroke_original)):
                     pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], self.stroke_normal[i]
-                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[i])
+                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[i])
                     pt3D_prev, pt3D_next = find_stroke3D_point_from(i, -1), find_stroke3D_point_from(i,  1)
                     d_left = no.cross(pt3D_next - pt3D_prev).normalized() * radius
                     self.stroke3D_left  += [pt3D + d_left]
@@ -433,7 +433,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                     self.stroke3D_right_start = self.stroke3D_right[0] + v_forward
 
                     pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1)
-                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[-1])
+                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[-1])
                     v_forward = (pt3D_next - pt3D_prev).normalized() * radius
                     self.stroke3D_left_end  = self.stroke3D_left[-1]  + v_forward
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
@@ -583,8 +583,12 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             hit = raycast_valid_sources(context, self.mouse)
             # print(f'  {hit=}')
             if not hit: return
-            scale_below = size2D_to_size(context, hit['distance'])
-            scale_above = size2D_to_size(context, hit['distance'] - self.push_above)
+            if self.is_stroking():
+                scale_below = size2D_to_size(context, self.stroke_dist[0])
+                scale_above = size2D_to_size(context, self.stroke_dist[0] - self.push_above)
+            else:
+                scale_below = size2D_to_size(context, hit['distance'])
+                scale_above = size2D_to_size(context, hit['distance'] - self.push_above)
             # print(f'  {scale=}')
             if not scale_below or not scale_above: return
 
