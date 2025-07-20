@@ -43,6 +43,7 @@ from ..common.bmesh import (
     clean_select_layers,
     NearestBMVert,
     NearestBMEdge,
+    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
 )
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.enums import ValueIntEnum
@@ -59,7 +60,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
-from ...addon_common.common.maths import intersection2d_line_line
+from ...addon_common.common.maths import intersection2d_line_line, sign_threshold
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
@@ -627,6 +628,27 @@ class PP_Logic:
             case _:
                 pass
 
+    def correct_mirror_side(self, context, co, bmvs_based):
+        # make sure co is on same side of mirror as bmvs_based
+        mirror = set()
+        if has_mirror_x(context): mirror.add('x')
+        if has_mirror_y(context): mirror.add('y')
+        if has_mirror_z(context): mirror.add('z')
+        if not mirror: return co
+        mt = mirror_threshold(context)
+        signs = [
+            Vector((sign_threshold(bmv.co.x, mt), sign_threshold(bmv.co.y, mt), sign_threshold(bmv.co.z, mt)))
+            for bmv in bmvs_based
+        ]
+        sx,sy,sz = (
+            next((s.x for s in signs if s.x != 0), 0),
+            next((s.y for s in signs if s.y != 0), 0),
+            next((s.z for s in signs if s.z != 0), 0),
+        )
+        if 'x' in mirror and sign_threshold(co.x, mt) != sx: co.x = sx * mt * 2
+        if 'y' in mirror and sign_threshold(co.y, mt) != sy: co.y = sy * mt * 2
+        if 'z' in mirror and sign_threshold(co.z, mt) != sz: co.z = sz * mt * 2
+        return co
 
     def commit(self, context, event):
         # apply the change
@@ -643,6 +665,7 @@ class PP_Logic:
 
         match self.state:
             case PP_Action.VERT:
+                # create new detached vertex
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
                 else:
@@ -650,6 +673,7 @@ class PP_Logic:
                 select_now = [bmv]
 
             case PP_Action.EDGE_VERT:
+                # split hovered edge
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
@@ -658,11 +682,13 @@ class PP_Logic:
                 select_later = []
 
             case PP_Action.VERT_EDGE:
+                # create new edge between selected vert and current mouse position
                 bmv0 = self.bmv
                 if self.nearest.bmv:
                     bmv1 = self.nearest.bmv
                 else:
-                    bmv1 = self.bm.verts.new(self.hit)
+                    co = self.correct_mirror_side(context, self.hit, [bmv0])
+                    bmv1 = self.bm.verts.new(co)
                 bmf_split = next((bmf for bmf in bmv0.link_faces if bmv1 in bmf.verts), None)
                 bme = None
                 if bmf_split:
@@ -675,6 +701,7 @@ class PP_Logic:
                 select_later = [bme] if self.insert_mode != 'EDGE-ONLY' else []
 
             case PP_Action.VERT_EDGE_EDGE:
+                # split hovered edge and create new edge from selected vert
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
@@ -688,11 +715,13 @@ class PP_Logic:
                 select_later = []
 
             case PP_Action.EDGE_TRI:
+                # create triangle from selected edge and current mouse position
                 bmv0, bmv1 = self.bme.verts
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
                 else:
-                    bmv = self.bm.verts.new(self.hit)
+                    co = self.correct_mirror_side(context, self.hit, self.bme.verts)
+                    bmv = self.bm.verts.new(co)
                 bmf = next(iter(bmops.shared_link_faces([bmv0, bmv1, bmv])), None)
                 select_now = [bmv]
                 select_later = []
@@ -714,6 +743,7 @@ class PP_Logic:
                 select_later += [bmf]
 
             case PP_Action.EDGE_QUAD_EDGE:
+                # create quad between selected and hovered edges
                 bmv0, bmv1 = self.bme.verts
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
@@ -724,11 +754,18 @@ class PP_Logic:
                 select_later = [bmf]
 
             case PP_Action.EDGE_QUAD:
+                # create quad from selected edge and current mouse position
                 bmv0, bmv1 = self.bme.verts
-                if self.bmv2: bmv2 = self.bmv2
-                else:         bmv2 = self.bm.verts.new(self.hit2)
-                if self.bmv3: bmv3 = self.bmv3
-                else:         bmv3 = self.bm.verts.new(self.hit3)
+                if self.bmv2:
+                    bmv2 = self.bmv2
+                else:
+                    co2 = self.correct_mirror_side(context, self.hit2, self.bme.verts)
+                    bmv2 = self.bm.verts.new(co2)
+                if self.bmv3:
+                    bmv3 = self.bmv3
+                else:
+                    co3 = self.correct_mirror_side(context, self.hit3, self.bme.verts)
+                    bmv3 = self.bm.verts.new(co3)
                 bmf = self.bm.faces.new((bmv0, bmv1, bmv2, bmv3))
                 bmf.normal_update()
                 if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
@@ -737,6 +774,7 @@ class PP_Logic:
                 select_later = [bmf]
 
             case PP_Action.TRI_QUAD:
+                # convert selected triangle into quad
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
                 if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
@@ -748,7 +786,8 @@ class PP_Logic:
                 if self.nearest.bmv:
                     bmv = self.nearest.bmv
                 else:
-                    bmv = self.bm.verts.new(self.hit)
+                    co = self.correct_mirror_side(context, self.hit, self.bmf.verts)
+                    bmv = self.bm.verts.new(co)
                 bme_new, bmv_new = edge_split(self.bme, bmev0, 0.5)
                 bmesh.ops.weld_verts(self.bm, targetmap={bmv_new: bmv})
                 select_now = [bmv]
