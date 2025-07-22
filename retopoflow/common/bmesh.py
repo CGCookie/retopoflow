@@ -60,7 +60,7 @@ def iter_mirror_modifiers(obj):
     yield from (
         mod
         for mod in obj.modifiers
-        if mod.type == 'MIRROR' and mod.show_viewport and mod.show_in_editmode and mod.show_on_cage
+        if mod.type == 'MIRROR' and (mod.show_render or mod.show_viewport)
     )
 def mirror_threshold(context):
     return next((mod.merge_threshold for mod in iter_mirror_modifiers(context.edit_object)), None)
@@ -561,4 +561,3 @@ def is_bmvert_boundary(bmv, mirror, threshold, clip):
     if 'y' in mirror and abs(bmv.co.y) <= threshold.y: return False
     if 'z' in mirror and abs(bmv.co.z) <= threshold.z: return False
     return True
-
