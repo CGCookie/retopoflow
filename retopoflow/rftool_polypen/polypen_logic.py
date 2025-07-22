@@ -645,9 +645,11 @@ class PP_Logic:
             next((s.y for s in signs if s.y != 0), 0),
             next((s.z for s in signs if s.z != 0), 0),
         )
-        if 'x' in mirror and sign_threshold(co.x, mt) != sx: co.x = sx * mt * 2
-        if 'y' in mirror and sign_threshold(co.y, mt) != sy: co.y = sy * mt * 2
-        if 'z' in mirror and sign_threshold(co.z, mt) != sz: co.z = sz * mt * 2
+        # if using scale * mt * 2, the vert will be created far enough away from mirror to move freely
+        # if using 0, the vert is created at mirror, and it will not be allowed to move away from mirror if clipping is enabled
+        if 'x' in mirror and sign_threshold(co.x, mt) != sx: co.x = 0 # sx * mt * 2
+        if 'y' in mirror and sign_threshold(co.y, mt) != sy: co.y = 0 # sy * mt * 2
+        if 'z' in mirror and sign_threshold(co.z, mt) != sz: co.z = 0 # sz * mt * 2
         return co
 
     def commit(self, context, event):
