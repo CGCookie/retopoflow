@@ -23,6 +23,7 @@ import bpy
 import bl_ui
 
 from bpy_extras.object_utils import object_data_add
+from ..preferences import RF_Prefs
 
 from ..common.operator import RFRegisterClass
 
@@ -61,14 +62,15 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
         return True
 
     def execute(self, context):
+        prefs = RF_Prefs.get_prefs(context)
         auto_edit_mode = context.preferences.edit.use_enter_edit_mode # working around blender bug, see https://github.com/CGCookie/retopoflow/issues/786
         context.preferences.edit.use_enter_edit_mode = False
 
         # for o in bpy.data.objects: o.select_set(False)
         for o in context.view_layer.objects: o.select_set(False)
 
-        mesh = bpy.data.meshes.new('Retopology')
-        obj = object_data_add(context, mesh, name='Retopology')
+        mesh = bpy.data.meshes.new(prefs.name_new)
+        obj = object_data_add(context, mesh, name=prefs.name_new)
         obj.select_set(True)
         context.view_layer.objects.active = obj
 
@@ -87,13 +89,13 @@ class RFCore_NewTarget_Cursor(RFRegisterClass, bpy.types.Operator):
 class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
     """Create new target object+mesh at the 3D Cursor and start RetopoFlow"""
     bl_idname = "retopoflow.newtarget_active"
-    bl_label = "RF: New target at Active"
+    bl_label = "RF: New target from Active"
     bl_description = "A suite of retopology tools for Blender through a unified retopology mode.\nCreate new target mesh based on the cursor and start RetopoFlow"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = {'REGISTER', 'UNDO', 'BLOCKING'}
 
-    rf_label = "Retopology at Active"
+    rf_label = "Retopology from Active"
     rf_icon = 'PIVOT_ACTIVE' # 'MOD_MESHDEFORM'
 
     RFCore = None
@@ -119,6 +121,14 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
         return True
 
     def create_new_name(self, context):
+        prefs = RF_Prefs.get_prefs(context)
+        active_name = context.view_layer.objects.active.name
+        if prefs.name_search.lower() in active_name.lower():
+            new_name = active_name.replace(prefs.name_search.lower(), prefs.name_replace)
+        else:
+            new_name = active_name + prefs.name_suffix
+        return new_name
+        """
         # Attempts to match current naming convention
         active_name = context.view_layer.objects.active.name
         first_letter = 'r'
@@ -130,6 +140,7 @@ class RFCore_NewTarget_Active(RFRegisterClass, bpy.types.Operator):
             if separator in active_name:
                 return f'{active_name}{separator}{first_letter}etopology'
         return active_name + f'_{first_letter}etopology'
+        """
 
     def execute(self, context):
         matrix_world = context.view_layer.objects.active.matrix_world
