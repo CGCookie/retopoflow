@@ -135,6 +135,34 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     #endregion
 
+    """ Naming """
+    #region
+    name_new: bpy.props.StringProperty(
+        name='New Object Name',
+        description='The name of the new retopology object when creating one at the 3D Cursor',
+        default='Retopology'
+    )
+    name_search: bpy.props.StringProperty(
+        name='Search',
+        description='The text to find and replace in the active object name. Not case sensative',
+        default='_High'
+    )
+    name_replace: bpy.props.StringProperty(
+        name='Replace',
+        description='The text that replaces the searched for text when creating a new retopology object from the active object',
+        default='_Low'
+    )
+    name_suffix: bpy.props.StringProperty(
+        name='From Active Suffix',
+        description=(
+            'When creating a new retopo object from the active object, the new object will inherit the active object name with this added at the end. '
+            'Only used when the searched for text is not found'
+        ),
+        default='_Retopology'
+    )
+
+    #endregion
+
     def draw(self, context):
         layout = self.layout
 
@@ -143,6 +171,20 @@ class RF_Prefs(bpy.types.AddonPreferences):
         header.label(text="General")
         if panel:
             draw_general_options(context, panel)
+
+        
+        header, panel = layout.panel(idname='naming_panel_prefs', default_closed=True)
+        header.label(text="Naming")
+        if panel:
+            panel.use_property_split = True
+            panel.use_property_decorate = True
+            panel.label(text='New at Cursor')
+            panel.prop(self, 'name_new', text='Name')
+            panel.label(text='New from Active')
+            panel.prop(self, 'name_search', text='Try to Replace')
+            panel.prop(self, 'name_replace', text='With')
+            panel.separator()
+            panel.prop(self, 'name_suffix', text='Fallback Suffix')
 
         header, panel = layout.panel(idname='switching_prefs', default_closed=True)
         header.label(text="Tool Switching")

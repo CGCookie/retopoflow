@@ -2,6 +2,14 @@
 
 This document contains details about what has changed in Retopoflow in version 4.x.
 
+### 4.0.0 beta 5
+
+New:
+- You can now draw across the symmetry line in PolyPen, Contours, and PolyStrips
+
+Improved:
+- Fixed issue with Blender 4.5 on Mac
+
 ### 4.0.0 beta 4
 
 New:
@@ -14,7 +22,7 @@ New:
     - Great for low poly or hard surface objects but not for high poly organic sculpts
 - Strokes now takes into account the line of symmetry when a mirror is enabled
     - New options for behavior at the line of symmetry and determining which side is being mirrored
-- PolyStrips has a new stroke preview that shows the width of the resulting strip. 
+- PolyStrips has a new stroke preview that shows the width of the resulting strip.
 
 Improved:
 - Fixed issue with Tweak and Relax not working when the retopo object scale was extreme
@@ -58,21 +66,20 @@ Fixed:
 
 ### 4.0.0 beta 1
 
-Retopoflow 4 is a complete rewrite of Retopoflow that massively improves performance and integrates the tools directly into Blender's Edit Mode. 
+Retopoflow 4 is a complete rewrite of Retopoflow that massively improves performance and integrates the tools directly into Blender's Edit Mode.
 
 Some key changes include:
-- General 
+- General
     - The tools are now in the Edit Mode toolbar
-    - Ctrl scroll is now used instead of Shift scroll for adjusting insert count 
+    - Ctrl scroll is now used instead of Shift scroll for adjusting insert count
 - Contours
     - A new Fast method was added, which can improve performance on dense meshes and work in some cases where the mesh is split
 - PolyStrips
     - Proportional Editing can now be used for smoothly affecting the surrounding geometry while adjusting existing strips
     - The angle at which new strips are split to create sharp corners can now be specified
     - Strip spacing is now calculated in world space
-- Strokes 
+- Strokes
     - Several new stroke shapes are now supported so drawing new geometry feels more natural
     - Extrudes can now match the curvature of the original geometry if the method is set to Adapt
     - A smoothing control has been added for naturally blending between strokes created at different angles
-    - The new default insert count, Average, always creates perfectly even quads when extruding 
-
+    - The new default insert count, Average, always creates perfectly even quads when extruding
