@@ -24,6 +24,7 @@ import re
 
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
+from ...addon_common.common.useractions import event_match_blenderop, get_kmi_properties
 
 re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
 map_icons = {
@@ -108,6 +109,7 @@ class RFOperator(bpy.types.Operator):
     _subclasses = []
     def __init_subclass__(cls, **kwargs):
         RFOperator._subclasses.append(cls)
+        cls.rf_idname = cls.bl_idname
         super().__init_subclass__(**kwargs)
 
     @staticmethod
@@ -254,6 +256,20 @@ class RFOperator(bpy.types.Operator):
                 RFOperator.tickle(context)
             self.InvalidationManager.resume_invalidation()
             type(self)._is_running = False
+            return ret
+
+        if 'PASS_THROUGH' in ret:
+            # check if passing event through might trigger something incompatible with RF
+            if kmi := event_match_blenderop(event, 'Screen | screen.screen_full_area'):
+                # attempting to full screen the area!
+                ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
+                props = get_kmi_properties(kmi)
+                def fn():
+                    with bpy.context.temp_override(**ctx):
+                        bpy.ops.screen.screen_full_area(**props)
+                self.stop()
+                self.RFCore.quick_switch_with_call(fn, self.rf_idname)
+                return {'FINISHED'}
 
         return ret
 
