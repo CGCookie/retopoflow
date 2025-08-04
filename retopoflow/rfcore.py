@@ -182,43 +182,38 @@ class RFCore:
     def switch_to_tool(bl_idname):
         for wm in bpy.data.window_managers:
             for win in wm.windows:
-                for area in win.screen.areas:
+                screen = win.screen
+                for area in screen.areas:
                     if area.type != 'VIEW_3D': continue
                     for space in area.spaces:
                         if space.type != 'VIEW_3D': continue
                         for rgn in area.regions:
                             if rgn.type != 'WINDOW': continue
-                            with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
+                            with bpy.context.temp_override(window=win, screen=screen, area=area, region=rgn, space=space):
                                 bpy.ops.wm.tool_set_by_id(name=bl_idname)
 
     @staticmethod
     def quick_switch_to_reset(bl_idname):
+        RFCore.quick_switch_with_call(None, bl_idname)
+
+    @staticmethod
+    def quick_switch_with_call(fn, bl_idname):
+        delay = 0.1
         def switch(*bl_idnames):
             if not bl_idnames: return
-            if bl_idnames[0] is None: return
-            print(f'quick switch! {bl_idnames}')
-            for wm in bpy.data.window_managers:
-                for win in wm.windows:
-                    for area in win.screen.areas:
-                        if area.type != 'VIEW_3D': continue
-                        for space in area.spaces:
-                            if space.type != 'VIEW_3D': continue
-                            for rgn in area.regions:
-                                if rgn.type != 'WINDOW': continue
-                                with bpy.context.temp_override(window=win, area=area, region=rgn, space=space):
-                                    bpy.ops.wm.tool_set_by_id(name=bl_idnames[0])
-                                bpy.app.timers.register(
-                                    lambda: switch(*bl_idnames[1:]),
-                                    first_interval=0.1,
-                                )
-                                return
-        bpy.app.timers.register(
-            lambda: switch('builtin.move', bl_idname),
-            first_interval=0.1,
-        )
+            if bl_idnames[0] is None:
+                pass
+            elif type(bl_idnames[0]) is str:
+                RFCore.switch_to_tool(bl_idnames[0])
+            else:
+                try: fn()
+                except Exception as e: print(f'CAUGHT EXCEPTION {e=}')
+            bpy.app.timers.register(lambda: switch(*bl_idnames[1:]), first_interval=delay)
+        bpy.app.timers.register(lambda: switch('builtin.move', fn, bl_idname), first_interval=delay)
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
+        # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
         if RFCore.is_paused: return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
@@ -255,7 +250,7 @@ class RFCore:
                         print(f'>>>>>>>> NO context.region <<<<<<<<<<')
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
-                        RFCore.quick_switch_to_reset(rftool.bl_idname)
+                        RFCore.quick_switch_to_reset(rftool.rf_idname) # bpy.context.scene.retopoflow.saved_tool)
                     else:
                         try:
                             print(f'Activating {rftool.rf_overlay}')

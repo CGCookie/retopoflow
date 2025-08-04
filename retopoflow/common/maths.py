@@ -70,8 +70,8 @@ def distance2d_point_bmedge(context, matrix, pt, bme):
 def closest_point_linesegment(pt, p0, p1):
     v01 = p1 - p0
     l01_squared = v01.length_squared
-    v0t = pt - p0
-    f = clamp(v0t.dot(v01) / l01_squared, 0.0, 1.0)
+    if l01_squared < 1e-5: return p0  # p0 and p1 are basically coincident (#1581)
+    f = clamp(v01.dot(pt - p0) / l01_squared, 0.0, 1.0)
     return p0 + v01 * f
 
 def bvec_point_to_bvec4(v):

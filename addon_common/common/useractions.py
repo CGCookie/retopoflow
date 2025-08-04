@@ -236,6 +236,30 @@ blender_operator_keymaps = [
     },
 ]
 
+def get_kmi_properties(kmi):
+    return {
+        k: getattr(kmi.properties, k)
+        for k in dir(kmi.properties)
+        if k not in {'__doc__', '__module__', '__slots__', 'bl_rna', 'rna_type'}
+    }
+
+def event_match_blenderop(event, blenderop):
+    for kmi in blenderop_to_kmis(blenderop):
+        if event.ctrl  != kmi.ctrl_ui:  continue
+        if event.alt   != kmi.alt_ui:   continue
+        if event.shift != kmi.shift_ui: continue
+        if event.oskey != kmi.oskey_ui: continue
+        if event.type  != kmi.type:     continue
+        if event.value != kmi.value:    continue
+        # print(kmi)
+        # for k in dir(kmi):
+        #     print(f'  {k}={getattr(kmi,k)}')
+        #     if k == 'properties':
+        #         for k2 in dir(kmi.properties):
+        #             print(f'    {k2}={getattr(kmi.properties, k2)}')
+        return kmi
+    return None
+
 def blenderop_to_kmis(blenderop):
     keymaps = bpy.context.window_manager.keyconfigs.user.keymaps
     i18n_translate = bpy.app.translations.pgettext                  # bpy.app.translations.pgettext tries to translate the given parameter
