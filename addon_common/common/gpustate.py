@@ -614,6 +614,8 @@ def gpu_shader(name, vert_source, frag_source, *, defines=None):
                 shader_info.depth_write('ANY')
             if bpy.app.version < (3, 4, 0) or gpu.platform.backend_type_get() == 'OPENGL':
                 continue
+            if bpy.app.version >= (4, 5, 0):
+                continue
         shader_info.fragment_out(slot_output, glsl_to_gpu_type(out_var['type']), out_var['var'])
         slot_output += 1
 
