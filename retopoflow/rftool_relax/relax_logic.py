@@ -181,7 +181,7 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += (M @ Vector((*f.xyz, 0.0))).xyz
+            displace[bmv] += f.xyz
 
         def bme_length(bme):
             return bme_vector(bme).length
@@ -319,7 +319,7 @@ class Relax_Logic:
             if len(displace) <= 1: continue
 
             # compute max displacement length
-            displace_max = max((M @ Vector((*displace[bmv].xyz, 0.0))).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
+            displace_max = max((M @ Vector((*displace[bmv], 0.0))).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
             if displace_max > radius3D * 0.125:
                 # limit the displace_max
                 mult = radius3D * 0.125 / displace_max
