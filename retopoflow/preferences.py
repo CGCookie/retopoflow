@@ -108,7 +108,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         name='Select Distance',
         description='Distance on screen to select geometry',
         subtype='PIXEL',
-        default=15,
+        default=20,
         min=1,
         max=100,
     )

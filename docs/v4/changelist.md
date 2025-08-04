@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in Retopoflow in version 4.x.
 
+### 4.0.0 beta 6
+
+New:
+- Added preferences for what to name newly created retopology objects
+
 ### 4.0.0 beta 5
 
 New:
