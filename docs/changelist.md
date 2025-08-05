@@ -2,6 +2,16 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.7&rarr;3.4.8
+
+- Fixed issue with starting RetopoFlow on Mac in Blender 4.5
+
+### RetopoFlow 3.4.6&rarr;3.4.7
+
+- Fixed issue with undo after exiting sometimes resulting in loss of progress
+- Updated links to online help docs for the new docs website
+
+
 ### RetopoFlow 3.4.5&rarr;3.4.6
 
 - Updated tool hotkey numbers (0-9) to match the toolbar order
@@ -289,4 +299,3 @@ But with any unveiling on new things, there are new bugs and performance issues.
 Our hope is that these problems will be much easier to fix in the new CookieCutter framework.
 We will need your help, though.
 If you notice a bug, please report it on the [Blender Market](https://blendermarket.com/products/retopoflow) or on [GitHub](https://github.com/CGCookie/retopoflow/issues).
-
