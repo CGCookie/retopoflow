@@ -70,18 +70,6 @@ If you have any issues with installing, please try the following steps:
 10. Enable RetopoFlow
 
 
-## Updating
-
-RetopoFlow 3 comes with a built-in updater.
-Once you've installed it the first time, simply check for updates using the RetopoFlow menu.
-If you need to update the add-on manually for any reason, please be sure to uninstall the old version and restart Blender before installing the new version.
-
-The RetopoFlow updater will keep all of your previous settings intact.
-If you need to update manually for whatever reason, you can also keep your preferences by copying the `RetopoFlow_keymaps.json` and `RetopoFlow_options.json` files from the previous version's folder before installation and pasting them into the new version's folder after installation.
-
-See the [Updater page](https://docs.retopoflow.com/addon_updater.html) for more details.
-
-
 ## Getting Support
 
 Here are ways to get help with a problem or a question that the [documentation](https://docs.retopoflow.com) isn't answering:
