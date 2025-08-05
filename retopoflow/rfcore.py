@@ -221,6 +221,9 @@ class RFCore:
 
         if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
             # need to start RFCore in the correct context
+            if not context.area:
+                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+                return
             if context.area.type == 'VIEW_3D': RFCore.start(context)
             else:
                 started = False
