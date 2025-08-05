@@ -5,6 +5,7 @@ This document contains details about what has changed in RetopoFlow since versio
 ### RetopoFlow 3.4.7&rarr;3.4.8
 
 - Fixed issue with starting RetopoFlow on Mac in Blender 4.5
+- Fixed rare issue with PolyPen when Merge Distance is 0
 
 ### RetopoFlow 3.4.6&rarr;3.4.7
 
