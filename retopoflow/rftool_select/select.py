@@ -175,25 +175,37 @@ class Select(RFTool):
 
             match options['select geometry']:
                 case 'Verts':
-                    verts = {
-                        vert
-                        for vert in self.rfcontext.get_vis_verts()
-                        if vert_inside(vert)
-                    }
+                    vis_verts = self.rfcontext.get_vis_verts()
+                    if vis_verts:
+                        verts = {
+                            vert
+                            for vert in vis_verts
+                            if vert_inside(vert)
+                        }
+                    else:
+                        verts = set()
                 case 'Edges':
-                    verts = {
-                        vert
-                        for edge in self.rfcontext.get_vis_edges()
+                    vis_edges = self.rfcontext.get_vis_edges()
+                    if vis_edges:
+                        verts = {
+                            vert
+                            for edge in vis_edges
                         if edge_inside(edge)
-                        for vert in edge.verts
-                    }
+                            for vert in edge.verts
+                        }
+                    else:
+                        verts = set()
                 case 'Faces':
-                    verts = {
-                        vert
-                        for face in self.rfcontext.get_vis_faces()
-                        if face_inside(face)
-                        for vert in face.verts
-                    }
+                    vis_faces = self.rfcontext.get_vis_faces()
+                    if vis_faces:
+                        verts = {
+                            vert
+                            for face in vis_faces
+                            if face_inside(face)
+                            for vert in face.verts
+                        }
+                    else:
+                        verts = set()
 
             self.rfcontext.undo_push('select box')
             if   box.mods['ctrl']:  self.rfcontext.select(self.rfcontext.get_selected_verts() - verts, only=True)   # del verts from selection
