@@ -518,6 +518,9 @@ class PolyStrips_Logic:
                 bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
                 bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
                 verts = tuple({bmv00, bmv01, bmv11, bmv10})  # Fix 1588: faces.new(...): found the same (BMVert) used multiple times
+                if len(verts) < 3:
+                    print(f'WARNING: Cannot create face with {len(verts)=} verts {verts=}')
+                    continue
                 bmf = self.bm.faces.new(verts)
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
