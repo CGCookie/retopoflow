@@ -1142,6 +1142,7 @@ cdef class TargetMeshAccel:
             BMEdge* edge
             BMFace* face
             BMLoop* loop
+            BMLoop* loop_f_start
             BMHeader* head
             int i, j, k
             bint selection_changed
@@ -1188,6 +1189,30 @@ cdef class TargetMeshAccel:
                     else:
                         BM_elem_flag_set(head, BMElemHFlag.BM_ELEM_SELECT)
                     selection_changed = True
+
+            # Select edges and faces whose all vertices are inside the box.
+            with parallel():
+                for i in prange(self.totvisedges):
+                    edge = self.visedges[i]
+                    if edge == NULL:
+                        continue
+                    if BM_elem_flag_test(&(<BMVert*>edge.v1).head, BMElemHFlag.BM_ELEM_SELECT) and\
+                    BM_elem_flag_test(&(<BMVert*>edge.v2).head, BMElemHFlag.BM_ELEM_SELECT):
+                        BM_elem_flag_set(&edge.head, BMElemHFlag.BM_ELEM_SELECT)
+
+                for i in prange(self.totvisfaces):
+                    face = self.visfaces[i]
+                    if face == NULL:
+                        continue
+                    loop_f_start = <BMLoop*>face.l_first
+                    loop = loop_f_start
+                    while 1:
+                        if not BM_elem_flag_test(&(<BMVert*>loop.v).head, BMElemHFlag.BM_ELEM_SELECT):
+                            break
+                        loop = <BMLoop*>loop.next
+                        if loop == loop_f_start:
+                            BM_elem_flag_set(&face.head, BMElemHFlag.BM_ELEM_SELECT)
+                            break
 
         elif select_geometry_type == GeomType.BM_EDGE:
             for j in prange(self.totvisedges):
