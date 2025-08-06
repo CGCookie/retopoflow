@@ -517,7 +517,8 @@ class PolyStrips_Logic:
             for i in range(0, len(bmvs[0])-1):
                 bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
                 bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
-                bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
+                verts = tuple({bmv00, bmv01, bmv11, bmv10})  # Fix 1588: faces.new(...): found the same (BMVert) used multiple times
+                bmf = self.bm.faces.new(verts)
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
             fwd = xform_direction(Mi, view_forward_direction(self.context))
