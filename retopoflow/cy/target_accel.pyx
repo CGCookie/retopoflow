@@ -1179,6 +1179,8 @@ cdef class TargetMeshAccel:
         if select_geometry_type == GeomType.BM_VERT:
             for i in prange(self.totvisverts):
                 vert = self.visverts[i]
+                if vert == NULL:
+                    continue
                 if self._vert_inside_box(vert, box):
                     head = &vert.head
                     if use_ctrl:
@@ -1190,6 +1192,8 @@ cdef class TargetMeshAccel:
         elif select_geometry_type == GeomType.BM_EDGE:
             for j in prange(self.totvisedges):
                 edge = self.visedges[j]
+                if edge == NULL:
+                    continue
                 # Check both vertices of the edge
                 if self._vert_inside_box(<BMVert*>edge.v1, box) or\
                    self._vert_inside_box(<BMVert*>edge.v2, box):
@@ -1207,6 +1211,8 @@ cdef class TargetMeshAccel:
         elif select_geometry_type == GeomType.BM_FACE:
             for k in prange(self.totvisfaces):
                 face = self.visfaces[k]
+                if face == NULL:
+                    continue
                 # Check all vertices of the face
                 loop = <BMLoop*>face.l_first
                 while 1:
