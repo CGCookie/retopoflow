@@ -31,13 +31,6 @@ def draw_relax_algo_options(context, layout):
 
     layout.prop(props, 'algorithm_iterations', text="Iterations")
 
-    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=False)
-    header.label(text='Max Distance')
-    if panel:
-        panel.prop(props, 'algorithm_max_distance_radius', text="Radius")
-        panel.prop(props, 'algorithm_max_distance_edges',  text="Edges")
-        panel.prop(props, 'algorithm_prevent_bounce', text='Prevent Bounce')
-
     col = layout.column(heading="Average")
     col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')
     col.prop(props, 'algorithm_average_face_radius',  text='Face Radius')
@@ -49,6 +42,13 @@ def draw_relax_algo_options(context, layout):
 
     col = layout.column(heading="Correct")
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
+
+    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=False)
+    header.label(text='Limit Distance')
+    if panel:
+        panel.prop(props, 'algorithm_max_distance_radius', text="Radius")
+        panel.prop(props, 'algorithm_max_distance_edges',  text="Edges")
+        panel.prop(props, 'algorithm_prevent_bounce', text='Prevent Bounce')
 
 def draw_relax_algo_panel(context, layout):
     header, panel = layout.panel(idname='relax_panel_algo', default_closed=False)
