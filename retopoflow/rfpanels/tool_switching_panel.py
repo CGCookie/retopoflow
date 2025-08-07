@@ -26,13 +26,14 @@ def draw_tool_switching_options(context, layout):
     prefs = RF_Prefs.get_prefs(context)
 
     layout.use_property_split = True
-    row = layout.row(heading='Automatic')
+    col = layout.column(align=True)
+    row = col.row(heading='Automatic')
     row.prop(prefs, 'setup_automerge')
-    layout.prop(prefs, 'setup_fade_inactive')
-    layout.prop(prefs, 'setup_object_wires')
-    layout.prop(prefs, 'setup_retopo_overlay')
-    layout.prop(prefs, 'setup_selection_mode')
-    layout.prop(prefs, 'setup_snapping')
+    col.prop(prefs, 'setup_fade_inactive')
+    col.prop(prefs, 'setup_object_wires')
+    col.prop(prefs, 'setup_retopo_overlay')
+    col.prop(prefs, 'setup_selection_mode')
+    col.prop(prefs, 'setup_snapping')
 
     if context.area.type == 'PREFERENCES':
         layout.separator()
