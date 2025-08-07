@@ -134,6 +134,9 @@ def warp_stroke(stroke, end0, end1, fn_snap_point):
     return [ fn_snap_point(ec + (pt - sc) * scale) for pt in stroke ]
 
 def stroke_angles(stroke, width, split_angle, fn_snap_normal):
+    # convert radians to degrees
+    split_angle = math.degrees(split_angle)
+
     # determine where stroke angles very strongly
     l = []
     for (i, p) in enumerate(stroke):
@@ -144,7 +147,7 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
         n = Direction(fn_snap_normal(p))
         dp, dn = Direction(p - pp), Direction(pn - p)
         angle = math.degrees(dp.signed_angle_between(dn, n))
-        if abs(angle) < math.degrees(split_angle): continue
+        if abs(angle) < split_angle: continue
         l.append((i, p, int(angle)))
 
     # find largest angle of connected "islands" (run of points within width of neighboring points)
@@ -313,6 +316,7 @@ class PolyStrips_Logic:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
             select_geo += [snap_bmf_end]
 
+        # break stroke into segments
         strips = stroke_angles(
             self.stroke3D_local,
             self.initial_width,
@@ -321,7 +325,7 @@ class PolyStrips_Logic:
         )
         nstroke = len(self.stroke3D_local)
 
-        # break stroke into segments
+        # create quads based on segments
         bmfs = []
         nstrip_count = len(strips) - 1
         actual_strip_count = 0

@@ -38,7 +38,7 @@ from .maths import view_forward_direction, lerp, point_to_bvec4
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bezier import interpolate_cubic
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import closest_point_segment, segment2D_intersection
+from ...addon_common.common.maths import closest_point_segment, segment2D_intersection, Point
 from ...addon_common.common.maths import clamp, Direction
 from ...addon_common.common.utils import iter_pairs
 
@@ -240,7 +240,7 @@ def generate_point_inside_bmf(bmf):
     generate function to determine if a point is inside bmf
     '''
     cos3D = [bmv.co for bmv in bmf.verts]
-    o = sum(cos3D, Vector()) / len(cos3D)
+    o = Point.average(cos3D)
     z = Direction(bmf.normal)
     x = Direction(cos3D[0] - o)
     y = Direction(z.cross(x))
@@ -251,8 +251,28 @@ def generate_point_inside_bmf(bmf):
     cos2D = [ to2D(co) for co in cos3D ]
     def point_inside_bmf(point):
         # compute windings to determine if point is inside bmf
-        # https://ics.uci.edu/~eppstein/161/960307.html
         (px, py) = to2D(point)
+
+        # https://www.engr.colostate.edu/~dga/documents/papers/point_in_polygon.pdf
+        ncos2D = [(cx-px, cy-py) for (cx,cy) in cos2D]
+        crossings = 0
+        for ((x0, y0), (x1, y1)) in iter_pairs(ncos2D, True):
+            if y0 * y1 < 0:  # v0-v1 crosses x-axis
+                # r is the x-coordinate of intersection of v0-v1 and x-axis
+                r = x0 + (y0 * (x1 - x0)) / (y0 - y1)
+                if r > 0:  # v0-v1 crosses positive x-axis
+                    if y0 < 0: crossings += 1
+                    else:      crossings -= 1
+            elif y0 == 0 and x0 > 0:  # v0 is on positive x-axis
+                if y1 > 0: crossings += 0.5
+                else:      crossings -= 0.5
+            elif y1 == 0 and x1 > 0:  # v1 is on positive x-axis
+                if y0 < 0: crossings += 0.5
+                else:      crossings -= 0.5
+        print(crossings)
+        return (crossings % 2) == 1
+
+        # https://ics.uci.edu/~eppstein/161/960307.html
         crossings = 0
         for ((x0, y0), (x1, y1)) in iter_pairs(cos2D, True):
             if x0 < px < x1 or x0 > px > x1:
@@ -262,9 +282,9 @@ def generate_point_inside_bmf(bmf):
                 if py > cy: crossings += 1
             if px == x0:
                 if py == y0: return True                           # on boundary vert of face!
-                if x1 == px:
+                if px == x1:
                     if y0 < py < y1 or y0 > py > y1: return True   # on boundary vert of face!
-                elif x1 > px:
+                elif px < x1:
                     crossings += 1
                 if x1 > px: crossings += 1
         return (crossings % 2) == 1
