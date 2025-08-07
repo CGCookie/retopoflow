@@ -59,6 +59,9 @@ def find_point_at(points, is_cycle, v):
         d01 = (p1 - p0).length
         if vt <= t + d01:
             # LERP to find point
+            if d01 == 0:
+                # Consecutive points are identical, can't lerp.
+                return p0
             d0v = vt - t
             f = d0v / d01
             return p0 + (f * (p1 - p0))
