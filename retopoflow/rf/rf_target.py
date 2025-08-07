@@ -281,9 +281,9 @@ class RetopoFlow_Target:
         if not recompute and options['use cython accel tools'] and Globals.target_accel is not None:
             res = Globals.target_accel.ensure_bmesh()
             if res != 0:
-                accel_data.verts.clear()
-                accel_data.edges.clear()
-                accel_data.faces.clear()
+                accel_data.verts = None
+                accel_data.edges = None
+                accel_data.faces = None
                 recompute = True
             # elif res == 0:
             #     return accel_data
