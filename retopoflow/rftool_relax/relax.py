@@ -135,12 +135,24 @@ class RFOperator_Relax(RFOperator):
         max=10,
         default=2,
     )
-    algorithm_strength: bpy.props.FloatProperty(
-        name='Algorithm: Strength',
-        description='Strength multiplier per iteration',
-        min=0.1,
-        max=10.0,
-        default=1.5,
+    algorithm_max_distance_radius: bpy.props.FloatProperty(
+        name='Algorithm: Max Distance (Radius)',
+        description='Limit distance vertices are moved per iteration based on brush radius',
+        min=0.001,
+        max=1.0,
+        default=0.10,
+    )
+    algorithm_max_distance_edges: bpy.props.FloatProperty(
+        name='Algorithm: Max Distance (Edges)',
+        description='Limit distance vertices are moved per iteration based on average length of connected edges',
+        min=0.001,
+        max=1.0,
+        default=0.05,
+    )
+    algorithm_prevent_bounce: bpy.props.BoolProperty(
+        name='Algorithm: Prevent Bounce',
+        description='Try to prevent vertices from bouncing back and forth',
+        default=False,
     )
     algorithm_average_edge_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Edge Lengths',

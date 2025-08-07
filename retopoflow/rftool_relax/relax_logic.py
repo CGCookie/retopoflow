@@ -73,6 +73,8 @@ class Relax_Logic:
         self.pressure = 1.0
 
         self.prev = {}
+        self.prev_displace = {}
+        self.bounce_mult = {}
 
         self._boundary = []
         if relax.mask_boundary == 'SLIDE':
@@ -109,7 +111,9 @@ class Relax_Logic:
         opt_include_occluded = relax.include_occluded
         opt_mask_selected    = relax.mask_selected
         opt_steps            = relax.algorithm_iterations
-        opt_mult             = relax.algorithm_strength
+        opt_prevent_bounce   = relax.algorithm_prevent_bounce
+        opt_max_radius       = relax.algorithm_max_distance_radius
+        opt_max_edges        = relax.algorithm_max_distance_edges
         opt_edge_length      = relax.algorithm_average_edge_lengths
         opt_straight_edges   = relax.algorithm_straighten_edges
         opt_face_radius      = relax.algorithm_average_face_radius
@@ -213,11 +217,10 @@ class Relax_Logic:
         def relax_3d():
             reset_forces()
 
-            # compute average edge length
-            avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
-
             # push edges closer to average edge length
             if opt_edge_length:
+                # compute average edge length
+                avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in chk_edges:
                     if bme not in edges: continue
                     bmv0, bmv1 = bme.verts
@@ -259,7 +262,7 @@ class Relax_Logic:
                     else:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
                     vec = center - bmv.co
-                    add_force(bmv, vec * vec.length)
+                    add_force(bmv, vec * (vec.length * strength * 10))
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
@@ -316,25 +319,38 @@ class Relax_Logic:
         for step in range(opt_steps):
             relax_3d()
 
+            if opt_prevent_bounce:
+                for (bmv, v1) in displace.items():
+                    if bmv not in self.prev_displace: continue
+                    v0 = self.prev_displace[bmv]
+                    if v0.length_squared < 1e-8 or v1.length_squared < 1e-8 or v0.dot(v1) >= 0: continue
+                    self.bounce_mult[bmv] = self.bounce_mult.get(bmv, 1.0) * 0.5
+                self.prev_displace = displace
+
             if len(displace) <= 1: continue
 
-            # compute max displacement length
-            displace_max = max((M @ Vector((*displace[bmv], 0.0))).length * (opt_mult * vert_strength[bmv]) for bmv in displace)
-            if displace_max > radius3D * 0.125:
-                # limit the displace_max
-                mult = radius3D * 0.125 / displace_max
-            else:
-                mult = 1.0
+            mult = 1.0
+
+            # limit the maximum displacement based on brush radius
+            displace_max = max(
+                (M @ Vector((*displace[bmv], 0.0))).length * vert_strength[bmv]
+                for bmv in displace
+            )
+            if displace_max > 1e-8:
+                mult *= min(1.0, radius3D * opt_max_radius / displace_max)
 
             # update
+            update_to = {}
             for bmv in displace:
                 if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
-                co = bmv.co + (displace[bmv] * (opt_mult * vert_strength[bmv] * mult))
 
-                # TODO: IMPLEMENT!
-                # if opt_mask_symmetry == 'maintain' and bmv.is_on_symmetry_plane():
-                #     snap_to_symmetry = self.rfcontext.symmetry_planes_for_point(bmv.co)
-                #     co = self.rfcontext.snap_to_symmetry(co, snap_to_symmetry)
+                displace_dist = displace[bmv].length * vert_strength[bmv] * mult
+                if bmv.link_edges and displace_dist > 1e-8:
+                    avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
+                    displace_dist *= min(1.0, avg_edge_len * opt_max_edges / displace_dist)
+                if opt_prevent_bounce:
+                    displace_dist *= self.bounce_mult.get(bmv, 1.0)
+                co = bmv.co + displace[bmv].normalized() * displace_dist
 
                 if opt_mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
                     p, d = None, None
@@ -373,8 +389,11 @@ class Relax_Logic:
                     if zero['z']: co.z = 0
                     co_local_snapped = co
 
-                bmv.co = co_local_snapped
+                update_to[bmv] = co_local_snapped
                 # self.rfcontext.snap_vert(bmv)
+
+            for (bmv, co) in update_to.items():
+                bmv.co = co
             # self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)

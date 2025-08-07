@@ -32,6 +32,7 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
     def __init_subclass__(cls, **kwargs):
         RFTool_Base._subclasses.append(cls)
         super().__init_subclass__(**kwargs)
+        cls.rf_idname = cls.bl_idname
 
     ###########################################################
     # subclasses may overwrite these class methods

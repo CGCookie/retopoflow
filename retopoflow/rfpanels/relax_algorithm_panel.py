@@ -29,15 +29,24 @@ def draw_relax_algo_options(context, layout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    layout.prop(props, 'algorithm_iterations',            text="Iterations")
-    layout.prop(props, 'algorithm_strength',              text="Strength")
+    layout.prop(props, 'algorithm_iterations', text="Iterations")
+
+    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=False)
+    header.label(text='Max Distance')
+    if panel:
+        panel.prop(props, 'algorithm_max_distance_radius', text="Radius")
+        panel.prop(props, 'algorithm_max_distance_edges',  text="Edges")
+        panel.prop(props, 'algorithm_prevent_bounce', text='Prevent Bounce')
+
     col = layout.column(heading="Average")
-    col.prop(props, 'algorithm_average_edge_lengths',  text='Edge Lengths')
-    col.prop(props, 'algorithm_average_face_radius',   text='Face Radius')
-    col.prop(props, 'algorithm_average_face_angles',   text='Face Angles')
-    col.prop(props, 'algorithm_average_face_lengths',  text='Face Lengths')
+    col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')
+    col.prop(props, 'algorithm_average_face_radius',  text='Face Radius')
+    col.prop(props, 'algorithm_average_face_angles',  text='Face Angles')
+    col.prop(props, 'algorithm_average_face_lengths', text='Face Lengths')
+
     col = layout.column(heading="Straighten")
-    col.prop(props, 'algorithm_straighten_edges',      text='Edges')
+    col.prop(props, 'algorithm_straighten_edges', text='Edges')
+
     col = layout.column(heading="Correct")
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
