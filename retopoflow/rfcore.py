@@ -37,7 +37,7 @@ from .common.interface import show_message
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 
-from .rfoperators import mesh_cleanup, mirror
+from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from .rfpanels import (
     general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
@@ -800,4 +800,3 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore.handle_update(context, event)
 
         return {'PASS_THROUGH'}
-

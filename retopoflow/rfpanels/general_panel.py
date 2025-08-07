@@ -21,49 +21,29 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..preferences import RF_Prefs
+from .interface_panel import draw_ui_options
+from .tool_switching_panel import draw_tool_switching_options
 
 def draw_general_options(context, layout):
-    props = RF_Prefs.get_prefs(context)
-    props_scene = context.scene.retopoflow
-    theme = context.preferences.themes[0].view_3d
-
-    grid = layout.grid_flow(even_columns=True, even_rows=False)
-    grid.use_property_split = True
-    grid.use_property_decorate = False
 
     if hasattr(context.space_data, 'overlay'):
-        col = grid.column()
-        col.label(text='Snapping')
-        row = col.row(heading='Exclude')
-        row.prop(context.scene.tool_settings, 'use_snap_selectable', text='Non-Selectable')
-        col.separator()
+        header, panel = layout.panel(idname='RF_snapping_prefs', default_closed=False)
+        header.label(text="Snapping")
+        if panel:
+            panel.use_property_split = True
+            panel.use_property_decorate = False
+            row = panel.row(heading='Exclude')
+            row.prop(context.scene.tool_settings, 'use_snap_selectable', text='Non-Selectable')
 
-    col = grid.column()
-    col.label(text='Viewport')
-    if hasattr(context.space_data, 'overlay'):
-        row = col.split(factor=0.4)
-        row.alignment='RIGHT'
-        row.label(text='Overlay')
-        split = row.split(align=True, factor=1/3)
-        split.prop(theme, 'face_retopology', text='')
-        split.prop(props_scene, 'retopo_offset', text='')
-        #split.prop(context.space_data.overlay, 'retopology_offset', text='')
-        row = col.row(heading='Fade Sources')
-        row.prop(context.space_data.overlay, 'show_fade_inactive', text='')
-        row2 = row.row()
-        row2.enabled = context.space_data.overlay.show_fade_inactive
-        row2.prop(context.space_data.overlay, 'fade_inactive_alpha', text='')
-    else:
-        col.prop(theme, 'face_retopology', text='Overlay')
-    #col.prop(props, 'highlight_color', text='Highlight')
-    col.separator()
+    header, panel = layout.panel(idname='RF_interface_prefs', default_closed=False)
+    header.label(text="Interface")
+    if panel:
+        draw_ui_options(context, panel)
 
-    col = grid.column(align=True)
-    col.label(text='Interface')
-    row = col.row(heading='Expand')
-    row.prop(props, 'expand_tools', text='Tools')
-    col.prop(props, 'expand_masking', text='Masking Options')
-    col.prop(props, 'expand_mirror', text='Mirror Axes')
+    header, panel = layout.panel(idname='RF_general_switching_panel', default_closed=False)
+    header.label(text='Tool Switching')
+    if panel:
+        draw_tool_switching_options(context, panel)
 
 
 def draw_general_panel(context, layout):
