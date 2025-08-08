@@ -73,7 +73,7 @@ from ...addon_common.common.maths import (
     closest_points_segments,
     sign_threshold,
 )
-from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumerate_direction
+from ...addon_common.common.utils import iter_pairs, enumerate_reversed, enumerate_direction, dedup
 
 import math
 from itertools import chain
@@ -521,7 +521,7 @@ class PolyStrips_Logic:
             for i in range(0, len(bmvs[0])-1):
                 bmv00, bmv01 = bmvs[0][i], bmvs[0][i+1]
                 bmv10, bmv11 = bmvs[1][i], bmvs[1][i+1]
-                verts = tuple({bmv00, bmv01, bmv11, bmv10})  # Fix 1588: faces.new(...): found the same (BMVert) used multiple times
+                verts = dedup(bmv00, bmv01, bmv11, bmv10)  # Fix 1588: faces.new(...): found the same (BMVert) used multiple times
                 if len(verts) < 3:
                     print(f'WARNING: Cannot create face with {len(verts)=} verts {verts=}')
                     continue

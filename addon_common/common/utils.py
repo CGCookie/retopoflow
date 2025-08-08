@@ -443,6 +443,12 @@ def get_matrices(ob):
     imx = mx.inverted_safe()
     return (mx, imx)
 
+# returns items in exactly the same order, but keeps only first instance if duplicates are found
+def dedup(*items):
+    l = len(items)
+    numbered = { item:(l - i - 1) for (i, item) in enumerate(items[::-1]) }   # update in reverse order so earlier items overwrite later ones
+    return [ item for (i, item) in enumerate(items) if i == numbered[item] ]
+
 
 class AddonLocator(object):
     def __init__(self, f=None):
