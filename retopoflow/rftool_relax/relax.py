@@ -275,6 +275,15 @@ def switch_rftool(context):
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.relax')  # matches bl_idname of RFTool_Base below
 
 
+@execute_operator('reset_relax_settings', 'Relax: Reset Settings')
+def reset_settings(context):
+    props = RFOperator_Relax.__annotations__
+    for pname in props:
+        try:
+            setattr(RFTool_Relax.props, pname, props[pname].keywords['default'])
+        except:
+            print(f'WARNING: exception thrown while attempting to reset Relax property {pname}')
+
 
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
@@ -287,6 +296,8 @@ class RFTool_Relax(RFTool_Base):
     rf_brush = RFBrush_Relax()
     rf_brush.set_operator(RFOperator_Relax)
 
+    props = None  # needed to reset properties
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_Relax,
         RFOperator_RelaxBrush_Adjust,
@@ -297,7 +308,10 @@ class RFTool_Relax(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(RFOperator_Relax.bl_idname)
+        RFTool_Relax.props = props
         prefs = RF_Prefs.get_prefs(context)
+
+        layout.operator('retopoflow.reset_relax_settings', text='Reset Settings')
 
         # TOOL_HEADER: 3d view > toolbar
         # UI: 3d view > n-panel
