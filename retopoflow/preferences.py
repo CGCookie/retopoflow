@@ -167,7 +167,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         layout = self.layout
 
         from .rfpanels.interface_panel import draw_ui_options
-        header, panel = layout.panel(idname='RF_ineterface_prefs', default_closed=True)
+        header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
         header.label(text="Interface")
         if panel:
             draw_ui_options(context, panel)
