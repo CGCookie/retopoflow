@@ -663,27 +663,30 @@ class InvalidationManager:
     @classmethod
     def prevent_invalidation(cls):
         cls.preventing += 1
-        if cls.preventing > 1: return
+        # print(f'>>> PREVENTING {cls.preventing}')
         for callback_name in cls.watching:
             callbacks = getattr(bpy.app.handlers, callback_name)
-            cls.watching[callback_name] = [
+            fns = [
                 fn for fn in callbacks
                 if not fn.__module__.endswith('retopoflow.rfcore')
             ]
-            for fn in cls.watching[callback_name]:
+            cls.watching[callback_name] += fns
+            for fn in fns:
                 callbacks.remove(fn)
 
     @classmethod
     def resume_invalidation(cls):
         cls.preventing -= 1
+        # print(f'>>> RESUMING {cls.preventing}')
         if cls.preventing > 0: return
         for callback_name in cls.watching:
             callbacks = getattr(bpy.app.handlers, callback_name)
             for fn in cls.watching[callback_name]:
                 callbacks.append(fn)
+            cls.watching[callback_name].clear()
 
 RFOperator.InvalidationManager = InvalidationManager
-# RFBrush_Base.InvalidationManager = InvalidationManager
+RFBrush_Base.InvalidationManager = InvalidationManager
 
 
 class RFCore_Operator(RFRegisterClass, bpy.types.Operator):

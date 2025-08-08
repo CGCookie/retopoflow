@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 class RFBrush_Base:
     RFCore = None
+    InvalidationManager = None
 
     _subclasses = {}
     def __new__(cls):
