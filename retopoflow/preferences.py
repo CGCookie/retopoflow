@@ -26,19 +26,19 @@ from .common.interface import update_toolbar
 class RF_Prefs(bpy.types.AddonPreferences):
     # Grabs the full extension name regardless of which library it is in
     # Since this file is in a subfolder, it needs the last folder name removed
-    bl_idname = __package__.rsplit('.', 1)[0] 
+    bl_idname = __package__.rsplit('.', 1)[0]
 
     @staticmethod
     def get_prefs(context):
-        bl_idname = __package__.rsplit('.', 1)[0] 
+        bl_idname = __package__.rsplit('.', 1)[0]
         return context.preferences.addons[bl_idname].preferences
-    
+
     """ Display """
     #region
     expand_masking: bpy.props.BoolProperty(
         name='Expand Masking Options',
         description=(
-            'Show masking options for brush tools directly in the 3D View tool header rather than in a menu. ' 
+            'Show masking options for brush tools directly in the 3D View tool header rather than in a menu. '
             'Useful when working on larger screens.'
         ),
         default=True,
@@ -63,12 +63,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description=('The color used by the insert tools when adding new geometry'),
         subtype='COLOR',
         default=[1, 1, 0],
-        min=0, 
+        min=0,
         max=1,
     )
     #endregion
 
-    """ Tool Switching """ 
+    """ Tool Switching """
     #region
     setup_automerge: bpy.props.BoolProperty(
         name='Auto Merge',
@@ -166,13 +166,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
-        from .rfpanels.general_panel import draw_general_options
-        header, panel = layout.panel(idname='general_panel_prefs', default_closed=True)
-        header.label(text="General")
+        from .rfpanels.interface_panel import draw_ui_options
+        header, panel = layout.panel(idname='RF_ineterface_prefs', default_closed=True)
+        header.label(text="Interface")
         if panel:
-            draw_general_options(context, panel)
+            draw_ui_options(context, panel)
 
-        
+
         header, panel = layout.panel(idname='naming_panel_prefs', default_closed=True)
         header.label(text="Naming")
         if panel:
@@ -186,33 +186,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.separator()
             panel.prop(self, 'name_suffix', text='Fallback Suffix')
 
+        from .rfpanels.tool_switching_panel import draw_tool_switching_options
         header, panel = layout.panel(idname='switching_prefs', default_closed=True)
         header.label(text="Tool Switching")
         if panel:
-            panel.use_property_split = True
-            row = panel.row(heading='Automatic')
-            row.prop(self, 'setup_automerge')
-            panel.prop(self, 'setup_fade_inactive')
-            panel.prop(self, 'setup_object_wires')
-            panel.prop(self, 'setup_retopo_overlay')
-            panel.prop(self, 'setup_selection_mode')
-            panel.prop(self, 'setup_snapping')
-            panel.separator()
-            panel.label(text=('You can assign a custom hotkey for any tool by:'), icon='INFO')
-            row=panel.split(factor=0.4)
-            row.separator()
-            col = row.column()
-            col.label(text=('1. Right Clicking'))
-            col.label(text=('2. Choosing Assign Shortcut'))
-            col.label(text=('3. Saving Preferences'))
-            panel.separator()
+            draw_tool_switching_options(context, panel)
 
         from .rfpanels.tweaking_panel import draw_tweaking_options
         header, panel = layout.panel(idname='tweak_panel_prefs', default_closed=True)
         header.label(text="Tweaking")
         if panel:
             draw_tweaking_options(context, panel)
-            
+
 
 def register():
     bpy.utils.register_class(RF_Prefs)

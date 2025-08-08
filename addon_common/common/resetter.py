@@ -81,3 +81,5 @@ class Resetter:
             del self[key]
         # print(f'Resetter: reset {self._label} {keys}')
 
+    def clear(self):
+        self._previous = {}

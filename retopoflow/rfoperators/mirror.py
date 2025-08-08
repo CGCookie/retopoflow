@@ -41,8 +41,8 @@ def update_nodes_preview(context, preview_mod=None):
     mirror_obj = context.active_object
     preview_name = mirror_obj.name + '_mirror_preview'
 
-    if preview_name not in [x.name for x in bpy.data.objects]: 
-        return 
+    if preview_name not in [x.name for x in bpy.data.objects]:
+        return
 
     preview_obj = bpy.data.objects[preview_name]
     node_name = mirror_node_tree_name
@@ -78,7 +78,7 @@ def setup_nodes_preview(context):
     mirror_mod = get_mirror_mod(mirror_obj)
     props_obj = mirror_obj.retopoflow
     node_name = mirror_node_tree_name
-    
+
     if '.' + node_name not in [x.name for x in bpy.data.node_groups]:
         from ..rfcore import RFCore
         RFCore.pause()
@@ -101,7 +101,7 @@ def setup_nodes_preview(context):
     preview_obj.parent = mirror_obj
 
     if props.mirror_display == 'WIRE':
-        # Workaround for grease pencil not showing up in 
+        # Workaround for grease pencil not showing up in
         # geo nodes if a GP obj isn't in the scene
         gp_name = mirror_obj.name + '_mirror_preview_gp'
         if gp_name in [x.name for x in bpy.data.objects]:
@@ -110,7 +110,7 @@ def setup_nodes_preview(context):
             gp = bpy.data.grease_pencils_v3.new(gp_name)
             gp_obj = bpy.data.objects.new(gp_name, gp)
         if gp_obj.name not in context.collection.objects:
-            context.collection.objects.link(gp_obj)    
+            context.collection.objects.link(gp_obj)
         gp_obj.parent = mirror_obj
 
     if node_name in [x.name for x in preview_obj.modifiers]:
@@ -123,7 +123,7 @@ def setup_nodes_preview(context):
 
     # Drivers make it possible for the user to use the mirror modifier as usual
     # It sucks to check if drivers exist, so clearing it out and creating fresh is easier
-    # Would be good to clean this up at some point though 
+    # Would be good to clean this up at some point though
     drv_x = mod.driver_remove('["Socket_2"]')
     drv_x = mod.driver_add('["Socket_2"]')
     drv_x.driver.type = 'AVERAGE'
@@ -159,7 +159,7 @@ def cleanup_nodes_preview(context):
 
     if gp_name in [x.name for x in bpy.data.objects]:
         gp_obj = bpy.data.objects[gp_name]
-        bpy.data.grease_pencils_v3.remove(gp_obj.data)    
+        bpy.data.grease_pencils_v3.remove(gp_obj.data)
 
 
 def update_mirror_mod(context, modifier=None):
@@ -195,7 +195,7 @@ def update_mirror_mod(context, modifier=None):
 def setup_mirror(context):
     obj = context.active_object
     props_obj = obj.retopoflow
-    
+
     mod = get_mirror_mod(obj)
     if mod:
         props_obj.mirror_axis = mod.use_axis
