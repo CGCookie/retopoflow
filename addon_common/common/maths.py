@@ -2059,20 +2059,20 @@ def closest2d_point_line(pt:Point2D, p0:Point2D, p1:Point2D):
 def closest2d_point_segment(pt:Point2D, p0:Point2D, p1:Point2D):
     dv = Vec2D(p1 - p0)
     ld = dv.length
-    if abs(ld) <= 0.00001: return p0
+    if abs(ld) <= 1e-8: return p0
     dd = dv / ld
     v = Vec2D(pt - p0)
     p = Point2D(p0 + dd * clamp(dd.dot(v), 0, ld))
     p.freeze()
     return p
 
-def closest_point_segment(pt:Point, p0:Point, p1:Point):
+def closest_point_segment(pt:Point, p0:Point, p1:Point, *, clamp_ratio=0):
     dv = Vec(p1 - p0)
     ld = dv.length
-    if abs(ld) <= 0.00001: return p0
+    if abs(ld) <= 1e-8: return p0
     dd = dv / ld
     v = Vec(pt - p0)
-    p = Point(p0 + dd * clamp(dd.dot(v), 0, ld))
+    p = Point(p0 + dd * clamp(dd.dot(v), clamp_ratio, ld * (1-clamp_ratio)))
     p.freeze()
     return p
 
