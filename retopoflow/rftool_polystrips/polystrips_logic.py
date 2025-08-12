@@ -337,6 +337,18 @@ class PolyStrips_Logic:
             if i0 == i1: continue
             stroke3D_local = self.stroke3D_local[i0:i1]
 
+            snap_beginning = (
+                i0 == 0 and 'x' in self.mirror and sign_threshold(stroke3D_local[0].x, self.mirror_threshold) == 0,
+                i0 == 0 and 'y' in self.mirror and sign_threshold(stroke3D_local[0].y, self.mirror_threshold) == 0,
+                i0 == 0 and 'z' in self.mirror and sign_threshold(stroke3D_local[0].z, self.mirror_threshold) == 0,
+            )
+            snap_ending = (
+                i1 == len(self.stroke3D_local) and 'x' in self.mirror and sign_threshold(stroke3D_local[-1].x, self.mirror_threshold) == 0,
+                i1 == len(self.stroke3D_local) and 'y' in self.mirror and sign_threshold(stroke3D_local[-1].y, self.mirror_threshold) == 0,
+                i1 == len(self.stroke3D_local) and 'z' in self.mirror and sign_threshold(stroke3D_local[-1].z, self.mirror_threshold) == 0,
+            )
+            print(snap_beginning, snap_ending)
+
             limit_bmes0 = None
             if i0 == 0:
                 snap_bmf0 = snap_bmf_start
@@ -456,8 +468,13 @@ class PolyStrips_Logic:
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
             else:
-                bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
-                bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
+                p0, p1 = p + r * wm, p - r * wm
+                if any(snap_beginning):
+                    if snap_beginning[0]: p0.x = p1.x = 0
+                    if snap_beginning[1]: p0.y = p1.y = 0
+                    if snap_beginning[2]: p0.z = p1.z = 0
+                bmvs[0] += [ self.bm.verts.new(p0) ]
+                bmvs[1] += [ self.bm.verts.new(p1) ]
 
             # create bmverts along stroke
             i_start = 2 if (snap0 or snap1) else 2
@@ -492,8 +509,13 @@ class PolyStrips_Logic:
                 bmvs[0] += [bmv0]
                 bmvs[1] += [bmv1]
             else:
-                bmvs[0] += [ self.bm.verts.new(p + r * wm) ]
-                bmvs[1] += [ self.bm.verts.new(p - r * wm) ]
+                p0, p1 = p + r * wm, p - r * wm
+                if any(snap_ending):
+                    if snap_ending[0]: p0.x = p1.x = 0
+                    if snap_ending[1]: p0.y = p1.y = 0
+                    if snap_ending[2]: p0.z = p1.z = 0
+                bmvs[0] += [ self.bm.verts.new(p0) ]
+                bmvs[1] += [ self.bm.verts.new(p1) ]
 
             # snap newly created bmverts to source
             for bmv in chain(bmvs[0], bmvs[1]):

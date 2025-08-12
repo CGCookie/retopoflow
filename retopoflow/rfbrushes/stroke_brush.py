@@ -25,7 +25,7 @@ from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMFace
+from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMEdge, NearestBMFace
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.drawing import (
     Drawing,
@@ -52,10 +52,11 @@ from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.maths import Color, Frame
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D, sign_threshold, all_combinations
+from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D, sign_threshold, all_combinations, closest_point_segment
 from ...addon_common.common.timerhandler import TimerHandler
 from ...addon_common.common.utils import iter_pairs
 
+import math
 from time import time
 from itertools import chain
 
@@ -116,6 +117,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.matrix_world_ti = None
             self.bm, self.em = None, None
             self.nearest_bmv = None
+            self.nearest_bme = None
             self.nearest_bmf = None
 
             self.hit = False
@@ -154,7 +156,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.nearest_bmv = None
             self.snap_bmv0 = None
             self.snap_bmv1 = None
-            # TODO: Implement snapping to nearest bme if needed
+            self.nearest_bme = None
+            self.snap_bme_back, self.co_back = None, None
+            self.snap_bme_left, self.co_left = None, None
+            self.snap_bme_front, self.co_front = None, None
+            self.snap_bme_right, self.co_right = None, None
             self.nearest_bmf = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
@@ -167,6 +173,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.bm, self.em = get_bmesh_emesh(context)
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+                if snap_edges:
+                    self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv)
                 if snap_faces:
                     self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv)
             elif context.edit_object:
@@ -176,6 +184,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.bm, self.em = get_bmesh_emesh(context)
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
+                if snap_edges:
+                    self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv)
                 if snap_faces:
                     self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv)
                 self.reset()
@@ -415,28 +425,247 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.snap_mirror_all = False
 
             if draw_leftright:
-                self.stroke3D_left  = []
-                self.stroke3D_right = []
+                # TODO: only update the last little bit.  once stroke is sufficiently long, do not need to recheck that part
+
+                self.stroke3D_left, self.stroke3D_right  = [], []
+
+                # set initial position of left and right sides
+                # Note: if stroke is not long, there is not enough info to determine good left and right sides
+                # TODO: left and right sides could be off high poly mesh!  shrink radius until left and right are both on mesh
                 for i in range(len(self.stroke_original)):
                     pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], self.stroke_normal[i]
-                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[i])
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[i])
                     pt3D_prev, pt3D_next = find_stroke3D_point_from(i, -1), find_stroke3D_point_from(i,  1)
-                    d_left = no.cross(pt3D_next - pt3D_prev).normalized() * radius
-                    self.stroke3D_left  += [pt3D + d_left]
-                    self.stroke3D_right += [pt3D - d_left]
+                    d_left = no.cross(pt3D_next - pt3D_prev).normalized()
+                    self.stroke3D_left  += [pt3D + d_left * radius3D]
+                    self.stroke3D_right += [pt3D - d_left * radius3D]
+                self.co_left, self.co_right = self.stroke3D_left[-1], self.stroke3D_right[-1]
 
+                # if stroke is sufficiently long enough, determine front and back
                 if len(self.stroke3D_left) > 2:
                     pt3D_next, pt3D_prev = self.stroke3D_original[0], find_stroke3D_point_from(0, 1)
-                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0])
-                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0])
+                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
                     self.stroke3D_left_start  = self.stroke3D_left[0]  + v_forward
                     self.stroke3D_right_start = self.stroke3D_right[0] + v_forward
+                    self.co_back = (self.stroke3D_left_start + self.stroke3D_right_start) / 2
 
                     pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1)
-                    radius = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[-1])
-                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[-1])
+                    v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
                     self.stroke3D_left_end  = self.stroke3D_left[-1]  + v_forward
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
+                    self.co_front = (self.stroke3D_left_end + self.stroke3D_right_end) / 2
+
+                # snap to bmedges if able and have enough information
+                if self.nearest_bme and self.co_back and self.co_front:
+                    radius3D = math.pi * 2.0 * self.stroke_radius / 4.0 * size2D_to_size(context, self.stroke_dist[0])
+                    snap_bmes = set()
+
+                    # check back
+                    bme = self.nearest_bme.update(
+                        context, self.co_back,
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    if bme:
+                        pt0, pt1 = self.nearest_bme.co2d, self.stroke_original[0]
+                        if (pt0 - pt1).length <= self.stroke_radius + self.snap_distance:
+                            snap_bmes.add(bme)
+                            vp = self.stroke3D_right_start - self.stroke3D_left_start
+                            self.stroke3D_left_start, self.stroke3D_right_start = [bmv.co for bmv in bme.verts]
+                            vn = self.stroke3D_right_start - self.stroke3D_left_start
+                            if vp.dot(vn) < 0: self.stroke3D_left_start, self.stroke3D_right_start = self.stroke3D_right_start, self.stroke3D_left_start
+
+                    # check front
+                    bme = self.nearest_bme.update(
+                        context, self.co_front,
+                        filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
+                        ignore_selected=False,
+                        distance=radius3D,
+                    )
+                    if bme:
+                        pt0, pt1 = self.nearest_bme.co2d, self.stroke_original[-1]
+                        if (pt0 - pt1).length <= self.stroke_radius + self.snap_distance:
+                            snap_bmes.add(bme)
+                            vp = self.stroke3D_right_end - self.stroke3D_left_end
+                            self.stroke3D_left_end, self.stroke3D_right_end = [bmv.co for bmv in bme.verts]
+                            vn = self.stroke3D_right_end - self.stroke3D_left_end
+                            if vp.dot(vn) < 0: self.stroke3D_left_end, self.stroke3D_right_end = self.stroke3D_right_end, self.stroke3D_left_end
+
+                    # check left
+                    # print(f'left')
+                    nleft, cleft = [], []
+                    i1 = -1
+                    for (i0, ptcur) in enumerate(self.stroke3D_left):
+                        if i0 <= i1: continue
+                        bme = self.nearest_bme.update(
+                            context, ptcur,
+                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
+                            ignore_selected=False,
+                            distance=radius3D,
+                        )
+                        if not bme or bme in snap_bmes:
+                            cleft += [ptcur]
+                            continue
+                        pt0, pt1 = [bmv.co for bmv in bme.verts]
+                        v01 = (pt1 - pt0)
+                        l = v01.length
+                        ptc = closest_point_segment(ptcur, pt0, pt1, clamp_ratio=0.05)
+                        dist = (ptc - ptcur).length
+                        if dist > l or dist > radius3D:
+                            # print(f'  {l=} {radius3D=} {dist=}')
+                            cleft += [ptcur]
+                            continue
+                        # rewind until stroke should not snap to bme
+                        cleft_prev = list(cleft)
+                        ptp = ptcur # set default
+                        while cleft:
+                            ptp = cleft[-1]
+                            ptc = closest_point_segment(ptp, pt0, pt0, clamp_ratio=0.25)
+                            vpc = (ptc - ptp)
+                            dist = (ptp - ptc).length
+                            if dist > l and dist > radius3D: break
+                            cleft.pop()
+                            # print(f'{dist=} {l=} {radius3D=}')
+                        ptn = ptcur  # set default
+                        i1 = i0
+                        for i2 in range(i0+1, len(self.stroke3D_left)):
+                            ptn = self.stroke3D_left[i1]
+                            ptc = closest_point_segment(ptn, pt0, pt0, clamp_ratio=0.25)
+                            vpc = (ptc - ptn)
+                            dist = (ptn - ptc).length
+                            if dist <= l or dist <= radius3D:
+                                i1 = i2
+                        vpn = (ptn - ptp)
+                        if vpn.dot(v01) < 0: pt0, pt1, v01 = pt1, pt0, -v01
+                        d = vpn.normalized().dot(v01.normalized())
+                        # print(f'{d=}')
+                        if abs(d) < 0.50:
+                            i1 = i0
+                            cleft = cleft_prev + [ptcur]
+                            continue
+                        # print(f'  found closest {i0=} {i1=} len={len(self.stroke3D_left)} {bme=}')
+                        snap_bmes.add(bme)
+                        nleft += cleft + [pt0, pt1]
+                        cleft = []
+                    self.stroke3D_left = nleft + cleft
+                    if not cleft:
+                        self.stroke3D_left_end = nleft[-1]
+
+                    # check right
+                    # print(f'right')
+                    nright, cright = [], []
+                    i1 = -1
+                    for (i0, ptcur) in enumerate(self.stroke3D_right):
+                        if i0 <= i1: continue
+                        bme = self.nearest_bme.update(
+                            context, ptcur,
+                            filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
+                            ignore_selected=False,
+                            distance=radius3D,
+                        )
+                        if not bme or bme in snap_bmes:
+                            cright += [ptcur]
+                            continue
+                        pt0, pt1 = [bmv.co for bmv in bme.verts]
+                        v01 = (pt1 - pt0)
+                        l = v01.length
+                        ptc = closest_point_segment(ptcur, pt0, pt1, clamp_ratio=0.25)
+                        vpc = (ptc - ptcur)
+                        dist = vpc.length
+                        #print(f'  {l=} {dist=}')
+                        if dist > l:
+                            cright += [ptcur]
+                            continue
+                        # rewind until stroke should not snap to bme
+                        cright_prev = list(cright)
+                        ptp = ptcur # set default
+                        while cright:
+                            ptp = cright[-1]
+                            ptc = closest_point_segment(ptp, pt0, pt0, clamp_ratio=0.25)
+                            vpc = (ptc - ptp)
+                            dist = (ptp - ptc).length
+                            if dist > l and dist > radius3D: break
+                            cright.pop()
+                            # print(f'{dist=} {l=} {radius3D=}')
+                        ptn = ptcur  # set default
+                        i1 = i0
+                        for i2 in range(i0+1, len(self.stroke3D_right)):
+                            ptn = self.stroke3D_right[i1]
+                            ptc = closest_point_segment(ptn, pt0, pt0, clamp_ratio=0.25)
+                            vpc = (ptc - ptn)
+                            dist = (ptn - ptc).length
+                            if dist <= l or dist <= radius3D:
+                                i1 = i2
+                        vpn = (ptn - ptp)
+                        if vpn.dot(v01) < 0:
+                            pt0, pt1 = pt1, pt0
+                            v01 = -v01
+                        d = vpn.normalized().dot(v01.normalized())
+                        # print(f'{d=}')
+                        if abs(d) < 0.50:
+                            i1 = i0
+                            cright = cright_prev + [ptcur]
+                            continue
+                        # print(f'  found closest {i0=} {i1=} len={len(self.stroke3D_right)} {bme=}')
+                        snap_bmes.add(bme)
+                        nright += cright + [pt0, pt1]
+                        cright = []
+                    self.stroke3D_right = nright + cright
+                    if not cright:
+                        self.stroke3D_right_end = nright[-1]
+                    ##### for pt in self.stroke3D_left
+
+                # if self.nearest_bme and self.co_front and self.co_left and self.co_right:
+                #     radius = math.pi * 2.0 * self.stroke_radius / 4.0
+                #     self.snap_bme_back, self.snap_bme_front = None, None
+                #     self.snap_bme_left, self.snap_bme_right = None, None
+                #     snap_bmes = {}
+                #     # need to find nearest from four different points, because we cannot find the N nearest things
+                #     # using blender's BVH Tree (sad face)
+                #     # should only find back after stroke has gone far enough and front,left,right while stroking
+                #     # once an edge gets close enough, continue snapping until it is too far away (but keep remembering
+                #     # it in case it gets close enough again... in other words, don't snap twice!).  do we need to
+                #     # keep track of all the edges that left and right snap to, or should this get rediscovered in
+                #     # the tool?
+                #     # https://www.desmos.com/geometry/iqctjch3rm
+                #     for (co,i,w) in [(self.co_back,0,'b'), (self.co_front,-1,'f'), (self.co_left,-1,'l'), (self.co_right,-1,'r')]:
+                #         bme = self.nearest_bme.update(
+                #             context, co,
+                #             filter_fn=(lambda bme: (bme.is_boundary or bme.is_wire)), # and not is_bmedge_hidden(context, bme)),
+                #             ignore_selected=False,
+                #             distance2d=radius,
+                #         )
+                #         if not bme: continue
+                #         pt0, pt1 = self.nearest_bme.co2d, self.stroke_original[i]
+                #         if (pt0 - pt1).length > self.stroke_radius + self.snap_distance: continue  # too far away from stroke
+                #         co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
+                #         d = (co2d - pt0).length
+                #         if bme in snap_bmes and d >= snap_bmes[bme][0]: continue  # seen this bme closer to another already
+                #         snap_bmes[bme] = (d, w)
+
+                #     for bme in snap_bmes:
+                #         match snap_bmes[bme][1]:
+                #             case 'b': self.snap_bme_back  = bme
+                #             case 'f': self.snap_bme_front = bme
+                #             case 'l': self.snap_bme_left  = bme
+                #             case 'r': self.snap_bme_right = bme
+                #     # print(f'{self.snap_bme_back=} {self.snap_bme_left=} {self.snap_bme_right=} {self.snap_bme_front=}')
+                #     # print(f'{self.snap_bme_left=} {self.snap_bme_right=}')
+
+                #     if self.snap_bme_back:
+                #         vp = self.stroke3D_right_start - self.stroke3D_left_start
+                #         self.stroke3D_left_start, self.stroke3D_right_start = [bmv.co for bmv in self.snap_bme_back.verts]
+                #         vn = self.stroke3D_right_start - self.stroke3D_left_start
+                #         if vp.dot(vn) < 0: self.stroke3D_left_start, self.stroke3D_right_start = self.stroke3D_right_start, self.stroke3D_left_start
+                #     if self.snap_bme_front:
+                #         vp = self.stroke3D_right_end - self.stroke3D_left_end
+                #         self.stroke3D_left_end, self.stroke3D_right_end = [bmv.co for bmv in self.snap_bme_front.verts]
+                #         vn = self.stroke3D_right_end - self.stroke3D_left_end
+                #         if vp.dot(vn) < 0: self.stroke3D_left_end, self.stroke3D_right_end = self.stroke3D_right_end, self.stroke3D_left_end
+
 
             if not self.mirror or not self.mirror_clip:
                 # no mirror handling needed
