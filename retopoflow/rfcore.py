@@ -319,7 +319,7 @@ class RFCore:
         props.retopo_offset = context.space_data.overlay.retopology_offset
         if prefs.setup_retopo_overlay:
             def show_retopology(space):
-                RFCore.resetter['space.overlay.show_retopology'] = True
+                RFCore.resetter[(space, 'overlay.show_retopology')] = True
             for s in iter_all_view3d_spaces():
                 show_retopology(s)
 
