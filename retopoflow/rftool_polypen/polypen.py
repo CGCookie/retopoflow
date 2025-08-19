@@ -268,7 +268,7 @@ class RFTool_PolyPen(RFTool_Base):
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
+            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 
         else:
             header, panel = layout.panel(idname='polypen_insert_panel', default_closed=False)

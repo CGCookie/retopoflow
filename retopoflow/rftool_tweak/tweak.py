@@ -267,7 +267,7 @@ class RFTool_Tweak(RFTool_Base):
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE')
+            layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 
         elif context.region.type in {'UI', 'WINDOW'}:
             header, panel = layout.panel(idname='tweak_brush_panel', default_closed=False)

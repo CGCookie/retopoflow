@@ -7,6 +7,9 @@ This document contains details about what has changed in Retopoflow in version 4
 New:
 - Added preferences for what to name newly created retopology objects
 
+Improved:
+- Fixed info menu icon missing in Blender 4.2
+
 ### 4.0.0 beta 5
 
 New:
