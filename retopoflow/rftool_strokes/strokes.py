@@ -513,6 +513,8 @@ class RFTool_Strokes(RFTool_Base):
     rf_brush = RFBrush_Strokes()
     rf_overlay = RFOperator_Strokes_Overlay
 
+    props = None  # needed to reset properties
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
@@ -526,7 +528,7 @@ class RFTool_Strokes(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props_strokes = tool.operator_properties(RFOperator_Strokes.bl_idname)
-        props_translate = tool.operator_properties(RFOperator_Translate.bl_idname)
+        RFTool_Strokes.props = props_strokes
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")

@@ -252,7 +252,6 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
         ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
     ]
-
     rf_status = ['LMB: Insert']
 
     sample_points: bpy.props.IntProperty(
@@ -376,6 +375,8 @@ class RFTool_Contours(RFTool_Base):
     rf_brush = RFBrush_Cut()
     rf_overlay = RFOperator_Contours_Overlay
 
+    props = None  # needed to reset properties
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
@@ -388,6 +389,7 @@ class RFTool_Contours(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props_contours = tool.operator_properties(RFOperator_Contours.bl_idname)
+        RFTool_Contours.props = props_contours
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text='Insert:')

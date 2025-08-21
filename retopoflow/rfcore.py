@@ -37,8 +37,6 @@ from .common.interface import show_message
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 
-from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror
-from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 from .rfpanels import (
     general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
     relax_algorithm_panel, tweaking_panel, tools_pie
@@ -57,6 +55,10 @@ from .rftool_relax.relax           import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
+
+# The operator files need to be imported here in order to be registered, even if they are not used
+from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool_settings
+from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
 '''

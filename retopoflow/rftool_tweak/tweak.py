@@ -217,8 +217,6 @@ def switch_rftool(context):
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.tweak')  # matches bl_idname of RFTool_Base below
 
 
-
-
 class RFTool_Tweak(RFTool_Base):
     bl_idname = "retopoflow.tweak"
     bl_label = "Tweak"
@@ -230,6 +228,8 @@ class RFTool_Tweak(RFTool_Base):
     rf_brush = RFBrush_Tweak()
     rf_brush.set_operator(RFOperator_Tweak)
 
+    props = None  # needed to reset properties
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_Tweak,
         RFOperator_TweakBrush_Adjust,
@@ -239,7 +239,8 @@ class RFTool_Tweak(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        props = tool.operator_properties(RFOperator_Tweak.bl_idname)
+        props_tweak = tool.operator_properties(RFOperator_Tweak.bl_idname)
+        RFTool_Tweak.props = props_tweak
         prefs = RF_Prefs.get_prefs(context)
 
         # TOOL_HEADER: 3d view > toolbar
@@ -247,18 +248,18 @@ class RFTool_Tweak(RFTool_Base):
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Brush:")
-            layout.prop(props, 'brush_radius')
-            layout.prop(props, 'brush_strength', slider=True)
-            layout.prop(props, 'brush_falloff', slider=True)
+            layout.prop(props_tweak, 'brush_radius')
+            layout.prop(props_tweak, 'brush_strength', slider=True)
+            layout.prop(props_tweak, 'brush_falloff', slider=True)
             if prefs.expand_masking:
                 draw_line_separator(layout)
-                layout.row(heading='Selected:', align=True).prop(props, 'mask_selected', expand=True, icon_only=True)
+                layout.row(heading='Selected:', align=True).prop(props_tweak, 'mask_selected', expand=True, icon_only=True)
                 layout.separator()
-                layout.row(heading='Boundary:', align=True).prop(props, 'mask_boundary', expand=True, icon_only=True)
-                # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+                layout.row(heading='Boundary:', align=True).prop(props_tweak, 'mask_boundary', expand=True, icon_only=True)
+                # layout.prop(props_tweak, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
-                layout.prop(props, 'include_corners',   text="Corners")
-                layout.prop(props, 'include_occluded', text="Occluded")
+                layout.prop(props_tweak, 'include_corners',   text="Corners")
+                layout.prop(props_tweak, 'include_occluded', text="Occluded")
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
@@ -273,9 +274,9 @@ class RFTool_Tweak(RFTool_Base):
             header, panel = layout.panel(idname='tweak_brush_panel', default_closed=False)
             header.label(text="Brush")
             if panel:
-                panel.prop(props, 'brush_radius')
-                panel.prop(props, 'brush_strength', slider=True)
-                panel.prop(props, 'brush_falloff', slider=True)
+                panel.prop(props_tweak, 'brush_radius')
+                panel.prop(props_tweak, 'brush_strength', slider=True)
+                panel.prop(props_tweak, 'brush_falloff', slider=True)
             draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)

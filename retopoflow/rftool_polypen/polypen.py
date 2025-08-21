@@ -168,6 +168,7 @@ class RFOperator_PolyPen(RFOperator):
         name='Insert Mode',
         description='Insertion mode for PolyPen',
         items=PolyPen_Insert_Modes.insert_modes,
+        default="TRI/QUAD",
     )
     quad_stability: wrap_property(
         PolyPen_Quad_Stability, 'quad_stability', 'float',
@@ -235,7 +236,6 @@ def switch_rftool(context):
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polypen')  # matches bl_idname of RFTool_Base below
 
 
-
 class RFTool_PolyPen(RFTool_Base):
     bl_idname = "retopoflow.polypen"
     bl_label = "PolyPen"
@@ -244,6 +244,7 @@ class RFTool_PolyPen(RFTool_Base):
     bl_widget = None
     bl_operator = 'retopoflow.polypen'
 
+    props = None  # needed to reset properties
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyPen,
@@ -256,6 +257,7 @@ class RFTool_PolyPen(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
+        RFTool_PolyPen.props = props_polypen
 
         if context.region.type == 'TOOL_HEADER':
             layout.prop(props_polypen, 'insert_mode', text='Insert')

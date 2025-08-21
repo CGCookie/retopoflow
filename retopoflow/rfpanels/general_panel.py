@@ -40,8 +40,8 @@ def draw_general_options(context, layout):
     if panel:
         draw_ui_options(context, panel)
 
-    header, panel = layout.panel(idname='RF_general_switching_panel', default_closed=False)
-    header.label(text='Tool Switching')
+    header, panel = layout.panel(idname='RF_general_tools_panel', default_closed=True)
+    header.label(text='Tools')
     if panel:
         draw_tool_switching_options(context, panel)
 

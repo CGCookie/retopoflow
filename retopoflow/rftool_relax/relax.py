@@ -109,7 +109,7 @@ class RFOperator_Relax(RFOperator):
         subtype='PIXEL',
         min=1,
         max=1000,
-        default=100,
+        default=200,
     )
     brush_falloff: wrap_property(
         RFBrush_Relax, 'falloff', 'float',
@@ -275,16 +275,6 @@ def switch_rftool(context):
     bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.relax')  # matches bl_idname of RFTool_Base below
 
 
-@execute_operator('reset_relax_settings', 'Relax: Reset Settings')
-def reset_settings(context):
-    props = RFOperator_Relax.__annotations__
-    for pname in props:
-        try:
-            setattr(RFTool_Relax.props, pname, props[pname].keywords['default'])
-        except:
-            print(f'WARNING: exception thrown while attempting to reset Relax property {pname}')
-
-
 class RFTool_Relax(RFTool_Base):
     bl_idname = "retopoflow.relax"
     bl_label = "Relax"
@@ -307,29 +297,27 @@ class RFTool_Relax(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
-        props = tool.operator_properties(RFOperator_Relax.bl_idname)
-        RFTool_Relax.props = props
+        props_relax = tool.operator_properties(RFOperator_Relax.bl_idname)
+        RFTool_Relax.props = props_relax
         prefs = RF_Prefs.get_prefs(context)
-
-        layout.operator('retopoflow.reset_relax_settings', text='Reset Settings')
 
         # TOOL_HEADER: 3d view > toolbar
         # UI: 3d view > n-panel
         # WINDOW: properties > tool
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Brush:")
-            layout.prop(props, 'brush_radius')
-            layout.prop(props, 'brush_strength', slider=True)
+            layout.prop(props_relax, 'brush_radius')
+            layout.prop(props_relax, 'brush_strength', slider=True)
             layout.popover('RF_PT_RelaxAlgorithm')
             if prefs.expand_masking:
                 draw_line_separator(layout)
-                layout.row(heading='Selected:', align=True).prop(props, 'mask_selected', expand=True, icon_only=True)
+                layout.row(heading='Selected:', align=True).prop(props_relax, 'mask_selected', expand=True, icon_only=True)
                 layout.separator()
-                layout.row(heading='Boundary:', align=True).prop(props, 'mask_boundary', expand=True, icon_only=True)
-                # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+                layout.row(heading='Boundary:', align=True).prop(props_relax, 'mask_boundary', expand=True, icon_only=True)
+                # layout.prop(props_relax, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
-                layout.prop(props, 'include_corners',   text="Corners")
-                layout.prop(props, 'include_occluded', text="Occluded")
+                layout.prop(props_relax, 'include_corners',   text="Corners")
+                layout.prop(props_relax, 'include_occluded', text="Occluded")
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
@@ -344,9 +332,9 @@ class RFTool_Relax(RFTool_Base):
             header, panel = layout.panel(idname='relax_brush_panel', default_closed=False)
             header.label(text="Brush")
             if panel:
-                panel.prop(props, 'brush_radius')
-                panel.prop(props, 'brush_strength', slider=True)
-                panel.prop(props, 'brush_falloff', slider=True)
+                panel.prop(props_relax, 'brush_radius')
+                panel.prop(props_relax, 'brush_strength', slider=True)
+                panel.prop(props_relax, 'brush_falloff', slider=True)
             draw_relax_algo_panel(context, layout)
             draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)

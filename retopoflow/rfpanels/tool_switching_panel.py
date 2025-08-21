@@ -27,6 +27,11 @@ def draw_tool_switching_options(context, layout):
 
     layout.use_property_split = True
     col = layout.column(align=True)
+
+    row = col.row()
+    row.separator()
+    row.label(text='Switching')
+
     row = col.row(heading='Automatic')
     row.prop(prefs, 'setup_automerge')
     col.prop(prefs, 'setup_fade_inactive')
@@ -38,7 +43,7 @@ def draw_tool_switching_options(context, layout):
     if context.area.type == 'PREFERENCES':
         layout.separator()
         layout.label(text=('You can assign a custom hotkey for any tool by:'), icon='INFO')
-        row=layout.split(factor=0.4)
+        row = layout.split(factor=0.4)
         row.separator()
         col = row.column()
         col.label(text=('1. Right Clicking'))
@@ -52,4 +57,13 @@ def draw_tool_switching_options(context, layout):
         col = row.column()
         col.enabled = RFCore.resetter._backup != {}
         col.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
+        row.separator()
+
+        row = layout.row()
+        row.separator()
+        row.label(text='Defaults')
+
+        row = layout.row()
+        row.separator()
+        row.operator('retopoflow.resettoolsettings')
         row.separator()

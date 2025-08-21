@@ -705,6 +705,8 @@ class RFTool_PolyStrips(RFTool_Base):
     rf_brush = RFBrush_Strokes()
     rf_overlay = RFOperator_PolyStrips_Overlay
 
+    props = None  # needed to reset properties
+
     bl_keymap = chain_rf_keymaps(
         RFOperator_PolyStrips,
         RFOperator_PolyStrips_Insert,
@@ -719,7 +721,7 @@ class RFTool_PolyStrips(RFTool_Base):
 
     def draw_settings(context, layout, tool):
         props_polystrips = tool.operator_properties(RFOperator_PolyStrips.bl_idname)
-        props_translate = tool.operator_properties(RFOperator_Translate.bl_idname)
+        RFTool_PolyStrips.props = props_polystrips
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
