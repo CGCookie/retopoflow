@@ -26,12 +26,10 @@ def draw_tool_switching_options(context, layout):
     prefs = RF_Prefs.get_prefs(context)
 
     layout.use_property_split = True
+
+    layout.label(text='Switching')
+
     col = layout.column(align=True)
-
-    row = col.row()
-    row.separator()
-    row.label(text='Switching')
-
     row = col.row(heading='Automatic')
     row.prop(prefs, 'setup_automerge')
     col.prop(prefs, 'setup_fade_inactive')
@@ -52,18 +50,11 @@ def draw_tool_switching_options(context, layout):
     else:
         from ..rfcore import RFCore
         row = layout.row(align=False)
-        row.separator()
         row.operator('retopoflow.applysettings')
         col = row.column()
         col.enabled = RFCore.resetter._backup != {}
         col.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
-        row.separator()
 
-        row = layout.row()
-        row.separator()
-        row.label(text='Defaults')
+        layout.label(text='Defaults')
 
-        row = layout.row()
-        row.separator()
-        row.operator('retopoflow.resettoolsettings')
-        row.separator()
+        layout.operator('retopoflow.resettoolsettings')
