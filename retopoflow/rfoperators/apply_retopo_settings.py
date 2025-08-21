@@ -43,3 +43,24 @@ class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
         from ..rfcore import RFCore
         RFCore.resetter.clear()
         return {'FINISHED'}
+
+
+class RFOperator_RestoreRetopoSettings(RFRegisterClass, bpy.types.Operator):
+    bl_idname = "retopoflow.restoresettings"
+    bl_label = "Restore Retopology Settings"
+    bl_description = "Restore the retopology settings to non-Retopoflow tools if you accidentally applied them"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO'}
+
+    rf_label = "Restore Retopology Settings"
+    RFCore = None
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'EDIT_MESH'
+
+    def execute(self, context):
+        from ..rfcore import RFCore
+        RFCore.resetter.restore()
+        return {'FINISHED'}

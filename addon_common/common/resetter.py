@@ -26,6 +26,7 @@ class Resetter:
     def __init__(self, label=None):
         self._label = label
         self._previous = {}
+        self._backup = {}
         # print(f'Resetter: new {self._label}')
 
     def __del__(self):
@@ -82,4 +83,8 @@ class Resetter:
         # print(f'Resetter: reset {self._label} {keys}')
 
     def clear(self):
+        self._backup = self._previous
         self._previous = {}
+
+    def restore(self):
+        self._previous = self._backup

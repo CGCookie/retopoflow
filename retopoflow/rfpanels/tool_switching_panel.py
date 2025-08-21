@@ -45,4 +45,11 @@ def draw_tool_switching_options(context, layout):
         col.label(text=('2. Choosing Assign Shortcut'))
         col.label(text=('3. Saving Preferences'))
     else:
-        layout.operator('retopoflow.applysettings')
+        from ..rfcore import RFCore
+        row = layout.row(align=False)
+        row.separator()
+        row.operator('retopoflow.applysettings')
+        col = row.column()
+        col.enabled = RFCore.resetter._backup != {}
+        col.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
+        row.separator()
