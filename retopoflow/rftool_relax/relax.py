@@ -167,7 +167,7 @@ class RFOperator_Relax(RFOperator):
     algorithm_average_face_radius: bpy.props.BoolProperty(
         name='Move face vertices so their distance to face center is equalized',
         description='Algorithm: Average face radius',
-        default=False,
+        default=True,
     )
     algorithm_average_face_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Face-Edge Lengths',
@@ -177,7 +177,7 @@ class RFOperator_Relax(RFOperator):
     algorithm_average_face_angles: bpy.props.BoolProperty(
         name='Algorithm: Average Face Angles',
         description='Move face vertices so they are equally spread around face center',
-        default=False,
+        default=True,
     )
     algorithm_correct_flipped_faces: bpy.props.BoolProperty(
         name='Algorithm: Correct Flipped Faces',
