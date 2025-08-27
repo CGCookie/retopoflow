@@ -6,9 +6,24 @@ This document contains details about what has changed in Retopoflow in version 4
 
 New:
 - Added preferences for what to name newly created retopology objects
+- Added limits to how far Relax can move geometry as a percent of the brush radius
+- Added option to apply retopology settings to non-Retopoflow tools
+- Added option to revert retopology settings if they were applied to non-Retopoflow tools
+- Added option to reset all Retopoflow tool settings
 
 Improved:
+- Improved drawing PolyStrips across and along the line of symmetry
+- Increased default vertex selection distance in response to feedback
+- Fixed PolyPen crash when closest edge has zero length
+- Fixed PolyStrips crash when bridging two faces that share a vertex
 - Fixed info menu icon missing in Blender 4.2
+- Fixed twisting in Relax when rotation was not applied
+- Re-enabled Face Angles and Face Radius in Relax by default
+- Fixed crash when toggling maximize area
+- Fixed issue when switching workspaces into Retopoflow
+- Fixed retopology overlay not being enabled in all 3D Views in the workspace
+- Fixed issue when packaging Retopoflow using Blender's extension build command
+
 
 ### 4.0.0 beta 5
 
