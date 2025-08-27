@@ -1187,6 +1187,9 @@ class RFMesh():
         flipped indicates if bme is revered wrt to bme_start
         '''
 
+        if bme_start is None or not bme_start.is_valid:
+            return (None, False, None, False)
+
         # choose one of the faces
         if not bmf_start: bmf_start = next(iter(bme_start.link_faces), None)
         if not bmf_start: return (None, False, None, False)
