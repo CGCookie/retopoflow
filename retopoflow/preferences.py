@@ -70,13 +70,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     """ Hotkeys """
     enable_help_hotkey: bpy.props.BoolProperty(
-        name='F1 to Open Tool Help',
+        name='F1 - Launch Tool Help',
         description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
         default=True
     )
     enable_issue_hotkey: bpy.props.BoolProperty(
-        name='F2 to Report an Issue',
+        name='F2 - Report an Issue',
         description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
+        default=True
+    )
+    enable_pie_hotkey: bpy.props.BoolProperty(
+        name='W - Retopoflow Pie Menu',
+        description=('Enables W to bring up the Retopoflow pie menu while in a Retopoflow tool'),
         default=True
     )
 
@@ -182,6 +187,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if panel:
             panel.use_property_split = True
             panel.use_property_decorate = True
+            panel.prop(self, 'enable_pie_hotkey')
             panel.prop(self, 'enable_help_hotkey')
             panel.prop(self, 'enable_issue_hotkey')
 

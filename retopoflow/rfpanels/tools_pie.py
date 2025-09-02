@@ -13,7 +13,7 @@ class RFTool_OT_SwitchToPatches(Operator):
     @classmethod
     def poll(self, context):
         return False
-    
+
     def execute(self, context):
         return {'FINISHED'}
 
@@ -24,12 +24,14 @@ class RFMenu_MT_ToolPie(Menu):
 
     @classmethod
     def poll(self, context):
+        from ..preferences import RF_Prefs
         tools = bpy.context.workspace.tools
         return (
+            RF_Prefs.get_prefs(context).enable_pie_hotkey and
             context.mode == 'EDIT_MESH' and
             tools.from_space_view3d_mode('EDIT_MESH', create=False).idname.split('.')[0] == 'retopoflow'
         )
-    
+
     def draw_bottom_menu(self, pie):
         active_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False).idname
         back = pie.box()
@@ -59,7 +61,7 @@ class RFMenu_MT_ToolPie(Menu):
                 row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
                 row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
                 row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
-            
+
         '''
         elif active_tool == 'retopoflow.polystrips':
             box.ui_units_x = 8
@@ -119,7 +121,7 @@ RF_icons = None
 def register():
     bpy.utils.register_class(RFTool_OT_SwitchToPatches)
     bpy.utils.register_class(RFMenu_MT_ToolPie)
-    
+
     wm = bpy.context.window_manager
     keyconfigs = wm.keyconfigs.addon
     if keyconfigs:
