@@ -31,15 +31,15 @@ def alt(k):      return 1 if 'alt+'   in k.lower() else 0
 def oskey(k):    return 1 if 'oskey+' in k.lower() else 0
 
 
-def create_launch_browser_operator(name, idname, label, url, *, launch=None, rf_keymaps=None, rf_keymap_press=None, **kwargs):
+def create_launch_browser_operator(name, idname, label, url, *, fn_poll=None, fn_launch=None, rf_keymaps=None, rf_keymap_press=None, **kwargs):
     def launch_browser(context):
         bpy.ops.wm.url_open(url=url)
         return {'FINISHED'}
 
-    if launch == None:
-        launch = launch_browser
+    if fn_launch == None:
+        fn_launch = launch_browser
 
-    op = create_operator(name, idname, label, fn_exec=launch, **kwargs)
+    op = create_operator(name, idname, label, fn_poll=fn_poll, fn_exec=fn_launch, **kwargs)
 
     op.rf_keymaps = rf_keymaps or []
     if rf_keymap_press:
@@ -58,14 +58,23 @@ def create_launch_browser_operator(name, idname, label, url, *, launch=None, rf_
     return op
 
 
+def poll_report_issue(context):
+    from ..preferences import RF_Prefs
+    return RF_Prefs.get_prefs(context).enable_issue_hotkey
+
 RFOperator_Launch_NewIssue = create_launch_browser_operator(
     'RFOperator_Launch_NewIssue',
     'retopoflow.launch_newissue',
     'Report a new issue with RetopoFlow',
     'https://github.com/CGCookie/retopoflow/issues/new/choose',
     rf_keymap_press='F2',
+    fn_poll=poll_report_issue,
 )
 
+
+def poll_help(context):
+    from ..preferences import RF_Prefs
+    return RF_Prefs.get_prefs(context).enable_help_hotkey
 
 def launch_help(context):
     from ..rfcore import RFCore
@@ -84,12 +93,12 @@ def launch_help(context):
         bpy.ops.wm.url_open(url='https://docs.retopoflow.com/index.html')
     return {'FINISHED'}
 
-
 RFOperator_Launch_Help = create_launch_browser_operator(
     'RFOperator_Launch_Help',
     'retopoflow.launch_help',
     'Launch Help Docs',
     'https://docs.retopoflow.com/index.html',
-    launch=launch_help,
+    fn_poll=poll_help,
+    fn_launch=launch_help,
     rf_keymap_press='F1',
 )

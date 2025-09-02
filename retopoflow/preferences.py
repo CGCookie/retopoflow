@@ -177,14 +177,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
     def draw(self, context):
         layout = self.layout
 
-    # Disabled since these preferences are not yet functional
-    #    header, panel = layout.panel(idname='hotkey_panel_prefs', default_closed=True)
-    #    header.label(text="Hotkeys")
-    #    if panel:
-    #        panel.use_property_split = True
-    #        panel.use_property_decorate = True
-    #        panel.prop(self, 'enable_help_hotkey')
-    #        panel.prop(self, 'enable_issue_hotkey')
+        header, panel = layout.panel(idname='hotkey_panel_prefs', default_closed=True)
+        header.label(text="Hotkeys")
+        if panel:
+            panel.use_property_split = True
+            panel.use_property_decorate = True
+            panel.prop(self, 'enable_help_hotkey')
+            panel.prop(self, 'enable_issue_hotkey')
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
