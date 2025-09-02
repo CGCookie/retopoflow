@@ -68,6 +68,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     #endregion
 
+    """ Hotkeys """
+    enable_help_hotkey: bpy.props.BoolProperty(
+        name='F1 to Open Tool Help',
+        description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
+        default=True
+    )
+    enable_issue_hotkey: bpy.props.BoolProperty(
+        name='F2 to Report an Issue',
+        description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
+        default=True
+    )
+
     """ Tool Switching """
     #region
     setup_automerge: bpy.props.BoolProperty(
@@ -160,11 +172,19 @@ class RF_Prefs(bpy.types.AddonPreferences):
         ),
         default='_Retopology'
     )
-
     #endregion
 
     def draw(self, context):
         layout = self.layout
+
+    # Disabled since these preferences are not yet functional
+    #    header, panel = layout.panel(idname='hotkey_panel_prefs', default_closed=True)
+    #    header.label(text="Hotkeys")
+    #    if panel:
+    #        panel.use_property_split = True
+    #        panel.use_property_decorate = True
+    #        panel.prop(self, 'enable_help_hotkey')
+    #        panel.prop(self, 'enable_issue_hotkey')
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
