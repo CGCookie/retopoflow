@@ -27,9 +27,10 @@ from ..rftool_strokes.strokes import RFOperator_Strokes, RFTool_Strokes
 from ..rftool_contours.contours import RFOperator_Contours, RFTool_Contours
 from ..rftool_tweak.tweak import RFOperator_Tweak, RFTool_Tweak
 from ..rftool_relax.relax import RFOperator_Relax, RFTool_Relax
+from ..preferences import RF_Prefs
 
 
-def reset_tool_settings():
+def reset_tool_settings(context):
     tools = {
         'PolyPen': {
             'RFTool': RFTool_PolyPen,
@@ -67,6 +68,14 @@ def reset_tool_settings():
                 except Exception as e:
                     print(f'WARNING: exception thrown while attempting to reset {tool} property {pname}: {e}')
 
+    prefs = RF_Prefs.get_prefs(context)
+    for pname in prefs.__annotations__:
+        try:
+            setattr(prefs, pname, prefs[pname].keywords['default'])
+        except Exception as e:
+            print(f'WARNING: exception thrown while attempting to reset Preferences property {pname}: {e}')
+
+
 
 class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.resettoolsettings"
@@ -84,5 +93,5 @@ class RFOperator_ApplyRetopoSettings(RFRegisterClass, bpy.types.Operator):
         return context.mode == 'EDIT_MESH'
 
     def execute(self, context):
-        reset_tool_settings()
+        reset_tool_settings(context)
         return {'FINISHED'}

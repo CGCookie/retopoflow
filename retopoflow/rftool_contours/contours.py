@@ -54,7 +54,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
-from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
+from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
@@ -351,14 +351,6 @@ RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
     False,
 )
 
-RFOperator_Contours_Launch_Help = create_launch_browser_operator(
-    'RFOperator_Contours_Launch_Help',
-    'retopoflow.contours_launch_help',
-    'Contours: Launch Help Docs',
-    'https://docs.retopoflow.com/v4/contours.html',
-    rf_keymap_press='F1',
-)
-
 @execute_operator('switch_to_contours', 'RetopoFlow: Switch to Contours', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     import bl_ui
@@ -383,7 +375,7 @@ class RFTool_Contours(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
-        RFOperator_Contours_Launch_Help,
+        RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
     )
 

@@ -76,7 +76,7 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
-from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
+from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 
 from ..preferences import RF_Prefs
 
@@ -203,13 +203,6 @@ class RFOperator_Tweak(RFOperator):
         if not self.RFCore.is_current_area(context): return
         # self.logic.draw(context)
 
-RFOperator_Tweak_Launch_Help = create_launch_browser_operator(
-    'RFOperator_Tweak_Launch_Help',
-    'retopoflow.tweak_launch_help',
-    'Tweak: Launch Help Docs',
-    'https://docs.retopoflow.com/v4/tweak.html',
-    rf_keymap_press='F1',
-)
 
 @execute_operator('switch_to_tweak', 'RetopoFlow: Switch to Tweak', fn_poll=poll_retopoflow)
 def switch_rftool(context):
@@ -233,7 +226,7 @@ class RFTool_Tweak(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Tweak,
         RFOperator_TweakBrush_Adjust,
-        RFOperator_Tweak_Launch_Help,
+        RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
         RFOperator_Relax_QuickSwitch,
     )

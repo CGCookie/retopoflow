@@ -31,8 +31,22 @@ def alt(k):      return 1 if 'alt+'   in k.lower() else 0
 def oskey(k):    return 1 if 'oskey+' in k.lower() else 0
 
 def create_launch_browser_operator(name, idname, label, url, *, rf_keymaps=None, rf_keymap_press=None, **kwargs):
+    help = {
+        'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',
+        'retopoflow.polystrips': 'https://docs.retopoflow.com/v4/polystrips.html',
+        'retopoflow.strokes': 'https://docs.retopoflow.com/v4/strokes.html',
+        'retopoflow.contours': 'https://docs.retopoflow.com/v4/contours.html',
+        'retopoflow.tweak': 'https://docs.retopoflow.com/v4/tweak.html',
+        'retopoflow.relax': 'https://docs.retopoflow.com/v4/relax.html',
+    }
+
     def launch(context):
-        bpy.ops.wm.url_open(url=url)
+        from ..rfcore import RFCore
+        active_tool = RFCore.selected_RFTool_idname
+        if name == 'RFOperator_Launch_Help' and 'retopoflow' in active_tool:
+            bpy.ops.wm.url_open(url=help[active_tool])
+        else:
+            bpy.ops.wm.url_open(url=url)
         return {'FINISHED'}
 
     op = create_operator(name, idname, label, fn_exec=launch, **kwargs)
@@ -61,3 +75,10 @@ RFOperator_Launch_NewIssue = create_launch_browser_operator(
     rf_keymap_press='F2',
 )
 
+RFOperator_Launch_Help = create_launch_browser_operator(
+    'RFOperator_Launch_Help',
+    'retopoflow.launch_help',
+    'Launch Help Docs',
+    'https://docs.retopoflow.com/index.html',
+    rf_keymap_press='F1',
+)

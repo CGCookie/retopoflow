@@ -49,7 +49,7 @@ from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
-from ..rfoperators.launch_browser import create_launch_browser_operator, RFOperator_Launch_NewIssue
+from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -487,14 +487,6 @@ RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
     True,
 )
 
-RFOperator_Strokes_Launch_Help = create_launch_browser_operator(
-    'RFOperator_Strokes_Launch_Help',
-    'retopoflow.strokes_launch_help',
-    'Strokes: Launch Help Docs',
-    'https://docs.retopoflow.com/v4/strokes.html',
-    rf_keymap_press='F1',
-)
-
 @execute_operator('switch_to_strokes', 'RetopoFlow: Switch to Strokes', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     import bl_ui
@@ -522,7 +514,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
-        RFOperator_Strokes_Launch_Help,
+        RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
     )
 
