@@ -357,6 +357,14 @@ class Strokes_Logic:
         ]
         self.average_length = (sum(bme_length(bme) for bme in self.sel_edges) / len(self.sel_edges)) if self.sel_edges else 0
         self.longest_strip0, self.longest_strip1, self.longest_cycle0, self.longest_cycle1 = get_longest_strip_cycle(self.sel_edges)
+
+        # Calculate proportional edge lengths from selected edges.
+        self.proportional_edge_lengths = []
+        if self.longest_strip0:
+            self.proportional_edge_lengths = [bme_length(bme) for bme in self.longest_strip0]
+        elif self.sel_edges:
+            self.proportional_edge_lengths = [bme_length(bme) for bme in self.sel_edges]
+
         self.longest_strip0_length = sum(bme_length(bme) for bme in self.longest_strip0) if self.longest_strip0 else None
         self.longest_strip1_length = sum(bme_length(bme) for bme in self.longest_strip1) if self.longest_strip1 else None
         self.longest_cycle0_length = sum(bme_length(bme) for bme in self.longest_cycle0) if self.longest_cycle0 else None
@@ -1414,7 +1422,33 @@ class Strokes_Logic:
 
 
         # build template for bottom edge (stroke)
-        template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
+
+        if self.proportional_edge_lengths:
+            total_length = sum(self.proportional_edge_lengths)
+            cumulative_length = 0
+            cumulative_positions = [0.0]  # Start at 0% (first vertex)
+
+            # Calculate where each vertex should be positioned along the stroke based on the selected stroke's edge lengths.
+            for edge_length in self.proportional_edge_lengths:
+                cumulative_length += edge_length
+                cumulative_positions.append(cumulative_length / total_length)  # Convert to 0-1 range.
+
+            if len(cumulative_positions) > llc_tb:
+                # Not enough vertices, fallback to even spacing.
+                template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
+            else:
+                # Apply proportional spacing.
+                template_b = []
+                for iv in range(llc_tb):
+                    if iv < len(cumulative_positions):
+                        # Use the proportional position we just calculated.
+                        v = cumulative_positions[iv]
+                    else:
+                        # Fall back to even spacing for remaining vertices.
+                        v = iv / (llc_tb - 1)
+                    template_b.append(find_point_at(self.stroke2D, False, v))
+        else:
+            template_b = [find_point_at(self.stroke2D, False, iv/(llc_tb-1)) for iv in range(llc_tb)]
 
         # find left and right sides
         template_l, strip_l_bmvs = None, None
