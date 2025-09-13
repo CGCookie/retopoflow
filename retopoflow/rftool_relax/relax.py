@@ -128,9 +128,14 @@ class RFOperator_Relax(RFOperator):
         default=0.75,
     )
 
+    algorithm_rk4: bpy.props.BoolProperty(
+        name='Algorithm: Use RK4',
+        description='Use Runge-Kutta method to improve smoothing.  If disabled, Relax will take tiny steps based on iterations',
+        default=True,
+    )
     algorithm_iterations: bpy.props.IntProperty(
         name='Algorithm: Iterations',
-        description='Number of iterations per frame',
+        description='Number of iterations per frame.  Ignored if RK4 is enabled',
         min=1,
         max=10,
         default=2,

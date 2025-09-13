@@ -340,12 +340,13 @@ class Drawing:
         for p0,p1 in iter_pairs(points, False):
             ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
             ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
-            ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)
+            ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)  # offset changes
             ubos_2D_lineseg.update_shader()
             batch_2D_lineseg.draw(shader_2D_lineseg)
             offset += (p1 - p0).length
         gpu.shader.unbind()
 
+    @staticmethod
     def draw2D_lines(context, points, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         gpu.state.blend_set('ALPHA')
         if color1 is None: color1 = (*color0[:3], 0)

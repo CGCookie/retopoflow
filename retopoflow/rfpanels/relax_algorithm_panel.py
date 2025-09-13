@@ -29,7 +29,9 @@ def draw_relax_algo_options(context, layout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    layout.prop(props, 'algorithm_iterations', text="Iterations")
+    col = layout.column(heading="Integration")
+    col.prop(props, 'algorithm_rk4', text="RK4 Method")
+    col.prop(props, 'algorithm_iterations', text="Iterations")
 
     col = layout.column(heading="Average")
     col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')
