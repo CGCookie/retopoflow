@@ -537,11 +537,13 @@ class RFCore:
             try:
                 RFOperator.active_operator().draw_postview(context)
             except ReferenceError as e:
-                print(f'Caught ReferenceError while trying to draw postview {e}')
+                print(f'Caught ReferenceError while trying to draw tool postview')
+                print(f'  {e}')
                 debugger.print_exception()
                 RFCore.stop()
             except Exception as e:
-                print(f'Caught exception while trying to draw postview {e}')
+                print(f'Caught exception while trying to draw tool postview')
+                print(f'  {e}')
                 debugger.print_exception()
                 RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
                 # RFCore.restart()
@@ -549,7 +551,12 @@ class RFCore:
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         brush = selected_RFTool.rf_brush
         if brush:
-            brush.draw_postview(context)
+            try:
+                brush.draw_postview(context)
+            except ReferenceError as re:
+                print(f'Caught ReferenceError while trying to draw brush postview')
+                print(f'  {re}')
+                RFCore.restart()
 
     @staticmethod
     def handle_postpixel(context, area):
@@ -562,13 +569,19 @@ class RFCore:
             try:
                 RFOperator.active_operator().draw_postpixel(context)
             except Exception as e:
-                print(f'Caught exception while trying to draw postpixel {e}')
+                print(f'Caught exception while trying to draw tool postpixel')
+                print(f'  {e}')
                 RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         brush = selected_RFTool.rf_brush
         if brush:
-            brush.draw_postpixel(context)
+            try:
+                brush.draw_postpixel(context)
+            except ReferenceError as re:
+                print(f'Caught ReferenceError while trying to draw brush postpixel')
+                print(f'  {re}')
+                RFCore.restart()
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
@@ -802,6 +815,12 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         if RFCore.is_controlling:
-            RFCore.handle_update(context, event)
+            try:
+                RFCore.handle_update(context, event)
+            except ReferenceError as re:
+                print(f'RFCore_Operator threw an unexpected ReferenceError')
+                print(f'Attempting to fix by restarting')
+                RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
+                return {'FINISHED'}
 
         return {'PASS_THROUGH'}
