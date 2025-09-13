@@ -116,7 +116,7 @@ def crossed_quad(pt0, pt1, pt2, pt3):
 def ensure_correct_normals(bm, bmfs):
     M_local = bpy.context.edit_object.matrix_world
     Mi_local = M_local.inverted()
-    Mit_local = Mi_local.transposed()
+    Mt_local = M_local.transposed()
     bmesh.ops.recalc_face_normals(bm, faces=bmfs)
     for bmf in bmfs:
         avg_local = Point.average((bmv.co for bmv in bmf.verts))
@@ -124,10 +124,10 @@ def ensure_correct_normals(bm, bmfs):
         pts += [bme_midpoint(bme) for bme in bmf.edges]
         pts += [bmv.co for bmv in bmf.verts]
         no_local_sum = Vector((0,0,0))
-        for pt in pts:
-            pt_world = xform_point(M_local, avg_local)
+        for pt_local in pts:
+            pt_world = xform_point(M_local, pt_local)
             no_world = nearest_normal_valid_sources(bpy.context, pt_world, world=True)
-            no_local = xform_normal(Mit_local, no_world)
+            no_local = xform_normal(Mt_local, no_world)
             no_local_sum += no_local
         no_local = no_local_sum / len(pts)
         if bmf.normal.dot(no_local) < 0:

@@ -293,7 +293,7 @@ def raycast_ray_valid_sources(context, ray_world, *, world=True):
 
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
-        M = context.active_object.matrix_world
+        M = context.edit_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
     return point_to_bvec3(hit)
@@ -319,7 +319,7 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
 
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
-        M = context.active_object.matrix_world
+        M = context.edit_object.matrix_world
         Mi = M.inverted()
         hit = Mi @ hit
     return point_to_bvec3(hit)
@@ -347,6 +347,6 @@ def nearest_normal_valid_sources(context, point, *, world=True):
 
     if world: return best_no_world
 
-    M = context.active_object.matrix_world
+    M = context.edit_object.matrix_world
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
