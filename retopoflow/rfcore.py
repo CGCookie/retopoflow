@@ -200,7 +200,7 @@ class RFCore:
 
     @staticmethod
     def quick_switch_with_call(fn, bl_idname):
-        delay = 0.1
+        delay = 0.5
         def switch(*bl_idnames):
             if not bl_idnames: return
             if bl_idnames[0] is None:

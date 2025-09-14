@@ -49,8 +49,48 @@ from ..common.drawing import (
 )
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
+from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold, clamp
 from ...addon_common.common.colors import Color4, Color
+
+
+class Accel:
+    def __init__(self, bmverts, matrix_world):
+        self.bmverts = bmverts
+        self.matrix_world = matrix_world
+        self.time = time.time() - 1000
+        self.rebuild()
+
+    def rebuild(self, *, delta=1.0):
+        if time.time() - self.time < delta: return
+        M = self.matrix_world
+        self.time = time.time()
+        pts = [M @ v.co for v in self.bmverts]
+        self.min_x, self.min_y, self.min_z = min(pt.x for pt in pts), min(pt.y for pt in pts), min(pt.z for pt in pts)
+        self.max_x, self.max_y, self.max_z = max(pt.x for pt in pts), max(pt.y for pt in pts), max(pt.z for pt in pts)
+        self.bins = [[[[] for _ in range(10)] for _ in range(10)] for _ in range(10)]
+        for v in self.bmverts:
+            ix, iy, iz = self.index(M @ v.co)
+            self.bins[ix][iy][iz].append(v)
+
+    def index(self, co_world):
+        ix = clamp(int((co_world.x - self.min_x) / max(0.001, self.max_x - self.min_x) * 10), 0, 9)
+        iy = clamp(int((co_world.y - self.min_y) / max(0.001, self.max_y - self.min_y) * 10), 0, 9)
+        iz = clamp(int((co_world.z - self.min_z) / max(0.001, self.max_z - self.min_z) * 10), 0, 9)
+        return (ix, iy, iz)
+
+    def get(self, co_world, radius_world):
+        M = self.matrix_world
+        r2 = radius_world * radius_world
+        min_ix, min_iy, min_iz = self.index(co_world - Vector((radius_world, radius_world, radius_world)))
+        max_ix, max_iy, max_iz = self.index(co_world + Vector((radius_world, radius_world, radius_world)))
+        return {
+            v
+            for ix in range(min_ix, max_ix+1)
+            for iy in range(min_iy, max_iy+1)
+            for iz in range(min_iz, max_iz+1)
+            for v in self.bins[ix][iy][iz]
+            if (M @ v.co - co_world).length_squared <= r2
+        }
 
 
 class Relax_Logic:
@@ -98,6 +138,50 @@ class Relax_Logic:
 
         self.bvh = BVHTree.FromBMesh(self.bm)
 
+        def is_bmvert_on_symmetry_plane(bmv):
+            # TODO: IMPLEMENT!
+            return False
+
+        def is_bmvert_on_ngon(bmv):
+            for bmf in bmv.link_faces:
+                if len(bmf.edges) > 4:
+                    return True
+            return False
+
+        # gather options
+        opt_mask_boundary    = relax.mask_boundary
+        opt_mask_symmetry    = relax.mask_symmetry
+        opt_include_corner   = relax.include_corners
+        opt_include_occluded = relax.include_occluded
+        opt_mask_selected    = relax.mask_selected
+        opt_rk4              = relax.algorithm_rk4
+        opt_steps            = relax.algorithm_iterations
+        opt_prevent_bounce   = relax.algorithm_prevent_bounce
+        opt_max_radius       = relax.algorithm_max_distance_radius
+        opt_max_edges        = relax.algorithm_max_distance_edges
+        opt_edge_length      = relax.algorithm_average_edge_lengths
+        opt_straight_edges   = relax.algorithm_straighten_edges
+        opt_face_radius      = relax.algorithm_average_face_radius
+        opt_face_sides       = relax.algorithm_average_face_lengths
+        opt_face_angles      = relax.algorithm_average_face_angles
+        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
+
+        self.verts_filtered = []
+        for bmv in self.bm.verts:
+            if bmv.hide: continue
+            if len(bmv.link_faces) == 0: continue
+            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
+            if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
+            if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
+            if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
+            if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
+            if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
+            if opt_mask_selected == 'ONLY'    and not bmv.select: continue
+            self.verts_filtered.append(bmv)
+        self.verts_accel = Accel(self.verts_filtered, self.matrix_world)
+        self.verts_accel_time = time.time()
+
         self.draw_vectors = [[],[],[]]
 
     def cancel(self, context):
@@ -142,16 +226,6 @@ class Relax_Logic:
         M = self.matrix_world
         Mi = self.matrix_world_inv
 
-        def is_bmvert_on_symmetry_plane(bmv):
-            # TODO: IMPLEMENT!
-            return False
-
-        def is_bmvert_on_ngon(bmv):
-            for bmf in bmv.link_faces:
-                if len(bmf.edges) > 4:
-                    return True
-            return False
-
         # collect data for smoothing
         radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
 
@@ -162,24 +236,11 @@ class Relax_Logic:
                 bmops.select(self.bm, bmelem)
             bmops.flush_selection(self.bm, self.em)
 
-        verts,edges,faces,vert_strength = set(),set(),set(),dict()
-        for bmv in self.bm.verts:
-            if bmv.hide: continue
-            if len(bmv.link_faces) == 0: continue
-            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
-            if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
-            if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
-            if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-            if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
-            if opt_mask_selected == 'ONLY'    and not bmv.select: continue
-            verts.add(bmv)
-            edges.update(bmv.link_edges)
-            faces.update(bmv.link_faces)
-            vert_strength[bmv] = brush.get_strength_Point(M @ bmv.co)
-        # self.rfcontext.select(verts)
+        self.verts_accel.rebuild()
+        verts = self.verts_accel.get(hit['co_world'], radius3D)
+        edges = { bme for bmv in verts for bme in bmv.link_edges }
+        faces = { bmf for bmv in verts for bmf in bmv.link_faces }
+        vert_strength = { bmv:brush.get_strength_Point(M @ bmv.co) for bmv in verts }
 
         if not verts or not edges: return
 
@@ -190,10 +251,10 @@ class Relax_Logic:
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
-        chk_verts.update({bmv for bme in edges for bmv in bme.verts})
-        chk_verts.update({bmv for bmf in faces for bmv in bmf.verts})
-        chk_edges = {bme for bmv in chk_verts for bme in bmv.link_edges}
-        chk_faces = {bmf for bmv in chk_verts for bmf in bmv.link_faces}
+        chk_verts.update({ bmv for bme in edges for bmv in bme.verts })
+        chk_verts.update({ bmv for bmf in faces for bmv in bmf.verts })
+        chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
+        chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
 
         self.draw_vectors = [[],[], []]
 
@@ -205,7 +266,7 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += f.xyz
+            displace[bmv] += f.xyz * vert_strength[bmv]
             if opt_draw_all and wrt:
                 if sign > 0:
                     self.draw_vectors[0].append((wrt, f.xyz * mult * vert_strength[bmv]))
@@ -218,9 +279,6 @@ class Relax_Logic:
             # should take into account xform??
             v0, v1 = bme.verts
             return (v1.co - v0.co)
-        def bme_center(bme):
-            v0, v1 = bme.verts
-            return Point.average([v0.co, v1.co])
         def bmf_compute_normal(bmf):
             ''' computes normal based on verts '''
             # TODO: should use loop rather than verts?
@@ -236,8 +294,6 @@ class Relax_Logic:
         def bmf_is_flipped(bmf):
             fn = bmf_compute_normal(bmf)
             return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
-        def bmf_center(bmf):
-            return Point.average(bmv.co for bmv in bmf.verts)
 
         def relax_3d():
             reset_forces()
@@ -251,7 +307,7 @@ class Relax_Logic:
                     bmv0, bmv1 = bme.verts
                     vec = bme_vector(bme)
                     edge_len = vec.length
-                    f = vec * (5.0 * (avg_edge_len - edge_len) * strength)
+                    f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
                     add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
                     add_force(bmv1, +f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
 
@@ -261,16 +317,12 @@ class Relax_Logic:
                 for bmf in bmf_flipped:
                     # find a non-flipped neighboring face
                     for bme in bmf.edges:
-                        bmfs = set(bme.link_faces)
-                        bmfs.discard(bmf)
+                        bmfs = { f for f in bme.link_faces if f not in bmf_flipped }
                         if len(bmfs) != 1: continue
                         bmf_other = next(iter(bmfs))
                         if bmf_other not in chk_faces: continue
-                        if bmf_other in bmf_flipped: continue
                         # pull edge toward bmf_other center
-                        bmf_c = bmf_center(bmf_other)
-                        bme_c = bme_center(bme)
-                        vec = bmf_c - bme_c
+                        vec = bmf_midpoint(bmf_other) - bme_midpoint(bme)
                         bmv0,bmv1 = bme.verts
                         add_force(bmv0, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
                         add_force(bmv1, vec * strength * 5)
@@ -287,14 +339,14 @@ class Relax_Logic:
                     else:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
                     vec = center - bmv.co
-                    add_force(bmv, vec * (vec.length * strength * 400), bmv.co, 1, 40)
+                    add_force(bmv, vec * (vec.length * strength * 5), bmv.co, 1, 40)
 
             # attempt to "square" up the faces
             for bmf in chk_faces:
                 if bmf not in faces: continue
                 bmvs = bmf.verts
                 cnt = len(bmvs)
-                ctr = Point.average(bmv.co for bmv in bmvs)
+                ctr = bmf_midpoint(bmf)
                 rels = [bmv.co - ctr for bmv in bmvs]
                 bmf_z = bmf.normal.normalized()
                 if abs(bmf_z.dot(self.forward)) < 0.95:
@@ -309,7 +361,7 @@ class Relax_Logic:
                     avg_rel_len = sum(rel.length for rel in rels) / cnt
                     for rel, bmv in zip(rels, bmvs):
                         rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength * 20.0)
+                        f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
                         add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
 
                 # push verts toward equal edge lengths
@@ -334,52 +386,59 @@ class Relax_Logic:
                         d10, d12 = v10.normalized(), v12.normalized()
                         d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
                         d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
-                        angle = d10_2.angle_signed(d12_2)
-                        angle_diff = angle_target - angle
-                        mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
-                        add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
-                        add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
+                        try:
+                            angle = d10_2.angle_signed(d12_2)
+                            angle_diff = angle_target - angle
+                            mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
+                            add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
+                            add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
+                        except Exception:
+                            # Exception is thrown if d10_2 or d12_2 are 0-length
+                            pass
 
         # perform smoothing
         for step in range(1 if opt_rk4 else opt_steps):
             if opt_rk4:
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
-                strength = 5.0 * brush.strength * time_delta * self.pressure
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure
                 relax_3d()
                 k1 = displace.copy()
 
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
                     bmv.co = original[bmv] + f1 / 2
-                strength = 5.0 * brush.strength * time_delta * self.pressure / 2
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 2
                 relax_3d()
                 k2 = displace.copy()
 
                 for bmv in original:
                     f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
                     bmv.co = original[bmv] + f2 / 2
-                strength = 5.0 * brush.strength * time_delta * self.pressure / 2
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 2
                 relax_3d()
                 k3 = displace.copy()
 
                 for bmv in original:
                     f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
                     bmv.co = original[bmv] + f3
-                strength = 5.0 * brush.strength * time_delta * self.pressure
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure
                 relax_3d()
                 k4 = displace.copy()
 
-                strength = 5.0 * brush.strength * time_delta * self.pressure / 6
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 6
+                displace.clear()
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
                     f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
                     f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
                     f4 = k4[bmv] if bmv in k4 else Vector((0,0,0))
-                    bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
+                    displace[bmv] = (f1 + 2 * f2 + 2 * f3 + f4) * strength
+                    bmv.co = original[bmv]
+                    #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = (5.0 / opt_steps) * brush.strength * time_delta * self.pressure
+                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / opt_steps
                 relax_3d()
 
             if opt_prevent_bounce:
@@ -396,21 +455,26 @@ class Relax_Logic:
 
             # limit the maximum displacement based on brush radius
             displace_max = max(
-                (M @ Vector((*displace[bmv], 0.0))).length * vert_strength[bmv]
+                (M @ Vector((*displace[bmv], 0.0))).length
                 for bmv in displace
             )
             if displace_max > 1e-8:
                 mult *= min(1.0, radius3D * opt_max_radius / displace_max)
+            # print(time_delta, radius3D, opt_max_radius, displace_max, mult)
+            if displace_max > radius3D:
+                print('BREAKING')
+                break
 
             # update
             update_to = {}
             for bmv in displace:
                 if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
 
-                displace_dist = displace[bmv].length * vert_strength[bmv] * mult
+                displace_dist = displace[bmv].length * mult
                 if bmv.link_edges and displace_dist > 1e-8:
                     avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
                     displace_dist *= min(1.0, avg_edge_len * opt_max_edges / displace_dist)
+                # displace_dist *= vert_strength[bmv]
                 if opt_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
                 displace_vec = displace[bmv].normalized() * displace_dist
@@ -430,7 +494,7 @@ class Relax_Logic:
 
                 co_world = M @ Vector((*co.xyz, 1.0))
                 co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                co_local_snapped = Mi @ co_world_snapped
+                co_local_snapped = Mi @ co_world_snapped if co_world_snapped else co
 
                 if self.mirror:
                     co_orig = self.prev[bmv]
