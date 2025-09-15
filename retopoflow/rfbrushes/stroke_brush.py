@@ -115,7 +115,6 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.matrix_world = None
             self.matrix_world_inv = None
             self.matrix_world_ti = None
-            self.bm, self.em = None, None
             self.nearest_bmv = None
             self.nearest_bme = None
             self.nearest_bmf = None
@@ -165,41 +164,43 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.snap_bmf0 = None
             self.snap_bmf1 = None
 
-        def reset_nearest(self, context):
-            if self.operator:
-                self.matrix_world = context.edit_object.matrix_world
-                self.matrix_world_inv = self.matrix_world.inverted()
-                self.matrix_world_ti = self.matrix_world.inverted().transposed()
-                self.bm, self.em = get_bmesh_emesh(context)
-                if snap_verts:
-                    self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
-                if snap_edges:
-                    self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv)
-                if snap_faces:
-                    self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv)
-            elif context.edit_object:
-                self.matrix_world = context.edit_object.matrix_world
-                self.matrix_world_inv = self.matrix_world.inverted()
-                self.matrix_world_ti = self.matrix_world.inverted().transposed()
-                self.bm, self.em = get_bmesh_emesh(context)
-                if snap_verts:
-                    self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv)
-                if snap_edges:
-                    self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv)
-                if snap_faces:
-                    self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv)
-                self.reset()
-            else:
-                self.matrix_world = None
-                self.matrix_world_inv = None
-                self.matrix_world_ti = None
-                self.bm, self.em = None, None
-                self.reset()
 
+        def reset_nearest(self, context):
+            # Clear nearest references
+            self.nearest_bmv = None
+            self.nearest_bme = None
+            self.nearest_bmf = None
+
+            # Clear snap references
             self.snap_bmv0 = None
             self.snap_bmv1 = None
             self.snap_bmf0 = None
             self.snap_bmf1 = None
+
+            bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
+            if bm is not None and bm.is_valid:
+                # Update matrices.
+                self.matrix_world = context.edit_object.matrix_world
+                self.matrix_world_inv = self.matrix_world.inverted()
+                self.matrix_world_ti = self.matrix_world.inverted().transposed()
+
+                if snap_verts:
+                    self.nearest_bmv = NearestBMVert(bm, self.matrix_world, self.matrix_world_inv)
+                if snap_edges:
+                    self.nearest_bme = NearestBMEdge(bm, self.matrix_world, self.matrix_world_inv)
+                if snap_faces:
+                    self.nearest_bmf = NearestBMFace(bm, self.matrix_world, self.matrix_world_inv)
+            else:
+                print('Warning: Could not get valid BMesh')
+
+                # No edit object available
+                self.matrix_world = None
+                self.matrix_world_inv = None
+                self.matrix_world_ti = None
+
+            if not self.operator:
+                self.reset()
+
 
         def get_scaled_radius(self):
             return self.hit_scale * self.stroke_radius
