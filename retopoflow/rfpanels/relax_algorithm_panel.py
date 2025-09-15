@@ -30,8 +30,9 @@ def draw_relax_algo_options(context, layout):
     layout.use_property_decorate = False
 
     col = layout.column(heading="Integration")
-    col.prop(props, 'algorithm_rk4', text="RK4 Method")
-    col.prop(props, 'algorithm_iterations', text="Iterations")
+    col.row().prop(props, 'algorithm_method', expand=True)
+    if props.algorithm_method == 'STEPS':
+        col.prop(props, 'algorithm_iterations', text="Iterations")
 
     col = layout.column(heading="Average")
     col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')

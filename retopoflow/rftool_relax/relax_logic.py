@@ -154,7 +154,7 @@ class Relax_Logic:
         opt_include_corner   = relax.include_corners
         opt_include_occluded = relax.include_occluded
         opt_mask_selected    = relax.mask_selected
-        opt_rk4              = relax.algorithm_rk4
+        opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce
         opt_max_radius       = relax.algorithm_max_distance_radius
@@ -208,7 +208,7 @@ class Relax_Logic:
         opt_include_corner   = relax.include_corners
         opt_include_occluded = relax.include_occluded
         opt_mask_selected    = relax.mask_selected
-        opt_rk4              = relax.algorithm_rk4
+        opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce
         opt_max_radius       = relax.algorithm_max_distance_radius
@@ -397,8 +397,8 @@ class Relax_Logic:
                             pass
 
         # perform smoothing
-        for step in range(1 if opt_rk4 else opt_steps):
-            if opt_rk4:
+        for step in range(1 if opt_method == 'RK4' else opt_steps):
+            if opt_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
                 strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure

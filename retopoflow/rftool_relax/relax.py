@@ -128,10 +128,14 @@ class RFOperator_Relax(RFOperator):
         default=0.75,
     )
 
-    algorithm_rk4: bpy.props.BoolProperty(
-        name='Algorithm: Use RK4',
-        description='Use Runge-Kutta method to improve smoothing.  If disabled, Relax will take tiny steps based on iterations',
-        default=True,
+    algorithm_method: bpy.props.EnumProperty(
+        name='Method',
+        description='How Relax updates the position of the vertices under the brush',
+        items=[
+            ('RK4', 'RK4', 'Use Runge-Kutta integration to improve stability while smoothing'),
+            ('STEPS', 'Steps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
+        ],
+        default='RK4',
     )
     algorithm_iterations: bpy.props.IntProperty(
         name='Algorithm: Iterations',
