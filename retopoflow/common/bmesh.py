@@ -528,7 +528,12 @@ class NearestBMFace(NearestElem):
             co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
             bmf_co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmf_co)
             if (co2d - bmf_co2d).length < Drawing.scale(distance2d):
-                self.bmf = self.bm.faces[bmf_idx]
+                try:
+                    self.bmf = self.bm.faces[bmf_idx]
+                except IndexError:
+                    print(f'WARN: ftable is outdated. bmf_idx={bmf_idx}, face_count={len(self.bm.faces)}')
+                    self.bm.faces.ensure_lookup_table()  # Fix 1617
+                    self.bmf = self.bm.faces[bmf_idx]
         if filter_fn and self.bmf:
             if not filter_fn(self.bmf): self.bmf = None
         elif filter_selected and self.bmf:
