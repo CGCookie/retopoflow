@@ -377,7 +377,7 @@ def nearest_bme_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.8
     return closest
 
 
-class NearestBMVert:
+class NearestElem:
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         self.bm = bm
         self.matrix = matrix
@@ -386,13 +386,18 @@ class NearestBMVert:
             self.bm.verts.ensure_lookup_table()
             self.bm.edges.ensure_lookup_table()
             self.bm.faces.ensure_lookup_table()
+        self.bvh_faces = BVHTree.FromBMesh(self.bm)
+
+
+class NearestBMVert(NearestElem):
+    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
+        super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
         # assuming there are relatively few loose bmvs (bmvert that is not part of a bmface)
         self.loose_bmvs = [bmv for bmv in self.bm.verts if not bmv.link_faces]
         loose_bmv_cos = [bmv.co for bmv in self.loose_bmvs]
 
         self.bvh_verts = BVHTree.FromPolygons(loose_bmv_cos, verts_to_triangles(len(self.loose_bmvs)), all_triangles=True)
-        self.bvh_faces = BVHTree.FromBMesh(self.bm)
 
         self.bmv = None
 
@@ -442,22 +447,15 @@ def edges_to_triangles(count):
         ]
     return edges_to_triangles.triangle_inds[:count]
 
-class NearestBMEdge:
+class NearestBMEdge(NearestElem):
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
-        self.bm = bm
-        self.matrix = matrix
-        self.matrix_inv = matrix_inv
-        if ensure_lookup_tables:
-            self.bm.verts.ensure_lookup_table()
-            self.bm.edges.ensure_lookup_table()
-            self.bm.faces.ensure_lookup_table()
+        super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
         # assuming there are relatively few loose bmes (bmedge that is not part of a bmface)
         self.loose_bmes = [bme for bme in self.bm.edges if not bme.link_faces]
         loose_bme_cos = [bmv.co for bme in self.loose_bmes for bmv in bme.verts]
 
         self.bvh_edges = BVHTree.FromPolygons(loose_bme_cos, edges_to_triangles(len(self.loose_bmes)), all_triangles=True)
-        self.bvh_faces = BVHTree.FromBMesh(self.bm)
 
         self.bme = None
 
@@ -503,16 +501,10 @@ class NearestBMEdge:
         self.co2d = closest_point_linesegment(co2d, co2d0, co2d1)
         return self.bme
 
-class NearestBMFace:
+class NearestBMFace(NearestElem):
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
-        self.bm = bm
-        self.matrix = matrix
-        self.matrix_inv = matrix_inv
-        if ensure_lookup_tables:
-            self.bm.verts.ensure_lookup_table()
-            self.bm.edges.ensure_lookup_table()
-            self.bm.faces.ensure_lookup_table()
-        self.bvh = BVHTree.FromBMesh(self.bm)
+        super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
+
         self.bmf = None
 
     @property
@@ -530,7 +522,7 @@ class NearestBMFace:
         if not self.is_valid: return
         if not co: return
 
-        bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh.find_nearest(co, distance) # distance=1.0
+        bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh_faces.find_nearest(co, distance) # distance=1.0
 
         if bmf_idx is not None:
             co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
