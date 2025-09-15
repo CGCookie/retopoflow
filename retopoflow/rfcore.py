@@ -743,12 +743,17 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
 
     def __del__(self):
         print(f'RFCore_Operator.__del__!!!')
-        print(f'    {self}')
-        print(f'    {getattr(self, "is_running", None)}')
-        if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
-            RFCore.running_in_areas.remove(self.running_in_area)
-        RFCore_Operator.running_operators -= 1
-        self.is_running = False
+        try:
+            print(f'    {self}')
+            print(f'    {getattr(self, "is_running", None)}')
+            if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
+                RFCore.running_in_areas.remove(self.running_in_area)
+            self.is_running = False
+        except ReferenceError:
+            # Blender struct has been removed, can't access or set properties
+            print(f'    <struct removed>')
+        finally:
+            RFCore_Operator.running_operators -= 1
 
     def execute(self, context):
         prep_raycast_valid_sources(context)
