@@ -311,10 +311,8 @@ class PolyStrips_Logic:
         snap_bmf_start, snap_bmf_end = None, None
         if self.snap_bmf0_index is not None:
             snap_bmf_start = self.bm.faces[self.snap_bmf0_index]
-            select_geo += [snap_bmf_start]
         if self.snap_bmf1_index is not None:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
-            select_geo += [snap_bmf_end]
 
         # break stroke into segments
         strips = stroke_angles(
