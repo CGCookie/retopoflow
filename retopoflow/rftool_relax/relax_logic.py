@@ -97,7 +97,7 @@ class Relax_Logic:
     def __init__(self, context, event, brush, relax):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
-        self.scale_avg = sum(context.edit_object.scale) / 3
+        self.scale_avg = 1.0 # (sum(context.edit_object.scale) / 3)
         self.mouse = None
         self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
@@ -296,6 +296,7 @@ class Relax_Logic:
             return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
 
         def relax_3d():
+            print(f'{strength=}')
             reset_forces()
 
             # push edges closer to average edge length
