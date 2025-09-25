@@ -296,7 +296,6 @@ class Relax_Logic:
             return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
 
         def relax_3d():
-            print(f'{strength=}')
             reset_forces()
 
             # push edges closer to average edge length
