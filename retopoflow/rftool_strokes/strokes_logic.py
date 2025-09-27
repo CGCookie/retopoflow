@@ -172,8 +172,6 @@ class Strokes_Logic:
 
 
     def update(self, context):
-        self.context, self.rgn, self.r3d = context, context.region, context.region_data
-
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
@@ -183,17 +181,17 @@ class Strokes_Logic:
         self.important_indices = []
         self.important_lengths = {}
 
-        self.process_selected()          # gather details about selected geometry
-        self.process_mirror()            # can change stroke, depends on selected geo
+        self.process_selected(context)          # gather details about selected geometry
+        self.process_mirror(context)            # can change stroke, depends on selected geo
         if not self.stroke3D:
             self.failure_message = 'Stroke was not compatible with settings'
             return
-        self.process_stroke_details()    # must happen after stroke is finalized
-        self.process_snap_geometry()     # should probably happen after stroke is finalized
+        self.process_stroke_details(context)    # must happen after stroke is finalized
+        self.process_snap_geometry(context)     # should probably happen after stroke is finalized
 
         # TODO: handle gracefully if these functions fail
         try:
-            self.insert()
+            self.insert(context)
         except Exception as e:
             print(f'Exception caught: {e}')
             debugger.print_exception()
@@ -212,11 +210,11 @@ class Strokes_Logic:
             1 if 'z' not in self.mirror else sign_threshold(pt3D_local.z, self.mirror_threshold),
         )
 
-    def process_mirror(self):
+    def process_mirror(self, context):
         self.mirror = set()
         self.mirror_clip = False
         self.mirror_threshold = 0
-        for mod in self.context.edit_object.modifiers:
+        for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
             if mod.use_axis[0]: self.mirror.add('x')
@@ -334,16 +332,16 @@ class Strokes_Logic:
         # print([self.get_mirror_side(self.stroke3D[i]) for i in self.important_indices])
 
 
-    def process_stroke_details(self):
+    def process_stroke_details(self, context):
 
         # project 3D stroke points to screen  (assuming stroke3D has no Nones)
-        self.stroke2D = [ self.project_pt(pt3D) for pt3D in self.stroke3D ]
+        self.stroke2D = [ self.project_pt(context, pt3D) for pt3D in self.stroke3D ]
 
         # compute total lengths, which will be used to find where new verts are to be created
         self.length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke2D, self.is_cycle))
         self.length3D = sum((p1-p0).length for (p0,p1) in iter_pairs(self.stroke3D, self.is_cycle))
 
-    def process_selected(self):
+    def process_selected(self, context):
         """
         Finds and analyzes all selected geometry, which is used to determine how to interpret
         an insertion (new strip/cycle, bridging selection to stroke, etc. )
@@ -365,14 +363,14 @@ class Strokes_Logic:
         def fix_strip(strip):
             if not strip or len(strip) <= 1: return
             bmv0, bmv1 = bme_unshared_bmv(strip[0], strip[1]), bmes_shared_bmv(strip[0], strip[1])
-            p0, p1 = self.project_bmv(bmv0), self.project_bmv(bmv1)
+            p0, p1 = self.project_bmv(context, bmv0), self.project_bmv(context, bmv1)
             if p0.y > p1.y: strip.reverse()
         fix_strip(self.longest_strip0)
         fix_strip(self.longest_strip1)
 
-    def process_snap_geometry(self):
-        self.snap_bmv0 = self.bmv_closest(self.bm.verts, self.stroke3D[0])
-        self.snap_bmv1 = self.bmv_closest(self.bm.verts, self.stroke3D[-1])
+    def process_snap_geometry(self, context):
+        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0])
+        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1])
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)
@@ -404,7 +402,7 @@ class Strokes_Logic:
         self.snap_bmv0_nosel,   self.snap_bmv1_nosel   = self.snap_bmv1_nosel,   self.snap_bmv0_nosel
         self.snapped_mirror[0], self.snapped_mirror[1] = self.snapped_mirror[1], self.snapped_mirror[0]
 
-    def insert(self):
+    def insert(self, context):
         if DEBUG:
             def dbg(l): return len(l) if l is not None else None
             print(f'')
@@ -418,29 +416,29 @@ class Strokes_Logic:
 
         if self.is_cycle:
             if not self.longest_cycle0:
-                self.insert_cycle()
+                self.insert_cycle(context)
             else:
-                self.insert_cycle_equals()
+                self.insert_cycle_equals(context)
         else:
             if self.snap_bmv0_cycle0 or self.snap_bmv1_cycle0:
                 if self.longest_cycle1 and len(self.longest_cycle0) == len(self.longest_cycle1) and ((self.snap_bmv0_cycle0 and self.snap_bmv1_cycle1) or (self.snap_bmv0_cycle1 and self.snap_bmv1_cycle0)):
-                    self.insert_cycle_I()
+                    self.insert_cycle_I(context)
                 else:
-                    self.insert_cycle_T()
+                    self.insert_cycle_T(context)
             elif self.longest_strip0:
                 if self.longest_strip1 and len(self.longest_strip0) == len(self.longest_strip1) and ((self.snap_bmv0_strip0 and self.snap_bmv1_strip1) or (self.snap_bmv0_strip1 and self.snap_bmv1_strip0)):
-                    self.insert_strip_I()
+                    self.insert_strip_I(context)
                 elif self.snap_bmv0_strip0 or self.snap_bmv1_strip0:
                     if self.snap_bmv0_strip0 and self.snap_bmv1_strip0:
-                        self.insert_strip_C()
+                        self.insert_strip_C(context)
                     elif (self.snap_bmv0_sel and self.snap_bmv1_nosel) or (self.snap_bmv0_nosel and self.snap_bmv1_sel):
-                        self.insert_strip_L()
+                        self.insert_strip_L(context)
                     else:
-                        self.insert_strip_T()
+                        self.insert_strip_T(context)
                 else:
-                    self.insert_strip_equals()
+                    self.insert_strip_equals(context)
             else:
-                self.insert_strip()
+                self.insert_strip(context)
 
         bmops.flush_selection(self.bm, self.em)
 
@@ -450,23 +448,23 @@ class Strokes_Logic:
 
     def find_point2D(self, v):  return find_point_at(self.stroke2D, self.is_cycle, v)
     def find_point3D(self, v):  return find_point_at(self.stroke3D, self.is_cycle, v)
-    def project_pt(self, pt):
-        p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
+    def project_pt(self, context, pt):
+        p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
-    def project_bmv(self, bmv):
-        p = self.project_pt(bmv.co)
+    def project_bmv(self, context, bmv):
+        p = self.project_pt(context, bmv.co)
         return p.xy if p else None
-    def bmv_closest(self, bmvs, pt3D):
-        pt2D = self.project_pt(pt3D)
-        off3D2 = self.context.space_data.overlay.retopology_offset ** 2  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
-        # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+    def bmv_closest(self, context, bmvs, pt3D):
+        pt2D = self.project_pt(context, pt3D)
+        off3D2 = context.space_data.overlay.retopology_offset ** 2  # TODO: TAKE INTO ACCOUNT OBJECT NON-UNIFORM SCALING
+        # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared < 20*20]
         sd2 = self.snap_distance ** 2
         bmvs = [
             bmv
             for bmv in bmvs
             if (
                 # (pt3D - bmv.co).length_squared < off3D2 and
-                (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared <= sd2
+                (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared <= sd2
             )
         ]
         if not bmvs: return None
@@ -476,7 +474,7 @@ class Strokes_Logic:
     #####################################################################################
     # simple insertions with no bridging
 
-    def insert_strip(self):
+    def insert_strip(self, context):
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
                 nspans = round(self.length2D / (2 * self.radius))
@@ -549,7 +547,7 @@ class Strokes_Logic:
         self.show_is_cycle = True
         self.show_extrapolate_mode = False
 
-    def insert_cycle(self):
+    def insert_cycle(self, context):
         if DEBUG: print(f'insert_cycle()')
         match self.span_insert_mode:
             case 'BRUSH' | 'AVERAGE':
@@ -584,7 +582,7 @@ class Strokes_Logic:
     ##############################################################################
     # cycle bridging insertions
 
-    def insert_cycle_equals(self):
+    def insert_cycle_equals(self, context):
         if DEBUG: print(f'insert_cycle_equals()')
 
         assert self.is_cycle
@@ -617,8 +615,8 @@ class Strokes_Logic:
         # determine number of spans
         match self.span_insert_mode:
             case 'BRUSH':
-                pt0 = self.project_pt(closest_pt0)
-                pt1 = self.project_pt(closest_pt1)
+                pt0 = self.project_pt(context, closest_pt0)
+                pt1 = self.project_pt(context, closest_pt1)
                 nspans = round((pt0 - pt1).length / (2 * self.radius))
             case 'FIXED':
                 nspans = self.fixed_span_count
@@ -636,14 +634,14 @@ class Strokes_Logic:
         for bme_cur in self.longest_cycle0:
             bmv = bmes_shared_bmv(bme_pre, bme_cur)
             spt = self.find_point3D(accum_dist / self.longest_cycle0_length)
-            pt0 = self.project_bmv(bmv)
-            pt1 = self.project_pt(spt)
+            pt0 = self.project_bmv(context, bmv)
+            pt1 = self.project_pt(context, spt)
             v = pt1 - pt0
 
             bmvs[0].append(bmv)
             for i in range(1, nverts):
                 pt = pt0 + v * (i / (nverts - 1))
-                co = raycast_point_valid_sources(self.context, pt, world=False)
+                co = raycast_point_valid_sources(context, pt, world=False)
                 bmvs[i].append(self.bm.verts.new(co) if co else None)
 
             accum_dist += bme_length(bme_cur)
@@ -661,7 +659,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -675,7 +673,7 @@ class Strokes_Logic:
         self.show_extrapolate_mode = False
 
 
-    def insert_cycle_T(self):
+    def insert_cycle_T(self, context):
         if DEBUG: print(f'insert_cycle_T()')
 
         llc = len(self.longest_cycle0)
@@ -715,7 +713,7 @@ class Strokes_Logic:
         # get orientation of stroke to selected cycle
         vx = Vector((1, 0))
         bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle0, self.snap_bmv0)
-        pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
+        pp, pn = [self.project_bmv(context, bmv) for bmv in [bmvp, bmvn]]
         vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
         template_len = vstroke.length
         angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
@@ -724,17 +722,17 @@ class Strokes_Logic:
         bmv0 = bme_unshared_bmv(self.longest_cycle0[0], self.longest_cycle0[1])
         bmvs = []
         for i_row, bme in enumerate(self.longest_cycle0):
-            pt = self.project_bmv(bmv0)
+            pt = self.project_bmv(context, bmv0)
 
             bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_cycle0, bmv0)
             if i_row == 0: bmvp, bmvn = bmvn, bmvp
-            vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+            vpn = self.project_bmv(context, bmvn) - self.project_bmv(context, bmvp)
             bme_angle = vec_screenspace_angle(vpn)
             along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
             fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
             cur_bmvs = [bmv0]
             for t in fitted[1:]:
-                co = raycast_point_valid_sources(self.context, t, world=False)
+                co = raycast_point_valid_sources(context, t, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
             bmvs.append(cur_bmvs)
@@ -753,7 +751,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -766,7 +764,7 @@ class Strokes_Logic:
         self.show_is_cycle = False
         self.show_extrapolate_mode = False
 
-    def insert_cycle_I(self):
+    def insert_cycle_I(self, context):
         if DEBUG: print(f'insert_cycle_I()')
 
         llc = len(self.longest_cycle0)
@@ -818,12 +816,12 @@ class Strokes_Logic:
         bmv0 = bme_unshared_bmv(self.longest_cycle0[0], self.longest_cycle0[1])
         bmv1 = bme_unshared_bmv(self.longest_cycle1[0], self.longest_cycle1[1])
         for (bme0, bme1) in zip(self.longest_cycle0, self.longest_cycle1):
-            pt0, pt1 = self.project_bmv(bmv0), self.project_bmv(bmv1)
+            pt0, pt1 = self.project_bmv(context, bmv0), self.project_bmv(context, bmv1)
             scale = (pt1 - pt0).length / template_length
             fitted = fit_template2D(template, pt0, target=pt1)
             cur_bmvs = [bmv0]
             for t in fitted[1:-1]:
-                co = raycast_point_valid_sources(self.context, t, world=False)
+                co = raycast_point_valid_sources(context, t, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -848,7 +846,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -865,7 +863,7 @@ class Strokes_Logic:
     ##############################################################################
     # strip bridging insertions
 
-    def insert_strip_T(self):
+    def insert_strip_T(self, context):
         if DEBUG: print(f'insert_strip_T()')
 
         llc = len(self.longest_strip0)
@@ -888,20 +886,20 @@ class Strokes_Logic:
             # make sure strips and selected are pointing in same direction
             if len(self.longest_strip0) == 1:
                 if self.snap_bmv0 == self.longest_strip0[0].verts[0]:
-                    pt00 = self.project_pt(self.longest_strip0[0].verts[0].co)
-                    pt01 = self.project_pt(self.longest_strip0[0].verts[1].co)
+                    pt00 = self.project_pt(context, self.longest_strip0[0].verts[0].co)
+                    pt01 = self.project_pt(context, self.longest_strip0[0].verts[1].co)
                 else:
-                    pt00 = self.project_pt(self.longest_strip0[0].verts[1].co)
-                    pt01 = self.project_pt(self.longest_strip0[0].verts[0].co)
+                    pt00 = self.project_pt(context, self.longest_strip0[0].verts[1].co)
+                    pt01 = self.project_pt(context, self.longest_strip0[0].verts[0].co)
             else:
-                pt00 = self.project_pt(bme_midpoint(self.longest_strip0[0]))
-                pt01 = self.project_pt(bme_midpoint(self.longest_strip0[1]))
+                pt00 = self.project_pt(context, bme_midpoint(self.longest_strip0[0]))
+                pt01 = self.project_pt(context, bme_midpoint(self.longest_strip0[1]))
             vec01 = pt01 - pt00
             if len(strips) == 1:
                 strips = [[], strips[0]] if count0 == 0 else [strips[0], []]
             elif len(strips) == 2:
                 bmv0, bmv1 = bme_unshared_bmv(strips[0][0], strips[1][0]), bme_unshared_bmv(strips[1][0], strips[0][0])
-                pt10, pt11 = self.project_bmv(bmv0), self.project_bmv(bmv1)
+                pt10, pt11 = self.project_bmv(context, bmv0), self.project_bmv(context, bmv1)
                 if vec01.dot(pt10 - pt00) > vec01.dot(pt11 - pt00):
                     strips = [strips[1], strips[0]]
 
@@ -941,7 +939,7 @@ class Strokes_Logic:
 
             s0, s1 = template[:2]
             d10 = (s1 - s0).normalized()
-            n0 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(self.context, (M @ bvec_point_to_bvec4(s0)).xyz))).xyz
+            n0 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(context, (M @ bvec_point_to_bvec4(s0)).xyz))).xyz
             frame0 = Frame(s0, y=d10, z=n0)
             bmv = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
             prep_data = [(bmv, frame0.w2l_point(bmv.co))]
@@ -951,12 +949,12 @@ class Strokes_Logic:
             bmvs = [[bmv for (bmv, _) in prep_data]]
             for (s0, s1, s2) in zip(template[:-1], template[1:], template[2:] + [template[-1]]):
                 d20 = (s2 - s0).normalized()
-                n1 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(self.context, (M @ bvec_point_to_bvec4(s1)).xyz))).xyz
+                n1 = (Mi @ bvec_vector_to_bvec4(nearest_normal_valid_sources(context, (M @ bvec_point_to_bvec4(s1)).xyz))).xyz
                 frame1 = Frame(s1, y=d20, z=n1)
                 cur_bmvs = []
                 for bmv, co_frame in prep_data:
                     co_local = frame1.l2w_point(co_frame)
-                    co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(self.context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
+                    co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
                     cur_bmvs.append( self.bm.verts.new(co_local) )
                 bmvs.append(cur_bmvs)
             #sel_idx = next((i for (i,bmv) in enumerate(bmvs[0]) if bmv == self.snap_bmv0), -1)
@@ -976,7 +974,7 @@ class Strokes_Logic:
             # get orientation of stroke to selected strip
             vx = Vector((1, 0))
             bmvp, bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, self.snap_bmv0)
-            pp, pn = [self.project_bmv(bmv) for bmv in [bmvp, bmvn]]
+            pp, pn = [self.project_bmv(context, bmv) for bmv in [bmvp, bmvn]]
             vpn, vstroke = (pn - pp), (self.stroke2D[-1] - self.stroke2D[0])
             template_len = vstroke.length
             angle = vec_screenspace_angle(vstroke) - vec_screenspace_angle(vpn)
@@ -985,24 +983,24 @@ class Strokes_Logic:
             bmv0 = bme_unshared_bmv(self.longest_strip0[0], self.longest_strip0[1]) if len(self.longest_strip0) > 1 else self.longest_strip0[0].verts[0]
             bmvs = []
             for i_row, bme in enumerate(self.longest_strip0 + [None]):
-                pt = self.project_bmv(bmv0)
+                pt = self.project_bmv(context, bmv0)
 
                 if self.extrapolate_mode == 'FAN':
                     bmvp,bmvn = bmes_get_prevnext_bmvs(self.longest_strip0, bmv0)
-                    vpn = self.project_bmv(bmvn) - self.project_bmv(bmvp)
+                    vpn = self.project_bmv(context, bmvn) - self.project_bmv(context, bmvp)
                     bme_angle = vec_screenspace_angle(vpn)
                     along = Vector((math.cos(bme_angle + angle), -math.sin(bme_angle + angle)))
                     fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
                     cur_bmvs = [bmv0]
                     for t in fitted[1:]:
-                        co = raycast_point_valid_sources(self.context, t, world=False)
+                        co = raycast_point_valid_sources(context, t, world=False)
                         cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
                 else:
                     cur_bmvs = [bmv0]
                     offset0 = template[0]
                     for offset in template[1:]:
-                        co = raycast_point_valid_sources(self.context, pt + offset - offset0, world=False)
+                        co = raycast_point_valid_sources(context, pt + offset - offset0, world=False)
                         cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
                 bmvs.append(cur_bmvs)
@@ -1052,7 +1050,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -1066,7 +1064,7 @@ class Strokes_Logic:
         self.show_extrapolate_mode = True
 
 
-    def insert_strip_I(self):
+    def insert_strip_I(self, context):
         if DEBUG: print(f'insert_strip_I()')
 
         llc = len(self.longest_strip0)
@@ -1122,14 +1120,14 @@ class Strokes_Logic:
             bmv1 = bme1.verts[0] if bme_vector(bme0).dot(bme_vector(bme1)) > 0 else bme1.verts[1]
         i_sel_row = 0
         for i_row, (bme0, bme1) in enumerate(zip(self.longest_strip0 + [None], self.longest_strip1 + [None])):
-            pt0 = self.project_bmv(bmv0)
-            pt1 = self.project_bmv(bmv1)
+            pt0 = self.project_bmv(context, bmv0)
+            pt1 = self.project_bmv(context, bmv1)
             fitted = fit_template2D(template, pt0, target=pt1)
             #scale = (pt1 - pt0).length / template_length
             cur_bmvs = [bmv0]
             for t in fitted[1:-1]:
-                # co = raycast_point_valid_sources(self.context, pt0 + offset * scale, world=False)
-                co = raycast_point_valid_sources(self.context, t, world=False)
+                # co = raycast_point_valid_sources(context, pt0 + offset * scale, world=False)
+                co = raycast_point_valid_sources(context, t, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -1150,7 +1148,7 @@ class Strokes_Logic:
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
 
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select newly created geometry
@@ -1165,7 +1163,7 @@ class Strokes_Logic:
         self.show_untwist_bridge = True
 
 
-    def insert_strip_C(self):
+    def insert_strip_C(self, context):
         if DEBUG: print(f'insert_strip_C()')
 
         llc = len(self.longest_strip0)
@@ -1218,14 +1216,14 @@ class Strokes_Logic:
         bmvs = []
         for i, bme in enumerate(self.longest_strip0 + [None]):
             v = i / llc
-            pt0 = self.project_bmv(bmv0)
+            pt0 = self.project_bmv(context, bmv0)
             pt1 = find_point_at(stroke1, False, v)
             fitted0 = fit_template2D(template0, pt0, target=pt1)
             fitted2 = fit_template2D(template2, pt0, target=pt1)
             cur_bmvs = [bmv0]
             for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
                 p = lerp(v, p0, p2)
-                co = raycast_point_valid_sources(self.context, p, world=False)
+                co = raycast_point_valid_sources(context, p, world=False)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             bmvs.append(cur_bmvs)
             if not bme: break
@@ -1242,7 +1240,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row
@@ -1256,7 +1254,7 @@ class Strokes_Logic:
         self.show_extrapolate_mode = False
 
 
-    def insert_strip_L(self):
+    def insert_strip_L(self, context):
         if DEBUG: print(f'insert_strip_L()')
 
         # fallback to insert_strip_T if we cannot make L-shape work
@@ -1321,8 +1319,8 @@ class Strokes_Logic:
         # create templates
         strip_t_bmvs = get_strip_bmvs(strip_t, opposite)
         strip_l_bmvs = get_strip_bmvs(strip_l, opposite)
-        template_t = [self.project_bmv(bmv) for bmv in strip_t_bmvs]
-        template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
+        template_t = [self.project_bmv(context, bmv) for bmv in strip_t_bmvs]
+        template_l = [self.project_bmv(context, bmv) for bmv in strip_l_bmvs]
         template_b = [find_point_at(stroke_b, False, iv / (llc_tb-1)) for iv in range(llc_tb)]
         template_r = [find_point_at(stroke_r, False, iv / (llc_lr-1)) for iv in range(llc_lr)]
 
@@ -1340,7 +1338,7 @@ class Strokes_Logic:
                 else:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(self.context, p, world=False)
+                    co = raycast_point_valid_sources(context, p, world=False)
                     bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
 
         # fill in quads
@@ -1354,7 +1352,7 @@ class Strokes_Logic:
                 if not (bmv00 and bmv01 and bmv10 and bmv11): continue
                 bmf = self.bm.faces.new((bmv00, bmv01, bmv11, bmv10))
                 bmfs.append(bmf)
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row
@@ -1367,7 +1365,7 @@ class Strokes_Logic:
         self.show_count = False
 
 
-    def insert_strip_equals(self):
+    def insert_strip_equals(self, context):
         if DEBUG: print(f'insert_strip_equals()')
 
         M, Mi = self.matrix_world, self.matrix_world_inv
@@ -1396,11 +1394,11 @@ class Strokes_Logic:
         # build template for top edge (selected strip)
         strip_t_bmvs = get_strip_bmvs(self.longest_strip0, bmv_tl)
         llc_tb = len(strip_t_bmvs)
-        template_t = [self.project_bmv(bmv) for bmv in strip_t_bmvs]
+        template_t = [self.project_bmv(context, bmv) for bmv in strip_t_bmvs]
 
         # make sure stroke points in correct direction, otherwise generated geo will twist and self-intersect
         vec_tltr, vec_tls0, vec_tls1 = bmv_tr.co - bmv_tl.co, self.stroke3D[0] - bmv_tl.co, self.stroke3D[-1] - bmv_tl.co
-        if segment2D_intersection(self.project_bmv(bmv_tl), self.stroke2D[0], self.project_bmv(bmv_tr), self.stroke2D[-1]):
+        if segment2D_intersection(self.project_bmv(context, bmv_tl), self.stroke2D[0], self.project_bmv(context, bmv_tr), self.stroke2D[-1]):
             self.reverse_stroke()
         #if vec_tltr.dot(vec_tls0) > vec_tltr.dot(vec_tls1): self.reverse_stroke()
 
@@ -1432,33 +1430,33 @@ class Strokes_Logic:
             else:
                 ll, lr = min(il, ir)-1, min(il, ir)-1
             strip_l_bmvs, strip_r_bmvs = strip_l_bmvs[:ll+1], strip_r_bmvs[:lr+1]
-            template_b = fit_template2D(template_b, self.project_bmv(strip_l_bmvs[-1]), target=self.project_bmv(strip_r_bmvs[-1]))
-            template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
-            template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
+            template_b = fit_template2D(template_b, self.project_bmv(context, strip_l_bmvs[-1]), target=self.project_bmv(context, strip_r_bmvs[-1]))
+            template_l = [self.project_bmv(context, bmv) for bmv in strip_l_bmvs]
+            template_r = [self.project_bmv(context, bmv) for bmv in strip_r_bmvs]
             llc_lr = len(strip_l_bmvs)
         elif strip_l_bmvs and not strip_r_bmvs:
             if not self.initial and self.cut_count is not None:
                 ll = max(1, min(self.fixed_span_count, len(strip_l_bmvs)-1))
             else:
                 ll = il - 1
-            pt_prev = self.project_bmv(strip_l_bmvs[il-1])
+            pt_prev = self.project_bmv(context, strip_l_bmvs[il-1])
             strip_l_bmvs = strip_l_bmvs[:ll+1]
-            pt_next = self.project_bmv(strip_l_bmvs[-1])
+            pt_next = self.project_bmv(context, strip_l_bmvs[-1])
             vec_diff = pt_next - pt_prev
             template_b = [pt+vec_diff for pt in template_b]
-            template_l = [self.project_bmv(bmv) for bmv in strip_l_bmvs]
+            template_l = [self.project_bmv(context, bmv) for bmv in strip_l_bmvs]
             llc_lr = len(strip_l_bmvs)
         elif strip_r_bmvs and not strip_l_bmvs:
             if not self.initial and self.cut_count is not None:
                 lr = max(1, min(self.fixed_span_count, len(strip_r_bmvs)-1))
             else:
                 lr = ir - 1
-            pt_prev = self.project_bmv(strip_r_bmvs[ir-1])
+            pt_prev = self.project_bmv(context, strip_r_bmvs[ir-1])
             strip_r_bmvs = strip_r_bmvs[:lr+1]
-            pt_next = self.project_bmv(strip_r_bmvs[-1])
+            pt_next = self.project_bmv(context, strip_r_bmvs[-1])
             vec_diff = pt_next - pt_prev
             template_b = [pt+vec_diff for pt in template_b]
-            template_r = [self.project_bmv(bmv) for bmv in strip_r_bmvs]
+            template_r = [self.project_bmv(context, bmv) for bmv in strip_r_bmvs]
             llc_lr = len(strip_r_bmvs)
         if not template_l and not template_r:
             # determine number of spans
@@ -1466,7 +1464,7 @@ class Strokes_Logic:
                 case 'BRUSH':
                     # find closest distance between selected and stroke
                     closest_distance2D = min(
-                        (s - self.project_bmv(bmv)).length
+                        (s - self.project_bmv(context, bmv)).length
                         for s in self.stroke2D
                         for bme in self.longest_strip0
                         for bmv in bme.verts
@@ -1486,9 +1484,9 @@ class Strokes_Logic:
                     assert False, f'Unhandled {self.span_insert_mode=}'
             nspans = max(1, nspans)
             llc_lr = nspans + 1
-        pt_tl, pt_tr = self.project_bmv(bmv_tl), self.project_bmv(bmv_tr)
-        pt_tl1, pt_tr1 = self.project_bmv(bmv_tl1), self.project_bmv(bmv_tr1)
-        pt_tmid0, pt_tmid1 = self.project_bmv(bmv_tmid0), self.project_bmv(bmv_tmid1)
+        pt_tl, pt_tr = self.project_bmv(context, bmv_tl), self.project_bmv(context, bmv_tr)
+        pt_tl1, pt_tr1 = self.project_bmv(context, bmv_tl1), self.project_bmv(context, bmv_tr1)
+        pt_tmid0, pt_tmid1 = self.project_bmv(context, bmv_tmid0), self.project_bmv(context, bmv_tmid1)
         pt_bl, pt_br = self.stroke2D[0], self.stroke2D[-1]
         if len(template_b) == 1:
             pt_bl1 = pt_br
@@ -1575,7 +1573,7 @@ class Strokes_Logic:
                 else:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(self.context, p, world=False)
+                    co = raycast_point_valid_sources(context, p, world=False)
                     if left_mirror_snap:
                         zs = 0 if at_l else 1 # (i_tb / (llc_tb - 1))**0.25
                         if 'x' in left_mirror_snap: co.x *= zs
@@ -1595,7 +1593,7 @@ class Strokes_Logic:
             for i in range(llc_lr - 1)
             for j in range(llc_tb - 1)
         ]))
-        fwd = xform_direction(Mi, view_forward_direction(self.context))
+        fwd = xform_direction(Mi, view_forward_direction(context))
         check_bmf_normals(fwd, bmfs)
 
         # select bottom row

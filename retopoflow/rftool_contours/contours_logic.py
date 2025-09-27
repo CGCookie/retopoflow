@@ -105,25 +105,23 @@ class Contours_Logic:
         self.cyclic = False
 
     def update(self, context):
-        self.context, self.rgn, self.r3d = context, context.region, context.region_data
-
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
 
         try:
-            if not self.process_source(): return
-            self.process_target()
-            self.find_boundary_for_bridging()
-            self.insert()
+            if not self.process_source(context): return
+            self.process_target(context)
+            self.find_boundary_for_bridging(context)
+            self.insert(context)
         except Exception as e:
             print(f'Exception caught: {e}')
             debugger.print_exception()
 
         self.initial = False
 
-    def process_source(self):
+    def process_source(self, context):
         # process source only once, unless settings have changed
         if not self.initial and self.last_process_source_method == self.process_source_method:
             # print(f'skipping re-processing source')
@@ -132,15 +130,15 @@ class Contours_Logic:
 
         match self.process_source_method:
             case 'fast':
-                return self.process_source_fast()
+                return self.process_source_fast(context)
             case 'skip':
-                return self.process_source_skip()
+                return self.process_source_skip(context)
             case 'walk':
-                return self.process_source_walk()
+                return self.process_source_walk(context)
             case _:
                 assert False, f'Unhandled source processing method "{self.process_source_method}"'
 
-    def process_target(self):
+    def process_target(self, context):
         # did we hit current geometry and need to insert an edge loop?
         self.edge_ring = None
         self.cyclic_ring = False
@@ -153,7 +151,7 @@ class Contours_Logic:
         self.edge_ring = set()
 
         M = self.matrix_world
-        rgn, r3d = self.rgn, self.r3d
+        rgn, r3d = context.region, context.region_data
         po3 = self.plane.o
         po2 = location_3d_to_region_2d(rgn, r3d, po3)
 
@@ -200,7 +198,7 @@ class Contours_Logic:
         self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3, only_boundary=False)
         self.bridge = bool(self.sel_path) and (self.cyclic == self.sel_cyclic)
 
-    def find_boundary_for_bridging(self):
+    def find_boundary_for_bridging(self, context):
         if not self.bridge: return
 
         # print(f'-----------------------------------------------------')
@@ -265,18 +263,18 @@ class Contours_Logic:
             best_path, best_cyclic, best_dist = bmes, cyclic, d
         self.sel_path, self.sel_cyclic = best_path, best_cyclic
 
-    def insert(self):
+    def insert(self, context):
         if self.edge_ring:
             # cut in new edge loop
-            self.insert_edge_ring()
+            self.insert_edge_ring(context)
         elif self.bridge:
             # extrude selection to cut
-            self.insert_bridge()
+            self.insert_bridge(context)
         else:
-            self.insert_new_cut()
+            self.insert_new_cut(context)
         bmops.flush_selection(self.bm, self.em)
 
-    def insert_edge_ring(self):
+    def insert_edge_ring(self, context):
         # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
         # select only the edges on either side of cut
         bmeloops = {
@@ -291,19 +289,19 @@ class Contours_Logic:
         # newly created verts will not be selected
         nbmvs = list({ bmv for bmf in nbmelems for bmv in bmf.verts if not bmv.select })
 
-        self.finish_edgering_bridge(nbmelems, nbmvs)
+        self.finish_edgering_bridge(context, nbmelems, nbmvs)
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
         self.show_twist = self.cyclic
 
-    def insert_bridge(self):
+    def insert_bridge(self, context):
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
-        self.finish_edgering_bridge(nbmelems, nbmvs)
+        self.finish_edgering_bridge(context, nbmelems, nbmvs)
         self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
         self.show_twist = self.cyclic
 
-    def finish_edgering_bridge(self, nbmelems, nbmvs):
+    def finish_edgering_bridge(self, context, nbmelems, nbmvs):
         plane_fit = self.plane_fit
         circle_fit = self.circle_fit
         points = self.points
@@ -332,7 +330,7 @@ class Contours_Logic:
         for bmv in nbmvs:
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(npt_local))
-            npt_world_snapped = nearest_point_valid_sources(self.context, npt_world, world=True)
+            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
             npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
             closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
             closest_pt = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
@@ -350,10 +348,10 @@ class Contours_Logic:
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ npt_local)
             vec_in = o_world - npt_world
-            ray_in_world  = ray_from_point_through_point(self.context, npt_world, npt_world + vec_in)
-            ray_out_world = ray_from_point_through_point(self.context, npt_world, npt_world - vec_in)
-            npt_world_in  = raycast_ray_valid_sources(self.context, ray_in_world,  world=True)
-            npt_world_out = raycast_ray_valid_sources(self.context, ray_out_world, world=True)
+            ray_in_world  = ray_from_point_through_point(context, npt_world, npt_world + vec_in)
+            ray_out_world = ray_from_point_through_point(context, npt_world, npt_world - vec_in)
+            npt_world_in  = raycast_ray_valid_sources(context, ray_in_world,  world=True)
+            npt_world_out = raycast_ray_valid_sources(context, ray_out_world, world=True)
             if npt_world_in:
                 if npt_world_out:
                     # choose the closer
@@ -367,7 +365,7 @@ class Contours_Logic:
                     npt_world_new = npt_world_out
                 else:
                     # fallback to snapping
-                    npt_world_new = nearest_point_valid_sources(self.context, npt_world, world=True)
+                    npt_world_new = nearest_point_valid_sources(context, npt_world, world=True)
             npt_local_snapped = self.matrix_world_inv @ npt_world_new
             if False:
                 bmv.co = npt_local_snapped
@@ -404,7 +402,7 @@ class Contours_Logic:
         bmops.select_iter(self.bm, nbmvs)
 
 
-    def insert_new_cut(self):
+    def insert_new_cut(self, context):
         path_length = self.path_length
         points = []
         for pt in self.points:
@@ -471,7 +469,7 @@ class Contours_Logic:
         assert len(npts) >= vertex_count
 
         npts = [
-            Mi @ nearest_point_valid_sources(self.context, M @ pt, world=True) for pt in npts
+            Mi @ nearest_point_valid_sources(context, M @ pt, world=True) for pt in npts
         ]
 
         # create geometry!
@@ -506,8 +504,7 @@ class Contours_Logic:
     #######################################################
     # different methods for processing source
 
-    def process_source_fast(self):
-        context = self.context
+    def process_source_fast(self, context):
         plane_cut = self.plane
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
@@ -523,7 +520,7 @@ class Contours_Logic:
         dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
         rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
         points_world = [
-            raycast_ray_valid_sources(self.context, ray_world, world=True)
+            raycast_ray_valid_sources(context, ray_world, world=True)
             for ray_world in rays_world
         ]
 
@@ -557,8 +554,7 @@ class Contours_Logic:
 
         return True
 
-    def process_source_skip(self):
-        context = self.context
+    def process_source_skip(self, context):
         plane_cut = self.plane
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
@@ -626,11 +622,10 @@ class Contours_Logic:
 
         return True
 
-    def process_source_walk(self):
+    def process_source_walk(self, context):
         '''
         gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
         '''
-        context = self.context
         plane_cut = self.plane
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world

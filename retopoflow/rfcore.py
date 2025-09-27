@@ -744,8 +744,8 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
     def __del__(self):
         print(f'RFCore_Operator.__del__!!!')
         try:
-            print(f'    {self}')
-            print(f'    {getattr(self, "is_running", None)}')
+            print(f'    {self=}')
+            print(f'    {getattr(self, "is_running", None)=}')
             if hasattr(self, 'running_in_area') and self.running_in_area in RFCore.running_in_areas:
                 RFCore.running_in_areas.remove(self.running_in_area)
             self.is_running = False
@@ -754,6 +754,7 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             print(f'    <struct removed>')
         finally:
             RFCore_Operator.running_operators -= 1
+        print(f'  done')
 
     def execute(self, context):
         prep_raycast_valid_sources(context)

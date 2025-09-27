@@ -118,7 +118,7 @@ def trim_stroke_to_bmf(stroke, bmf, from_start, limit_bmes=None):
         'bme.radius': bme_length(bme) / 2,
     }
 
-def warp_stroke(stroke, end0, end1, fn_snap_point):
+def warp_stroke(context, stroke, end0, end1, fn_snap_point):
     if not stroke or (not end0 and not end1):
         return stroke
     s0, s1 = stroke[0], stroke[-1]
@@ -131,7 +131,7 @@ def warp_stroke(stroke, end0, end1, fn_snap_point):
     ec, es = (end0 + end1) / 2, (end0 - end1).length
     sc, ss = (s0 + s1) / 2, (s0 - s1).length
     scale = es / ss
-    return [ fn_snap_point(ec + (pt - sc) * scale) for pt in stroke ]
+    return [ fn_snap_point(context, ec + (pt - sc) * scale) for pt in stroke ]
 
 def stroke_angles(stroke, width, split_angle, fn_snap_normal):
     # convert radians to degrees
@@ -345,7 +345,7 @@ class PolyStrips_Logic:
                 i1 == len(self.stroke3D_local) and 'y' in self.mirror and sign_threshold(stroke3D_local[-1].y, self.mirror_threshold) == 0,
                 i1 == len(self.stroke3D_local) and 'z' in self.mirror and sign_threshold(stroke3D_local[-1].z, self.mirror_threshold) == 0,
             )
-            print(snap_beginning, snap_ending)
+            # print(snap_beginning, snap_ending)
 
             limit_bmes0 = None
             if i0 == 0:
@@ -371,7 +371,7 @@ class PolyStrips_Logic:
                 i_end = max(0, len(stroke3D_local) - 5)
                 p0,p1 = stroke3D_local[i_end], stroke3D_local[-1]
                 d01 = Direction(p1 - p0)
-                p2 = self.nearest_point(p1 + d01 * (self.initial_width / 2))
+                p2 = self.nearest_point(context, p1 + d01 * (self.initial_width / 2))
                 stroke3D_local += [p2]
 
             snap0 = trim_stroke_to_bmf(stroke3D_local, snap_bmf0, True, limit_bmes0)
@@ -400,6 +400,7 @@ class PolyStrips_Logic:
 
             # warp stroke to better fit snapped geo
             stroke3D_local = warp_stroke(
+                context,
                 stroke3D_local,
                 None if not snap0 else snap0['bme.center'],
                 None if not snap1 else snap1['bme.center'],
@@ -548,7 +549,7 @@ class PolyStrips_Logic:
                 bmf = self.bm.faces.new(verts)
                 bmfs += [ bmf ]
                 select_geo.append(bmf)
-            fwd = xform_direction(Mi, view_forward_direction(self.context))
+            fwd = xform_direction(Mi, view_forward_direction(context))
             check_bmf_normals(fwd, bmfs)
 
             if snap_bmf1 is None: snap_bmf1 = bmfs[-1]
@@ -568,9 +569,6 @@ class PolyStrips_Logic:
 
     def update_context(self, context):
         # this should be called whenever the context could change
-
-        self.context = context
-        self.rgn, self.r3d = context.region, context.region_data
 
         # gather bmesh data
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
@@ -597,17 +595,17 @@ class PolyStrips_Logic:
     #####################################################################################
     # utility functions
 
-    def project_pt(self, pt):
-        p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
+    def project_pt(self, context, pt):
+        p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
-    def project_bmv(self, bmv):
-        p = self.project_pt(bmv.co)
+    def project_bmv(self, context, bmv):
+        p = self.project_pt(context, bmv.co)
         return p.xy if p else None
-    def nearest_point(self, p):
-        return self.matrix_world_inv @ nearest_point_valid_sources(self.context, self.matrix_world @ p)
+    def nearest_point(self, context, p):
+        return self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ p)
     def bmv_closest(self, bmvs, pt3D):
-        pt2D = self.project_pt(pt3D)
+        pt2D = self.project_pt(context, pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
-        bmvs = [bmv for bmv in bmvs if (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]
+        bmvs = [bmv for bmv in bmvs if (pt := self.project_bmv(context, bmv)) and (pt - pt2D).length_squared < 20*20]
         if not bmvs: return None
         return min(bmvs, key=lambda bmv: (bmv.co - pt3D).length_squared)
