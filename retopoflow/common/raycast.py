@@ -177,7 +177,18 @@ def is_point_hidden(context, co_edit, *, factor=1.0, use_offset=True):
     offset = context.space_data.overlay.retopology_offset if use_offset else 0.0
     return hit['distance'] + offset < (ray_e.xyz - co_world.xyz).length * factor
 
-
+def has_faces(context, obj):
+    if obj.type == 'MESH' and bool(obj.data.polygons):
+        return True
+    elif obj.type in ['CURVE', 'SURFACE', 'META', 'FONT']:
+        depsgraph = context.evaluated_depsgraph_get()
+        eval_obj = obj.evaluated_get(depsgraph)
+        eval_mesh = eval_obj.to_mesh()
+        result = bool(eval_mesh.polygons)
+        eval_obj.to_mesh_clear()
+        return result
+    else:
+        return False
 
 def iter_all_valid_sources(context):
     ts = context.scene.tool_settings
@@ -185,12 +196,11 @@ def iter_all_valid_sources(context):
         obj
         for obj in context.view_layer.objects
         if (
-            obj.type == 'MESH' and
+            has_faces(context, obj) and
             obj.mode == 'OBJECT' and
             not obj.hide_get() and
             obj.visible_get() and
             not obj.hide_viewport and
-            bool(obj.data.polygons) and
             (
                 not ts.use_snap_selectable or
                 (ts.use_snap_selectable and not obj.hide_select)
