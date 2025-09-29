@@ -135,14 +135,14 @@ class RFOperator_Relax(RFOperator):
             ('RK4', 'RK4', 'Use Runge-Kutta integration to improve stability while smoothing'),
             ('STEPS', 'Steps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
         ],
-        default='RK4',
+        default='STEPS',
     )
     algorithm_iterations: bpy.props.IntProperty(
         name='Algorithm: Iterations',
-        description='Number of iterations per frame.  Ignored if RK4 is enabled',
+        description='Number of iterations per frame. Ignored if RK4 is enabled',
         min=1,
         max=10,
-        default=2,
+        default=3,
     )
     algorithm_max_distance_radius: bpy.props.FloatProperty(
         name='Algorithm: Max Distance (Radius)',
