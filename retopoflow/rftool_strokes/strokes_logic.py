@@ -916,7 +916,7 @@ class Strokes_Logic:
                 strip = full_strip[idx-count0:idx+count1]
                 assert len(strip) == llc
                 self.longest_strip1 = strip
-                self.insert_strip_I()
+                self.insert_strip_I(context)
                 return
 
 
@@ -1262,9 +1262,9 @@ class Strokes_Logic:
 
         if   self.snap_bmv0_sel and self.snap_bmv1_nosel: pass
         elif self.snap_bmv1_sel and self.snap_bmv0_nosel: self.reverse_stroke()
-        else: return self.insert_strip_T()
+        else: return self.insert_strip_T(context)
 
-        if self.force_nonstripL: return self.insert_strip_T()
+        if self.force_nonstripL: return self.insert_strip_T(context)
         self.show_force_nonstripL = False  # will set to True if we add an L-strip
         self.force_nonstripL = False
 
@@ -1272,8 +1272,8 @@ class Strokes_Logic:
         if len(self.longest_strip0) > 1:
             longest_strip0_bmv0 = bme_unshared_bmv(self.longest_strip0[ 0], self.longest_strip0[ 1])
             longest_strip0_bmv1 = bme_unshared_bmv(self.longest_strip0[-1], self.longest_strip0[-2])
-            if self.snap_bmv0 != longest_strip0_bmv0 and self.snap_bmv0 != longest_strip0_bmv1: return self.insert_strip_T()
-        # if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-2]): return self.insert_strip_T()
+            if self.snap_bmv0 != longest_strip0_bmv0 and self.snap_bmv0 != longest_strip0_bmv1: return self.insert_strip_T(context)
+        # if any(self.snap_bmv0 in bme.verts for bme in self.longest_strip0[1:-2]): return self.insert_strip_T(context)
 
         # see if we can crawl along boundary from bmv1 and reach opposite end of longest_strip0 from bmv0
         # find opposite end of strip from bmv0
@@ -1290,14 +1290,14 @@ class Strokes_Logic:
         path, processing = {}, [self.snap_bmv1]
         while processing and opposite not in path:
             bmv = processing.pop(0)
-            if bmv == self.snap_bmv0: return self.insert_strip_T()
+            if bmv == self.snap_bmv0: return self.insert_strip_T(context)
             for bme in bmv.link_edges:
                 if not bme.hide and (bme.is_wire or bme.is_boundary):
                     bmv_ = bme_other_bmv(bme, bmv)
                     if bmv_ not in path:
                         path[bmv_] = bmv
                         processing.append(bmv_)
-        if opposite not in path: return self.insert_strip_T()
+        if opposite not in path: return self.insert_strip_T(context)
         strip_l = []
         cur = opposite
         while cur != self.snap_bmv1:
