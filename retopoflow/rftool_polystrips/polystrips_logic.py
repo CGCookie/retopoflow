@@ -124,10 +124,10 @@ def warp_stroke(context, stroke, end0, end1, fn_snap_point):
     s0, s1 = stroke[0], stroke[-1]
     if end0 and not end1:
         offset = end0 - s0
-        return [ fn_snap_point(pt + offset) for pt in stroke ]
+        return [ fn_snap_point(context, pt + offset) for pt in stroke ]
     elif not end0 and end1:
         offset = end1 - s1
-        return [ fn_snap_point(pt + offset) for pt in stroke ]
+        return [ fn_snap_point(context, pt + offset) for pt in stroke ]
     ec, es = (end0 + end1) / 2, (end0 - end1).length
     sc, ss = (s0 + s1) / 2, (s0 - s1).length
     scale = es / ss
