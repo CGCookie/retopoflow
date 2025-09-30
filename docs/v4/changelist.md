@@ -4,11 +4,14 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.0.0 beta 7
 
+New:
 - Retopoflow can now use non-mesh objects like curves and NURBS as sources as long as they have evaluated faces
 - The existing faces are no longer selected after using PolyStrips to bridge
 - Added RK4 as a new iteration method for Relax
-    - RK4 is singificantly more stable overall but may apply too much or too little strength in some edge cases
-- Added new preferences for disabling the help and pie menu hotkeys
+    - RK4 is singificantly more stable overall but may apply too much or too little strength in some cases
+- Added preferences for disabling the help and pie menu hotkeys
+
+Improved:
 - Fixed random crashing in Strokes and PolyStrips in Blender 4.5
 - Fixed occasional flipped normals in Contours
 - Fixed several smaller issues
