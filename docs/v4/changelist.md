@@ -8,7 +8,7 @@ New:
 - Retopoflow can now use non-mesh objects like curves and NURBS as sources as long as they have evaluated faces
 - The existing faces are no longer selected after using PolyStrips to bridge
 - Added RK4 as a new iteration method for Relax
-    - RK4 is singificantly more stable overall but may apply too much or too little strength in some cases
+    - RK4 is significantly more stable overall but may apply too much or too little strength in some cases
 - Added preferences for disabling the help and pie menu hotkeys
 
 Improved:
