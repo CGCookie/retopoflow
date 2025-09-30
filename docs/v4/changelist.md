@@ -9,6 +9,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added RK4 as a new iteration method for Relax
     - RK4 is singificantly more stable overall but may apply too much or too little strength in some edge cases
 - Added new preferences for disabling the help and pie menu hotkeys
+- Fixed random crashing in Strokes and PolyStrips in Blender 4.5
 - Fixed occasional flipped normals in Contours
 - Fixed issue when exiting full screen with Ctrl Space
 - Fixed several smaller issues
