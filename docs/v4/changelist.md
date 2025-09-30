@@ -11,7 +11,6 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added new preferences for disabling the help and pie menu hotkeys
 - Fixed random crashing in Strokes and PolyStrips in Blender 4.5
 - Fixed occasional flipped normals in Contours
-- Fixed issue when exiting full screen with Ctrl Space
 - Fixed several smaller issues
 
 ### 4.0.0 beta 6
