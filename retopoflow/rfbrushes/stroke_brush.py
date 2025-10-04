@@ -118,6 +118,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.nearest_bmv = None
             self.nearest_bme = None
             self.nearest_bmf = None
+            self.edit_scale = None
 
             self.hit = False
             self.hit_p = None
@@ -183,6 +184,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.matrix_world = context.edit_object.matrix_world
                 self.matrix_world_inv = self.matrix_world.inverted()
                 self.matrix_world_ti = self.matrix_world.inverted().transposed()
+                self.edit_scale = max(self.matrix_world.to_scale())
 
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(bm, self.matrix_world, self.matrix_world_inv)
@@ -444,7 +446,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 # TODO: left and right sides could be off high poly mesh!  shrink radius until left and right are both on mesh
                 for i in range(len(self.stroke_original)):
                     pt2D, pt3D, no = self.stroke_original[i], self.stroke3D_original[i], self.stroke_normal[i]
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[i])
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
                     pt3D_prev, pt3D_next = find_stroke3D_point_from(i, -1), find_stroke3D_point_from(i,  1)
                     d_left = no.cross(pt3D_next - pt3D_prev).normalized()
                     self.stroke3D_left  += [pt3D + d_left * radius3D]
@@ -454,14 +456,14 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 # if stroke is sufficiently long enough, determine front and back
                 if len(self.stroke3D_left) > 2:
                     pt3D_next, pt3D_prev = self.stroke3D_original[0], find_stroke3D_point_from(0, 1)
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0])
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
                     v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
                     self.stroke3D_left_start  = self.stroke3D_left[0]  + v_forward
                     self.stroke3D_right_start = self.stroke3D_right[0] + v_forward
                     self.co_back = (self.stroke3D_left_start + self.stroke3D_right_start) / 2
 
                     pt3D_next, pt3D_prev = self.stroke3D_original[-1], find_stroke3D_point_from(-1, -1)
-                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) # self.stroke_dist[-1])
+                    radius3D = self.stroke_radius * size2D_to_size(context, self.stroke_dist[0]) / self.edit_scale
                     v_forward = (pt3D_next - pt3D_prev).normalized() * radius3D
                     self.stroke3D_left_end  = self.stroke3D_left[-1]  + v_forward
                     self.stroke3D_right_end = self.stroke3D_right[-1] + v_forward
@@ -907,10 +909,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                         mco for co in chain([self.stroke3D_right_start], self.stroke3D_right, [self.stroke3D_right_end])
                         if (mco := location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co))
                     ]
-                    Drawing.draw2D_linestrip(context, mcos_left, [1,1,0,0.5], width=1, stipple=[3,3])
-                    Drawing.draw2D_linestrip(context, mcos_right, [1,1,0,0.5], width=1, stipple=[3,3])
-                    Drawing.draw2D_linestrip(context, [mcos_left[0], mcos_right[0]], [1,1,0,0.5], width=1, stipple=[3,3])
-                    Drawing.draw2D_linestrip(context, [mcos_left[-1], mcos_right[-1]], [1,1,0,0.5], width=1, stipple=[3,3])
+                    if mcos_left and mcos_right:
+                        Drawing.draw2D_linestrip(context, mcos_left, [1,1,0,0.5], width=1, stipple=[3,3])
+                        Drawing.draw2D_linestrip(context, mcos_right, [1,1,0,0.5], width=1, stipple=[3,3])
+                        Drawing.draw2D_linestrip(context, [mcos_left[0], mcos_right[0]], [1,1,0,0.5], width=1, stipple=[3,3])
+                        Drawing.draw2D_linestrip(context, [mcos_left[-1], mcos_right[-1]], [1,1,0,0.5], width=1, stipple=[3,3])
 
                 if self.stroke_cycle:
                     Drawing.draw2D_linestrip(context, [self.stroke[0], self.stroke[-1]], self.cycle_color, width=2)

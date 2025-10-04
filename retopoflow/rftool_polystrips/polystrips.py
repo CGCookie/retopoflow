@@ -169,7 +169,6 @@ class RFOperator_PolyStrips_Insert(
 
     @staticmethod
     def polystrips_insert(context, radius2D, stroke3D, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
-        logic = RFOperator_PolyStrips_Insert.logic
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
@@ -182,7 +181,7 @@ class RFOperator_PolyStrips_Insert(
             mirror_correct,
         )
         logic = RFOperator_PolyStrips_Insert.logic
-        if not logic or logic.error: return
+        if logic.error: return
         bpy.ops.retopoflow.polystrips_insert(
             'INVOKE_DEFAULT', True,
             count0=logic.count0, width0=logic.width0,

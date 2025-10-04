@@ -418,7 +418,7 @@ class PolyStrips_Logic:
             if not self.counts:
                 quad_count = round(((self.compute_length3D(stroke3D_local, False) / self.initial_width) + 1) / 2)
                 quad_count = max(2, quad_count)
-                width = self.initial_width
+                width = self.initial_width / self.edit_scale
             else:
                 quad_count = self.counts[i_strip]
                 width = self.widths[i_strip]
@@ -575,6 +575,7 @@ class PolyStrips_Logic:
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
+        self.edit_scale = max(self.matrix_world.to_scale())
         self.bm.verts.ensure_lookup_table()
         self.bm.edges.ensure_lookup_table()
         self.bm.faces.ensure_lookup_table()
