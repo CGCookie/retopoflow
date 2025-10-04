@@ -46,7 +46,7 @@ The non-code assets in this repository are not.
 
 The easiest way to install RetopoFlow is to do so directly within Blender.
 You can do this by going to Edit > Preferences > Add-ons > Install.
-This will open a File Browser in Blender, allowing to you navigate to and select the zip file you downloaded.
+This will open the File Browser in Blender, allowing to you navigate to and select the zip file you downloaded.
 Press Install from file.
 
 _If your browser auto-extracted the downloaded zip file, then you will need to re-compress the **RetopoFlow** folder before installing, or use Save As to save the zip file without extracting the contents._
@@ -72,7 +72,7 @@ If you have any issues with installing, please try the following steps:
 
 ## Getting Support
 
-Here are ways to get help with a problem or a question that the [documentation](https://docs.retopoflow.com) isn't answering:
+If you have a problem or a question that the [documentation](https://docs.retopoflow.com) isn't answering:
 
 - Get high priority support from Orange Turbine by sending a message from your [Blender Market inbox](https://blendermarket.com/inbox) once you've purchased a copy.
 - Create a new [issue](https://github.com/CGCookie/retopoflow/issues/new/choose) on RetopoFlow's [GitHub page](https://github.com/CGCookie/retopoflow).
