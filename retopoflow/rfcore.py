@@ -252,7 +252,12 @@ class RFCore:
                 rftool.activate(context)
                 if rftool.rf_overlay:
                     if not context.region:
+                        print(f'')
+                        print(f'')
                         print(f'>>>>>>>> NO context.region <<<<<<<<<<')
+                        print(f'tool_changed')
+                        print(f'  {context=} {contexta.area=} {context.region=}')
+                        print(f'  {bpy.context=} {bpy.context.area=} {bpy.context.region=}')
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
                         RFCore.quick_switch_to_reset(rftool.rf_idname) # bpy.context.scene.retopoflow.saved_tool)
@@ -821,10 +826,12 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
 
         if RFCore.is_controlling:
+            # RFCore.handle_update(context, event)
             try:
                 RFCore.handle_update(context, event)
-            except ReferenceError as re:
+            except ReferenceError as referr:
                 print(f'RFCore_Operator threw an unexpected ReferenceError')
+                print(referr)
                 print(f'Attempting to fix by restarting')
                 RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
                 return {'FINISHED'}

@@ -118,6 +118,9 @@ class RFOperator(bpy.types.Operator):
     @classmethod
     def is_active(cls):
         return type(RFOperator.active_operator()) is cls
+    @staticmethod
+    def is_active_static(cls):
+        return type(RFOperator.active_operator()) is cls
 
     @classmethod
     def is_running(cls):

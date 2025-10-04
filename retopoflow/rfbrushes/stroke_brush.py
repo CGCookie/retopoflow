@@ -209,7 +209,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             return self.stroke is not None
 
         def update_snap(self, context, mouse):
-            if not self.operator or not self.operator.is_active(): return
+            if not self.operator or not RFOperator.is_active_static(type(self.operator)): return
 
             if snap_any and not (self.nearest_bmv or self.nearest_bmf):
                 self.reset_nearest(context)
@@ -250,6 +250,15 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
 
         def update(self, context, event):
+            try:
+                if self.operator: self.operator.is_active()
+            except ReferenceError as referr:
+                # seems we lost our operator!
+                self.operator = None
+            if not self.operator:
+                self.reset()
+                return
+
             if not self.RFCore.is_current_area(context):
                 self.reset()
                 return
