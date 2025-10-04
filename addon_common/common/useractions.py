@@ -382,10 +382,6 @@ class Actions:
         self.reset_state(all_state=True)
 
     def update_context(self, context):
-        self.context = context
-        self.screen  = context.screen
-        self.window  = context.window
-
         # try to find area, region, space, region_3d
         try:
             self.area   = get_view3d_area(context)
@@ -716,7 +712,7 @@ class Actions:
     def warp_mouse(self, xy:Point2D):
         rx,ry = self.region.x,self.region.y
         mx,my = xy
-        self.context.window.cursor_warp(rx + mx, ry + my)
+        bpy.context.window.cursor_warp(rx + mx, ry + my)
 
     def valid_mouse(self):
         if self.mouse is None: return False
@@ -728,7 +724,7 @@ class Actions:
         return action_to_char.get(ftype, '')
 
     def start_timer(self, hz, enabled=True):
-        return TimerHandler(hz, context=self.context, enabled=enabled)
+        return TimerHandler(hz, context=bpy.context, enabled=enabled)
 
 
 class ActionHandler:

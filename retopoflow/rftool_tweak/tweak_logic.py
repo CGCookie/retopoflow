@@ -43,8 +43,6 @@ from ...addon_common.common.maths import closest_point_segment, Point, sign, sig
 
 class Tweak_Logic:
     def __init__(self, context, event, brush, tweak):
-        self.context, self.rgn, self.r3d = context, context.region, context.region_data
-
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
         self.matrix_world = context.edit_object.matrix_world
@@ -109,7 +107,7 @@ class Tweak_Logic:
             self.verts.append((
                 bmv,
                 Vector(bmv.co),
-                self.project_bmv(bmv),
+                self.project_bmv(context, bmv),
                 self.brush.get_strength_Point(self.matrix_world @ bmv.co),
             ))
 
@@ -120,11 +118,11 @@ class Tweak_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
-    def project_pt(self, pt):
-        p = location_3d_to_region_2d(self.rgn, self.r3d, self.matrix_world @ pt)
+    def project_pt(self, context, pt):
+        p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
-    def project_bmv(self, bmv):
-        p = self.project_pt(bmv.co)
+    def project_bmv(self, context, bmv):
+        p = self.project_pt(context, bmv.co)
         return p.xy if p else None
 
     def update(self, context, event):
@@ -140,7 +138,7 @@ class Tweak_Logic:
                 delta_strength = delta.length * strength
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
                 for step in range(opt_steps):
-                    new_co2 = raycast_valid_sources(context, self.project_pt(new_co) + delta * (strength / opt_steps))
+                    new_co2 = raycast_valid_sources(context, self.project_pt(context, new_co) + delta * (strength / opt_steps))
                     if not new_co2: break
                     new_co = new_co2['co_local']
                     p, d = None, None
