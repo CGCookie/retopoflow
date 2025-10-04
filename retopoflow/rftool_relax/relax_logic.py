@@ -67,6 +67,11 @@ class Accel:
         pts = [M @ v.co for v in self.bmverts]
         self.min_x, self.min_y, self.min_z = min(pt.x for pt in pts), min(pt.y for pt in pts), min(pt.z for pt in pts)
         self.max_x, self.max_y, self.max_z = max(pt.x for pt in pts), max(pt.y for pt in pts), max(pt.z for pt in pts)
+        dx, dy, dz = self.max_x - self.min_x, self.max_y - self.min_y, self.max_z - self.min_z
+        Dxyz = max(dx, dy, dz)
+        if dx < 0.001: self.min_x, self.max_x = self.min_x - Dxyz * 0.001, self.max_x + Dxyz * 0.001
+        if dy < 0.001: self.min_y, self.max_y = self.min_y - Dxyz * 0.001, self.max_y + Dxyz * 0.001
+        if dz < 0.001: self.min_z, self.max_z = self.min_z - Dxyz * 0.001, self.max_z + Dxyz * 0.001
         self.bins = [[[[] for _ in range(10)] for _ in range(10)] for _ in range(10)]
         for v in self.bmverts:
             ix, iy, iz = self.index(M @ v.co)
@@ -97,7 +102,7 @@ class Relax_Logic:
     def __init__(self, context, event, brush, relax):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
-        self.scale_avg = 1.0 # (sum(context.edit_object.scale) / 3)
+        self.scale_avg = sum(context.edit_object.matrix_world.to_scale()) / 3
         self.mouse = None
         self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
@@ -325,7 +330,7 @@ class Relax_Logic:
                         vec = bmf_midpoint(bmf_other) - bme_midpoint(bme)
                         bmv0,bmv1 = bme.verts
                         add_force(bmv0, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
-                        add_force(bmv1, vec * strength * 5)
+                        add_force(bmv1, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
 
             # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
@@ -377,7 +382,8 @@ class Relax_Logic:
 
                 # push verts toward equal spread
                 if opt_face_angles:
-                    angle_target = (cnt - 2) * math.pi / cnt
+                    sum_of_interior_angles = math.pi * (cnt - 2)
+                    angle_target = sum_of_interior_angles / cnt
                     for i1 in range(cnt):
                         i0 = (i1 + cnt - 1) % cnt
                         i2 = (i1 + 1) % cnt
@@ -401,32 +407,32 @@ class Relax_Logic:
             if opt_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
                 relax_3d()
                 k1 = displace.copy()
 
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
                     bmv.co = original[bmv] + f1 / 2
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 2
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
                 relax_3d()
                 k2 = displace.copy()
 
                 for bmv in original:
                     f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
                     bmv.co = original[bmv] + f2 / 2
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 2
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
                 relax_3d()
                 k3 = displace.copy()
 
                 for bmv in original:
                     f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
                     bmv.co = original[bmv] + f3
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
                 relax_3d()
                 k4 = displace.copy()
 
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / 6
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 6
                 displace.clear()
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
@@ -438,7 +444,7 @@ class Relax_Logic:
                     #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = 10.0 * self.scale_avg * brush.strength * time_delta * self.pressure / opt_steps
+                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / opt_steps
                 relax_3d()
 
             if opt_prevent_bounce:
