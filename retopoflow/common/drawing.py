@@ -338,6 +338,7 @@ class Drawing:
         ubos_2D_lineseg.options.color0 = color0
         ubos_2D_lineseg.options.color1 = color1
         for p0,p1 in iter_pairs(points, False):
+            if not p0 or not p1: continue
             ubos_2D_lineseg.options.pos0 = (*p0, 0, 1)
             ubos_2D_lineseg.options.pos1 = (*p1, 0, 1)
             ubos_2D_lineseg.options.stipple_width = (stipple[0], stipple[1], offset, width)  # offset changes
