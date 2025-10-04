@@ -256,7 +256,7 @@ class RFCore:
                         print(f'')
                         print(f'>>>>>>>> NO context.region <<<<<<<<<<')
                         print(f'tool_changed')
-                        print(f'  {context=} {contexta.area=} {context.region=}')
+                        print(f'  {context=} {context.area=} {context.region=}')
                         print(f'  {bpy.context=} {bpy.context.area=} {bpy.context.region=}')
                         # this can happen if RF tool is selected when .blend file is saved
                         # try switching to different tool then switch back later?
