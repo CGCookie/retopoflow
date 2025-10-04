@@ -535,6 +535,7 @@ class RFCore:
         if len(area.spaces) == 0:
             RFCore.remove_handlers()
             return
+        if context.mode != 'EDIT_MESH': return
         # print(f'handle_postview {len(area.spaces)}')
         if not RFCore.is_controlling: return
         if not RFCore.is_running: return
