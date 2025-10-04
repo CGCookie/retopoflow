@@ -60,7 +60,7 @@ class ProportionalEditGraphic:
         # Based on the pivot point, we should calculate the proportional editing circle graphic center.
         pivot_point = context.tool_settings.transform_pivot_point
         pivot_co = None
-        
+
         if pivot_point == 'BOUNDING_BOX_CENTER':
             ob = context.active_object
             bb = ob.bound_box
@@ -264,6 +264,8 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         # self.RFCore.cursor_warp(context, self.mouse_center)  # NOTE: initial warping might not happen right away
         self.delay_delta_update = True
         self.delta = Vector((0, 0))
+        self.delta_slow = Vector((0, 0))
+        self.slow = False
 
         self.highlight = set()
 
@@ -294,6 +296,12 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     bmv.co = self.bmvs_co_orig[bmv]
             self.moving = None
 
+        if event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'} and event.value in {'PRESS', 'RELEASE'}:
+            self.slow = (event.value == 'PRESS')
+            if event.value == 'RELEASE':
+                self.delta += self.delta_slow
+                self.delta_slow = Vector((0, 0))
+
         if self.delay_delta_update:
             self.delay_delta_update = False
         elif event.type in {'MOUSEMOVE', 'WHEELDOWNMOUSE', 'WHEELUPMOUSE'}:
@@ -317,7 +325,7 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
                     co = self.matrix_world @ bmv.co
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
-        
+
         if hasattr(self, 'proportional_edit_graphic'):
             self.proportional_edit_graphic.draw_2d(context)
 
@@ -350,7 +358,11 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
         # self.delta += self.mouse - self.mouse_center
         # self.RFCore.cursor_warp(context, self.mouse_center)
         # self.delta = self.mouse - self.mouse_orig
-        self.delta += self.mouse - self.mouse_prev
+        if not self.slow:
+            self.delta += self.mouse - self.mouse_prev
+        else:
+            self.delta_slow += (self.mouse - self.mouse_prev) * 0.1
+        delta = self.delta + self.delta_slow
 
         # TODO: not respecting the mirror modifier clip setting!
 
@@ -374,9 +386,9 @@ class RFOperator_Translate_ScreenSpace(RFOperator):
             else:
                 factor = 1
 
-            co = raycast_point_valid_sources(context, co2d_orig + self.delta * factor, world=False)
+            co = raycast_point_valid_sources(context, co2d_orig + delta * factor, world=False)
             if not co:
-                co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
+                co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.last_success[bmv])
                 co = nearest_point_valid_sources(context, co_world, world=False)
 
             if self.mirror:
@@ -803,7 +815,11 @@ class RFOperator_Translate(RFOperator):
         # self.RFCore.cursor_warp(context, self.mouse_center)  # NOTE: initial warping might not happen right away
         self.delay_delta_update = True
         self.delta = Vector((0, 0))
+        self.delta_slow = Vector((0, 0))
+        self.slow = False
+
         self.highlight = set()
+
         # Cursors.set('NONE')  # PAINT_CROSS
 
     def update(self, context, event):
@@ -833,6 +849,12 @@ class RFOperator_Translate(RFOperator):
                 for bmv in self.moving:
                     bmv.co = self.bmvs_co_orig[bmv]
             self.moving = None
+
+        if event.type in {'LEFT_SHIFT', 'RIGHT_SHIFT'} and event.value in {'PRESS', 'RELEASE'}:
+            self.slow = (event.value == 'PRESS')
+            if event.value == 'RELEASE':
+                self.delta += self.delta_slow
+                self.delta_slow = Vector((0, 0))
 
         if self.delay_delta_update:
             self.delay_delta_update = False
@@ -887,7 +909,11 @@ class RFOperator_Translate(RFOperator):
         # self.delta += self.mouse - self.mouse_center
         # self.RFCore.cursor_warp(context, self.mouse_center)
         # self.delta = self.mouse - self.mouse_orig
-        self.delta += self.mouse - self.mouse_prev
+        if not self.slow:
+            self.delta += self.mouse - self.mouse_prev
+        else:
+            self.delta_slow += (self.mouse - self.mouse_prev) * 0.1
+        delta = self.delta + self.delta_slow
 
         prop_use = context.tool_settings.use_proportional_edit
         prop_dist_world = context.tool_settings.proportional_distance
@@ -911,12 +937,12 @@ class RFOperator_Translate(RFOperator):
                 factor = 1
 
             if self.snap_method == 'PROJECTED':
-                co = raycast_point_valid_sources(context, co2d_orig + self.delta * factor, world=False)
+                co = raycast_point_valid_sources(context, co2d_orig + delta * factor, world=False)
                 if not co:
-                    co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta, self.last_success[bmv])
+                    co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.last_success[bmv])
                     co = nearest_point_valid_sources(context, co_world, world=False)
             elif self.snap_method == 'NEAREST':
-                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + self.delta * factor, self.matrix_world @ co_orig)
+                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
                 co = nearest_point_valid_sources(context, co, world=True)
                 co = self.matrix_world_inv @ co
 
