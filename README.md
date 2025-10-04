@@ -1,6 +1,6 @@
 # RetopoFlow
 
-RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Orange Turbine](https://orangeturbine.com) that generate geometry which snap to your high poly objects as you draw on the surface.
+RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Orange Turbine](https://orangeturbine.com) that generates geometry which snap to your high poly objects as you draw on the surface.
 
 This documentation covers the installation and usage of all tools included in the add-on.
 
@@ -8,8 +8,8 @@ You can read about the features and purchase a copy on [our website](https://ora
 
 ![Blender Market](help/images/blendermarket_screenshot.png)
 
-If you’re brand new to RetopoFlow, check the [Quick Start page](https://docs.retopoflow.com/quick_start.html).
-Otherwise, jump right over to the [Table of Contents](https://docs.retopoflow.com/table_of_contents.html).
+If you’re brand new to RetopoFlow, check out the [Quick Start page](https://docs.retopoflow.com/quick_start.html).
+Otherwise, why not jump right over to the [Table of Contents](https://docs.retopoflow.com/table_of_contents.html)?
 
 
 ## Requirements
@@ -23,20 +23,20 @@ Below is a table showing which versions of RetopoFlow and Blender are compatible
 |   3.2.4    | 2.8x--2.9x     |
 |   2.0.3    | 2.79 or before |
 
-All versions of RetopoFlow will work on any operating system the Blender supports.
+All versions of RetopoFlow will work on any operating system that Blender supports.
 
 
 ## Downloading
 
+Important: Do _not_ use the zip files created by GitHub. 
+Blender has issues with the zip files that GitHub automatically packages with the green `Code` button on the main GitHub page.
+Instead, use the officially packaged versions that we provide through the Blender Market or the GitHub Releases Page.
+
 Future updates to RetopoFlow are funded by Blender Market purchases, and we provide top priority support through the Blender Market.
-However, we also made RetopoFlow accessible on RetopoFlow's [GitHub Page](https://github.com/CGCookie/retopoflow), especially for students, teachers, and those using RetopoFlow for educational purposes.
+However, we have also made RetopoFlow accessible on RetopoFlow's [GitHub Page](https://github.com/CGCookie/retopoflow), especially for students, teachers, and those using RetopoFlow for educational purposes.
 
 You may download RetopoFlow from your [account dashboard](https://blendermarket.com/account/orders) on the Blender Market once you have already purchased it or from RetopoFlow's [GitHub Releases Page](https://github.com/CGCookie/retopoflow/releases).
 For the more techie crowd, you can also symlink a clone of the GitHub repo to your add-ons folder.
-
-Important: Blender has issues with the zip files that GitHub automatically packages with the green `Code` button on the main GitHub page.
-Do _not_ use the zip files created by GitHub.
-Instead, use the officially packaged versions that we provide through the Blender Market or the GitHub Releases Page.
 
 The code for RetopoFlow is open source under the [GPL 3.0](https://www.gnu.org/licenses/gpl-3.0.en.html) license.
 The non-code assets in this repository are not.
