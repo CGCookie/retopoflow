@@ -168,11 +168,11 @@ class RFOperator_PolyStrips_Insert(
 
 
     @staticmethod
-    def polystrips_insert(context, radius2D, stroke3D, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
+    def polystrips_insert(context, radius2D, stroke3D, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
         RFOperator_PolyStrips_Insert.logic = PolyStrips_Logic(
             context,
             radius2D,
-            stroke3D,
+            stroke3D, point3D_0, point3D_1,
             is_cycle,
             length2D,
             snap_bmf0,
@@ -616,6 +616,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         snap_bmf0, snap_bmf1 = snapped_geo[2]
+        p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
         if not snap_bmf0:
             l = len(stroke2D)
             p0 = stroke2D[0]
@@ -641,7 +642,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
         RFOperator_PolyStrips_Insert.polystrips_insert(
             context,
             radius2D,
-            stroke3D,
+            stroke3D, p3D_0, p3D_1,
             is_cycle,
             length2D,
             snap_bmf0, snap_bmf1,

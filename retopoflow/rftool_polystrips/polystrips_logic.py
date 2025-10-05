@@ -168,7 +168,7 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
 
 
 class PolyStrips_Logic:
-    def __init__(self, context, radius2D, stroke3D_local, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
+    def __init__(self, context, radius2D, stroke3D_local, point3D_0, point3D_1, is_cycle, length2D, snap_bmf0, snap_bmf1, split_angle, mirror_correct):
         # store context data to make it more convenient
         # note: this will be redone whenever create() is called
         self.update_context(context)
@@ -188,6 +188,8 @@ class PolyStrips_Logic:
         M, Mi = self.matrix_world, self.matrix_world_inv
         self.radius2D = radius2D
         self.stroke3D_local_orig = stroke3D_local
+        self.point3D_0 = point3D_0
+        self.point3D_1 = point3D_1
         self.is_cycle = is_cycle
         self.snap_bmf0_index = snap_bmf0.index if snap_bmf0 else None
         self.snap_bmf1_index = snap_bmf1.index if snap_bmf1 else None
@@ -268,18 +270,24 @@ class PolyStrips_Logic:
             match self.mirror_correct:
                 case 'FIRST':
                     if 'x' in self.mirror:
-                        self.mirror_side.x = next((s for co in self.stroke3D_local if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.x = sign_threshold(self.point3D_0.x, self.mirror_threshold) or 1
+                        # self.mirror_side.x = next((s for co in self.stroke3D_local if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
                     if 'y' in self.mirror:
-                        self.mirror_side.y = next((s for co in self.stroke3D_local if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.y = sign_threshold(self.point3D_0.y, self.mirror_threshold) or 1
+                        # self.mirror_side.y = next((s for co in self.stroke3D_local if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
                     if 'z' in self.mirror:
-                        self.mirror_side.x = next((s for co in self.stroke3D_local if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.z = sign_threshold(self.point3D_0.z, self.mirror_threshold) or 1
+                        # self.mirror_side.z = next((s for co in self.stroke3D_local if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
                 case 'LAST':
                     if 'x' in self.mirror:
-                        self.mirror_side.x = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.x = sign_threshold(self.point3D_1.x, self.mirror_threshold) or 1
+                        # self.mirror_side.x = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.x, self.mirror_threshold)) != 0), 1)
                     if 'y' in self.mirror:
-                        self.mirror_side.y = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.y = sign_threshold(self.point3D_1.y, self.mirror_threshold) or 1
+                        # self.mirror_side.y = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.y, self.mirror_threshold)) != 0), 1)
                     if 'z' in self.mirror:
-                        self.mirror_side.x = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
+                        self.mirror_side.z = sign_threshold(self.point3D_1.z, self.mirror_threshold) or 1
+                        # self.mirror_side.z = next((s for co in self.stroke3D_local[::-1] if (s := sign_threshold(co.z, self.mirror_threshold)) != 0), 1)
                 case 'MOST':
                     if 'x' in self.mirror:
                         count_neg = sum(1 if sign_threshold(co.x, self.mirror_threshold) < 0 else 0 for co in self.stroke3D_local)
