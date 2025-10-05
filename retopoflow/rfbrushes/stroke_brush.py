@@ -110,7 +110,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
         def init(self):
             self.mouse = None
 
-            self.shift_held = False
+            self.shift_held = False  # hack to hide brush if Shift is held at the same time
 
             self.matrix_world = None
             self.matrix_world_inv = None
@@ -257,8 +257,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             except ReferenceError as referr:
                 # seems we lost our operator!
                 self.operator = None
+
             if not self.operator:
                 self.reset()
+                self.mouse = None
+                self.hit = False
                 return
 
             if not self.RFCore.is_current_area(context):
@@ -337,7 +340,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
                 context.area.tag_redraw()
 
-            if self.mouse and event.type not in {'MOUSEMOVE','TIMER'}:
+            if self.mouse and event.type not in {'MOUSEMOVE','TIMER', 'LEFT_CTRL', 'RIGHT_CTRL'}:
                 return
 
             if self.is_stroking(): # and event.type == 'TIMER':
@@ -954,6 +957,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         def draw_postpixel(self, context):
             if not self.RFCore.is_current_area(context): return
+            if not self.operator: return
             if self.shift_held: return
             if not self.matrix_world: return
             #if context.area not in self.mouse_areas: return
