@@ -145,6 +145,8 @@ def stroke_angles(stroke, width, split_angle, fn_snap_normal):
         if not pp or not pn: continue
 
         n = Direction(fn_snap_normal(p))
+        np, nn = Direction(fn_snap_normal(pp)), Direction(fn_snap_normal(pn))
+        if math.degrees(np.angle_between(nn)) > split_angle: continue
         dp, dn = Direction(p - pp), Direction(pn - p)
         angle = math.degrees(dp.signed_angle_between(dn, n))
         if abs(angle) < split_angle: continue
@@ -197,6 +199,7 @@ class PolyStrips_Logic:
         # initial settings
         self.initial = True
         self.initial_count = max(2, round(length2D / (2 * radius2D)) + 1)
+        # NOTE: self.initial_width is in world space
         self.initial_width = self.compute_length3D(self.stroke3D_local_orig, self.is_cycle) / (self.initial_count * 2 - 1)
         self.strip_count = 0
         self.count_mins = []
@@ -314,10 +317,12 @@ class PolyStrips_Logic:
         if self.snap_bmf1_index is not None:
             snap_bmf_end = self.bm.faces[self.snap_bmf1_index]
 
+        scale = sum(M.to_scale()) / 3
+
         # break stroke into segments
         strips = stroke_angles(
             self.stroke3D_local,
-            self.initial_width,
+            self.initial_width / scale,
             self.split_angle,
             lambda p: nearest_normal_valid_sources(context, M @ p, world=False),
         )
