@@ -770,8 +770,9 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         RFCore.running_in_areas.append(context.area)
 
         # Display an alert message if no sources are detected.
+        prefs = preferences.RF_Prefs.get_prefs(context)
         source_count = len(list(iter_all_valid_sources(context)))
-        if source_count == 0:
+        if source_count == 0 and prefs.warn_no_sources:
             show_message(message="No sources detected.\nRetopoflow tools need a visible object that is not being edited to snap the retopology mesh to.", title="Retopoflow", icon="ERROR")
             self.report({'ERROR'}, "No sources detected. Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to.")
 

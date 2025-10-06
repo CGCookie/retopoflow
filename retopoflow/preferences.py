@@ -179,6 +179,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     #endregion
 
+    """ Warnings """
+    warn_no_sources: bpy.props.BoolProperty(
+        name='No Sources Detected',
+        description='Warns when starting Retopoflow with no sources detected',
+        default=True,
+    )
+
     def draw(self, context):
         layout = self.layout
 
@@ -222,6 +229,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
         header.label(text="Tweaking")
         if panel:
             draw_tweaking_options(context, panel)
+
+        header, panel = layout.panel(idname='warning_panel_prefs', default_closed=True)
+        header.label(text="Warnings")
+        if panel:
+            panel.use_property_split = True
+            panel.use_property_decorate = False
+            panel.prop(self, 'warn_no_sources')
 
 
 def register():

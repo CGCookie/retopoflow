@@ -5,6 +5,7 @@ This document contains details about what has changed in Retopoflow in version 4
 ### 4.0.0 beta 8
 
 - Added Shift hotkey for moving in small increments while tweaking
+- Added preference to disable warning that shows when starting Retopoflow without a source
 - Improved drawing from the line of symmetry in PolyStrips
 - Fixed PolyStrips width when the retopo object has non-uniform scale
 - Fixed issue when deleting source objects while Retopoflow is running
