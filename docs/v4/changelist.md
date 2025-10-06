@@ -8,6 +8,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added preference to disable warning that shows when starting Retopoflow without a source
 - Improved drawing from the line of symmetry in PolyStrips
 - Fixed PolyStrips width when the retopo object has non-uniform scale
+- Fixed PolyStrips creating sharp angles when the stroke is smooth but the source has sharp angles
 - Fixed issue when deleting source objects while Retopoflow is running
 
 ### 4.0.0 beta 7

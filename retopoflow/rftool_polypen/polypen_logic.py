@@ -820,7 +820,7 @@ class PP_Logic:
 
         bmops.flush_selection(self.bm, self.em)
 
-        bpy.ops.retopoflow.translate_screenspace('INVOKE_DEFAULT', False, move_hovered=False)
+        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False, snap_method='PROJECTED', use_native='FALSE')
 
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
@@ -866,4 +866,3 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable
             return Mi @ hit2, Mi @ hit3
         dist01 /= 2
     return None, None
-
