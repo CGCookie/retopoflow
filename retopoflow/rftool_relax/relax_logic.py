@@ -176,7 +176,7 @@ class Relax_Logic:
             if bmv.hide: continue
             if len(bmv.link_faces) == 0: continue
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if opt_mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
@@ -335,12 +335,15 @@ class Relax_Logic:
             # push verts to straighten edges (still WiP!)
             if opt_straight_edges:
                 for bmv in chk_verts:
-                    if bmv.is_boundary:
+                    if is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
                         # improve handling of boundary edges and verts when straightening edges
                         # see issue #1504
                         if opt_mask_boundary == 'EXCLUDE': continue
                         if len(bmv.link_edges) == 2: continue  # ignore corners
-                        center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges if bme.is_boundary)
+                        center = Point.average([
+                            bme.other_vert(bmv).co for bme in bmv.link_edges if is_bmedge_boundary(
+                                bme, self.mirror, self.mirror_threshold, self.mirror_clip
+                        )])
                     else:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
                     vec = center - bmv.co

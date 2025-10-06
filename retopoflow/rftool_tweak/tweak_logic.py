@@ -97,7 +97,7 @@ class Tweak_Logic:
             if bmv.hide: continue
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
             if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
-            if self.tweak.mask_boundary == 'EXCLUDE' and bmv.is_boundary: continue
+            if self.tweak.mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if self.tweak.include_corners  == False  and len(bmv.link_edges) == 2: continue
             if self.tweak.include_corners == False   and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
@@ -180,4 +180,3 @@ class Tweak_Logic:
             if new_co: bmv.co = new_co
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
-
