@@ -4,7 +4,7 @@
 
 Retopoflow is a suite of fun, sketch-based retopology tools for Blender, created by [Orange Turbine](https://orangeturbine.com), that generate geometry which snaps to your high poly objects as you draw on their surface.
 
-You can read about the features and purchase a copy on [Superhive](https://blendermarket.com/products/retopoflow/) (formerly Blender Market).
+You can read about the features and purchase a copy on [Superhive](https://superhivemarket.com/products/retopoflow?ref=806) (formerly Blender Market).
 
 If you’re brand new to Retopoflow, check the [Quick Start page](/v4/quick_start.html).
 
@@ -27,7 +27,7 @@ You can get help with an issue or give feedback by reaching out to us in one of 
 - Create a new [issue](https://github.com/CGCookie/retopoflow/issues/new/choose) on Retopoflow's [GitHub page](https://github.com/CGCookie/retopoflow).
 - Reach out to us via email at [retopoflow@cgcookie.com](mailto:retopoflow@cgcookie.com).
 
-Please provide as much information and detail as possible, such as steps to reproduce the issue, what behavior you expected to see vs what you actually saw, screenshots, and so on. 
+Please provide as much information and detail as possible, such as steps to reproduce the issue, what behavior you expected to see vs what you actually saw, screenshots, and so on.
 
 See the [Debugging](/v4/debugging.html) page for details on getting as much useful information as possible. Also, if possible, please consider sending us the `.blend` file.
 
@@ -35,6 +35,6 @@ See the [Debugging](/v4/debugging.html) page for details on getting as much usef
 
 Retopoflow has been a passion project since 2013 and is what originally convinced us we should create a [marketplace](https://blendermarket.com/) for Blender tools, so that other creators could also work on their passion projects in a sustainable way. We're deeply thankful to the Blender community and, because of projects like this, are able to give back to help make it better for everybody. We are some of the biggest toplogy nerds in the world and are thrilled to be able to continue to innovate in this area because of your continued support.
 
-Happy modeling! 
+Happy modeling!
 
 ~ Jonathan Williamson, Dr. Jon Denning, Jonathan Lampel, and JF Matheu
