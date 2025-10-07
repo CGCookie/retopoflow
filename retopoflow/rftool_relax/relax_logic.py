@@ -410,32 +410,32 @@ class Relax_Logic:
             if opt_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
                 relax_3d()
                 k1 = displace.copy()
 
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
                     bmv.co = original[bmv] + f1 / 2
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
                 relax_3d()
                 k2 = displace.copy()
 
                 for bmv in original:
                     f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
                     bmv.co = original[bmv] + f2 / 2
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
                 relax_3d()
                 k3 = displace.copy()
 
                 for bmv in original:
                     f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
                     bmv.co = original[bmv] + f3
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
                 relax_3d()
                 k4 = displace.copy()
 
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 6
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 6
                 displace.clear()
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
@@ -447,7 +447,7 @@ class Relax_Logic:
                     #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = 100.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / opt_steps
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / opt_steps
                 relax_3d()
 
             if opt_prevent_bounce:
@@ -471,7 +471,7 @@ class Relax_Logic:
                 mult *= min(1.0, radius3D * opt_max_radius / displace_max)
             # print(time_delta, radius3D, opt_max_radius, displace_max, mult)
             if displace_max > radius3D:
-                print('BREAKING')
+                print('Relax: Limiting distance')
                 break
 
             # update

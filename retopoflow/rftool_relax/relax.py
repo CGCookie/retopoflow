@@ -125,7 +125,7 @@ class RFOperator_Relax(RFOperator):
         description='Strength of Brush',
         min=0.01,
         max=1.00,
-        default=0.75,
+        default=0.5,
     )
 
     algorithm_method: bpy.props.EnumProperty(
