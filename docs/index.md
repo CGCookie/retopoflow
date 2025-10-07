@@ -1,8 +1,8 @@
-# Welcome!
-
 ![](v4/images/lion_feature.jpg)
 
-Retopoflow is a suite of fun, sketch-based retopology tools for Blender, created by [Orange Turbine](https://orangeturbine.com), that generate geometry which snaps to your high poly objects as you draw on their surface.
+# Welcome!
+
+Retopoflow is a suite of fun, sketch-based retopology tools for Blender, created by [Orange Turbine](https://orangeturbine.com), that generate geometry which snaps to the surface of your high poly objects.
 
 You can read about the features and purchase a copy on [Superhive](https://superhivemarket.com/products/retopoflow?ref=806) (formerly Blender Market).
 

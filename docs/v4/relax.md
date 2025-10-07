@@ -54,6 +54,10 @@ The Relax Brush has several options to control which vertices are moved and how.
 
 ## Algorithm Settings
 
+The Relax Brush is not just averaging vertex locations like a simple smooth brush! Instead, it is more like a simulation that moves vertices towards an optimal arrangement. 
+
+**Method** controls how the below influences are applied while drawing with the brush. The default, **Steps**, averages multiple iterations while **RK4** uses a Runge-Kutta approach to improve stability. 
+
 **Iterations** determines how many times the relax algorithm is run per update. A higher value leads to more agressive smoothing. It is recommended to try increasing the brush strength before increasing this setting.
 
 **Strength** multiplies how much each iteration affects the result.

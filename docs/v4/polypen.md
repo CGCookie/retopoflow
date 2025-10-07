@@ -31,7 +31,7 @@ PolyPen can also be used to fill a quad between two edges. To fill in **Tri / Qu
 
 PolyPen can also be used as a simple knife. To make a cut, hold `Ctrl` and either hover over a selected edge if there is a selection, or any edge if there is no selection. `LMB` on the edge and then `LMB` on any edge that is connected to the same face.
 
-PolyPen's knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender's knife. We plan to improve the knife functionalty going forward but in the meantime, for more advanced features, it is recommended to use Blender's knife with the hotkey `K` and then use Retopoflow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
+PolyPen's knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender's knife. We plan to improve the knife functionalty going forward. In the meantime, for more advanced features, it is recommended to use Blender's knife with the hotkey `K` and then use Retopoflow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
 
 ## Selecting
 
