@@ -30,7 +30,7 @@ def draw_relax_algo_options(context, layout):
     layout.use_property_decorate = False
 
     col = layout.column(heading="Integration")
-    col.row().prop(props, 'algorithm_method', expand=True)
+    col.row().prop(props, 'algorithm_method', expand=False)
     if props.algorithm_method == 'STEPS':
         col.prop(props, 'algorithm_iterations', text="Iterations")
 

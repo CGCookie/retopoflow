@@ -132,8 +132,8 @@ class RFOperator_Relax(RFOperator):
         name='Method',
         description='How Relax updates the position of the vertices under the brush',
         items=[
-            ('RK4', 'RK4', 'Use Runge-Kutta integration to improve stability while smoothing'),
             ('STEPS', 'Steps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
+            ('RK4', 'RK4 (Experimental)', 'Use Runge-Kutta integration to improve stability while smoothing'),
         ],
         default='STEPS',
     )
@@ -142,7 +142,7 @@ class RFOperator_Relax(RFOperator):
         description='Number of iterations per frame. Ignored if RK4 is enabled',
         min=1,
         max=10,
-        default=3,
+        default=2,
     )
     algorithm_max_distance_radius: bpy.props.FloatProperty(
         name='Algorithm: Max Distance (Radius)',
