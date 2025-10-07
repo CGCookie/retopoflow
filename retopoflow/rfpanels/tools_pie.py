@@ -28,8 +28,8 @@ class RFMenu_MT_ToolPie(Menu):
         tools = bpy.context.workspace.tools
         return (
             RF_Prefs.get_prefs(context).enable_pie_hotkey and
-            context.mode == 'EDIT_MESH' and
-            tools.from_space_view3d_mode('EDIT_MESH', create=False).idname.split('.')[0] == 'retopoflow'
+            context.mode == 'EDIT_MESH'
+            # and tools.from_space_view3d_mode('EDIT_MESH', create=False).idname.split('.')[0] == 'retopoflow'
         )
 
     def draw_bottom_menu(self, pie):
