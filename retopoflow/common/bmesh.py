@@ -550,15 +550,10 @@ class NearestBMFace(NearestElem):
 
 
 
-def is_bmedge_boundary(bme, mirror, threshold, clip):
+def is_bmedge_boundary(bme, mirror, threshold, clip, include_hidden_boundary=True):
     if bme.hide: return False
-    if not bme.is_boundary:
-        is_hidden_boundary = False
-        for bmv in bme.verts:
-            if any([x.hide for x in bmv.link_edges]):
-                is_hidden_boundary = True
-                break
-        return is_hidden_boundary
+    if not bme.is_boundary and include_hidden_boundary: return any([x.hide for x in bme.link_faces])
+    if not bme.is_boundary: return False
     if not clip: return True
     bmv0, bmv1 = bme.verts
     co0, co1 = bmv0.co, bmv1.co
@@ -567,10 +562,10 @@ def is_bmedge_boundary(bme, mirror, threshold, clip):
     if 'z' in mirror and abs(co0.z) <= threshold.z and abs(co1.z) <= threshold.z: return False
     return True
 
-def is_bmvert_boundary(bmv, mirror, threshold, clip):
+def is_bmvert_boundary(bmv, mirror, threshold, clip, include_hidden_boundary=True):
     if bmv.hide: return False
-    if not bmv.is_boundary:
-        return any([x.hide for x in bmv.link_edges])
+    if not bmv.is_boundary and include_hidden_boundary: return any([x.hide for x in bmv.link_edges])
+    if not bmv.is_boundary: return False
     if not clip: return True
     if 'x' in mirror and abs(bmv.co.x) <= threshold.x: return False
     if 'y' in mirror and abs(bmv.co.y) <= threshold.y: return False
