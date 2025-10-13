@@ -65,6 +65,7 @@ class Accel:
         M = self.matrix_world
         self.time = time.time()
         pts = [M @ v.co for v in self.bmverts]
+        if not pts: return
         self.min_x, self.min_y, self.min_z = min(pt.x for pt in pts), min(pt.y for pt in pts), min(pt.z for pt in pts)
         self.max_x, self.max_y, self.max_z = max(pt.x for pt in pts), max(pt.y for pt in pts), max(pt.z for pt in pts)
         dx, dy, dz = self.max_x - self.min_x, self.max_y - self.min_y, self.max_z - self.min_z
