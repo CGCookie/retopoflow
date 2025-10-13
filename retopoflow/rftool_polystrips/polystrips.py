@@ -590,7 +590,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     )
 
     stroke_smoothing: bpy.props.FloatProperty(
-        name='Stroke Smoothing',
+        name='Stabilize',
         description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
         get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
         set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
@@ -719,7 +719,7 @@ class RFTool_PolyStrips(RFTool_Base):
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
             layout.prop(props_polystrips, 'brush_radius', text="Radius")
-            layout.prop(props_polystrips, 'stroke_smoothing', text='Stabilize', slider=True)
+            layout.prop(props_polystrips, 'stroke_smoothing', slider=True)
             layout.prop(props_polystrips, 'split_angle')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
@@ -735,7 +735,7 @@ class RFTool_PolyStrips(RFTool_Base):
             header.label(text="Insert")
             if panel:
                 panel.prop(props_polystrips, 'brush_radius', text="Radius")
-                panel.prop(props_polystrips, 'stroke_smoothing', text='Stabilize', slider=True)
+                panel.prop(props_polystrips, 'stroke_smoothing', slider=True)
                 panel.prop(props_polystrips, 'split_angle')
                 panel.prop(props_polystrips, 'mirror_correct', text='Mirror Side')
             draw_tweaking_panel(context, layout)

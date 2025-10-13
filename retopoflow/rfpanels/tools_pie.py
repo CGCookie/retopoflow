@@ -33,17 +33,25 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
     def draw_bottom_menu(self, pie):
-        active_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False).idname
-        back = pie.box()
-        box = back.column()
-        box.emboss = 'RADIAL_MENU'
+        tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        back = pie.box().column(align=True)
 
-        if active_tool == 'retopoflow.polypen':
-            box.ui_units_x = 8
-            row = box.row()
-            row.emboss = 'NONE'
+        row = back.row()
+        row.emboss = 'RADIAL_MENU'
+        row.label(text='Clean Up')
+        section = back.box().column()
+        row = section.row(align=True)
+        row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
+        row.operator('retopoflow.meshcleanup', text='All').affect_all=True
+
+        if tool.idname == 'retopoflow.polypen':
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = 'RADIAL_MENU'
             row.label(text='Poly Pen Insert Mode')
-            grid = box.grid_flow(even_columns=True, even_rows=True)
+            section = back.box().column()
+            section.ui_units_x = 8
+            grid = section.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
             col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_edgeonly', text='Edge')
@@ -51,67 +59,145 @@ class RFMenu_MT_ToolPie(Menu):
             col = row.column(align=True)
             col.operator('retopoflow.polypen_setinsertmode_trionly', text='Triangle')
             col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
-
             if PolyPen_Insert_Modes.insert_mode == 4:
-                row = box.row()
-                row.emboss = 'NONE'
+                row = section.row()
+                row.emboss = 'RADIAL_MENU'
                 row.label(text='Quad Stability')
-                row = box.row(align=True)
+                row = section.row(align=True)
                 row.operator('retopoflow.polypen_quad_stability_quarter', text='0.25')
                 row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
                 row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
                 row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
 
-        '''
-        elif active_tool == 'retopoflow.polystrips':
-            box.ui_units_x = 8
-            row = box.row()
-            row.emboss = 'NONE'
-            row.label(text='Radius')
-            grid = box.grid_flow(even_columns=True, even_rows=True)
+        elif tool.idname == 'retopoflow.polystrips':
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = 'RADIAL_MENU'
+            row.label(text='PolyStrips')
+            section = back.box().column()
+            section.ui_units_x = 8
+            grid = section.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
-            col = row.column(align=True)
-            col.operator('retopoflow.polystrips', text='25').brush_radius=25
-            col.operator('retopoflow.polystrips', text='50').brush_radius=50
-            col = row.column(align=True)
-            col.operator('retopoflow.polystrips', text='75').brush_radius=75
-            col.operator('retopoflow.polystrips', text='100').brush_radius=100
-        '''
+            col = row.column(align=False)
+            col.prop(props, 'brush_radius')
+            col.prop(props, 'split_angle')
 
-        row = box.row()
-        row.emboss = 'NONE'
-        row.label(text='Clean Up')
-        row = box.row(align=True)
-        row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
-        row.operator('retopoflow.meshcleanup', text='All').affect_all=True
+        elif tool.idname == 'retopoflow.strokes':
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = 'RADIAL_MENU'
+            row.label(text='Strokes')
+            section = back.box().column()
+            section.ui_units_x = 10
+            grid = section.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column(align=False)
+            col.row(align=True).prop(props, 'span_insert_mode', expand=True)
+            if props.span_insert_mode == 'FIXED':
+                col.prop(props, 'cut_count', text="Count")
+            else:
+                col.prop(props, 'brush_radius', text="Radius")
+            col.prop(props, 'smooth_angle', text='Blending', slider=True)
+            col.row(align=True).prop(props, 'extrapolate_mode', expand=True)
+
+        elif tool.idname == 'retopoflow.contours':
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = 'RADIAL_MENU'
+            row.label(text='Contours')
+            section = back.box().column()
+            section.ui_units_x = 8
+            grid = section.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column(align=False)
+            col.prop(props, 'span_count')
+            col.row(align=True).prop(props, 'process_source_method', expand=True)
+
+        elif tool.idname == 'retopoflow.tweak' or tool.idname == 'retopoflow.relax':
+            tool_name = 'Tweak' if tool.idname == 'retopoflow.tweak' else 'Relax'
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = 'RADIAL_MENU'
+            row.label(text=tool_name)
+            section = back.box().column()
+            section.ui_units_x = 9
+            grid = section.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column(align=False)
+            col.prop(props, 'brush_radius')
+            col.prop(props, 'brush_strength', slider=True)
+            col.prop(props, 'brush_falloff', slider=True)
+            col.row(align=True, heading='Selected').prop(props, 'mask_selected', expand=True, icon_only=True)
+            col.row(align=True, heading='Boundary').prop(props, 'mask_boundary', expand=True, icon_only=True)
+            row = col.row(align=True)
+            row.prop(props, 'include_corners')
+            row.prop(props, 'include_occluded')
+
+
 
     def draw(self, context):
+        tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         layout = self.layout
         pie = layout.menu_pie()
 
         # West
-        pie.operator('retopoflow.switch_to_polystrips', text='PolyStrips', icon_value=RF_icons['POLYSTRIPS'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_polystrips',
+            text='PolyStrips',
+            icon_value=RF_icons['POLYSTRIPS'].icon_id,
+            depress=tool.idname=='retopoflow.polystrips'
+        )
 
         # East
-        pie.operator('retopoflow.switch_to_tweak', text='Tweak', icon_value=RF_icons['TWEAK'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_tweak',
+            text='Tweak',
+            icon_value=RF_icons['TWEAK'].icon_id,
+            depress=tool.idname=='retopoflow.tweak'
+        )
 
         # South
         self.draw_bottom_menu(pie)
 
         # North
-        pie.operator('retopoflow.switch_to_contours', text='Contours', icon_value=RF_icons['CONTOURS'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_contours',
+            text='Contours',
+            icon_value=RF_icons['CONTOURS'].icon_id,
+            depress=tool.idname=='retopoflow.contours'
+        )
 
         # Northwest
-        pie.operator('retopoflow.switch_to_strokes', text='Strokes', icon_value=RF_icons['STROKES'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_strokes',
+            text='Strokes',
+            icon_value=RF_icons['STROKES'].icon_id,
+            depress=tool.idname=='retopoflow.strokes'
+        )
 
         # Northeast
-        pie.operator('retopoflow.switch_to_patches', text='Patches', icon_value=RF_icons['PATCHES'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_patches',
+            text='Patches',
+            icon_value=RF_icons['PATCHES'].icon_id,
+            depress=tool.idname=='retopoflow.patches'
+        )
 
         # Southwest
-        pie.operator('retopoflow.switch_to_polypen', text='PolyPen', icon_value=RF_icons['POLYPEN'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_polypen',
+            text='PolyPen',
+            icon_value=RF_icons['POLYPEN'].icon_id,
+            depress=tool.idname=='retopoflow.polypen'
+        )
 
         # Southeast
-        pie.operator('retopoflow.switch_to_relax', text='Relax', icon_value=RF_icons['RELAX'].icon_id)
+        pie.operator(
+            'retopoflow.switch_to_relax',
+            text='Relax',
+            icon_value=RF_icons['RELAX'].icon_id,
+            depress=tool.idname=='retopoflow.relax'
+        )
 
 
 keymaps = []
