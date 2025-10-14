@@ -11,8 +11,9 @@ New:
 Improved:
 - The `W` pie menu now works when a non-Retopoflow tool is selected
 - Improved Relax strength factor
-- Relax now treats edges between visible and hidden faces as a boundary
+- Tweak and Relax now treat edges between visible and hidden faces as a boundary
 - Improved drawing from the line of symmetry in PolyStrips
+- Added preset support to Clean Up operator
 - Fixed PolyStrips width when the retopo object has non-uniform scale
 - Fixed PolyStrips creating sharp angles when the stroke is smooth but the source has sharp angles
 - Fixed issue when deleting source objects while Retopoflow is running

@@ -33,7 +33,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     bl_description = "A handy macro for quicly running several retopology cleanup operations at once"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO', 'PRESET'}
 
     rf_label = "Clean Up Mesh"
     RFCore = None
