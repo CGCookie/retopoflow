@@ -25,7 +25,7 @@ class RFMenu_MT_ToolPie(Menu):
     @classmethod
     def poll(self, context):
         from ..preferences import RF_Prefs
-        tools = bpy.context.workspace.tools
+        tools = context.workspace.tools
         return (
             RF_Prefs.get_prefs(context).enable_pie_hotkey and
             context.mode == 'EDIT_MESH'
@@ -136,7 +136,7 @@ class RFMenu_MT_ToolPie(Menu):
 
 
     def draw(self, context):
-        tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         layout = self.layout
         pie = layout.menu_pie()
 
