@@ -14,6 +14,7 @@ Improved:
 - Tweak and Relax now treat edges between visible and hidden faces as a boundary
 - Improved drawing from the line of symmetry in PolyStrips
 - Added preset support to Clean Up operator
+- Added PolyStrips and Strokes mirroring options to Mirror panel
 - Fixed PolyStrips width when the retopo object has non-uniform scale
 - Fixed PolyStrips creating sharp angles when the stroke is smooth but the source has sharp angles
 - Fixed issue when deleting source objects while Retopoflow is running

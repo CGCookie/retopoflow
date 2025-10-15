@@ -25,7 +25,8 @@ from ..preferences import RF_Prefs
 from ..rfoperators.mirror import get_mirror_mod
 
 
-def draw_mirror_options(context, layout, draw_operators=True):
+def draw_mirror_options(context, layout):
+    prefs = RF_Prefs.get_prefs(context)
     props = context.scene.retopoflow
     obj = context.active_object
     props_obj = obj.retopoflow
@@ -33,6 +34,19 @@ def draw_mirror_options(context, layout, draw_operators=True):
 
     layout.use_property_split = True
     layout.use_property_decorate = False
+
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+
+    if tool.idname == 'retopoflow.strokes':
+        tool_props = tool.operator_properties(tool.idname)
+        layout.label(text='Strokes')
+        layout.prop(tool_props, 'mirror_correct', text='Active Side')
+        layout.prop(tool_props, 'mirror_mode', text='Crossing Mode')
+
+    elif tool.idname == 'retopoflow.polystrips':
+        tool_props = tool.operator_properties(tool.idname)
+        layout.label(text='PolyStrips')
+        layout.prop(tool_props, 'mirror_correct', text='Active Side')
 
     layout.label(text='Modifier')
 
