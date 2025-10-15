@@ -258,7 +258,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 # seems we lost our operator!
                 self.operator = None
 
-            if not self.operator:
+            if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active():
                 self.reset()
                 self.mouse = None
                 self.hit = False
@@ -340,7 +340,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
                 context.area.tag_redraw()
 
-            if self.mouse and event.type not in {'MOUSEMOVE','TIMER', 'LEFT_CTRL', 'RIGHT_CTRL'}:
+            if self.mouse and event.type not in {'MOUSEMOVE', 'TIMER'}:
                 return
 
             if self.is_stroking(): # and event.type == 'TIMER':
@@ -957,7 +957,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         def draw_postpixel(self, context):
             if not self.RFCore.is_current_area(context): return
-            if not self.operator: return
+            if not self.operator and not RFOperator_StrokeBrush_Adjust.is_active(): return
             if self.shift_held: return
             if not self.matrix_world: return
             #if context.area not in self.mouse_areas: return
