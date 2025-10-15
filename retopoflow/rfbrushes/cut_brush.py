@@ -135,6 +135,7 @@ class RFBrush_Cut(RFBrush_Base):
 
     def draw_postpixel(self, context):
         if not self.RFCore.is_current_area(context): return
+        if not self.operator: return
         #if context.area not in self.mouse_areas: return
         if self.shift_held: return
 
