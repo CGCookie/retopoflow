@@ -294,6 +294,7 @@ def generate_point_inside_bmf(bmf):
     return point_inside_bmf
 
 def is_bmvert_hidden(context, bmv, *, factor=0.99):
+    if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
     hit = raycast_valid_sources(context, point)
     if not hit: return False
