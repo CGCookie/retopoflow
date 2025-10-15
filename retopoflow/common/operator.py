@@ -175,6 +175,12 @@ class RFOperator(bpy.types.Operator):
         self.working_window = context.window
         self._stop = False
 
+        self.fullscreen_keymaps = {
+            km
+            for km in context.window_manager.keyconfigs.active.keymaps['Screen'].keymap_items
+            if km.idname == 'screen.screen_full_area'
+        }
+
         if hasattr(self, 'draw_postpixel_overlay'):
             wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
             self._draw_postpixel_overlay = space.draw_handler_add(self.draw_postpixel_overlay, (), 'WINDOW', 'POST_PIXEL')
@@ -265,13 +271,15 @@ class RFOperator(bpy.types.Operator):
             # check if passing event through might trigger something incompatible with RF
             if kmi := event_match_blenderop(event, 'Screen | screen.screen_full_area'):
                 # attempting to full screen the area!
+                print(f'ATTEMPTING TO FULLSCREEN')
                 ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
                 props = get_kmi_properties(kmi)
                 def fn():
                     with bpy.context.temp_override(**ctx):
                         bpy.ops.screen.screen_full_area(**props)
                 self.stop()
-                self.RFCore.quick_switch_with_call(fn, self.rf_idname)
+                # self.RFCore.switch_to_tool('builtin.move')
+                self.RFCore.quick_switch_with_call(None, fn, None, self.rf_idname)
                 return {'FINISHED'}
 
         return ret

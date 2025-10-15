@@ -83,7 +83,9 @@ class RFCore:
     default_RFTool         = RFTool_PolyPen     # TODO: should be stored and sticky across sessions
     selected_RFTool_idname = None               # currently selected RFTool, but might not be active
     running_in_areas       = []                 # areas that RFCore operator is currently running in
-    resetter                = Resetter('RFCore')  # helper for resetting bpy settings to original settings
+    resetter               = Resetter('RFCore')  # helper for resetting bpy settings to original settings
+    reset_attempts         = 0
+    last_reset_attempt     = 0
 
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
@@ -196,22 +198,36 @@ class RFCore:
 
     @staticmethod
     def quick_switch_to_reset(bl_idname):
-        RFCore.quick_switch_with_call(None, bl_idname)
+        if not bl_idname: return
+        delta = time.time() - RFCore.last_reset_attempt
+        print(f'{delta=} {RFCore.reset_attempts=}')
+        if delta < 2:
+            RFCore.reset_attempts += 1
+        else:
+            RFCore.reset_attempts = 0
+        RFCore.last_reset_attempt = time.time()
+        if RFCore.reset_attempts > 4:
+            print(f'ATTEMPTED TOO MANY TIMES TO RESET!')
+            RFCore.switch_to_tool('builtin.move')
+        else:
+            RFCore.quick_switch_with_call(None, bl_idname)
 
     @staticmethod
-    def quick_switch_with_call(fn, bl_idname):
-        delay = 0.5
-        def switch(*bl_idnames):
-            if not bl_idnames: return
-            if bl_idnames[0] is None:
+    def quick_switch_with_call(*args):
+        delay = 0.25
+        def switch(*args):
+            if not args: return
+            if args[0] is None:
                 pass
-            elif type(bl_idnames[0]) is str:
-                RFCore.switch_to_tool(bl_idnames[0])
+            elif type(args[0]) is str:
+                RFCore.switch_to_tool(args[0])
             else:
-                try: fn()
+                try: args[0]()
                 except Exception as e: print(f'CAUGHT EXCEPTION {e=}')
-            bpy.app.timers.register(lambda: switch(*bl_idnames[1:]), first_interval=delay)
-        bpy.app.timers.register(lambda: switch('builtin.move', fn, bl_idname), first_interval=delay)
+            args = args[1:]
+            bpy.app.timers.register(lambda: switch(*args), first_interval=delay)
+        switch('builtin.move', *args)
+        # bpy.app.timers.register(lambda: switch('builtin.move', *args), first_interval=delay)
 
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
