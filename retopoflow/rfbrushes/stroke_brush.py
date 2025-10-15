@@ -181,6 +181,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
             bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
             if bm is not None and bm.is_valid:
+                self.matrix_world = bpy.context.edit_object.matrix_world
+                self.matrix_world_inv = self.matrix_world.inverted()
+                self.matrix_world_ti = self.matrix_world.inverted().transposed()
+                self.edit_scale = max(self.matrix_world.to_scale())
+
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(bm, self.matrix_world, self.matrix_world_inv)
                 if snap_edges:
