@@ -279,7 +279,7 @@ class RFOperator(bpy.types.Operator):
                         bpy.ops.screen.screen_full_area(**props)
                 self.stop()
                 # self.RFCore.switch_to_tool('builtin.move')
-                self.RFCore.quick_switch_with_call(None, fn, None, self.rf_idname)
+                self.RFCore.quick_switch_with_call(fn, None, self.rf_idname)
                 return {'FINISHED'}
 
         return ret

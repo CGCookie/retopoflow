@@ -90,6 +90,16 @@ class RFBrush_Cut(RFBrush_Base):
         return self.operator and self.operator.is_active() and self.mousedown is not None
 
     def update(self, context, event):
+        try:
+            if self.operator: self.operator.is_active()
+        except ReferenceError as referr:
+            # seems we lost our operator!
+            self.operator = None
+
+        if not self.operator:
+            self.reset()
+            return
+
         if not self.RFCore.is_current_area(context):
             self.reset()
             return
