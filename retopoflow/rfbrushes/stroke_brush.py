@@ -115,6 +115,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             self.matrix_world = None
             self.matrix_world_inv = None
             self.matrix_world_ti = None
+            self.edit_scale = None
             self.nearest_bmv = None
             self.nearest_bme = None
             self.nearest_bmf = None
@@ -180,12 +181,6 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
             bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
             if bm is not None and bm.is_valid:
-                # Update matrices.
-                self.matrix_world = context.edit_object.matrix_world
-                self.matrix_world_inv = self.matrix_world.inverted()
-                self.matrix_world_ti = self.matrix_world.inverted().transposed()
-                self.edit_scale = max(self.matrix_world.to_scale())
-
                 if snap_verts:
                     self.nearest_bmv = NearestBMVert(bm, self.matrix_world, self.matrix_world_inv)
                 if snap_edges:
@@ -193,12 +188,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 if snap_faces:
                     self.nearest_bmf = NearestBMFace(bm, self.matrix_world, self.matrix_world_inv)
             else:
-                print('Warning: Could not get valid BMesh')
-
                 # No edit object available
-                self.matrix_world = None
-                self.matrix_world_inv = None
-                self.matrix_world_ti = None
+                print('Warning: Could not get valid BMesh')
 
             if not self.operator:
                 self.reset()
@@ -272,12 +263,25 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.shift_held = event.shift
                 context.area.tag_redraw()
 
+            if getattr(context, 'edit_object', None):
+                self.matrix_world = bpy.context.edit_object.matrix_world
+                self.matrix_world_inv = self.matrix_world.inverted()
+                self.matrix_world_ti = self.matrix_world.inverted().transposed()
+                self.edit_scale = max(self.matrix_world.to_scale())
+            else:
+                self.matrix_world = None
+                self.matrix_world_inv = None
+                self.matrix_world_ti = None
+                self.edit_scale = None
+                return
+
             if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
                 self.clear_stroke()
                 self.reset()
                 if self.timer: self.timer.stop()
                 self.timer = None
                 context.area.tag_redraw()
+                print('return 3')
                 return
 
             self._update(context)
@@ -1122,6 +1126,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
             RFBrush_Stroke.center2D = mouse - Vec2D((dist, 0))
             context.area.tag_redraw()
+            self.tickle(context)
 
         def dist_to_radius(self, d):
             RFBrush_Stroke.stroke_radius = max(5, int(d))
