@@ -107,11 +107,10 @@ class RFMenu_MT_ToolPie(Menu):
             row.label(text='Contours')
             section = back.box().column()
             section.ui_units_x = 8
-            grid = section.grid_flow(even_columns=True, even_rows=True)
-            row = grid.row(align=True)
-            col = row.column(align=False)
+            col = section.column(align=False)
             col.prop(props, 'span_count')
-            col.row(align=True).prop(props, 'process_source_method', expand=True)
+            col = section.column(align=True)
+            col.prop(props, 'process_source_method', expand=True)
 
         elif tool.idname == 'retopoflow.tweak' or tool.idname == 'retopoflow.relax':
             tool_name = 'Tweak' if tool.idname == 'retopoflow.tweak' else 'Relax'
