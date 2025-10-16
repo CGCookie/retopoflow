@@ -72,6 +72,9 @@ class RFBrush_Cut(RFBrush_Base):
         self.reset()
         self.shift_held = False
 
+    def stop(self):
+        self.set_operator(None)
+
     def set_operator(self, operator):
         # this is called whenever operator using brush is started
         # note: artist just used another operator, so the data likely changed.

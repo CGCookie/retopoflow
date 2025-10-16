@@ -285,7 +285,6 @@ class RFTool_Relax(RFTool_Base):
     bl_operator = 'retopoflow.relax'
 
     rf_brush = RFBrush_Relax()
-    rf_brush.set_operator(RFOperator_Relax)
 
     props = None  # needed to reset properties
 
@@ -350,6 +349,7 @@ class RFTool_Relax(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
+        cls.rf_brush.set_operator(RFOperator_Relax)
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Relax')
         if prefs.setup_automerge:
@@ -362,3 +362,4 @@ class RFTool_Relax(RFTool_Base):
     @classmethod
     def deactivate(cls, context):
         cls.resetter.reset()
+        cls.rf_brush.stop()

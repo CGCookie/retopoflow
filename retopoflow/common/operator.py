@@ -194,14 +194,26 @@ class RFOperator(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def stop(self):
-        print(f'stopping {self=}')
+        print(f'stopping {self=} {self._stop=}')
+
         if self._stop: return
         self._stop = True
+
+        brush = getattr(self, 'rf_brush', None)
+        if brush:
+            print(f'  stopping brush {brush=}')
+            try:
+                brush.stop()
+            except ReferenceError as re:
+                print(f'Caught ReferenceError while trying to stop operator')
+                print(f'  {re}')
+
         if self._draw_postpixel_overlay:
             wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
             space.draw_handler_remove(self._draw_postpixel_overlay, 'WINDOW')
             self._draw_postpixel_overlay = None
         bpy.context.workspace.status_text_set(None)
+
         if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
         type(self)._is_running = False
 
@@ -275,13 +287,14 @@ class RFOperator(bpy.types.Operator):
                 ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
                 props = get_kmi_properties(kmi)
                 def tickle():
-                    self.tickle(bpy.context)
+                    RFOperator.tickle(bpy.context)
                 def go_full_now():
                     with bpy.context.temp_override(**ctx):
                         bpy.ops.screen.screen_full_area(**props)
                 self.stop()
                 # self.RFCore.switch_to_tool('builtin.move')
-                self.RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
+                # self.RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
+                self.RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
                 return {'FINISHED'}
 
         return ret

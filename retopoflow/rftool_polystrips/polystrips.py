@@ -758,3 +758,4 @@ class RFTool_PolyStrips(RFTool_Base):
     @classmethod
     def deactivate(cls, context):
         cls.resetter.reset()
+        cls.rf_brush.stop()

@@ -48,6 +48,7 @@ class RFBrush_Base:
     def update(self, context, event): pass
     def draw_postpixel(self, context): pass
     def draw_postview(self, context): pass
+    def stop(self): pass
 
     @classmethod
     def depsgraph_update(cls): pass

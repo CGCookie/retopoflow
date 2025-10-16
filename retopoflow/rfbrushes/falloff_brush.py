@@ -84,6 +84,8 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit_rmat = None
             self.disabled = False
 
+        def stop(self):
+            self.set_operator(None)
 
         def get_scaled_radius(self):
             if not self.hit_scale: return 0.0 # Handle case where hit_scale might not be set yet
