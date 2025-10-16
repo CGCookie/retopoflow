@@ -413,7 +413,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         min=5,
         max=100,
         subtype='PIXEL',
-        default=10,
+        default=12,
     )
 
     stroke_smoothing: bpy.props.FloatProperty(
@@ -531,6 +531,7 @@ class RFTool_Strokes(RFTool_Base):
             else:
                 row.prop(props_strokes, 'brush_radius', text="")
             # layout.label(text="Smooth Blending:")
+            layout.prop(props_strokes, 'snap_radius', text="Snap")
             layout.prop(props_strokes, 'stroke_smoothing', text='Stabilize', slider=True)
             layout.prop(props_strokes, 'smooth_angle', text='Blending', slider=True)
             # layout.label(text="Spacing:")
