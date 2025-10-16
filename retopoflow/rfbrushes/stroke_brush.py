@@ -147,6 +147,9 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
             self.timer = None
 
+        def stop(self):
+            self.set_operator(None)
+
         def set_operator(self, operator):
             # this is called whenever operator using brush is started
             # note: artist just used another operator, so the data likely changed.

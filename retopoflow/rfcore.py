@@ -213,9 +213,9 @@ class RFCore:
             RFCore.quick_switch_with_call(None, bl_idname)
 
     @staticmethod
-    def quick_switch_with_call(*args):
-        delay = 0.25
+    def quick_switch_with_call(*args, delay=0.25):
         def switch(*args):
+            print(f'SWITCH: {args}')
             if not args: return
             if args[0] is None:
                 pass
@@ -226,6 +226,7 @@ class RFCore:
                 except Exception as e: print(f'CAUGHT EXCEPTION {e=}')
             args = args[1:]
             bpy.app.timers.register(lambda: switch(*args), first_interval=delay)
+        RFCore.stop()
         switch('builtin.move', *args)
         # bpy.app.timers.register(lambda: switch('builtin.move', *args), first_interval=delay)
 
