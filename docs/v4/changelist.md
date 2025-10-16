@@ -1,6 +1,6 @@
 # Change List
 
-This document contains details about what has changed in Retopoflow in version 4.x.
+This document contains details about what has changed in Retopoflow in version 4.
 
 ### 4.0.0 beta 8
 
@@ -18,6 +18,7 @@ Improved:
 - Fixed PolyStrips width when the retopo object has non-uniform scale
 - Fixed PolyStrips creating sharp angles when the stroke is smooth but the source has sharp angles
 - Fixed issue when deleting source objects while Retopoflow is running
+- Fixed Strokes and PolyPen being able to snap to hidden vertices
 
 ### 4.0.0 beta 7
 

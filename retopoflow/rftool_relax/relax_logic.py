@@ -57,6 +57,8 @@ class Accel:
     def __init__(self, bmverts, matrix_world):
         self.bmverts = bmverts
         self.matrix_world = matrix_world
+        self.min_x, self.min_y, self.min_z = 0, 0, 0
+        self.max_x, self.max_y, self.max_z = 0, 0, 0
         self.time = time.time() - 1000
         self.rebuild()
 
@@ -64,6 +66,7 @@ class Accel:
         if time.time() - self.time < delta: return
         M = self.matrix_world
         self.time = time.time()
+        self.bins = [[[[] for _ in range(10)] for _ in range(10)] for _ in range(10)]
         pts = [M @ v.co for v in self.bmverts]
         if not pts: return
         self.min_x, self.min_y, self.min_z = min(pt.x for pt in pts), min(pt.y for pt in pts), min(pt.z for pt in pts)
@@ -73,7 +76,6 @@ class Accel:
         if dx < 0.001: self.min_x, self.max_x = self.min_x - Dxyz * 0.001, self.max_x + Dxyz * 0.001
         if dy < 0.001: self.min_y, self.max_y = self.min_y - Dxyz * 0.001, self.max_y + Dxyz * 0.001
         if dz < 0.001: self.min_z, self.max_z = self.min_z - Dxyz * 0.001, self.max_z + Dxyz * 0.001
-        self.bins = [[[[] for _ in range(10)] for _ in range(10)] for _ in range(10)]
         for v in self.bmverts:
             ix, iy, iz = self.index(M @ v.co)
             self.bins[ix][iy][iz].append(v)
