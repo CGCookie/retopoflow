@@ -285,7 +285,7 @@ class RFOperator(bpy.types.Operator):
             if kmi := event_match_blenderop(event, 'Screen | screen.screen_full_area'):
                 # attempting to full screen the area!
                 print(f'ATTEMPTING TO FULLSCREEN')
-                show_message(message="Sorry, but Maximizing an Area while a Retopoflow tool is selected has caused Blender to crash on some machines.\nWhile we work on a fix for this, we have temporarily disabled the Maximize Area operator when using Retopoflow.\nFor now, please switch to another tool first (ex: Select), then Maximize the Area and switch back to Retopoflow.", title="Retopoflow", icon="ERROR")
+                show_message(message="Sorry, but Maximizing an Area with one of the Retopoflow tools selected has caused Blender to crash on some machines.\nWhile we work on a fix for this, we have temporarily disabled the Maximize Area operator when using Retopoflow to prevent loss of work.\nFor now, please switch to another tool first (ex: Select), then Maximize the Area and switch back to Retopoflow.", title="Retopoflow", icon="ERROR")
                 return {'RUNNING_MODAL'}
 
                 ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
