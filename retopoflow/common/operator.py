@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import re
+import os
 
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
@@ -34,6 +35,12 @@ map_icons = {
     'RMB': 'MOUSE_RMB',
 }
 
+print(f'*******************************')
+print(f'*******************************')
+print(__file__)
+print(f'*******************************')
+print(f'*******************************')
+dev_env = 'vscode_development' in __file__
 
 def poll_retopoflow(context):
     if not context.edit_object: return False
@@ -285,8 +292,9 @@ class RFOperator(bpy.types.Operator):
             if kmi := event_match_blenderop(event, 'Screen | screen.screen_full_area'):
                 # attempting to full screen the area!
                 print(f'ATTEMPTING TO FULLSCREEN')
-                show_message(message="Sorry, but Maximizing an Area with one of the Retopoflow tools selected has caused Blender to crash on some machines.\nWhile we work on a fix for this, we have temporarily disabled the Maximize Area operator when using Retopoflow to prevent loss of work.\nFor now, please switch to another tool first (ex: Select), then Maximize the Area and switch back to Retopoflow.", title="Retopoflow", icon="ERROR")
-                return {'RUNNING_MODAL'}
+                if dev_env:
+                    show_message(message="Sorry, but Maximizing an Area with one of the Retopoflow tools selected has caused Blender to crash on some machines, but only when running in a development environment.\nWhile we work on a fix for this, we have temporarily disabled the Maximize Area operator when using Retopoflow to prevent loss of work.\nFor now, please switch to another tool first (ex: Select), then Maximize the Area and switch back to Retopoflow.", title="Retopoflow", icon="ERROR")
+                    return {'RUNNING_MODAL'}
 
                 ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
                 props = get_kmi_properties(kmi)
