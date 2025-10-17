@@ -35,11 +35,6 @@ map_icons = {
     'RMB': 'MOUSE_RMB',
 }
 
-print(f'*******************************')
-print(f'*******************************')
-print(__file__)
-print(f'*******************************')
-print(f'*******************************')
 dev_env = 'vscode_development' in __file__
 
 def poll_retopoflow(context):
