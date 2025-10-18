@@ -50,6 +50,7 @@ from .strokes_logic import Strokes_Logic
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
+from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -511,6 +512,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Strokes,
         RFOperator_Stroke_Insert,
         RFOperator_StrokesBrush_Adjust,
+        RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,

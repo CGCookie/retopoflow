@@ -55,6 +55,7 @@ from ...addon_common.ext.circle_fit import hyperLSQ
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
+from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
@@ -372,6 +373,7 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
+        RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,

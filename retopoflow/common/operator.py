@@ -287,27 +287,23 @@ class RFOperator(bpy.types.Operator):
             if kmi := event_match_blenderop(event, 'Screen | screen.screen_full_area'):
                 # attempting to full screen the area!
                 print(f'ATTEMPTING TO FULLSCREEN')
-                show_message(
-                    message="Maximizing an area with a Retopoflow tool selected can cause Blender to crash on some machines.\n" \
-                            "While we work on a fix, we have temporarily disabled the Maximize Area operator when using Retopoflow to prevent loss of work.\n" \
-                            "For now, please switch to another tool (like Move) first, Maximize the Area, then switch back to Retopoflow.", 
-                    title="Retopoflow", 
-                    icon="ERROR"
-                )
-                return {'RUNNING_MODAL'}
+                # this causes some machines to crash
+                # the RFOperator_MaximizeWatcher will catch, block, and message about this
+                # See issue #1615
+                return {'PASS_THROUGH'}
 
-                ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
-                props = get_kmi_properties(kmi)
-                def tickle():
-                    RFOperator.tickle(bpy.context)
-                def go_full_now():
-                    with bpy.context.temp_override(**ctx):
-                        bpy.ops.screen.screen_full_area(**props)
-                self.stop()
-                # self.RFCore.switch_to_tool('builtin.move')
-                # self.RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
-                self.RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
-                return {'FINISHED'}
+                # ctx = { k: getattr(context,k) for k in ['window', 'area', 'region', 'screen'] }
+                # props = get_kmi_properties(kmi)
+                # def tickle():
+                #     RFOperator.tickle(bpy.context)
+                # def go_full_now():
+                #     with bpy.context.temp_override(**ctx):
+                #         bpy.ops.screen.screen_full_area(**props)
+                # self.stop()
+                # # self.RFCore.switch_to_tool('builtin.move')
+                # # self.RFCore.quick_switch_with_call(tickle, go_full_now, self.rf_idname, delay=0.125)
+                # self.RFCore.quick_switch_with_call(go_full_now, self.rf_idname, delay=0.125)
+                # return {'FINISHED'}
 
         return ret
 
