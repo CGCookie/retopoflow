@@ -47,8 +47,8 @@ class RFOperator_MaximizeWatcher(RFOperator):
         print(f'ATTEMPTING TO FULLSCREEN')
         show_message(
             message="Maximizing an area with a Retopoflow tool selected can cause Blender to crash on some machines.\n" \
-                    "While we work on a fix, we have temporarily disabled the Maximize Area operator when using Retopoflow to prevent loss of work.\n" \
-                    "For now, please switch to another tool (like Move) first, Maximize the Area, then switch back to Retopoflow.", 
+                    "While we work on a fix, we have temporarily disabled the Maximize Area operator to prevent loss of work.\n" \
+                    "For now, please switch to another tool (like Move) first, maximize the area, then switch back to Retopoflow.", 
             title="Retopoflow", 
             icon="ERROR"
         )
