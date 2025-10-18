@@ -261,7 +261,7 @@ def event_match_blenderop(event, blenderop):
     return None
 
 def blenderop_to_kmis(blenderop):
-    keymaps = bpy.context.window_manager.keyconfigs.user.keymaps
+    keymaps = bpy.context.window_manager.keyconfigs.active.keymaps
     i18n_translate = bpy.app.translations.pgettext                  # bpy.app.translations.pgettext tries to translate the given parameter
 
     m = re_blenderop.match(blenderop)

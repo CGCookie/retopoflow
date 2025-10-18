@@ -67,6 +67,7 @@ from ...addon_common.common.timerhandler import TimerHandler
 from .relax_logic import Relax_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Tweak_QuickSwitch
+from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -290,6 +291,7 @@ class RFTool_Relax(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Relax,
+        RFOperator_MaximizeWatcher,
         RFOperator_RelaxBrush_Adjust,
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
