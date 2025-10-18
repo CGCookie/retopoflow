@@ -2,7 +2,9 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
-### 4.0.0 beta 8
+### 4.0.0
+
+Retopoflow 4 is officially released! 
 
 New:
 - Added Shift hotkey for moving in small increments while tweaking
