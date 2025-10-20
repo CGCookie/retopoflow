@@ -4,7 +4,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.0.0
 
-Retopoflow 4 is officially released! 
+Retopoflow 4 is officially released!
 
 New:
 - Added Shift hotkey for moving in small increments while tweaking
@@ -21,6 +21,8 @@ Improved:
 - Fixed PolyStrips creating sharp angles when the stroke is smooth but the source has sharp angles
 - Fixed issue when deleting source objects while Retopoflow is running
 - Fixed Strokes and PolyPen being able to snap to hidden vertices
+- Fullscreening an area is now blocked since it can cause a crash on some machines
+    - We will restore this functionality once we find a full fix
 
 ### 4.0.0 beta 7
 
