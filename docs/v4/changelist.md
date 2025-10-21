@@ -2,6 +2,9 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.0.1
+- Fixed issue with detecting user keymaps
+
 ### 4.0.0
 
 Retopoflow 4 is officially released!
