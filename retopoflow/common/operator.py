@@ -180,7 +180,7 @@ class RFOperator(bpy.types.Operator):
 
         self.fullscreen_keymaps = {
             km
-            for km in context.window_manager.keyconfigs.active.keymaps['Screen'].keymap_items
+            for km in context.window_manager.keyconfigs.user.keymaps['Screen'].keymap_items
             if km.idname == 'screen.screen_full_area'
         }
 
