@@ -29,7 +29,6 @@ bl_info = {
     "tracker_url":  "https://github.com/CGCookie/retopoflow/issues",
     "location":     "Edit Mode Toolbar",
     "category":     "3D View",
-    "warning":      "Alpha Version",
 }
 
 import bpy
