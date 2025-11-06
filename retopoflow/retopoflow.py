@@ -103,7 +103,7 @@ class RetopoFlow(
         if not ob or ob.type != 'MESH': return False
         if not ob.visible_get(): return False
         # make sure we have source meshes
-        if not cls.get_sources(): return False
+        if not cls.get_sources(ignore_unused_mark=True): return False
         # all seems good!
         return True
 

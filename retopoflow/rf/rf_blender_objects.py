@@ -49,10 +49,14 @@ from ...addon_common.common.debug import dprint
 
 class RetopoFlow_Blender_Objects:
     @staticmethod
-    def is_valid_source(o, *, test_poly_count=True, context=None):
+    def is_valid_source(o, *, test_poly_count=True, context=None, ignore_unused_mark=False):
         if not o: return False
         context = context or bpy.context
         mark = RetopoFlow_Blender_Objects.get_sources_target_mark(o)
+        # Fix 1647: 'ignore_unused_mark' – ignore leftover "unused" mark in RetopoFlow custom prop
+        # when starting/polling (valid sources may retain it due to prior RF errors).
+        if ignore_unused_mark and mark == 'unused':
+            mark = None
         if mark is not None: return mark == 'source'
         # if o == get_active_object(): return False
         if o == context.edit_object: return False
@@ -95,7 +99,7 @@ class RetopoFlow_Blender_Objects:
     @staticmethod
     def mark_sources_target():
         for obj in bpy.data.objects:
-            if RetopoFlow_Blender_Objects.is_valid_source(obj):
+            if RetopoFlow_Blender_Objects.is_valid_source(obj, ignore_unused_mark=True):
                 # set as source
                 obj['RetopoFlow'] = 'source'
             elif RetopoFlow_Blender_Objects.is_valid_target(obj):
@@ -119,11 +123,11 @@ class RetopoFlow_Blender_Objects:
         return obj['RetopoFlow']
 
     @staticmethod
-    def get_sources(*, ignore_active=False):
+    def get_sources(*, ignore_active=False, ignore_unused_mark=False):
         is_valid = RetopoFlow_Blender_Objects.is_valid_source
         active = bpy.context.active_object
         is_ignored = lambda o: (ignore_active and o == active)
-        return [ o for o in bpy.data.objects if is_valid(o) and not is_ignored(o) ]
+        return [ o for o in bpy.data.objects if is_valid(o, ignore_unused_mark=ignore_unused_mark) and not is_ignored(o) ]
 
     @staticmethod
     def get_target():

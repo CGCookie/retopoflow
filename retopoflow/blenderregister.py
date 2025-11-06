@@ -364,7 +364,7 @@ if import_succeeded:
             # check we are not in mesh editmode
             if context.mode == 'EDIT_MESH': return False
             # make sure we have source meshes
-            if not retopoflow.RetopoFlow.get_sources(): return False
+            if not retopoflow.RetopoFlow.get_sources(ignore_unused_mark=True): return False
             # all seems good!
             return True
 
@@ -389,10 +389,10 @@ if import_succeeded:
             # check we are not in mesh editmode
             if context.mode == 'EDIT_MESH': return False
             # make sure we have source meshes
-            if not retopoflow.RetopoFlow.get_sources(): return False
+            if not retopoflow.RetopoFlow.get_sources(ignore_unused_mark=True): return False
             o = get_active_object()
             if not o: return False
-            if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False): return False
+            if not retopoflow.RetopoFlow.is_valid_source(o, test_poly_count=False, ignore_unused_mark=True): return False
             # all seems good!
             return True
 
@@ -418,7 +418,7 @@ if import_succeeded:
             # check we are not in mesh editmode
             if context.mode != 'OBJECT': return False
             # make sure we have source meshes
-            if not retopoflow.RetopoFlow.get_sources(ignore_active=True): return False
+            if not retopoflow.RetopoFlow.get_sources(ignore_active=True, ignore_unused_mark=True): return False
             o = get_active_object()
             if not o: return False
             if not retopoflow.RetopoFlow.is_valid_target(o, ignore_edit_mode=True): return False
