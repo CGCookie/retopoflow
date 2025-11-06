@@ -97,7 +97,7 @@ class RetopoFlow_Blender_Objects:
         for obj in bpy.data.objects:
             if RetopoFlow_Blender_Objects.is_valid_source(obj):
                 # set as source
-                obj['RetopFlow'] = 'source'
+                obj['RetopoFlow'] = 'source'
             elif RetopoFlow_Blender_Objects.is_valid_target(obj):
                 obj['RetopoFlow'] = 'target'
             else:
