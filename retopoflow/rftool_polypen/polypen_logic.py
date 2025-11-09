@@ -334,6 +334,9 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         if not self.nearest or not self.nearest.is_valid: return
         if not self.nearest_bme or not self.nearest_bme.is_valid: return
+        if self.state in {PP_Action.EDGE_TRI, PP_Action.EDGE_QUAD, PP_Action.TRI_QUAD} and (not self.bme or not self.bme.is_valid):
+            self.bme = None
+            return
 
         theme = context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
