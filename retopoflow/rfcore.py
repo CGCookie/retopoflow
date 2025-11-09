@@ -592,8 +592,9 @@ class RFCore:
             try:
                 RFOperator.active_operator().draw_postpixel(context)
             except Exception as e:
+                import traceback
                 print(f'Caught exception while trying to draw tool postpixel')
-                print(f'  {e}')
+                traceback.print_exc()
                 RFCore.restart()
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
@@ -602,8 +603,9 @@ class RFCore:
             try:
                 brush.draw_postpixel(context)
             except ReferenceError as re:
+                import traceback
                 print(f'Caught ReferenceError while trying to draw brush postpixel')
-                print(f'  {re}')
+                traceback.print_exc()
                 RFCore.restart()
 
     @staticmethod
