@@ -4,7 +4,7 @@ RetopoFlow is a suite of fun, sketch-based retopology tools for Blender from [Or
 
 This documentation covers the installation and usage of all tools included in the add-on.
 
-You can read about the features and purchase a copy on [our website](https://orangeturbine.com/downloads/retopoflow) or the [Blender Market](https://blendermarket.com/products/retopoflow/).
+You can read about the features and purchase a copy on [our website](https://orangeturbine.com/downloads/retopoflow) or the [Superhive Market](https://superhivemarket.com/products/retopoflow/).
 
 ![Blender Market](help/images/blendermarket_screenshot.png)
 
