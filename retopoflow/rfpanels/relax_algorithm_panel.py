@@ -46,7 +46,7 @@ def draw_relax_algo_options(context, layout):
     col = layout.column(heading="Correct")
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
-    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=False)
+    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=True)
     header.label(text='Limit Distance')
     if panel:
         panel.prop(props, 'algorithm_max_distance_radius', text="Radius")
