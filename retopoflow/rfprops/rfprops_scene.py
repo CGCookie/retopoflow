@@ -189,6 +189,12 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         update=lambda self, context: update_nodes_preview(context)
     )
 
+    """ Sources """
+    snap_only_selected: bpy.props.BoolProperty(
+        name='Exclude Non-selected',
+        description='Only selected objects in Object Mode are considered as valid sources. This allows you to manage what you snap to in the Outliner',
+        default=False
+    )
 
 def register():
     bpy.utils.register_class(RFProps_Scene)

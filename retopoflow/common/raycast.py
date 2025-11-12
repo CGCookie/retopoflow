@@ -192,19 +192,16 @@ def has_faces(context, obj):
 
 def iter_all_valid_sources(context):
     ts = context.scene.tool_settings
+    props = context.scene.retopoflow
     yield from (
         obj
         for obj in context.view_layer.objects
         if (
-            has_faces(context, obj) and
             obj.mode == 'OBJECT' and
-            not obj.hide_get() and
+            has_faces(context, obj) and
             obj.visible_get() and
-            not obj.hide_viewport and
-            (
-                not ts.use_snap_selectable or
-                (ts.use_snap_selectable and not obj.hide_select)
-            )
+            (not ts.use_snap_selectable or not obj.hide_select) and 
+            (not props.snap_only_selected or obj.select_get())
         )
     )
 

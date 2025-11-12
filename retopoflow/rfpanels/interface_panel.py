@@ -40,7 +40,7 @@ def draw_ui_options(context, layout):
         split.prop(theme, 'face_retopology', text='')
         split.prop(props_scene, 'retopo_offset', text='')
         #split.prop(context.space_data.overlay, 'retopology_offset', text='')
-        row = col.row(heading='Fade Sources')
+        row = col.row(heading='Fade Inactive')
         row.prop(context.space_data.overlay, 'show_fade_inactive', text='')
         row2 = row.row()
         row2.enabled = context.space_data.overlay.show_fade_inactive

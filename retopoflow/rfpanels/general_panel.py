@@ -25,20 +25,19 @@ from .interface_panel import draw_ui_options
 from .tool_switching_panel import draw_tool_switching_options
 
 def draw_general_options(context, layout):
-
-    if hasattr(context.space_data, 'overlay'):
-        header, panel = layout.panel(idname='RF_snapping_prefs', default_closed=False)
-        header.label(text="Snapping")
-        if panel:
-            panel.use_property_split = True
-            panel.use_property_decorate = False
-            row = panel.row(heading='Exclude')
-            row.prop(context.scene.tool_settings, 'use_snap_selectable', text='Non-Selectable')
-
     header, panel = layout.panel(idname='RF_interface_prefs', default_closed=False)
     header.label(text="Interface")
     if panel:
         draw_ui_options(context, panel)
+
+    header, panel = layout.panel(idname='RF_snapping_prefs', default_closed=False)
+    header.label(text="Sources")
+    if panel:
+        panel.use_property_split = True
+        panel.use_property_decorate = False
+        row = panel.row(heading='Only Include')
+        row.prop(context.scene.retopoflow, 'snap_only_selected', text='Selected')
+        panel.prop(context.scene.tool_settings, 'use_snap_selectable', text='Selectable')
 
     header, panel = layout.panel(idname='RF_general_tools_panel', default_closed=True)
     header.label(text='Tools')
