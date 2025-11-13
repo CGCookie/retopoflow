@@ -34,10 +34,12 @@ class RFMenu_MT_ToolPie(Menu):
 
     def draw_bottom_menu(self, pie):
         tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        radial_emboss = 'PIE_MENU' if bpy.app.version >= (5,0,0) else 'RADIAL_MENU'
+
         back = pie.box().column(align=True)
 
         row = back.row()
-        row.emboss = 'RADIAL_MENU'
+        row.emboss = radial_emboss
         row.label(text='Clean Up')
         section = back.box().column()
         row = section.row(align=True)
@@ -47,7 +49,7 @@ class RFMenu_MT_ToolPie(Menu):
         if tool.idname == 'retopoflow.polypen':
             props = tool.operator_properties(tool.idname)
             row = back.row()
-            row.emboss = 'RADIAL_MENU'
+            row.emboss = radial_emboss
             row.label(text='Poly Pen Insert Mode')
             section = back.box().column()
             section.ui_units_x = 8
@@ -61,7 +63,7 @@ class RFMenu_MT_ToolPie(Menu):
             col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
             if PolyPen_Insert_Modes.insert_mode == 4:
                 row = section.row()
-                row.emboss = 'RADIAL_MENU'
+                row.emboss = radial_emboss
                 row.label(text='Quad Stability')
                 row = section.row(align=True)
                 row.operator('retopoflow.polypen_quad_stability_quarter', text='0.25')
@@ -72,7 +74,7 @@ class RFMenu_MT_ToolPie(Menu):
         elif tool.idname == 'retopoflow.polystrips':
             props = tool.operator_properties(tool.idname)
             row = back.row()
-            row.emboss = 'RADIAL_MENU'
+            row.emboss = radial_emboss
             row.label(text='PolyStrips')
             section = back.box().column()
             section.ui_units_x = 8
@@ -85,7 +87,7 @@ class RFMenu_MT_ToolPie(Menu):
         elif tool.idname == 'retopoflow.strokes':
             props = tool.operator_properties(tool.idname)
             row = back.row()
-            row.emboss = 'RADIAL_MENU'
+            row.emboss = radial_emboss
             row.label(text='Strokes')
             section = back.box().column()
             section.ui_units_x = 10
@@ -103,7 +105,7 @@ class RFMenu_MT_ToolPie(Menu):
         elif tool.idname == 'retopoflow.contours':
             props = tool.operator_properties(tool.idname)
             row = back.row()
-            row.emboss = 'RADIAL_MENU'
+            row.emboss = radial_emboss
             row.label(text='Contours')
             section = back.box().column()
             section.ui_units_x = 8
@@ -116,7 +118,7 @@ class RFMenu_MT_ToolPie(Menu):
             tool_name = 'Tweak' if tool.idname == 'retopoflow.tweak' else 'Relax'
             props = tool.operator_properties(tool.idname)
             row = back.row()
-            row.emboss = 'RADIAL_MENU'
+            row.emboss = radial_emboss
             row.label(text=tool_name)
             section = back.box().column()
             section.ui_units_x = 9
