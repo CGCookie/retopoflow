@@ -4,6 +4,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.0.2
 - Added option to only snap to selected objects
+- Added support for Blender 5.0
 
 ### 4.0.1
 - Fixed issue with detecting user keymaps
