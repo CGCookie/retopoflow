@@ -104,6 +104,7 @@ class PP_Logic:
     def reset(self):
         self.bm = None
         self.em = None
+        self.bme = None
         self.nearest = None
         self.selected = None
 
