@@ -792,8 +792,17 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         prefs = preferences.RF_Prefs.get_prefs(context)
         source_count = len(list(iter_all_valid_sources(context)))
         if source_count == 0 and prefs.warn_no_sources:
-            show_message(message="No sources detected.\nRetopoflow tools need a visible object that is not being edited to snap the retopology mesh to.", title="Retopoflow", icon="ERROR")
-            self.report({'ERROR'}, "No sources detected. Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to.")
+            selected = context.scene.retopoflow.snap_only_selected
+            selectable = context.scene.tool_settings.use_snap_selectable
+            message = (
+                f"No sources detected.\n"
+                f"Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to."
+            )
+            if selected: message = message + "\nOnly use selected objects as sources is ON"
+            if selectable: message = message + "\nOnly use selectable objects as sources is ON"
+            if selected or selectable: message = message + "\nYou can change the source settings in the General panel"
+            show_message(message=message, title="Retopoflow", icon="ERROR")
+            self.report({'ERROR'}, message)
 
         print(f'RFCore_Operator executing')
         return {'RUNNING_MODAL'}
