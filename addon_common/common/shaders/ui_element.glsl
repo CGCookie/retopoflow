@@ -51,8 +51,7 @@ struct Options {
 uniform Options options;
 uniform sampler2D image;
 
-
-const bool srgbTarget = true;
+uniform bool srgbTarget;
 
 bool image_use() { return options.image_settings.x != 0; }
 int  image_fit() { return int(options.image_settings.y); }

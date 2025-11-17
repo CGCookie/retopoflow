@@ -21,24 +21,15 @@ Created by Jonathan Denning, Jonathan Williamson
 
 import bpy
 import gpu
+from bpy.app import version as blender_version
 
 from gpu_extras.batch import batch_for_shader
-from gpu_extras.presets import draw_texture_2d
-from mathutils import Vector, Matrix
 
-from .ui_styling import UI_Styling, ui_defaultstylings
+from .ui_styling import UI_Styling
 
 from . import gpustate
-from .boundvar import BoundVar
-from .debug import debugger, dprint, tprint
-from .decorators import debug_test_call, blender_version_wrapper, add_cache
-from .drawing import Drawing
 from .globals import Globals
-from .hasher import Hasher
-from .maths import Vec2D, Color, mid, Box2D, Size1D, Size2D, Point2D, RelPoint2D, Index2D, clamp, NumberUnit
-from .maths import floor_if_finite, ceil_if_finite
-from .profiler import profiler, time_it
-from .utils import iter_head, any_args, join
+from .maths import Color, NumberUnit
 
 style_to_image_scale = {
     'fill':       0, # default.  stretch/squash to fill entire container
@@ -156,6 +147,7 @@ class UI_Draw:
         ui_draw_ubos.options.background_color    = Color.as_vec4(background_override if background_override else get_v('background-color', def_color))
         ui_draw_ubos.options.image_settings      = [ (1 if gputexture is not None else 0), style_to_image_scale.get(texture_fit, 0), 0, 0 ]
         if gputexture: ui_draw_shader.uniform_sampler('image', gputexture)
+        ui_draw_shader.uniform_bool('srgbTarget', blender_version < (5, 0, 0))
         ui_draw_ubos.update_shader()
         ui_draw_batch.draw(ui_draw_shader)
 
