@@ -124,18 +124,49 @@ class RetopoFlow_Normalize:
             fac = (factor if mesh == 'SCALE' else 1.0) or 0.0
             if fac > 0.0:
                 prev_factor = normalize_opts['mesh scaling factor']
-                M = (Matrix.Identity(3) * (fac / prev_factor)).to_4x4()
                 sources = RetopoFlow_Blender_Objects.get_sources()
                 targets = [rf_target]
-                for obj in chain(sources, targets):
-                    if not obj: continue
-                    armature = next((mod.object for mod in obj.modifiers if mod.type == 'ARMATURE'), None)
-                    if not armature:
-                        obj.matrix_world = M @ obj.matrix_world
-                    else:
-                        print(f'  {obj.name} has an armature modifier with object {armature.name}')
-                        # armature.matrix_world = M @ armature.matrix_world
-                        obj.matrix_world = M @ obj.matrix_world
+
+                if mesh == 'RESTORE':
+                    # Restore original scales directly to the original (stored) ones
+                    mesh_scales = normalize_opts.get('mesh scales', {})
+                    for obj in chain(sources, targets):
+                        if not obj:
+                            continue
+                        if obj.name not in mesh_scales:
+                            continue
+                        before_scale = obj.scale.copy()
+                        orig_scale = mesh_scales[obj.name]
+                        # Calculate the scale_ratio needed to restore original scale.
+                        if all(s != 0 for s in before_scale):
+                            # Average per-axis ratios for uniform scaling.
+                            ratios = [orig_scale[i] / before_scale[i] for i in range(3)]
+                            scale_ratio = sum(ratios) / 3.0
+                        else:
+                            # If any axis is zero, use 1.0 to avoid division by zero.
+                            scale_ratio = 1.0
+                        M = Matrix.Scale(scale_ratio, 4)
+                        armature = next((mod.object for mod in obj.modifiers if mod.type == 'ARMATURE'), None)
+                        if not armature:
+                            obj.matrix_world = M @ obj.matrix_world
+                        else:
+                            print(f'  {obj.name} has an armature modifier with object {armature.name}')
+                            obj.matrix_world = M @ obj.matrix_world
+                        print(f'  {obj.name} scale from: {before_scale} to: {obj.scale} (target: {orig_scale})')
+                else:
+                    # Scale to unit box
+                    scale_ratio = fac / prev_factor
+                    M = Matrix.Scale(scale_ratio, 4)
+                    for obj in chain(sources, targets):
+                        if not obj: continue
+                        before_scale = obj.scale.copy()
+                        armature = next((mod.object for mod in obj.modifiers if mod.type == 'ARMATURE'), None)
+                        if not armature:
+                            obj.matrix_world = M @ obj.matrix_world
+                        else:
+                            print(f'  {obj.name} has an armature modifier with object {armature.name}')
+                            obj.matrix_world = M @ obj.matrix_world
+                        print(f'  {obj.name} scale from: {before_scale} to: {obj.scale}')
                 normalize_opts['mesh scaling factor'] = fac
         elif mesh == 'IGNORE':
             pass
@@ -189,6 +220,17 @@ class RetopoFlow_Normalize:
             'distance': r3d.view_distance,
             'location': r3d.view_location,
         }
+
+        # store original mesh scales
+        print('RetopoFlow: storing original mesh scales')
+        sources = RetopoFlow_Blender_Objects.get_sources()
+        rf_target = RetopoFlow_Blender_Objects.get_target()
+        mesh_scales = {}
+        for obj in chain(sources, [rf_target] if rf_target else []):
+            if obj:
+                mesh_scales[obj.name] = obj.scale.copy()
+                print(f'  {obj.name}: {obj.scale}')
+        normalize_opts['mesh scales'] = mesh_scales
 
         print('RetopoFlow: computing unit scaling factor')
         normalize_opts['unit scaling factor'] = self._compute_unit_scaling_factor()

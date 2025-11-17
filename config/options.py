@@ -875,6 +875,7 @@ class SessionOptions:
                 'distance': None,
                 'location': None,
             },
+            'mesh scales': {},  # store original scales by object name
         },
 
         'blender': {
