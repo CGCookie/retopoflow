@@ -2,7 +2,23 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.8&rarr;3.4.9
+
+- Fix parsing error when packaging as extension
+- Fixed issue with meshes not being able to be used as sources in certain cases
+- Fixed issue with scales of sources and targets not being restored in certain cases
+- Blender 5.0 specific:
+    - Color space of RetopoFlow UI elements is now correct
+    - Fixed crash when exiting RetopoFlow
+- Other minor issues
+
+### RetopoFlow 3.4.7&rarr;3.4.8
+
+- Fixed issue with starting RetopoFlow on Mac in Blender 4.5
+- Fixed rare issue with PolyPen when Merge Distance is 0
+
 ### RetopoFlow 3.4.6&rarr;3.4.7
+
 - Fixed issue with undo after exiting sometimes causing loss of work 
 - Updated online help links to work with new docs website 
 
@@ -14,7 +30,6 @@ This document contains details about what has changed in RetopoFlow since versio
 - Removed updater from menu since it does not work with recent Blender versions
 - Fixed crash when drawing a specific unsupported shape in Strokes
 - Fixed a couple misc. errors
-
 
 ### RetopoFlow 3.4.4&rarr;3.4.5
 
