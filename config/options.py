@@ -32,6 +32,7 @@ from contextlib import contextmanager
 from collections.abc import Iterable
 
 import bpy
+import mathutils
 
 from ..addon_common.common import gpustate
 from ..addon_common.common.blender import get_path_from_addon_root
@@ -91,6 +92,9 @@ retopoflow_datablocks = {
     'rotate object': 'RetopoFlow_Rotate',           # name of rotate object used for setting view
     'blender state': 'RetopoFlow Session Data',     # name of text block that contains data about blender state
 }
+
+# Cache of data from text datablocks to avoid multiple reads from the same text datablock in runtime
+retopoflow_datablocks_cache = {}
 
 
 # the following enables / disables profiler code, overriding the options['profiler']
@@ -832,7 +836,7 @@ class SessionOptions:
     '''
     options/settings that are specific to this particular .blend file.
     useful for storing current state and restoring in case of failure.
-    data is stored in bpy.data.texts[textblockname]['data'].
+    data is stored as JSON in bpy.data.texts[textblockname] text datablock content.
     '''
 
     textblockname = retopoflow_datablocks['blender state']
@@ -884,20 +888,6 @@ class SessionOptions:
     }
 
     @classmethod
-    def _get_data_as_pydata(cls):
-        if cls.textblockname not in bpy.data.texts: return None
-        def convert(d):
-            # print(f'{d=} {type(d)=}')
-            if type(d) in {bool, int, float, str}:
-                return d
-            if hasattr(d, 'keys'):
-                return { k: convert(d[k]) for k in d.keys() }
-            # ASSUMING it is a list!
-            return [ convert(v) for v in d ]
-            assert False, f'Unknown type: {d} ({type(d)})'
-        return convert(bpy.data.texts[cls.textblockname]['data'])
-
-    @classmethod
     @contextmanager
     def temp_disable(cls):
         if not cls.has_session_data():
@@ -908,31 +898,168 @@ class SessionOptions:
         cls.set('disabled', False)
 
     @classmethod
-    def has_active_session_data(cls):
-        if not cls.has_session_data(): return False
-        data = bpy.data.texts[cls.textblockname]['data']
+    def has_active_session_data(cls, *, use_cache: bool = True) -> bool:
+        '''Check if session data exists in the text datablock and is not disabled.
+        Returns:
+            True if session data exists in the text datablock and is not disabled, False otherwise.
+        '''
+        if not cls.has_session_data(use_cache=use_cache): return False
+        data = cls._get_data(use_cache=use_cache)
         return data['disabled'] if 'disabled' in data else True
 
     @classmethod
-    def has_session_data(cls):
+    def has_session_data(cls, *, use_cache: bool = True) -> bool:
+        '''Check if session data exists in the text datablock.
+        Args:
+            use_cache: If True, check if data is cached in the cache.
+        Returns:
+            True if session data exists in the text datablock, False otherwise.
+        '''
         if cls.textblockname not in bpy.data.texts: return False
+        if use_cache:
+            if not cls.has_cached_session_data(): return False
         return True
 
     @classmethod
-    def _get_data(cls):
-        if not cls.has_session_data():
-            # create text block for storing state
-            textblock = bpy.data.texts.new(SessionOptions.textblockname)
-            # set user-friendly message
-            textblock.from_string(SessionOptions.userfriendlytext)
-            textblock.cursor_set(0, character=0)
-            # assignment below will create deep copy of default
-            textblock['data'] = SessionOptions.default
-            cls.set('retopoflow', 'timestamp', str(datetime.now()))
-            #cls.set('retopoflow', 'timestamp', timestamp)
-        else:
-            textblock = bpy.data.texts[SessionOptions.textblockname]
-        return textblock['data']
+    def has_cached_session_data(cls) -> bool:
+        '''Check if data is cached in the cache.
+        Returns:
+            True if data is cached in the cache, False otherwise.
+        '''
+        global retopoflow_datablocks_cache
+        return cls.textblockname in retopoflow_datablocks_cache
+
+    @classmethod
+    def _new_data(cls, *, use_cache: bool = True) -> dict:
+        '''Create a new data dict with default values and save it to the text datablock.
+        Returns:
+            The new data dict.
+        '''
+        if not cls.has_session_data(use_cache=False):
+            bpy.data.texts.new(cls.textblockname)
+        data = copy.deepcopy(SessionOptions.default)
+        data['retopoflow']['timestamp'] = str(datetime.now())
+        cls._save_data(data)
+        if use_cache:
+            global retopoflow_datablocks_cache
+            retopoflow_datablocks_cache[cls.textblockname] = data
+            return retopoflow_datablocks_cache[cls.textblockname]
+        return data
+
+    @classmethod
+    def _get_data(cls, *, use_cache: bool = True, force_new: bool = False) -> dict:
+        '''Get data from text datablock or create a new one if it doesn't exist with default values.
+        Returns:
+            A dict with the data.
+        '''
+        global retopoflow_datablocks_cache
+
+        # Check if data is cached.
+        if use_cache and not force_new and cls.has_cached_session_data():
+            return retopoflow_datablocks_cache[cls.textblockname]
+
+        if force_new or not cls.has_session_data(use_cache=False):
+            return cls._new_data(use_cache=use_cache)
+
+        textblock = bpy.data.texts[SessionOptions.textblockname]
+        textblock_content = textblock.as_string()
+
+        # TODO: if textblock has ["data"] key, then port that data to the new storage system, except if we are not in Blender 5.0+, were we should use the old system instead.
+
+        if textblock_content.strip() == '':
+            return cls._new_data(use_cache=use_cache)  # this will reset the contents to the defaults *even if the text datablock exists*!
+
+        try:
+            # Load JSON data from text block.
+            return cls._load_data(textblock_content, use_cache=use_cache)
+
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f'SessionOptions._get_data... failed to parse JSON, using default: {e}')
+            return cls._new_data(use_cache=use_cache)
+
+    @classmethod
+    def _load_data(cls, textblock_content: str, *, use_cache: bool = True) -> dict:
+        '''Load data from text block content.
+        Args:
+            textblock_content: The text block content to load.
+        Returns:
+            A dict with the data.
+        '''
+        data = json.loads(textblock_content)
+        data['retopoflow']['timestamp'] = str(datetime.now())
+
+        # TODO: Parse some data so that some of the types we serialize as tuples are converted back to their original types (Color and Vector).
+
+        if use_cache:
+            global retopoflow_datablocks_cache
+            retopoflow_datablocks_cache[cls.textblockname] = data
+            return retopoflow_datablocks_cache[cls.textblockname]
+
+        return data
+
+    @classmethod
+    def _convert_to_json_serializable(cls, obj):
+        '''Recursively convert specific types (such as Vector and Color types) to serializable types for JSON serialization'''
+        # Check for dict/list/tuple to recurse into them
+        if isinstance(obj, dict):
+            return {k: cls._convert_to_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [cls._convert_to_json_serializable(item) for item in obj]
+        
+        # Check for custom Color class from addon_common.common.maths...
+        if isinstance(obj, Color):
+            # Use Color.as_vec4().to_tuple() as specified
+            try:
+                return Color.as_vec4(obj).to_tuple()
+            except (AttributeError, TypeError):
+                # Fallback if as_vec4 doesn't work
+                if hasattr(obj, 'to_tuple'):
+                    return obj.to_tuple()
+                else:
+                    return tuple(obj)
+
+        # Check for mathutils types.
+        if isinstance(obj, (mathutils.Vector, mathutils.Color)):
+            # Vector has to_tuple() method
+            if hasattr(obj, 'to_tuple'):
+                return obj.to_tuple()
+            else:
+                # Fallback: convert to tuple directly
+                return tuple(obj)
+
+        # Duck typing: if it's iterable and looks like a Vector/Color (3-4 numeric components)
+        if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, dict, list, tuple)):
+            try:
+                # Try to convert to tuple - if it works and has 3-4 numeric elements, it's likely a Vector/Color
+                t = tuple(obj)
+                if len(t) in (3, 4) and all(isinstance(x, (int, float)) for x in t):
+                    return t
+            except (TypeError, ValueError):
+                pass
+
+        return obj
+
+    @classmethod
+    def _save_data(cls, data: dict, *, use_cache: bool = True) -> None:
+        '''Save data dict to text block as JSON.
+        Args:
+            data: The data dict to save.
+        Returns:
+            None.
+        '''
+        if not data: return
+        if not cls.has_session_data(use_cache=use_cache):
+            return
+        if use_cache:
+            global retopoflow_datablocks_cache
+            retopoflow_datablocks_cache[cls.textblockname] = data
+        textblock = bpy.data.texts[cls.textblockname]
+        # Ensure data is JSON serializable.
+        serializable_data = cls._convert_to_json_serializable(data)
+        # Convert data to JSON string and save to text datablock.
+        json_str = json.dumps(serializable_data, indent=2, sort_keys=True)
+        textblock.from_string(json_str)
+        textblock.cursor_set(0, character=0)
 
     class Walker:
         def __init__(self, *path):
@@ -951,8 +1078,8 @@ class SessionOptions:
             return SessionOptions.get(*self.path, key)
 
         def __setattr__(self, key, value):
-            SessionOptions.set(*self.path, key, val)
-            return val
+            SessionOptions.set(*self.path, key, value)
+            return value
 
         @property
         def value(self):
@@ -988,25 +1115,36 @@ class SessionOptions:
 
     @classmethod
     def set(cls, *args):
+        # always get the full data dict first
+        data = cls._get_data()
+        
         if len(args) == 1:
             # `args` contains a dictionary
             dict_keys_vals = args[0]
             assert type(dict_keys_vals) is dict, f'SessionOptions.set expects dictionary ({dict_keys_vals=})'
-            def s(*args):
-                *path, dkv = args
-                if type(dkv) is dict and type(cls._get_default(*path)) is dict:
-                    for k,v in dkv.items():
-                        s(*path, k, v)
-                else:
-                    cls.set(*path, dkv)
-            s(dict_keys_vals)
+            def s(d, path, dkv):
+                # d is the current dict, path is the path to it, dkv is the dict to merge
+                for k, v in dkv.items():
+                    if type(v) is dict and k in d and type(d[k]) is dict:
+                        # recursively merge nested dicts
+                        s(d[k], path + [k], v)
+                    else:
+                        # set the value
+                        d[k] = v
+            s(data, [], dict_keys_vals)
         else:
             # `args` is a list, where all but last are keys into SessionOptions and last is the value to set
             keys_then_value = args
             assert len(keys_then_value) >= 2, f'SessionOptions.set expects at least 2 arguments ({keys_then_value=})'
             *keys, value = keys_then_value
-            data = cls.get(keys[:-1])
-            data[keys[-1]] = value
+            # navigate to the parent dict
+            parent_data = data
+            for key in keys[:-1]:
+                parent_data = parent_data[key]
+            parent_data[keys[-1]] = value
+        
+        # save the modified data back to the text block
+        cls._save_data(data)
 
     def __getitem__(self, keys):
         if type(keys) is str: keys = (keys,)
