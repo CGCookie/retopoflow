@@ -10,7 +10,7 @@ If you’re brand new to Retopoflow, check the [Quick Start page](/v4/quick_star
 
 Another great place to learn the tools is our [YouTube channel](https://www.youtube.com/@orangeturbine).
 
-We also have a full course on using Retopoflow, which is available for free [on CG Cookie](https://cgcookie.mavenseed.com/courses/retopology-with-retopoflow-4).
+We also have a full course on using Retopoflow, which is available for free [on CG Cookie](https://cgcookie.com/courses/retopology-with-retopoflow-4).
 
 ## Previous Versions
 
