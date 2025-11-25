@@ -10,6 +10,8 @@ If you’re brand new to Retopoflow, check the [Quick Start page](/v4/quick_star
 
 Another great place to learn the tools is our [YouTube channel](https://www.youtube.com/@orangeturbine).
 
+We also have a full course on using Retopoflow, which is available for free [on CG Cookie](https://cgcookie.mavenseed.com/courses/retopology-with-retopoflow-4).
+
 ## Previous Versions
 
 Retopoflow has been completely refactored in version 4, and this documentation has been updated to match. For information on how to use version 3, switch to the previous docs by using the dropdown on the left.
@@ -23,7 +25,7 @@ If you've already purchased Retopoflow 3 on Superhive, you can get version 4 for
 
 You can get help with an issue or give feedback by reaching out to us in one of the following ways:
 
-- Get high priority support from Orange Turbine by sending a message from your [Blender Market inbox](https://blendermarket.com/inbox) once you've purchased a copy.
+- Get high priority support from Orange Turbine by sending a message from your [Superhive inbox](https://superhivemarket.com/inbox) once you've purchased a copy.
 - Create a new [issue](https://github.com/CGCookie/retopoflow/issues/new/choose) on Retopoflow's [GitHub page](https://github.com/CGCookie/retopoflow).
 - Reach out to us via email at [retopoflow@cgcookie.com](mailto:retopoflow@cgcookie.com).
 

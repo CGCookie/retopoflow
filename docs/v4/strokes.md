@@ -2,7 +2,7 @@
 
 ![](images/strokes.jpg)
 
-Strokes is an incredibly versetile tool for quickly sketching out patches of quads and filling holes in the topology.
+Strokes is an incredibly versatile tool for quickly sketching out patches of quads and filling holes in the topology.
 
 ## Inserting
 
