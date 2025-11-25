@@ -139,6 +139,9 @@ class RFOperator_PolyStrips_Insert(
         name='Width',
         description='Width of quads in the first quad strip',
         min=0.0001,
+        precision=4,
+        step=0.01,
+
     )
 
     count1: bpy.props.IntProperty(
@@ -152,6 +155,8 @@ class RFOperator_PolyStrips_Insert(
         name='Width',
         description='Width of quads in the second quad strip',
         min=0.0001,
+        precision=4,
+        step=0.01,
     )
 
     count2: bpy.props.IntProperty(
@@ -165,6 +170,8 @@ class RFOperator_PolyStrips_Insert(
         name='Width',
         description='Width of quads in the third quad strip',
         min=0.0001,
+        precision=4,
+        step=0.01,
     )
 
 
