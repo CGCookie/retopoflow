@@ -494,6 +494,21 @@ def hyper_fit(coords: Union[npt.NDArray, List], IterMax: int = 99) -> Tuple[floa
     DeprecationWarning("hyper_fit() is deprecated. Please use hyperLSQ().")
     return hyperLSQ(coords, IterMax)
 
+def _fallback_circle_from_bounds(x: npt.NDArray, y: npt.NDArray) -> Tuple[float, float, float, float]:
+    """
+    Compute a simple, but stable, circle estimate using the bounding box of the
+    provided points.  This is used when the more accurate solvers (hyperLSQ) encounter a
+    bad configuration (too few points, colinear samples, etc).
+    """
+    xc = float(np.mean(x)) # bbox center x
+    yc = float(np.mean(y)) # bbox center y
+    dx = float(np.max(x) - np.min(x)) if x.size > 0 else 0.0 # bbox width
+    dy = float(np.max(y) - np.min(y)) if y.size > 0 else 0.0 # bbox height
+    r = float(np.hypot(dx, dy)) * 0.5 # bbox radius
+    if not np.isfinite(r) or r < 1e-6:
+        r = 1e-6 # avoid divisions by zero!
+    s = sigma(x, y, xc, yc, r)
+    return xc, yc, r, s
 
 def hyperLSQ(coords: Union[npt.NDArray, List], iter_max: int = 99) -> Tuple[float, ...]:
     """
@@ -514,6 +529,11 @@ def hyperLSQ(coords: Union[npt.NDArray, List], iter_max: int = 99) -> Tuple[floa
     """
     x, y = convert_input(coords)
     n = x.shape[0]
+
+    if n < 3:
+        assert x.size > 0 and y.size > 0, "hyperLSQ: 0 points provided!"
+        print("hyperLSQ: Not enough points to fit a circle! Using fallback circle from bounds.")
+        return _fallback_circle_from_bounds(x, y)
 
     Xi = x - x.mean()
     Yi = y - y.mean()
