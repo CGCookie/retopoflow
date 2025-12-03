@@ -331,7 +331,10 @@ class Contours_Logic:
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(npt_local))
             npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-            npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            if npt_world_snapped is not None:
+                npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            else:
+                npt_local_snapped = npt_local
             closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
             closest_pt = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
             dist = (npt_local - closest_pt).length
@@ -366,7 +369,10 @@ class Contours_Logic:
                 else:
                     # fallback to snapping
                     npt_world_new = nearest_point_valid_sources(context, npt_world, world=True)
-            npt_local_snapped = self.matrix_world_inv @ npt_world_new
+            if npt_world_new is not None:
+                npt_local_snapped = self.matrix_world_inv @ npt_world_new
+            else:
+                npt_local_snapped = npt_local
             if False:
                 bmv.co = npt_local_snapped
             else:
