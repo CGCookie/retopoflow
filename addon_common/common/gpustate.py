@@ -27,6 +27,7 @@ Created by Jonathan Denning, Jonathan Williamson
 #######################################################################
 
 import os
+import platform
 import re
 import traceback
 from inspect import isroutine
@@ -328,7 +329,7 @@ def shader_parse_string(string, *, includeVersion=True, constant_overrides=None,
         uniforms,
         f_varyings,
         consts,
-        [get_srgb_shim(force=force_shim)],
+        [get_srgb_shim(force=force_shim) if platform.system() == 'Darwin' else ''],
         ['/////////////////////'],
         commonSource,
         fragSource,
