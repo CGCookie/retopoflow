@@ -29,7 +29,7 @@ Created by Jonathan Denning, Jonathan Williamson
 import os
 import re
 import traceback
-from inspect import isroutine
+from inspect import isroutine, signature, Parameter
 from itertools import chain
 from contextlib import contextmanager
 
@@ -897,10 +897,28 @@ def gpu_info():
     }
     cap = [(a, getattr(gpu.capabilities, a)) for a in dir(gpu.capabilities) if 'extensions' not in a]
     cap = [(a, fn) for (a, fn) in cap if isroutine(fn)]
+    def takes_no_required_args(fn):
+        try:
+            sig = signature(fn)
+        except (TypeError, ValueError):
+            return False
+        for param in sig.parameters.values():
+            if param.kind in (
+                Parameter.POSITIONAL_ONLY,
+                Parameter.POSITIONAL_OR_KEYWORD,
+                Parameter.KEYWORD_ONLY,
+            ):
+                if param.default is Parameter.empty:
+                    return False
+        return True
     capabilities = {}
-    for (a, fn) in cap:
-        try: capabilities[a] = fn()
-        except: pass
+    for (attr, fn) in cap:
+        if not takes_no_required_args(fn):
+            continue
+        try:
+            capabilities[attr] = fn()
+        except TypeError:
+            pass
     return platform | capabilities
 
 if not bpy.app.background:
