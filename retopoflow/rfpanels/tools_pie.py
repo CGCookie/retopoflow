@@ -24,13 +24,18 @@ class RFMenu_MT_ToolPie(Menu):
 
     @classmethod
     def poll(self, context):
+        if context.mode != 'EDIT_MESH':
+            return False
         from ..preferences import RF_Prefs
-        tools = context.workspace.tools
-        return (
-            RF_Prefs.get_prefs(context).enable_pie_hotkey and
-            context.mode == 'EDIT_MESH'
-            # and tools.from_space_view3d_mode('EDIT_MESH', create=False).idname.split('.')[0] == 'retopoflow'
-        )
+        prefs = RF_Prefs.get_prefs(context)
+        if not prefs.enable_pie_hotkey:
+            return False
+        if prefs.pie_tool_context == 'ANY_TOOL':
+            return True
+        if prefs.pie_tool_context == 'RF_TOOL':
+            tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+            return tool is not None and tool.idname.split('.')[0] == 'retopoflow'
+        return False
 
     def draw_bottom_menu(self, pie):
         tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)

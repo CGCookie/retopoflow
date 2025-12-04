@@ -84,6 +84,15 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description=('Enables W to bring up the Retopoflow pie menu while in a Retopoflow tool'),
         default=True
     )
+    pie_tool_context: bpy.props.EnumProperty(
+        name="Pie Tool Context",
+        description="The context in which the pie hotmenu will be shown",
+        items=(
+            ('ANY_TOOL', "Any Tool", "Can trigger the pie hotmenu from ANY tool"),
+            ('RF_TOOL', "Retopoflow Tool", "Can trigger the pie hotmenu ONLY on Retopoflow tools"),
+        ),
+        default='ANY_TOOL'
+    )
 
     """ Tool Switching """
     #region
@@ -194,7 +203,15 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if panel:
             panel.use_property_split = True
             panel.use_property_decorate = True
-            panel.prop(self, 'enable_pie_hotkey')
+
+            # Pie Menu
+            col = panel.column(align=True)
+            col.prop(self, 'enable_pie_hotkey')
+            row = col.split(factor=0.4)
+            row.alignment = 'LEFT'
+            row.separator()
+            row.prop(self, 'pie_tool_context', text='• Triggers From', expand=False)
+
             panel.prop(self, 'enable_help_hotkey')
             panel.prop(self, 'enable_issue_hotkey')
 
