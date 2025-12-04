@@ -92,7 +92,7 @@ void main() {
     falloff = apply_easing(clamp(falloff, 0.0, 1.0));
 
     // Mix colors based on falloff
-    vec4 color = mix(options.color_edge, options.color_center, falloff);
+    vec4 color = mix(options.color_edge, options.color_center, vec4(falloff));
     
     // Anti-aliasing at the edge
     if (dist > max_dist) {

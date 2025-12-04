@@ -74,10 +74,12 @@ void main() {
     if(d > radius_border) { discard; return; }
     if(d <= options.radius_border.x) {
         float d2 = options.radius_border.x - d;
-        outColor = mix(colorb, options.color, clamp(d2 - options.radius_border.y/2.0, 0.0, 1.0));
+        float mix_val = clamp(d2 - options.radius_border.y/2.0, 0.0, 1.0);
+        outColor = mix(colorb, options.color, vec4(mix_val));
     } else {
         float d2 = d - options.radius_border.x;
-        outColor = mix(colorb, vec4(colorb.rgb,0), clamp(d2 - options.radius_border.y/2.0, 0.0, 1.0));
+        float mix_val = clamp(d2 - options.radius_border.y/2.0, 0.0, 1.0);
+        outColor = mix(colorb, vec4(colorb.rgb,0), vec4(mix_val));
     }
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);

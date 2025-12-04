@@ -87,7 +87,7 @@ void main() {
     vec2 dr = vec2(cos(aRot)*d.x - sin(aRot)*d.y, sin(aRot)*d.x + cos(aRot)*d.y);
     float a = alpha(dr);
     if(a < 0.0) { discard; return; }
-    outColor = mix(aOutColor, aInColor, a);
+    outColor = mix(aOutColor, aInColor, vec4(a));
     // https://wiki.blender.org/wiki/Reference/Release_Notes/2.83/Python_API
     outColor = blender_srgb_to_framebuffer_space(outColor);
 }

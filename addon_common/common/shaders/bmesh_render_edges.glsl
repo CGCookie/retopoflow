@@ -168,7 +168,7 @@ void main() {
     }
 
     float mix_in_out = clamp(dist_from_center - options.radius.x, 0.0, 1.0);
-    vec4  vColor = mix(vColorIn, vColorOut, mix_in_out);
+    vec4  vColor = mix(vColorIn, vColorOut, vec4(mix_in_out));
     vec3  rgb    = vColor.rgb;
     float alpha  = vColor.a * min(1.0, alpha_mult);
 

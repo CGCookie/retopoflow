@@ -101,9 +101,11 @@ void main() {
         float s = mod(offset, t);
         float sd = s - stipple_lengths().x;
         if(s <= 0.5 || s >= t - 0.5) {
-            outColor = mix(options.color1, options.color0, mod(s + 0.5, t));
+            float mix_val = mod(s + 0.5, t);
+            outColor = mix(options.color1, options.color0, vec4(mix_val));
         } else if(s >= stipple_lengths().x - 0.5 && s <= stipple_lengths().x + 0.5) {
-            outColor = mix(options.color0, options.color1, s - (stipple_lengths().x - 0.5));
+            float mix_val = s - (stipple_lengths().x - 0.5);
+            outColor = mix(options.color0, options.color1, vec4(mix_val));
         } else if(s < stipple_lengths().x) {
             outColor = options.color0;
         } else {

@@ -95,9 +95,11 @@ void main() {
         vec4 colors = options.color1;
         if(colors.a < (1.0/255.0)) colors.rgb = options.color0.rgb;
         if(s <= 0.5 || s >= t - 0.5) {
-            outColor = mix(colors, options.color0, mod(s + 0.5, t));
+            float mix_val = mod(s + 0.5, t);
+            outColor = mix(colors, options.color0, vec4(mix_val));
         } else if(s >= options.stipple_width.x - 0.5 && s <= options.stipple_width.x + 0.5) {
-            outColor = mix(options.color0, colors, s - (options.stipple_width.x - 0.5));
+            float mix_val = s - (options.stipple_width.x - 0.5);
+            outColor = mix(options.color0, colors, vec4(mix_val));
         } else if(s < options.stipple_width.x) {
             outColor = options.color0;
         } else {
