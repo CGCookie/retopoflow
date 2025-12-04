@@ -328,5 +328,3 @@ def unregister():
 
     global RF_icons
     previews.remove(RF_icons)
-    
-    UIOverride.clear_cache()
