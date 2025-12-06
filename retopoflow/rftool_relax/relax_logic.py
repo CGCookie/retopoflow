@@ -32,7 +32,8 @@ from mathutils.bvhtree import BVHTree
 
 import math
 import time
-from math import isnan
+from math import isnan, inf
+from typing import Tuple
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, bme_midpoint, bmf_midpoint
 from ..common.bmesh_maths import is_bmvert_hidden
@@ -52,39 +53,82 @@ from ..common.drawing import (
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold, clamp
 from ...addon_common.common.colors import Color4, Color
+from ..common.iter_utils import AttrIter, CastIter
 
 
 class Accel:
-    def __init__(self, bmverts, matrix_world):
+    BINS_COUNT: int = 10
+
+    def __init__(self, bmverts, matrix_world, bbox=None):
         self.bmverts = bmverts
         self.matrix_world = matrix_world
         self.min_x, self.min_y, self.min_z = 0, 0, 0
         self.max_x, self.max_y, self.max_z = 0, 0, 0
+        self._bin_scale_x, self._bin_scale_y, self._bin_scale_z = 0, 0, 0
         self.time = time.time() - 1000
-        self.rebuild()
+        self.rebuild(bbox=bbox)
 
     def rebuild(self, *, delta=1.0):
         if time.time() - self.time < delta: return
         M = self.matrix_world
-        self.time = time.time()
-        self.bins = [[[[] for _ in range(10)] for _ in range(10)] for _ in range(10)]
-        pts = [M @ v.co for v in self.bmverts]
-        if not pts: return
-        self.min_x, self.min_y, self.min_z = min(pt.x for pt in pts), min(pt.y for pt in pts), min(pt.z for pt in pts)
-        self.max_x, self.max_y, self.max_z = max(pt.x for pt in pts), max(pt.y for pt in pts), max(pt.z for pt in pts)
-        dx, dy, dz = self.max_x - self.min_x, self.max_y - self.min_y, self.max_z - self.min_z
-        Dxyz = max(dx, dy, dz)
-        if dx < 0.001: self.min_x, self.max_x = self.min_x - Dxyz * 0.001, self.max_x + Dxyz * 0.001
-        if dy < 0.001: self.min_y, self.max_y = self.min_y - Dxyz * 0.001, self.max_y + Dxyz * 0.001
-        if dz < 0.001: self.min_z, self.max_z = self.min_z - Dxyz * 0.001, self.max_z + Dxyz * 0.001
-        for v in self.bmverts:
-            ix, iy, iz = self.index(M @ v.co)
-            self.bins[ix][iy][iz].append(v)
+    def rebuild(self, *, bbox=None, delta=1.0) -> None:
+        if time.time() - self.time < delta:
+            return
+        if len(self.bmverts) == 0:
+            return
+        if bbox is not None:
+            # Check if any corner has NaN values.
+            for corner in bbox:
+                if isnan(corner[0]) or isnan(corner[1]) or isnan(corner[2]):
+                    print('RelaxLogic.Accel.rebuild: NaN values were found in bbox: ' + str(corner))
+                    bbox = None  # fallback to using bmesh verts (slower but already filtered for NaN values)
+                    break
 
-    def index(self, co_world):
-        ix = clamp(int((co_world.x - self.min_x) / max(0.001, self.max_x - self.min_x) * 10), 0, 9)
-        iy = clamp(int((co_world.y - self.min_y) / max(0.001, self.max_y - self.min_y) * 10), 0, 9)
-        iz = clamp(int((co_world.z - self.min_z) / max(0.001, self.max_z - self.min_z) * 10), 0, 9)
+        # Initilization.
+        MW = self.matrix_world
+        loc_points = AttrIter(self.bmverts, 'co') if bbox is None else CastIter(bbox, Vector)
+        self.time = time.time()
+        self.bins = [[[[] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)]
+        self.min_x, self.min_y, self.min_z = inf, inf, inf
+        self.max_x, self.max_y, self.max_z = -inf, -inf, -inf
+        bins = self.bins
+        get_index = self.index
+
+        # Calculate the min/max.
+        for lpt in loc_points:
+            wpt = MW @ lpt
+            self.min_x = min(self.min_x, wpt.x)
+            self.min_y = min(self.min_y, wpt.y)
+            self.min_z = min(self.min_z, wpt.z)
+            self.max_x = max(self.max_x, wpt.x)
+            self.max_y = max(self.max_y, wpt.y)
+            self.max_z = max(self.max_z, wpt.z)
+
+        # Calculate the size.
+        dx, dy, dz = self.max_x - self.min_x, self.max_y - self.min_y, self.max_z - self.min_z
+        max_Dxyz = max(dx, dy, dz)
+        if dx < 0.001: self.min_x, self.max_x = self.min_x - max_Dxyz * 0.001, self.max_x + max_Dxyz * 0.001
+        if dy < 0.001: self.min_y, self.max_y = self.min_y - max_Dxyz * 0.001, self.max_y + max_Dxyz * 0.001
+        if dz < 0.001: self.min_z, self.max_z = self.min_z - max_Dxyz * 0.001, self.max_z + max_Dxyz * 0.001
+
+        # Precompute bin scales.
+        denom_x = max(0.001, self.max_x - self.min_x)
+        denom_y = max(0.001, self.max_y - self.min_y)
+        denom_z = max(0.001, self.max_z - self.min_z)
+        self._bin_scale_x = Accel.BINS_COUNT / denom_x
+        self._bin_scale_y = Accel.BINS_COUNT / denom_y
+        self._bin_scale_z = Accel.BINS_COUNT / denom_z
+
+        # Populate the bins.
+        for bmv in self.bmverts:
+            ix, iy, iz = get_index(MW @ bmv.co)
+            bins[ix][iy][iz].append(bmv)
+
+    def index(self, co_world: Vector) -> Tuple[int, int, int]:
+        max_bin_index = Accel.BINS_COUNT - 1
+        ix = clamp(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index)
+        iy = clamp(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index)
+        iz = clamp(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index)
         return (ix, iy, iz)
 
     def get(self, co_world, radius_world):
@@ -175,21 +219,30 @@ class Relax_Logic:
         opt_face_angles      = relax.algorithm_average_face_angles
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
+        opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
+        opt_mask_symmetry_exclude = opt_mask_symmetry == 'EXCLUDE'
+        opt_mask_selected_exclude = opt_mask_selected == 'EXCLUDE'
+        opt_mask_selected_only = opt_mask_selected == 'ONLY'
+
         self.verts_filtered = []
         for bmv in self.bm.verts:
             if bmv.hide: continue
             if len(bmv.link_faces) == 0: continue
             if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
+            if opt_mask_boundary_exclude and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-            if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
+            if opt_mask_symmetry_exclude and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if opt_mask_selected == 'EXCLUDE' and bmv.select: continue
-            if opt_mask_selected == 'ONLY'    and not bmv.select: continue
+            if opt_mask_selected_exclude and bmv.select: continue
+            if opt_mask_selected_only and not bmv.select: continue
             self.verts_filtered.append(bmv)
-        self.verts_accel = Accel(self.verts_filtered, self.matrix_world)
+
+        depsgraph = context.evaluated_depsgraph_get()
+        object_evaluated = context.edit_object.evaluated_get(depsgraph)
+        bbox = object_evaluated.bound_box
+        self.verts_accel = Accel(self.verts_filtered, self.matrix_world, bbox=bbox)
         self.verts_accel_time = time.time()
 
         self.draw_vectors = [[],[],[]]
@@ -246,7 +299,10 @@ class Relax_Logic:
                 bmops.select(self.bm, bmelem)
             bmops.flush_selection(self.bm, self.em)
 
-        self.verts_accel.rebuild()
+        depsgraph = context.evaluated_depsgraph_get()
+        object_evaluated = context.edit_object.evaluated_get(depsgraph)
+        bbox = object_evaluated.bound_box
+        self.verts_accel.rebuild(bbox=bbox)
         verts = self.verts_accel.get(hit['co_world'], radius3D)
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
