@@ -32,6 +32,7 @@ from mathutils.bvhtree import BVHTree
 
 import math
 import time
+from math import isnan
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, bme_midpoint, bmf_midpoint
 from ..common.bmesh_maths import is_bmvert_hidden
@@ -178,6 +179,7 @@ class Relax_Logic:
         for bmv in self.bm.verts:
             if bmv.hide: continue
             if len(bmv.link_faces) == 0: continue
+            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
             if opt_mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
