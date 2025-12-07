@@ -184,6 +184,9 @@ def has_faces(context, obj):
         depsgraph = context.evaluated_depsgraph_get()
         eval_obj = obj.evaluated_get(depsgraph)
         eval_mesh = eval_obj.to_mesh()
+        if not eval_mesh:
+            # Conversion to mesh can fail (e.g. invalid geometry, as in the case of a curve object with an unlinked GN modifier); treat as empty.
+            return False
         result = bool(eval_mesh.polygons)
         eval_obj.to_mesh_clear()
         return result
