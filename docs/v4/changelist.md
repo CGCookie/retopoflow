@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.0.3 (unreleased)
+- Added preference for W pie menu to work from any tool or only Retopoflow tools
+- Relax initialization and acceleration structure building is now up to 5x faster
+- Fixed Relax crash when a vertex has invalid coordinates
+
 ### 4.0.2
 - Added option to only snap to selected objects
 - Added support for Blender 5.0
