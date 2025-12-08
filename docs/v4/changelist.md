@@ -6,6 +6,9 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added preference for W pie menu to work from any tool or only Retopoflow tools
 - Relax initialization and acceleration structure building is now up to 5x faster
 - Fixed Relax crash when a vertex has invalid coordinates
+- Fixed Contours crash when cutting a singular face that is behind the source mesh
+- Fixed crash when a source object is a curve with a geometry nodes modifier that has no output
+- Fixed issue with enabling the add-on with certain graphics drivers
 
 ### 4.0.2
 - Added option to only snap to selected objects
