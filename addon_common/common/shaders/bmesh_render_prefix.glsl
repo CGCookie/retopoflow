@@ -124,7 +124,8 @@ vec4 get_pos(vec3 p) {
 vec4 push_pos(vec4 p) {
     float clip_dist  = clip_far() - clip_near();
     float focus = (1.0 - clamp((view_distance() - clip_near()) / clip_dist, 0.0, 1.0)) * 0.1;
-    return vec4( mix(view_position().xyz, p.xyz, view_push()), p.w);
+    vec3 mix_val = vec3(view_push());
+    return vec4(mix(view_position().xyz, p.xyz, mix_val), p.w);
 }
 
 vec4 xyz4(vec4 v) { return vec4(v.xyz / abs(v.w), sign(v.w)); }

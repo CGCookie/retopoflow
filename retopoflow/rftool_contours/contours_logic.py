@@ -308,9 +308,17 @@ class Contours_Logic:
 
         # compute useful statistics about newly created geometry
         npoints = [Point(bmv.co) for bmv in nbmvs]
-        nplane_fit = Plane.fit_to_points(npoints)   # local space
-        if plane_fit.n.dot(nplane_fit.n) < 0: nplane_fit.n.negate()  # make sure both planes are oriented the same
-        ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
+        try:
+            if len(npoints) < 3:
+                raise Exception(f'Not enough points to fit plane: {len(npoints)}')
+            nplane_fit = Plane.fit_to_points(npoints)   # local space
+            if plane_fit.n.dot(nplane_fit.n) < 0:
+                nplane_fit.n.negate()  # make sure both planes are oriented the same
+            ncircle_fit = hyperLSQ([list(nplane_fit.w2l_point(pt).xy) for pt in npoints])
+        except Exception as e:
+            print(f'CONTOURS WARNING: failed to fit plane/circle for bridge: {e}')
+            nplane_fit = plane_fit
+            ncircle_fit = circle_fit
 
         # compute xforms to roughly move new geometry to match cut
         # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
@@ -331,7 +339,10 @@ class Contours_Logic:
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(npt_local))
             npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-            npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            if npt_world_snapped is not None:
+                npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
+            else:
+                npt_local_snapped = npt_local
             closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
             closest_pt = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
             dist = (npt_local - closest_pt).length
@@ -366,7 +377,10 @@ class Contours_Logic:
                 else:
                     # fallback to snapping
                     npt_world_new = nearest_point_valid_sources(context, npt_world, world=True)
-            npt_local_snapped = self.matrix_world_inv @ npt_world_new
+            if npt_world_new is not None:
+                npt_local_snapped = self.matrix_world_inv @ npt_world_new
+            else:
+                npt_local_snapped = npt_local
             if False:
                 bmv.co = npt_local_snapped
             else:
