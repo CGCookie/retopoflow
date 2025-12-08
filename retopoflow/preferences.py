@@ -70,17 +70,17 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     """ Hotkeys """
     enable_help_hotkey: bpy.props.BoolProperty(
-        name='F1 - Launch Tool Help',
+        name='Launch Tool Help',
         description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
         default=True
     )
     enable_issue_hotkey: bpy.props.BoolProperty(
-        name='F2 - Report an Issue',
+        name='Report an Issue',
         description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
         default=True
     )
     enable_pie_hotkey: bpy.props.BoolProperty(
-        name='W - Retopoflow Pie Menu',
+        name='Retopoflow Pie Menu',
         description=('Enables W to bring up the Retopoflow pie menu while in a Retopoflow tool'),
         default=True
     )
@@ -89,7 +89,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description="The context in which the pie hotmenu will be shown",
         items=(
             ('ANY_TOOL', "Any Tool", "Can trigger the pie hotmenu from ANY tool"),
-            ('RF_TOOL', "Retopoflow Tool", "Can trigger the pie hotmenu ONLY on Retopoflow tools"),
+            ('RF_TOOL', "Retopoflow Tools", "Can trigger the pie hotmenu ONLY on Retopoflow tools"),
         ),
         default='ANY_TOOL'
     )
@@ -202,18 +202,19 @@ class RF_Prefs(bpy.types.AddonPreferences):
         header.label(text="Hotkeys")
         if panel:
             panel.use_property_split = True
-            panel.use_property_decorate = True
+            panel.use_property_decorate = False
 
             # Pie Menu
-            col = panel.column(align=True)
-            col.prop(self, 'enable_pie_hotkey')
-            row = col.split(factor=0.4)
-            row.alignment = 'LEFT'
-            row.separator()
-            row.prop(self, 'pie_tool_context', text='• Triggers From', expand=False)
-
-            panel.prop(self, 'enable_help_hotkey')
-            panel.prop(self, 'enable_issue_hotkey')
+            row = panel.row(heading='Retopoflow Pie Menu')
+            row.prop(self, 'enable_pie_hotkey', text='W')
+            row = panel.row()
+            row.enabled = self.enable_pie_hotkey
+            row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
+            panel.separator()
+            row = panel.row(heading='Open Docs')
+            row.prop(self, 'enable_help_hotkey', text='F1')
+            row = panel.row(heading='Report Issue')
+            row.prop(self, 'enable_issue_hotkey', text='F2')
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
