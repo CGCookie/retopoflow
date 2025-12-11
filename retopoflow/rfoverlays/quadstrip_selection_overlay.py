@@ -24,7 +24,7 @@ from mathutils import Vector
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
-from ..common.operator import RFOperator
+from ..common.operator import RFOperator, RFOperator_KeymapContext
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles, bmfs_shared_bme, quad_bmf_opposite_bme
 from ..common.drawing import Drawing
 from ..common.maths import point_to_bvec4, view_forward_direction
@@ -77,7 +77,7 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
     paused_update = False
     paused_overlay = False
 
-    class RFOperator_QuadStrip_Selection_Overlay:
+    class RFOperator_QuadStrip_Selection_Overlay(RFOperator_KeymapContext):
         bl_idname = f'retopoflow.{idname}'
         bl_label = label
         bl_description = 'Overlay info about selected loops and strips'
@@ -114,9 +114,16 @@ def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, onl
             if paused_overlay: return {'PASS_THROUGH'}
 
             mouse = mouse_from_event(event)
+            was_hovering = self.hovering
             self.hovering = self.hovered_handle(context, mouse)
-            if self.hovering: Cursors.set('hand')
-            else:             Cursors.restore()
+            if self.hovering:
+                if not was_hovering:
+                    self.set_statusbar_override(('LMB: Edit Strip', ))
+                Cursors.set('hand')
+            else:
+                if was_hovering:
+                    self.set_statusbar_override(None)
+                Cursors.restore()
 
             return {'PASS_THROUGH'}
 

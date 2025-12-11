@@ -157,12 +157,14 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': ' Start PolyPen'}),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
     ]
-    rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
+    rf_status = {
+        'ready': ('LMB: Insert', ),
+    }
 
     insert_mode: wrap_property(
         PolyPen_Insert_Modes, 'insert_mode', 'enum',
@@ -186,6 +188,8 @@ class RFOperator_PolyPen(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
+        self.set_statusbar_override(self.rf_status['ready'])
+        print(f'POLYPEN INIT {self.km_context=}')
         self.logic = PP_Logic(context, event)
         self.tickle(context)
         self.done = False
@@ -205,6 +209,7 @@ class RFOperator_PolyPen(RFOperator):
                 # wait until we're active (could happen when transforming)
                 return {'PASS_THROUGH'}
             self.logic.cleanup()
+            self.set_statusbar_override(None)
             return {'FINISHED'}
 
         self.logic.update(context, event, self.insert_mode, self.quad_stability)

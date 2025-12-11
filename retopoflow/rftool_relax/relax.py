@@ -99,7 +99,7 @@ class RFOperator_Relax(RFOperator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Relax'}),
     ]
     rf_status = ['LMB: Relax']
 

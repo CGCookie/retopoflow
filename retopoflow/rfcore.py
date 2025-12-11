@@ -20,11 +20,10 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import bmesh
 import bl_ui
 
 import time
-import random
+import re
 
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
@@ -61,6 +60,21 @@ from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
+re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
+status_map_icons = {
+    'LMB': 'MOUSE_LMB',
+    'MMB': 'MOUSE_MMB',
+    'RMB': 'MOUSE_RMB',
+}
+def parse_status_entry(status_entry: str) -> tuple[str, str]:
+    match = re_status_entry.match(status_entry)
+    if not match:
+        return 'NONE', ''
+    icon = match.group('icon')
+    text = match.group('text')
+    return status_map_icons.get(icon, icon), text
+
+
 '''
 TODO:
 - does not handle multiple spaces correctly
@@ -86,6 +100,8 @@ class RFCore:
     resetter               = Resetter('RFCore')  # helper for resetting bpy settings to original settings
     reset_attempts         = 0
     last_reset_attempt     = 0
+    km_context             = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
+    km_status_override     = None   # override for the statusbar text (used to display additional information about the current tool)
 
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
@@ -231,12 +247,104 @@ class RFCore:
         # bpy.app.timers.register(lambda: switch('builtin.move', *args), first_interval=delay)
 
     @staticmethod
+    def _draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Context, tool: RFTool_Base):
+        layout = statusbar.layout
+        # layout.label(text=tool.bl_label)
+        # layout.separator()
+
+        km_status_override = RFCore.km_status_override
+        if km_status_override:
+            if isinstance(km_status_override, (tuple, list)):
+                for status in km_status_override:
+                    icon, text = parse_status_entry(status)
+                    layout.label(text=text, icon=icon)
+                    layout.separator()
+            elif isinstance(km_status_override, str):
+                icon, text = parse_status_entry(km_status_override)
+                layout.label(text=text, icon=icon)
+            else:
+                print(f'Unknown type of km_status_override: {type(km_status_override)}')
+            return
+
+        km_context = RFCore.km_context
+        if km_context is None:
+            return
+
+        for km in tool.bl_keymap:
+            op_id, km_event, op_props = km
+            if op_props is None:
+                continue
+            if 'km_context' not in op_props:
+                continue
+            if isinstance(op_props['km_context'], (tuple, list)):
+                if km_context not in op_props['km_context']:
+                    continue
+            else:
+                if op_props['km_context'] != km_context:
+                    continue
+
+            if 'km_poll' in op_props:
+                if not op_props['km_poll'](context):
+                    continue
+
+            op_id = op_id.split('.')[-1]
+
+            km_label = op_props.get('km_label', None)
+            if km_label is None:
+                op = getattr(bpy.ops.retopoflow, op_id, None)
+                if not op or not hasattr(op, 'get_rna_type'): continue
+                try:
+                    op_rna = op.get_rna_type()
+                except Exception as e:
+                    print(f'Caught exception while trying to get RNA type for {op_id}')
+                    print(f'  {e}')
+                    continue
+                km_label = op_rna.name
+
+            # print(f'{op_id=} {km_event=} {op_props=}')
+            if not isinstance(km_event, dict): continue
+            event_type: str = km_event['type']
+            event_value: str = km_event['value']
+
+            for mod_key in ('ctrl', 'shift', 'alt'):
+                if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
+                    layout.label(text='', icon=f'EVENT_{mod_key.upper()}')
+            if len(event_type) == 1 and 'A' <= event_type <= 'Z':
+                layout.label(text='', icon=f'EVENT_{event_type.upper()}')
+            if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
+                mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
+                icon = f'MOUSE_{mouse_button_key}MB'
+                if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+                    icon += '_2X'
+                layout.label(text='', icon=icon)
+            if 'WHEEL' in event_type:
+                layout.label(text='', icon=f'MOUSE_MMB_SCROLL')
+
+            layout.label(text=km_label)
+            layout.separator()
+
+    @staticmethod
+    def _update_statusbar(context: bpy.types.Context):
+        # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
+        # get the statusbar text from the active/selected RFTool.
+        if tool_idname := RFCore.selected_RFTool_idname:
+            RFCore.km_context = 'init'
+            RFCore.km_status_override = None
+            context.workspace.status_text_set(lambda statusbar, context: RFCore._draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname]))
+        else:
+            RFCore.km_context = None
+            RFCore.km_status_override = None
+            context.workspace.status_text_set(None)
+
+    @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
         # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
         if RFCore.is_paused: return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
+
+        RFCore._update_statusbar(context)
 
         if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
             # need to start RFCore in the correct context

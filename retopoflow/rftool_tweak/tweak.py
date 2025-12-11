@@ -98,7 +98,7 @@ class RFOperator_Tweak(RFOperator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Tweak'}),
     ]
     rf_status = ['LMB: Tweak']
 
