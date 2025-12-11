@@ -249,6 +249,7 @@ class RFCore:
     @staticmethod
     def _draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Context, tool: RFTool_Base):
         layout = statusbar.layout
+        row = layout.row(align=True)
         # layout.label(text=tool.bl_label)
         # layout.separator()
 
@@ -257,11 +258,11 @@ class RFCore:
             if isinstance(km_status_override, (tuple, list)):
                 for status in km_status_override:
                     icon, text = parse_status_entry(status)
-                    layout.label(text=text, icon=icon)
-                    layout.separator()
+                    row.label(text=text, icon=icon)
+                    row.separator()
             elif isinstance(km_status_override, str):
                 icon, text = parse_status_entry(km_status_override)
-                layout.label(text=text, icon=icon)
+                row.label(text=text, icon=icon)
             else:
                 print(f'Unknown type of km_status_override: {type(km_status_override)}')
             return
@@ -308,20 +309,24 @@ class RFCore:
 
             for mod_key in ('ctrl', 'shift', 'alt'):
                 if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
-                    layout.label(text='', icon=f'EVENT_{mod_key.upper()}')
+                    row.label(text='', icon=f'EVENT_{mod_key.upper()}')
+                    if mod_key == 'ctrl':
+                        row.separator(factor=1.5)
+                    elif mod_key == 'alt':
+                        row.separator(factor=1)
             if len(event_type) == 1 and 'A' <= event_type <= 'Z':
-                layout.label(text='', icon=f'EVENT_{event_type.upper()}')
+                row.label(text='', icon=f'EVENT_{event_type.upper()}')
             if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
                 mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
                 icon = f'MOUSE_{mouse_button_key}MB'
                 if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
                     icon += '_2X'
-                layout.label(text='', icon=icon)
+                row.label(text='', icon=icon)
             if 'WHEEL' in event_type:
-                layout.label(text='', icon=f'MOUSE_MMB_SCROLL')
+                row.label(text='', icon=f'MOUSE_MMB_SCROLL')
 
-            layout.label(text=km_label)
-            layout.separator()
+            row.label(text=km_label)
+            row.separator()
 
     @staticmethod
     def _update_statusbar(context: bpy.types.Context):
