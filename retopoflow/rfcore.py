@@ -24,7 +24,10 @@ import bl_ui
 
 import time
 import re
+from dataclasses import dataclass
+from typing import Optional, Callable, Tuple, Dict, Any
 
+from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
@@ -74,6 +77,71 @@ def parse_status_entry(status_entry: str) -> tuple[str, str]:
     text = match.group('text')
     return status_map_icons.get(icon, icon), text
 
+
+''' 
+These shared or generic keymaps will be drawn in the statusbar, right-aligned and after the active tool keymaps.
+- 'context' for all these keymaps is 'init' by default.
+- 'op_id': if not set or set to None, set 'event_type' as a string for the EventType.
+'''
+@dataclass
+class SharedStatusbarKeymap:
+    label: str
+    op_id: Optional[str] = None
+    filter_op_props: Optional[Dict[str, Any]] = None  # to filter keymap items by op properties
+    event_type: Optional[str] = None
+    poll_tools: Optional[Tuple[str, ...]] = None  # list of tool idnames to poll for (in upper-case!)
+    poll_fn: Optional[Callable[[bpy.types.Context], bool]] = None
+    context: str | Tuple[str, ...] = 'init'  # 'init' by default
+
+    def poll(self, context: bpy.types.Context, active_tool_idname: Optional[str] = None) -> bool:
+        if self.poll_tools is not None:
+            if active_tool_idname is None or active_tool_idname not in self.poll_tools:
+                return False
+        if self.poll_fn is not None:
+            return self.poll_fn(context)
+        return True
+
+    @property
+    def icon(self) -> str:
+        if self.event_type is not None:
+            return self.event_type
+        kmi = self.get_kmi()
+        if kmi is None:
+            return 'NONE'
+        self.event_type = f'EVENT_{kmi.type.upper()}'
+        return self.event_type
+
+    def get_kmi(self) -> Optional[bpy.types.KeyMapItem]:
+        if self.op_id is None:
+            return None
+        kmis = blenderop_to_kmis(self.op_id)
+        if self.filter_op_props is None:
+            return kmis
+        filtered_kmis = set()
+        for kmi in kmis:
+            op, op_props = kmi_to_op_properties(kmi)
+            if all(op_props.get(k, None) == v for k, v in self.filter_op_props.items()):
+                filtered_kmis.add(kmi)
+        if not filtered_kmis:
+            return None
+        kmi = list(filtered_kmis)[0]
+        return kmi
+
+    def get_op_props(self):
+        kmi = self.get_kmi()
+        if kmi is None:
+            return None
+        return kmi_to_op_properties(kmi)
+
+SHARED_STATUSBAR_KEYMAPS = (
+    SharedStatusbarKeymap(label="Open Pie-Menu", event_type="EVENT_W"),
+
+    # SharedStatusbarKeymap(label="Toggle Proportional Editing", event_type="EVENT_O"), # static version
+    SharedStatusbarKeymap(label="Toggle Proportional Editing", op_id="Mesh | wm.context_toggle", filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, poll_tools=('POLYSTRIPS', )), # dynamic version
+
+    # SharedStatusbarKeymap(label="Knife", event_type='EVENT_K'), # static version
+    SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
+)
 
 '''
 TODO:
@@ -326,6 +394,23 @@ class RFCore:
                 row.label(text='', icon=f'MOUSE_MMB_SCROLL')
 
             row.label(text=km_label)
+            row.separator()
+
+        layout.separator_spacer()
+
+        row = layout.row(align=True)
+        for km in SHARED_STATUSBAR_KEYMAPS:
+            if km.context is None:
+                continue
+            if isinstance(km.context, (tuple, list)):
+                if km_context not in km.context:
+                    continue
+            else:
+                if km_context != km.context:
+                    continue
+            if not km.poll(context, active_tool_idname=tool.rf_idname.split('.')[-1].upper()):
+                continue
+            row.label(text=km.label, icon=km.icon)
             row.separator()
 
     @staticmethod
