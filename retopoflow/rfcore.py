@@ -92,11 +92,14 @@ class SharedStatusbarKeymap:
     poll_tools: Optional[Tuple[str, ...]] = None  # list of tool idnames to poll for (in upper-case!)
     poll_fn: Optional[Callable[[bpy.types.Context], bool]] = None
     context: str | Tuple[str, ...] = 'init'  # 'init' by default
+    _tags: set[str] = field(default_factory=set)
 
     def poll(self, context: bpy.types.Context, active_tool_idname: Optional[str] = None) -> bool:
-        if self.poll_tools is not None:
-            if active_tool_idname is None or active_tool_idname not in self.poll_tools:
-                return False
+        if self.poll_tools is not None and active_tool_idname is not None:
+            if 'INVERT_POLL_TOOLS' in self._tags:
+                return active_tool_idname not in self.poll_tools
+            else:
+                return active_tool_idname in self.poll_tools
         if self.poll_fn is not None:
             return self.poll_fn(context)
         return True
@@ -107,9 +110,12 @@ class SharedStatusbarKeymap:
             return self.event_type
         kmi = self.get_kmi()
         if kmi is None:
-            return 'NONE'
-        self.event_type = f'EVENT_{kmi.type.upper()}'
-        return self.event_type
+    def add_tag(self, tag: str):
+        self._tags.add(tag)
+        return self
+
+    def invert_poll_tools(self):
+        return self.add_tag('INVERT_POLL_TOOLS')
 
     def get_kmi(self) -> Optional[bpy.types.KeyMapItem]:
         if self.op_id is None:
