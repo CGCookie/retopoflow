@@ -345,7 +345,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
         if RFTool_Contours.rf_brush.is_stroking():
             self.set_statusbar_override(self.rf_status['insert'])
-            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
+            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
                 self.RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
