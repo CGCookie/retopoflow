@@ -85,7 +85,7 @@ These shared or generic keymaps will be drawn in the statusbar, right-aligned an
 '''
 @dataclass
 class SharedStatusbarKeymap:
-    label: str
+    label: str | Callable[[bpy.types.Context], str]
     icons: List[str] = field(default_factory=list)
     op_id: Optional[str] = None
     filter_op_props: Optional[Dict[str, Any]] = None  # to filter keymap items by op properties
@@ -103,6 +103,14 @@ class SharedStatusbarKeymap:
         if self.poll_fn is not None:
             return self.poll_fn(context)
         return True
+
+    def get_label(self, context: bpy.types.Context) -> str:
+        if isinstance(self.label, str):
+            return self.label
+        elif callable(self.label):
+            return self.label(context)
+        else:
+            return ''
 
     def get_icons(self) -> List[str]:
         if len(self.icons) > 0:
@@ -172,27 +180,38 @@ class SharedStatusbarKeymap:
             return None
         return kmi_to_op_properties(kmi)
 
+    def _draw_icons(self, context: bpy.types.Context, layout: bpy.types.UILayout):
+        sub = layout.row(align=True)
+        for icon in self.get_icons():
+            sub.label(text='', icon=icon)
+        sub.label(text=self.get_label(context))
+        layout.separator()
+
+    def draw(self, context: bpy.types.Context, active_tool_idname: str, km_context: str, layout: bpy.types.UILayout):
+        if self.context is None:
+            return
+        if isinstance(self.context, (tuple, list)):
+            if km_context not in self.context:
+                return
+        else:
+            if km_context != self.context:
+                return
+        if not self.poll(context, active_tool_idname):
+            return
+        self._draw_icons(context, layout)
+
 SHARED_STATUSBAR_KEYMAPS = (
     SharedStatusbarKeymap(label="Tweak", icons=['MOUSE_LMB_DRAG'], poll_tools=('TWEAK', 'RELAX')).invert_poll_tools(),
 
     SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
 
-
     # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
     SharedStatusbarKeymap( # dynamic version
-        label="Disable Proportional Editing", 
+        label=lambda context: f"{'Enable' if context.scene.tool_settings.use_proportional_edit else 'Disable'} Proportional Editing", 
         op_id="Mesh | wm.context_toggle", 
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('POLYSTRIPS', ), 
-        poll_fn=(lambda context: context.scene.tool_settings.use_proportional_edit),
-    ), 
-    SharedStatusbarKeymap(
-        label="Enable Proportional Editing",
-        op_id="Mesh | wm.context_toggle", 
-        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('POLYSTRIPS', ), 
-        poll_fn=(lambda context: not context.scene.tool_settings.use_proportional_edit),
-    ), 
+        poll_tools=('POLYSTRIPS', )
+    ),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
@@ -456,22 +475,9 @@ class RFCore:
         layout.separator_spacer()
 
         row = layout.row(align=True)
+        active_tool_idname = tool.rf_idname.split('.')[-1].upper()
         for km in SHARED_STATUSBAR_KEYMAPS:
-            if km.context is None:
-                continue
-            if isinstance(km.context, (tuple, list)):
-                if km_context not in km.context:
-                    continue
-            else:
-                if km_context != km.context:
-                    continue
-            if not km.poll(context, active_tool_idname=tool.rf_idname.split('.')[-1].upper()):
-                continue
-            sub = row.row(align=True)
-            for icon in km.get_icons():
-                sub.label(text='', icon=icon)
-            sub.label(text=km.label)
-            row.separator()
+            km.draw(context, active_tool_idname, km_context, row)
 
     @staticmethod
     def _update_statusbar(context: bpy.types.Context):
