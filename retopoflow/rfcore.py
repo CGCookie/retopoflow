@@ -479,6 +479,10 @@ class RFCore:
         for km in SHARED_STATUSBAR_KEYMAPS:
             km.draw(context, active_tool_idname, km_context, row)
 
+        layout.separator_spacer()
+        
+        layout.label(text=context.screen.statusbar_info())
+
     @staticmethod
     def _update_statusbar(context: bpy.types.Context):
         # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
