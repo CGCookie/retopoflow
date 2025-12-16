@@ -191,8 +191,8 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
         label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing", 
         op_id="Mesh | wm.context_toggle", 
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('TWEAK', 'RELAX')
-    ).invert_poll_tools(),
+        poll_tools=('POLYSTRIPS', 'STROKES')
+    ),
 )
 
 
