@@ -1117,9 +1117,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         rf_keymaps = [
             # bl_idname
-            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, None),  #, 'ctrl': False, 'shift': False
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False, 'shift': False
         ]
-        rf_status = ['LMB: Commit', 'RMB: Cancel']
+        rf_status = {
+            'adjust': ('LMB: Commit', 'RMB: Cancel')
+        }
 
         def can_init(self, context, event):
             return not any(
@@ -1128,6 +1130,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             )
 
         def init(self, context, event):
+            self.set_statusbar_override(self.rf_status['adjust'])
             dist = self.radius_to_dist()
             self.prev_radius = RFBrush_Stroke.stroke_radius
             self._change_pre = dist
@@ -1141,15 +1144,16 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
         def radius_to_dist(self):
             return RFBrush_Stroke.stroke_radius
 
+        def finish(self, context, cancel=False):
+            if cancel:
+                self.dist_to_radius(self._change_pre)
+            self.set_statusbar_override(None)
+
         def update(self, context, event):
-            if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                return {'FINISHED'}
-            if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-                self.dist_to_radius(self._change_pre)
-                return {'CANCELLED'}
-            if event.type == 'ESC' and event.value == 'PRESS':
-                self.dist_to_radius(self._change_pre)
-                return {'CANCELLED'}
+            if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
+                cancel = event.type in {'RIGHTMOUSE', 'ESC'}
+                self.finish(context, cancel=cancel)
+                return {'CANCELLED'} if cancel else {'FINISHED'}
 
             if event.type == 'MOUSEMOVE':
                 mouse = Point2D((event.mouse_region_x, event.mouse_region_y))

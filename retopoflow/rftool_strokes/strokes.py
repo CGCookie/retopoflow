@@ -387,16 +387,19 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, None),  # prevents object selection with Ctrl+LMB Click
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, {'km_context': ('init', 'ready'), 'km_label': 'Insert Strip'}),  # prevents object selection with Ctrl+LMB Click
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': True}, None),
 
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
-        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
+        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Draw Stroke'}),
 
-        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
 
-    rf_status = ['LMB: Insert']
+    rf_status = {
+        'ready': ('LMB: Insert', ),
+        'insert': ('RMB: Cancel', )
+    }
 
     brush_radius: wrap_property(
         RFBrush_Strokes, 'stroke_radius', 'int',
@@ -428,11 +431,14 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     )
 
     def init(self, context, event):
+        self.km_context = 'ready'
         RFTool_Strokes.rf_brush.set_operator(self)
         RFTool_Strokes.rf_brush.reset_nearest(context)
         self.tickle(context)
 
     def finish(self, context):
+        self.set_statusbar_override(None)
+        self.km_context = 'init'
         RFTool_Strokes.rf_brush.set_operator(None)
         RFTool_Strokes.rf_brush.reset_nearest(context)
 
@@ -464,10 +470,12 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
             return {'RUNNING_MODAL'}
 
         if RFTool_Strokes.rf_brush.is_stroking():
+            self.set_statusbar_override(self.rf_status['insert'])
             if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
                 self.RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
+            self.set_statusbar_override(None)
             if not event.ctrl:
                 Cursors.restore()
                 self.tickle(context)

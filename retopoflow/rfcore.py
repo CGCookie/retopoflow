@@ -20,12 +20,14 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import bmesh
 import bl_ui
 
 import time
-import random
+import re
+from dataclasses import dataclass
+from typing import Optional, Callable, Tuple, Dict, Any
 
+from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
@@ -61,6 +63,86 @@ from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
+re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
+status_map_icons = {
+    'LMB': 'MOUSE_LMB',
+    'MMB': 'MOUSE_MMB',
+    'RMB': 'MOUSE_RMB',
+}
+def parse_status_entry(status_entry: str) -> tuple[str, str]:
+    match = re_status_entry.match(status_entry)
+    if not match:
+        return 'NONE', ''
+    icon = match.group('icon')
+    text = match.group('text')
+    return status_map_icons.get(icon, icon), text
+
+
+''' 
+These shared or generic keymaps will be drawn in the statusbar, right-aligned and after the active tool keymaps.
+- 'context' for all these keymaps is 'init' by default.
+- 'op_id': if not set or set to None, set 'event_type' as a string for the EventType.
+'''
+@dataclass
+class SharedStatusbarKeymap:
+    label: str
+    op_id: Optional[str] = None
+    filter_op_props: Optional[Dict[str, Any]] = None  # to filter keymap items by op properties
+    event_type: Optional[str] = None
+    poll_tools: Optional[Tuple[str, ...]] = None  # list of tool idnames to poll for (in upper-case!)
+    poll_fn: Optional[Callable[[bpy.types.Context], bool]] = None
+    context: str | Tuple[str, ...] = 'init'  # 'init' by default
+
+    def poll(self, context: bpy.types.Context, active_tool_idname: Optional[str] = None) -> bool:
+        if self.poll_tools is not None:
+            if active_tool_idname is None or active_tool_idname not in self.poll_tools:
+                return False
+        if self.poll_fn is not None:
+            return self.poll_fn(context)
+        return True
+
+    @property
+    def icon(self) -> str:
+        if self.event_type is not None:
+            return self.event_type
+        kmi = self.get_kmi()
+        if kmi is None:
+            return 'NONE'
+        self.event_type = f'EVENT_{kmi.type.upper()}'
+        return self.event_type
+
+    def get_kmi(self) -> Optional[bpy.types.KeyMapItem]:
+        if self.op_id is None:
+            return None
+        kmis = blenderop_to_kmis(self.op_id)
+        if self.filter_op_props is None:
+            return kmis
+        filtered_kmis = set()
+        for kmi in kmis:
+            op, op_props = kmi_to_op_properties(kmi)
+            if all(op_props.get(k, None) == v for k, v in self.filter_op_props.items()):
+                filtered_kmis.add(kmi)
+        if not filtered_kmis:
+            return None
+        kmi = list(filtered_kmis)[0]
+        return kmi
+
+    def get_op_props(self):
+        kmi = self.get_kmi()
+        if kmi is None:
+            return None
+        return kmi_to_op_properties(kmi)
+
+SHARED_STATUSBAR_KEYMAPS = (
+    SharedStatusbarKeymap(label="Open Pie-Menu", event_type="EVENT_W"),
+
+    # SharedStatusbarKeymap(label="Toggle Proportional Editing", event_type="EVENT_O"), # static version
+    SharedStatusbarKeymap(label="Toggle Proportional Editing", op_id="Mesh | wm.context_toggle", filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, poll_tools=('POLYSTRIPS', )), # dynamic version
+
+    # SharedStatusbarKeymap(label="Knife", event_type='EVENT_K'), # static version
+    SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
+)
+
 '''
 TODO:
 - does not handle multiple spaces correctly
@@ -86,6 +168,8 @@ class RFCore:
     resetter               = Resetter('RFCore')  # helper for resetting bpy settings to original settings
     reset_attempts         = 0
     last_reset_attempt     = 0
+    km_context             = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
+    km_status_override     = None   # override for the statusbar text (used to display additional information about the current tool)
 
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
@@ -231,12 +315,126 @@ class RFCore:
         # bpy.app.timers.register(lambda: switch('builtin.move', *args), first_interval=delay)
 
     @staticmethod
+    def _draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Context, tool: RFTool_Base):
+        layout = statusbar.layout
+        row = layout.row(align=True)
+        # layout.label(text=tool.bl_label)
+        # layout.separator()
+
+        km_status_override = RFCore.km_status_override
+        if km_status_override:
+            if isinstance(km_status_override, (tuple, list)):
+                for status in km_status_override:
+                    icon, text = parse_status_entry(status)
+                    row.label(text=text, icon=icon)
+                    row.separator()
+            elif isinstance(km_status_override, str):
+                icon, text = parse_status_entry(km_status_override)
+                row.label(text=text, icon=icon)
+            else:
+                print(f'Unknown type of km_status_override: {type(km_status_override)}')
+            return
+
+        km_context = RFCore.km_context
+        if km_context is None:
+            return
+
+        for km in tool.bl_keymap:
+            op_id, km_event, op_props = km
+            if op_props is None:
+                continue
+            if 'km_context' not in op_props:
+                continue
+            if isinstance(op_props['km_context'], (tuple, list)):
+                if km_context not in op_props['km_context']:
+                    continue
+            else:
+                if op_props['km_context'] != km_context:
+                    continue
+
+            if 'km_poll' in op_props:
+                if not op_props['km_poll'](context):
+                    continue
+
+            op_id = op_id.split('.')[-1]
+
+            km_label = op_props.get('km_label', None)
+            if km_label is None:
+                op = getattr(bpy.ops.retopoflow, op_id, None)
+                if not op or not hasattr(op, 'get_rna_type'): continue
+                try:
+                    op_rna = op.get_rna_type()
+                except Exception as e:
+                    print(f'Caught exception while trying to get RNA type for {op_id}')
+                    print(f'  {e}')
+                    continue
+                km_label = op_rna.name
+
+            # print(f'{op_id=} {km_event=} {op_props=}')
+            if not isinstance(km_event, dict): continue
+            event_type: str = km_event['type']
+            event_value: str = km_event['value']
+
+            for mod_key in ('ctrl', 'shift', 'alt'):
+                if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
+                    row.label(text='', icon=f'EVENT_{mod_key.upper()}')
+                    if mod_key == 'ctrl':
+                        row.separator(factor=1.5)
+                    elif mod_key == 'alt':
+                        row.separator(factor=1)
+            if len(event_type) == 1 and 'A' <= event_type <= 'Z':
+                row.label(text='', icon=f'EVENT_{event_type.upper()}')
+            if event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
+                mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
+                icon = f'MOUSE_{mouse_button_key}MB'
+                if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+                    icon += '_2X'
+                row.label(text='', icon=icon)
+            if 'WHEEL' in event_type:
+                row.label(text='', icon=f'MOUSE_MMB_SCROLL')
+
+            row.label(text=km_label)
+            row.separator()
+
+        layout.separator_spacer()
+
+        row = layout.row(align=True)
+        for km in SHARED_STATUSBAR_KEYMAPS:
+            if km.context is None:
+                continue
+            if isinstance(km.context, (tuple, list)):
+                if km_context not in km.context:
+                    continue
+            else:
+                if km_context != km.context:
+                    continue
+            if not km.poll(context, active_tool_idname=tool.rf_idname.split('.')[-1].upper()):
+                continue
+            row.label(text=km.label, icon=km.icon)
+            row.separator()
+
+    @staticmethod
+    def _update_statusbar(context: bpy.types.Context):
+        # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
+        # get the statusbar text from the active/selected RFTool.
+        if tool_idname := RFCore.selected_RFTool_idname:
+            RFCore.km_context = 'init'
+            RFCore.km_status_override = None
+            context.workspace.status_text_set(lambda statusbar, context: RFCore._draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname]))
+        else:
+            RFCore.km_context = None
+            RFCore.km_status_override = None
+            context.workspace.status_text_set(None)
+
+    @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
         # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
         if RFCore.is_paused: return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
+
+        RFCore._update_statusbar(context)
 
         if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
             # need to start RFCore in the correct context

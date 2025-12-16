@@ -310,11 +310,13 @@ def create_falloff_brush(idname, label, **kwargs):
 
         rf_keymaps = [
             # see hacks below
-            (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, None),
-            (f'retopoflow.{idname}_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, None),
-            (f'retopoflow.{idname}_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, None),
+            (f'retopoflow.{idname}_radius',   {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),
+            (f'retopoflow.{idname}_falloff',  {'type': 'F', 'value': 'PRESS', 'ctrl': 1, 'shift': 0}, {'km_context': 'init', 'km_label': 'Adjust Falloff'}),
+            (f'retopoflow.{idname}_strength', {'type': 'F', 'value': 'PRESS', 'ctrl': 0, 'shift': 1}, {'km_context': 'init', 'km_label': 'Adjust Strength'}),
         ]
-        rf_status = ['LMB: Commit', 'RMB: Cancel']
+        rf_status = {
+            'adjust': ('LMB: Commit', 'RMB: Cancel')
+        }
 
         adjust: bpy.props.EnumProperty(
             name=f'{label} Property',
@@ -412,6 +414,8 @@ def create_falloff_brush(idname, label, **kwargs):
             if self.adjust == 'NONE': return False
 
         def init(self, context, event):
+            self.set_statusbar_override(self.rf_status['adjust'])
+
             match self.adjust:
                 case 'RADIUS':
                     self._dist_to_var_fn = self.dist_to_radius
@@ -450,15 +454,16 @@ def create_falloff_brush(idname, label, **kwargs):
 
             context.area.tag_redraw()
 
+        def finish(self, context, cancel=False):
+            if cancel:
+                self._dist_to_var_fn(self._change_pre, context)
+            self.set_statusbar_override(None)
+
         def update(self, context, event):
-            if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                return {'FINISHED'}
-            if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-                self._dist_to_var_fn(self._change_pre, context)
-                return {'CANCELLED'}
-            if event.type == 'ESC' and event.value == 'PRESS':
-                self._dist_to_var_fn(self._change_pre, context)
-                return {'CANCELLED'}
+            if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
+                cancel = event.type in {'RIGHTMOUSE', 'ESC'}
+                self.finish(context, cancel=cancel)
+                return {'CANCELLED'} if cancel else {'FINISHED'}
 
             if event.type == 'MOUSEMOVE':
                 mouse = Point2D((event.mouse_region_x, event.mouse_region_y))
