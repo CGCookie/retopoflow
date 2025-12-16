@@ -288,7 +288,7 @@ def draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Contex
 
     if len(SHARED_STATUSBAR_KEYMAPS__POST_TOOL) > 0:
         if context.window.width < 1600:
-            Icon.SEPARATOR.draw(row, left_space=2.0, right_space=2.0)
+            Icon.SEPARATOR.draw(row, left_space=1.0, right_space=1.0)
         else:
             layout.separator_spacer()
 
