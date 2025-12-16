@@ -4,7 +4,7 @@ from typing import Callable, Optional, Dict, Any, Tuple, List, TYPE_CHECKING
 
 import bpy
 
-from .common.icons import draw_rftool_icon
+from .common.icons import draw_rftool_icon, Icon
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from .rftool_base import RFTool_Base
 
@@ -277,12 +277,16 @@ def draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Contex
         row.label(text=km_label)
         row.separator()
 
-    # layout.separator_spacer()
+    if len(SHARED_STATUSBAR_KEYMAPS__POST_TOOL) > 0:
+        if context.window.width < 1600:
+            Icon.SEPARATOR.draw(row, left_space=2.0, right_space=2.0)
+        else:
+            layout.separator_spacer()
 
     row = layout.row(align=True)
     for km in SHARED_STATUSBAR_KEYMAPS__POST_TOOL:
         km.draw(context, active_tool_idname, km_context, row)
 
     layout.separator_spacer()
-    
+
     layout.label(text=context.screen.statusbar_info())
