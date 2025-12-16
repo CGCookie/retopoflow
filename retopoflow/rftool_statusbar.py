@@ -7,6 +7,7 @@ import bpy
 from .common.icons import draw_rftool_icon, Icon
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from .rftool_base import RFTool_Base
+from .preferences import RF_Prefs
 
 
 if TYPE_CHECKING:
@@ -172,7 +173,11 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     SharedStatusbarKeymap(label="Relax Brush", icons=['EVENT_SHIFT', 'MOUSE_LMB_DRAG'], poll_tools = ('RELAX')).invert_poll_tools(),
 
-    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
+    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)),
+
+    SharedStatusbarKeymap(label="Open Docs", icons=['EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)),
+
+    SharedStatusbarKeymap(label="Report Issue", icons=['EVENT_F2'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
