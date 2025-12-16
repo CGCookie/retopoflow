@@ -21,15 +21,21 @@ Created by Jonathan Denning, Jonathan Lampel
 
 from pathlib import Path
 import os
+from enum import Enum, auto
 
+from bpy.utils import previews
 import bpy
 from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
 
 from ..rftool_base import RFTool_Base
 
+
 # (icon_name -> icon_value) map
 _icon_cache = {}
 ICONS_DIRPATH = Path(__file__).parent.parent.parent / 'icons'
+
+preview_collections = {}
+_icon_preview_cache = {}
 
 
 def get_path_to_blender_icon(icon: str) -> str:
@@ -66,6 +72,46 @@ def get_rftool_icon_value(rftool: RFTool_Base) -> int:
 def draw_rftool_icon(rftool: RFTool_Base, layout: bpy.types.UILayout, scale: float = 1.0) -> None:
     layout.template_icon(icon_value=get_rftool_icon_value(rftool), scale=scale)
 
-def clear_icon_cache() -> None:
-    global _icon_cache
-    _icon_cache = {}
+
+class Icon(Enum):
+    ''' Utility class to load image icons on-demand. '''
+    SEPARATOR = auto()
+
+    @property
+    def icon_id(self) -> int:
+        # Load icon on-request rather than on-startup!
+        return Icon.load(self.name)
+
+    @staticmethod
+    def load(icon_name: str) -> int:
+        global preview_collections
+        if icon_name in _icon_preview_cache:
+            return _icon_preview_cache[icon_name]
+        icon_path = ICONS_DIRPATH / f"{icon_name}.png"
+        if not icon_path.is_file():
+            icon_path = ICONS_DIRPATH / f"{icon_name}-icon.png"
+        if not icon_path.is_file():
+            raise FileNotFoundError(f"Icon {icon_name} not found")
+        preview_collections["main"].load(icon_name, icon_path.as_posix(), 'IMAGE')
+        _icon_preview_cache[icon_name] = preview_collections["main"][icon_name].icon_id
+        return _icon_preview_cache[icon_name]
+
+    def draw(self, layout: bpy.types.UILayout, left_space: float = 0.0, right_space: float = 0.0) -> None:
+        if left_space > 0.0:
+            layout.separator(factor=left_space)
+        layout.label(text='', icon_value=self.icon_id)
+        if right_space > 0.0:
+            layout.separator(factor=right_space)
+
+
+def register():
+    preview_collections["main"] = previews.new()
+
+def unregister():
+    # Clear icons cache
+    _icon_cache.clear()
+    _icon_preview_cache.clear()
+    
+    # Clear preview collections
+    previews.remove(preview_collections["main"])
+    preview_collections.clear()

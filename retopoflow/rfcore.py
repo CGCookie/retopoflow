@@ -31,6 +31,7 @@ from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
+from .common import icons as icons_module
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
@@ -104,6 +105,7 @@ class RFCore:
             return
 
         # register RF operator and RF tools
+        icons_module.register()
         preferences.register()
         rfprops_scene.register()
         rfprops_object.register()
@@ -175,6 +177,7 @@ class RFCore:
         rfprops_scene.unregister()
         rfprops_object.unregister()
         preferences.unregister()
+        icons_module.unregister()
 
 
     @staticmethod
