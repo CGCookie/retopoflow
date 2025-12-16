@@ -116,7 +116,21 @@ class SharedStatusbarKeymap:
             if getattr(kmi, mod_key, False):
                 icons.append(f'EVENT_{mod_key.upper()}')
         if kmi.type:
-            icons.append(f'EVENT_{kmi.type.upper()}')
+            event_type: str = kmi.type
+            event_value: str = kmi.value
+            if len(event_type) == 1 and 'A' <= event_type <= 'Z':
+                icons.append(f'EVENT_{kmi.type.upper()}')
+            elif event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
+                mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
+                icon = f'MOUSE_{mouse_button_key}MB'
+                if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
+                    icon += '_2X'
+                elif event_value == 'CLICK_DRAG':
+                    icon += '_DRAG'
+                icons.append(icon)
+            elif 'WHEEL' in event_type:
+                icons.append('MOUSE_MMB_SCROLL')
+
         self.icons = icons
         return icons
 
@@ -430,6 +444,8 @@ class RFCore:
                 icon = f'MOUSE_{mouse_button_key}MB'
                 if event_value == 'DOUBLE_CLICK' and mouse_button_key == 'L':
                     icon += '_2X'
+                elif event_value == 'CLICK_DRAG':
+                    icon += '_DRAG'
                 row.label(text='', icon=icon)
             if 'WHEEL' in event_type:
                 row.label(text='', icon=f'MOUSE_MMB_SCROLL')
