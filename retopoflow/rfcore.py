@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional, Callable, Tuple, Dict, Any, List
 
+from .common.icons import draw_rftool_icon
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
@@ -391,9 +392,12 @@ class RFCore:
     @staticmethod
     def _draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Context, tool: RFTool_Base):
         layout = statusbar.layout
-        row = layout.row(align=True)
-        # layout.label(text=tool.bl_label)
+
+        # Selected Tool Icon.
+        # draw_rftool_icon(tool, layout, scale=0.9)
         # layout.separator()
+
+        row = layout.row(align=True)
 
         km_status_override = RFCore.km_status_override
         if km_status_override:
