@@ -201,9 +201,11 @@ class SharedStatusbarKeymap:
             return
         self._draw_icons(context, layout)
 
-SHARED_STATUSBAR_KEYMAPS = (
+SHARED_STATUSBAR_KEYMAPS__PRE_TOOL = (
     SharedStatusbarKeymap(label="Tweak", icons=['MOUSE_LMB_DRAG'], poll_tools=('TWEAK', 'RELAX')).invert_poll_tools(),
+)
 
+SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
     SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
 
     # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
@@ -417,6 +419,10 @@ class RFCore:
         if km_context is None:
             return
 
+        active_tool_idname = tool.rf_idname.split('.')[-1].upper()
+        for km in SHARED_STATUSBAR_KEYMAPS__PRE_TOOL:
+            km.draw(context, active_tool_idname, km_context, row)
+
         for km in tool.bl_keymap:
             op_id, km_event, op_props = km
             if op_props is None:
@@ -479,8 +485,7 @@ class RFCore:
         # layout.separator_spacer()
 
         row = layout.row(align=True)
-        active_tool_idname = tool.rf_idname.split('.')[-1].upper()
-        for km in SHARED_STATUSBAR_KEYMAPS:
+        for km in SHARED_STATUSBAR_KEYMAPS__POST_TOOL:
             km.draw(context, active_tool_idname, km_context, row)
 
         layout.separator_spacer()
