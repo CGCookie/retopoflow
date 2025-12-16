@@ -143,6 +143,10 @@ class SharedStatusbarKeymap:
         sub = layout.row(align=True)
         for icon in self.get_icons():
             sub.label(text='', icon=icon)
+            if icon == 'EVENT_CTRL':
+                sub.separator(factor=1.5)
+            elif icon == 'EVENT_ALT':
+                sub.separator(factor=1)
         sub.label(text=self.get_label(context))
         layout.separator()
 
