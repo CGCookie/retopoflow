@@ -168,18 +168,22 @@ SHARED_STATUSBAR_KEYMAPS__PRE_TOOL = (
 )
 
 SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
-    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
+    SharedStatusbarKeymap(label="Tweak Brush", icons=['EVENT_CTRL', 'EVENT_SHIFT', 'MOUSE_LMB_DRAG'], poll_tools = ('TWEAK')).invert_poll_tools(),
 
-    # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
-    SharedStatusbarKeymap( # dynamic version
-        label=lambda context: f"{'Enable' if context.scene.tool_settings.use_proportional_edit else 'Disable'} Proportional Editing", 
-        op_id="Mesh | wm.context_toggle", 
-        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('POLYSTRIPS', )
-    ),
+    SharedStatusbarKeymap(label="Relax Brush", icons=['EVENT_SHIFT', 'MOUSE_LMB_DRAG'], poll_tools = ('RELAX')).invert_poll_tools(),
+
+    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
+
+    # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
+    SharedStatusbarKeymap( # dynamic version
+        label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing", 
+        op_id="Mesh | wm.context_toggle", 
+        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
+        poll_tools=('TWEAK', 'RELAX')
+    ).invert_poll_tools(),
 )
 
 
