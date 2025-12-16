@@ -24,8 +24,8 @@ import bl_ui
 
 import time
 import re
-from dataclasses import dataclass
-from typing import Optional, Callable, Tuple, Dict, Any
+from dataclasses import dataclass, field
+from typing import Optional, Callable, Tuple, Dict, Any, List
 
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
@@ -86,9 +86,9 @@ These shared or generic keymaps will be drawn in the statusbar, right-aligned an
 @dataclass
 class SharedStatusbarKeymap:
     label: str
+    icons: List[str] = field(default_factory=list)
     op_id: Optional[str] = None
     filter_op_props: Optional[Dict[str, Any]] = None  # to filter keymap items by op properties
-    event_type: Optional[str] = None
     poll_tools: Optional[Tuple[str, ...]] = None  # list of tool idnames to poll for (in upper-case!)
     poll_fn: Optional[Callable[[bpy.types.Context], bool]] = None
     context: str | Tuple[str, ...] = 'init'  # 'init' by default
@@ -104,18 +104,37 @@ class SharedStatusbarKeymap:
             return self.poll_fn(context)
         return True
 
-    @property
-    def icon(self) -> str:
-        if self.event_type is not None:
-            return self.event_type
+    def get_icons(self) -> List[str]:
+        if len(self.icons) > 0:
+            # used cached icons
+            return self.icons
+        icons: List[str] = []
         kmi = self.get_kmi()
         if kmi is None:
+            return []
+        for mod_key in ('ctrl', 'shift', 'alt'):
+            if getattr(kmi, mod_key, False):
+                icons.append(f'EVENT_{mod_key.upper()}')
+        if kmi.type:
+            icons.append(f'EVENT_{kmi.type.upper()}')
+        self.icons = icons
+        return icons
+
     def add_tag(self, tag: str):
         self._tags.add(tag)
         return self
 
     def invert_poll_tools(self):
         return self.add_tag('INVERT_POLL_TOOLS')
+
+    def set_modifiers(self, ctrl: bool | int = False, shift: bool | int = False, alt: bool | int = False):
+        if alt:
+            self.icons.insert(0, 'EVENT_ALT')
+        if shift:
+            self.icons.insert(0, 'EVENT_SHIFT')
+        if ctrl:
+            self.icons.insert(0, 'EVENT_CTRL')
+        return self
 
     def get_kmi(self) -> Optional[bpy.types.KeyMapItem]:
         if self.op_id is None:
@@ -140,32 +159,28 @@ class SharedStatusbarKeymap:
         return kmi_to_op_properties(kmi)
 
 SHARED_STATUSBAR_KEYMAPS = (
-    SharedStatusbarKeymap(label="Tweak", event_type="MOUSE_LMB_DRAG"),
+    SharedStatusbarKeymap(label="Tweak", icons=['MOUSE_LMB_DRAG'], poll_tools=('TWEAK', 'RELAX')).invert_poll_tools(),
 
-    SharedStatusbarKeymap(label="Tweak Brush", event_type="MOUSE_LMB_DRAG"),
-
-    SharedStatusbarKeymap(label="Relax Brush", event_type="MOUSE_LMB_DRAG"),
-
-    SharedStatusbarKeymap(label="Retopoflow Pie Menu", event_type="EVENT_W"),
+    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W']),
 
 
-    # SharedStatusbarKeymap(label="Toggle Proportional Editing", event_type="EVENT_O"), # static version
+    # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
     SharedStatusbarKeymap( # dynamic version
         label="Disable Proportional Editing", 
         op_id="Mesh | wm.context_toggle", 
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('POLYSTRIPS'), 
+        poll_tools=('POLYSTRIPS', ), 
         poll_fn=(lambda context: context.scene.tool_settings.use_proportional_edit),
     ), 
     SharedStatusbarKeymap(
         label="Enable Proportional Editing",
         op_id="Mesh | wm.context_toggle", 
         filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
-        poll_tools=('POLYSTRIPS'), 
+        poll_tools=('POLYSTRIPS', ), 
         poll_fn=(lambda context: not context.scene.tool_settings.use_proportional_edit),
     ), 
 
-    # SharedStatusbarKeymap(label="Knife", event_type='EVENT_K'), # static version
+    # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
 )
 
@@ -436,7 +451,10 @@ class RFCore:
                     continue
             if not km.poll(context, active_tool_idname=tool.rf_idname.split('.')[-1].upper()):
                 continue
-            row.label(text=km.label, icon=km.icon)
+            sub = row.row(align=True)
+            for icon in km.get_icons():
+                sub.label(text='', icon=icon)
+            sub.label(text=km.label)
             row.separator()
 
     @staticmethod
