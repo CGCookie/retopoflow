@@ -109,7 +109,7 @@ class PP_Logic:
         self.selected = None
 
     def cleanup(self):
-        if not self.bm: return
+        if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
     def update(self, context, event, insert_mode, parallel_stable):
