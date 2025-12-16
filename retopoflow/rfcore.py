@@ -476,7 +476,7 @@ class RFCore:
             row.label(text=km_label)
             row.separator()
 
-        layout.separator_spacer()
+        # layout.separator_spacer()
 
         row = layout.row(align=True)
         active_tool_idname = tool.rf_idname.split('.')[-1].upper()
