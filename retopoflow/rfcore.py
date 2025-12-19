@@ -351,6 +351,8 @@ class RFCore:
         if prefs.setup_object_wires:
             RFCore.resetter['context.active_object.show_wire'] = True
             RFCore.resetter['context.active_object.show_all_edges'] = True
+
+        if prefs.setup_fade_inactive:
             def show_fade_inactive(space):
                 RFCore.resetter['space.overlay.show_fade_inactive'] = True
             for s in iter_all_view3d_spaces():
