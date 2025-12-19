@@ -32,6 +32,7 @@ from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
 from .common import icons as icons_module
+from ..addon_common.common.drawing import free_shaders_and_batches
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
@@ -179,6 +180,7 @@ class RFCore:
         preferences.unregister()
         icons_module.unregister()
 
+        free_shaders_and_batches()
 
     @staticmethod
     def draw_menu_items(self, context):
