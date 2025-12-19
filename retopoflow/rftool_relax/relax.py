@@ -327,6 +327,8 @@ class RFTool_Relax(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 

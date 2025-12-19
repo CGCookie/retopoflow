@@ -51,7 +51,7 @@ def draw_ui_options(context, layout):
     col.separator()
 
     col2 = col.column(align=True)
-    row = col2.row(heading='Expand')
-    row.prop(props, 'expand_tools', text='Tools')
-    col2.prop(props, 'expand_masking', text='Masking Options')
+    col2.row(heading='Expand').prop(props, 'expand_masking', text='Masking Options')
     col2.prop(props, 'expand_mirror', text='Mirror Axes')
+    col2.prop(props, 'expand_offset', text='Overlay Offset')
+    col2.prop(props, 'expand_tools', text='Tools')

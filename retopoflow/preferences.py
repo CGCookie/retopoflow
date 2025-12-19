@@ -58,6 +58,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
         default=True,
         update=update_toolbar
     )
+    expand_offset: bpy.props.BoolProperty(
+        name='Expand Overlay Offset',
+        description=('Displays the retopology overlay offset in the tool header'),
+        default=True,
+        update=update_toolbar
+    )
     highlight_color: bpy.props.FloatVectorProperty(
         name='Highlight Color',
         description=('The color used by the insert tools when adding new geometry'),
