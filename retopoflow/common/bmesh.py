@@ -165,8 +165,6 @@ def bmes_shared_bmv(bme0, bme1):
 def bme_unshared_bmv(bme, bme_other):
     bmv0, bmv1 = bme.verts
     return bmv0 if bmv1 in bme_other.verts else bmv1
-def bmes_share_bmv(bme0, bme1):
-    return bool(set(bme0.verts) & set(bme1.verts))
 def bmvs_shared_bme(bmv0, bmv1):
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bmfs_shared_bme(bmf0, bmf1):

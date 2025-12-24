@@ -67,8 +67,13 @@ class Resetter:
             except: pass
 
     def __setitem__(self, key, value):
-        self.store(key, depth=2)
-        self._setter(key, value)
+        try:
+            self.store(key, depth=2)
+            self._setter(key, value)
+        except Exception as e:
+            print(f'Resetter: Exception caught while trying to set {key} = {value}')
+            print(f'  Exception: {e}')
+            raise e
 
     def __delitem__(self, key):
         value, _, _ = self._previous[key]

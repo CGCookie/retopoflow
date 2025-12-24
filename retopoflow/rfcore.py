@@ -28,7 +28,7 @@ from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh
-from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
+from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
 from .common import icons as icons_module
@@ -116,6 +116,7 @@ class RFCore:
         RFOperator.register_all()
         RFOperator_Execute.register_all()
         RFRegisterClass.register_all()
+        RFAssetShelf.register_all()
         mesh_cleanup_panel.register()
         tweaking_panel.register()
         masking_panel.register()
@@ -165,6 +166,7 @@ class RFCore:
         RFCore._unwrap_activate_tool = None
 
         # unregister RF operator and RF tools
+        RFAssetShelf.unregister_all()
         RFRegisterClass.unregister_all()
         RFOperator_Execute.unregister_all()
         RFOperator.unregister_all()
@@ -191,6 +193,20 @@ class RFCore:
         self.layout.separator()
         RFCore_NewTarget_Cursor.draw_menu_item(self, context)
         RFCore_NewTarget_Active.draw_menu_item(self, context)
+
+    @staticmethod
+    def iter_spaces():
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                screen = win.screen
+                for area in screen.areas:
+                    if area.type != 'VIEW_3D': continue
+                    for space in area.spaces:
+                        if space.type != 'VIEW_3D': continue
+                        for rgn in area.regions:
+                            if rgn.type != 'WINDOW': continue
+                            yield {'window':win, 'screen':screen, 'area':area, 'region':rgn, 'space':space}
+
 
     @staticmethod
     def switch_to_tool(bl_idname):
@@ -682,6 +698,7 @@ class RFCore:
         RFOperator.active_operator().reset()
 
 RFOperator.RFCore = RFCore
+RFAssetShelf.RFCore = RFCore
 RFCore_NewTarget_Active.RFCore = RFCore
 RFCore_NewTarget_Cursor.RFCore = RFCore
 RFBrush_Base.RFCore = RFCore

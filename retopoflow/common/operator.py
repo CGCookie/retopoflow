@@ -126,6 +126,56 @@ class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
     def unregister(cls): pass
 
 
+class RFAssetShelf(bpy.types.AssetShelf):
+    bl_space_type = 'VIEW_3D'
+    asset_library_reference = 'CUSTOM'
+    RFCore = None
+
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFAssetShelf._subclasses.append(cls)
+        cls.rf_idname = cls.bl_idname
+        super().__init_subclass__(**kwargs)
+    @staticmethod
+    def get_all_RFOperators():
+        return RFAssetShelf._subclasses
+        # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+    @staticmethod
+    def register_all():
+        for op in RFAssetShelf.get_all_RFOperators():
+            bpy.utils.register_class(op)
+            op.register()
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFAssetShelf.get_all_RFOperators()):
+            op.unregister()
+            bpy.utils.unregister_class(op)
+
+    @classmethod
+    def poll(cls, context):
+        # make sure RFCore is running
+        if not RFAssetShelf.RFCore.is_running: return False
+
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
+
+        # make sure RFOperator has only one running instance!
+        if getattr(cls, '_is_running', False): return False
+
+        if not cls.can_start(context):
+            # print(f'{cls}.poll: {cls.can_start(context)=}')
+            return False
+
+        return True
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
+    @classmethod
+    def can_start(cls, context): return True
+
+
 class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     active_operators = []
     RFCore = None

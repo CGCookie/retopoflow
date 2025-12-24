@@ -117,3 +117,9 @@ test-models
 tmp/
 test/
 issues/
+
+# blender backup files
+*.blend1
+*.blend2
+*.blend3
+*.blend4

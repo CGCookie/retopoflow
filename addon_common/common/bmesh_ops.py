@@ -19,10 +19,29 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from typing import Union
 
 import bpy
 import bmesh
-from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh, BMLayerAccessVert, BMLayerAccessEdge, BMLayerAccessFace
+
+
+BMElem = Union[BMVert | BMEdge | BMFace]
+BMLayer = Union[BMLayerAccessVert | BMLayerAccessEdge | BMLayerAccessFace]
+
+
+def get_layer(bm : BMesh, bmelem_type : BMElem, layer_type : str, name : str) -> BMLayer:
+    # https://docs.blender.org/api/current/bmesh.types.html#bmesh.types.bmesh.types.BMLayerAccessVert
+    # BMVert has extra layer types: deform, shape, skin
+    assert layer_type in { 'bool', 'color', 'float', 'float_color', 'float_vector', 'int', 'string' }, f'get_layer: Unhandled layer_type {layer_type}'
+    assert bmelem_type in { BMVert, BMEdge, BMFace }, f'get_layer: Unhandled bmelem_type {bmelem_type}'
+    layer = {
+        BMVert: getattr(bm.verts.layers, layer_type),
+        BMEdge: getattr(bm.edges.layers, layer_type),
+        BMFace: getattr(bm.faces.layers, layer_type),
+    }[bmelem_type]
+    if name not in layer: layer.new(name)
+    return layer.get(name)
 
 
 def get_select_layers(bm):
@@ -39,18 +58,18 @@ def get_select_layers(bm):
 
 
 
-def get_all_selected(bm):
+def get_all_selected(bm : BMesh) -> dict[BMElem, set[BMElem]]:
     return {
         BMVert: get_all_selected_bmverts(bm),
         BMEdge: get_all_selected_bmedges(bm),
         BMFace: get_all_selected_bmfaces(bm),
     }
 
-def get_all_selected_bmverts(bm):
+def get_all_selected_bmverts(bm : BMesh) -> set[BMVert]:
     return { bmv for bmv in bm.verts if bmv.select and not bmv.hide }
-def get_all_selected_bmedges(bm):
+def get_all_selected_bmedges(bm : BMesh) -> set[BMEdge]:
     return { bme for bme in bm.edges if bme.select and not bme.hide }
-def get_all_selected_bmfaces(bm):
+def get_all_selected_bmfaces(bm : BMesh) -> set[BMFace]:
     return { bmf for bmf in bm.faces if bmf.select and not bmf.hide }
 
 def deselect_all(bm):

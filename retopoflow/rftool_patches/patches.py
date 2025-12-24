@@ -20,8 +20,15 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import os
+
+from mathutils import Vector
+
 from ..rftool_base import RFTool_Base
 
+from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.resetter import Resetter
+from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -29,8 +36,14 @@ from ..common.operator import (
     chain_rf_keymaps,
     RFOperator,
     RFOperator_Execute,
+    RFAssetShelf,
 )
+from ..preferences import RF_Prefs
 
+from .patches_logic import Patches_Logic
+
+
+ASSETS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
 
 class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
     bl_idname = 'retopoflow.patches'
@@ -85,9 +98,11 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         # RFTool_PolyStrips.rf_brush.set_operator(self)
         # RFTool_PolyStrips.rf_brush.reset_nearest(context)
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
+        self.logic = Patches_Logic(context, event)
         self.tickle(context)
 
     def finish(self, context):
+        del self.logic
         self.set_statusbar_override(None)
         self.km_context = 'init'
         # RFTool_PolyStrips.rf_brush.set_operator(None)
@@ -159,6 +174,87 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
 
+class RFOperator_Patches_Drag_template(RFOperator):
+    bl_idname = 'retopoflow.patches_drag_template'
+    bl_label = 'Patches: Drag in template'
+    bl_description = 'Add template'
+    bl_options = set()
+
+    asset_library_type: bpy.props.EnumProperty(
+        name="Asset Library Type",
+        description="Asset Library Type",
+        items=[
+            ("ALL", "All", "All", "", 2),
+            ("LOCAL", "Local", "Local", "", 1),
+            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
+            ("CUSTOM", "Custom", "Custom", "", 100),
+        ],
+        # options={'HIDDEN'}
+    )
+    asset_library_identifier: bpy.props.StringProperty() # = 'CUSTOM'
+    relative_asset_identifier: bpy.props.StringProperty()
+
+    def invoke(self, context, event):
+        print(f"Dragging asset: {self.relative_asset_identifier}")
+        print(f"From library: {self.asset_library_identifier} ({self.asset_library_type})")
+        fn = os.path.split(self.relative_asset_identifier)[1]
+        path = os.path.join(ASSETS_PATH, f'{fn}.template')
+        print(f'PATH: {path}')
+
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        bmops.deselect_all(bm)
+        with open(path, 'rt') as f:
+            vc,ec,fc = map(int, f.readline().split(' '))
+            vs = [
+                bm.verts.new(Vector(tuple(map(float, f.readline().split(' ')))))
+                for _ in range(vc)
+            ]
+            es = [
+                bm.edges.new(tuple(vs[int(v)] for v in f.readline().split(' ')))
+                for _ in range(ec)
+            ]
+            fs = [
+                bm.faces.new(tuple(vs[int(v)] for v in f.readline().split(' ')))
+                for _ in range(fc)
+            ]
+        for v in vs: bmops.select(bm, v)
+        bmops.flush_selection(bm, em)
+
+        context.space_data.show_region_asset_shelf = False
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            print(f'DONE!')
+            context.space_data.show_region_asset_shelf = True
+            return {'FINISHED'}
+        return {'RUNNING_MODAL'}
+
+class RFAssetShelf_Patches(RFAssetShelf):
+    bl_idname = 'retopoflow.patches'
+    bl_category = 'Patches Templates'
+    bl_drag_operator = "retopoflow.patches_drag_template"
+
+    # bl_label = 'Patches'
+    # bl_description = 'Fill in holes'
+    # bl_options = set()
+
+    # Filter to only show object assets
+    filter_object = True
+    show_names = True               # TODO: does not work???
+    bl_default_preview_size = 128
+
+    @classmethod
+    def asset_poll(cls, asset):
+        return asset.metadata.description.startswith('Retopoflow Patches Template')
+
+    @classmethod
+    def can_start(cls, context):
+        return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
+
+
+
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     import bl_ui
@@ -176,3 +272,36 @@ class RFTool_Patches(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Patches,
     )
+
+    @classmethod
+    def activate(cls, context):
+        cls.resetter = Resetter('Patches')
+        space_data = context.space_data
+        asset_libs = context.preferences.filepaths.asset_libraries
+        def delayed_settings(attempts=3):
+            nonlocal cls, space_data, asset_libs
+            if 'Retopoflow Assets' not in asset_libs:
+                bpy.types.AssetLibraryCollection.new(
+                    name="Retopoflow Assets",
+                    directory=ASSETS_PATH,
+                )
+                # asset_libs['Retopoflow Assets'].import_method = 'LINK'
+            if not hasattr(space_data, 'show_region_asset_shelf'):
+                # this can happen if context is not quite right, so find space that we can
+                # ex: after saving
+                return
+                space_data = None
+                for d in RFOperator.RFCore.iter_spaces():
+                    space_data = d['space']
+                if not space_data: return
+            try:
+                cls.resetter['space_data.show_region_asset_shelf'] = True
+            except:
+                if attempts > 0:
+                    bpy.app.timers.register(lambda:delayed_settings(attempts-1), first_interval=0.25)
+        bpy.app.timers.register(delayed_settings, first_interval=0.25)
+        #return super().activate(context)
+
+    @classmethod
+    def deactivate(cls, context):
+        cls.resetter.reset()
