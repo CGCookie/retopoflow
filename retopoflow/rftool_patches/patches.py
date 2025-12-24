@@ -219,8 +219,6 @@ class RFOperator_Patches_Drag_template(RFOperator):
         path = os.path.join(ASSETS_PATH, f'{fn}.template')
         print(f'PATH: {path}')
 
-        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        bmops.deselect_all(bm)
         with open(path, 'rt') as f:
             vc,ec,fc = map(int, f.readline().split(' '))
             self.vs = [
@@ -235,8 +233,6 @@ class RFOperator_Patches_Drag_template(RFOperator):
                 tuple(int(v) for v in f.readline().split(' '))
                 for _ in range(fc)
             ]
-        # for v in vs: bmops.select(bm, v)
-        # bmops.flush_selection(bm, em)
 
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         self.scale = 0.1
@@ -249,19 +245,6 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
-
-        theme = context.preferences.themes[0].view_3d
-        props = RF_Prefs.get_prefs(context)
-        highlight = props.highlight_color
-
-        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
-        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
-        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
-        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
-        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
-        color_mesh = theme.face_select
-        vertex_size = theme.vertex_size
-
 
         M = context.edit_object.matrix_world
         fo, fz = hit['co_local'], hit['no_local']
@@ -286,6 +269,18 @@ class RFOperator_Patches_Drag_template(RFOperator):
             location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None
             for pt in pts
         ]
+
+        theme = context.preferences.themes[0].view_3d
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
+
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
+        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
+        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
+        color_mesh = theme.face_select
+        vertex_size = theme.vertex_size
 
         with Drawing.draw(context, CC_2D_POINTS) as draw:
             draw.point_size(vertex_size + 4)
@@ -326,6 +321,46 @@ class RFOperator_Patches_Drag_template(RFOperator):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             print(f'DONE!')
+
+            hit = raycast_valid_sources(context, self.mouse)
+            if hit is not None:
+                bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+                M = context.edit_object.matrix_world
+                fo, fz = hit['co_local'], hit['no_local']
+                fy = fz.cross(view_right_direction(context)).normalized()
+                fx = fy.cross(fz).normalized()
+                f = Frame(fo, fx, fy, fz)
+                f.rotate_about_z(self.rotate)
+
+                vs = [
+                    f.l2w_point(v * self.scale)
+                    for v in self.vs
+                ]
+                pts = [
+                    location_3d_to_region_2d(context.region, context.region_data, M @ v)
+                    for v in vs
+                ]
+                pts = [
+                    raycast_point_valid_sources(context, pt) if pt else None
+                    for pt in pts
+                ]
+                bmvs = [
+                    bm.verts.new(pt) if pt else None for pt in pts
+                ]
+                bmes = [
+                    bm.edges.new((bmvs[i0],bmvs[i1])) for (i0,i1) in self.es
+                    if all([bmvs[i0] is not None, bmvs[i1] is not None])
+                ]
+                bmfs = [
+                    bm.faces.new((bmvs[i] for i in f))
+                    for f in self.fs
+                    if all(bmvs[i] is not None for i in f)
+                ]
+                bmops.deselect_all(bm)
+                for v in bmvs:
+                    if v is not None: bmops.select(bm, v)
+                bmops.flush_selection(bm, em)
+
             context.space_data.show_region_asset_shelf = True
             return {'FINISHED'}
         if event.type == 'WHEELUPMOUSE':
