@@ -43,6 +43,14 @@ def vec_forward(context):
     # TODO: remove invert!
     r3d = context.space_data.region_3d
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
+def vec_right(context):
+    # TODO: remove invert!
+    r3d = context.space_data.region_3d
+    return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((1,0,0))
+def vec_up(context):
+    # TODO: remove invert!
+    r3d = context.space_data.region_3d
+    return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,1,0))
 
 def distance_between_locations(a, b):
     a, b = point_to_bvec3(a), point_to_bvec3(b)
@@ -203,7 +211,7 @@ def iter_all_valid_sources(context):
             obj.mode == 'OBJECT' and
             has_faces(context, obj) and
             obj.visible_get() and
-            (not ts.use_snap_selectable or not obj.hide_select) and 
+            (not ts.use_snap_selectable or not obj.hide_select) and
             (not props.snap_only_selected or obj.select_get())
         )
     )

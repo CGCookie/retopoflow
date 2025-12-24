@@ -23,10 +23,14 @@ import bpy
 import os
 
 from mathutils import Vector
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from ..rftool_base import RFTool_Base
 
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.maths import Frame
+from ...addon_common.common.colors import Color4
 from ...addon_common.common.resetter import Resetter
 from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
@@ -38,9 +42,23 @@ from ..common.operator import (
     RFOperator_Execute,
     RFAssetShelf,
 )
+from ..common.maths import view_right_direction
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources
 from ..preferences import RF_Prefs
 
 from .patches_logic import Patches_Logic
+
+from ..common.drawing import (
+    Drawing,
+    CC_2D_POINTS,
+    CC_2D_LINES,
+    CC_2D_LINE_STRIP,
+    CC_2D_LINE_LOOP,
+    CC_2D_TRIANGLES,
+    CC_2D_TRIANGLE_FAN,
+    CC_3D_TRIANGLES,
+)
+
 
 
 ASSETS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
@@ -194,7 +212,7 @@ class RFOperator_Patches_Drag_template(RFOperator):
     asset_library_identifier: bpy.props.StringProperty() # = 'CUSTOM'
     relative_asset_identifier: bpy.props.StringProperty()
 
-    def invoke(self, context, event):
+    def init(self, context, event):
         print(f"Dragging asset: {self.relative_asset_identifier}")
         print(f"From library: {self.asset_library_identifier} ({self.asset_library_type})")
         fn = os.path.split(self.relative_asset_identifier)[1]
@@ -205,30 +223,120 @@ class RFOperator_Patches_Drag_template(RFOperator):
         bmops.deselect_all(bm)
         with open(path, 'rt') as f:
             vc,ec,fc = map(int, f.readline().split(' '))
-            vs = [
-                bm.verts.new(Vector(tuple(map(float, f.readline().split(' ')))))
+            self.vs = [
+                Vector(tuple(map(float, f.readline().split(' '))))  # x,y,z,outside (crease)
                 for _ in range(vc)
             ]
-            es = [
-                bm.edges.new(tuple(vs[int(v)] for v in f.readline().split(' ')))
+            self.es = [
+                tuple(int(v) for v in f.readline().split(' '))
                 for _ in range(ec)
             ]
-            fs = [
-                bm.faces.new(tuple(vs[int(v)] for v in f.readline().split(' ')))
+            self.fs = [
+                tuple(int(v) for v in f.readline().split(' '))
                 for _ in range(fc)
             ]
-        for v in vs: bmops.select(bm, v)
-        bmops.flush_selection(bm, em)
+        # for v in vs: bmops.select(bm, v)
+        # bmops.flush_selection(bm, em)
+
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.scale = 0.1
+        self.rotate = 0.0
 
         context.space_data.show_region_asset_shelf = False
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
 
-    def modal(self, context, event):
+    def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
+
+        hit = raycast_valid_sources(context, self.mouse)
+        if not hit: return
+
+        theme = context.preferences.themes[0].view_3d
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
+
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
+        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
+        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
+        color_mesh = theme.face_select
+        vertex_size = theme.vertex_size
+
+
+        M = context.edit_object.matrix_world
+        fo, fz = hit['co_local'], hit['no_local']
+        fy = fz.cross(view_right_direction(context)).normalized()
+        fx = fy.cross(fz).normalized()
+        f = Frame(fo, fx, fy, fz)
+        f.rotate_about_z(self.rotate)
+
+        vs = [
+            f.l2w_point(v * self.scale)
+            for v in self.vs
+        ]
+        pts = [
+            location_3d_to_region_2d(context.region, context.region_data, M @ v)
+            for v in vs
+        ]
+        pts = [
+            raycast_point_valid_sources(context, pt) if pt else None
+            for pt in pts
+        ]
+        pts = [
+            location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None
+            for pt in pts
+        ]
+
+        with Drawing.draw(context, CC_2D_POINTS) as draw:
+            draw.point_size(vertex_size + 4)
+            draw.color(color_point)
+            for pt in pts:
+                if not pt: continue
+                draw.vertex(pt)
+
+        with Drawing.draw(context, CC_2D_LINES) as draw:
+            draw.line_width(2)
+            draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+            draw.color(color_border_mesh)
+            for (e0,e1) in self.es:
+                pt0, pt1 = pts[e0], pts[e1]
+                if not pt0 or not pt1: continue
+                draw.vertex(pt0).vertex(pt1)
+            draw.line_width(1)
+            draw.stipple(pattern=[5,0], offset=0, color=color_stipple)
+            for f in self.fs:
+                if not all(pts[i] for i in f): continue
+                for (e0, e1) in iter_pairs(f, True):
+                    pt0, pt1 = pts[e0], pts[e1]
+                    if not pt0 or not pt1: continue
+                    draw.vertex(pt0).vertex(pt1)
+
+        with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+            draw.color(color_mesh)
+            for f in self.fs:
+                if not all(pts[i] for i in f): continue
+                v0 = f[0]
+                pt0 = pts[v0]
+                for (v1, v2) in iter_pairs(f[1:], False):
+                    pt1, pt2 = pts[v1], pts[v2]
+                    draw.vertex(pt0).vertex(pt1).vertex(pt2)
+
+
+    def update(self, context, event):
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
             print(f'DONE!')
             context.space_data.show_region_asset_shelf = True
             return {'FINISHED'}
+        if event.type == 'WHEELUPMOUSE':
+            self.scale *= 1.1
+        if event.type == 'WHEELDOWNMOUSE':
+            self.scale /= 1.1
+        if event.type == 'ONE':
+            self.rotate += 0.1
+        if event.type == 'TWO':
+            self.rotate -= 0.1
+        context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
 class RFAssetShelf_Patches(RFAssetShelf):
