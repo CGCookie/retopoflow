@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import os
+from itertools import chain
 
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -43,7 +44,7 @@ from ..common.operator import (
     RFAssetShelf,
 )
 from ..common.maths import view_right_direction
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources
+from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources
 from ..preferences import RF_Prefs
 
 from .patches_logic import Patches_Logic
@@ -220,19 +221,41 @@ class RFOperator_Patches_Drag_template(RFOperator):
         print(f'PATH: {path}')
 
         with open(path, 'rt') as f:
-            vc,ec,fc = map(int, f.readline().split(' '))
+            self.vc, self.ec, self.fc = map(int, f.readline().split(' '))
             self.vs = [
                 Vector(tuple(map(float, f.readline().split(' '))))  # x,y,z,outside (crease)
-                for _ in range(vc)
+                for _ in range(self.vc)
             ]
             self.es = [
                 tuple(int(v) for v in f.readline().split(' '))
-                for _ in range(ec)
+                for _ in range(self.ec)
             ]
             self.fs = [
                 tuple(int(v) for v in f.readline().split(' '))
-                for _ in range(fc)
+                for _ in range(self.fc)
             ]
+        self.ves = { v:{} for v in range(self.vc) }
+        for (e0, e1) in self.es:
+            v0, v1 = self.vs[e0], self.vs[e1]
+            d = (v1 - v0).length
+            self.ves[e0][e1] = d
+            self.ves[e1][e0] = d
+        for f in self.fs:
+            for (e0, e1) in iter_pairs(f, True):
+                v0, v1 = self.vs[e0], self.vs[e1]
+                d = (v1 - v0).length
+                self.ves[e0][e1] = d
+                self.ves[e1][e0] = d
+            for (e0, e1) in zip(f, chain(f[2:], f[:2])):
+                v0, v1 = self.vs[e0], self.vs[e1]
+                d = (v1 - v0).length
+                self.ves[e0][e1] = d
+                self.ves[e1][e0] = d
+        for v in self.ves:
+            if not self.ves[v]: continue
+            avg = sum(self.ves[v].values()) / len(self.ves[v])
+            self.ves[v] = { ov: d / avg for (ov, d) in self.ves[v].items() }
+
 
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
         self.scale = 0.1
@@ -240,11 +263,9 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
         context.space_data.show_region_asset_shelf = False
 
-    def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
-
+    def compute_points(self, context, project):
         hit = raycast_valid_sources(context, self.mouse)
-        if not hit: return
+        if not hit: return [ None for v in self.vs ]
 
         M = context.edit_object.matrix_world
         fo, fz = hit['co_local'], hit['no_local']
@@ -253,22 +274,42 @@ class RFOperator_Patches_Drag_template(RFOperator):
         f = Frame(fo, fx, fy, fz)
         f.rotate_about_z(self.rotate)
 
-        vs = [
-            f.l2w_point(v * self.scale)
-            for v in self.vs
-        ]
-        pts = [
-            location_3d_to_region_2d(context.region, context.region_data, M @ v)
-            for v in vs
-        ]
-        pts = [
-            raycast_point_valid_sources(context, pt) if pt else None
-            for pt in pts
-        ]
-        pts = [
-            location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None
-            for pt in pts
-        ]
+        # transform points
+        vs = [ M @ f.l2w_point(v * self.scale) for v in self.vs ]
+        # raycast to surface
+        pts = [ location_3d_to_region_2d(context.region, context.region_data, v) for v in vs ]
+        pts = [ raycast_point_valid_sources(context, pt) if pt else None for pt in pts ]
+        pts = [ pt if pt else nearest_point_valid_sources(context, v) for (v, pt) in zip(vs, pts) ]
+
+        # relax
+        k = 0.002
+        for iloop in range(100):
+            vfs = [ Vector((0,0,0)) for v in self.ves ]
+            for v in self.ves:
+                if not self.ves[v]: continue
+                pt0 = pts[v]
+                avg = sum((pt0 - pts[ov]).length for ov in self.ves[v]) / len(self.ves[v])
+                if abs(avg) < 0.00001: continue
+                for (ov, rest) in self.ves[v].items():
+                    pt1 = pts[ov]
+                    d = pt0 - pt1
+                    dist = d.length / avg
+                    f = d * ((rest - dist) * k)
+                    vfs[v] = vfs[v] + f
+                    vfs[ov] = vfs[ov] - f
+            for v in self.ves:
+                pts[v] = nearest_point_valid_sources(context, pts[v] + vfs[v])
+
+        # project to view
+        if project:
+            pts = [ location_3d_to_region_2d(context.region, context.region_data, pt) if pt else None for pt in pts ]
+
+        return pts
+
+    def draw_postpixel(self, context):
+        if not self.RFCore.is_current_area(context): return
+
+        pts = self.compute_points(context, True)
 
         theme = context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
@@ -324,31 +365,12 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
             hit = raycast_valid_sources(context, self.mouse)
             if hit is not None:
+                pts = self.compute_points(context, False)
                 bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-                M = context.edit_object.matrix_world
-                fo, fz = hit['co_local'], hit['no_local']
-                fy = fz.cross(view_right_direction(context)).normalized()
-                fx = fy.cross(fz).normalized()
-                f = Frame(fo, fx, fy, fz)
-                f.rotate_about_z(self.rotate)
-
-                vs = [
-                    f.l2w_point(v * self.scale)
-                    for v in self.vs
-                ]
-                pts = [
-                    location_3d_to_region_2d(context.region, context.region_data, M @ v)
-                    for v in vs
-                ]
-                pts = [
-                    raycast_point_valid_sources(context, pt) if pt else None
-                    for pt in pts
-                ]
-                bmvs = [
-                    bm.verts.new(pt) if pt else None for pt in pts
-                ]
+                bmvs = [ bm.verts.new(pt) if pt else None for pt in pts ]
                 bmes = [
-                    bm.edges.new((bmvs[i0],bmvs[i1])) for (i0,i1) in self.es
+                    bm.edges.new((bmvs[i0],bmvs[i1]))
+                    for (i0,i1) in self.es
                     if all([bmvs[i0] is not None, bmvs[i1] is not None])
                 ]
                 bmfs = [
