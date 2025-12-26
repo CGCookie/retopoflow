@@ -156,6 +156,9 @@ class RFCore:
             print(f'Caught ReferenceError while trying to unregister')
             debugger.print_exception()
 
+        # Clean up bmesh cache.
+        get_object_bmesh.cache.clear()
+
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 
@@ -431,10 +434,6 @@ class RFCore:
                 print(f'Caught unexpected Exception while trying to stop active RetopoFlow operators')
                 print(f'  {e}')
                 debugger.print_exception()
-
-        # clean up cache, otherwise old bmesh objects may become invalid even if
-        # blender does not recognize them as invalid (bm.is_valid still True)
-        get_object_bmesh.cache.clear()
 
         bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre)
         bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
