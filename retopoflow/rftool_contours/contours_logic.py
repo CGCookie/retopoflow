@@ -329,64 +329,28 @@ class Contours_Logic:
         RT = Matrix.Rotation(math.radians(self.twist), 4, plane_fit.n)
         T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
         xform = T1 @ RT @ R @ S @ T0
-        # transform points
-        for bmv in nbmvs:
-            bmv.co = point_to_bvec3(xform @ bvec_to_point(bmv.co))
-
-        # find closest points between new target and cut source
-        best = None
-        for bmv in nbmvs:
-            npt_local = bvec_to_point(bmv.co)
-            npt_world = point_to_bvec3(self.matrix_world @ bvec_to_point(npt_local))
-            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
-            if npt_world_snapped is not None:
-                npt_local_snapped = self.matrix_world_inv @ npt_world_snapped
-            else:
-                npt_local_snapped = npt_local
-            closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
-            closest_pt = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
-            dist = (npt_local - closest_pt).length
-            if best and best['dist'] <= dist: continue
-            best = {
-                'bmv': bmv,
-                'closest_pt': closest_pt,
-                'dist': dist,
-            }
 
         # raycast to nearest surface with fallback to snapping
-        o_world = self.matrix_world @ bvec_to_point(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
         for bmv in nbmvs:
+            # First, transform point.
+            bmv.co = xform @ bmv.co
+
             npt_local = bvec_to_point(bmv.co)
             npt_world = point_to_bvec3(self.matrix_world @ npt_local)
-            vec_in = o_world - npt_world
-            ray_in_world  = ray_from_point_through_point(context, npt_world, npt_world + vec_in)
-            ray_out_world = ray_from_point_through_point(context, npt_world, npt_world - vec_in)
-            npt_world_in  = raycast_ray_valid_sources(context, ray_in_world,  world=True)
-            npt_world_out = raycast_ray_valid_sources(context, ray_out_world, world=True)
-            if npt_world_in:
-                if npt_world_out:
-                    # choose the closer
-                    d_in = (npt_world_in - npt_world).length
-                    d_out = (npt_world_out - npt_world).length
-                    npt_world_new = npt_world_in if d_in < d_out else npt_world_out
-                else:
-                    npt_world_new = npt_world_in
-            else:
-                if npt_world_out:
-                    npt_world_new = npt_world_out
-                else:
-                    # fallback to snapping
-                    npt_world_new = nearest_point_valid_sources(context, npt_world, world=True)
-            if npt_world_new is not None:
-                npt_local_snapped = self.matrix_world_inv @ npt_world_new
-            else:
-                npt_local_snapped = npt_local
-            if False:
-                bmv.co = npt_local_snapped
-            else:
-                closest_pts = [closest_point_segment(npt_local_snapped, pt0, pt1) for (pt0,pt1) in iter_pairs(points, self.cyclic)]
-                bmv.co = min(closest_pts, key=lambda pt:(pt-npt_local_snapped).length)
 
+            # Get closest point on source-mesh surface.
+            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
+
+            if npt_world_snapped:
+                npt_world_new = npt_world_snapped
+            else:
+                # Fallback.
+                npt_world_new = npt_world
+
+            if npt_world_new is not None:
+                bmv.co = self.matrix_world_inv @ npt_world_new
+            else:
+                bmv.co = npt_local
 
         if not self.cyclic:
             # snap ends
@@ -853,4 +817,3 @@ class Contours_Logic:
             mirror_clipped_loop = True
 
         return (points, mirror_clipped_loop)
-
