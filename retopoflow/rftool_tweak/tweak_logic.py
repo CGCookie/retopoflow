@@ -126,6 +126,8 @@ class Tweak_Logic:
         return p.xy if p else None
 
     def update(self, context, event):
+        pressure = getattr(event, 'pressure', 1.0)
+
         if not self.verts: return
         if event.type != 'MOUSEMOVE': return
 
@@ -135,10 +137,10 @@ class Tweak_Logic:
         for (bmv, co_orig, xy, strength) in self.verts:
             if self.tweak.mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
                 new_co = Vector(co_orig)
-                delta_strength = delta.length * strength
+                delta_strength = delta.length * strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
                 for step in range(opt_steps):
-                    new_co2 = raycast_valid_sources(context, self.project_pt(context, new_co) + delta * (strength / opt_steps))
+                    new_co2 = raycast_valid_sources(context, self.project_pt(context, new_co) + delta * (strength / opt_steps) * pressure)
                     if not new_co2: break
                     new_co = new_co2['co_local']
                     p, d = None, None
@@ -149,7 +151,7 @@ class Tweak_Logic:
                     if p is not None:
                         new_co = p
             else:
-                new_co = raycast_valid_sources(context, xy + delta * strength)
+                new_co = raycast_valid_sources(context, xy + delta * strength * pressure)
                 if not new_co: continue
                 new_co = new_co['co_local']
 

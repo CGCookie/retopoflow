@@ -255,9 +255,9 @@ class Relax_Logic:
 
 
     def update(self, context, event):
-        if event.type == 'PEN': self.pressure = event.pressure
-
-        if event.type != 'TIMER': return
+        if event.type != 'TIMER':
+            self.pressure = getattr(event, 'pressure', 1.0)
+            return
 
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
@@ -313,7 +313,8 @@ class Relax_Logic:
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
         self._time = cur_time
-        strength = 1.0
+
+        strength = self.pressure
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
