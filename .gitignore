@@ -1,6 +1,9 @@
 # do not include the CG Cookie built indicator file
 .cgcookie
 
+# IDE specific
+.vscode/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
