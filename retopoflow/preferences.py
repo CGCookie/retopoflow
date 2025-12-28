@@ -19,6 +19,8 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import platform
+
 import bpy
 from .common.interface import update_toolbar
 
@@ -55,6 +57,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description=(
             'Shows all tools in the toolbar, which takes up more space but makes them more accessible'
         ),
+        default=True,
+        update=update_toolbar
+    )
+    expand_offset: bpy.props.BoolProperty(
+        name='Expand Overlay Offset',
+        description=('Displays the retopology overlay offset in the tool header'),
         default=True,
         update=update_toolbar
     )
@@ -254,6 +262,16 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.use_property_split = True
             panel.use_property_decorate = False
             panel.prop(self, 'warn_no_sources')
+
+        if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
+            box = layout.box().column(align=True)
+            box.label(text="Notice for Windows users:", icon='ERROR')
+            box.label(text="If you encounter lagg issues while using a tablet, consider switching")
+            box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
+            row = box.row()
+            row.alignment = 'RIGHT'
+            row.operator('wm.url_open', text='Blender Report').url = 'https://projects.blender.org/blender/blender/issues/144139'
+            row.operator('wm.url_open', text='Retopoflow Report').url = 'https://github.com/CGCookie/retopoflow/issues/1574'
 
 
 def register():

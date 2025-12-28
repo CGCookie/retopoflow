@@ -18,10 +18,62 @@ Created by Jonathan Denning, Jonathan Lampel
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
+import importlib
 
 import bpy
 
 from ..common.operator import RFOperator
+
+
+_op_prop_names_cache: dict[str, list[str]] = {}
+
+
+
+def _get_operator_properties_from_current_tool(tool_name: str, op_idname: str) -> dict:
+    try:
+        # Get current tool.
+        current_tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+        if not current_tool:
+            return {}
+
+        # Only get properties if current tool is Relax or Tweak
+        if current_tool.idname != op_idname:
+            return {}
+
+        # Get properties from the current tool's operator
+        current_props = current_tool.operator_properties(current_tool.idname)
+
+        if property_names := _op_prop_names_cache.get(tool_name):
+            pass
+        else:
+            # Import the target operator class to get its property annotations
+            module = importlib.import_module(f'..rftool_{tool_name}.{tool_name}', package=__package__)
+            target_op_class = getattr(module, f'RFOperator_{tool_name.title()}')
+
+            # Get all property names from the target operator class
+            if hasattr(target_op_class, '__annotations__'):
+                property_names = [name for name in target_op_class.__annotations__.keys() if name not in {'rna_type'} and not name.startswith('_')]
+            else:
+                property_names = []
+
+            _op_prop_names_cache[tool_name] = property_names
+
+        # Build kwargs dict with current property values
+        kwargs = {}
+        for prop_name in property_names:
+            if hasattr(current_props, prop_name):
+                kwargs[prop_name] = getattr(current_props, prop_name)
+
+        return kwargs
+    except:
+        pass
+    return {}
+
+def quick_switch_tool(tool_name: str):
+    """Get all properties from the currently active tool that can be applied to the target operator."""
+    op_idname = f'retopoflow.{tool_name}'
+    bpy.ops.wm.tool_set_by_id(name=op_idname)
+    getattr(bpy.ops.retopoflow, tool_name)('INVOKE_DEFAULT', **_get_operator_properties_from_current_tool(tool_name, op_idname))
 
 
 class RFOperator_Relax_QuickSwitch(RFOperator):
@@ -43,8 +95,7 @@ class RFOperator_Relax_QuickSwitch(RFOperator):
     def update(self, context, event):
         if not self.running:
             self.running = True
-            bpy.ops.wm.tool_set_by_id(name='retopoflow.relax')
-            bpy.ops.retopoflow.relax('INVOKE_DEFAULT')
+            quick_switch_tool('relax')
             return {'PASS_THROUGH'}
 
         op = context.window.modal_operators[0]
@@ -76,8 +127,7 @@ class RFOperator_Tweak_QuickSwitch(RFOperator):
     def update(self, context, event):
         if not self.running:
             self.running = True
-            bpy.ops.wm.tool_set_by_id(name='retopoflow.tweak')
-            bpy.ops.retopoflow.tweak('INVOKE_DEFAULT')
+            quick_switch_tool('tweak')
             return {'PASS_THROUGH'}
 
         op = context.window.modal_operators[0]

@@ -80,6 +80,7 @@ class Tweak_Logic:
     def collect_verts(self, context, event):
         self.verts = []
         self.mouse = Vector(mouse_from_event(event))
+        self.mouse_prev = self.mouse.copy()
 
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
@@ -126,19 +127,23 @@ class Tweak_Logic:
         return p.xy if p else None
 
     def update(self, context, event):
+        pressure = getattr(event, 'pressure', 1.0)
+
         if not self.verts: return
         if event.type != 'MOUSEMOVE': return
 
         mouse = Vector(mouse_from_event(event))
-        delta = mouse - self.mouse
+        delta = mouse - self.mouse_prev
+        if delta.length_squared == 0: return
 
         for (bmv, co_orig, xy, strength) in self.verts:
             if self.tweak.mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
-                new_co = Vector(co_orig)
-                delta_strength = delta.length * strength
+                new_co = Vector(bmv.co)
+                delta_strength = delta.length * strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
                 for step in range(opt_steps):
-                    new_co2 = raycast_valid_sources(context, self.project_pt(context, new_co) + delta * (strength / opt_steps))
+                    pt2d = self.project_pt(context, new_co) or xy
+                    new_co2 = raycast_valid_sources(context, pt2d + delta * (strength / opt_steps) * pressure)
                     if not new_co2: break
                     new_co = new_co2['co_local']
                     p, d = None, None
@@ -149,7 +154,8 @@ class Tweak_Logic:
                     if p is not None:
                         new_co = p
             else:
-                new_co = raycast_valid_sources(context, xy + delta * strength)
+                cur_xy = self.project_bmv(context, bmv) or xy
+                new_co = raycast_valid_sources(context, cur_xy + delta * strength * pressure)
                 if not new_co: continue
                 new_co = new_co['co_local']
 
@@ -180,3 +186,4 @@ class Tweak_Logic:
             if new_co: bmv.co = new_co
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
+        self.mouse_prev = mouse
