@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2024 CG Cookie
+Copyright (C) 2025 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -201,6 +201,33 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         # # TODO: allow only some operators to work but not all
         # #       however, need a way to not hardcode LEFTMOUSE!
         # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
+
+class RFOperator_Patches_Activate_Template(RFOperator):
+    bl_idname = 'retopoflow.patches_activate_template'
+    bl_label = 'Patches: Activate template'
+    bl_description = 'Add template'
+    bl_options = set()
+
+    rf_status = {
+        'ready': ('LMB: Insert', ),
+    }
+
+    asset_library_type: bpy.props.EnumProperty(
+        name="Asset Library Type",
+        description="Asset Library Type",
+        items=[
+            ("ALL", "All", "All", "", 2),
+            ("LOCAL", "Local", "Local", "", 1),
+            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
+            ("CUSTOM", "Custom", "Custom", "", 100),
+        ],
+        # options={'HIDDEN'}
+    )
+    asset_library_identifier: bpy.props.StringProperty() # = 'CUSTOM'
+    relative_asset_identifier: bpy.props.StringProperty()
+    def init(self, context, event):
+        print(f'Activate asset: {self.relative_asset_identifier}')
+        print(f'From Libary: {self.asset_library_identifier} ({self.asset_library_type})')
 
 
 class RFOperator_Patches_Drag_template(RFOperator):
@@ -629,6 +656,8 @@ class RFOperator_Patches_Drag_template(RFOperator):
 class RFAssetShelf_Patches(RFAssetShelf):
     bl_idname = 'retopoflow.patches'
     bl_category = 'Patches Templates'
+
+    bl_activate_operator = 'retopoflow.patches_activate_template'
     bl_drag_operator = "retopoflow.patches_drag_template"
 
     # bl_label = 'Patches'
