@@ -88,6 +88,14 @@ def vector_to_bvec3(v):
     return v.xyz
 def vector_to_bvec4(v):
     return Vector((*v.xyz, 0))
+def direction_to_bvec3(v):
+    return v.xyz
+def direction_to_bvec4(v):
+    return Vector((*v.xyz, 0))
+def normal_to_bvec3(v):
+    return v.xyz
+def normal_to_bvec4(v):
+    return Vector((*v.xyz, 0))
 
 def map_range(value, from_min, from_max, to_min, to_max):
     from_span = from_max - from_min

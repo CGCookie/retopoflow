@@ -368,3 +368,37 @@ def nearest_normal_valid_sources(context, point, *, world=True):
     M = context.edit_object.matrix_world
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
+
+def nearest_point_normal_valid_sources(context, point_world, *, world=True):
+    point_world = Vector((*point_world, 1.0))
+    best_hit = None
+    best_no_world = None
+    best_dist = float('inf')
+
+    for obj in iter_all_valid_sources(context):
+        M = obj.matrix_world
+        Mi = M.inverted()
+        Mit = Mi.transposed()
+        point_local = Mi @ point_world
+        result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
+        if not result: continue
+        co_world = M @ Vector((*co, 1.0))
+        no_world = xform_normal(Mit, normal)
+        dist = distance_between_locations(point_world, co_world)
+        # print(f'  HIT {obj.name} {co_world} {dist}')
+        if dist >= best_dist: continue
+        best_hit = co_world
+        best_no_world = no_world
+        best_dist = dist
+
+    if not best_hit: return (None, None)
+
+    hit = Vector((*point_to_bvec3(best_hit), 1.0))
+    if world:
+        return (point_to_bvec3(hit), best_no_world)
+
+    M = context.edit_object.matrix_world
+    Mt = M.transposed()
+    Mi = M.inverted()
+    hit = Mi @ hit
+    return (point_to_bvec3(hit), xform_direction(Mt, best_no_world))

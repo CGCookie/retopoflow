@@ -963,11 +963,21 @@ class Frame:
         z = self.l2w_direction(f.z)
         return Frame(o=o, x=x, y=y, z=z)
 
+    def rotate_about_x(self, radians: float):
+        c, s = cos(radians), sin(radians)
+        y, z = self.y, self.z
+        self.y = y * c - z * s
+        self.z = y * s + z * c
+    def rotate_about_y(self, radians: float):
+        c, s = cos(radians), sin(radians)
+        x, z = self.x, self.z
+        self.x = x * c + z * s
+        self.z = -x * s + z * c
     def rotate_about_z(self, radians: float):
         c, s = cos(radians), sin(radians)
         x, y = self.x, self.y
-        self.x = x * c + y * s
-        self.y = -x * s + y * c
+        self.x = x * c - y * s
+        self.y = x * s + y * c
 
 
 class XForm:
