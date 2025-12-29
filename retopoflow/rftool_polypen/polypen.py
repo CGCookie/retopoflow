@@ -84,7 +84,8 @@ class PolyPen_Insert_Modes:
         ops_insert = []
         def gen_insert_mode(idname, label, value):
             nonlocal ops_insert
-            rf_idname = f'retopoflow.polypen_setinsertmode_{idname.lower()}'
+            mode_idname = f'polypen_setinsertmode_{idname.lower()}'
+            rf_idname = f'retopoflow.{mode_idname}'
             rf_label = label
             class RFTool_OT_PolyPen_SetInsertMode:
                 bl_idname = rf_idname
