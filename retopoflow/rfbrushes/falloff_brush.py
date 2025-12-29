@@ -128,7 +128,9 @@ def create_falloff_brush(idname, label, **kwargs):
             return self.get_strength_dist((point - self.hit_p).length)
 
         def update(self, context, event, *, force=False):
-            if fn_disable:
+            if RFOperator_FalloffBrush_Adjust.is_active():
+                self.disabled = False
+            elif fn_disable:
                 d = fn_disable(event)
                 if self.disabled != d: context.area.tag_redraw()
                 self.disabled = d
@@ -411,7 +413,7 @@ def create_falloff_brush(idname, label, **kwargs):
             return falloff * vis_radius
 
         def can_init(self, context, event):
-            if self.adjust == 'NONE': return False
+            return self.adjust != 'NONE'
 
         def init(self, context, event):
             self.set_statusbar_override(self.rf_status['adjust'])
