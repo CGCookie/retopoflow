@@ -3,19 +3,8 @@ from bpy.types import Menu, Operator
 from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
+from ..rftool_patches.patches import Patches_Insert_Modes
 
-
-class RFTool_OT_SwitchToPatches(Operator):
-    bl_idname = 'retopoflow.switch_to_patches'
-    bl_label = 'Switch to Patches'
-    bl_description = 'Temporary operator to show that patches cannot be switched to'
-
-    @classmethod
-    def poll(cls, context):
-        return False
-
-    def execute(self, context):
-        return {'FINISHED'}
 
 
 class RFMenu_MT_ToolPie(Menu):
@@ -139,6 +128,31 @@ class RFMenu_MT_ToolPie(Menu):
             row.prop(props, 'include_corners')
             row.prop(props, 'include_occluded')
 
+        elif tool.idname == 'retopoflow.patches':
+            props = tool.operator_properties(tool.idname)
+            row = back.row()
+            row.emboss = pie_emboss
+            row.label(text='Patches Insert Mode')
+            section = back.box().column()
+            section.ui_units_x = 8
+            grid = section.grid_flow(even_columns=True, even_rows=True)
+            row = grid.row(align=True)
+            col = row.column(align=True)
+            col.operator('retopoflow.patches_setinsertmode_raycast', text='Raycast')
+            col.operator('retopoflow.patches_setinsertmode_screen', text='Screen')
+            col = row.column(align=True)
+            col.operator('retopoflow.patches_setinsertmode_cut', text='Cut')
+            # col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
+            # if Patches_Insert_Modes.insert_mode == 4:
+            #     row = section.row()
+            #     row.emboss = pie_emboss
+            #     row.label(text='Quad Stability')
+            #     row = section.row(align=True)
+            #     row.operator('retopoflow.polypen_quad_stability_quarter', text='0.25')
+            #     row.operator('retopoflow.polypen_quad_stability_half', text='0.50')
+            #     row.operator('retopoflow.polypen_quad_stability_threequarters', text='0.75')
+            #     row.operator('retopoflow.polypen_quad_stability_full', text='1.00')
+
 
 
     def draw(self, context):
@@ -211,7 +225,6 @@ RF_icons = None
 
 
 def register():
-    bpy.utils.register_class(RFTool_OT_SwitchToPatches)
     bpy.utils.register_class(RFMenu_MT_ToolPie)
 
     wm = bpy.context.window_manager
@@ -234,7 +247,6 @@ def register():
     RF_icons.load('RELAX', os.path.join(icons_dir, 'relax-icon.png'), 'IMAGE')
 
 def unregister():
-    bpy.utils.unregister_class(RFTool_OT_SwitchToPatches)
     bpy.utils.unregister_class(RFMenu_MT_ToolPie)
 
     for keymap, keymap_item in keymaps:

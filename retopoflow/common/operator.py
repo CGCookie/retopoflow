@@ -409,7 +409,24 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     def depsgraph_update(cls): pass
 
 
-def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False):
+class RF_AssetShelfOperator:
+    asset_library_type: bpy.props.EnumProperty(
+        name="Asset Library Type",
+        description="Asset Library Type",
+        items=[
+            # NOTE: BLENDER DOCS DO NOT DESCRIBE THE VALUES! :(
+            # https://github.com/blender/blender/blob/main/source/blender/makesdna/DNA_asset_types.h#L27
+            ("LOCAL", "Local", "Local", "", 1),
+            ("ALL", "All", "All", "", 2),
+            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
+            ("CUSTOM", "Custom", "Custom", "", 100),
+        ],
+    )
+    asset_library_identifier: bpy.props.StringProperty()
+    relative_asset_identifier: bpy.props.StringProperty()
+
+
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False, asset_shelf=False):
     if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
 
     if fn_invoke:
@@ -456,7 +473,7 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
 
     opname = f'RETOPOFLOW_OT_{name}'
 
-    return type(opname, (RFOp, RFOperator), {})
+    return type(opname, (RFOp, RF_AssetShelfOperator, RFOperator), {})
 
 
 def invoke_operator(name, label, **kwargs):

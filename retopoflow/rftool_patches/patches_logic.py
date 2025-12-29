@@ -110,8 +110,18 @@ class Patches_Context:
 
 
 class Patches_Logic:
-    def __init__(self, context, event):
+    rotate:int
+    mirror:bool
+    error:bool
+
+    def __init__(self, context):
         self.ctx = Patches_Context(context, full_init=True)
+        self.rotate = 0
+        self.mirror = False
+        self.error = False
 
     def clear_context(self):
         del self.ctx
+
+    def create(self, context):
+        pass

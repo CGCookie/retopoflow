@@ -19,21 +19,24 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import bpy
 import os
 import time
 from itertools import chain
 from math import sqrt, atan2
 
+import bpy
 from mathutils import Vector
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from ..rftool_base import RFTool_Base
+from ..rfbrushes.stroke_brush import create_stroke_brush
 
 from ...addon_common.common import gpustate
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.blender_cursors import Cursors
+from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.maths import Frame, Ray
+from ...addon_common.common.maths import Frame
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.resetter import Resetter
 from ..common.bmesh import get_bmesh_emesh
@@ -44,18 +47,32 @@ from ..common.operator import (
     chain_rf_keymaps,
     RFOperator,
     RFOperator_Execute,
+    RF_AssetShelfOperator,
     RFAssetShelf,
+    RFRegisterClass,
+    wrap_property,
 )
-from ..common.maths import direction_to_bvec4, view_right_direction, view_up_direction, point_to_bvec4, normal_to_bvec4, vector_to_bvec4
+from ..common.maths import (
+    direction_to_bvec4,
+    view_right_direction,
+    view_up_direction,
+    point_to_bvec4,
+    normal_to_bvec4,
+    vector_to_bvec4,
+)
 from ..common.raycast import (
     ray_from_mouse,
     raycast_ray_valid_sources,
     raycast_valid_sources,
-    raycast_point_valid_sources,
-    nearest_point_valid_sources,
     nearest_point_normal_valid_sources,
 )
 from ..preferences import RF_Prefs
+
+from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
+from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.general_panel import draw_general_panel
+from ..rfpanels.mirror_panel import draw_mirror_panel
+from ..rfpanels.help_panel import draw_help_panel
 
 from .patches_logic import Patches_Logic
 
@@ -63,86 +80,216 @@ from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
     CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
     CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
 )
 
 
 
 ASSETS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
 
+
+RFBrush_Patches, RFOperator_PatchesBrush_Adjust = create_stroke_brush(
+    'patches_brush',
+    'Patches Brush',
+    radius=50,
+    smoothing=0.5,
+)
+
+class Patches_Insert_Modes:
+    insert_modes = [
+        # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
+        # must have number?
+        # None is a separator
+        ("RAYCAST", "Raycast", "Orient new patch based on normal under mouse", 1),
+        ("SCREEN",  "Screen",  "Orient new patch to be aligned with view",     2),
+        ("CUT",     "Cut",     "Use cuts to orient new patch",                 3),  # cylindrical patches
+    ]
+    insert_mode = 1
+
+    @staticmethod
+    def generate_operators():
+        print('GENERATING PATCHES SET INSERT MODE OPERATORS')
+        ops_insert = []
+        def gen_insert_mode(idname, label, value):
+            nonlocal ops_insert
+            mode_idname = f'patches_setinsertmode_{idname.lower()}'
+            rf_idname = f'retopoflow.{mode_idname}'
+            rf_label = label
+            class RFTool_OT_Patches_SetInsertMode:
+                bl_idname = rf_idname
+                bl_label = rf_label
+                bl_description = f'Set Patches Insert Mode to {label}'
+                def execute(self, context):
+                    Patches_Insert_Modes.set_insert_mode(None, value)
+                    context.area.tag_redraw()
+                    return {'FINISHED'}
+            opname = f'RFTool_OT_Patches_SetInsertMode_{idname}'
+            op = type(opname, (RFTool_OT_Patches_SetInsertMode, RFRegisterClass, bpy.types.Operator), {})
+            ops_insert += [(rf_idname, rf_label)]
+            return op
+
+        gen_insert_mode('Raycast', 'Raycast', 1)
+        gen_insert_mode('Screen',  'Screen',  2)
+        gen_insert_mode('Cut',     'Cut',     3)
+
+    @staticmethod
+    def get_insert_mode(self): return Patches_Insert_Modes.insert_mode
+    @staticmethod
+    def set_insert_mode(self, v): Patches_Insert_Modes.insert_mode = v
+
+# TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
+#       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
+Patches_Insert_Modes.generate_operators()
+
+
+class RFOperator_Patches_Insert(RFOperator_Execute):
+    bl_idname = 'retopoflow.patches_insert'
+    bl_label = 'Insert Patch'
+    bl_description = 'Insert Patch'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
+    logic : Patches_Logic | None = None
+
+    rotate: bpy.props.IntProperty(
+        name='Rotate Topology',
+        description='Number of edges to rotate the topology',
+        default=0
+    )
+    mirror: bpy.props.BoolProperty(
+        name='Mirror Topology',
+        description='Should the topology get mirrored/flipped',
+        default=False
+    )
+
+    @staticmethod
+    def patches_insert(context, radius2D, point3D):
+        RFOperator_Patches_Insert.logic = Patches_Logic(context, radius2D, point3D)
+        RFOperator_Patches_Insert.patches_reinsert(context)
+
+    @staticmethod
+    def patches_reinsert(context):
+        logic = RFOperator_Patches_Insert.logic
+        if not logic or logic.error: return
+        bpy.ops.retopoflow.patches_insert(
+            'INVOKE_DEFAULT', True,
+            rotate=logic.rotate,
+            mirror=logic.mirror,
+        )
+
+    def execute(self, context):
+        try:
+            logic = RFOperator_Patches_Insert.logic
+            logic.rotate = self.rotate
+            logic.mirror = self.mirror
+            logic.create(context)
+            self.rotate = logic.rotate
+            self.mirror = self.mirror
+        except Exception as e:
+            print(f'{type(self).__name__}.execute: Caught Exception {e}')
+            debugger.print_exception()
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
 class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
     bl_idname = 'retopoflow.patches'
     bl_label = 'Patches'
-    bl_description = 'Fill in holes'
+    bl_description = 'Fill in holes and add templated geometry'
     bl_options = set()
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None),
-        # (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
-        # (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
         # (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, {'km_context': ('init', 'ready'), 'km_label': 'Insert Strip'}),  # prevents object selection with Ctrl+LMB Click
         # (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': True}, None),
 
-        # # below is needed to handle case when CTRL is pressed when mouse is initially outside area
-        # (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Draw Strip'}),
+        # below is needed to handle case when CTRL is pressed when mouse is initially outside area
+        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Insert Patch'}),
 
         # ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
 
     rf_status = {
-        'ready': ('LMB: Insert', )
-        # 'ready': ('LMB: Insert', ),
-        # 'insert': ('RMB: Cancel', )
+        'ready': ('LMB: Insert', ),
+        'insert': ('RMB: Cancel', )
     }
 
+    insert_mode: wrap_property(
+        Patches_Insert_Modes, 'insert_mode', 'enum',
+        name='Insert Mode',
+        description='Insertion mode for Patches',
+        items=Patches_Insert_Modes.insert_modes,
+        default="RAYCAST",
+    )
 
-    # brush_radius: wrap_property(
-    #     RFBrush_Strokes, 'stroke_radius', 'int',
-    #     name='Radius',
-    #     description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
-    #     min=1,
-    #     max=1000,
-    #     subtype='PIXEL',
-    #     default=50,
-    # )
+    brush_radius: wrap_property(
+        RFBrush_Patches, 'stroke_radius', 'int',
+        name='Radius',
+        description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
+        min=1,
+        max=1000,
+        subtype='PIXEL',
+        default=50,
+    )
 
     # stroke_smoothing: bpy.props.FloatProperty(
     #     name='Stabilize',
     #     description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
-    #     get=lambda _: RFBrush_Strokes.get_stroke_smooth(),
-    #     set=lambda _,v: RFBrush_Strokes.set_stroke_smooth(v),
+    #     get=lambda _: RFBrush_Patches.get_stroke_smooth(),
+    #     set=lambda _,v: RFBrush_Patches.set_stroke_smooth(v),
     #     min=0.00,
     #     max=1.0,
     #     default=0.5,
     # )
 
-
     def init(self, context, event):
         # self.km_context = 'ready'
-        # RFTool_PolyStrips.rf_brush.set_operator(self)
-        # RFTool_PolyStrips.rf_brush.reset_nearest(context)
+        RFTool_Patches.rf_brush.set_operator(self)
+        RFTool_Patches.rf_brush.reset_nearest(context)
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
-        self.logic = Patches_Logic(context, event)
+        self.logic = Patches_Logic(context)
         self.tickle(context)
 
     def finish(self, context):
         del self.logic
         self.set_statusbar_override(None)
-        self.km_context = 'init'
-        # RFTool_PolyStrips.rf_brush.set_operator(None)
-        # RFTool_PolyStrips.rf_brush.reset_nearest(context)
+        self.km_context = 'ready'
+        RFTool_Patches.rf_brush.set_operator(None)
+        RFTool_Patches.rf_brush.reset_nearest(context)
         # RFTool_PolyStrips.rf_overlay.unpause_overlay()
 
     def reset(self):
-        # RFTool_PolyStrips.rf_brush.reset()
-        pass
+        RFTool_Patches.rf_brush.reset()
 
-    # def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
+    def update(self, context, event):
+        Cursors.set('CROSSHAIR')
+        return {'PASS_THROUGH'}
+        # if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
+        #     # prevents object selection with Ctrl+LMB Click
+        #     return {'RUNNING_MODAL'}
+
+        # if RFTool_PolyStrips.rf_brush.is_stroking():
+        #     self.set_statusbar_override(self.rf_status['insert'])
+        #     if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
+        #         self.RFCore.handle_update(context, event)
+        #         return {'RUNNING_MODAL'}
+        # else:
+        #     self.set_statusbar_override(None)
+        #     if not event.ctrl:
+        #         Cursors.restore()
+        #         self.tickle(context)
+        #         return {'FINISHED'}
+
+        # Cursors.set('CROSSHAIR')
+        # return {'PASS_THROUGH'}  # TODO: see below
+        # # TODO: allow only some operators to work but not all
+        # #       however, need a way to not hardcode LEFTMOUSE!
+        # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
+
+    def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
+        print(f'PROCESS!')
+        pass
     #     snap_bmf0, snap_bmf1 = snapped_geo[2]
     #     p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
     #     if not snap_bmf0:
@@ -178,56 +325,69 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
     #         self.mirror_correct,
     #     )
 
-    def update(self, context, event):
-        return {'FINISHED'}
-        # if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
-        #     # prevents object selection with Ctrl+LMB Click
-        #     return {'RUNNING_MODAL'}
+@add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
+@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
+def activate_template(self, context):
+    # print(f'Activate asset: {self.relative_asset_identifier}')
+    # print(f'From Libary: {self.asset_library_identifier} ({self.asset_library_type})')
+    activate_template.active['asset identifier']   = self.relative_asset_identifier
+    activate_template.active['library identifier'] = self.asset_library_identifier
+    activate_template.active['library type']       = self.asset_library_type
+    get_template()  # preload cache
 
-        # if RFTool_PolyStrips.rf_brush.is_stroking():
-        #     self.set_statusbar_override(self.rf_status['insert'])
-        #     if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
-        #         self.RFCore.handle_update(context, event)
-        #         return {'RUNNING_MODAL'}
-        # else:
-        #     self.set_statusbar_override(None)
-        #     if not event.ctrl:
-        #         Cursors.restore()
-        #         self.tickle(context)
-        #         return {'FINISHED'}
+@add_cache('cache', {})
+def get_template():
+    asset_identifier   = activate_template.active['asset identifier']
+    library_identifier = activate_template.active['library identifier']
+    library_type       = activate_template.active['library type']
 
-        # Cursors.set('CROSSHAIR')
-        # return {'PASS_THROUGH'}  # TODO: see below
-        # # TODO: allow only some operators to work but not all
-        # #       however, need a way to not hardcode LEFTMOUSE!
-        # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
+    template_id = (library_type, library_identifier, asset_identifier)
+    cache = get_template.cache
 
-class RFOperator_Patches_Activate_Template(RFOperator):
-    bl_idname = 'retopoflow.patches_activate_template'
-    bl_label = 'Patches: Activate template'
-    bl_description = 'Add template'
-    bl_options = set()
+    if template_id not in cache:
+        if library_type is None:
+            # default is a quad
+            cache[template_id] = (
+                4, 0, 1,
+                [Vector((-1, -1, 0)), Vector((1, -1, 0)), Vector((1, 1, 0)), Vector((-1, 1, 0))],
+                [Vector(( 0,  0, 1)), Vector((0,  0, 1)), Vector((0, 0, 1)), Vector(( 0, 0, 1))],
+                [1.0, 1.0, 1.0, 1.0],
+                [],
+                [(0, 1, 2, 3)],
+            )
 
-    rf_status = {
-        'ready': ('LMB: Insert', ),
-    }
+        elif library_type == 'LOCAL':
+            obj_name = asset_identifier.split('/')[-1]
+            mesh = bpy.data.objects[obj_name].data
+            # TODO: rescale mesh
+            vc, ec, fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
+            vps = [ Vector(v.co) for v in mesh.vertices ]
+            vns = [ Vector(v.normal) for v in mesh.vertices ]
+            vcs = [ 1.0 for _ in mesh.vertices ]
+            es  = [ tuple(e.vertices) for e in mesh.edges ]
+            fs  = [ tuple(f.vertices) for f in mesh.polygons ]
+            cache[template_id] = (vc, ec, fc, vps, vns, vcs, es, fs)
 
-    asset_library_type: bpy.props.EnumProperty(
-        name="Asset Library Type",
-        description="Asset Library Type",
-        items=[
-            ("ALL", "All", "All", "", 2),
-            ("LOCAL", "Local", "Local", "", 1),
-            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
-            ("CUSTOM", "Custom", "Custom", "", 100),
-        ],
-        # options={'HIDDEN'}
-    )
-    asset_library_identifier: bpy.props.StringProperty() # = 'CUSTOM'
-    relative_asset_identifier: bpy.props.StringProperty()
-    def init(self, context, event):
-        print(f'Activate asset: {self.relative_asset_identifier}')
-        print(f'From Libary: {self.asset_library_identifier} ({self.asset_library_type})')
+        else:
+            # TODO: what if artist added a custom asset library?
+            fn = asset_identifier.split('/')[-1]
+            path = os.path.join(ASSETS_PATH, f'{fn}.template')
+
+            with open(path, 'rt') as f:
+                def l(): return f.readline().split(' ')
+                def li(): return map(int, l())
+                def lf(): return map(float, l())
+                vc, ec, fc = li()
+                # px,py,pz, nx,ny,nz, outside (crease)
+                vert_info = [ list(lf()) for _ in range(vc) ]
+                vps = [ Vector(v[0:3]) for v in vert_info ]
+                vns = [ Vector(v[3:6]) for v in vert_info ]
+                vcs = [ v[6] > 0.001   for v in vert_info ]
+                es  = [ tuple(li()) for _ in range(ec) ]
+                fs  = [ tuple(li()) for _ in range(fc) ]
+            cache[template_id] = (vc, ec, fc, vps, vns, vcs, es, fs)
+
+    return cache[template_id]
 
 
 class RFOperator_Patches_Drag_template(RFOperator):
@@ -654,20 +814,15 @@ class RFOperator_Patches_Drag_template(RFOperator):
         return {'RUNNING_MODAL'}
 
 class RFAssetShelf_Patches(RFAssetShelf):
-    bl_idname = 'retopoflow.patches'
+    bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
     bl_category = 'Patches Templates'
 
     bl_activate_operator = 'retopoflow.patches_activate_template'
-    bl_drag_operator = "retopoflow.patches_drag_template"
+    # bl_drag_operator = "retopoflow.patches_drag_template"
 
-    # bl_label = 'Patches'
-    # bl_description = 'Fill in holes'
-    # bl_options = set()
-
-    # Filter to only show object assets
-    filter_object = True
+    filter_object = True            # Filter to only show object assets (asset_poll filters further)
     show_names = True               # TODO: does not work???
-    bl_default_preview_size = 128
+    bl_default_preview_size = 128   # show assets fairly large by default
 
     @classmethod
     def asset_poll(cls, asset):
@@ -696,6 +851,47 @@ class RFTool_Patches(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Patches,
     )
+
+    rf_brush = RFBrush_Patches()
+
+    def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
+        props_patches = tool.operator_properties(RFOperator_Patches.bl_idname)
+        RFTool_Patches.props = props_patches
+
+        if context.region.type == 'TOOL_HEADER':
+            layout.label(text="Insert:")
+            row = layout.row(align=True)
+            row.prop(props_patches, 'insert_mode', text='')
+            if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
+                row.prop(props_patches, 'brush_radius', text='')
+            # if props_polypen.insert_mode == 'QUAD-ONLY':
+            #     layout.prop(props_polypen, 'quad_stability', slider=True)
+            # draw_line_separator(layout)
+            # layout.popover('RF_PT_TweakCommon', text='Tweaking')
+            # row = layout.row(align=True)
+            # row.popover('RF_PT_MeshCleanup', text='Clean Up')
+            # row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
+            # draw_mirror_popover(context, layout)
+            # if prefs.expand_offset:
+            #     layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
+            # layout.popover('RF_PT_General', text='', icon='OPTIONS')
+            # layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
+
+        else:
+            header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
+            header.label(text="Insert")
+            if panel:
+                panel.prop(props_patches, 'insert_mode', text='Method')
+                if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
+                    panel.prop(props_patches, 'brush_radius', text='Radius')
+                # if props_polypen.insert_mode == 'QUAD-ONLY':
+                #     panel.prop(props_polypen, 'quad_stability', slider=True)
+            draw_cleanup_panel(context, layout)
+            draw_tweaking_panel(context, layout)
+            draw_mirror_panel(context, layout)
+            draw_general_panel(context, layout)
+            draw_help_panel(context, layout)
 
     @classmethod
     def activate(cls, context):
