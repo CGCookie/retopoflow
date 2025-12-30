@@ -498,8 +498,7 @@ RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
 
 @execute_operator('switch_to_strokes', 'RetopoFlow: Switch to Strokes', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.strokes')  # matches bl_idname of RFTool_Base below
+    RFTool_Strokes.activate_tool(context)
 
 
 

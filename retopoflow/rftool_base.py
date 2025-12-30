@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+import bl_ui
 from .preferences import RF_Prefs
 
 class RFTool_Base(bpy.types.WorkSpaceTool):
@@ -33,6 +34,14 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
         RFTool_Base._subclasses.append(cls)
         super().__init_subclass__(**kwargs)
         cls.rf_idname = cls.bl_idname
+
+    @classmethod
+    def activate_tool(cls, context):
+        bl_ui.space_toolsystem_common.activate_by_id(
+            context,
+            'VIEW_3D',
+            cls.bl_idname,
+        )
 
     ###########################################################
     # subclasses may overwrite these class methods
@@ -71,8 +80,3 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
         for rft in reversed(RFTool_Base.get_all_RFTools()):
             rft.unregister()
             bpy.utils.unregister_tool(rft)
-
-
-
-
-

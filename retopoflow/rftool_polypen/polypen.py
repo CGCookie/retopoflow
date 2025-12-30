@@ -232,8 +232,7 @@ class RFOperator_PolyPen(RFOperator):
 
 @execute_operator('switch_to_polypen', 'RetopoFlow: Switch to PolyPen', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polypen')  # matches bl_idname of RFTool_Base below
+    RFTool_PolyPen.activate_tool(context)
 
 
 class RFTool_PolyPen(RFTool_Base):

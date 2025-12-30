@@ -699,8 +699,7 @@ RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
 
 @execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polystrips')  # matches bl_idname of RFTool_Base below
+    RFTool_PolyStrips.activate_tool(context)
 
 
 class RFTool_PolyStrips(RFTool_Base):
