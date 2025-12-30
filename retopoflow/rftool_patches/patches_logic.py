@@ -19,11 +19,194 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from mathutils.bvhtree import BVHTree
-from bmesh.types import BMVert, BMEdge, BMFace
+import os
 
-from ..common.bmesh import get_bmesh_emesh, bme_other_bmv
+import bpy
+from mathutils.bvhtree import BVHTree
+from mathutils import Vector
+from bmesh.types import BMVert, BMEdge, BMFace
+from bpy_extras.view3d_utils import location_3d_to_region_2d
+
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.decorators import add_cache
+from ...addon_common.common.colors import Color4
+from ...addon_common.common.utils import iter_pairs
+from ..common.bmesh import get_bmesh_emesh, bme_other_bmv
+from ..common.drawing import (
+    Drawing,
+    CC_2D_POINTS,
+    CC_2D_LINES,
+    CC_2D_TRIANGLES,
+)
+
+
+
+class Patches_Template:
+    ASSETS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
+    _cache = {}
+    _active = None
+
+    @staticmethod
+    def _process_mesh(mesh):
+        vc, ec, fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
+
+        vps = [ Vector(v.co) for v in mesh.vertices ]
+        vns = [ Vector(v.normal) for v in mesh.vertices ]
+
+        es  = [ tuple(e.vertices) for e in mesh.edges ]
+        fs  = [ tuple(f.vertices) for f in mesh.polygons ]
+
+        # TODO: rescale and translate mesh
+        bbox_min = Vector((
+            min(v.x for v in vps),
+            min(v.y for v in vps),
+            min(v.z for v in vps),
+        ))
+        bbox_max = Vector((
+            max(v.x for v in vps),
+            max(v.y for v in vps),
+            max(v.z for v in vps),
+        ))
+        bbox_center = bbox_min + (bbox_max - bbox_min) / 2
+        bbox_size = 0.5 * max(0.000001, bbox_max.x - bbox_min.x, bbox_max.y - bbox_min.y) #, bbox_max.z - bbox_min.z)
+        vps = [(v - bbox_center) / bbox_size for v in vps]
+
+        # filter out face edges
+        fes = { e for f in mesh.polygons for f in fs for (i,j) in iter_pairs(f, True) for e in [(i,j), (j,i)]}
+        es  = [ e for e in es if e not in fes ]
+        ec = len(es)
+
+        # count faces and edges per vert
+        fes = {}
+        vcs = [False for _ in range(vc)]
+        for f in fs:
+            for (i,j) in iter_pairs(f, True):
+                i,j = min(i,j), max(i,j)
+                fes.setdefault((i,j), 0)
+                fes[(i,j)] += 1
+        for f in fs:
+            for (i,j) in iter_pairs(f, True):
+                i,j = min(i,j), max(i,j)
+                if fes[(i,j)] == 2: continue
+                vcs[i] = True
+                vcs[j] = True
+        for e in es:
+            for v in e:
+                vcs[v] = True
+
+        return (vc, ec, fc, vps, vns, vcs, es, fs)
+
+    @staticmethod
+    def activate(context, asset_identifier, library_identifier, library_type):
+        print(f'Activate asset: "{asset_identifier}" from libary: "{library_identifier}" ({library_type})')
+        template_id = (library_type, library_identifier, asset_identifier)
+        cache = Patches_Template._cache
+
+        # library_type: enum in ['ALL', 'LOCAL', 'ESSENTIALS', 'CUSTOM']
+        # https://docs.blender.org/api/latest/bpy.types.AssetWeakReference.html#bpy.types.AssetWeakReference.asset_library_type
+        # TODO: test how to load from 'ALL' or 'ESSENTIALS'
+        if library_type not in {'LOCAL', 'CUSTOM'}:
+            # default is a quad
+            Patches_Template._active = (
+                4, 0, 1,
+                [Vector((-1, -1, 0)), Vector((1, -1, 0)), Vector((1, 1, 0)), Vector((-1, 1, 0))],
+                [Vector(( 0,  0, 1)), Vector((0,  0, 1)), Vector((0, 0, 1)), Vector(( 0, 0, 1))],
+                [1.0, 1.0, 1.0, 1.0],
+                [],
+                [(0, 1, 2, 3)],
+            )
+
+        else:
+            if template_id not in cache:
+                if library_type == 'LOCAL':
+                    obj_name = asset_identifier.split('/')[-1]
+                    mesh = bpy.data.objects[obj_name].data
+                    cache[template_id] = Patches_Template._process_mesh(mesh)
+
+                elif library_type == 'CUSTOM':
+                    blend, object_type, object_name = asset_identifier.split('/')
+                    assert object_type == 'Object', 'Cannot activate non-object'
+                    blend_path = os.path.join(
+                        context.preferences.filepaths.asset_libraries[library_identifier].path,
+                        blend
+                    )
+
+                    # link asset into a temporary scene (makes finding object easier)
+                    print(f'temporarily linking in {object_type} {object_name} from {blend_path}')
+                    asset_scene = bpy.data.scenes.new('RF Patches')
+                    # link in asset (THIS IS REALLY AWKWARD, BUT SEEMS TO BE THE ONLY WAY?)
+                    with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
+                        assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
+                        data_to.objects = [object_name]
+                    asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
+                    asset_object = asset_scene.collection.objects[0]  # should be only one object in temp scene
+
+                    # grab and process mesh data
+                    mesh = asset_object.data
+                    cache[template_id] = Patches_Template._process_mesh(mesh)
+
+                    # clean up!
+                    bpy.data.objects.remove(asset_object, do_unlink=True)
+                    bpy.data.scenes.remove(asset_scene)
+
+            Patches_Template._active = cache[template_id]
+
+    @staticmethod
+    def draw_template(context, fn_transform_vertex, highlight):
+        template = Patches_Template._active
+        if template is None: return
+        vc, ec, fc, vps, vns, vcs, es, fs = template
+        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(vps, vns) ]
+        pts = [
+            location_3d_to_region_2d(context.region, context.region_data, pt)
+            for (pt, no) in ptnos
+        ]
+
+        theme = context.preferences.themes[0].view_3d
+
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
+        color_mesh = theme.face_select
+        vertex_size = theme.vertex_size
+
+        with Drawing.draw(context, CC_2D_POINTS) as draw:
+            draw.point_size(vertex_size + 4)
+            draw.color(color_point)
+            for pt, c in zip(pts, vcs):
+                if not c or not pt: continue
+                draw.vertex(pt)
+
+        with Drawing.draw(context, CC_2D_LINES) as draw:
+            draw.color(color_border_mesh)
+
+            # draw non-face edges
+            draw.line_width(2)
+            draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+            for (e0,e1) in es:
+                pt0, pt1 = pts[e0], pts[e1]
+                if not pt0 or not pt1: continue
+                draw.vertex(pt0).vertex(pt1)
+
+            # draw face edges
+            draw.line_width(1)
+            draw.stipple(pattern=[5,0], offset=0, color=color_stipple)
+            for f in fs:
+                if not all(pts[i] for i in f): continue
+                for (e0, e1) in iter_pairs(f, True):
+                    pt0, pt1 = pts[e0], pts[e1]
+                    if not pt0 or not pt1: continue
+                    draw.vertex(pt0).vertex(pt1)
+
+        with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
+            draw.color(color_mesh)
+            for f in fs:
+                if not all(pts[i] for i in f): continue
+                v0 = f[0]
+                pt0 = pts[v0]
+                for (v1, v2) in iter_pairs(f[1:], False):
+                    pt1, pt2 = pts[v1], pts[v2]
+                    draw.vertex(pt0).vertex(pt1).vertex(pt2)
 
 
 class Patches_Context:

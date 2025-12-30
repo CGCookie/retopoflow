@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import os
 import time
 from itertools import chain
-from math import sqrt, atan2
+from math import sqrt, atan2, radians
 
 import bpy
 from mathutils import Vector
@@ -34,11 +34,11 @@ from ..rfbrushes.stroke_brush import create_stroke_brush
 from ...addon_common.common import gpustate
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.decorators import add_cache
-from ...addon_common.common.utils import iter_pairs
-from ...addon_common.common.maths import Frame
 from ...addon_common.common.colors import Color4
+from ...addon_common.common.decorators import add_cache
+from ...addon_common.common.maths import Frame, Direction
 from ...addon_common.common.resetter import Resetter
+from ...addon_common.common.utils import iter_pairs
 from ..common.bmesh import get_bmesh_emesh
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
@@ -65,6 +65,7 @@ from ..common.raycast import (
     raycast_ray_valid_sources,
     raycast_valid_sources,
     nearest_point_normal_valid_sources,
+    size2D_to_size,
 )
 from ..preferences import RF_Prefs
 
@@ -74,7 +75,7 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel
 from ..rfpanels.help_panel import draw_help_panel
 
-from .patches_logic import Patches_Logic
+from .patches_logic import Patches_Logic, Patches_Template
 
 from ..common.drawing import (
     Drawing,
@@ -141,25 +142,34 @@ class Patches_Insert_Modes:
 #       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
 Patches_Insert_Modes.generate_operators()
 
+class RFOperator_Patches_Insert_Properties:
+    rotate: bpy.props.FloatProperty(
+        name='Rotate Topology',
+        description='Angle to rotate the topology',
+        default=0.0,
+    )
 
-class RFOperator_Patches_Insert(RFOperator_Execute):
+    shift: bpy.props.IntProperty(
+        name='Shift Topology',
+        description='Number of edges to shift the topology',
+        default=0,
+    )
+
+    mirror: bpy.props.BoolProperty(
+        name='Mirror Topology',
+        description='Should the topology get mirrored/flipped',
+        default=False,
+    )
+
+
+
+class RFOperator_Patches_Insert(RFOperator_Patches_Insert_Properties, RFOperator_Execute):
     bl_idname = 'retopoflow.patches_insert'
     bl_label = 'Insert Patch'
     bl_description = 'Insert Patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
     logic : Patches_Logic | None = None
-
-    rotate: bpy.props.IntProperty(
-        name='Rotate Topology',
-        description='Number of edges to rotate the topology',
-        default=0
-    )
-    mirror: bpy.props.BoolProperty(
-        name='Mirror Topology',
-        description='Should the topology get mirrored/flipped',
-        default=False
-    )
 
     @staticmethod
     def patches_insert(context, radius2D, point3D):
@@ -191,7 +201,7 @@ class RFOperator_Patches_Insert(RFOperator_Execute):
         return {'FINISHED'}
 
 
-class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
+class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
     bl_idname = 'retopoflow.patches'
     bl_label = 'Patches'
     bl_description = 'Fill in holes and add templated geometry'
@@ -250,6 +260,8 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.logic = Patches_Logic(context)
         self.tickle(context)
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.mouse_hit = None
 
     def finish(self, context):
         del self.logic
@@ -263,6 +275,20 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         RFTool_Patches.rf_brush.reset()
 
     def update(self, context, event):
+        if not event.ctrl:
+            return {'CANCELLED'}
+
+        if event.type == 'WHEELUPMOUSE':
+            self.rotate = self.rotate + radians(10)
+            context.area.tag_redraw()
+        if event.type == 'WHEELDOWNMOUSE':
+            self.rotate = self.rotate - radians(10)
+            context.area.tag_redraw()
+
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.mouse_hit = raycast_valid_sources(context, self.mouse)
+        self.mouse_ray = ray_from_mouse(context, event)
+
         Cursors.set('CROSSHAIR')
         return {'PASS_THROUGH'}
         # if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
@@ -286,6 +312,52 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
         # # TODO: allow only some operators to work but not all
         # #       however, need a way to not hardcode LEFTMOUSE!
         # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
+
+    def compute_orientation(self, context, *, world=True) -> Direction:
+        if not self.mouse_hit or not self.mouse_ray or not self.mouse_ray[1]:
+            return Vector((0, 0, 1))
+        match self.insert_mode:
+            case 'RAYCAST':
+                z = self.mouse_hit['no_world']
+            case 'SCREEN':
+                z = -self.mouse_ray[1].xyz
+            case _:
+                print(f'WARNING: UNHANDLED ORIENTATION: {self.compute_orientation}')
+                z = Vector((0,0,1))
+        if not world:
+            Mi = context.edit_object.matrix_world.inverted()
+            return (Mi @ direction_to_bvec4(z)).xyz
+        return z
+
+    def draw_postpixel(self, context):
+        if not self.mouse_hit: return
+
+        M = context.edit_object.matrix_world
+        Mi = M.inverted()
+        Mit = Mi.transposed()
+        Mt = M.transposed()
+        edit_scale = max(M.to_scale())
+        radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
+
+        up_local = (Mi @ direction_to_bvec4(view_up_direction(context))).xyz
+
+        fo = self.mouse_hit['co_local']
+        fz = self.compute_orientation(context, world=False)
+        fx = up_local.cross(fz).normalized()
+        fy = fz.cross(fx).normalized()
+        f = Frame(fo, fx, fy, fz)
+        f.rotate_about_z(self.rotate)
+
+        def xform(p, n):
+            nonlocal M, f, radius3D
+            # transform v
+            p = M @ f.l2w_point(p * radius3D)
+            n = Mit @ f.l2w_normal(n)
+            return [p,n]
+
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
+        Patches_Template.draw_template(context, xform, highlight)
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         print(f'PROCESS!')
@@ -324,70 +396,6 @@ class RFOperator_Patches(RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
     #         self.split_angle,
     #         self.mirror_correct,
     #     )
-
-@add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
-@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
-def activate_template(self, context):
-    # print(f'Activate asset: {self.relative_asset_identifier}')
-    # print(f'From Libary: {self.asset_library_identifier} ({self.asset_library_type})')
-    activate_template.active['asset identifier']   = self.relative_asset_identifier
-    activate_template.active['library identifier'] = self.asset_library_identifier
-    activate_template.active['library type']       = self.asset_library_type
-    get_template()  # preload cache
-
-@add_cache('cache', {})
-def get_template():
-    asset_identifier   = activate_template.active['asset identifier']
-    library_identifier = activate_template.active['library identifier']
-    library_type       = activate_template.active['library type']
-
-    template_id = (library_type, library_identifier, asset_identifier)
-    cache = get_template.cache
-
-    if template_id not in cache:
-        if library_type is None:
-            # default is a quad
-            cache[template_id] = (
-                4, 0, 1,
-                [Vector((-1, -1, 0)), Vector((1, -1, 0)), Vector((1, 1, 0)), Vector((-1, 1, 0))],
-                [Vector(( 0,  0, 1)), Vector((0,  0, 1)), Vector((0, 0, 1)), Vector(( 0, 0, 1))],
-                [1.0, 1.0, 1.0, 1.0],
-                [],
-                [(0, 1, 2, 3)],
-            )
-
-        elif library_type == 'LOCAL':
-            obj_name = asset_identifier.split('/')[-1]
-            mesh = bpy.data.objects[obj_name].data
-            # TODO: rescale mesh
-            vc, ec, fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
-            vps = [ Vector(v.co) for v in mesh.vertices ]
-            vns = [ Vector(v.normal) for v in mesh.vertices ]
-            vcs = [ 1.0 for _ in mesh.vertices ]
-            es  = [ tuple(e.vertices) for e in mesh.edges ]
-            fs  = [ tuple(f.vertices) for f in mesh.polygons ]
-            cache[template_id] = (vc, ec, fc, vps, vns, vcs, es, fs)
-
-        else:
-            # TODO: what if artist added a custom asset library?
-            fn = asset_identifier.split('/')[-1]
-            path = os.path.join(ASSETS_PATH, f'{fn}.template')
-
-            with open(path, 'rt') as f:
-                def l(): return f.readline().split(' ')
-                def li(): return map(int, l())
-                def lf(): return map(float, l())
-                vc, ec, fc = li()
-                # px,py,pz, nx,ny,nz, outside (crease)
-                vert_info = [ list(lf()) for _ in range(vc) ]
-                vps = [ Vector(v[0:3]) for v in vert_info ]
-                vns = [ Vector(v[3:6]) for v in vert_info ]
-                vcs = [ v[6] > 0.001   for v in vert_info ]
-                es  = [ tuple(li()) for _ in range(ec) ]
-                fs  = [ tuple(li()) for _ in range(fc) ]
-            cache[template_id] = (vc, ec, fc, vps, vns, vcs, es, fs)
-
-    return cache[template_id]
 
 
 class RFOperator_Patches_Drag_template(RFOperator):
@@ -813,6 +821,17 @@ class RFOperator_Patches_Drag_template(RFOperator):
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
+@add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
+@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
+def activate_template(self, context):
+    Patches_Template.activate(
+        context,
+        self.relative_asset_identifier,
+        self.asset_library_identifier,
+        self.asset_library_type,
+    )
+
+
 class RFAssetShelf_Patches(RFAssetShelf):
     bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
     bl_category = 'Patches Templates'
@@ -832,12 +851,6 @@ class RFAssetShelf_Patches(RFAssetShelf):
     def can_start(cls, context):
         return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
 
-
-
-@execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
-def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.patches')  # matches bl_idname of RFTool_Base below
 
 
 class RFTool_Patches(RFTool_Base):
@@ -920,8 +933,14 @@ class RFTool_Patches(RFTool_Base):
                 if attempts > 0:
                     bpy.app.timers.register(lambda:delayed_settings(attempts-1), first_interval=0.25)
         bpy.app.timers.register(delayed_settings, first_interval=0.25)
+        Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
         #return super().activate(context)
 
     @classmethod
     def deactivate(cls, context):
         cls.resetter.reset()
+
+
+@execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
+def switch_rftool(context):
+    RFTool_Patches.activate_tool(context)
