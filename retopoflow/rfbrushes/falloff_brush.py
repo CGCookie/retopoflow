@@ -134,6 +134,8 @@ def create_falloff_brush(idname, label, **kwargs):
                 d = fn_disable(event)
                 if self.disabled != d: context.area.tag_redraw()
                 self.disabled = d
+            else:
+                self.disabled = False
             if self.disabled: return
 
             if not force:

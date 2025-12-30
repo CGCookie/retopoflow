@@ -22,15 +22,16 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 import bmesh
 import gpu
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Color
 from gpu_extras.batch import batch_for_shader
 
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Type
+from contextlib import contextmanager
 
 from ...addon_common.common.blender import get_path_from_addon_common
 from ...addon_common.common import gpustate
-from ...addon_common.common.colors import Color4, Color
+from ...addon_common.common.colors import Color4
 from ...addon_common.common.fontmanager import FontManager as fm
 from ...addon_common.common.maths import Point, Normal, Direction, Frame, Point2D
 from ...addon_common.common.utils import iter_pairs
@@ -68,11 +69,282 @@ shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle = create_shader('triangl
 shader_radial_gradient_2D, ubos_radial_gradient_2D, batch_radial_gradient_2D = create_shader('radial_gradient_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
 
 
-from contextlib import contextmanager
+
+
+
+# ######################################################################################################
+# # The following classes mimic the immediate mode for (old-school way of) drawing geometry
+# #   glBegin(GL_TRIANGLES)
+# #   glColor3f(p)
+# #   glVertex3f(p)
+# #   glEnd()
+
+class CC_DRAW:
+    _point_size:float = 1
+    _line_width:float = 1
+    _border_width:float = 0
+    _border_color:Color4 = Color4((0, 0, 0, 0))
+    _stipple_pattern:List[float] = [1,0]
+    _stipple_offset:float = 0
+    _stipple_color:Color4 = Color4((0, 0, 0, 0))
+
+    _default_color = Color4((1, 1, 1, 1))
+    _default_point_size = 1
+    _default_line_width = 1
+    _default_border_width = 0
+    _default_border_color = Color4((0, 0, 0, 0))
+    _default_stipple_pattern = [1,0]
+    _default_stipple_color = Color4((0, 0, 0, 0))
+
+    @classmethod
+    def reset(cls):
+        scale = Drawing.scale
+        CC_DRAW._point_size      = scale(CC_DRAW._default_point_size) or 1
+        CC_DRAW._line_width      = scale(CC_DRAW._default_line_width) or 1
+        CC_DRAW._border_width    = scale(CC_DRAW._default_border_width) or 1
+        CC_DRAW._border_color    = CC_DRAW._default_border_color
+        CC_DRAW._stipple_offset  = 0
+        CC_DRAW._stipple_pattern = [(scale(v) or 1) for v in CC_DRAW._default_stipple_pattern]
+        CC_DRAW._stipple_color   = CC_DRAW._default_stipple_color
+        cls.update()
+
+    @classmethod
+    def update(cls): pass
+
+    @classmethod
+    def point_size(cls, size):
+        CC_DRAW._point_size = Drawing.scale(size) or 1
+        cls.update()
+
+    @classmethod
+    def line_width(cls, width):
+        CC_DRAW._line_width = Drawing.scale(width) or 1
+        cls.update()
+
+    @classmethod
+    def border(cls, *, width=None, color=None):
+        if width is not None: CC_DRAW._border_width = Drawing.scale(width) or 1
+        if color is not None: CC_DRAW._border_color = color
+        cls.update()
+
+    @classmethod
+    def stipple(cls, *, pattern=None, offset=None, color=None):
+        if pattern is not None: CC_DRAW._stipple_pattern = [(Drawing.scale(v) or 1) for v in pattern]
+        if offset  is not None: CC_DRAW._stipple_offset  = Drawing.scale(offset) or 1
+        if color   is not None: CC_DRAW._stipple_color   = color
+        cls.update()
+
+    @classmethod
+    def end(cls):
+        gpu.shader.unbind()
+        cls.reset()
+
+
+class CC_2D_POINTS(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        shader_2D_point.bind()
+        ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_2D_point.options.color = cls._default_color
+        cls.update()
+
+    @classmethod
+    def update(cls):
+        ubos_2D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
+        ubos_2D_point.options.colorBorder = cls._border_color
+
+    @classmethod
+    def color(cls, c:Color4):
+        ubos_2D_point.options.color = c
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if p:
+            ubos_2D_point.options.center = (*p, 0, 1)
+            ubos_2D_point.options.update_shader()
+            batch_2D_point.draw(shader_2D_point)
+
+
+class CC_2D_LINES(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        shader_2D_lineseg.bind()
+        mvpmatrix = Drawing.get_pixel_matrix(context)
+        ubos_2D_lineseg.options.MVPMatrix = mvpmatrix
+        ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_2D_lineseg.options.color0 = cls._default_color
+        cls.stipple(offset=0)
+        cls._c = 0
+        cls._last_p = None
+
+    @classmethod
+    def update(cls):
+        ubos_2D_lineseg.options.color1 = cls._stipple_color
+        ubos_2D_lineseg.options.stipple_width = (cls._stipple_pattern[0], cls._stipple_pattern[1], cls._stipple_offset, cls._line_width)
+
+    @classmethod
+    def color(cls, c:Color4):
+        ubos_2D_lineseg.options.color0 = c
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', (*p, 0, 1))
+        cls._c = (cls._c + 1) % 2
+        if cls._c == 0 and cls._last_p and p:
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
+        cls._last_p = p
+        return cls
+
+    @classmethod
+    def vertices(cls, ps:List[Vector]):
+        for p in ps:
+            cls.vertex(p)
+
+class CC_2D_LINE_STRIP(CC_2D_LINES):
+    @classmethod
+    def begin(cls, context):
+        super().begin()
+        cls._last_p = None
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if cls._last_p is None:
+            cls._last_p = p
+        else:
+            if cls._last_p and p:
+                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
+                ubos_2D_lineseg.update_shader()
+                batch_2D_lineseg.draw(shader_2D_lineseg)
+            cls._last_p = p
+
+class CC_2D_LINE_LOOP(CC_2D_LINES):
+    @classmethod
+    def begin(cls, context):
+        super().begin()
+        cls._first_p = None
+        cls._last_p = None
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if cls._first_p is None:
+            cls._first_p = cls._last_p = p
+        else:
+            if cls._last_p and p:
+                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
+                ubos_2D_lineseg.update_shader()
+                batch_2D_lineseg.draw(shader_2D_lineseg)
+            cls._last_p = p
+
+    @classmethod
+    def end(cls):
+        if cls._last_p and cls._first_p:
+            ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
+            ubos_2D_lineseg.options.pos1 = (*cls._first_p, 0, 1)
+            ubos_2D_lineseg.update_shader()
+            batch_2D_lineseg.draw(shader_2D_lineseg)
+        super().end()
+
+
+class CC_2D_TRIANGLES(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        shader_2D_triangle.bind()
+        #shader_2D_triangle.uniform_float('screensize', (context.area.width, context.area.height))
+        ubos_2D_triangle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        cls._c = 0
+        cls._last_color = None
+        cls._last_p0 = None
+        cls._last_p1 = None
+
+    @classmethod
+    def color(cls, c:Color4):
+        if c is None: return
+        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
+        cls._last_color = c
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
+        cls._c = (cls._c + 1) % 3
+        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
+            ubos_2D_triangle.update_shader()
+            batch_2D_triangle.draw(shader_2D_triangle)
+        cls.color(cls._last_color)
+        cls._last_p1 = cls._last_p0
+        cls._last_p0 = p
+        return cls
+
+class CC_2D_TRIANGLE_FAN(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        shader_2D_triangle.bind()
+        ubos_2D_triangle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
+        cls._c = 0
+        cls._last_color = None
+        cls._first_p = None
+        cls._last_p = None
+        cls._is_first = True
+
+    @classmethod
+    def color(cls, c:Color4):
+        if c is None: return
+        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
+        cls._last_color = c
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
+        cls._c += 1
+        if cls._c == 3:
+            if p and cls._first_p and cls._last_p:
+                ubos_2D_triangle.update_shader()
+                batch_2D_triangle.draw(shader_2D_triangle)
+            cls._c = 1
+        cls.color(cls._last_color)
+        if cls._is_first:
+            cls._first_p = p
+            cls._is_first = False
+        else: cls._last_p = p
+
+class CC_3D_TRIANGLES(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        shader_3D_triangle.bind()
+        ubos_3D_triangle.options.MVPMatrix = Drawing.get_view_matrix()
+        cls._c = 0
+        cls._last_color = None
+        cls._last_p0 = None
+        cls._last_p1 = None
+
+    @classmethod
+    def color(cls, c:Color4):
+        if c is None: return
+        ubos_3D_triangle.options.assign(f'color{cls._c}', c)
+        cls._last_color = c
+
+    @classmethod
+    def vertex(cls, p:Vector):
+        if p: ubos_3D_triangle.options.assign(f'pos{cls._c}', p)
+        cls._c = (cls._c + 1) % 3
+        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
+            ubos_3D_triangle.update_shader()
+            batch_3D_triangle.draw(shader_3D_triangle)
+        cls.color(cls._last_color)
+        cls._last_p1 = cls._last_p0
+        cls._last_p0 = p
+
+# ######################################################################################################
+# ######################################################################################################
+# ######################################################################################################
+
 
 class Drawing:
     @staticmethod
-    def scale(s):
+    def scale(s : float) -> float | None:
         return s * (bpy.context.preferences.system.ui_scale) if s is not None else None
 
     @staticmethod
@@ -95,7 +367,7 @@ class Drawing:
 
     @contextmanager
     @staticmethod
-    def draw(context, draw_type:"CC_DRAW"):
+    def draw(context, draw_type : Type[CC_DRAW]):
         assert not hasattr(Drawing, '_drawing'), 'Cannot nest Drawing.draw calls'
         Drawing._draw = draw_type
         try:
@@ -155,7 +427,7 @@ class Drawing:
     def draw2D_smooth_circle(context, center:Point2D | Vector | Tuple[float, float], radius:float, color:Color, *, width=0, smooth_threshold=1.5):
         '''
         Draw an anti-aliased 2D circle using a quad-based approach for efficient rendering
-        
+
         Parameters:
             context: Blender context
             center: Center position in screen coordinates
@@ -169,7 +441,7 @@ class Drawing:
         width = Drawing.scale(width)
         smooth_threshold = Drawing.scale(smooth_threshold)
         settings = (radius, width, smooth_threshold, 0.0)
-        
+
         shader_smooth_circle_2D.bind()
         ubos_smooth_circle_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
         ubos_smooth_circle_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
@@ -184,7 +456,7 @@ class Drawing:
     def draw2D_radial_gradient(context, center:Point2D, radius:float, color_center:Color, color_edge:Color, *, t=1.0, easing_type=0):
         '''
         Draw a radial gradient from center to edge with easing functions
-        
+
         Parameters:
             context: Blender context
             center: Center position in screen coordinates
@@ -196,7 +468,7 @@ class Drawing:
         '''
         area = context.area
         radius = Drawing.scale(radius)
-        
+
         shader_radial_gradient_2D.bind()
         ubos_radial_gradient_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
         ubos_radial_gradient_2D.options.screensize = (area.width, area.height, 0.0, 0.0)
@@ -238,7 +510,7 @@ class Drawing:
         if segments is None:
             if viewport_size is not None:
                 # Heuristic for calculating segments based on viewport size (or region size) and radius.
-                
+
                 # --- Configuration ---
                 base_target_segments = 32 # Target segments for ref_radius at ref_vp_dim
                 ref_radius = 0.1          # Reference world-space radius
@@ -247,9 +519,9 @@ class Drawing:
                 max_segments = 256
                 # Scaling factor limits to prevent extreme segment counts
                 radius_scale_min = 0.25
-                radius_scale_max = 4.0 
-                vp_scale_min = 0.5     
-                vp_scale_max = 2.0     
+                radius_scale_max = 4.0
+                vp_scale_min = 0.5
+                vp_scale_max = 2.0
 
                 # --- Calculate Radius Scale ---
                 # Ensure radius is positive for scaling calculation
@@ -519,271 +791,6 @@ class Drawing:
 
 Drawing.set_font_size(12)
 
-# ######################################################################################################
-# # The following classes mimic the immediate mode for (old-school way of) drawing geometry
-# #   glBegin(GL_TRIANGLES)
-# #   glColor3f(p)
-# #   glVertex3f(p)
-# #   glEnd()
-
-class CC_DRAW:
-    _point_size:float = 1
-    _line_width:float = 1
-    _border_width:float = 0
-    _border_color:Color4 = Color4((0, 0, 0, 0))
-    _stipple_pattern:List[float] = [1,0]
-    _stipple_offset:float = 0
-    _stipple_color:Color4 = Color4((0, 0, 0, 0))
-
-    _default_color = Color4((1, 1, 1, 1))
-    _default_point_size = 1
-    _default_line_width = 1
-    _default_border_width = 0
-    _default_border_color = Color4((0, 0, 0, 0))
-    _default_stipple_pattern = [1,0]
-    _default_stipple_color = Color4((0, 0, 0, 0))
-
-    @classmethod
-    def reset(cls):
-        scale = Drawing.scale
-        CC_DRAW._point_size      = scale(CC_DRAW._default_point_size)
-        CC_DRAW._line_width      = scale(CC_DRAW._default_line_width)
-        CC_DRAW._border_width    = scale(CC_DRAW._default_border_width)
-        CC_DRAW._border_color    = CC_DRAW._default_border_color
-        CC_DRAW._stipple_offset  = 0
-        CC_DRAW._stipple_pattern = [scale(v) for v in CC_DRAW._default_stipple_pattern]
-        CC_DRAW._stipple_color   = CC_DRAW._default_stipple_color
-        cls.update()
-
-    @classmethod
-    def update(cls): pass
-
-    @classmethod
-    def point_size(cls, size):
-        CC_DRAW._point_size = Drawing.scale(size)
-        cls.update()
-
-    @classmethod
-    def line_width(cls, width):
-        CC_DRAW._line_width = Drawing.scale(width)
-        cls.update()
-
-    @classmethod
-    def border(cls, *, width=None, color=None):
-        if width is not None: CC_DRAW._border_width = Drawing.scale(width)
-        if color is not None: CC_DRAW._border_color = color
-        cls.update()
-
-    @classmethod
-    def stipple(cls, *, pattern=None, offset=None, color=None):
-        if pattern is not None: CC_DRAW._stipple_pattern = [Drawing.scale(v) for v in pattern]
-        if offset  is not None: CC_DRAW._stipple_offset  = Drawing.scale(offset)
-        if color   is not None: CC_DRAW._stipple_color   = color
-        cls.update()
-
-    @classmethod
-    def end(cls):
-        gpu.shader.unbind()
-        cls.reset()
 
 if not bpy.app.background:
     CC_DRAW.reset()
-
-
-class CC_2D_POINTS(CC_DRAW):
-    @classmethod
-    def begin(cls, context):
-        shader_2D_point.bind()
-        ubos_2D_point.options.MVPMatrix = Drawing.get_pixel_matrix(context)
-        ubos_2D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
-        ubos_2D_point.options.color = cls._default_color
-        cls.update()
-
-    @classmethod
-    def update(cls):
-        ubos_2D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
-        ubos_2D_point.options.colorBorder = cls._border_color
-
-    @classmethod
-    def color(cls, c:Color4):
-        ubos_2D_point.options.color = c
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if p:
-            ubos_2D_point.options.center = (*p, 0, 1)
-            ubos_2D_point.options.update_shader()
-            batch_2D_point.draw(shader_2D_point)
-
-
-class CC_2D_LINES(CC_DRAW):
-    @classmethod
-    def begin(cls, context):
-        shader_2D_lineseg.bind()
-        mvpmatrix = Drawing.get_pixel_matrix(context)
-        ubos_2D_lineseg.options.MVPMatrix = mvpmatrix
-        ubos_2D_lineseg.options.screensize = (context.area.width, context.area.height, 0, 0)
-        ubos_2D_lineseg.options.color0 = cls._default_color
-        cls.stipple(offset=0)
-        cls._c = 0
-        cls._last_p = None
-
-    @classmethod
-    def update(cls):
-        ubos_2D_lineseg.options.color1 = cls._stipple_color
-        ubos_2D_lineseg.options.stipple_width = (cls._stipple_pattern[0], cls._stipple_pattern[1], cls._stipple_offset, cls._line_width)
-
-    @classmethod
-    def color(cls, c:Color4):
-        ubos_2D_lineseg.options.color0 = c
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if p: ubos_2D_lineseg.options.assign(f'pos{cls._c}', (*p, 0, 1))
-        cls._c = (cls._c + 1) % 2
-        if cls._c == 0 and cls._last_p and p:
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
-        cls._last_p = p
-        return cls
-
-    @classmethod
-    def vertices(cls, ps:List[Vector]):
-        for p in ps:
-            cls.vertex(p)
-
-class CC_2D_LINE_STRIP(CC_2D_LINES):
-    @classmethod
-    def begin(cls, context):
-        super().begin()
-        cls._last_p = None
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if cls._last_p is None:
-            cls._last_p = p
-        else:
-            if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
-                ubos_2D_lineseg.update_shader()
-                batch_2D_lineseg.draw(shader_2D_lineseg)
-            cls._last_p = p
-
-class CC_2D_LINE_LOOP(CC_2D_LINES):
-    @classmethod
-    def begin(cls, context):
-        super().begin()
-        cls._first_p = None
-        cls._last_p = None
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if cls._first_p is None:
-            cls._first_p = cls._last_p = p
-        else:
-            if cls._last_p and p:
-                ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-                ubos_2D_lineseg.options.pos1 = (*p, 0, 1)
-                ubos_2D_lineseg.update_shader()
-                batch_2D_lineseg.draw(shader_2D_lineseg)
-            cls._last_p = p
-
-    @classmethod
-    def end(cls):
-        if cls._last_p and cls._first_p:
-            ubos_2D_lineseg.options.pos0 = (*cls._last_p, 0, 1)
-            ubos_2D_lineseg.options.pos1 = (*cls._first_p, 0, 1)
-            ubos_2D_lineseg.update_shader()
-            batch_2D_lineseg.draw(shader_2D_lineseg)
-        super().end()
-
-
-class CC_2D_TRIANGLES(CC_DRAW):
-    @classmethod
-    def begin(cls, context):
-        shader_2D_triangle.bind()
-        #shader_2D_triangle.uniform_float('screensize', (context.area.width, context.area.height))
-        ubos_2D_triangle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
-        cls._c = 0
-        cls._last_color = None
-        cls._last_p0 = None
-        cls._last_p1 = None
-
-    @classmethod
-    def color(cls, c:Color4):
-        if c is None: return
-        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
-        cls._last_color = c
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
-        cls._c = (cls._c + 1) % 3
-        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
-            ubos_2D_triangle.update_shader()
-            batch_2D_triangle.draw(shader_2D_triangle)
-        cls.color(cls._last_color)
-        cls._last_p1 = cls._last_p0
-        cls._last_p0 = p
-        return cls
-
-class CC_2D_TRIANGLE_FAN(CC_DRAW):
-    @classmethod
-    def begin(cls, context):
-        shader_2D_triangle.bind()
-        ubos_2D_triangle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
-        cls._c = 0
-        cls._last_color = None
-        cls._first_p = None
-        cls._last_p = None
-        cls._is_first = True
-
-    @classmethod
-    def color(cls, c:Color4):
-        if c is None: return
-        ubos_2D_triangle.options.assign(f'color{cls._c}', c)
-        cls._last_color = c
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
-        cls._c += 1
-        if cls._c == 3:
-            if p and cls._first_p and cls._last_p:
-                ubos_2D_triangle.update_shader()
-                batch_2D_triangle.draw(shader_2D_triangle)
-            cls._c = 1
-        cls.color(cls._last_color)
-        if cls._is_first:
-            cls._first_p = p
-            cls._is_first = False
-        else: cls._last_p = p
-
-class CC_3D_TRIANGLES(CC_DRAW):
-    @classmethod
-    def begin(cls, context):
-        shader_3D_triangle.bind()
-        ubos_3D_triangle.options.MVPMatrix = Drawing.get_view_matrix()
-        cls._c = 0
-        cls._last_color = None
-        cls._last_p0 = None
-        cls._last_p1 = None
-
-    @classmethod
-    def color(cls, c:Color4):
-        if c is None: return
-        ubos_3D_triangle.options.assign(f'color{cls._c}', c)
-        cls._last_color = c
-
-    @classmethod
-    def vertex(cls, p:Vector):
-        if p: ubos_3D_triangle.options.assign(f'pos{cls._c}', p)
-        cls._c = (cls._c + 1) % 3
-        if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
-            ubos_3D_triangle.update_shader()
-            batch_3D_triangle.draw(shader_3D_triangle)
-        cls.color(cls._last_color)
-        cls._last_p1 = cls._last_p0
-        cls._last_p0 = p
-
