@@ -47,7 +47,6 @@ from ..common.operator import (
     chain_rf_keymaps,
     RFOperator,
     RFOperator_Execute,
-    RF_AssetShelfOperator,
     RFAssetShelf,
     RFRegisterClass,
     wrap_property,
@@ -208,14 +207,12 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None),
-        (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
-
-        # (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, {'km_context': ('init', 'ready'), 'km_label': 'Insert Strip'}),  # prevents object selection with Ctrl+LMB Click
-        # (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': True}, None),
+        (bl_idname, {'type': 'I', 'value': 'PRESS'}, None),
+        # (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None),
+        # (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
-        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Insert Patch'}),
+        # (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Insert Patch'}),
 
         # ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
@@ -243,16 +240,6 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         default=50,
     )
 
-    # stroke_smoothing: bpy.props.FloatProperty(
-    #     name='Stabilize',
-    #     description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
-    #     get=lambda _: RFBrush_Patches.get_stroke_smooth(),
-    #     set=lambda _,v: RFBrush_Patches.set_stroke_smooth(v),
-    #     min=0.00,
-    #     max=1.0,
-    #     default=0.5,
-    # )
-
     def init(self, context, event):
         # self.km_context = 'ready'
         RFTool_Patches.rf_brush.set_operator(self)
@@ -273,16 +260,21 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
 
     def reset(self):
         RFTool_Patches.rf_brush.reset()
+        pass
 
     def update(self, context, event):
-        if not event.ctrl:
+        if event.type == 'ESC':
             return {'CANCELLED'}
 
         if event.type == 'WHEELUPMOUSE':
             self.rotate = self.rotate + radians(10)
             context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
         if event.type == 'WHEELDOWNMOUSE':
             self.rotate = self.rotate - radians(10)
+            context.area.tag_redraw()
+            return {'RUNNING_MODAL'}
+        if event.type == 'MOUSEMOVE':
             context.area.tag_redraw()
 
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -291,27 +283,6 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
 
         Cursors.set('CROSSHAIR')
         return {'PASS_THROUGH'}
-        # if event.value in {'CLICK', 'DOUBLE_CLICK'} and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
-        #     # prevents object selection with Ctrl+LMB Click
-        #     return {'RUNNING_MODAL'}
-
-        # if RFTool_PolyStrips.rf_brush.is_stroking():
-        #     self.set_statusbar_override(self.rf_status['insert'])
-        #     if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
-        #         self.RFCore.handle_update(context, event)
-        #         return {'RUNNING_MODAL'}
-        # else:
-        #     self.set_statusbar_override(None)
-        #     if not event.ctrl:
-        #         Cursors.restore()
-        #         self.tickle(context)
-        #         return {'FINISHED'}
-
-        # Cursors.set('CROSSHAIR')
-        # return {'PASS_THROUGH'}  # TODO: see below
-        # # TODO: allow only some operators to work but not all
-        # #       however, need a way to not hardcode LEFTMOUSE!
-        # return {'PASS_THROUGH'} if event.type in {'MOUSEMOVE', 'LEFTMOUSE'} else {'RUNNING_MODAL'}
 
     def compute_orientation(self, context, *, world=True) -> Direction:
         if not self.mouse_hit or not self.mouse_ray or not self.mouse_ray[1]:
@@ -329,6 +300,83 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
             return (Mi @ direction_to_bvec4(z)).xyz
         return z
 
+    def draw_postview(self, context):
+        if not self.mouse_hit or not self.mouse_ray[1]: return
+
+        viewport_size = (context.region.width, context.region.height)
+        p = self.mouse_hit['co_world']
+        z = self.compute_orientation(context)
+
+        # M = context.edit_object.matrix_world
+        # edit_scale = max(M.to_scale())
+        radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance'])
+        def xform(p, n):
+            return (p * radius3D, n)
+        height = Patches_Template.compute_template_height(xform)
+
+        gpustate.blend('ALPHA')
+        gpustate.depth_mask(False)
+
+        # draw below
+        gpustate.depth_test('GREATER')
+        # Drawing.draw_circle_3d(
+        #     p,
+        #     z,
+        #     Color4((1,1,0,0.5)), #co * self.below_alpha,
+        #     radius3D,
+        #     scale=1.0, # self.hit_scale_above,
+        #     thickness=1.0, #thickness,
+        #     viewport_size=viewport_size,
+        # )
+        Drawing.draw_circle_3d(
+            p,
+            z,
+            Color4((1,1,0,0.25)), #co * self.below_alpha,
+            radius3D * sqrt(2),
+            scale=1.0, # self.hit_scale_above,
+            thickness=1.0, #thickness,
+            viewport_size=viewport_size,
+        )
+
+        # # draw above
+        gpustate.depth_test('LESS_EQUAL')
+        # Drawing.draw_circle_3d(
+        #     p,
+        #     z,
+        #     Color4((1,1,0,1)), #co * self.below_alpha,
+        #     radius3D,
+        #     scale=1.0, # self.hit_scale_above,
+        #     thickness=2.0, #thickness,
+        #     viewport_size=viewport_size,
+        # )
+        Drawing.draw_circle_3d(
+            p,
+            z,
+            Color4((1,1,0,0.5)), #co * self.below_alpha,
+            radius3D*sqrt(2),
+            scale=1.0, # self.hit_scale_above,
+            thickness=2.0, #thickness,
+            viewport_size=viewport_size,
+        )
+        if not Patches_Template.is_active_flat():
+            # Drawing.draw_circle_3d(
+            #     p + z * height,
+            #     z,
+            #     Color4((1,1,0,0.5)), #co * self.below_alpha,
+            #     radius3D,
+            #     scale=1.0, # self.hit_scale_above,
+            #     thickness=1.0, #thickness,
+            #     viewport_size=viewport_size,
+            # )
+            Drawing.draw_circle_3d(
+                p + z * height,
+                z,
+                Color4((1,1,0,0.25)), #co * self.below_alpha,
+                radius3D*sqrt(2),
+                scale=1.0, # self.hit_scale_above,
+                thickness=1.0, #thickness,
+                viewport_size=viewport_size,
+            )
     def draw_postpixel(self, context):
         if not self.mouse_hit: return
 
@@ -340,11 +388,14 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
 
         up_local = (Mi @ direction_to_bvec4(view_up_direction(context))).xyz
+        right_local = (Mi @ direction_to_bvec4(view_right_direction(context))).xyz
 
         fo = self.mouse_hit['co_local']
         fz = self.compute_orientation(context, world=False)
-        fx = up_local.cross(fz).normalized()
-        fy = fz.cross(fx).normalized()
+        fy = fz.cross(right_local).normalized()
+        fx = fy.cross(fz).normalized()
+        # fx = up_local.cross(fz).normalized()
+        # fy = fz.cross(fx).normalized()
         f = Frame(fo, fx, fy, fz)
         f.rotate_about_z(self.rotate)
 
@@ -361,41 +412,6 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         print(f'PROCESS!')
-        pass
-    #     snap_bmf0, snap_bmf1 = snapped_geo[2]
-    #     p3D_0, p3D_1 = stroke3D[0], stroke3D[-1]
-    #     if not snap_bmf0:
-    #         l = len(stroke2D)
-    #         p0 = stroke2D[0]
-    #         p1 = next((s for s in stroke2D if (s - p0).length >= radius2D), None)
-    #         if p1:
-    #             d = Direction2D(p0 - p1)
-    #             for i in range(1, 101):
-    #                 p = p0 + d * (radius2D * (i / 100))
-    #                 if not raycast_point_valid_sources(context, p): break
-    #                 stroke2D = [p] + stroke2D
-    #     if not snap_bmf1:
-    #         p0 = stroke2D[-1]
-    #         p1 = next((s for s in stroke2D[::-1] if (s - p0).length >= radius2D), None)
-    #         if p1:
-    #             d = Direction2D(p0 - p1)
-    #             for i in range(1, 101):
-    #                 p = p0 + d * (radius2D * (i / 100))
-    #                 if not raycast_point_valid_sources(context, p): break
-    #                 stroke2D += [p]
-    #     length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
-    #     stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
-    #     stroke3D = [pt for pt in stroke3D if pt]
-    #     RFOperator_PolyStrips_Insert.polystrips_insert(
-    #         context,
-    #         radius2D,
-    #         stroke3D, p3D_0, p3D_1,
-    #         is_cycle,
-    #         length2D,
-    #         snap_bmf0, snap_bmf1,
-    #         self.split_angle,
-    #         self.mirror_correct,
-    #     )
 
 
 class RFOperator_Patches_Drag_template(RFOperator):
@@ -689,7 +705,6 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
         # # draw above
         gpustate.depth_test('LESS_EQUAL')
-        # Drawing.draw_circle_3d(pa, n, co, self.stroke_radius, scale=self.hit_scale_below, thickness=thickness, viewport_size=viewport_size)
         Drawing.draw_circle_3d(
             p,
             z,
@@ -863,12 +878,12 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Patches,
+        RFOperator_PatchesBrush_Adjust,
     )
 
     rf_brush = RFBrush_Patches()
 
     def draw_settings(context, layout, tool):
-        prefs = RF_Prefs.get_prefs(context)
         props_patches = tool.operator_properties(RFOperator_Patches.bl_idname)
         RFTool_Patches.props = props_patches
 
@@ -878,18 +893,6 @@ class RFTool_Patches(RFTool_Base):
             row.prop(props_patches, 'insert_mode', text='')
             if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
                 row.prop(props_patches, 'brush_radius', text='')
-            # if props_polypen.insert_mode == 'QUAD-ONLY':
-            #     layout.prop(props_polypen, 'quad_stability', slider=True)
-            # draw_line_separator(layout)
-            # layout.popover('RF_PT_TweakCommon', text='Tweaking')
-            # row = layout.row(align=True)
-            # row.popover('RF_PT_MeshCleanup', text='Clean Up')
-            # row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
-            # draw_mirror_popover(context, layout)
-            # if prefs.expand_offset:
-            #     layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
-            # layout.popover('RF_PT_General', text='', icon='OPTIONS')
-            # layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 
         else:
             header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
@@ -898,8 +901,6 @@ class RFTool_Patches(RFTool_Base):
                 panel.prop(props_patches, 'insert_mode', text='Method')
                 if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
                     panel.prop(props_patches, 'brush_radius', text='Radius')
-                # if props_polypen.insert_mode == 'QUAD-ONLY':
-                #     panel.prop(props_polypen, 'quad_stability', slider=True)
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
@@ -923,10 +924,6 @@ class RFTool_Patches(RFTool_Base):
                 # this can happen if context is not quite right, so find space that we can
                 # ex: after saving
                 return
-                space_data = None
-                for d in RFOperator.RFCore.iter_spaces():
-                    space_data = d['space']
-                if not space_data: return
             try:
                 cls.resetter['space_data.show_region_asset_shelf'] = True
             except:

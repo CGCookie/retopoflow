@@ -56,7 +56,7 @@ class Patches_Template:
         es  = [ tuple(e.vertices) for e in mesh.edges ]
         fs  = [ tuple(f.vertices) for f in mesh.polygons ]
 
-        # TODO: rescale and translate mesh
+        # rescale and translate mesh
         bbox_min = Vector((
             min(v.x for v in vps),
             min(v.y for v in vps),
@@ -67,7 +67,11 @@ class Patches_Template:
             max(v.y for v in vps),
             max(v.z for v in vps),
         ))
-        bbox_center = bbox_min + (bbox_max - bbox_min) / 2
+        bbox_center = Vector((
+            bbox_min.x + (bbox_max.x - bbox_min.x) / 2,
+            bbox_min.y + (bbox_max.y - bbox_min.y) / 2,
+            bbox_min.z
+        ))
         bbox_size = 0.5 * max(0.000001, bbox_max.x - bbox_min.x, bbox_max.y - bbox_min.y) #, bbox_max.z - bbox_min.z)
         vps = [(v - bbox_center) / bbox_size for v in vps]
 
@@ -94,7 +98,16 @@ class Patches_Template:
             for v in e:
                 vcs[v] = True
 
-        return (vc, ec, fc, vps, vns, vcs, es, fs)
+        flat = (bbox_max.z - bbox_min.z) < 0.001
+
+        return (vc, ec, fc, vps, vns, vcs, es, fs, flat)
+
+    @staticmethod
+    def is_active_flat():
+        active = Patches_Template._active
+        if active is None: return False
+        (vc, ec, fc, vps, vns, vcs, es, fs, flat) = active
+        return flat
 
     @staticmethod
     def activate(context, asset_identifier, library_identifier, library_type):
@@ -114,6 +127,7 @@ class Patches_Template:
                 [1.0, 1.0, 1.0, 1.0],
                 [],
                 [(0, 1, 2, 3)],
+                True,
             )
 
         else:
@@ -152,10 +166,20 @@ class Patches_Template:
             Patches_Template._active = cache[template_id]
 
     @staticmethod
+    def compute_template_height(fn_transform_vertex):
+        template = Patches_Template._active
+        if template is None: return 0.0
+        vc, ec, fc, vps, vns, vcs, es, fs, flat = template
+        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(vps, vns) ]
+        z_min = min(pt.z for (pt,no) in ptnos)
+        z_max = max(pt.z for (pt,no) in ptnos)
+        return z_max - z_min
+
+    @staticmethod
     def draw_template(context, fn_transform_vertex, highlight):
         template = Patches_Template._active
         if template is None: return
-        vc, ec, fc, vps, vns, vcs, es, fs = template
+        vc, ec, fc, vps, vns, vcs, es, fs, flat = template
         ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(vps, vns) ]
         pts = [
             location_3d_to_region_2d(context.region, context.region_data, pt)
