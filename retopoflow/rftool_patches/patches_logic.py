@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import os
+from typing import Self
 
 import bpy
 from mathutils.bvhtree import BVHTree
@@ -40,32 +41,42 @@ from ..common.drawing import (
 )
 
 
-
 class Patches_Template:
-    ASSETS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
-    _cache = {}
-    _active = None
+    _cache : dict[tuple[str, str, str], Self] = {}
+    _active : Self | None = None
 
-    @staticmethod
-    def _process_mesh(mesh):
-        vc, ec, fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
+    def __init__(self, data):
+        if type(data) is bpy.types.Mesh:
+            self._from_mesh(data)
+        else:
+            self._from_data(data)
+        self._process()
 
-        vps = [ Vector(v.co) for v in mesh.vertices ]
-        vns = [ Vector(v.normal) for v in mesh.vertices ]
+    def _from_data(self, data):
+        self.vc, self.ec, self.fc = len(data['vertices']), len(data['edges']), len(data['polygons'])
+        self.vps = [ Vector(co) for (co,no) in data['vertices'] ]
+        self.vns = [ Vector(no) for (co,no) in data['vertices'] ]
+        self.es  = [ tuple(e)   for e in data['edges']    ]
+        self.fs  = [ tuple(f)   for f in data['polygons'] ]
 
-        es  = [ tuple(e.vertices) for e in mesh.edges ]
-        fs  = [ tuple(f.vertices) for f in mesh.polygons ]
+    def _from_mesh(self, mesh):
+        self.vc, self.ec, self.fc = len(mesh.vertices), len(mesh.edges), len(mesh.polygons)
+        self.vps = [ Vector(v.co)      for v in mesh.vertices ]
+        self.vns = [ Vector(v.normal)  for v in mesh.vertices ]
+        self.es  = [ tuple(e.vertices) for e in mesh.edges    ]
+        self.fs  = [ tuple(f.vertices) for f in mesh.polygons ]
 
+    def _process(self):
         # rescale and translate mesh
         bbox_min = Vector((
-            min(v.x for v in vps),
-            min(v.y for v in vps),
-            min(v.z for v in vps),
+            min(v.x for v in self.vps),
+            min(v.y for v in self.vps),
+            min(v.z for v in self.vps),
         ))
         bbox_max = Vector((
-            max(v.x for v in vps),
-            max(v.y for v in vps),
-            max(v.z for v in vps),
+            max(v.x for v in self.vps),
+            max(v.y for v in self.vps),
+            max(v.z for v in self.vps),
         ))
         bbox_center = Vector((
             bbox_min.x + (bbox_max.x - bbox_min.x) / 2,
@@ -73,41 +84,39 @@ class Patches_Template:
             bbox_min.z
         ))
         bbox_size = 0.5 * max(0.000001, bbox_max.x - bbox_min.x, bbox_max.y - bbox_min.y) #, bbox_max.z - bbox_min.z)
-        vps = [(v - bbox_center) / bbox_size for v in vps]
+        self.vps = [(v - bbox_center) / bbox_size for v in self.vps]
 
         # filter out face edges
-        fes = { e for f in mesh.polygons for f in fs for (i,j) in iter_pairs(f, True) for e in [(i,j), (j,i)]}
-        es  = [ e for e in es if e not in fes ]
-        ec = len(es)
+        fes = { e for f in self.fs for (i,j) in iter_pairs(f, True) for e in [(i,j), (j,i)] }
+        self.es  = [ e for e in self.es if e not in fes ]
+        self.ec = len(self.es)
 
         # count faces and edges per vert
         fes = {}
-        vcs = [False for _ in range(vc)]
-        for f in fs:
+        self.vcs = [False for _ in range(self.vc)]
+        for f in self.fs:
             for (i,j) in iter_pairs(f, True):
                 i,j = min(i,j), max(i,j)
                 fes.setdefault((i,j), 0)
                 fes[(i,j)] += 1
-        for f in fs:
+        for f in self.fs:
             for (i,j) in iter_pairs(f, True):
                 i,j = min(i,j), max(i,j)
                 if fes[(i,j)] == 2: continue
-                vcs[i] = True
-                vcs[j] = True
-        for e in es:
+                self.vcs[i] = True
+                self.vcs[j] = True
+        for e in self.es:
             for v in e:
-                vcs[v] = True
+                self.vcs[v] = True
 
-        flat = (bbox_max.z - bbox_min.z) < 0.001
-
-        return (vc, ec, fc, vps, vns, vcs, es, fs, flat)
+        self.is_flat = (bbox_max.z - bbox_min.z) < 0.001
+        self.radius = max(self.vps, key=lambda p:p.xy.length)
 
     @staticmethod
     def is_active_flat():
         active = Patches_Template._active
         if active is None: return False
-        (vc, ec, fc, vps, vns, vcs, es, fs, flat) = active
-        return flat
+        return active.is_flat
 
     @staticmethod
     def activate(context, asset_identifier, library_identifier, library_type):
@@ -118,69 +127,70 @@ class Patches_Template:
         # library_type: enum in ['ALL', 'LOCAL', 'ESSENTIALS', 'CUSTOM']
         # https://docs.blender.org/api/latest/bpy.types.AssetWeakReference.html#bpy.types.AssetWeakReference.asset_library_type
         # TODO: test how to load from 'ALL' or 'ESSENTIALS'
-        if library_type not in {'LOCAL', 'CUSTOM'}:
-            # default is a quad
-            Patches_Template._active = (
-                4, 0, 1,
-                [Vector((-1, -1, 0)), Vector((1, -1, 0)), Vector((1, 1, 0)), Vector((-1, 1, 0))],
-                [Vector(( 0,  0, 1)), Vector((0,  0, 1)), Vector((0, 0, 1)), Vector(( 0, 0, 1))],
-                [1.0, 1.0, 1.0, 1.0],
-                [],
-                [(0, 1, 2, 3)],
-                True,
-            )
+        if template_id not in cache:
+            print('  NOT IN CACHE!')
 
-        else:
-            if template_id not in cache:
-                if library_type == 'LOCAL':
-                    obj_name = asset_identifier.split('/')[-1]
-                    mesh = bpy.data.objects[obj_name].data
-                    cache[template_id] = Patches_Template._process_mesh(mesh)
+            if library_type == 'LOCAL':
+                obj_name = asset_identifier.split('/')[-1]
+                mesh = bpy.data.objects[obj_name].data
+                cache[template_id] = Patches_Template(mesh)
 
-                elif library_type == 'CUSTOM':
-                    blend, object_type, object_name = asset_identifier.split('/')
-                    assert object_type == 'Object', 'Cannot activate non-object'
-                    blend_path = os.path.join(
-                        context.preferences.filepaths.asset_libraries[library_identifier].path,
-                        blend
-                    )
+            elif library_type == 'CUSTOM':
+                blend, object_type, object_name = asset_identifier.split('/')
+                assert object_type == 'Object', 'Cannot activate non-object'
+                blend_path = os.path.join(
+                    context.preferences.filepaths.asset_libraries[library_identifier].path,
+                    blend
+                )
 
-                    # link asset into a temporary scene (makes finding object easier)
-                    print(f'temporarily linking in {object_type} {object_name} from {blend_path}')
-                    asset_scene = bpy.data.scenes.new('RF Patches')
-                    # link in asset (THIS IS REALLY AWKWARD, BUT SEEMS TO BE THE ONLY WAY?)
-                    with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
-                        assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
-                        data_to.objects = [object_name]
-                    asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
-                    asset_object = asset_scene.collection.objects[0]  # should be only one object in temp scene
+                # link asset into a temporary scene (makes finding object easier)
+                print(f'temporarily linking in {object_type} {object_name} from {blend_path}')
+                asset_scene = bpy.data.scenes.new('RF Patches')
+                # link in asset (THIS IS REALLY AWKWARD, BUT SEEMS TO BE THE ONLY WAY?)
+                with bpy.data.libraries.load(blend_path, link=True) as (data_from, data_to):
+                    assert object_name in data_from.objects, f'Could not find {object_name} ({object_type}) in {blend} ({blend_path})'
+                    data_to.objects = [object_name]
+                asset_scene.collection.objects.link(data_to.objects[0])  # does NOT return the object linked!
+                asset_object = asset_scene.collection.objects[0]  # should be only one object in temp scene
 
-                    # grab and process mesh data
-                    mesh = asset_object.data
-                    cache[template_id] = Patches_Template._process_mesh(mesh)
+                # grab and process mesh data
+                cache[template_id] = Patches_Template(asset_object.data)
 
-                    # clean up!
-                    bpy.data.objects.remove(asset_object, do_unlink=True)
-                    bpy.data.scenes.remove(asset_scene)
+                # clean up!
+                bpy.data.objects.remove(asset_object, do_unlink=True)
+                bpy.data.scenes.remove(asset_scene)
 
-            Patches_Template._active = cache[template_id]
+            else:
+                # default is a quad
+                cache[template_id] = Patches_Template({
+                    'vertices': [
+                        (Vector((-1, -1, 0)), Vector((0, 0, 1))),
+                        (Vector(( 1, -1, 0)), Vector((0, 0, 1))),
+                        (Vector(( 1,  1, 0)), Vector((0, 0, 1))),
+                        (Vector((-1,  1, 0)), Vector((0, 0, 1))),
+                    ],
+                    'edges': [],
+                    'polygons': [
+                        (0, 1, 2, 3)
+                    ],
+                })
+
+        Patches_Template._active = cache[template_id]
 
     @staticmethod
-    def compute_template_height(fn_transform_vertex):
-        template = Patches_Template._active
-        if template is None: return 0.0
-        vc, ec, fc, vps, vns, vcs, es, fs, flat = template
-        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(vps, vns) ]
+    def compute_active_height(fn_transform_vertex):
+        active = Patches_Template._active
+        if active is None: return 0.0
+        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(active.vps, active.vns) ]
         z_min = min(pt.z for (pt,no) in ptnos)
         z_max = max(pt.z for (pt,no) in ptnos)
         return z_max - z_min
 
     @staticmethod
-    def draw_template(context, fn_transform_vertex, highlight):
-        template = Patches_Template._active
-        if template is None: return
-        vc, ec, fc, vps, vns, vcs, es, fs, flat = template
-        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(vps, vns) ]
+    def draw_active(context, fn_transform_vertex, highlight):
+        active = Patches_Template._active
+        if active is None: return
+        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(active.vps, active.vns) ]
         pts = [
             location_3d_to_region_2d(context.region, context.region_data, pt)
             for (pt, no) in ptnos
@@ -197,7 +207,7 @@ class Patches_Template:
         with Drawing.draw(context, CC_2D_POINTS) as draw:
             draw.point_size(vertex_size + 4)
             draw.color(color_point)
-            for pt, c in zip(pts, vcs):
+            for pt, c in zip(pts, active.vcs):
                 if not c or not pt: continue
                 draw.vertex(pt)
 
@@ -207,7 +217,7 @@ class Patches_Template:
             # draw non-face edges
             draw.line_width(2)
             draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
-            for (e0,e1) in es:
+            for (e0,e1) in active.es:
                 pt0, pt1 = pts[e0], pts[e1]
                 if not pt0 or not pt1: continue
                 draw.vertex(pt0).vertex(pt1)
@@ -215,7 +225,7 @@ class Patches_Template:
             # draw face edges
             draw.line_width(1)
             draw.stipple(pattern=[5,0], offset=0, color=color_stipple)
-            for f in fs:
+            for f in active.fs:
                 if not all(pts[i] for i in f): continue
                 for (e0, e1) in iter_pairs(f, True):
                     pt0, pt1 = pts[e0], pts[e1]
@@ -224,7 +234,7 @@ class Patches_Template:
 
         with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
             draw.color(color_mesh)
-            for f in fs:
+            for f in active.fs:
                 if not all(pts[i] for i in f): continue
                 v0 = f[0]
                 pt0 = pts[v0]

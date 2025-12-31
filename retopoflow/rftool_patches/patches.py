@@ -30,16 +30,25 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from ..rftool_base import RFTool_Base
 from ..rfbrushes.stroke_brush import create_stroke_brush
+from ..preferences import RF_Prefs
 
 from ...addon_common.common import gpustate
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.decorators import add_cache
+from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Frame, Direction
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
+
 from ..common.bmesh import get_bmesh_emesh
+from ..common.drawing import (
+    Drawing,
+    CC_2D_POINTS,
+    CC_2D_LINES,
+    CC_2D_TRIANGLES,
+)
 from ..common.icons import get_path_to_blender_icon
 from ..common.operator import (
     execute_operator,
@@ -66,7 +75,6 @@ from ..common.raycast import (
     nearest_point_normal_valid_sources,
     size2D_to_size,
 )
-from ..preferences import RF_Prefs
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -76,12 +84,6 @@ from ..rfpanels.help_panel import draw_help_panel
 
 from .patches_logic import Patches_Logic, Patches_Template
 
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_TRIANGLES,
-)
 
 
 
@@ -186,8 +188,9 @@ class RFOperator_Patches_Insert(RFOperator_Patches_Insert_Properties, RFOperator
         )
 
     def execute(self, context):
+        logic = RFOperator_Patches_Insert.logic
+        if not logic: return {'CANCELLED'}
         try:
-            logic = RFOperator_Patches_Insert.logic
             logic.rotate = self.rotate
             logic.mirror = self.mirror
             logic.create(context)
@@ -312,69 +315,42 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance'])
         def xform(p, n):
             return (p * radius3D, n)
-        height = Patches_Template.compute_template_height(xform)
+        height = Patches_Template.compute_active_height(xform)
 
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
 
         # draw below
         gpustate.depth_test('GREATER')
-        # Drawing.draw_circle_3d(
-        #     p,
-        #     z,
-        #     Color4((1,1,0,0.5)), #co * self.below_alpha,
-        #     radius3D,
-        #     scale=1.0, # self.hit_scale_above,
-        #     thickness=1.0, #thickness,
-        #     viewport_size=viewport_size,
-        # )
         Drawing.draw_circle_3d(
             p,
             z,
-            Color4((1,1,0,0.25)), #co * self.below_alpha,
+            Color4((1,1,0,0.25)),
             radius3D * sqrt(2),
-            scale=1.0, # self.hit_scale_above,
-            thickness=1.0, #thickness,
+            scale=1.0,
+            thickness=1.0,
             viewport_size=viewport_size,
         )
 
         # # draw above
         gpustate.depth_test('LESS_EQUAL')
-        # Drawing.draw_circle_3d(
-        #     p,
-        #     z,
-        #     Color4((1,1,0,1)), #co * self.below_alpha,
-        #     radius3D,
-        #     scale=1.0, # self.hit_scale_above,
-        #     thickness=2.0, #thickness,
-        #     viewport_size=viewport_size,
-        # )
         Drawing.draw_circle_3d(
             p,
             z,
-            Color4((1,1,0,0.5)), #co * self.below_alpha,
+            Color4((1,1,0,0.5)),
             radius3D*sqrt(2),
-            scale=1.0, # self.hit_scale_above,
-            thickness=2.0, #thickness,
+            scale=1.0,
+            thickness=2.0,
             viewport_size=viewport_size,
         )
         if not Patches_Template.is_active_flat():
-            # Drawing.draw_circle_3d(
-            #     p + z * height,
-            #     z,
-            #     Color4((1,1,0,0.5)), #co * self.below_alpha,
-            #     radius3D,
-            #     scale=1.0, # self.hit_scale_above,
-            #     thickness=1.0, #thickness,
-            #     viewport_size=viewport_size,
-            # )
             Drawing.draw_circle_3d(
                 p + z * height,
                 z,
-                Color4((1,1,0,0.25)), #co * self.below_alpha,
+                Color4((1,1,0,0.25)),
                 radius3D*sqrt(2),
-                scale=1.0, # self.hit_scale_above,
-                thickness=1.0, #thickness,
+                scale=1.0,
+                thickness=1.0,
                 viewport_size=viewport_size,
             )
     def draw_postpixel(self, context):
@@ -383,19 +359,15 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         M = context.edit_object.matrix_world
         Mi = M.inverted()
         Mit = Mi.transposed()
-        Mt = M.transposed()
         edit_scale = max(M.to_scale())
         radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
 
-        up_local = (Mi @ direction_to_bvec4(view_up_direction(context))).xyz
         right_local = (Mi @ direction_to_bvec4(view_right_direction(context))).xyz
 
         fo = self.mouse_hit['co_local']
         fz = self.compute_orientation(context, world=False)
         fy = fz.cross(right_local).normalized()
         fx = fy.cross(fz).normalized()
-        # fx = up_local.cross(fz).normalized()
-        # fy = fz.cross(fx).normalized()
         f = Frame(fo, fx, fy, fz)
         f.rotate_about_z(self.rotate)
 
@@ -408,11 +380,137 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
 
         props = RF_Prefs.get_prefs(context)
         highlight = props.highlight_color
-        Patches_Template.draw_template(context, xform, highlight)
+        Patches_Template.draw_active(context, xform, highlight)
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
-        print(f'PROCESS!')
+        print('PROCESS!')
 
+
+@add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
+@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
+def activate_template(self, context):
+    Patches_Template.activate(
+        context,
+        self.relative_asset_identifier,
+        self.asset_library_identifier,
+        self.asset_library_type,
+    )
+
+
+class RFAssetShelf_Patches(RFAssetShelf):
+    bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
+    bl_category = 'Patches Templates'
+
+    bl_activate_operator = 'retopoflow.patches_activate_template'
+    # bl_drag_operator = "retopoflow.patches_drag_template"
+
+    bl_default_preview_size = 128   # show assets fairly large by default
+    filter_object = True            # Filter to only show object assets (asset_poll filters further)
+    show_names = True               # TODO: does not work???
+
+    @classmethod
+    def poll(cls, context):
+        # active asset is lost when asset shelf is hidden!
+        # also, the 3D View jumps if region overlap is False
+        # return not RFOperator_Patches.is_active()
+        return True
+
+    @classmethod
+    def asset_poll(cls, asset):
+        return asset.metadata.description.startswith('Retopoflow Patches Template')
+
+    @classmethod
+    def can_start(cls, context):
+        return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
+
+
+
+class RFTool_Patches(RFTool_Base):
+    bl_idname = "retopoflow.patches"
+    bl_label = "Patches"
+    bl_description = "Retopologize holes!"
+    bl_icon = get_path_to_blender_icon('patches')
+    bl_widget = None
+    bl_operator = 'retopoflow.patches'
+
+    bl_keymap = chain_rf_keymaps(
+        RFOperator_Patches,
+        RFOperator_PatchesBrush_Adjust,
+    )
+
+    rf_brush = RFBrush_Patches()
+
+    def draw_settings(context, layout, tool):
+        props_patches = tool.operator_properties(RFOperator_Patches.bl_idname)
+        RFTool_Patches.props = props_patches
+
+        if context.region.type == 'TOOL_HEADER':
+            layout.label(text="Insert:")
+            row = layout.row(align=True)
+            row.prop(props_patches, 'insert_mode', text='')
+            if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
+                row.prop(props_patches, 'brush_radius', text='')
+
+        else:
+            header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
+            header.label(text="Insert")
+            if panel:
+                panel.prop(props_patches, 'insert_mode', text='Method')
+                if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
+                    panel.prop(props_patches, 'brush_radius', text='Radius')
+            draw_cleanup_panel(context, layout)
+            draw_tweaking_panel(context, layout)
+            draw_mirror_panel(context, layout)
+            draw_general_panel(context, layout)
+            draw_help_panel(context, layout)
+
+    @classmethod
+    def activate(cls, context):
+        cls.resetter = Resetter('Patches')
+        space_data = context.space_data
+        asset_libs = context.preferences.filepaths.asset_libraries
+        def delayed_settings(attempts=3):
+            nonlocal cls, space_data, asset_libs
+            if 'Retopoflow Patches Templates' not in asset_libs:
+                bpy.types.AssetLibraryCollection.new(
+                    name="Retopoflow Patches Templates",
+                    directory=ASSETS_PATH,
+                )
+                # asset_libs['Retopoflow Assets'].import_method = 'LINK'
+            if not hasattr(space_data, 'show_region_asset_shelf'):
+                # this can happen if context is not quite right, so find space that we can
+                # ex: after saving
+                return
+            try:
+                cls.resetter['space_data.show_region_asset_shelf'] = True
+            except:
+                if attempts > 0:
+                    bpy.app.timers.register(lambda:delayed_settings(attempts-1), first_interval=0.25)
+        bpy.app.timers.register(delayed_settings, first_interval=0.25)
+        Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
+        #return super().activate(context)
+
+    @classmethod
+    def deactivate(cls, context):
+        cls.resetter.reset()
+
+
+@execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
+def switch_rftool(context):
+    RFTool_Patches.activate_tool(context)
+
+
+
+
+################################################################################################################################
+################################################################################################################################
+#
+#
+# the class below will be removed
+#
+#
+################################################################################################################################
+################################################################################################################################
 
 class RFOperator_Patches_Drag_template(RFOperator):
     bl_idname = 'retopoflow.patches_drag_template'
@@ -835,109 +933,3 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
-
-@add_cache('active', {'asset identifier': None, 'library identifier': None, 'library type': None})
-@execute_operator('patches_activate_template', 'Patches: Activate Template from Asset Shelf', pass_self=True, asset_shelf=True)
-def activate_template(self, context):
-    Patches_Template.activate(
-        context,
-        self.relative_asset_identifier,
-        self.asset_library_identifier,
-        self.asset_library_type,
-    )
-
-
-class RFAssetShelf_Patches(RFAssetShelf):
-    bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
-    bl_category = 'Patches Templates'
-
-    bl_activate_operator = 'retopoflow.patches_activate_template'
-    # bl_drag_operator = "retopoflow.patches_drag_template"
-
-    filter_object = True            # Filter to only show object assets (asset_poll filters further)
-    show_names = True               # TODO: does not work???
-    bl_default_preview_size = 128   # show assets fairly large by default
-
-    @classmethod
-    def asset_poll(cls, asset):
-        return asset.metadata.description.startswith('Retopoflow Patches Template')
-
-    @classmethod
-    def can_start(cls, context):
-        return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
-
-
-
-class RFTool_Patches(RFTool_Base):
-    bl_idname = "retopoflow.patches"
-    bl_label = "Patches"
-    bl_description = "Retopologize holes!"
-    bl_icon = get_path_to_blender_icon('patches')
-    bl_widget = None
-    bl_operator = 'retopoflow.patches'
-
-    bl_keymap = chain_rf_keymaps(
-        RFOperator_Patches,
-        RFOperator_PatchesBrush_Adjust,
-    )
-
-    rf_brush = RFBrush_Patches()
-
-    def draw_settings(context, layout, tool):
-        props_patches = tool.operator_properties(RFOperator_Patches.bl_idname)
-        RFTool_Patches.props = props_patches
-
-        if context.region.type == 'TOOL_HEADER':
-            layout.label(text="Insert:")
-            row = layout.row(align=True)
-            row.prop(props_patches, 'insert_mode', text='')
-            if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
-                row.prop(props_patches, 'brush_radius', text='')
-
-        else:
-            header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
-            header.label(text="Insert")
-            if panel:
-                panel.prop(props_patches, 'insert_mode', text='Method')
-                if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
-                    panel.prop(props_patches, 'brush_radius', text='Radius')
-            draw_cleanup_panel(context, layout)
-            draw_tweaking_panel(context, layout)
-            draw_mirror_panel(context, layout)
-            draw_general_panel(context, layout)
-            draw_help_panel(context, layout)
-
-    @classmethod
-    def activate(cls, context):
-        cls.resetter = Resetter('Patches')
-        space_data = context.space_data
-        asset_libs = context.preferences.filepaths.asset_libraries
-        def delayed_settings(attempts=3):
-            nonlocal cls, space_data, asset_libs
-            if 'Retopoflow Assets' not in asset_libs:
-                bpy.types.AssetLibraryCollection.new(
-                    name="Retopoflow Assets",
-                    directory=ASSETS_PATH,
-                )
-                # asset_libs['Retopoflow Assets'].import_method = 'LINK'
-            if not hasattr(space_data, 'show_region_asset_shelf'):
-                # this can happen if context is not quite right, so find space that we can
-                # ex: after saving
-                return
-            try:
-                cls.resetter['space_data.show_region_asset_shelf'] = True
-            except:
-                if attempts > 0:
-                    bpy.app.timers.register(lambda:delayed_settings(attempts-1), first_interval=0.25)
-        bpy.app.timers.register(delayed_settings, first_interval=0.25)
-        Patches_Template.activate(context, None, None, None)  # asset shelf will have nothing selected initially
-        #return super().activate(context)
-
-    @classmethod
-    def deactivate(cls, context):
-        cls.resetter.reset()
-
-
-@execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
-def switch_rftool(context):
-    RFTool_Patches.activate_tool(context)
