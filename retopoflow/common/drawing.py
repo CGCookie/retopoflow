@@ -24,9 +24,15 @@ import bmesh
 import gpu
 from mathutils import Vector, Matrix, Color
 from gpu_extras.batch import batch_for_shader
+from gpu.types import (
+    GPUBatch,
+    GPUVertBuf,
+    GPUVertFormat,
+)
 
 import math
-from typing import List, Tuple, Type
+from math import sin, cos, pi
+from typing import List, Tuple, Type, Generator, Self
 from contextlib import contextmanager
 
 from ...addon_common.common.blender import get_path_from_addon_common
@@ -67,7 +73,7 @@ shader_3D_circle,   ubos_3D_circle,   batch_3D_circle   = create_shader('circle_
 shader_smooth_circle_2D, ubos_smooth_circle_2D, batch_smooth_circle_2D = create_shader('smooth_circle_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
 shader_2D_triangle, ubos_2D_triangle, batch_2D_triangle = create_shader('triangle_2D.glsl', pos=[(1,0), (0,1), (0,0)])
 shader_radial_gradient_2D, ubos_radial_gradient_2D, batch_radial_gradient_2D = create_shader('radial_gradient_2D.glsl', pos=[(0,0), (1,0), (1,1), (0,0), (1,1), (0,1)])
-
+shader_3D_triangle, ubos_3D_triangle, batch_3D_triangle = create_shader('triangle_3D.glsl', pos=[(1,0,0), (0,1,0), (0,0,0)])
 
 
 
@@ -139,6 +145,15 @@ class CC_DRAW:
         gpu.shader.unbind()
         cls.reset()
 
+    ######################################
+    # OVERRIDE
+    @classmethod
+    def begin(cls, context): pass
+    @classmethod
+    def color(cls, c:Color4|None): pass
+    @classmethod
+    def vertex(cls, p:Vector) -> Type[Self]: return cls
+
 
 class CC_2D_POINTS(CC_DRAW):
     @classmethod
@@ -155,15 +170,17 @@ class CC_2D_POINTS(CC_DRAW):
         ubos_2D_point.options.colorBorder = cls._border_color
 
     @classmethod
-    def color(cls, c:Color4):
+    def color(cls, c:Color4|None):
+        if not c: return
         ubos_2D_point.options.color = c
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if p:
             ubos_2D_point.options.center = (*p, 0, 1)
             ubos_2D_point.options.update_shader()
             batch_2D_point.draw(shader_2D_point)
+        return cls
 
 
 class CC_2D_LINES(CC_DRAW):
@@ -184,7 +201,8 @@ class CC_2D_LINES(CC_DRAW):
         ubos_2D_lineseg.options.stipple_width = (cls._stipple_pattern[0], cls._stipple_pattern[1], cls._stipple_offset, cls._line_width)
 
     @classmethod
-    def color(cls, c:Color4):
+    def color(cls, c:Color4|None):
+        if not c: return
         ubos_2D_lineseg.options.color0 = c
 
     @classmethod
@@ -205,11 +223,11 @@ class CC_2D_LINES(CC_DRAW):
 class CC_2D_LINE_STRIP(CC_2D_LINES):
     @classmethod
     def begin(cls, context):
-        super().begin()
+        super().begin(context)
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if cls._last_p is None:
             cls._last_p = p
         else:
@@ -219,16 +237,17 @@ class CC_2D_LINE_STRIP(CC_2D_LINES):
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
+        return cls
 
 class CC_2D_LINE_LOOP(CC_2D_LINES):
     @classmethod
     def begin(cls, context):
-        super().begin()
+        super().begin(context)
         cls._first_p = None
         cls._last_p = None
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if cls._first_p is None:
             cls._first_p = cls._last_p = p
         else:
@@ -238,6 +257,7 @@ class CC_2D_LINE_LOOP(CC_2D_LINES):
                 ubos_2D_lineseg.update_shader()
                 batch_2D_lineseg.draw(shader_2D_lineseg)
             cls._last_p = p
+        return cls
 
     @classmethod
     def end(cls):
@@ -261,13 +281,13 @@ class CC_2D_TRIANGLES(CC_DRAW):
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c:Color4):
+    def color(cls, c:Color4|None):
         if c is None: return
         ubos_2D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c = (cls._c + 1) % 3
         if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
@@ -290,13 +310,13 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
         cls._is_first = True
 
     @classmethod
-    def color(cls, c:Color4):
+    def color(cls, c:Color4|None):
         if c is None: return
         ubos_2D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if p: ubos_2D_triangle.options.assign(f'pos{cls._c}', (*p, 0, 1))
         cls._c += 1
         if cls._c == 3:
@@ -309,25 +329,26 @@ class CC_2D_TRIANGLE_FAN(CC_DRAW):
             cls._first_p = p
             cls._is_first = False
         else: cls._last_p = p
+        return cls
 
 class CC_3D_TRIANGLES(CC_DRAW):
     @classmethod
     def begin(cls, context):
         shader_3D_triangle.bind()
-        ubos_3D_triangle.options.MVPMatrix = Drawing.get_view_matrix()
+        ubos_3D_triangle.options.MVPMatrix = Drawing.get_view_matrix(context)
         cls._c = 0
         cls._last_color = None
         cls._last_p0 = None
         cls._last_p1 = None
 
     @classmethod
-    def color(cls, c:Color4):
+    def color(cls, c:Color4|None):
         if c is None: return
         ubos_3D_triangle.options.assign(f'color{cls._c}', c)
         cls._last_color = c
 
     @classmethod
-    def vertex(cls, p:Vector):
+    def vertex(cls, p:Vector) -> Type[Self]:
         if p: ubos_3D_triangle.options.assign(f'pos{cls._c}', p)
         cls._c = (cls._c + 1) % 3
         if cls._c == 0 and p and cls._last_p0 and cls._last_p1:
@@ -336,6 +357,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
         cls.color(cls._last_color)
         cls._last_p1 = cls._last_p0
         cls._last_p0 = p
+        return cls
 
 # ######################################################################################################
 # ######################################################################################################
@@ -367,7 +389,7 @@ class Drawing:
 
     @contextmanager
     @staticmethod
-    def draw(context, draw_type : Type[CC_DRAW]):
+    def draw(context, draw_type : Type[CC_DRAW]) -> Generator[Type[CC_DRAW], None, None]:
         assert not hasattr(Drawing, '_drawing'), 'Cannot nest Drawing.draw calls'
         Drawing._draw = draw_type
         try:
@@ -385,10 +407,10 @@ class Drawing:
     def draw2D_circle(context, center:Point2D, radius:float, color0:Color, *, color1=None, width=1, stipple=None, offset=0):
         if color1 is None: color1 = (color0[0],color0[1],color0[2],0)
         area = context.area
-        radius = Drawing.scale(radius)
-        width = Drawing.scale(width)
-        stipple = [Drawing.scale(v) for v in stipple] if stipple else [1,0]
-        offset = Drawing.scale(offset)
+        radius  = Drawing.scale(radius) or radius
+        width   = Drawing.scale(width)  or width
+        offset =  Drawing.scale(offset) or offset
+        stipple = [Drawing.scale(v) or v for v in stipple] if stipple else [1,0]
         shader_2D_circle.bind()
         ubos_2D_circle.options.MVPMatrix = Drawing.get_pixel_matrix(context)
         ubos_2D_circle.options.screensize = (area.width, area.height, 0.0, 0.0)
@@ -402,14 +424,14 @@ class Drawing:
         gpu.shader.unbind()
 
     @staticmethod
-    def draw3D_circle(context, center:Point, radius:float, color:Color, *, width=1, n:Normal=None, x:Direction=None, y:Direction=None, depth_near=0, depth_far=1):
+    def draw3D_circle(context, center:Point, radius:float, color:Color, *, width=1, n:Normal|None=None, x:Direction|None=None, y:Direction|None=None, depth_near=0, depth_far=1):
         assert n is not None or x is not None or y is not None, 'Must specify at least one of n,x,y'
         area = context.area
         screensize = (area.width, area.height, 0.0, 0.0)
         settings = (radius, width, depth_near, depth_far)
         f = Frame(o=center, x=x, y=y, z=n)
-        radius = Drawing.scale(radius)
-        width = Drawing.scale(width)
+        radius = Drawing.scale(radius) or radius
+        width  = Drawing.scale(width) or width
 
         shader_3D_circle.bind()
         ubos_3D_circle.options.MVPMatrix = Drawing.get_view_matrix(context)
@@ -437,9 +459,9 @@ class Drawing:
             smooth_threshold: Smoothing factor for anti-aliasing (in pixels)
         '''
         area = context.area
-        radius = Drawing.scale(radius)
-        width = Drawing.scale(width)
-        smooth_threshold = Drawing.scale(smooth_threshold)
+        radius = Drawing.scale(radius) or radius
+        width  = Drawing.scale(width) or width
+        smooth_threshold = Drawing.scale(smooth_threshold) or smooth_threshold
         settings = (radius, width, smooth_threshold, 0.0)
 
         shader_smooth_circle_2D.bind()
@@ -467,7 +489,7 @@ class Drawing:
             easing_type: Type of easing function (0: linear, 1: quadratic, 2: cubic, 3: sine)
         '''
         area = context.area
-        radius = Drawing.scale(radius)
+        radius = Drawing.scale(radius) or radius
 
         shader_radial_gradient_2D.bind()
         ubos_radial_gradient_2D.options.MVPMatrix = Drawing.get_pixel_matrix(context)
@@ -499,14 +521,6 @@ class Drawing:
             If None or not specified, an automatic value will be calculated.
         :type segments: int | None
         """
-        from math import sin, cos, pi
-        import gpu
-        from gpu.types import (
-            GPUBatch,
-            GPUVertBuf,
-            GPUVertFormat,
-        )
-
         if segments is None:
             if viewport_size is not None:
                 # Heuristic for calculating segments based on viewport size (or region size) and radius.
@@ -682,11 +696,12 @@ class Drawing:
     size_cache = {}
 
     @staticmethod
-    def set_font_size(fontsize, fontid=None, force=False):
+    def set_font_size(fontsize:float, fontid=None, force=False):
         if fontid is None: fontid = fm._last_fontid
         else: fontid = fm.load(fontid)
         fontsize_prev = Drawing.fontsize
-        fontsize, fontsize_scaled = int(fontsize), int(Drawing.scale(int(fontsize)))
+        fontsize = int(fontsize)
+        fontsize_scaled = int(Drawing.scale(fontsize) or fontsize)
         cache_key = (fontid, fontsize_scaled)
         if Drawing.last_font_key == cache_key and not force: return fontsize_prev
         fm.size(fontsize_scaled, fontid=fontid)
@@ -717,7 +732,10 @@ class Drawing:
 
     @staticmethod
     def get_text_size_info(text, item, fontsize=None, fontid=None):
-        if fontsize or fontid: size_prev = Drawing.set_font_size(fontsize, fontid=fontid)
+        if fontsize:
+            size_prev = Drawing.set_font_size(fontsize, fontid=fontid) or fontsize
+        else:
+            size_prev = None
 
         if text is None: text, lines = '', []
         elif type(text) is list: text, lines = '\n'.join(text), text
@@ -747,7 +765,7 @@ class Drawing:
                 print('>   size: %s' % str(d))
                 print('--------------------------------------')
                 print('')
-        if fontsize: Drawing.set_font_size(size_prev, fontid=fontid)
+        if size_prev is not None: Drawing.set_font_size(size_prev, fontid=fontid)
         return Drawing.size_cache[key][item]
 
     @staticmethod
@@ -766,7 +784,10 @@ class Drawing:
 
     @staticmethod
     def text_draw2D(text, pos, *, color=None, dropshadow=None, fontsize=None, fontid=None, lineheight=True):
-        if fontsize: size_prev = Drawing.set_font_size(fontsize, fontid=fontid)
+        if fontsize:
+            size_prev = Drawing.set_font_size(fontsize, fontid=fontid) or fontsize
+        else:
+            size_prev = None
 
         lines = str(text).splitlines()
         l,t = round(pos[0]),round(pos[1])
@@ -781,7 +802,7 @@ class Drawing:
             fm.draw(line, xyz=(l, t - lb, 0), fontid=fontid)
             t -= lh if lineheight else Drawing.get_text_height(line)
 
-        if fontsize: Drawing.set_font_size(size_prev, fontid=fontid)
+        if size_prev is not None: Drawing.set_font_size(size_prev, fontid=fontid)
 
     @staticmethod
     def text_draw2D_simple(text, pos:Point2D):
