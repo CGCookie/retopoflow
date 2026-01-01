@@ -3,7 +3,7 @@ from bpy.types import Menu, Operator
 from bpy.utils import previews
 
 from ..rftool_polypen.polypen import PolyPen_Insert_Modes
-from ..rftool_patches.patches import Patches_Insert_Modes
+from ..rftool_patches.patches import Patches_Orientations
 
 
 
@@ -132,18 +132,18 @@ class RFMenu_MT_ToolPie(Menu):
             props = tool.operator_properties(tool.idname)
             row = back.row()
             row.emboss = pie_emboss
-            row.label(text='Patches Insert Mode')
+            row.label(text='Patches Orientation')
             section = back.box().column()
             section.ui_units_x = 8
             grid = section.grid_flow(even_columns=True, even_rows=True)
             row = grid.row(align=True)
             col = row.column(align=True)
-            col.operator('retopoflow.patches_setinsertmode_raycast', text='Raycast')
-            col.operator('retopoflow.patches_setinsertmode_screen', text='Screen')
+            col.operator('retopoflow.patches_setorientation_raycast', text='Raycast')
+            col.operator('retopoflow.patches_setorientation_screen', text='Screen')
             col = row.column(align=True)
-            col.operator('retopoflow.patches_setinsertmode_cut', text='Cut')
+            col.operator('retopoflow.patches_setorientation_cut', text='Cut')
             # col.operator('retopoflow.polypen_setinsertmode_quadonly', text='Quad')
-            # if Patches_Insert_Modes.insert_mode == 4:
+            # if Patches_Orientations.orientation == 4:
             #     row = section.row()
             #     row.emboss = pie_emboss
             #     row.label(text='Quad Stability')

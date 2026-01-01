@@ -23,6 +23,7 @@ import os
 import time
 from itertools import chain
 from math import sqrt, atan2, radians
+from enum import Enum
 
 import bpy
 from mathutils import Vector
@@ -41,6 +42,7 @@ from ...addon_common.common.debug import debugger
 from ...addon_common.common.maths import Frame, Direction
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.useractions import Actions
 
 from ..common.bmesh import get_bmesh_emesh
 from ..common.drawing import (
@@ -70,6 +72,7 @@ from ..common.maths import (
 )
 from ..common.raycast import (
     ray_from_mouse,
+    ray_from_point,
     raycast_ray_valid_sources,
     raycast_valid_sources,
     nearest_point_normal_valid_sources,
@@ -97,8 +100,12 @@ RFBrush_Patches, RFOperator_PatchesBrush_Adjust = create_stroke_brush(
     smoothing=0.5,
 )
 
-class Patches_Insert_Modes:
-    insert_modes = [
+
+# TODO: do not store patch position as mouse, but instead use hit.
+#       that way, when the artist navigates, the new projected position can be easily updated.
+
+class Patches_Orientations:
+    orientations = [
         # (identifier, name, description, icon, number)  or  (identifier, name, description, number)
         # must have number?
         # None is a separator
@@ -106,15 +113,22 @@ class Patches_Insert_Modes:
         ("SCREEN",  "Screen",  "Orient new patch to be aligned with view",     2),
         ("CUT",     "Cut",     "Use cuts to orient new patch",                 3),  # cylindrical patches
     ]
-    insert_mode = 1
+    orientation = 1
+
+    @staticmethod
+    def get_next_mode(mode):
+        modes = Patches_Orientations.orientations
+        idx = next((i for (i,m) in enumerate(modes) if m[0] == mode), None)
+        if idx is None: return modes[0][0]
+        return modes[(idx + 1) % len(modes)][0]
 
     @staticmethod
     def generate_operators():
         print('GENERATING PATCHES SET INSERT MODE OPERATORS')
         ops_insert = []
-        def gen_insert_mode(idname, label, value):
+        def gen_set_orientation_op(idname, label, value):
             nonlocal ops_insert
-            mode_idname = f'patches_setinsertmode_{idname.lower()}'
+            mode_idname = f'patches_setorientation_{idname.lower()}'
             rf_idname = f'retopoflow.{mode_idname}'
             rf_label = label
             class RFTool_OT_Patches_SetInsertMode:
@@ -122,7 +136,7 @@ class Patches_Insert_Modes:
                 bl_label = rf_label
                 bl_description = f'Set Patches Insert Mode to {label}'
                 def execute(self, context):
-                    Patches_Insert_Modes.set_insert_mode(None, value)
+                    Patches_Orientations.set_orientation(None, value)
                     context.area.tag_redraw()
                     return {'FINISHED'}
             opname = f'RFTool_OT_Patches_SetInsertMode_{idname}'
@@ -130,80 +144,28 @@ class Patches_Insert_Modes:
             ops_insert += [(rf_idname, rf_label)]
             return op
 
-        gen_insert_mode('Raycast', 'Raycast', 1)
-        gen_insert_mode('Screen',  'Screen',  2)
-        gen_insert_mode('Cut',     'Cut',     3)
+        gen_set_orientation_op('Raycast', 'Raycast', 1)
+        gen_set_orientation_op('Screen',  'Screen',  2)
+        gen_set_orientation_op('Cut',     'Cut',     3)
 
     @staticmethod
-    def get_insert_mode(self): return Patches_Insert_Modes.insert_mode
+    def get_orientation(_): return Patches_Orientations.orientation
     @staticmethod
-    def set_insert_mode(self, v): Patches_Insert_Modes.insert_mode = v
+    def set_orientation(_, v): Patches_Orientations.orientation = v
 
 # TODO: DO NOT CALL THIS HERE!  SHOULD ONLY GET CALLED ONCE
 #       COULD POTENTIALLY CREATE MULTIPLE OPERATORS WITH SAME NAME
-Patches_Insert_Modes.generate_operators()
-
-class RFOperator_Patches_Insert_Properties:
-    rotate: bpy.props.FloatProperty(
-        name='Rotate Topology',
-        description='Angle to rotate the topology',
-        default=0.0,
-    )
-
-    shift: bpy.props.IntProperty(
-        name='Shift Topology',
-        description='Number of edges to shift the topology',
-        default=0,
-    )
-
-    mirror: bpy.props.BoolProperty(
-        name='Mirror Topology',
-        description='Should the topology get mirrored/flipped',
-        default=False,
-    )
+Patches_Orientations.generate_operators()
 
 
-
-class RFOperator_Patches_Insert(RFOperator_Patches_Insert_Properties, RFOperator_Execute):
-    bl_idname = 'retopoflow.patches_insert'
-    bl_label = 'Insert Patch'
-    bl_description = 'Insert Patch'
-    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
-
-    logic : Patches_Logic | None = None
-
-    @staticmethod
-    def patches_insert(context, radius2D, point3D):
-        RFOperator_Patches_Insert.logic = Patches_Logic(context, radius2D, point3D)
-        RFOperator_Patches_Insert.patches_reinsert(context)
-
-    @staticmethod
-    def patches_reinsert(context):
-        logic = RFOperator_Patches_Insert.logic
-        if not logic or logic.error: return
-        bpy.ops.retopoflow.patches_insert(
-            'INVOKE_DEFAULT', True,
-            rotate=logic.rotate,
-            mirror=logic.mirror,
-        )
-
-    def execute(self, context):
-        logic = RFOperator_Patches_Insert.logic
-        if not logic: return {'CANCELLED'}
-        try:
-            logic.rotate = self.rotate
-            logic.mirror = self.mirror
-            logic.create(context)
-            self.rotate = logic.rotate
-            self.mirror = self.mirror
-        except Exception as e:
-            print(f'{type(self).__name__}.execute: Caught Exception {e}')
-            debugger.print_exception()
-            return {'CANCELLED'}
-        return {'FINISHED'}
+class Mode(Enum):
+    NOTHING = 0
+    GRAB = 1
+    ROTATE = 2
+    SCALE = 3
 
 
-class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RFOperator_PolyStrips_Insert_Properties,
+class RFOperator_Patches_Insert(RFOperator):
     bl_idname = 'retopoflow.patches'
     bl_label = 'Patches'
     bl_description = 'Fill in holes and add templated geometry'
@@ -225,22 +187,50 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         'insert': ('RMB: Cancel', )
     }
 
-    insert_mode: wrap_property(
-        Patches_Insert_Modes, 'insert_mode', 'enum',
-        name='Insert Mode',
-        description='Insertion mode for Patches',
-        items=Patches_Insert_Modes.insert_modes,
+    orientation: wrap_property(
+        Patches_Orientations, 'orientation', 'enum',
+        name='Orientation',
+        description='Orientation for Patches',
+        items=Patches_Orientations.orientations,
         default="RAYCAST",
     )
 
-    brush_radius: wrap_property(
-        RFBrush_Patches, 'stroke_radius', 'int',
-        name='Radius',
-        description='Radius of the brush in Blender UI units before it gets projected onto the mesh',
+    scale: bpy.props.FloatProperty(
+        name='Scale',
+        description='Amount to scale the patch',
         min=1,
         max=1000,
         subtype='PIXEL',
         default=50,
+    )
+
+    rotate: bpy.props.FloatProperty(
+        name='Rotate',
+        description='Angle to rotate the patch',
+        subtype='ANGLE',
+        default=0.0,
+    )
+
+    shift: bpy.props.IntProperty(
+        name='Shift Patch Topology',
+        description='Number of edges to shift the patch topology based on snapped-to geometry',
+        default=0,
+    )
+
+    mirror_x: bpy.props.BoolProperty(
+        name='Mirror X-Axis',
+        description='Mirror the patch topology along X-axis',
+        default=False,
+    )
+    mirror_y: bpy.props.BoolProperty(
+        name='Mirror Y-Axis',
+        description='Mirror the patch topology along Y-axis',
+        default=False,
+    )
+    mirror_z: bpy.props.BoolProperty(
+        name='Mirror Z-Axis',
+        description='Mirror the patch topology along Z-axis',
+        default=False,
     )
 
     def init(self, context, event):
@@ -249,9 +239,17 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         RFTool_Patches.rf_brush.reset_nearest(context)
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.logic = Patches_Logic(context)
-        self.tickle(context)
+
+        self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.mouse_hit = None
+        self.mouse_hit = raycast_valid_sources(context, self.mouse)
+        self.mouse_ray = ray_from_point(context, self.mouse)
+
+        self.actions = Actions.get_instance(context)
+
+        self.switch_to_nothing(context, event)
+        self.tickle(context)
+        context.area.tag_redraw()
 
     def finish(self, context):
         del self.logic
@@ -266,31 +264,145 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         pass
 
     def update(self, context, event):
-        if event.type == 'ESC':
-            return {'CANCELLED'}
+        print(event.type, event.value, self.mode, time.time())
+        self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.actions.update(context, event)
 
-        if event.type == 'WHEELUPMOUSE':
-            self.rotate = self.rotate + radians(10)
-            context.area.tag_redraw()
-            return {'RUNNING_MODAL'}
-        if event.type == 'WHEELDOWNMOUSE':
-            self.rotate = self.rotate - radians(10)
-            context.area.tag_redraw()
-            return {'RUNNING_MODAL'}
         if event.type == 'MOUSEMOVE':
             context.area.tag_redraw()
 
-        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.mouse_hit = raycast_valid_sources(context, self.mouse)
-        self.mouse_ray = ray_from_mouse(context, event)
+        match self.mode:
+            case Mode.NOTHING:
+                ret = self.update_nothing(context, event)
+            case Mode.GRAB:
+                ret = self.update_grab(context, event)
+            case Mode.ROTATE:
+                ret = self.update_rotate(context, event)
+            case Mode.SCALE:
+                ret = self.update_scale(context, event)
+            case _:
+                ret = {'PASS_THROUGH'}
 
+        if self.actions.is_navigating:
+            return {'PASS_THROUGH'}
+
+        return ret
+
+    def switch_to_nothing(self, context, event):
+        self.mode = Mode.NOTHING
+        Cursors.set('DEFAULT')
+
+    def update_nothing(self, context, event) -> set[str]:
+        if event.value == 'PRESS':
+            handled = True
+            match event.type:
+                case 'M':
+                    self.orientation = Patches_Orientations.get_next_mode(self.orientation)
+                case 'G' | 'LEFTMOUSE':
+                    self.switch_to_grab(context, event)
+                case 'R':
+                    self.switch_to_rotate(context, event)
+                case 'S':
+                    self.switch_to_scale(context, event)
+                case 'X':
+                    self.mirror_x = not self.mirror_x
+                case 'Y':
+                    self.mirror_y = not self.mirror_y
+                case 'Z':
+                    self.mirror_z = not self.mirror_z
+                case 'ESC':
+                    return {'CANCELLED'}
+                case _:
+                    handled = False
+            if handled:
+                context.area.tag_redraw()
+                self.tickle(context)
+                return {'RUNNING_MODAL'}
+
+        return {'RUNNING_MODAL'}
+
+    def switch_to_grab(self, context, event):
+        self.mode = Mode.GRAB
+        self.grab_initial = self.mouse
+        self.grab_xy = Vector((event.mouse_x, event.mouse_y))
+        Cursors.set('HAND')
+
+    def update_grab(self, context, event) -> set[str]:
+        if event.type == 'LEFTMOUSE':
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+        if event.type in {'ESC', 'RIGHTMOUSE'}:
+            self.mouse = self.grab_initial
+            self.mouse_hit = raycast_valid_sources(context, self.mouse)
+            self.mouse_ray = ray_from_point(context, self.mouse)
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+        self.mouse = self.grab_initial + Vector((event.mouse_x, event.mouse_y)) - self.grab_xy
+        self.mouse_hit = raycast_valid_sources(context, self.mouse)
+        self.mouse_ray = ray_from_point(context, self.mouse)
+        return {'RUNNING_MODAL'}
+
+    def switch_to_rotate(self, context, event):
+        self.mode = Mode.ROTATE
+        self.rotate_initial = self.rotate
+        cur = self.cursor - self.mouse
+        self.rotate_angle = atan2(cur.y, cur.x)
         Cursors.set('CROSSHAIR')
-        return {'PASS_THROUGH'}
+
+    def update_rotate(self, context, event) -> set[str]:
+        if event.type in {'LEFTMOUSE', 'ENTER'}:
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+        if event.type in {'ESC', 'RIGHTMOUSE'}:
+            self.rotate = self.rotate_initial
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+
+        cur = Vector((event.mouse_region_x, event.mouse_region_y)) - self.mouse
+        cur_ang = atan2(cur.y, cur.x)
+        self.rotate = self.rotate_initial + self.rotate_angle - cur_ang
+        return {'RUNNING_MODAL'}
+
+    def switch_to_scale(self, context, event):
+        self.mode = Mode.SCALE
+        self.scale_initial = self.scale
+        self.scale_dist = (self.cursor - self.mouse).length
+        Cursors.set('CROSSHAIR')
+
+    def update_scale(self, context, event) -> set[str]:
+        if event.type == 'LEFTMOUSE':
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+        if event.type in {'ESC', 'RIGHTMOUSE'}:
+            self.scale = self.scale_initial
+            self.switch_to_nothing(context, event)
+            context.area.tag_redraw()
+            self.tickle(context)
+            return {'RUNNING_MODAL'}
+
+        cur = (self.cursor - self.mouse).length
+        self.scale = self.scale_initial + cur - self.scale_dist
+        return {'RUNNING_MODAL'}
 
     def compute_orientation(self, context, *, world=True) -> Direction:
         if not self.mouse_hit or not self.mouse_ray or not self.mouse_ray[1]:
             return Vector((0, 0, 1))
-        match self.insert_mode:
+        match self.orientation:
             case 'RAYCAST':
                 z = self.mouse_hit['no_world']
             case 'SCREEN':
@@ -312,10 +424,18 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
 
         # M = context.edit_object.matrix_world
         # edit_scale = max(M.to_scale())
-        radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance'])
+        radius3D = self.scale * size2D_to_size(context, self.mouse_hit['distance'])
+        mult = Vector((
+            1 if not self.mirror_x else -1,
+            1 if not self.mirror_y else -1,
+            1 if not self.mirror_z else -1,
+        ))
+        offset = Vector((0, 0, 0 if not self.mirror_z else Patches_Template.get_active_height()))
         def xform(p, n):
-            return (p * radius3D, n)
+            nonlocal mult, offset, radius3D
+            return ((p * mult + offset) * radius3D, n * mult)
         height = Patches_Template.compute_active_height(xform)
+        max_radius = Patches_Template.compute_active_radius(xform)
 
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
@@ -326,8 +446,7 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
             p,
             z,
             Color4((1,1,0,0.25)),
-            radius3D * sqrt(2),
-            scale=1.0,
+            max_radius,
             thickness=1.0,
             viewport_size=viewport_size,
         )
@@ -338,8 +457,7 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
             p,
             z,
             Color4((1,1,0,0.5)),
-            radius3D*sqrt(2),
-            scale=1.0,
+            max_radius,
             thickness=2.0,
             viewport_size=viewport_size,
         )
@@ -348,11 +466,11 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
                 p + z * height,
                 z,
                 Color4((1,1,0,0.25)),
-                radius3D*sqrt(2),
-                scale=1.0,
+                max_radius,
                 thickness=1.0,
                 viewport_size=viewport_size,
             )
+
     def draw_postpixel(self, context):
         if not self.mouse_hit: return
 
@@ -360,7 +478,7 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         Mi = M.inverted()
         Mit = Mi.transposed()
         edit_scale = max(M.to_scale())
-        radius3D = self.brush_radius * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
+        radius3D = self.scale * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
 
         right_local = (Mi @ direction_to_bvec4(view_right_direction(context))).xyz
 
@@ -371,16 +489,30 @@ class RFOperator_Patches(RFOperator_Patches_Insert_Properties, RFOperator):  #RF
         f = Frame(fo, fx, fy, fz)
         f.rotate_about_z(self.rotate)
 
+        mult = Vector((
+            1 if not self.mirror_x else -1,
+            1 if not self.mirror_y else -1,
+            1 if not self.mirror_z else -1,
+        ))
+        offset = Vector((0, 0, 0 if not self.mirror_z else Patches_Template.get_active_height()))
+
         def xform(p, n):
-            nonlocal M, f, radius3D
+            nonlocal M, f, mult, offset, radius3D
             # transform v
-            p = M @ f.l2w_point(p * radius3D)
-            n = Mit @ f.l2w_normal(n)
+            p = M @ f.l2w_point((p * mult + offset) * radius3D)
+            n = Mit @ f.l2w_normal(n * mult)
             return [p,n]
 
         props = RF_Prefs.get_prefs(context)
         highlight = props.highlight_color
         Patches_Template.draw_active(context, xform, highlight)
+
+        if self.mode == Mode.ROTATE or self.mode == Mode.SCALE:
+            with Drawing.draw(context, CC_2D_LINES) as draw:
+                draw.color(Color4((1,1,1,1)))
+                draw.line_width(1)
+                draw.stipple(pattern=[5,5], offset=0, color=Color4((1,1,1,0)))
+                draw.vertex(self.mouse).vertex(self.cursor)
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         print('PROCESS!')
@@ -412,7 +544,7 @@ class RFAssetShelf_Patches(RFAssetShelf):
     def poll(cls, context):
         # active asset is lost when asset shelf is hidden!
         # also, the 3D View jumps if region overlap is False
-        # return not RFOperator_Patches.is_active()
+        # return not RFOperator_Patches_Insert.is_active()
         return True
 
     @classmethod
@@ -434,30 +566,30 @@ class RFTool_Patches(RFTool_Base):
     bl_operator = 'retopoflow.patches'
 
     bl_keymap = chain_rf_keymaps(
-        RFOperator_Patches,
-        RFOperator_PatchesBrush_Adjust,
+        RFOperator_Patches_Insert,
+        # RFOperator_PatchesBrush_Adjust,
     )
 
     rf_brush = RFBrush_Patches()
 
     def draw_settings(context, layout, tool):
-        props_patches = tool.operator_properties(RFOperator_Patches.bl_idname)
+        props_patches = tool.operator_properties(RFOperator_Patches_Insert.bl_idname)
         RFTool_Patches.props = props_patches
 
         if context.region.type == 'TOOL_HEADER':
             layout.label(text="Insert:")
             row = layout.row(align=True)
-            row.prop(props_patches, 'insert_mode', text='')
-            if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
-                row.prop(props_patches, 'brush_radius', text='')
+            row.prop(props_patches, 'orientation', text='')
+            if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
+                row.prop(props_patches, 'scale', text='')
 
         else:
             header, panel = layout.panel(idname='patches_insert_panel', default_closed=False)
             header.label(text="Insert")
             if panel:
-                panel.prop(props_patches, 'insert_mode', text='Method')
-                if props_patches.insert_mode in {'RAYCAST', 'SCREEN'}:
-                    panel.prop(props_patches, 'brush_radius', text='Radius')
+                panel.prop(props_patches, 'orientation', text='Method')
+                if props_patches.orientation in {'RAYCAST', 'SCREEN'}:
+                    panel.prop(props_patches, 'scale', text='Radius')
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
@@ -506,11 +638,56 @@ def switch_rftool(context):
 ################################################################################################################################
 #
 #
-# the class below will be removed
+# the classes below will be removed or refactored
 #
 #
 ################################################################################################################################
 ################################################################################################################################
+
+
+class RFOperator_Patches_Insert_Properties:
+    pass
+
+
+
+class RFOperator_Patches_Insert_Old(RFOperator_Patches_Insert_Properties, RFOperator_Execute):
+    bl_idname = 'retopoflow.patches_insert'
+    bl_label = 'Insert Patch'
+    bl_description = 'Insert Patch'
+    bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
+
+    logic : Patches_Logic | None = None
+
+    @staticmethod
+    def patches_insert(context, radius2D, point3D):
+        RFOperator_Patches_Insert_Old.logic = Patches_Logic(context, radius2D, point3D)
+        RFOperator_Patches_Insert_Old.patches_reinsert(context)
+
+    @staticmethod
+    def patches_reinsert(context):
+        logic = RFOperator_Patches_Insert_Old.logic
+        if not logic or logic.error: return
+        bpy.ops.retopoflow.patches_insert(
+            'INVOKE_DEFAULT', True,
+            rotate=logic.rotate,
+            mirror=logic.mirror,
+        )
+
+    def execute(self, context):
+        logic = RFOperator_Patches_Insert_Old.logic
+        if not logic: return {'CANCELLED'}
+        try:
+            logic.rotate = self.rotate
+            logic.mirror = self.mirror
+            logic.create(context)
+            self.rotate = logic.rotate
+            self.mirror = self.mirror
+        except Exception as e:
+            print(f'{type(self).__name__}.execute: Caught Exception {e}')
+            debugger.print_exception()
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
 
 class RFOperator_Patches_Drag_template(RFOperator):
     bl_idname = 'retopoflow.patches_drag_template'

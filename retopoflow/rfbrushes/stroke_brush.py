@@ -63,7 +63,7 @@ from itertools import chain
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius=50, draw_leftright=False):
+def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius:float=50, draw_leftright=False):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:

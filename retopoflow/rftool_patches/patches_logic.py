@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import os
 from typing import Self
+from math import sqrt
 
 import bpy
 from mathutils.bvhtree import BVHTree
@@ -42,7 +43,7 @@ from ..common.drawing import (
 
 
 class Patches_Template:
-    _cache : dict[tuple[str, str, str], Self] = {}
+    _cache : dict[str, Self] = {}
     _active : Self | None = None
 
     def __init__(self, data):
@@ -67,7 +68,6 @@ class Patches_Template:
         self.fs  = [ tuple(f.vertices) for f in mesh.polygons ]
 
     def _process(self):
-        # rescale and translate mesh
         bbox_min = Vector((
             min(v.x for v in self.vps),
             min(v.y for v in self.vps),
@@ -78,13 +78,17 @@ class Patches_Template:
             max(v.y for v in self.vps),
             max(v.z for v in self.vps),
         ))
+        bbox_size = bbox_max - bbox_min
+
         bbox_center = Vector((
-            bbox_min.x + (bbox_max.x - bbox_min.x) / 2,
-            bbox_min.y + (bbox_max.y - bbox_min.y) / 2,
-            bbox_min.z
+            bbox_min.x + bbox_size.x / 2,
+            bbox_min.y + bbox_size.y / 2,
+            bbox_min.z,
         ))
-        bbox_size = 0.5 * max(0.000001, bbox_max.x - bbox_min.x, bbox_max.y - bbox_min.y) #, bbox_max.z - bbox_min.z)
-        self.vps = [(v - bbox_center) / bbox_size for v in self.vps]
+        max_size = 0.5 * max(0.000001, bbox_size.x, bbox_size.y)
+
+        # rescale and translate mesh
+        self.vps = [(v - bbox_center) / max_size for v in self.vps]
 
         # filter out face edges
         fes = { e for f in self.fs for (i,j) in iter_pairs(f, True) for e in [(i,j), (j,i)] }
@@ -109,26 +113,50 @@ class Patches_Template:
             for v in e:
                 self.vcs[v] = True
 
-        self.is_flat = (bbox_max.z - bbox_min.z) < 0.001
-        self.radius = max(self.vps, key=lambda p:p.xy.length)
+        self.height = bbox_size.z / max_size
+        self.is_flat = (self.height < 0.001)
+        self.radius = max(p.xy.length for p in self.vps)
+
+    @staticmethod
+    def get_active_height():
+        active = Patches_Template._active
+        return active.height if active else 0.0
+
+    @staticmethod
+    def compute_active_height(fn_transform_vertex):
+        active = Patches_Template._active
+        if active is None: return 0.0
+        zs = [ fn_transform_vertex(pt, no)[0][2] for (pt, no) in zip(active.vps, active.vns) ]
+        return max(zs) - min(zs)
+
+    @staticmethod
+    def get_active_radius():
+        active = Patches_Template._active
+        return active.radius if active else 0.0
+
+    @staticmethod
+    def compute_active_radius(fn_transform_vertex):
+        active = Patches_Template._active
+        if not active: return 0.0
+        def xylen(p): return sqrt(p[0]*p[0] + p[1]*p[1])
+        return max(xylen(fn_transform_vertex(p,n)[0]) for (p,n) in zip(active.vps, active.vns))
 
     @staticmethod
     def is_active_flat():
         active = Patches_Template._active
-        if active is None: return False
-        return active.is_flat
+        return active.is_flat if active else False
 
     @staticmethod
     def activate(context, asset_identifier, library_identifier, library_type):
         print(f'Activate asset: "{asset_identifier}" from libary: "{library_identifier}" ({library_type})')
-        template_id = (library_type, library_identifier, asset_identifier)
+        template_id = f'{library_type} {library_identifier} {asset_identifier}'
         cache = Patches_Template._cache
 
         # library_type: enum in ['ALL', 'LOCAL', 'ESSENTIALS', 'CUSTOM']
         # https://docs.blender.org/api/latest/bpy.types.AssetWeakReference.html#bpy.types.AssetWeakReference.asset_library_type
         # TODO: test how to load from 'ALL' or 'ESSENTIALS'
         if template_id not in cache:
-            print('  NOT IN CACHE!')
+            print('\tNOT IN CACHE!')
 
             if library_type == 'LOCAL':
                 obj_name = asset_identifier.split('/')[-1]
@@ -178,15 +206,6 @@ class Patches_Template:
         Patches_Template._active = cache[template_id]
 
     @staticmethod
-    def compute_active_height(fn_transform_vertex):
-        active = Patches_Template._active
-        if active is None: return 0.0
-        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(active.vps, active.vns) ]
-        z_min = min(pt.z for (pt,no) in ptnos)
-        z_max = max(pt.z for (pt,no) in ptnos)
-        return z_max - z_min
-
-    @staticmethod
     def draw_active(context, fn_transform_vertex, highlight):
         active = Patches_Template._active
         if active is None: return
@@ -198,10 +217,10 @@ class Patches_Template:
 
         theme = context.preferences.themes[0].view_3d
 
-        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
-        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
-        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
-        color_mesh = theme.face_select
+        color_point       = Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_mesh = Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_stipple     = Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 0))
+        color_mesh        = theme.face_select
         vertex_size = theme.vertex_size
 
         with Drawing.draw(context, CC_2D_POINTS) as draw:
@@ -216,18 +235,31 @@ class Patches_Template:
 
             # draw non-face edges
             draw.line_width(2)
-            draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+            draw.stipple(pattern=[1,0], offset=0, color=color_border_mesh)
             for (e0,e1) in active.es:
                 pt0, pt1 = pts[e0], pts[e1]
                 if not pt0 or not pt1: continue
                 draw.vertex(pt0).vertex(pt1)
 
-            # draw face edges
-            draw.line_width(1)
-            draw.stipple(pattern=[5,0], offset=0, color=color_stipple)
+            drawn = set()
             for f in active.fs:
                 if not all(pts[i] for i in f): continue
                 for (e0, e1) in iter_pairs(f, True):
+                    if not active.vcs[e0] or not active.vcs[e1]: continue
+                    if (e0,e1) in drawn or (e1,e0) in drawn: continue
+                    drawn.add((e0,e1))
+                    pt0, pt1 = pts[e0], pts[e1]
+                    if not pt0 or not pt1: continue
+                    draw.vertex(pt0).vertex(pt1)
+
+            # draw face edges
+            draw.line_width(1)
+            draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+            for f in active.fs:
+                if not all(pts[i] for i in f): continue
+                for (e0, e1) in iter_pairs(f, True):
+                    if (e0,e1) in drawn or (e1,e0) in drawn: continue
+                    drawn.add((e0,e1))
                     pt0, pt1 = pts[e0], pts[e1]
                     if not pt0 or not pt1: continue
                     draw.vertex(pt0).vertex(pt1)
