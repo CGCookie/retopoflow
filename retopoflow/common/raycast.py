@@ -135,18 +135,34 @@ def ray_from_mouse(context, event):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
     )
 
+def direction_from_mouse(context, event) -> Vector:
+    if not context.region_data: return (None, None)
+    mouse = (event.mouse_region_x, event.mouse_region_y)
+    v = region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized()
+    return Vector(( v.x, v.y, v.z, 0.0 ))
+
+def direction_from_point(context, point_screen_or_world) -> Vector:
+    if not context.region_data: return (None, None)
+    if len(point_screen_or_world) > 2:
+        point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        if not point_screen: return (None, None)
+    else:
+        point_screen = point_screen_or_world
+    v = region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized()
+    return Vector(( v.x, v.y, v.z, 0.0 ))
+
 def ray_from_point(context, point_screen_or_world):
     # if point is 2d, treat as being in screen space
     # if 3d, treat as world space
     if not context.region_data or not point_screen_or_world: return (None, None)
     if len(point_screen_or_world) > 2:
-        point_world = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
-        if not point_world: return (None, None)
+        point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        if not point_screen: return (None, None)
     else:
-        point_world = point_screen_or_world
+        point_screen = point_screen_or_world
     return (
-        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_world), 1.0)),
-        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_world).normalized(), 0.0)),
+        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_screen), 1.0)),
+        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized(), 0.0)),
     )
 
 def ray_from_point_through_point(context, pt0_world, pt1_world):

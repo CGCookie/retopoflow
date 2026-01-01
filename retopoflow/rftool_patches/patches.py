@@ -39,7 +39,7 @@ from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Frame, Direction
+from ...addon_common.common.maths import Frame, Direction, Point, Normal
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.useractions import Actions
@@ -69,10 +69,12 @@ from ..common.maths import (
     point_to_bvec4,
     normal_to_bvec4,
     vector_to_bvec4,
+    point_to_bvec3,
+    normal_to_bvec3,
 )
 from ..common.raycast import (
-    ray_from_mouse,
-    ray_from_point,
+    ray_from_mouse, ray_from_point,
+    direction_from_mouse, direction_from_point,
     raycast_ray_valid_sources,
     raycast_valid_sources,
     nearest_point_normal_valid_sources,
@@ -100,9 +102,6 @@ RFBrush_Patches, RFOperator_PatchesBrush_Adjust = create_stroke_brush(
     smoothing=0.5,
 )
 
-
-# TODO: do not store patch position as mouse, but instead use hit.
-#       that way, when the artist navigates, the new projected position can be easily updated.
 
 class Patches_Orientations:
     orientations = [
@@ -234,18 +233,21 @@ class RFOperator_Patches_Insert(RFOperator):
     )
 
     def init(self, context, event):
+        self.actions = Actions.get_instance(context)
+
         # self.km_context = 'ready'
         RFTool_Patches.rf_brush.set_operator(self)
         RFTool_Patches.rf_brush.reset_nearest(context)
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.logic = Patches_Logic(context)
 
-        self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.mouse_hit = raycast_valid_sources(context, self.mouse)
-        self.mouse_ray = ray_from_point(context, self.mouse)
+        self.M = context.edit_object.matrix_world
+        self.Mi = self.M.inverted()
+        self.Mit = self.Mi.transposed()
+        self.edit_scale = max(self.M.to_scale())
 
-        self.actions = Actions.get_instance(context)
+        mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.update_orientation(context, event, mouse)
 
         self.switch_to_nothing(context, event)
         self.tickle(context)
@@ -263,13 +265,76 @@ class RFOperator_Patches_Insert(RFOperator):
         RFTool_Patches.rf_brush.reset()
         pass
 
-    def update(self, context, event):
-        print(event.type, event.value, self.mode, time.time())
-        self.cursor = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.actions.update(context, event)
+    def update_orientation(self, context, event, point_screen):
+        hit = raycast_valid_sources(context, point_screen)
+        if hit is None: return
 
-        if event.type == 'MOUSEMOVE':
-            context.area.tag_redraw()
+        if not hasattr(self, 'orientation_data'):
+            match self.orientation:
+                case 'RAYCAST':
+                    z = hit['no_world']
+                case 'SCREEN':
+                    z = -direction_from_point(context, point_screen).xyz
+                case _:
+                    warning = f'WARNING: UNHANDLED ORIENTATION: {self.compute_orientation}'
+                    if not hasattr(self, warning):
+                        setattr(self, warning, True)
+                        print(warning)
+                    z = Vector((0,0,1))
+            z_local = (self.Mi @ direction_to_bvec4(z)).xyz
+            dir_right_local = (self.Mi @ direction_to_bvec4(view_right_direction(context))).xyz
+            size = size2D_to_size(context, hit['distance'])
+        else:
+            z_local = self.orientation_data['z local']
+            dir_right_local = self.orientation_data['dir right local']
+            size = self.orientation_data['size']
+
+        fo = hit['co_local']
+        fz = z_local.normalized()
+        fy = fz.cross(dir_right_local).normalized()
+        fx = fy.cross(fz).normalized()
+        frame = Frame(fo, fx, fy, fz)
+        frame.rotate_about_z(self.rotate)
+
+        self.orientation_data = {
+            'frame': frame,
+            'mirror mult': Vector((
+                1 if not self.mirror_x else -1,
+                1 if not self.mirror_y else -1,
+                1 if not self.mirror_z else -1,
+            )),
+            'mirror offset': Vector((
+                0,
+                0,
+                0 if not self.mirror_z else Patches_Template.get_active_height()
+            )),
+            'z local': z_local,
+            'dir right local': dir_right_local,
+            'size':   size,
+            'radius local': self.scale * size / self.edit_scale,
+            'radius world': self.scale * size,
+        }
+
+        context.area.tag_redraw()
+
+    def xform(self, p:Point, n:Normal) -> tuple[Point, Normal]:
+        if not self.orientation_data: return (p, n)
+
+        frame  = self.orientation_data['frame']
+        mirror = self.orientation_data['mirror mult']
+        offset = self.orientation_data['mirror offset']
+        radius = self.orientation_data['radius local']
+
+        return (
+            point_to_bvec3 (self.M   @ point_to_bvec4 (frame.l2w_point((p * mirror + offset) * radius))),
+            normal_to_bvec3(self.Mit @ normal_to_bvec4(frame.l2w_normal(n * mirror))),
+        )
+
+
+    def update(self, context, event) -> set[str]:
+        # print(event.type, event.value, self.mode, time.time())
+        self.actions.update(context, event)
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
         match self.mode:
             case Mode.NOTHING:
@@ -306,10 +371,16 @@ class RFOperator_Patches_Insert(RFOperator):
                     self.switch_to_scale(context, event)
                 case 'X':
                     self.mirror_x = not self.mirror_x
+                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+                    self.update_orientation(context, event, pos_screen)
                 case 'Y':
                     self.mirror_y = not self.mirror_y
+                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+                    self.update_orientation(context, event, pos_screen)
                 case 'Z':
                     self.mirror_z = not self.mirror_z
+                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+                    self.update_orientation(context, event, pos_screen)
                 case 'ESC':
                     return {'CANCELLED'}
                 case _:
@@ -323,119 +394,104 @@ class RFOperator_Patches_Insert(RFOperator):
 
     def switch_to_grab(self, context, event):
         self.mode = Mode.GRAB
-        self.grab_initial = self.mouse
-        self.grab_xy = Vector((event.mouse_x, event.mouse_y))
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+        self.grab_data = {
+            'original': self.orientation_data,
+            'position': pos_screen,
+            'mouse': Vector((event.mouse_x, event.mouse_y)),
+        }
         Cursors.set('HAND')
 
     def update_grab(self, context, event) -> set[str]:
-        if event.type == 'LEFTMOUSE':
+        if event.type in {'LEFTMOUSE', 'ESC', 'RIGHTMOUSE'}:
+            if event.type in {'ESC', 'RIGHTMOUSE'}:
+                self.orientation_data = self.grab_data['original']
+            del self.grab_data
             self.switch_to_nothing(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
-            self.mouse = self.grab_initial
-            self.mouse_hit = raycast_valid_sources(context, self.mouse)
-            self.mouse_ray = ray_from_point(context, self.mouse)
-            self.switch_to_nothing(context, event)
+        if event.type == 'MOUSEMOVE':
+            delta = Vector((event.mouse_x, event.mouse_y)) - self.grab_data['mouse']
+            pt = self.grab_data['position'] + delta
+            self.update_orientation(context, event, pt)
             context.area.tag_redraw()
-            self.tickle(context)
-            return {'RUNNING_MODAL'}
 
-        self.mouse = self.grab_initial + Vector((event.mouse_x, event.mouse_y)) - self.grab_xy
-        self.mouse_hit = raycast_valid_sources(context, self.mouse)
-        self.mouse_ray = ray_from_point(context, self.mouse)
         return {'RUNNING_MODAL'}
 
     def switch_to_rotate(self, context, event):
         self.mode = Mode.ROTATE
-        self.rotate_initial = self.rotate
-        cur = self.cursor - self.mouse
-        self.rotate_angle = atan2(cur.y, cur.x)
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+        self.rotate_data = {
+            'original': self.rotate,
+            'position': pos_screen,
+            'angle': atan2(event.mouse_region_y - pos_screen.y, event.mouse_region_x - pos_screen.x),
+            'mouse': Vector((event.mouse_x, event.mouse_y)),
+        }
         Cursors.set('CROSSHAIR')
 
     def update_rotate(self, context, event) -> set[str]:
-        if event.type in {'LEFTMOUSE', 'ENTER'}:
+        if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
+            if event.type in {'RIGHTMOUSE', 'ESC'}:
+                self.rotate = self.rotate_data['original']
+                self.update_orientation(context, event, self.rotate_data['position'])
+            del self.rotate_data
             self.switch_to_nothing(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
-            self.rotate = self.rotate_initial
-            self.switch_to_nothing(context, event)
+        if event.type == 'MOUSEMOVE':
+            delta = Vector((event.mouse_region_x, event.mouse_region_y)) - self.rotate_data['position']
+            cur_ang = atan2(delta.y, delta.x)
+            self.rotate = self.rotate_data['original'] + self.rotate_data['angle'] - cur_ang
+            self.update_orientation(context, event, self.rotate_data['position'])
             context.area.tag_redraw()
-            self.tickle(context)
-            return {'RUNNING_MODAL'}
 
-
-        cur = Vector((event.mouse_region_x, event.mouse_region_y)) - self.mouse
-        cur_ang = atan2(cur.y, cur.x)
-        self.rotate = self.rotate_initial + self.rotate_angle - cur_ang
         return {'RUNNING_MODAL'}
 
     def switch_to_scale(self, context, event):
         self.mode = Mode.SCALE
-        self.scale_initial = self.scale
-        self.scale_dist = (self.cursor - self.mouse).length
+        pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
+        self.scale_data = {
+            'original': self.scale,
+            'position': pos_screen,
+            'dist': (self.mouse - pos_screen).length,
+            'mouse': Vector((event.mouse_x, event.mouse_y)),
+        }
         Cursors.set('CROSSHAIR')
 
     def update_scale(self, context, event) -> set[str]:
-        if event.type == 'LEFTMOUSE':
+        if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
+            if event.type in {'RIGHTMOUSE', 'ESC'}:
+                self.scale = self.scale_data['original']
+                self.update_orientation(context, event, self.scale_data['position'])
+            del self.scale_data
             self.switch_to_nothing(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
 
-        if event.type in {'ESC', 'RIGHTMOUSE'}:
-            self.scale = self.scale_initial
-            self.switch_to_nothing(context, event)
+        if event.type == 'MOUSEMOVE':
+            delta = (self.mouse - self.scale_data['position']).length
+            self.scale = self.scale_data['original'] + delta - self.scale_data['dist']
+            self.update_orientation(context, event, self.scale_data['position'])
             context.area.tag_redraw()
-            self.tickle(context)
-            return {'RUNNING_MODAL'}
 
-        cur = (self.cursor - self.mouse).length
-        self.scale = self.scale_initial + cur - self.scale_dist
         return {'RUNNING_MODAL'}
 
-    def compute_orientation(self, context, *, world=True) -> Direction:
-        if not self.mouse_hit or not self.mouse_ray or not self.mouse_ray[1]:
-            return Vector((0, 0, 1))
-        match self.orientation:
-            case 'RAYCAST':
-                z = self.mouse_hit['no_world']
-            case 'SCREEN':
-                z = -self.mouse_ray[1].xyz
-            case _:
-                print(f'WARNING: UNHANDLED ORIENTATION: {self.compute_orientation}')
-                z = Vector((0,0,1))
-        if not world:
-            Mi = context.edit_object.matrix_world.inverted()
-            return (Mi @ direction_to_bvec4(z)).xyz
-        return z
-
     def draw_postview(self, context):
-        if not self.mouse_hit or not self.mouse_ray[1]: return
+        if not self.orientation_data: return
 
         viewport_size = (context.region.width, context.region.height)
-        p = self.mouse_hit['co_world']
-        z = self.compute_orientation(context)
+        p = (self.M @ point_to_bvec4(self.orientation_data['frame'].o)).xyz
+        z = (self.M @ direction_to_bvec4(self.orientation_data['frame'].z)).xyz.normalized()
 
         # M = context.edit_object.matrix_world
         # edit_scale = max(M.to_scale())
-        radius3D = self.scale * size2D_to_size(context, self.mouse_hit['distance'])
-        mult = Vector((
-            1 if not self.mirror_x else -1,
-            1 if not self.mirror_y else -1,
-            1 if not self.mirror_z else -1,
-        ))
-        offset = Vector((0, 0, 0 if not self.mirror_z else Patches_Template.get_active_height()))
-        def xform(p, n):
-            nonlocal mult, offset, radius3D
-            return ((p * mult + offset) * radius3D, n * mult)
-        height = Patches_Template.compute_active_height(xform)
-        max_radius = Patches_Template.compute_active_radius(xform)
+        height     = Patches_Template.get_active_height() * self.orientation_data['radius world']
+        max_radius = Patches_Template.get_active_radius() * self.orientation_data['radius world']
 
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
@@ -472,47 +528,19 @@ class RFOperator_Patches_Insert(RFOperator):
             )
 
     def draw_postpixel(self, context):
-        if not self.mouse_hit: return
-
-        M = context.edit_object.matrix_world
-        Mi = M.inverted()
-        Mit = Mi.transposed()
-        edit_scale = max(M.to_scale())
-        radius3D = self.scale * size2D_to_size(context, self.mouse_hit['distance']) / edit_scale
-
-        right_local = (Mi @ direction_to_bvec4(view_right_direction(context))).xyz
-
-        fo = self.mouse_hit['co_local']
-        fz = self.compute_orientation(context, world=False)
-        fy = fz.cross(right_local).normalized()
-        fx = fy.cross(fz).normalized()
-        f = Frame(fo, fx, fy, fz)
-        f.rotate_about_z(self.rotate)
-
-        mult = Vector((
-            1 if not self.mirror_x else -1,
-            1 if not self.mirror_y else -1,
-            1 if not self.mirror_z else -1,
-        ))
-        offset = Vector((0, 0, 0 if not self.mirror_z else Patches_Template.get_active_height()))
-
-        def xform(p, n):
-            nonlocal M, f, mult, offset, radius3D
-            # transform v
-            p = M @ f.l2w_point((p * mult + offset) * radius3D)
-            n = Mit @ f.l2w_normal(n * mult)
-            return [p,n]
+        if not self.orientation_data: return
 
         props = RF_Prefs.get_prefs(context)
         highlight = props.highlight_color
-        Patches_Template.draw_active(context, xform, highlight)
+        Patches_Template.draw_active(context, self.xform, highlight)
 
         if self.mode == Mode.ROTATE or self.mode == Mode.SCALE:
+            pos = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
             with Drawing.draw(context, CC_2D_LINES) as draw:
                 draw.color(Color4((1,1,1,1)))
                 draw.line_width(1)
                 draw.stipple(pattern=[5,5], offset=0, color=Color4((1,1,1,0)))
-                draw.vertex(self.mouse).vertex(self.cursor)
+                draw.vertex(pos).vertex(self.mouse)
 
     def process_stroke(self, context, radius2D, snap_distance, stroke2D, stroke3D, is_cycle, snapped_geo, snapped_mirror):
         print('PROCESS!')
