@@ -265,11 +265,11 @@ class RFOperator_Patches_Insert(RFOperator):
         RFTool_Patches.rf_brush.reset()
         pass
 
-    def update_orientation(self, context, event, point_screen):
+    def update_orientation(self, context, event, point_screen, *, update_z=False):
         hit = raycast_valid_sources(context, point_screen)
         if hit is None: return
 
-        if not hasattr(self, 'orientation_data'):
+        if not hasattr(self, 'orientation_data') or update_z:
             match self.orientation:
                 case 'RAYCAST':
                     z = hit['no_world']
@@ -282,10 +282,13 @@ class RFOperator_Patches_Insert(RFOperator):
                         print(warning)
                     z = Vector((0,0,1))
             z_local = (self.Mi @ direction_to_bvec4(z)).xyz
+        else:
+            z_local = self.orientation_data['z local']
+
+        if not hasattr(self, 'orientation_data'):
             dir_right_local = (self.Mi @ direction_to_bvec4(view_right_direction(context))).xyz
             size = size2D_to_size(context, hit['distance'])
         else:
-            z_local = self.orientation_data['z local']
             dir_right_local = self.orientation_data['dir right local']
             size = self.orientation_data['size']
 
@@ -415,7 +418,7 @@ class RFOperator_Patches_Insert(RFOperator):
         if event.type == 'MOUSEMOVE':
             delta = Vector((event.mouse_x, event.mouse_y)) - self.grab_data['mouse']
             pt = self.grab_data['position'] + delta
-            self.update_orientation(context, event, pt)
+            self.update_orientation(context, event, pt, update_z=True)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
