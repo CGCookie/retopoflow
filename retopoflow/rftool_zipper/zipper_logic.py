@@ -151,6 +151,53 @@ class Zipper_Logic:
         self.path_zip = None
         self.selected = None
 
+    def guess(self) -> str:
+        if self.mode != 'UNKNOWN': return self.mode
+        if not self.selected: return 'UNKNOWN'
+
+        if len(self.selected) == 1:
+            bmv = next(iter(self.selected))
+            co = bmv.co
+            bmv0, bmv1 = bmv, bmv
+        elif len(self.selected) == 2:
+            bmv0, bmv1 = self.selected
+            co = (bmv0.co + bmv1.co) / 2
+        else:
+            return 'UNKNOWN'
+        d = (self.hit - co).length
+        zip_dir = (co - self.hit).normalized()
+
+        nbmes = [
+            bme
+            for bme in bmv0.link_edges
+        ]
+        if not nbmes: return 'UNKNOWN'
+        def bme0_key(bme):
+            o = bme_other_bmv(bme, bmv0)
+            d = (o.co - bmv0.co).normalized()
+            return d.dot(zip_dir)
+        nbmes.sort(key=bme0_key)
+        nbme0 = nbmes[0]
+        nbmv0 = bme_other_bmv(nbme0, bmv0)
+
+        nbmes = [
+            bme
+            for bme in bmv1.link_edges
+        ]
+        if not nbmes: return 'UNKNOWN'
+        def bme1_key(bme):
+            o = bme_other_bmv(bme, bmv1)
+            d = (o.co - bmv1.co).normalized()
+            return d.dot(zip_dir)
+        nbmes.sort(key=bme1_key)
+        nbme1 = nbmes[0]
+        nbmv1 = bme_other_bmv(nbme1, bmv1)
+        if len(nbme0.link_faces) == 1 or len(nbme1.link_faces) == 1:
+            return 'ZIPPING'
+        else:
+            return 'UNZIPPING'
+
+
     def _update_paths(self):
         self.path_unzip = None
         self.path_zip = None
@@ -159,7 +206,9 @@ class Zipper_Logic:
         if not self.selected: return
         if not self.nearest: return
 
-        if self.nearest.bmv and self.mode in {'UNKNOWN', 'UNZIPPING'}:
+        mode = self.guess()
+
+        if self.nearest.bmv and mode in {'UNKNOWN', 'UNZIPPING'}:
             working = deque(self.selected)
             path_back = { n:None for n in working }
             while working and self.nearest.bmv not in path_back:
@@ -180,37 +229,55 @@ class Zipper_Logic:
             self.path_unzip.reverse()
             if len(self.path_unzip) < 2: self.path_unzip = None
 
-        elif len(self.selected) == 1 and self.mode in {'UNKNOWN', 'ZIPPING'}:
-            bmv = next(iter(self.selected))
-            d = (self.hit - bmv.co).length
-            bmv0, bmv1 = bmv, bmv
-            pbme0, pbme1 = None, None
+        elif self.selected and mode in {'UNKNOWN', 'ZIPPING'}:
+            if len(self.selected) == 1:
+                bmv = next(iter(self.selected))
+                co = bmv.co
+                bmv0, bmv1 = bmv, bmv
+            elif len(self.selected) == 2:
+                bmv0, bmv1 = self.selected
+                co = (bmv0.co + bmv1.co) / 2
+            else:
+                return
+            d = (self.hit - co).length
+            zip_dir = (co - self.hit).normalized()
             self.path_zip = []
             seen = set()
             while True:
                 self.path_zip.append( (bmv0, bmv1) )
-                for bme in bmv0.link_edges:
-                    if bme == pbme0: continue
-                    if len(bme.link_faces) != 1: continue
-                    if bme in seen: continue
-                    seen.add(bme)
-                    nbme0 = bme
-                    nbmv0 = bme_other_bmv(bme, bmv0)
-                    break
-                else:
-                    break
-                for bme in bmv1.link_edges:
-                    if bme == pbme1: continue
-                    if len(bme.link_faces) != 1: continue
-                    if bme in seen: continue
-                    seen.add(bme)
-                    nbme1 = bme
-                    nbmv1 = bme_other_bmv(bme, bmv1)
-                    break
-                else:
-                    break
+
+                nbmes = [
+                    bme
+                    for bme in bmv0.link_edges
+                    if len(bme.link_faces) == 1 and bme not in seen
+                ]
+                if not nbmes: break
+                def bme0_key(bme):
+                    o = bme_other_bmv(bme, bmv0)
+                    d = (o.co - bmv0.co).normalized()
+                    return d.dot(zip_dir)
+                nbmes.sort(key=bme0_key)
+                nbme0 = nbmes[0]
+                nbmv0 = bme_other_bmv(nbme0, bmv0)
+                seen.add(nbme0)
+
+                nbmes = [
+                    bme
+                    for bme in bmv1.link_edges
+                    if len(bme.link_faces) == 1 and bme not in seen
+                ]
+                if not nbmes: break
+                def bme1_key(bme):
+                    o = bme_other_bmv(bme, bmv1)
+                    d = (o.co - bmv1.co).normalized()
+                    return d.dot(zip_dir)
+                nbmes.sort(key=bme1_key)
+                nbme1 = nbmes[0]
+                nbmv1 = bme_other_bmv(nbme1, bmv1)
+                seen.add(nbme1)
+
                 l = min(bme_length(nbme0), bme_length(nbme1))
-                if d < l * 0.5:
+                if d < l:
                     break
                 d -= l
                 bmv0, bmv1 = nbmv0, nbmv1
@@ -253,12 +320,14 @@ class Zipper_Logic:
 
         if self.mode in {'UNKNOWN', 'ZIPPING'} and self.path_zip:
             bpy.ops.ed.undo_push(message=f'Zipping commit {time.time()}')
-            bmv = self.path_zip[0][0]
-            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
+            bmv0, bmv1 = self.path_zip[0]
+            co = (bmv0.co + bmv1.co) / 2
+            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
             m = self.mouse
-            l = len(self.path_zip) - 1
-            for i, (bmv0, bmv1) in enumerate(self.path_zip[1:]):
-                co = pt_origin + (m - pt_origin) * (i + 1) / l
+            l = len(self.path_zip)
+            for i, (bmv0, bmv1) in enumerate(self.path_zip):
+                if bmv0 == bmv1: continue
+                co = pt_origin + (m - pt_origin) * i / (l - 1)
                 co = raycast_point_valid_sources(context, co, world=False)
                 bmesh.ops.pointmerge(self.bm, verts=[bmv0, bmv1], merge_co=co)
             bmesh.update_edit_mesh(self.em)
@@ -295,9 +364,15 @@ class Zipper_Logic:
                 draw.border(width=2, color=color_point)
                 draw.color(color_border_transparent)
                 draw.vertex(p)
-        if len(self.selected) == 1 and not self.path_unzip:
-            bmv = next(iter(self.selected))
-            co = self.matrix_world @ bmv.co
+
+        if len(self.selected) in {1,2} and not self.path_unzip:
+            if len(self.selected) == 1:
+                bmv = next(iter(self.selected))
+                co = self.matrix_world @ bmv.co
+            else:
+                bmv0, bmv1 = self.selected
+                co = (bmv0.co + bmv1.co) / 2
+                co = self.matrix_world @ co
             p = location_3d_to_region_2d(context.region, context.region_data, co)
             m = self.mouse
             with Drawing.draw(context, CC_2D_LINES) as draw:
@@ -316,25 +391,27 @@ class Zipper_Logic:
                     draw.vertex(p)
 
         if self.path_zip and len(self.path_zip) > 1:
-            bmv = self.path_zip[0][0]
-            if not bmv.is_valid: return
-            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
+            bmv0, bmv1 = self.path_zip[0]
+            if not bmv0.is_valid or not bmv1.is_valid: return
+            co = (bmv0.co + bmv1.co) / 2
+            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
             m = self.mouse
             with Drawing.draw(context, CC_2D_LINES) as draw:
-                draw.line_width(2)
-                draw.color(color_border_mesh)
-                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
-                ppt0, ppt1 = pt_origin, pt_origin
-                for (bmv0, bmv1) in self.path_zip[1:]:
-                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
-                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
-                    draw.vertex(ppt0).vertex(pt0)
-                    draw.vertex(ppt1).vertex(pt1)
-                    ppt0, ppt1 = pt0, pt1
-
                 draw.line_width(1)
                 draw.color(color_border_mesh)
                 draw.stipple(pattern=[1,0], offset=0, color=color_border_mesh)
+                ppt0, ppt1 = None, None
+                for (bmv0, bmv1) in self.path_zip[1:]:
+                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                    if ppt0 and ppt1:
+                        draw.vertex(ppt0).vertex(pt0)
+                        draw.vertex(ppt1).vertex(pt1)
+                    ppt0, ppt1 = pt0, pt1
+
+                draw.line_width(2)
+                draw.color(color_border_mesh)
+                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
                 l = len(self.path_zip)
                 for i, (bmv0, bmv1) in enumerate(self.path_zip):
                     pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
