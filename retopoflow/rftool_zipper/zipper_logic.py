@@ -72,11 +72,6 @@ from ..common.drawing import (
 
 MOVE_FACTOR = 0.4
 
-class Zipper_Modes(Enum):
-    INITIAL = 0
-    WAITING = 1  # don't know yet if zipping or unzipping
-    ZIPPING = 2
-    UNZIPPING = 3
 
 class Zipper_Logic:
     def __init__(self, context, event):
@@ -95,80 +90,7 @@ class Zipper_Logic:
             self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
             self.mirror_clip = mod.use_clip
 
-        self._switch_to_initial(context, event)
-
-    def draw(self, context):
-        if not self.nearest: return
-        if not self.nearest.is_valid: return
-
-        theme = context.preferences.themes[0].view_3d
-        props = RF_Prefs.get_prefs(context)
-        highlight = props.highlight_color
-
-        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
-        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
-        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
-        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
-        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
-        color_mesh = theme.face_select
-        vertex_size = theme.vertex_size
-
-        match self.mode:
-            case Zipper_Modes.INITIAL:
-                if self.nearest.bmv:
-                    co = self.matrix_world @ self.nearest.bmv.co
-                    p = location_3d_to_region_2d(context.region, context.region_data, co)
-                    with Drawing.draw(context, CC_2D_POINTS) as draw:
-                        draw.point_size(vertex_size + 4)
-                        draw.border(width=2, color=color_point)
-                        draw.color(color_border_transparent)
-                        draw.vertex(p)
-                if len(self.selected) == 1 and not self.path_unzip:
-                    bmv = next(iter(self.selected))
-                    co = self.matrix_world @ bmv.co
-                    p = location_3d_to_region_2d(context.region, context.region_data, co)
-                    m = self.mouse
-                    with Drawing.draw(context, CC_2D_LINES) as draw:
-                        draw.line_width(1)
-                        draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
-                        draw.vertex(p).vertex(m)
-
-        if self.path_unzip:
-            with Drawing.draw(context, CC_2D_LINE_STRIP) as draw:
-                draw.line_width(1)
-                draw.color(color_border_mesh)
-                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
-                for v in self.path_unzip:
-                    co = self.matrix_world @ v.co
-                    p = location_3d_to_region_2d(context.region, context.region_data, co)
-                    draw.vertex(p)
-
-        if self.path_zip:
-            bmv = self.path_zip[0][0]
-            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
-            m = self.mouse
-            with Drawing.draw(context, CC_2D_LINES) as draw:
-                draw.line_width(2)
-                draw.color(color_border_mesh)
-                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
-                ppt0, ppt1 = pt_origin, pt_origin
-                for (bmv0, bmv1) in self.path_zip[1:]:
-                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
-                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
-                    draw.vertex(ppt0).vertex(pt0)
-                    draw.vertex(ppt1).vertex(pt1)
-                    ppt0, ppt1 = pt0, pt1
-
-                draw.line_width(1)
-                draw.color(color_border_mesh)
-                draw.stipple(pattern=[1,0], offset=0, color=color_border_mesh)
-                l = len(self.path_zip)
-                for i, (bmv0, bmv1) in enumerate(self.path_zip):
-                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
-                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
-                    pt = pt_origin + (m - pt_origin) * (i / (l-1))
-                    draw.vertex(pt0).vertex(pt)
-                    draw.vertex(pt1).vertex(pt)
+        self._init(context, event)
 
 
     def update(self, context, event) -> bool:
@@ -182,19 +104,34 @@ class Zipper_Logic:
             self.selected = bmops.get_all_selected_bmverts(self.bm)
 
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        match self.mode:
-            case Zipper_Modes.INITIAL:
-                return self._update_initial(context, event)
-            case Zipper_Modes.WAITING:
-                return self._update_waiting(context, event)
-            case Zipper_Modes.ZIPPING:
-                return self._update_zipping(context, event)
-            case Zipper_Modes.UNZIPPING:
-                return self._update_unzipping(context, event)
+
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            self.commit(context, event)
+            return True
+
+        if event.type == 'MOUSEMOVE' or self.first:
+            hit = raycast_valid_sources(context, mouse_from_event(event))
+            self.hit = hit['co_local'] if hit else None
+            self.nearest_bmf.update(
+                context,
+                self.hit,
+            )
+            dist = 10
+            if not self.selected: dist = float('inf')
+            if self.nearest_bmf.bmf: dist = float('inf')
+            self.nearest.update(
+                context,
+                self.hit,
+                distance2d=dist,
+                filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv),
+            )
+            self._update_paths()
+
+        self.first = False
+        return event.type == 'MOUSEMOVE'
 
 
-    def _switch_to_initial(self, context, event):
-        self.mode = Zipper_Modes.INITIAL
+    def _init(self, context, event):
         self.nearest = None
         self.nearest_bmf = None
         self.first = True
@@ -208,6 +145,7 @@ class Zipper_Logic:
 
         if not self.hit: return
         if not self.selected: return
+        if not self.nearest: return
 
         if self.nearest.bmv:
             working = deque(self.selected)
@@ -265,35 +203,9 @@ class Zipper_Logic:
                 bmv0, bmv1 = nbmv0, nbmv1
 
 
-    def _update_initial(self, context, event) -> bool:
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            self.commit(context, event)
-            return True
-
-        if event.type == 'MOUSEMOVE' or self.first:
-            hit = raycast_valid_sources(context, mouse_from_event(event))
-            self.hit = hit['co_local'] if hit else None
-            self.nearest_bmf.update(
-                context,
-                self.hit,
-            )
-            dist = 10
-            if not self.selected: dist = float('inf')
-            if self.nearest_bmf.bmf: dist = float('inf')
-            self.nearest.update(
-                context,
-                self.hit,
-                distance2d=dist,
-                filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv),
-            )
-            self._update_paths()
-
-        self.first = False
-        return event.type == 'MOUSEMOVE'
-
-
     def commit(self, context, event):
         if not self.path_unzip and not self.path_zip: return
+        if not self.nearest: return
 
         if self.path_unzip:
             bpy.ops.ed.undo_push(message=f'Unzipping commit {time.time()}')
@@ -317,13 +229,14 @@ class Zipper_Logic:
             bmops.select(self.bm, select_bmv)
             bmops.flush_selection(self.bm, self.em)
             self.nearest = None
+            self.path_unzip = None
 
         if self.path_zip:
             bpy.ops.ed.undo_push(message=f'Zipping commit {time.time()}')
             bmv = self.path_zip[0][0]
             pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
             m = self.mouse
-            l = len(self.path_zip)
+            l = len(self.path_zip) - 1
             for i, (bmv0, bmv1) in enumerate(self.path_zip[1:]):
                 co = pt_origin + (m - pt_origin) * (i + 1) / l
                 co = raycast_point_valid_sources(context, co, world=False)
@@ -333,30 +246,77 @@ class Zipper_Logic:
             bmops.select(self.bm, self.path_zip[-1][0])
             bmops.flush_selection(self.bm, self.em)
             self.nearest = None
+            self.path_zip = None
 
 
 
+    def draw(self, context):
+        if not self.nearest: return
+        if not self.nearest.is_valid: return
 
+        theme = context.preferences.themes[0].view_3d
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
 
-    def _switch_to_waiting(self, context, event):
-        self.mode = Zipper_Modes.WAITING
-        self.active_bmv = self.nearest.bmv
+        color_point =               Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_transparent =  Color4((highlight[0], highlight[1], highlight[2], 0))
+        color_border_mesh =         Color4((theme.edge_select[0], theme.edge_select[1], theme.edge_select[2], 1))
+        color_border_open =         Color4((highlight[0], highlight[1], highlight[2], 1.0))
+        color_stipple =             Color4((theme.face_select[0], theme.face_select[1], theme.face_select[2], 0))
+        color_mesh = theme.face_select
+        vertex_size = theme.vertex_size
 
-    def _update_waiting(self, context, event) -> bool:
-        return event.type == 'MOUSEMOVE'
+        if self.nearest.bmv:
+            co = self.matrix_world @ self.nearest.bmv.co
+            p = location_3d_to_region_2d(context.region, context.region_data, co)
+            with Drawing.draw(context, CC_2D_POINTS) as draw:
+                draw.point_size(vertex_size + 4)
+                draw.border(width=2, color=color_point)
+                draw.color(color_border_transparent)
+                draw.vertex(p)
+        if len(self.selected) == 1 and not self.path_unzip:
+            bmv = next(iter(self.selected))
+            co = self.matrix_world @ bmv.co
+            p = location_3d_to_region_2d(context.region, context.region_data, co)
+            m = self.mouse
+            with Drawing.draw(context, CC_2D_LINES) as draw:
+                draw.line_width(1)
+                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+                draw.vertex(p).vertex(m)
 
+        if self.path_unzip:
+            with Drawing.draw(context, CC_2D_LINE_STRIP) as draw:
+                draw.line_width(1)
+                draw.color(color_border_mesh)
+                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+                for v in self.path_unzip:
+                    co = self.matrix_world @ v.co
+                    p = location_3d_to_region_2d(context.region, context.region_data, co)
+                    draw.vertex(p)
 
-    def _switch_to_zipping(self, context, event):
-        self.mode = Zipper_Modes.ZIPPING
+        if self.path_zip:
+            bmv = self.path_zip[0][0]
+            pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
+            m = self.mouse
+            with Drawing.draw(context, CC_2D_LINES) as draw:
+                draw.line_width(2)
+                draw.color(color_border_mesh)
+                draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+                ppt0, ppt1 = pt_origin, pt_origin
+                for (bmv0, bmv1) in self.path_zip[1:]:
+                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                    draw.vertex(ppt0).vertex(pt0)
+                    draw.vertex(ppt1).vertex(pt1)
+                    ppt0, ppt1 = pt0, pt1
 
-    def _update_zipping(self, context, event) -> bool:
-        # bmesh.update_edit_mesh(self.em)
-        return event.type == 'MOUSEMOVE'
-
-
-    def _switch_to_unzipping(self, context, event):
-        self.mode = Zipper_Modes.UNZIPPING
-
-    def _update_unzipping(self, context, event) -> bool:
-        # bmesh.update_edit_mesh(self.em)
-        return event.type == 'MOUSEMOVE'
+                draw.line_width(1)
+                draw.color(color_border_mesh)
+                draw.stipple(pattern=[1,0], offset=0, color=color_border_mesh)
+                l = len(self.path_zip)
+                for i, (bmv0, bmv1) in enumerate(self.path_zip):
+                    pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                    pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                    pt = pt_origin + (m - pt_origin) * (i / (l-1))
+                    draw.vertex(pt0).vertex(pt)
+                    draw.vertex(pt1).vertex(pt)

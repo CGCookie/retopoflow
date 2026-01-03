@@ -250,7 +250,7 @@ class RFTool_Zipper(RFTool_Base):
             #     panel.prop(props_zipper, 'brush_radius')
             #     panel.prop(props_zipper, 'brush_strength', slider=True)
             #     panel.prop(props_zipper, 'brush_falloff', slider=True)
-            draw_masking_panel(context, layout)
+            # draw_masking_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
