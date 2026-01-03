@@ -39,16 +39,9 @@ from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 from .rftool_statusbar import draw_rftool_statusbar
 
-from .rfpanels import (
-    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tools_pie
-)
-
-from . import preferences
-from .rfprops import rfprops_scene, rfprops_object
-
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
+from .rftool_zipper.zipper         import RFTool_Zipper
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
@@ -58,6 +51,17 @@ from .rftool_relax.relax           import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
+
+from .rfpanels import (
+    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
+    relax_algorithm_panel, tweaking_panel,
+
+    tools_pie,  # MUST IMPORT THIS _AFTER_THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+
+)
+
+from . import preferences
+from .rfprops import rfprops_scene, rfprops_object
 
 # The operator files need to be imported here in order to be registered, even if they are not used
 from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool_settings

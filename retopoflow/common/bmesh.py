@@ -416,7 +416,7 @@ class NearestBMVert(NearestElem):
             all(bmv.is_valid for bmv in self.loose_bmvs),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10, filter_selected=True, filter_fn=None):
+    def update(self, context, co, *, distance:float=1.84467e19, distance2d:float=10, filter_selected=True, filter_fn=None):
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
