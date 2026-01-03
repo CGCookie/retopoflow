@@ -226,15 +226,20 @@ class Zipper_Logic:
             select_bmv = self.nearest.bmv
             bmes = [bmvs_shared_bme(bmv0, bmv1) for (bmv0, bmv1) in iter_pairs(self.path_unzip, False)]
             res = bmesh.ops.split_edges(self.bm, edges=bmes)
-            verts = set(bmv for bme in res['edges'] for bmv in bme.verts)
+            bmes = res['edges']
+            verts = set(bmv for bme in bmes for bmv in bme.verts)
             nco = {}
             for bmv in verts:
                 if bmv == select_bmv: print(f'FOUND IT!')
-                co = bmv.co * (1 - MOVE_FACTOR)
-                l = len(bmv.link_edges)
-                for bme in bmv.link_edges:
-                    bmvo = bme_other_bmv(bme, bmv)
-                    co += bmvo.co * MOVE_FACTOR / l
+                avg = [
+                    bmvo.co
+                    for bme in bmv.link_edges
+                    if bme not in bmes
+                    if (bmvo := bme_other_bmv(bme, bmv)) is not None
+                ]
+                if not avg: continue
+                avg = sum(avg, Vector((0,0,0))) / len(avg)
+                co = bmv.co + (avg - bmv.co) * MOVE_FACTOR
                 nco[bmv] = co
             for bmv, co in nco.items():
                 bmv.co = co
@@ -312,6 +317,7 @@ class Zipper_Logic:
 
         if self.path_zip and len(self.path_zip) > 1:
             bmv = self.path_zip[0][0]
+            if not bmv.is_valid: return
             pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
             m = self.mouse
             with Drawing.draw(context, CC_2D_LINES) as draw:
