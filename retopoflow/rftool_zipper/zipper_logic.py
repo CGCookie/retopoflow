@@ -196,8 +196,8 @@ class Zipper_Logic:
                     break
                 else:
                     break
-                l = (bme_length(nbme0) + bme_length(nbme1)) / 2
-                if d < l:
+                l = min(bme_length(nbme0), bme_length(nbme1))
+                if d < l * 0.5:
                     break
                 d -= l
                 bmv0, bmv1 = nbmv0, nbmv1
@@ -294,7 +294,7 @@ class Zipper_Logic:
                     p = location_3d_to_region_2d(context.region, context.region_data, co)
                     draw.vertex(p)
 
-        if self.path_zip:
+        if self.path_zip and len(self.path_zip) > 1:
             bmv = self.path_zip[0][0]
             pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
             m = self.mouse
