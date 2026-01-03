@@ -91,6 +91,8 @@ class Zipper_Logic:
             self.mirror_clip = mod.use_clip
 
         self._init(context, event)
+        self.lmb_down = False
+        self.mode = 'UNKNOWN'
 
 
     def update(self, context, event) -> bool:
@@ -105,9 +107,15 @@ class Zipper_Logic:
 
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            self.commit(context, event)
-            return True
+        if event.type == 'LEFTMOUSE':
+            if event.value == 'PRESS':
+                self.commit(context, event)
+                self.lmb_down = True
+                self.mode = 'UNKNOWN'
+                return True
+            if event.value == 'RELEASE':
+                self.lmb_down = False
+                return True
 
         if event.type == 'MOUSEMOVE' or self.first:
             hit = raycast_valid_sources(context, mouse_from_event(event))
@@ -126,6 +134,10 @@ class Zipper_Logic:
                 filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv),
             )
             self._update_paths()
+
+            if self.lmb_down:
+                self.commit(context, event)
+                return True
 
         self.first = False
         return event.type == 'MOUSEMOVE'
@@ -147,7 +159,7 @@ class Zipper_Logic:
         if not self.selected: return
         if not self.nearest: return
 
-        if self.nearest.bmv:
+        if self.nearest.bmv and self.mode in {'UNKNOWN', 'UNZIPPING'}:
             working = deque(self.selected)
             path_back = { n:None for n in working }
             while working and self.nearest.bmv not in path_back:
@@ -166,8 +178,9 @@ class Zipper_Logic:
                 self.path_unzip.append(c)
                 c = path_back[c]
             self.path_unzip.reverse()
+            if len(self.path_unzip) < 2: self.path_unzip = None
 
-        elif len(self.selected) == 1:
+        elif len(self.selected) == 1 and self.mode in {'UNKNOWN', 'ZIPPING'}:
             bmv = next(iter(self.selected))
             d = (self.hit - bmv.co).length
             bmv0, bmv1 = bmv, bmv
@@ -201,13 +214,14 @@ class Zipper_Logic:
                     break
                 d -= l
                 bmv0, bmv1 = nbmv0, nbmv1
+            if len(self.path_zip) < 2: self.path_zip = None
 
 
     def commit(self, context, event):
         if not self.path_unzip and not self.path_zip: return
         if not self.nearest: return
 
-        if self.path_unzip:
+        if self.mode in {'UNKNOWN', 'UNZIPPING'} and self.path_unzip:
             bpy.ops.ed.undo_push(message=f'Unzipping commit {time.time()}')
             select_bmv = self.nearest.bmv
             bmes = [bmvs_shared_bme(bmv0, bmv1) for (bmv0, bmv1) in iter_pairs(self.path_unzip, False)]
@@ -230,8 +244,9 @@ class Zipper_Logic:
             bmops.flush_selection(self.bm, self.em)
             self.nearest = None
             self.path_unzip = None
+            self.mode = 'UNZIPPING'
 
-        if self.path_zip:
+        if self.mode in {'UNKNOWN', 'ZIPPING'} and self.path_zip:
             bpy.ops.ed.undo_push(message=f'Zipping commit {time.time()}')
             bmv = self.path_zip[0][0]
             pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
@@ -247,6 +262,7 @@ class Zipper_Logic:
             bmops.flush_selection(self.bm, self.em)
             self.nearest = None
             self.path_zip = None
+            self.mode = 'ZIPPING'
 
 
 
