@@ -21,8 +21,9 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import os
 import time
+import random
 from itertools import chain
-from math import sqrt, atan2, radians
+from math import sqrt, atan2, radians, cos, sin, pi
 from enum import Enum
 
 import bpy
@@ -44,7 +45,7 @@ from ...addon_common.common.resetter import Resetter
 from ...addon_common.common.utils import iter_pairs
 from ...addon_common.common.useractions import Actions
 
-from ..common.bmesh import get_bmesh_emesh
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -158,7 +159,7 @@ Patches_Orientations.generate_operators()
 
 
 class Mode(Enum):
-    NOTHING = 0
+    NO_ACTION = 0
     GRAB = 1
     ROTATE = 2
     SCALE = 3
@@ -232,6 +233,14 @@ class RFOperator_Patches_Insert(RFOperator):
         default=False,
     )
 
+    snap_threshold: bpy.props.FloatProperty(
+        name='Snap Threshold',
+        description='Minimum distance threshold for snapping (relative to radius)',
+        default=0.5,
+        min=0.001,
+        max=1000.0,
+    )
+
     def init(self, context, event):
         self.actions = Actions.get_instance(context)
 
@@ -241,15 +250,20 @@ class RFOperator_Patches_Insert(RFOperator):
         # RFTool_PolyStrips.rf_overlay.pause_overlay()
         self.logic = Patches_Logic(context)
 
+        self.bm, self.em = get_bmesh_emesh(context)
         self.M = context.edit_object.matrix_world
         self.Mi = self.M.inverted()
         self.Mit = self.Mi.transposed()
         self.edit_scale = max(self.M.to_scale())
 
-        mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.update_orientation(context, event, mouse)
+        self.snappable = [
+            bmv for bmv in self.bm.verts if not bmv.hide and (bmv.is_boundary or bmv.is_wire)
+        ]
 
-        self.switch_to_nothing(context, event)
+        mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.update_orientation(context, event, point_screen=mouse)
+
+        self.switch_to_no_action(context, event)
         self.tickle(context)
         context.area.tag_redraw()
 
@@ -265,41 +279,98 @@ class RFOperator_Patches_Insert(RFOperator):
         RFTool_Patches.rf_brush.reset()
         pass
 
-    def update_orientation(self, context, event, point_screen, *, update_z=False):
-        hit = raycast_valid_sources(context, point_screen)
-        if hit is None: return
+    def update_orientation(self, context, event, *, point_screen=None):
+        # force update if we don't have any orientation data
+        update_hit = False
+        update_hit |= not hasattr(self, 'orientation_data')
+        update_hit |= point_screen is not None
 
-        if not hasattr(self, 'orientation_data') or update_z:
+        if not hasattr(self, 'orientation_data'):
+            dir_right_local = (self.Mi @ direction_to_bvec4(view_right_direction(context))).xyz
+            size = None
+        else:
+            dir_right_local = self.orientation_data['dir right local']
+            size = self.orientation_data['size']
+
+        if update_hit:
+            hit = raycast_valid_sources(context, point_screen)
+            if hit is None: return
             match self.orientation:
                 case 'RAYCAST':
-                    z = hit['no_world']
+                    ps = []
+                    zs = []
+                    dist_count = 1
+                    dist_sum = hit['distance']
+                    for i in range(100):
+                        rad = 2.0 * pi * i / 100
+                        p = point_screen + Vector((cos(rad) * self.scale, sin(rad) * self.scale))
+                        nhit = raycast_valid_sources(context, p)
+                        if not nhit: continue
+                        sz = size2D_to_size(context, nhit['distance'])
+                        delta = nhit['distance'] - dist_sum / dist_count
+                        toss = 'TOSS' if delta < -self.scale * sz else ''
+                        rst = 'RESET' if delta > self.scale * sz else ''
+                        print(f'{nhit["distance"]:0.4f} {dist_sum/dist_count:0.4f} {delta:+0.4f} {self.scale*sz:0.4f} {toss or rst}')
+                        if delta < -self.scale * sz:
+                            continue
+                        if delta > self.scale * sz:
+                            ps = []
+                            zs = []
+                            dist_count = 0
+                            dist_sum = 0
+                        dist_count += 1
+                        dist_sum += nhit['distance']
+                        ps.append(nhit['co_world'])
+                        zs.append(nhit['no_world'])
+                    if not zs:
+                        p = hit['co_world']
+                        z = hit['no_world']
+                    else:
+                        p = sum(ps, Vector((0,0,0))) / len(ps)
+                        z = sum(zs, Vector((0,0,0))).normalized()
                 case 'SCREEN':
+                    p = hit['co_world']
                     z = -direction_from_point(context, point_screen).xyz
                 case _:
                     warning = f'WARNING: UNHANDLED ORIENTATION: {self.compute_orientation}'
                     if not hasattr(self, warning):
                         setattr(self, warning, True)
                         print(warning)
+                    p = hit['co_world']
                     z = Vector((0,0,1))
+            p_local = (self.Mi @ point_to_bvec4(p)).xyz
             z_local = (self.Mi @ direction_to_bvec4(z)).xyz
+            if size is None:
+                size = size2D_to_size(context, hit['distance'])
         else:
+            hit = self.orientation_data['hit']
+            p_local = self.orientation_data['hit']['co_local']
             z_local = self.orientation_data['z local']
+            point_screen = location_3d_to_region_2d(context.region, context.region_data, hit['co_world'])
 
-        if not hasattr(self, 'orientation_data'):
-            dir_right_local = (self.Mi @ direction_to_bvec4(view_right_direction(context))).xyz
-            size = size2D_to_size(context, hit['distance'])
-        else:
-            dir_right_local = self.orientation_data['dir right local']
-            size = self.orientation_data['size']
-
-        fo = hit['co_local']
+        fo = p_local
         fz = z_local.normalized()
         fy = fz.cross(dir_right_local).normalized()
         fx = fy.cross(fz).normalized()
         frame = Frame(fo, fx, fy, fz)
         frame.rotate_about_z(self.rotate)
 
+        height = 0
+        for _ in range(100):
+            nhit = None
+            while not nhit:
+                while True:
+                    x = random.random() * 2 - 1
+                    y = random.random() * 2 - 1
+                    if x*x + y*y <= 1: break
+                pt = point_screen + Vector((x, y)) * self.scale
+                nhit = raycast_valid_sources(context, pt)
+            co = frame.w2l_point(nhit['co_local'])
+            height = max(height, -co.z) * self.scale * size
+        print(f'{height:0.4f}')
+
         self.orientation_data = {
+            'hit': hit,
             'frame': frame,
             'mirror mult': Vector((
                 1 if not self.mirror_x else -1,
@@ -313,11 +384,13 @@ class RFOperator_Patches_Insert(RFOperator):
             )),
             'z local': z_local,
             'dir right local': dir_right_local,
+            'height': height,
             'size':   size,
             'radius local': self.scale * size / self.edit_scale,
             'radius world': self.scale * size,
         }
 
+        Patches_Template.update_active(self.xform, self.snap)
         context.area.tag_redraw()
 
     def xform(self, p:Point, n:Normal) -> tuple[Point, Normal]:
@@ -327,12 +400,39 @@ class RFOperator_Patches_Insert(RFOperator):
         mirror = self.orientation_data['mirror mult']
         offset = self.orientation_data['mirror offset']
         radius = self.orientation_data['radius local']
+        height = self.orientation_data['height']
+
+        o = Vector((0, 0, -height))
+        pt_local = frame.l2w_point(((p + o) * mirror + offset) * radius)
 
         return (
             point_to_bvec3 (self.M   @ point_to_bvec4 (frame.l2w_point((p * mirror + offset) * radius))),
             normal_to_bvec3(self.Mit @ normal_to_bvec4(frame.l2w_normal(n * mirror))),
         )
 
+    def snap(self, ptnos:list[tuple[Point, Normal]], inds:list[int]):
+        radius = self.orientation_data['radius world']
+        threshold = self.snap_threshold
+        snappable = set(self.snappable)
+        working = set(inds)
+        while working:
+            best_dist = threshold  # set minimum distance threshold
+            best_match = None
+            for i in working:
+                pt, no = ptnos[i]
+                pt_local = (self.Mi @ point_to_bvec4(pt)).xyz
+                bmv = min(snappable, key=lambda bmv: (bmv.co - pt_local).length)
+                npt = (self.M @ point_to_bvec4(bmv.co)).xyz
+                d = (pt - npt).length / radius
+                if d >= best_dist: continue  # not best or too far away
+                best_dist = d
+                best_match = (i, bmv, npt)
+            if not best_match: break
+            i, bmv, npt = best_match
+            pt, no = ptnos[i]
+            ptnos[i] = (npt, no)
+            working.remove(i)
+            snappable.remove(bmv)
 
     def update(self, context, event) -> set[str]:
         # print(event.type, event.value, self.mode, time.time())
@@ -340,8 +440,8 @@ class RFOperator_Patches_Insert(RFOperator):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
         match self.mode:
-            case Mode.NOTHING:
-                ret = self.update_nothing(context, event)
+            case Mode.NO_ACTION:
+                ret = self.update_no_action(context, event)
             case Mode.GRAB:
                 ret = self.update_grab(context, event)
             case Mode.ROTATE:
@@ -356,11 +456,11 @@ class RFOperator_Patches_Insert(RFOperator):
 
         return ret
 
-    def switch_to_nothing(self, context, event):
-        self.mode = Mode.NOTHING
+    def switch_to_no_action(self, context, event):
+        self.mode = Mode.NO_ACTION
         Cursors.set('DEFAULT')
 
-    def update_nothing(self, context, event) -> set[str]:
+    def update_no_action(self, context, event) -> set[str]:
         if event.value == 'PRESS':
             handled = True
             match event.type:
@@ -374,16 +474,13 @@ class RFOperator_Patches_Insert(RFOperator):
                     self.switch_to_scale(context, event)
                 case 'X':
                     self.mirror_x = not self.mirror_x
-                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-                    self.update_orientation(context, event, pos_screen)
+                    self.update_orientation(context, event)
                 case 'Y':
                     self.mirror_y = not self.mirror_y
-                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-                    self.update_orientation(context, event, pos_screen)
+                    self.update_orientation(context, event)
                 case 'Z':
                     self.mirror_z = not self.mirror_z
-                    pos_screen = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
-                    self.update_orientation(context, event, pos_screen)
+                    self.update_orientation(context, event)
                 case 'ESC':
                     return {'CANCELLED'}
                 case _:
@@ -410,7 +507,7 @@ class RFOperator_Patches_Insert(RFOperator):
             if event.type in {'ESC', 'RIGHTMOUSE'}:
                 self.orientation_data = self.grab_data['original']
             del self.grab_data
-            self.switch_to_nothing(context, event)
+            self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
@@ -418,7 +515,7 @@ class RFOperator_Patches_Insert(RFOperator):
         if event.type == 'MOUSEMOVE':
             delta = Vector((event.mouse_x, event.mouse_y)) - self.grab_data['mouse']
             pt = self.grab_data['position'] + delta
-            self.update_orientation(context, event, pt, update_z=True)
+            self.update_orientation(context, event, point_screen=pt)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
@@ -438,9 +535,9 @@ class RFOperator_Patches_Insert(RFOperator):
         if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
             if event.type in {'RIGHTMOUSE', 'ESC'}:
                 self.rotate = self.rotate_data['original']
-                self.update_orientation(context, event, self.rotate_data['position'])
+                self.update_orientation(context, event)
             del self.rotate_data
-            self.switch_to_nothing(context, event)
+            self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
@@ -449,7 +546,7 @@ class RFOperator_Patches_Insert(RFOperator):
             delta = Vector((event.mouse_region_x, event.mouse_region_y)) - self.rotate_data['position']
             cur_ang = atan2(delta.y, delta.x)
             self.rotate = self.rotate_data['original'] + self.rotate_data['angle'] - cur_ang
-            self.update_orientation(context, event, self.rotate_data['position'])
+            self.update_orientation(context, event)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
@@ -469,9 +566,9 @@ class RFOperator_Patches_Insert(RFOperator):
         if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
             if event.type in {'RIGHTMOUSE', 'ESC'}:
                 self.scale = self.scale_data['original']
-                self.update_orientation(context, event, self.scale_data['position'])
+                self.update_orientation(context, event)
             del self.scale_data
-            self.switch_to_nothing(context, event)
+            self.switch_to_no_action(context, event)
             context.area.tag_redraw()
             self.tickle(context)
             return {'RUNNING_MODAL'}
@@ -479,7 +576,7 @@ class RFOperator_Patches_Insert(RFOperator):
         if event.type == 'MOUSEMOVE':
             delta = (self.mouse - self.scale_data['position']).length
             self.scale = self.scale_data['original'] + delta - self.scale_data['dist']
-            self.update_orientation(context, event, self.scale_data['position'])
+            self.update_orientation(context, event)
             context.area.tag_redraw()
 
         return {'RUNNING_MODAL'}
@@ -499,6 +596,8 @@ class RFOperator_Patches_Insert(RFOperator):
         gpustate.blend('ALPHA')
         gpustate.depth_mask(False)
 
+        ###############################
+        # draw "brush"
         # draw below
         gpustate.depth_test('GREATER')
         Drawing.draw_circle_3d(
@@ -509,8 +608,7 @@ class RFOperator_Patches_Insert(RFOperator):
             thickness=1.0,
             viewport_size=viewport_size,
         )
-
-        # # draw above
+        # draw above
         gpustate.depth_test('LESS_EQUAL')
         Drawing.draw_circle_3d(
             p,
@@ -520,6 +618,7 @@ class RFOperator_Patches_Insert(RFOperator):
             thickness=2.0,
             viewport_size=viewport_size,
         )
+        # draw top of brush if it has a height
         if not Patches_Template.is_active_flat():
             Drawing.draw_circle_3d(
                 p + z * height,
@@ -530,13 +629,20 @@ class RFOperator_Patches_Insert(RFOperator):
                 viewport_size=viewport_size,
             )
 
+
+
+
     def draw_postpixel(self, context):
         if not self.orientation_data: return
 
+        ####################################
+        # draw patch
         props = RF_Prefs.get_prefs(context)
         highlight = props.highlight_color
-        Patches_Template.draw_active(context, self.xform, highlight)
+        Patches_Template.draw_active(context, highlight)
 
+        ####################################
+        # draw mode (rotate / scale)
         if self.mode == Mode.ROTATE or self.mode == Mode.SCALE:
             pos = location_3d_to_region_2d(context.region, context.region_data, self.M @ self.orientation_data['frame'].o)
             with Drawing.draw(context, CC_2D_LINES) as draw:

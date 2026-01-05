@@ -53,7 +53,7 @@ from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
+from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold, clamp
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
@@ -284,6 +284,19 @@ class Zipper_Logic:
             if len(self.path_zip) < 2: self.path_zip = None
 
 
+    def get_neighbors(self, start):
+        neighbors = set(start)
+        working = list((bmv,0) for bmv in start)
+        while working:
+            n,d = working.pop(0)
+            if d >= 2: continue
+            for bmf in n.link_faces:
+                for bmv in bmf.verts:
+                    if bmv in neighbors: continue
+                    working.append((bmv, d+1))
+                    neighbors.add(bmv)
+        return neighbors - set(start)
+
     def commit(self, context, event):
         if not self.path_unzip and not self.path_zip: return
         if not self.nearest: return
@@ -291,13 +304,16 @@ class Zipper_Logic:
         if self.mode in {'UNKNOWN', 'UNZIPPING'} and self.path_unzip:
             bpy.ops.ed.undo_push(message=f'Unzipping commit {time.time()}')
             select_bmv = self.nearest.bmv
-            bmes = [bmvs_shared_bme(bmv0, bmv1) for (bmv0, bmv1) in iter_pairs(self.path_unzip, False)]
-            res = bmesh.ops.split_edges(self.bm, edges=bmes)
-            bmes = res['edges']
+            bmes = [
+                bmvs_shared_bme(bmv0, bmv1)
+                for (bmv0, bmv1) in iter_pairs(self.path_unzip, False)
+            ]
+            bmes = bmesh.ops.split_edges(self.bm, edges=bmes)['edges']
             verts = set(bmv for bme in bmes for bmv in bme.verts)
+            neighbors = self.get_neighbors(verts)
+
             nco = {}
             for bmv in verts:
-                if bmv == select_bmv: print(f'FOUND IT!')
                 avg = [
                     bmvo.co
                     for bme in bmv.link_edges
@@ -308,8 +324,17 @@ class Zipper_Logic:
                 avg = sum(avg, Vector((0,0,0))) / len(avg)
                 co = bmv.co + (avg - bmv.co) * MOVE_FACTOR
                 nco[bmv] = co
+            for bmv in neighbors:
+                avg = [
+                    bmv.co + (n.co - nco[n]) * (1 - clamp((bmv.co - n.co).length / 0.2, 0.0, 1.0))
+                    for n in verts
+                    if n in nco
+                ]
+                if not avg: continue
+                nco[bmv] = sum(avg, Vector((0,0,0))) / len(avg)
             for bmv, co in nco.items():
                 bmv.co = co
+
             bmesh.update_edit_mesh(self.em)
             bmops.deselect_all(self.bm)
             bmops.select(self.bm, select_bmv)
@@ -325,11 +350,27 @@ class Zipper_Logic:
             pt_origin = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
             m = self.mouse
             l = len(self.path_zip)
+            verts = [v for vs in self.path_zip for v in vs]
+            neighbors = self.get_neighbors(verts)
+            oco = { v: v.co for v in verts }
+            nco = {}
             for i, (bmv0, bmv1) in enumerate(self.path_zip):
                 if bmv0 == bmv1: continue
                 co = pt_origin + (m - pt_origin) * i / (l - 1)
                 co = raycast_point_valid_sources(context, co, world=False)
+                oco[bmv0] = bmv0.co
+                oco[bmv1] = bmv1.co
                 bmesh.ops.pointmerge(self.bm, verts=[bmv0, bmv1], merge_co=co)
+                nco[bmv0] = co
+                nco[bmv1] = co
+            for bmv in neighbors:
+                avg = [
+                    bmv.co + (nco[n] - oco[n]) * (1 - clamp((bmv.co - oco[n]).length / 0.2, 0.0, 1.0))
+                    for n in verts
+                    if n in oco and n in nco
+                ]
+                if not avg: continue
+                bmv.co = sum(avg, Vector((0,0,0))) / len(avg)
             bmesh.update_edit_mesh(self.em)
             bmops.deselect_all(self.bm)
             bmops.select(self.bm, self.path_zip[-1][0])

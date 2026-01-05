@@ -37,6 +37,7 @@ from ..common.bmesh import get_bmesh_emesh, bme_other_bmv
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
+    CC_3D_POINTS,
     CC_2D_LINES,
     CC_2D_TRIANGLES,
 )
@@ -112,10 +113,36 @@ class Patches_Template:
         for e in self.es:
             for v in e:
                 self.vcs[v] = True
+        self.snap_vs = [i for (i,c) in enumerate(self.vcs) if c]
 
         self.height = bbox_size.z / max_size
         self.is_flat = (self.height < 0.001)
         self.radius = max(p.xy.length for p in self.vps)
+
+        self._update(None, None)
+
+    def _update(self, fn_transform_vertex, fn_snap_vertices):
+        if fn_transform_vertex is None:
+            self.snapped_vps = self.vps
+            self.snapped_vns = self.vns
+            return
+
+        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(self.vps, self.vns) ]
+
+        if fn_snap_vertices:
+            fn_snap_vertices(ptnos, self.snap_vs)
+
+        # zip with existing geometry
+        # snap to nearest surface
+
+        self.snapped_vps = [ pt for (pt, no) in ptnos ]
+        self.snapped_vns = [ no for (pt, no) in ptnos ]
+
+    @staticmethod
+    def update_active(fn_transform_vertex, fn_snap_vertices):
+        active = Patches_Template._active
+        if not active: return
+        active._update(fn_transform_vertex, fn_snap_vertices)
 
     @staticmethod
     def get_active_height():
@@ -123,23 +150,9 @@ class Patches_Template:
         return active.height if active else 0.0
 
     @staticmethod
-    def compute_active_height(fn_transform_vertex):
-        active = Patches_Template._active
-        if active is None: return 0.0
-        zs = [ fn_transform_vertex(pt, no)[0][2] for (pt, no) in zip(active.vps, active.vns) ]
-        return max(zs) - min(zs)
-
-    @staticmethod
     def get_active_radius():
         active = Patches_Template._active
         return active.radius if active else 0.0
-
-    @staticmethod
-    def compute_active_radius(fn_transform_vertex):
-        active = Patches_Template._active
-        if not active: return 0.0
-        def xylen(p): return sqrt(p[0]*p[0] + p[1]*p[1])
-        return max(xylen(fn_transform_vertex(p,n)[0]) for (p,n) in zip(active.vps, active.vns))
 
     @staticmethod
     def is_active_flat():
@@ -206,13 +219,12 @@ class Patches_Template:
         Patches_Template._active = cache[template_id]
 
     @staticmethod
-    def draw_active(context, fn_transform_vertex, highlight):
+    def draw_active(context, highlight):
         active = Patches_Template._active
         if active is None: return
-        ptnos = [ fn_transform_vertex(pt, no) for (pt, no) in zip(active.vps, active.vns) ]
         pts = [
             location_3d_to_region_2d(context.region, context.region_data, pt)
-            for (pt, no) in ptnos
+            for pt in active.snapped_vps
         ]
 
         theme = context.preferences.themes[0].view_3d

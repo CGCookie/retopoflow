@@ -67,6 +67,7 @@ def create_shader(fn_glsl, *, segments=1, pos=None):
         assert False
 
 shader_2D_point,    ubos_2D_point,    batch_2D_point    = create_shader('point_2D.glsl')
+shader_3D_point,    ubos_3D_point,    batch_3D_point    = create_shader('point_3D.glsl')
 shader_2D_lineseg,  ubos_2D_lineseg,  batch_2D_lineseg  = create_shader('lineseg_2D.glsl')
 shader_2D_circle,   ubos_2D_circle,   batch_2D_circle   = create_shader('circle_2D.glsl', segments=64)
 shader_3D_circle,   ubos_3D_circle,   batch_3D_circle   = create_shader('circle_3D.glsl', segments=64)
@@ -180,6 +181,35 @@ class CC_2D_POINTS(CC_DRAW):
             ubos_2D_point.options.center = (*p, 0, 1)
             ubos_2D_point.options.update_shader()
             batch_2D_point.draw(shader_2D_point)
+        return cls
+
+class CC_3D_POINTS(CC_DRAW):
+    @classmethod
+    def begin(cls, context):
+        print('CC_3D_POINTS DOES NOT WORK YET!')
+        shader_3D_point.bind()
+        ubos_3D_point.options.MVPMatrix_view  = Drawing.get_view_matrix(context)
+        ubos_3D_point.options.MVPMatrix_pixel = Drawing.get_pixel_matrix(context)
+        ubos_3D_point.options.screensize = (context.area.width, context.area.height, 0, 0)
+        ubos_3D_point.options.color = cls._default_color
+        cls.update()
+
+    @classmethod
+    def update(cls):
+        ubos_3D_point.options.radius_border = (cls._point_size, cls._border_width, 0, 0)
+        ubos_3D_point.options.colorBorder = cls._border_color
+
+    @classmethod
+    def color(cls, c:Color4|None):
+        if not c: return
+        ubos_3D_point.options.color = c
+
+    @classmethod
+    def vertex(cls, p:Vector) -> Type[Self]:
+        if p:
+            ubos_3D_point.options.center = (*p, 1)
+            ubos_3D_point.options.update_shader()
+            batch_3D_point.draw(shader_3D_point)
         return cls
 
 
