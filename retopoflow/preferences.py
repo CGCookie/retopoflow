@@ -74,6 +74,24 @@ class RF_Prefs(bpy.types.AddonPreferences):
         min=0,
         max=1,
     )
+    vertex_size: bpy.props.IntProperty(
+        name='Vertex Size',
+        description='The visual size of each vertex in the viewport. This is only used when Component Size is enabled under Tool Switching',
+        subtype='PIXEL',
+        default=4,
+        min=1,
+        max=32,
+        update=lambda self, context: setattr(context.preferences.themes[0].view_3d, 'vertex_size', self.vertex_size)
+    )
+    edge_width: bpy.props.IntProperty(
+        name='Edge Width',
+        description='The visual size of each edge in the viewport. This is only used when Component Size is enabled under Tool Switching',
+        subtype='PIXEL',
+        default=2,
+        min=1,
+        max=32,
+        update=lambda self, context: setattr(context.preferences.themes[0].view_3d, 'edge_width', self.edge_width)
+    )
     #endregion
 
     """ Hotkeys """
@@ -132,6 +150,11 @@ class RF_Prefs(bpy.types.AddonPreferences):
     setup_snapping: bpy.props.BoolProperty(
         name='Snapping',
         description=("Automatically adjusts Blender's snapping settings for the selected Retopoflow tool"),
+        default=True,
+    )
+    setup_component_size: bpy.props.BoolProperty(
+        name='Component Size',
+        description=("Use a separate size for vertices and edges when in Retopoflow tools"),
         default=True,
     )
     #endregion

@@ -23,7 +23,7 @@ import bpy
 from ..preferences import RF_Prefs
 
 def draw_ui_options(context, layout):
-    props = RF_Prefs.get_prefs(context)
+    prefs = RF_Prefs.get_prefs(context)
     props_scene = context.scene.retopoflow
     theme = context.preferences.themes[0].view_3d
 
@@ -42,16 +42,27 @@ def draw_ui_options(context, layout):
         #split.prop(context.space_data.overlay, 'retopology_offset', text='')
         row = col.row(heading='Fade Inactive')
         row.prop(context.space_data.overlay, 'show_fade_inactive', text='')
+        row.separator()
         row2 = row.row()
         row2.enabled = context.space_data.overlay.show_fade_inactive
         row2.prop(context.space_data.overlay, 'fade_inactive_alpha', text='')
+        if prefs.setup_component_size:
+            col.prop(prefs, 'vertex_size')
+            col.prop(prefs, 'edge_width')
+        else:
+            col.prop(theme, 'vertex_size')
+            col.prop(theme, 'edge_width')
     else:
         col.prop(theme, 'face_retopology', text='Overlay')
-    #col.prop(props, 'highlight_color', text='Highlight')
+        col2 = col.column()
+        col2.enabled = prefs.setup_component_size
+        col2.prop(prefs, 'vertex_size')
+        col2.prop(prefs, 'edge_width')
+    #col.prop(prefs, 'highlight_color', text='Highlight')
     col.separator()
 
     col2 = col.column(align=True)
-    col2.row(heading='Expand').prop(props, 'expand_masking', text='Masking Options')
-    col2.prop(props, 'expand_mirror', text='Mirror Axes')
-    col2.prop(props, 'expand_offset', text='Overlay Offset')
-    col2.prop(props, 'expand_tools', text='Tools')
+    col2.row(heading='Expand').prop(prefs, 'expand_masking', text='Masking Options')
+    col2.prop(prefs, 'expand_mirror', text='Mirror Axes')
+    col2.prop(prefs, 'expand_offset', text='Overlay Offset')
+    col2.prop(prefs, 'expand_tools', text='Tools')

@@ -361,6 +361,10 @@ class RFCore:
             for s in iter_all_view3d_spaces():
                 show_fade_inactive(s)
 
+        if prefs.setup_component_size:
+            RFCore.resetter['context.preferences.themes[0].view_3d.vertex_size'] = prefs.vertex_size
+            RFCore.resetter['context.preferences.themes[0].view_3d.edge_width'] = prefs.edge_width
+
         # Set up retopology overlay
         offset = context.space_data.overlay.retopology_offset
         props = context.scene.retopoflow
