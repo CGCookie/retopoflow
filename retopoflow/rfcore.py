@@ -366,7 +366,7 @@ class RFCore:
             RFCore.resetter['context.preferences.themes[0].view_3d.vertex_size'] = prefs.vertex_size
             RFCore.resetter['context.preferences.themes[0].view_3d.edge_width'] = prefs.edge_width
 
-        Theme.set_default(context)
+        Theme.store_default(context)
         if prefs.theme != 'none':
             settings = Theme.common | getattr(Theme, prefs.theme)
             for pref in settings.keys():
