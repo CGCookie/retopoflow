@@ -23,6 +23,7 @@ import platform
 
 import bpy
 from .common.interface import update_toolbar
+from ..config.theme import Theme
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
@@ -91,6 +92,19 @@ class RF_Prefs(bpy.types.AddonPreferences):
         min=1,
         max=32,
         update=lambda self, context: setattr(context.preferences.themes[0].view_3d, 'edge_width', self.edge_width)
+    )
+    theme: bpy.props.EnumProperty(
+        name="Theme",
+        description="The color of mesh compenents while using Retopoflow",
+        items=(
+            ('none', "Blender", "The theme is not changed from your regular Blender preferences"),
+            ('blue', "Blue", "Changes the color of components while using Retopoflow"),
+            ('green', "Green", "Changes the color of components while using Retopoflow"),
+            ('orange', "Orange", "Changes the color of components while using Retopoflow"),
+            ('pink', "Pink", "Changes the color of components while using Retopoflow"),
+        ),
+        default='blue',
+        update=lambda self, context: Theme.set_theme(context, self.theme)
     )
     #endregion
 
