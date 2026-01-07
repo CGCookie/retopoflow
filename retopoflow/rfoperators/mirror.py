@@ -107,7 +107,10 @@ def setup_nodes_preview(context):
         if gp_name in [x.name for x in bpy.data.objects]:
             gp_obj = bpy.data.objects[gp_name]
         else:
-            gp = bpy.data.grease_pencils_v3.new(gp_name)
+            if bpy.app.version >= (5,0,0):
+                gp = bpy.data.grease_pencils.new(gp_name)
+            else:
+                gp = bpy.data.grease_pencils_v3.new(gp_name)
             gp_obj = bpy.data.objects.new(gp_name, gp)
         if gp_obj.name not in context.collection.objects:
             context.collection.objects.link(gp_obj)
