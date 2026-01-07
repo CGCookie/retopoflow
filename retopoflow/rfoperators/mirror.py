@@ -162,7 +162,10 @@ def cleanup_nodes_preview(context):
 
     if gp_name in [x.name for x in bpy.data.objects]:
         gp_obj = bpy.data.objects[gp_name]
-        bpy.data.grease_pencils_v3.remove(gp_obj.data)
+        if bpy.app.version >= (5,0,0):
+            bpy.data.grease_pencils.remove(gp_obj.data)
+        else:
+            bpy.data.grease_pencils_v3.remove(gp_obj.data)
 
 
 def update_mirror_mod(context, modifier=None):
