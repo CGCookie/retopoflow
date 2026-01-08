@@ -316,7 +316,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_neg_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_neg
+            for (p, d) in rays_neg if p is not None and d is not None
         ]
         rays_pos = [
             (Vector((*hit['co_world'], 1.0)), ray_from_point(context, hit['co_world'])[1])
@@ -324,7 +324,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_pos_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_pos
+            for (p, d) in rays_pos if p is not None and d is not None
         ]
         points = list(itertools.chain(
             [hit['co_world'] for hit in hits if hit],

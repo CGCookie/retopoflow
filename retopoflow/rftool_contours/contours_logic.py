@@ -148,12 +148,8 @@ class Contours_Logic:
 
         if not self.bm.verts: return
 
-        self.edge_ring = set()
-
         M = self.matrix_world
         rgn, r3d = context.region, context.region_data
-        po3 = self.plane.o
-        po2 = location_3d_to_region_2d(rgn, r3d, po3)
 
         #################################################################################
         # determine if cutting existing geometry by:
@@ -161,6 +157,9 @@ class Contours_Logic:
         # - walk around geometry to find edges that should be cut
         hit_co3 = self.hit['co_local']
         hit_co2 = location_3d_to_region_2d(rgn, r3d, self.hit['co_world'])  # same as mouse unless view changes
+        if hit_co2 is None:
+            return
+
         inf = float('inf')
         plane_fit = self.plane_fit
         def distance_to_hit(bmf):
@@ -169,6 +168,8 @@ class Contours_Logic:
             dist3 = (hit_co3 - center3).length
             if dist3 > radius3: return inf
             center2 = location_3d_to_region_2d(rgn, r3d, M @ center3)
+            if center2 is None:
+                return inf
             return (hit_co2 - center2).length
         bmf = min(self.bm.faces, default=None, key=distance_to_hit)
         if bmf and math.isfinite(distance_to_hit(bmf)):
