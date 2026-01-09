@@ -58,6 +58,11 @@ def draw_mirror_options(context, layout):
         col = layout.column()
         col.enabled = mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]
         col.prop(mod, 'use_clip', text='Clipping')
+        row = col.row(heading='Merge')
+        row.prop(mod, 'use_mirror_merge', text='')
+        row2 = row.row()
+        row2.enabled = mod.use_mirror_merge
+        row2.prop(mod, 'merge_threshold', text='')
     else:
         row.prop(props_obj, 'mirror_axis', index=0, text='X', toggle=True)
         row.prop(props_obj, 'mirror_axis', index=1, text='Y', toggle=True)
