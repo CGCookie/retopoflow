@@ -27,6 +27,7 @@ import time
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
+from ..config.theme import Theme
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
@@ -381,6 +382,17 @@ class RFCore:
                 RFCore.resetter['space.overlay.show_fade_inactive'] = True
             for s in iter_all_view3d_spaces():
                 show_fade_inactive(s)
+
+        if prefs.setup_component_size:
+            RFCore.resetter['context.preferences.themes[0].view_3d.vertex_size'] = prefs.vertex_size
+            RFCore.resetter['context.preferences.themes[0].view_3d.edge_width'] = prefs.edge_width
+
+        Theme.store_default(context)
+        if prefs.theme != 'none':
+            settings = Theme.common | getattr(Theme, prefs.theme)
+            for pref in settings.keys():
+                prop_path = 'context.preferences.themes[0].view_3d.' + pref
+                RFCore.resetter[prop_path] = settings[pref]
 
         # Set up retopology overlay
         offset = context.space_data.overlay.retopology_offset
