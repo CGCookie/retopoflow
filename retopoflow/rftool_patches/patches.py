@@ -90,6 +90,7 @@ from ..rfpanels.help_panel import draw_help_panel
 
 from .patches_logic import Patches_Logic, Patches_Template
 
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 
 
@@ -704,6 +705,7 @@ class RFTool_Patches(RFTool_Base):
 
     bl_keymap = chain_rf_keymaps(
         RFOperator_Patches_Insert,
+        RFOperator_TopoRotate,
         # RFOperator_PatchesBrush_Adjust,
     )
 
