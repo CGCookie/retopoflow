@@ -103,8 +103,9 @@ class PP_Logic:
         self.insert_mode = None
         self.quad_preserve = None
         self.parallel_stable = None
+        self.free_move_edge_vert = None
         self.reset()
-        self.update(context, event, None, 1.00, True)
+        self.update(context, event, None, 1.00, True, False)
 
     def reset(self):
         self.bm = None
@@ -117,7 +118,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode, parallel_stable, quad_preserve):
+    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, free_move_edge_vert):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
@@ -125,6 +126,7 @@ class PP_Logic:
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
         self.quad_preserve = quad_preserve
+        self.free_move_edge_vert = free_move_edge_vert
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -738,7 +740,12 @@ class PP_Logic:
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
-                bmv_new.co = self.hit
+                if self.free_move_edge_vert:
+                    bmv_new.co = self.hit
+                else:
+                    d = (bmev1.co - bmev0.co).normalized()
+                    v = d * d.dot(self.hit - bmev0.co)
+                    bmv_new.co = bmev0.co + v
                 select_now = [bmv_new]
                 select_later = []
 
@@ -806,7 +813,12 @@ class PP_Logic:
                                 split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
 
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
-                bmv_new.co = self.hit
+                if self.free_move_edge_vert:
+                    bmv_new.co = self.hit
+                else:
+                    d = (bmev1.co - bmev0.co).normalized()
+                    v = d * d.dot(self.hit - bmev0.co)
+                    bmv_new.co = bmev0.co + v
                 bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
                 if bmf_split:
                     ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
@@ -924,7 +936,10 @@ class PP_Logic:
 
         bmops.flush_selection(self.bm, self.em)
 
-        bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False, snap_method='PROJECTED', use_native='FALSE')
+        if self.free_move_edge_vert:
+            bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False, snap_method='PROJECTED', use_native='FALSE')
+        else:
+            bpy.ops.transform.vert_slide('INVOKE_DEFAULT')  # TODO: add option to retopoflow.translate to handle this
 
         # NOTE: the select-later property is _not_ transferred to the vert into which the moved vert is auto-merged...
         #       this is handled if a BMEdge or BMFace is to be selected later, but it is not handled if only a BMVert
