@@ -50,7 +50,7 @@ from ..common.bmesh import (
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.enums import ValueIntEnum
 from ..common.operator import invoke_operator, execute_operator, RFOperator
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
+from ..common.raycast import nearest_point_valid_sources, raycast_valid_sources, raycast_point_valid_sources, mouse_from_event
 from ..common.maths import (
     view_forward_direction,
     distance_point_linesegment,
@@ -762,6 +762,7 @@ class PP_Logic:
                                     split_dist = ((self.bmv.co - bmv_corner.co).length + (self.nearest.bmv.co - bmv_corner.co).length) / 2
                                     split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                     split_co = bmv_corner.co + split_dir * split_dist
+                                    split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
                 else:
                     co = self.correct_mirror_side(context, self.hit, [bmv0])
                     bmv1 = self.bm.verts.new(co)
@@ -802,6 +803,7 @@ class PP_Logic:
                                 split_dist = ((self.bmv.co - bmv_corner.co).length + (self.hit - bmv_corner.co).length) / 2
                                 split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                 split_co = bmv_corner.co + split_dir * split_dist
+                                split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
 
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
                 bmv_new.co = self.hit
