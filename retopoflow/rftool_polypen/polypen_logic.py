@@ -93,6 +93,8 @@ class PP_Action(ValueIntEnum):
 
 
 class PP_Logic:
+    state : PP_Action
+
     def __init__(self, context, event):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
@@ -364,7 +366,6 @@ class PP_Logic:
                 draw.color(color_border_transparent)
                 draw.vertex(p)
 
-
         match self.state:
             case PP_Action.VERT:
                 pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
@@ -466,6 +467,22 @@ class PP_Logic:
                 diff = pt - p0
                 d = diff.normalized() * Drawing.scale(8)
 
+                po,pnn = None,None
+                if self.quad_preserve and self.nearest.bmv:
+                    bmvs = { bmes_shared_bmv(bme0, bme1) for bme0 in self.bmv.link_edges for bme1 in self.nearest.bmv.link_edges if bmes_share_bmv(bme0, bme1) }
+                    if len(bmvs) == 1:
+                        bmv_corner = next(iter(bmvs))
+                        bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest.bmv.link_faces)), None)
+                        if bmf:
+                            bmvs = set(bmf.verts) - { bme_other_bmv(bme, self.nearest.bmv) for bme in self.nearest.bmv.link_edges } - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv, self.nearest.bmv }
+                            if len(bmvs) == 1:
+                                bmv_opposite = next(iter(bmvs))
+                                pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.nearest.bmv.co)
+                                po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
+                                pc = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_corner.co)
+                                dist = ((pc - pt).length + (pc - pn).length) / 2
+                                pnn = pc + (po - pc).normalized() * dist
+
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
 
@@ -477,12 +494,21 @@ class PP_Logic:
                     draw.color(color_stipple)
                     draw.vertex(p0)
 
+                    if po and pnn:
+                        draw.vertex(po)
+                        draw.vertex(pnn)
+
                 if diff.length > Drawing.scale(8):
                     with Drawing.draw(context, CC_2D_LINES) as draw:
                         draw.line_width(2)
                         draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
                         draw.color(color_border_open)
-                        draw.vertex(p0 + d).vertex(pt - d)
+                        if not po or not pnn:
+                            draw.vertex(p0 + d).vertex(pt - d)
+                        else:
+                            draw.vertex(p0).vertex(pnn)
+                            draw.vertex(pt).vertex(pnn)
+                            draw.vertex(po).vertex(pnn)
 
             case PP_Action.EDGE_TRI:
                 bmv0, bmv1 = self.bme.verts
@@ -718,21 +744,43 @@ class PP_Logic:
             case PP_Action.VERT_EDGE:
                 # create new edge between selected vert and current mouse position
                 bmv0 = self.bmv
+                bmv_opposite, bmv_corner = None, None
+                split_co = None
                 if self.nearest.bmv:
                     bmv1 = self.nearest.bmv
+
+                    if self.quad_preserve and self.nearest.bmv:
+                        bmvs = { bmes_shared_bmv(bme0, bme1) for bme0 in self.bmv.link_edges for bme1 in self.nearest.bmv.link_edges if bmes_share_bmv(bme0, bme1) }
+                        if len(bmvs) == 1:
+                            bmv_corner = next(iter(bmvs))
+                            bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest.bmv.link_faces)), None)
+                            if bmf:
+                                bmvs = set(bmf.verts) - { bme_other_bmv(bme, self.nearest.bmv) for bme in self.nearest.bmv.link_edges } - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv, self.nearest.bmv }
+                                if len(bmvs) == 1:
+                                    bmv_opposite = next(iter(bmvs))
+                                    split_dist = ((self.bmv.co - bmv_corner.co).length + (self.nearest.bmv.co - bmv_corner.co).length) / 2
+                                    split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
+                                    split_co = bmv_corner.co + split_dir * split_dist
                 else:
                     co = self.correct_mirror_side(context, self.hit, [bmv0])
                     bmv1 = self.bm.verts.new(co)
                 bmf_split = next((bmf for bmf in bmv0.link_faces if bmv1 in bmf.verts), None)
                 bme = None
                 if bmf_split:
-                    bme = next(iter(bmesh.ops.connect_verts(self.bm, verts=[bmv0, bmv1])), None)
-                if not bme:
+                    ret = bmesh.ops.connect_verts(self.bm, verts=[bmv0, bmv1])
+                    bme = next(iter(ret['edges']), None)
+                    if split_co:
+                        bme_cut = bme
+                        _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
+                        bmv_cut.co = split_co
+                        bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                    bme = None
+                else:
                     bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
-                if not bme:
-                    bme = self.bm.edges.new((bmv0, bmv1))
+                    if not bme:
+                        bme = self.bm.edges.new((bmv0, bmv1))
                 select_now = [bmv1]
-                select_later = [bme] if self.insert_mode != 'EDGE-ONLY' else []
+                select_later = [bme] if bme and self.insert_mode != 'EDGE-ONLY' else []
 
             case PP_Action.VERT_EDGE_EDGE:
                 # split hovered edge and create new edge from selected vert
