@@ -99,9 +99,10 @@ class PP_Logic:
         self.update_bmesh_selection = False
         self.mouse = None
         self.insert_mode = None
+        self.quad_preserve = None
         self.parallel_stable = None
         self.reset()
-        self.update(context, event, None, 1.00)
+        self.update(context, event, None, 1.00, True)
 
     def reset(self):
         self.bm = None
@@ -114,13 +115,14 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode, parallel_stable):
+    def update(self, context, event, insert_mode, parallel_stable, quad_preserve):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
 
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
+        self.quad_preserve = quad_preserve
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -410,17 +412,18 @@ class PP_Logic:
                 pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
 
                 po,pnn = None,None
-                bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
-                if len(bmvs) == 1:
-                    bmv_corner = bmvs[0]
-                    bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
-                    if bmf:
-                        bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
-                        if len(bmvs) == 1:
-                            bmv_opposite = next(iter(bmvs))
-                            po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
-                            pnn = pt + (pn - pt) * 0.5
-                            pnn = pnn + (po - pnn) * 0.25
+                if self.quad_preserve:
+                    bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
+                    if len(bmvs) == 1:
+                        bmv_corner = bmvs[0]
+                        bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
+                        if bmf:
+                            bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
+                            if len(bmvs) == 1:
+                                bmv_opposite = next(iter(bmvs))
+                                po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
+                                pnn = pt + (pn - pt) * 0.5
+                                pnn = pnn + (po - pnn) * 0.25
 
                 # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
@@ -736,17 +739,18 @@ class PP_Logic:
                 bmev0, bmev1 = bme.verts
 
                 bmv_opposite = None
-                bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
-                if len(bmvs) == 1:
-                    bmv_corner = bmvs[0]
-                    bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
-                    if bmf:
-                        bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
-                        if len(bmvs) == 1:
-                            bmv_opposite = next(iter(bmvs))
-                            # po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
-                            # pnn = pt + (pn - pt) * 0.5
-                            # pnn = pnn + (po - pnn) * 0.25
+                if self.quad_preserve:
+                    bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
+                    if len(bmvs) == 1:
+                        bmv_corner = bmvs[0]
+                        bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
+                        if bmf:
+                            bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
+                            if len(bmvs) == 1:
+                                bmv_opposite = next(iter(bmvs))
+                                # po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
+                                # pnn = pt + (pn - pt) * 0.5
+                                # pnn = pnn + (po - pnn) * 0.25
 
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
                 bmv_new.co = self.hit

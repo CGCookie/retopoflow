@@ -183,6 +183,11 @@ class RFOperator_PolyPen(RFOperator):
         max=1.00,
         default=1.00,
     )
+    quad_preserve: bpy.props.BoolProperty(
+        name='Quad-Preserve',
+        description='Try to preserve quad-ness when knifing into faces',
+        default=True,
+    )
 
     @classmethod
     def can_start(cls, context):
@@ -214,7 +219,7 @@ class RFOperator_PolyPen(RFOperator):
             self.set_statusbar_override(None)
             return {'FINISHED'}
 
-        self.logic.update(context, event, self.insert_mode, self.quad_stability)
+        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve)
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             self.logic.commit(context, event)
@@ -266,6 +271,7 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
+            layout.prop(props_polypen, 'quad_preserve')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
@@ -284,6 +290,7 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
+                layout.prop(props_polypen, 'quad_preserve')
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
