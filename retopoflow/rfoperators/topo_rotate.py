@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import time
 
 import bmesh
@@ -31,10 +32,12 @@ from ..common.bmesh import (
     bmf_midpoint,
     get_bmesh_emesh,
 )
+from ..common.maths import Point
 from ..common.operator import RFOperator_Execute
-from ..common.raycast import nearest_point_valid_sources
+from ..common.raycast import nearest_point_valid_sources, vec_right
 
 from ...addon_common.common import bmesh_ops as bmops
+from ...addon_common.common.maths import Frame
 from ...addon_common.common.utils import iter_pairs
 
 
@@ -43,6 +46,21 @@ def is_perimeter(bme, bmfaces):
     if len(bmfs) == 1: return True
     if len([bmf for bmf in bmfs if bmf in bmfaces]) == 1: return True
     return False
+
+def compute_average_normal(bmverts : list[BMVert]) -> Vector:
+    normal : Vector = sum(( bmv.normal for bmv in bmverts ), Vector((0,0,0)))
+    return normal.normalized()
+
+def compute_perimeter_normal(bmverts : list[BMVert]) -> Vector:
+    center = Vector(Point.average(bmv.co for bmv in bmverts))
+    normal : Vector = sum(
+        (
+            (center - bmv0.co).cross(bmv1.co - bmv0.co).normalized() * (bmv1.co - bmv0.co).length
+            for (bmv0, bmv1) in iter_pairs(bmverts, True)
+        ),
+        Vector((0,0,0))
+    )
+    return normal.normalized()
 
 def get_perimeter_bmedges(bmfaces):
     bmedges = { bme for bmf in bmfaces for bme in bmf.edges }
@@ -68,15 +86,8 @@ def get_perimeter_bmedges(bmfaces):
         perimeter.append(bme)
         perimeter_bmverts.append(bmv)
 
-    center = sum((bmv.co for bmv in perimeter_bmverts), Vector((0,0,0))) / len(perimeter_bmverts)
-    n0 : Vector = sum(( bmv.normal for bmv in perimeter_bmverts ), Vector((0,0,0)))
-    n1 : Vector = sum(
-        (
-            (center - bmv0.co).cross(bmv1.co - bmv0.co).normalized() * (bmv1.co - bmv0.co).length
-            for (bmv0, bmv1) in iter_pairs(perimeter_bmverts, True)
-        ),
-        Vector((0,0,0))
-    )
+    n0 = compute_average_normal(perimeter_bmverts)
+    n1 = compute_perimeter_normal(perimeter_bmverts)
     if n0.dot(n1) < 0:
         perimeter.reverse()
 
@@ -93,11 +104,12 @@ def same_bmedges(bme0, bme1):
     return False
 
 # TODO: turn into propert Operator with redo params!
-def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
+def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET, *, undo=False):
     TIMESTEP = 0.02
     MASS = 0.1
 
-    bpy.ops.ed.undo_push(message=f'Rip Rotate Zip commit {time.time()}')
+    if undo:
+        bpy.ops.ed.undo_push(message=f'Rip Rotate Zip commit {time.time()}')
 
     bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
     M = context.edit_object.matrix_world
@@ -107,6 +119,7 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
     perimeter = get_perimeter_bmedges(bmfaces)
     if not perimeter: return
 
+    # rip the patch away!
     res = bmesh.ops.split_edges(bm, edges=perimeter)
     all_bmedges = set(res['edges'])
 
@@ -119,13 +132,11 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
     if not perimeter0: return
     perimeter1 = all_bmedges - set(perimeter0)
     perimeter1 = [
-        bme1
+        next((bme1 for bme1 in perimeter1 if same_bmedges(bme0, bme1)), None)
         for bme0 in perimeter0
-        for bme1 in perimeter1
-        if same_bmedges(bme0, bme1)
     ]
-    if len(perimeter0) != len(perimeter1): return
     l = len(perimeter0)
+
     merging = {}
     for i in range(l):
         i0, i1 = i, (i + 1) % l
@@ -133,6 +144,10 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
         bmv0 = bmes_shared_bmv(bme0, bme1)
         i0, i1 = (i + OFFSET) % l, (i + 1 + OFFSET) % l
         bme0, bme1 = perimeter1[i0], perimeter1[i1]
+
+        if bme0 is None or bme1 is None  # <----
+            # handle this case!
+
         bmv1 = bmes_shared_bmv(bme0, bme1)
         merging[bmv0] = bmv1
 
@@ -144,29 +159,29 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
     perimeter_bmedges = perimeter0
     inner_bmedges = all_bmedges - set(perimeter_bmedges)
 
-    # rough xform
-    # center : Vector = sum((
-    #     bmv.co for bmv in merging.keys()
-    # ), Vector((0,0,0))) / len(merging)
-    # ang = sum((
 
-    # ))
-
-    # mass-spring sim to push verts towards original size
+    # set up mass-spring sim based on distances from perimeter (push verts towards original size)
     springs = []
-    # for bme in inner_bmedges:
-    #     bmv0, bmv1 = bme.verts
-    #     springs.append( (bmv0, bmv1, (bmv0.co - bmv1.co).length) )
-    # for bmf in bmfaces:
-    #     ctr = bmf_midpoint(bmf)
-    #     for bmv in bmf.verts:
-    #         springs.append( (bmv, bmf, (bmv.co - ctr).length) )
     for bmv in inner_bmverts:
         for (bmv0, bmv1) in merging.items():
             springs.append( (bmv, bmv1, (bmv.co - bmv0.co).length) )
 
+
+    # rough xform using rotation only
+    angle = 2.0 * math.pi * OFFSET / len(merging)
+    o = Point.average(bmv.co for bmv in merging)
+    z = compute_average_normal(merging.keys())
+    f0 = Frame(o, z=z)
+    f1 = f0.clone()
+    f1.rotate_about_z(angle)
+    for bmv in inner_bmverts:
+        bmv.co = f1.l2w_point(f0.w2l_point(bmv.co))
+
+    # move perimiter bmverts to the final position
     for bmv0, bmv1 in merging.items():
         bmv0.co = bmv1.co
+
+    # now run the mass-spring simulation
     vels = {
         bmv: Vector((0, 0, 0)) for bmv in inner_bmverts
     }
@@ -196,21 +211,9 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET):
             bmv.co = Mi @ nearest_point_valid_sources(context, M @ p)
             vels[bmv] = TIMESTEP * forces[bmv] + (1 - SPRING_C) * vels[bmv]
 
-    # perimeter_bmverts = { bmv for bme in perimeter0 for bmv in bme.verts }
-    # inner_bmverts = { bmv for bmf in bmfaces for bmv in bmf.verts } - perimeter_bmverts
-    # avg0 = sum((bmv.co for bmv in merging.keys()), Vector((0,0,0))) / len(merging)
-    # avg1 = sum((bmv.co for bmv in merging.values()), Vector((0,0,0))) / len(merging)
-    # avg_scale = 0
-    # avg_rot = 0
-    # for (bmv0, bmv1) in merging.items():
-    #     pt0 = bmv0.co - avg0
-    #     pt1 = bmv1.co - avg1
-    #     avg_scale += pt1.length / pt0.length
-    #     ang0 = math.atan2(pt0.y, pt0.x)
-    #     ang1 = math.atan2(pt1.y, pt1.x)
-    # avg_scale /= len(merging)
-
+    # zip the patch back in
     bmesh.ops.weld_verts(bm, targetmap=merging)
+
     bmesh.update_edit_mesh(em)
     bmops.deselect_all(bm)
     bmops.select_iter(bm, bmfaces)
@@ -230,6 +233,7 @@ class RFOperator_TopoRotate(RFOperator_Execute):
         (bl_idname, {'type': 'R', 'value': 'PRESS', 'alt': True}, None),
     ]
     rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMD: Cancel']
+
 
     offset: bpy.props.IntProperty(
         name='Offset',

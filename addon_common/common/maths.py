@@ -909,6 +909,9 @@ class Frame:
     def _mults(self, v):
         return self.x * v.x + self.y * v.y + self.z * v.z
 
+    def clone(self):
+        return Frame(o=self.o, x=self.x, y=self.y, z=self.z)
+
     def l2w_typed(self, data):
         ''' dispatched conversion '''
         t = type(data)
