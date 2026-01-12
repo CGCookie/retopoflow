@@ -42,11 +42,11 @@ from .rftool_statusbar import draw_rftool_statusbar
 
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
-from .rftool_zipper.zipper         import RFTool_Zipper
+# from .rftool_zipper.zipper         import RFTool_Zipper
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
-from .rftool_patches.patches       import RFTool_Patches
+# from .rftool_patches.patches       import RFTool_Patches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
 
