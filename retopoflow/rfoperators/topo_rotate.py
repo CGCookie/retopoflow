@@ -150,7 +150,7 @@ class RFOperator_TopoRotate(RFOperator):
     iterations: bpy.props.IntProperty(
         name='Iterations',
         description='Iterations of mass-spring simulation',
-        default=1000,
+        default=100,
         min=0,
         max=10000,
     )
@@ -343,14 +343,9 @@ class RFOperator_TopoRotate(RFOperator):
             forces = {
                 bmv: Vector((0,0,0)) for bmv in self.inner_bmverts
             }
-            positions = {}
-            for bmv0, bmo1, _ in springs:
-                if bmv0 not in positions:
-                    positions[bmv0] = bmv0.co
-                if bmo1 not in positions:
-                    positions[bmo1] = bmo1.co if type(bmo1) is BMVert else bmf_midpoint(bmo1)
             for (bmv0, bmo1, length) in springs:
-                p0, p1 = positions[bmv0], positions[bmo1]
+                p0 = bmv0.co
+                p1 = bmo1.co if type(bmo1) is BMVert else bmf_midpoint(bmo1)
                 vdiff = p1 - p0
                 l = vdiff.length
                 if l == 0: continue
