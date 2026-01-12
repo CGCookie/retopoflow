@@ -123,6 +123,7 @@ class PP_Logic:
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
         self.quad_preserve = quad_preserve
+        self.quad_preserve_slide = 0.333
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -423,7 +424,7 @@ class PP_Logic:
                                 bmv_opposite = next(iter(bmvs))
                                 po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
                                 pnn = pt + (pn - pt) * 0.5
-                                pnn = pnn + (po - pnn) * 0.25
+                                pnn = pnn + (po - pnn) * self.quad_preserve_slide
 
                 # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
@@ -750,7 +751,7 @@ class PP_Logic:
                                 bmv_opposite = next(iter(bmvs))
                                 # po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
                                 # pnn = pt + (pn - pt) * 0.5
-                                # pnn = pnn + (po - pnn) * 0.25
+                                # pnn = pnn + (po - pnn) * self.quad_preserve_slide
 
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
                 bmv_new.co = self.hit
@@ -760,7 +761,7 @@ class PP_Logic:
                     if bmv_opposite:
                         bme_cut = ret['edges'][0]
                         _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
-                        bmv_cut.co = bmv_cut.co + (bmv_opposite.co - bmv_cut.co) * 0.25
+                        bmv_cut.co = bmv_cut.co + (bmv_opposite.co - bmv_cut.co) * self.quad_preserve_slide
                         bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
                 else:
                     bme_new = self.bm.edges.new((self.bmv, bmv_new))
