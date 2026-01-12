@@ -39,6 +39,8 @@ from ..preferences import RF_Prefs
 
 from ..rftool_base import RFTool_Base
 from ..common.bmesh import (
+    bme_other_bmv,
+    bmes_share_bmv,
     get_bmesh_emesh,
     clean_select_layers,
     NearestBMVert,
@@ -83,7 +85,7 @@ class PP_Action(ValueIntEnum):
     VERT_EDGE      = auto()  # extrude vert into edge
     EDGE_TRI       = auto()  # create triangle from selected edge and new/hovered vert
     EDGE_QUAD      = auto()  # create new edge and bridge with selected to create quad
-    EDGE_QUAD_EDGE = auto()  # bridge selected and hover edge into quad
+    EDGE_QUAD_EDGE = auto()  # bridge selected and hovered edge into quad
     TRI_QUAD       = auto()  # insert vert into edge of triangle to turn into quad
     EDGE_VERT      = auto()  # split hovered edge
     VERT_EDGE_EDGE = auto()  # split hovered edge and connect to nearest selected vert
@@ -406,6 +408,20 @@ class PP_Logic:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
                 p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
                 pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
+
+                po,pnn = None,None
+                bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
+                if len(bmvs) == 1:
+                    bmv_corner = bmvs[0]
+                    bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
+                    if bmf:
+                        bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
+                        if len(bmvs) == 1:
+                            bmv_opposite = next(iter(bmvs))
+                            po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
+                            pnn = pt + (pn - pt) * 0.5
+                            pnn = pnn + (po - pnn) * 0.25
+
                 # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
 
@@ -420,6 +436,9 @@ class PP_Logic:
                     draw.vertex(p1)
 
                     draw.vertex(pn)
+                    if po and pnn:
+                        draw.vertex(po)
+                        draw.vertex(pnn)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
@@ -429,7 +448,12 @@ class PP_Logic:
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
-                    draw.vertex(pn).vertex(pt)
+                    if not po or not pnn:
+                        draw.vertex(pn).vertex(pt)
+                    else:
+                        draw.vertex(pnn).vertex(pt)
+                        draw.vertex(pnn).vertex(pn)
+                        draw.vertex(pnn).vertex(po)
 
             case PP_Action.VERT_EDGE:
                 p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
@@ -710,11 +734,30 @@ class PP_Logic:
                 # split hovered edge and create new edge from selected vert
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
+
+                bmv_opposite = None
+                bmvs = [bme for bme in self.bmv.link_edges if bmes_share_bmv(bme, self.nearest_bme.bme)]
+                if len(bmvs) == 1:
+                    bmv_corner = bmvs[0]
+                    bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest_bme.bme.link_faces)), None)
+                    if bmf:
+                        bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
+                        if len(bmvs) == 1:
+                            bmv_opposite = next(iter(bmvs))
+                            # po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
+                            # pnn = pt + (pn - pt) * 0.5
+                            # pnn = pnn + (po - pnn) * 0.25
+
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
                 bmv_new.co = self.hit
                 bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
                 if bmf_split:
-                    bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                    ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                    if bmv_opposite:
+                        bme_cut = ret['edges'][0]
+                        _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
+                        bmv_cut.co = bmv_cut.co + (bmv_opposite.co - bmv_cut.co) * 0.25
+                        bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
                 else:
                     bme_new = self.bm.edges.new((self.bmv, bmv_new))
                 select_now = [bmv_new]
