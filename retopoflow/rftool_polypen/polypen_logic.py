@@ -456,6 +456,7 @@ class PP_Logic:
                     if not po or not pnn:
                         draw.vertex(pn).vertex(pt)
                     else:
+                        draw.color(color_border_open)
                         draw.vertex(pnn).vertex(pt)
                         draw.vertex(pnn).vertex(pn)
                         draw.vertex(pnn).vertex(po)
