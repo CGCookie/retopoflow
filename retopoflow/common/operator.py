@@ -396,8 +396,8 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     @classmethod
     def unregister(cls): pass
     @classmethod
-    def can_start(cls, context): return True
-    def can_init(self, context, event): return True
+    def can_start(cls, context) -> bool: return True
+    def can_init(self, context, event) -> bool: return True
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}

@@ -21,24 +21,32 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import math
 import time
+from collections.abc import Iterable
 
 import bmesh
 import bpy
 from bmesh.types import BMVert, BMEdge, BMFace
 from mathutils import Vector
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 from ..common.bmesh import (
     bme_other_bmv, bmes_shared_bmv,
+    bmvs_shared_bme,
     bmf_midpoint,
     get_bmesh_emesh,
 )
+from ..common.drawing import (
+    Drawing,
+    CC_2D_LINES,
+)
 from ..common.maths import Point
-from ..common.operator import RFOperator_Execute
+from ..common.operator import RFOperator
 from ..common.raycast import nearest_point_valid_sources, vec_right
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import Frame
 from ...addon_common.common.utils import iter_pairs
+from ...addon_common.common.colors import Color4
 
 
 def is_perimeter(bme, bmfaces):
@@ -62,7 +70,7 @@ def compute_perimeter_normal(bmverts : list[BMVert]) -> Vector:
     )
     return normal.normalized()
 
-def get_perimeter_bmedges(bmfaces):
+def get_perimeter_bmedges(bmfaces : Iterable[BMFace]) -> list[BMEdge]:
     bmedges = { bme for bmf in bmfaces for bme in bmf.edges }
     perimeter_bmedges = { bme for bme in bmedges if is_perimeter(bme, bmfaces) }
 
@@ -78,13 +86,15 @@ def get_perimeter_bmedges(bmfaces):
         }
         if len(potentials) != 1:
             print(f'{potentials=} but len not 1')
-            return None
+            return []
         bme = next(iter(potentials))
         bmv = bme_other_bmv(bme, bmv)
         if bme == perimeter[0]:
             break
         perimeter.append(bme)
         perimeter_bmverts.append(bmv)
+
+    if len(perimeter) != len(perimeter_bmedges): return []
 
     n0 = compute_average_normal(perimeter_bmverts)
     n1 = compute_perimeter_normal(perimeter_bmverts)
@@ -111,117 +121,13 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET, *, undo=Fals
     if undo:
         bpy.ops.ed.undo_push(message=f'Rip Rotate Zip commit {time.time()}')
 
-    bm, em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-    M = context.edit_object.matrix_world
-    Mi = M.inverted()
-    bmfaces = bmops.get_all_selected_bmfaces(bm)
-
-    perimeter = get_perimeter_bmedges(bmfaces)
-    if not perimeter: return
-
-    # rip the patch away!
-    res = bmesh.ops.split_edges(bm, edges=perimeter)
-    all_bmedges = set(res['edges'])
-
-    bmesh.update_edit_mesh(em)
-    bmops.deselect_all(bm)
-    bmops.select_iter(bm, bmfaces)
-    bmops.flush_selection(bm, em)
-
-    perimeter0 = get_perimeter_bmedges(bmfaces)
-    if not perimeter0: return
-    perimeter1 = all_bmedges - set(perimeter0)
-    perimeter1 = [
-        next((bme1 for bme1 in perimeter1 if same_bmedges(bme0, bme1)), None)
-        for bme0 in perimeter0
-    ]
-    l = len(perimeter0)
-
-    merging = {}
-    for i in range(l):
-        i0, i1 = i, (i + 1) % l
-        bme0, bme1 = perimeter0[i0], perimeter0[i1]
-        bmv0 = bmes_shared_bmv(bme0, bme1)
-        i0, i1 = (i + OFFSET) % l, (i + 1 + OFFSET) % l
-        bme0, bme1 = perimeter1[i0], perimeter1[i1]
-
-        if bme0 is None or bme1 is None  # <----
-            # handle this case!
-
-        bmv1 = bmes_shared_bmv(bme0, bme1)
-        merging[bmv0] = bmv1
-
-    all_bmverts = { bmv for bmf in bmfaces for bmv in bmf.verts }
-    perimeter_bmverts = { bmv for bme in perimeter0 for bmv in bme.verts }
-    inner_bmverts = all_bmverts - perimeter_bmverts
-
-    all_bmedges = { bme for bmf in bmfaces for bme in bmf.edges }
-    perimeter_bmedges = perimeter0
-    inner_bmedges = all_bmedges - set(perimeter_bmedges)
+def find_duplicate(bmv0, other_bmvs, *, threshold=0.0001) -> BMVert | None:
+    if not other_bmvs: return None
+    bmv1 = min(other_bmvs, key=lambda bmv1:(bmv0.co - bmv1.co).length)
+    return bmv1 if (bmv0.co - bmv1.co).length <= threshold else None
 
 
-    # set up mass-spring sim based on distances from perimeter (push verts towards original size)
-    springs = []
-    for bmv in inner_bmverts:
-        for (bmv0, bmv1) in merging.items():
-            springs.append( (bmv, bmv1, (bmv.co - bmv0.co).length) )
-
-
-    # rough xform using rotation only
-    angle = 2.0 * math.pi * OFFSET / len(merging)
-    o = Point.average(bmv.co for bmv in merging)
-    z = compute_average_normal(merging.keys())
-    f0 = Frame(o, z=z)
-    f1 = f0.clone()
-    f1.rotate_about_z(angle)
-    for bmv in inner_bmverts:
-        bmv.co = f1.l2w_point(f0.w2l_point(bmv.co))
-
-    # move perimiter bmverts to the final position
-    for bmv0, bmv1 in merging.items():
-        bmv0.co = bmv1.co
-
-    # now run the mass-spring simulation
-    vels = {
-        bmv: Vector((0, 0, 0)) for bmv in inner_bmverts
-    }
-    for _ in range(ITERATIONS):
-        forces = {
-            bmv: Vector((0,0,0)) for bmv in inner_bmverts
-        }
-        positions = {}
-        for bmv0, bmo1, _ in springs:
-            if bmv0 not in positions:
-                positions[bmv0] = bmv0.co
-            if bmo1 not in positions:
-                positions[bmo1] = bmo1.co if type(bmo1) is BMVert else bmf_midpoint(bmo1)
-        for (bmv0, bmo1, length) in springs:
-            p0, p1 = positions[bmv0], positions[bmo1]
-            vdiff = p1 - p0
-            l = vdiff.length
-            if l == 0: continue
-            ddiff = vdiff / l
-            f = ddiff * (length - l)
-            if bmv0 in inner_bmverts:
-                forces[bmv0] -= SPRING_K * f
-            if bmo1 in inner_bmverts:
-                forces[bmo1] += SPRING_K * f
-        for (bmv, f) in forces.items():
-            p = bmv.co + TIMESTEP * vels[bmv]
-            bmv.co = Mi @ nearest_point_valid_sources(context, M @ p)
-            vels[bmv] = TIMESTEP * forces[bmv] + (1 - SPRING_C) * vels[bmv]
-
-    # zip the patch back in
-    bmesh.ops.weld_verts(bm, targetmap=merging)
-
-    bmesh.update_edit_mesh(em)
-    bmops.deselect_all(bm)
-    bmops.select_iter(bm, bmfaces)
-    bmops.flush_selection(bm, em)
-
-
-
-class RFOperator_TopoRotate(RFOperator_Execute):
+class RFOperator_TopoRotate(RFOperator):
     bl_idname = 'retopoflow.toporotate'
     bl_label = 'Topo Rotate'
     bl_description = 'Topologically rotates the selected patch'
@@ -238,7 +144,7 @@ class RFOperator_TopoRotate(RFOperator_Execute):
     offset: bpy.props.IntProperty(
         name='Offset',
         description='Number of edges to offset (positive: clockwise, negative: counter-clockwise)',
-        default=1,
+        default=0,
     )
 
     iterations: bpy.props.IntProperty(
@@ -263,10 +169,212 @@ class RFOperator_TopoRotate(RFOperator_Execute):
         max=1.0,
     )
 
+    perimeter0: list[BMEdge]
+    perimeter0_bmverts: list[BMVert]
+    perimeter1: list[BMEdge]
+    perimeter1_bmverts: list[BMVert]
+    frame: Frame
+    mouse: Vector
+    mouse_down: Vector
+    patch_center: Vector
 
-    def execute(self, context):
-        rip_rotate_zip(context, self.iterations, self.spring_k, self.spring_c, self.offset)
-        return {'FINISHED'}
+    @classmethod
+    def can_start(cls, context):
+        bm, em = get_bmesh_emesh(context, ensure_lookup_tables=False)
+        bmfaces = bmops.get_all_selected_bmfaces(bm)
+        if len(bmfaces) <= 1: return False
+        perimeter = get_perimeter_bmedges(bmfaces)
+        return bool(perimeter)
+
+
+    def init(self, context, event):
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        self.M = context.edit_object.matrix_world
+        self.Mi = self.M.inverted()
+        self.bmfaces : set[BMFace] = bmops.get_all_selected_bmfaces(self.bm)
+
+        perimeter = get_perimeter_bmedges(self.bmfaces)
+        if not perimeter: return
+        self.count : int = len(perimeter)
+
+        # rip the patch away!
+        res = bmesh.ops.split_edges(self.bm, edges=perimeter)
+        all_bmedges = set(res['edges'])
+
+        bmesh.update_edit_mesh(self.em)
+        bmops.deselect_all(self.bm)
+        bmops.select_iter(self.bm, self.bmfaces)
+        bmops.flush_selection(self.bm, self.em)
+
+        # grab inner perimeter and outer perimiter of ripped faces again, because there are new edges
+        self.perimeter0 = get_perimeter_bmedges(self.bmfaces)
+        self.perimeter0_bmverts = [ bmes_shared_bmv(bme0, bme1) for (bme0, bme1) in iter_pairs(self.perimeter0, True) ]
+        # rotate perimeter so first entry in inner perimeter has match in outer perimeter
+        perimeter1 = all_bmedges - set(self.perimeter0)
+        perimeter1_bmverts = { bmv for bme in perimeter1 for bmv in bme.verts }
+        if len(perimeter1_bmverts) < len(self.perimeter0_bmverts):
+            # special case where patch is along boundary or is entire island
+            perimeter1_bmverts = [
+                find_duplicate(bmv0, perimeter1_bmverts)
+                for bmv0 in self.perimeter0_bmverts
+            ]
+            new_bmverts = [bmv is None for bmv in perimeter1_bmverts]
+            self.perimeter1_bmverts = [
+                bmv1 if bmv1 is not None else self.bm.verts.new(bmv0.co)
+                for (bmv0, bmv1) in zip(self.perimeter0_bmverts, perimeter1_bmverts)
+            ]
+            self.perimeter1 = []
+            for (i0, bmv0) in enumerate(self.perimeter1_bmverts):
+                i1 = (i0 + 1) % self.count
+                bmv1 = self.perimeter1_bmverts[i1]
+                if new_bmverts[i0] or new_bmverts[i1]:
+                    self.bm.edges.new((bmv0, bmv1))
+                self.perimeter1.append( bmvs_shared_bme(bmv0, bmv1) )
+            print(self.perimeter1 )
+        else:
+            self.perimeter1_bmverts = [
+                find_duplicate(bmv0, perimeter1_bmverts)
+                for bmv0 in self.perimeter0_bmverts
+            ]
+            self.perimeter1 = [
+                bmvs_shared_bme(bmv0, bmv1) for (bmv0, bmv1) in iter_pairs(self.perimeter1_bmverts, True)
+            ]
+        self.perimeter1 = self.perimeter1[1:] + self.perimeter1[:1]
+
+        self.all_bmverts = { bmv for bmf in self.bmfaces for bmv in bmf.verts }
+        self.perimeter_bmverts = set(self.perimeter0_bmverts)
+        self.inner_bmverts = self.all_bmverts - self.perimeter_bmverts
+        self.outer_bmverts = { bmv for bme in self.perimeter1 for bmv in bme.verts }
+
+        self.all_bmedges = { bme for bmf in self.bmfaces for bme in bmf.edges }
+        self.perimeter_bmedges = set(self.perimeter0)
+        self.inner_bmedges = self.all_bmedges - self.perimeter_bmedges
+
+        o = Point.average(bmv.co for bmv in self.perimeter0_bmverts)
+        z = compute_average_normal(self.perimeter0_bmverts)
+        self.frame = Frame(o, z=z)
+        self.original_positions = {
+            bmv: Vector(bmv.co)
+            for bmv in self.all_bmverts
+        }
+        self.original_positions_local = {
+            bmv: self.frame.w2l_point(bmv.co)
+            for bmv in self.all_bmverts
+        }
+
+        pts = [
+            pt
+            for bmv in self.all_bmverts
+            if (pt := location_3d_to_region_2d(context.region, context.region_data, self.M @ bmv.co)) is not None
+        ]
+        self.patch_center = sum(pts, Vector((0,0))) / len(pts)
+        self.mouse_start = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.mouse_angle = math.atan2(self.mouse_start.y - self.patch_center.y, self.mouse_start.x - self.patch_center.x)
+
+    def revert_to_original(self):
+        # undo everything
+        self.merging = {
+            bmv0: bmv1
+            for (bmv0, bmv1) in zip(self.perimeter0_bmverts, self.perimeter1_bmverts)
+        }
+        for bmv in self.all_bmverts:
+            bmv.co = self.original_positions[bmv]
+
+    def update(self, context, event):
+        cancelled = event.type in {'ESC', 'RIGHTMOUSE'}
+        committed = event.type in {'ENTER', 'LEFTMOUSE'}
+        if cancelled or committed:
+            if cancelled: self.revert_to_original()
+
+            # zip the patch back in
+            bmesh.ops.weld_verts(self.bm, targetmap=self.merging)
+
+            bmesh.update_edit_mesh(self.em)
+            bmops.deselect_all(self.bm)
+            bmops.select_iter(self.bm, self.bmfaces)
+            bmops.flush_selection(self.bm, self.em)
+            return {'FINISHED'} if committed else {'CANCELLED'}
+
+        if event.type != 'MOUSEMOVE': return {'RUNNING_MODAL'}
+
+        context.area.tag_redraw()
+        self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
+        angle = math.atan2(self.mouse.y - self.patch_center.y, self.mouse.x - self.patch_center.x)
+        delta_angle = self.mouse_angle - angle
+        offset = round(delta_angle / (2.0 * math.pi) * self.count)
+        if offset == self.offset:
+            return {'RUNNING_MODAL'}
+
+        self.offset = offset
+        iterations = self.iterations
+        spring_k = self.spring_k
+        spring_c = self.spring_c
+        TIMESTEP = 0.02
+
+        self.merging = {
+            bmv0: self.perimeter1_bmverts[(i + offset) % self.count]
+            for (i, bmv0) in enumerate(self.perimeter0_bmverts)
+        }
+
+        # set up mass-spring sim based on distances from perimeter (push verts towards original size)
+        springs = [
+            (bmv, bmv1, (self.original_positions[bmv] - self.original_positions[bmv0]).length)
+            for bmv in self.inner_bmverts
+            for (bmv0, bmv1) in self.merging.items()
+        ]
+
+
+        # initially rotate points roughly to where they go
+        frame = self.frame.clone()
+        frame.rotate_about_z(delta_angle)
+        for (bmv, co) in self.original_positions_local.items():
+            bmv.co = frame.l2w_point(co)
+
+        # move perimiter bmverts to the final position
+        for bmv0, bmv1 in self.merging.items():
+            bmv0.co = bmv1.co
+
+        # now run the mass-spring simulation
+        vels = {
+            bmv: Vector((0, 0, 0)) for bmv in self.inner_bmverts
+        }
+        for _ in range(iterations):
+            forces = {
+                bmv: Vector((0,0,0)) for bmv in self.inner_bmverts
+            }
+            positions = {}
+            for bmv0, bmo1, _ in springs:
+                if bmv0 not in positions:
+                    positions[bmv0] = bmv0.co
+                if bmo1 not in positions:
+                    positions[bmo1] = bmo1.co if type(bmo1) is BMVert else bmf_midpoint(bmo1)
+            for (bmv0, bmo1, length) in springs:
+                p0, p1 = positions[bmv0], positions[bmo1]
+                vdiff = p1 - p0
+                l = vdiff.length
+                if l == 0: continue
+                ddiff = vdiff / l
+                f = ddiff * (length - l)
+                if bmv0 in self.inner_bmverts:
+                    forces[bmv0] -= spring_k * f
+                if bmo1 in self.inner_bmverts:
+                    forces[bmo1] += spring_k * f
+            for (bmv, f) in forces.items():
+                p = bmv.co + TIMESTEP * vels[bmv]
+                bmv.co = self.Mi @ nearest_point_valid_sources(context, self.M @ p)
+                vels[bmv] = TIMESTEP * forces[bmv] + (1 - spring_c) * vels[bmv]
+
+        bmesh.update_edit_mesh(self.em)
+
+        return {'RUNNING_MODAL'}
+
+    def draw_postpixel(self, context):
+        with Drawing.draw(context, CC_2D_LINES) as draw:
+            draw.color(Color4((1,1,1,1)))
+            draw.line_width(1)
+            draw.stipple(pattern=[5,5], offset=0, color=Color4((1,1,1,0)))
+            draw.vertex(self.patch_center).vertex(self.mouse)
 
     def draw(self, context):
         layout = self.layout
