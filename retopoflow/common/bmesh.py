@@ -21,7 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Mesh
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
@@ -42,7 +43,7 @@ from .raycast import nearest_normal_valid_sources
 
 from .drawing import Drawing
 
-def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[bmesh.types.BMesh, bpy.types.Mesh]:
+def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[BMesh, Mesh]:
     em = context.edit_object.data
     bm = bmesh.from_edit_mesh(em)
     if ensure_lookup_tables:

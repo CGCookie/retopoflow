@@ -54,6 +54,7 @@ from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
+from ..rfoperators.zipper import RFOperator_Zipper
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -265,6 +266,7 @@ class RFTool_PolyPen(RFTool_Base):
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
         RFOperator_TopoRotate,
+        RFOperator_Zipper,
     )
 
     def draw_settings(context, layout, tool):

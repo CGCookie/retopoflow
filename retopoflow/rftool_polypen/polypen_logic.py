@@ -89,7 +89,26 @@ class PP_Action(ValueIntEnum):
     TRI_QUAD       = auto()  # insert vert into edge of triangle to turn into quad
     EDGE_VERT      = auto()  # split hovered edge
     VERT_EDGE_EDGE = auto()  # split hovered edge and connect to nearest selected vert
+    VERT_SPLIT_FACE = auto()  # XXX
 
+
+def check_split_face(bmv_selected : BMVert, bme_hovered : BMEdge):
+    if not bmv_selected.is_wire: return None
+    wire = [bmv_selected]
+    seen = set()
+    while wire[-1].is_wire:
+        bmes = list(set(wire[-1].link_edges) - seen)
+        if len(bmes) != 1: return None
+        bme = bmes[0]
+        seen.add(bme)
+        bmv = bme_other_bmv(bme, wire[-1])
+        wire.append(bme)
+        wire.append(bmv)
+    bmfs = list(set(bme_hovered.link_faces) & set(wire[-1].link_faces))
+    if len(bmfs) != 1: return None
+    bmf = bmfs[0]
+    wire.reverse()
+    return (wire, bmf)
 
 
 class PP_Logic:
@@ -218,15 +237,18 @@ class PP_Logic:
                 return
 
         if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
-            if not self.nearest.bmv and self.nearest_bme.bme:
-                self.state = PP_Action.VERT_EDGE_EDGE
-            else:
-                self.state = PP_Action.VERT_EDGE
-            # find closest selected BMVert from which to extrude
             self.bmv = min(
                 self.selected[BMVert],
                 key=(lambda bmv:(self.hit - bmv.co).length),
             )
+            if not self.nearest.bmv and self.nearest_bme.bme:
+                if check_split_face(self.bmv, self.nearest_bme.bme) is not None:
+                    self.state = PP_Action.VERT_SPLIT_FACE
+                else:
+                    self.state = PP_Action.VERT_EDGE_EDGE
+            else:
+                self.state = PP_Action.VERT_EDGE
+            # find closest selected BMVert from which to extrude
             return
 
         if insert_mode in {'TRI/QUAD', 'QUAD-ONLY'} and self.nearest_bme.bme and not self.nearest.bmv:
@@ -406,7 +428,7 @@ class PP_Logic:
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
-            case PP_Action.VERT_EDGE_EDGE:
+            case PP_Action.VERT_EDGE_EDGE | PP_Action.VERT_SPLIT_FACE:
                 if not self.nearest_bme.bme: return
                 bmv0, bmv1 = self.nearest_bme.bme.verts
                 pt = self.nearest_bme.co2d
@@ -790,6 +812,41 @@ class PP_Logic:
                         bme = self.bm.edges.new((bmv0, bmv1))
                 select_now = [bmv1]
                 select_later = [bme] if bme and self.insert_mode != 'EDGE-ONLY' else []
+
+            case PP_Action.VERT_SPLIT_FACE:
+                # split hovered edge and create new edge from selected vert
+                bme = self.nearest_bme.bme
+                bmev0, bmev1 = bme.verts
+                wire, bmf_split = check_split_face(self.bmv, bme)
+
+                bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
+                if self.free_move_edge_vert:
+                    bmv_new.co = self.hit
+                else:
+                    d = (bmev1.co - bmev0.co).normalized()
+                    v = d * d.dot(self.hit - bmev0.co)
+                    bmv_new.co = bmev0.co + v
+
+                ret = bmesh.ops.connect_verts(self.bm, verts=[wire[0], bmv_new])
+                bme_cut = ret['edges'][0]
+                bmv_cut = wire[0]
+                for bmv in wire[2::2]:
+                    bme_cut, bmv_cut = edge_split(bme_cut, bmv_new, 0.5)
+                    bmesh.ops.pointmerge(self.bm, verts=[bmv_cut, bmv], merge_co=bmv.co)
+
+
+                # bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
+                # if bmf_split:
+                #     ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                #     if split_co:
+                #         bme_cut = ret['edges'][0]
+                #         _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
+                #         bmv_cut.co = split_co
+                #         bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                # else:
+                #     bme_new = self.bm.edges.new((self.bmv, bmv_new))
+                select_now = [bmv_new]
+                select_later = []
 
             case PP_Action.VERT_EDGE_EDGE:
                 # split hovered edge and create new edge from selected vert
