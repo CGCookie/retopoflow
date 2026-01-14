@@ -448,7 +448,7 @@ class PP_Logic:
                                 bmv_opposite = next(iter(bmvs))
                                 po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
                                 pc = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_corner.co)
-                                dist = ((pc - pt).length + (pc - pn).length) / 2
+                                dist = ((pc - pt).length + (pc - pn).length) / 1.5
                                 pnn = pc + (po - pc).normalized() * dist
 
                 # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
@@ -505,7 +505,7 @@ class PP_Logic:
                                 pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.nearest.bmv.co)
                                 po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_opposite.co)
                                 pc = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_corner.co)
-                                dist = ((pc - pt).length + (pc - pn).length) / 2
+                                dist = ((pc - pt).length + (pc - pn).length) / 1.5
                                 pnn = pc + (po - pc).normalized() * dist
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
@@ -864,7 +864,7 @@ class PP_Logic:
                             bmvs = set(bmf.verts) - set(self.nearest_bme.bme.verts) - { bme_other_bmv(bme, self.bmv) for bme in self.bmv.link_edges } - { bmv_corner, self.bmv }
                             if len(bmvs) == 1:
                                 bmv_opposite = next(iter(bmvs))
-                                split_dist = ((self.bmv.co - bmv_corner.co).length + (self.hit - bmv_corner.co).length) / 2
+                                split_dist = ((self.bmv.co - bmv_corner.co).length + (self.hit - bmv_corner.co).length) / 1.5
                                 split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                 split_co = bmv_corner.co + split_dir * split_dist
                                 split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
