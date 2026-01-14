@@ -694,7 +694,7 @@ class RFAssetShelf_Patches(RFAssetShelf):
         return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
 
 
-
+'''
 class RFTool_Patches(RFTool_Base):
     bl_idname = "retopoflow.patches"
     bl_label = "Patches"
@@ -769,8 +769,7 @@ class RFTool_Patches(RFTool_Base):
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context):
     RFTool_Patches.activate_tool(context)
-
-
+'''
 
 
 ################################################################################################################################
