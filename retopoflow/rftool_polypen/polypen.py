@@ -278,9 +278,9 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
-            layout.separator()
-            layout.prop(props_polypen, 'quad_preserve')
-            layout.prop(props_polypen, 'free_move_edge_vert')
+            if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
+                layout.separator()
+                layout.prop(props_polypen, 'quad_preserve')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
@@ -299,7 +299,8 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
-                panel.row(heading='Knife').prop(props_polypen, 'quad_preserve', text='Junctions')
+                if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
+                    panel.row(heading='Knife').prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)

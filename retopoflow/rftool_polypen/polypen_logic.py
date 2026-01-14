@@ -144,7 +144,7 @@ class PP_Logic:
 
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
-        self.quad_preserve = quad_preserve
+        self.quad_preserve = quad_preserve and self.insert_mode in ('TRI/QUAD', 'QUAD-ONLY')
         self.free_move_edge_vert = free_move_edge_vert
 
         if not self.bm or not self.bm.is_valid:
