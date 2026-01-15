@@ -57,7 +57,7 @@ from ..common.maths import (
     clamp, xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import intersection2d_line_line, sign_threshold
+from ...addon_common.common.maths import intersection2d_line_line, sign_threshold, point_inside_face, points_of_bmface
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
@@ -89,9 +89,9 @@ class PP_Action(ValueIntEnum):
     # WIRE_VERT_SPLIT_FACE = auto()   # connect selected and hovered verts and split face
 
 
-def check_split_face(bmv_selected : BMVert, bme_hovered : BMEdge):
-    if not bmv_selected.is_wire: return None
-    wire = [bmv_selected]
+def get_wire(bmv : BMVert):
+    if not bmv.is_wire: return None
+    wire = [ bmv ]
     seen = set()
     while wire[-1].is_wire:
         bmes = list(set(wire[-1].link_edges) - seen)
@@ -99,9 +99,13 @@ def check_split_face(bmv_selected : BMVert, bme_hovered : BMEdge):
         bme = bmes[0]
         seen.add(bme)
         bmv = bme_other_bmv(bme, wire[-1])
-        wire.append(bme)
-        wire.append(bmv)
+        wire += [bme, bmv]
     wire.reverse()
+    return wire
+
+def check_split_face(bmv_selected : BMVert, bme_hovered : BMEdge):
+    wire = get_wire(bmv_selected)
+    if not wire: return None
     bmfs = list(set(bme_hovered.link_faces) & set(wire[0].link_faces))
     if len(bmfs) == 1:
         return (wire, bmfs[0])
@@ -853,6 +857,11 @@ class PP_Logic:
                     bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
                     if not bme:
                         bme = self.bm.edges.new((bmv0, bmv1))
+
+                    # select bme only if bmv1 not inside a face!
+                    if wire := get_wire(bmv1):
+                       if any( point_inside_face(bmv1.co, points_of_bmface(bmf)) for bmf in wire[0].link_faces ):
+                           bme = None
                 select_now = [bmv1]
                 select_later = [bme] if bme and self.insert_mode != 'EDGE-ONLY' else []
 

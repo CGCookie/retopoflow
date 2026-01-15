@@ -2123,6 +2123,19 @@ def all_combinations(things):
     for i in range(1, len(things)+1):
         yield from combinations(things, i)
 
+def point_inside_face(pt, pts_face):
+    # assuming simple face (convex)
+    pt0 = pts_face[0]
+    return any(
+        intersect_point_tri(pt, pt0, pt1, pt2)
+        for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
+    )
+
+def points_of_bmface(bmf):
+    return [ bmv.co for bmv in bmf.verts ]
+
+
+
 if __name__ == '__main__':
     # run tests
     p0 = Point((1, 2, 3))
