@@ -50,8 +50,10 @@ from ..common.raycast import (
     raycast_valid_sources,
     raycast_point_valid_sources,
     mouse_from_event,
+    vec_forward,
 )
 from ..common.maths import (
+    direction_to_bvec4,
     view_forward_direction,
     distance2d_point_bmedge,
     clamp, xform_direction,
@@ -84,6 +86,8 @@ class PP_Action(ValueIntEnum):
     EDGE_BRIDGE    = auto()  # create quad by bridging selected and hovered edges
 
     SPLIT_EDGE           = auto()   # split hovered edge
+    SPLIT_QUAD           = auto()   # split hovered and selected edges and split quad
+    SPLIT_QUAD_CENTER    = auto()   # split hovered and selected edges and split quad with center (preserves quadness)
     VERT_SPLIT_EDGE      = auto()   # split hovered edge and create edge from nearest selected vert to new vert
     WIRE_SPLIT_EDGE_FACE = auto()   # split hovered edge, create edge to selected vert, split face
     # WIRE_VERT_SPLIT_FACE = auto()   # connect selected and hovered verts and split face
@@ -119,7 +123,16 @@ def check_split_face(bmv_selected : BMVert, bme_hovered : BMEdge):
             return (wire, bmfs[1])
     return None
 
-def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -> tuple[BMVert, BMVert]:
+def find_opposite_and_corner(bme0 : BMEdge, bme1 : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
+    bmfs = set(bme0.link_faces) & set(bme1.link_faces)
+    if len(bmfs) != 1: return (None, None)
+    bmf = next(iter(bmfs))
+    bmvs = set(bme0.verts) | set(bme1.verts)
+    bmvo = next(bmv for bmv in bmf.verts if bmv not in bmvs)
+    bmvc = bmes_shared_bmv(bme0, bme1)
+    return (bmvo, bmvc)
+
+def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
     res = check_split_face(bmv_selected, bme_hovered)
     if not res: return (None, None)                     # not splitting a face
     wire, bmf = res
@@ -263,8 +276,17 @@ class PP_Logic:
                 self.state = PP_Action.VERT
             return
 
-        if self.nearest_bme.bme:
-            if self.nearest_bme.bme.select and not self.nearest_bme.bme.hide:
+        if self.nearest_bme.bme and not self.nearest_bme.bme.hide:
+            if self.bme and self.bme != self.nearest_bme.bme:
+                bmfs = set(self.bme.link_faces) & set(self.nearest_bme.bme.link_faces)
+                if len(bmfs) == 1:
+                    bmf = next(iter(bmfs))
+                    if self.quad_preserve and len(bmf.verts) == 4 and bmes_share_bmv(self.bme, self.nearest_bme.bme):
+                        self.state = PP_Action.SPLIT_QUAD_CENTER
+                    else:
+                        self.state = PP_Action.SPLIT_QUAD
+                    return
+            if self.nearest_bme.bme.select:
                 self.state = PP_Action.SPLIT_EDGE
                 return
 
@@ -459,6 +481,75 @@ class PP_Logic:
                     draw.color(color_border_mesh)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
+
+            case PP_Action.SPLIT_QUAD | PP_Action.SPLIT_QUAD_CENTER:
+                bme0, bme1 = self.bme, self.nearest_bme.bme
+                if self.state == PP_Action.SPLIT_QUAD:
+                    bmv00, bmv01 = bme0.verts
+                    bmv10, bmv11 = bme1.verts
+                    if (bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co) < 0: bmv10, bmv11 = bmv11, bmv10
+                else:
+                    bmv00 = bmv10 = bmes_shared_bmv(bme0, bme1)
+                    bmv01 = bme_other_bmv(bme0, bmv00)
+                    bmv11 = bme_other_bmv(bme1, bmv10)
+
+                p00 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv00.co)
+                p01 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv01.co)
+                p10 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv10.co)
+                p11 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv11.co)
+                pt = self.nearest_bme.co2d
+
+                v0, v1 = (p01 - p00), (p11 - p10)
+                l0, l1 = v0.length, v1.length
+                d0, d1 = v0 / l0, v1 / l1
+                l = d1.dot(pt - p10)
+                p1 = p10 + d1 * l
+                p0 = p00 + v0 * (l / l1)
+
+                def find_opposite_and_center():
+                    if self.state != PP_Action.SPLIT_QUAD_CENTER: return (None, None)
+                    bmvc = bmes_shared_bmv(bme0, bme1)
+                    if not bmvc: return (None, None)
+                    bmv0 = bme_other_bmv(bme0, bmvc)
+                    bmv1 = bme_other_bmv(bme1, bmvc)
+                    bmf = next(iter(set(bme0.link_faces) & set(bme1.link_faces)))
+                    bmvo = next(iter(set(bmf.verts) - { bmv0, bmv1, bmvc }), None)
+                    if not bmvo: return (None, None)
+                    pc = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmvc.co)
+                    po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmvo.co)
+                    dist = ((pc - p0).length + (pc - p1).length) / 1.5
+                    pnn = pc + (po - pc).normalized() * dist
+                    return (po, pnn)
+                po, pc = find_opposite_and_center()
+
+                ## pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
+                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(vertex_size + 4)
+                    # draw.color(color_border_open)
+                    # draw.vertex(pt)
+
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
+                    draw.vertex(p0)
+                    draw.vertex(p1)
+
+                    if po and pc:
+                        draw.vertex(po)
+                        draw.vertex(pc)
+
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+
+                    draw.color(color_border_mesh)
+                    if not po or not pc:
+                        draw.vertex(p0 + d01).vertex(p1 - d01)
+                    else:
+                        draw.vertex(p0).vertex(pc)
+                        draw.vertex(p1).vertex(pc)
+                        draw.vertex(po).vertex(pc)
 
             case PP_Action.VERT_SPLIT_EDGE | PP_Action.WIRE_SPLIT_EDGE_FACE:
                 if not self.nearest_bme.bme: return
@@ -817,6 +908,80 @@ class PP_Logic:
                     bmv_new.co = bmev0.co + v
                 select_now = [bmv_new]
                 select_later = []
+
+            case PP_Action.SPLIT_QUAD:
+                bme0 = self.bme
+                bmv00, bmv01 = bme0.verts
+                bme1 = self.nearest_bme.bme
+                bmv10, bmv11 = bme1.verts
+
+                p00 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv00.co)
+                p01 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv01.co)
+                p10 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv10.co)
+                p11 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv11.co)
+                pt = self.nearest_bme.co2d
+                vec0, vec1 = p01 - p00, p11 - p10
+                if vec0.dot(vec1) < 0: bmv00, bmv01 = bmv01, bmv00
+                len1 = vec1.length
+                percent = vec1.dot(pt - p10) / len1 / len1
+
+                bme0_new, bmv0_new = edge_split(bme0, bmv00, percent)
+                bme1_new, bmv1_new = edge_split(bme1, bmv10, percent)
+                ret = bmesh.ops.connect_verts(self.bm, verts=[bmv0_new, bmv1_new])
+                # select_now = [bmv0_new, bmv1_new]
+                # select_later = [bmv1_new]
+                select_now = [bmv1_new]
+                select_later = []
+
+            case PP_Action.SPLIT_QUAD_CENTER:
+                bme0, bme1 = self.bme, self.nearest_bme.bme
+                bmvc = bmes_shared_bmv(bme0, bme1)
+                bmv0 = bme_other_bmv(bme0, bmvc)
+                bmv1 = bme_other_bmv(bme1, bmvc)
+                bmf = next(iter(set(bme0.link_faces) & set(bme1.link_faces)))
+                bmvo = next(iter(set(bmf.verts) - { bmv0, bmv1, bmvc }))
+
+                po = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmvo.co)
+                pc = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmvc.co)
+                p0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv0.co)
+                p1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv1.co)
+                pt = self.nearest_bme.co2d
+
+                v0, v1 = (p0 - pc), (p1 - pc)
+                l0, l1 = v0.length, v1.length
+                percent = v1.dot(pt - pc) / l1 / l1
+                p0n, p1n = pc + v0 * percent, pc + v1 * percent
+
+                dist = ((pc - p0n).length + (pc - p1n).length) / 1.5
+                pnn = pc + (po - pc).normalized() * dist
+
+                co0 = self.matrix_world_inv @ raycast_point_valid_sources(context, p0n)
+                co1 = self.matrix_world_inv @ raycast_point_valid_sources(context, p1n)
+                conn = self.matrix_world_inv @ raycast_point_valid_sources(context, pnn)
+
+                bme0_new, bmv0_new = edge_split(bme0, bmvc, 0.5)
+                bmv0_new.co = co0
+                bme1_new, bmv1_new = edge_split(bme1, bmvc, 0.5)
+                bmv1_new.co = co1
+                bmv_new = self.bm.verts.new(conn)
+
+                # split bmf into 3 quads
+                fwd = (self.matrix_world_inv @ direction_to_bvec4(vec_forward(context))).xyz
+                self.bm.faces.remove(bmf)
+                bmf0 = self.bm.faces.new([bmvc, bmv0_new, bmv_new, bmv1_new])
+                bmf1 = self.bm.faces.new([bmv0_new, bmv0, bmvo, bmv_new])
+                bmf2 = self.bm.faces.new([bmv1_new, bmv_new, bmvo, bmv1])
+
+                bmf0.normal_update()
+                bmf1.normal_update()
+                bmf2.normal_update()
+                if bmf0.normal.dot(fwd) > 0: bmf0.normal_flip()
+                if bmf1.normal.dot(fwd) > 0: bmf1.normal_flip()
+                if bmf2.normal.dot(fwd) > 0: bmf2.normal_flip()
+
+                select_now = [bmv1_new]
+                select_later = []
+
 
             case PP_Action.VERT_EDGE:
                 # create new edge between selected vert and current mouse position
