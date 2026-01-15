@@ -29,6 +29,7 @@ from mathutils.geometry import intersect_line_line_2d
 
 import math
 import time
+from collections.abc import Iterable
 from enum import auto
 
 from ..preferences import RF_Prefs
@@ -154,6 +155,19 @@ def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -
     bmv_opposite = bme_other_bmv(bme_opposite, bmes_shared_bmv(bme_hovered, bme_opposite))
     bmv_center = wire[-1]
     return (bmv_opposite, bmv_center)
+
+def find_crossed_edge(context, matrix_world, pt0, pt1, bmedges : Iterable[BMEdge]) -> tuple[BMEdge, Vector] | None:
+    rgn, r3d = context.region, context.region_data
+    for bme in bmedges:
+        bmv0, bmv1 = bme.verts
+        ptv0 = location_3d_to_region_2d(rgn, r3d, matrix_world @ bmv0.co)
+        ptv1 = location_3d_to_region_2d(rgn, r3d, matrix_world @ bmv1.co)
+        if not ptv0 or not ptv1: continue
+        pt = intersect_line_line_2d(pt0, pt1, ptv0, ptv1)
+        if not pt: continue
+        return (bme, pt)
+    return None
+
 
 
 class PP_Logic:
@@ -586,8 +600,29 @@ class PP_Logic:
                     dist = ((pc - pt).length + (pc - pn).length) / 1.5
                     pnn = pc + (po - pc).normalized() * dist
                     return (po, pnn)
-
                 po, pnn = find_opposite_and_center()
+
+                def find_bmedges_to_split():
+                    bme = self.nearest_bme.bme
+                    if not bme: return []
+                    found = []
+                    bmv = self.bmv
+                    touched = set()
+                    bmfs_search_next = bmv.link_faces
+                    while bmfs_search_next:
+                        bmfs_search = bmfs_search_next
+                        bmfs_search_next = None
+                        for bmf in bmfs_search:
+                            bmes = set(bmf.edges) - set(bmv.link_edges) - { bme }
+                            res = find_crossed_edge(context, self.matrix_world, pn, pt, bmes)
+                            if not res: continue
+                            touched.add(bmf)
+                            bme, pte = res
+                            found.append((bme, pte))
+                            bmfs_search_next = set(bme.link_faces) - touched
+                            break
+                    return found
+                splits = find_bmedges_to_split()
 
                 # pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bme)
                 d01 = (p1 - p0).normalized() * Drawing.scale(8)
@@ -606,6 +641,8 @@ class PP_Logic:
                     if po and pnn:
                         draw.vertex(po)
                         draw.vertex(pnn)
+                    for (_,p) in splits:
+                        draw.vertex(p)
 
                 with Drawing.draw(context, CC_2D_LINES) as draw:
                     draw.line_width(2)
@@ -1078,6 +1115,30 @@ class PP_Logic:
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
 
+                pn = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.bmv.co)
+                pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ self.hit)
+                def find_bmedges_to_split():
+                    bme = self.nearest_bme.bme
+                    if not bme: return []
+                    found = []
+                    bmv = self.bmv
+                    touched = set()
+                    bmfs_search_next = bmv.link_faces
+                    while bmfs_search_next:
+                        bmfs_search = bmfs_search_next
+                        bmfs_search_next = None
+                        for bmf in bmfs_search:
+                            bmes = set(bmf.edges) - set(bmv.link_edges) - { bme }
+                            res = find_crossed_edge(context, self.matrix_world, pn, pt, bmes)
+                            if not res: continue
+                            touched.add(bmf)
+                            bme, pte = res
+                            found.append((bme, pte))
+                            bmfs_search_next = set(bme.link_faces) - touched
+                            break
+                    return found
+                splits = find_bmedges_to_split()
+
                 bmv_corner, bmv_opposite = None, None
                 split_co = None
                 if self.quad_preserve:
@@ -1101,16 +1162,28 @@ class PP_Logic:
                     d = (bmev1.co - bmev0.co).normalized()
                     v = d * d.dot(self.hit - bmev0.co)
                     bmv_new.co = bmev0.co + v
-                bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
-                if bmf_split:
-                    ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
-                    if split_co:
-                        bme_cut = ret['edges'][0]
-                        _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
-                        bmv_cut.co = split_co
-                        bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+
+                if not splits:
+                    bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
+                    if bmf_split:
+                        ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                        if split_co:
+                            bme_cut = ret['edges'][0]
+                            _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
+                            bmv_cut.co = split_co
+                            bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                    else:
+                        bme_new = self.bm.edges.new((self.bmv, bmv_new))
                 else:
-                    bme_new = self.bm.edges.new((self.bmv, bmv_new))
+                    print(splits)
+                    bmv_from = self.bmv
+                    for (bme_split, pt_split) in splits:
+                        if bme_split == self.nearest_bme.bme: break
+                        _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
+                        bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)
+                        bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv_split])
+                        bmv_from = bmv_split
+                    bme_new = self.bm.edges.new((bmv_from, bmv_new))
                 select_now = [bmv_new]
                 select_later = []
 
