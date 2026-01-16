@@ -51,6 +51,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -523,6 +524,7 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_TopoRotate,
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
     )

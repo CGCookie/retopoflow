@@ -68,6 +68,7 @@ from .relax_logic import Relax_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Tweak_QuickSwitch
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -295,6 +296,7 @@ class RFTool_Relax(RFTool_Base):
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_TopoRotate,
     )
 
     def draw_settings(context, layout, tool):
