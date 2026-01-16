@@ -492,7 +492,7 @@ class PP_Logic:
                     draw.line_width(2)
                     draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
@@ -557,7 +557,7 @@ class PP_Logic:
                     draw.line_width(2)
                     draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     if not po or not pc:
                         draw.vertex(p0 + d01).vertex(p1 - d01)
                     else:
@@ -648,7 +648,7 @@ class PP_Logic:
                     draw.line_width(2)
                     draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
@@ -740,7 +740,7 @@ class PP_Logic:
                     draw.vertex(p0 + d0t).vertex(pt - d0t)
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
@@ -778,7 +778,7 @@ class PP_Logic:
                     draw.vertex(p0 - d30).vertex(p3 + d30)
                     draw.vertex(p1 + d12).vertex(p2 - d12)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
@@ -823,7 +823,7 @@ class PP_Logic:
                     if v12.length > Drawing.scale(8): draw.vertex(p1 + d12).vertex(p2 - d12)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(p1 - d01)
 
                 with Drawing.draw(context, CC_2D_TRIANGLES) as draw:
@@ -873,7 +873,7 @@ class PP_Logic:
                     draw.vertex(p0 + d0t).vertex(pt - d0t)
                     draw.vertex(p1 + d1t).vertex(pt - d1t)
 
-                    draw.color(color_border_mesh)
+                    draw.color(color_border_open)
                     # draw.vertex(p0 + d01).vertex(p1 - d01)
                     draw.vertex(p0 + d02).vertex(p2 - d02)
                     draw.vertex(p1 + d12).vertex(p2 - d12)
