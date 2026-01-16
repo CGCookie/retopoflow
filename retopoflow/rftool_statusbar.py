@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict, Any, Tuple, List, TYPE_CHECKING
 
 import bpy
+import platform
 
 from .common.icons import draw_rftool_icon, Icon
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
@@ -12,6 +13,13 @@ from .preferences import RF_Prefs
 
 if TYPE_CHECKING:
     from .rfcore import RFCore
+
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+# MARK: Globals
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+
+is_macOS = 'macOS' in platform.platform()
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -272,7 +280,9 @@ def draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Contex
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}')
-                if mod_key == 'ctrl':
+                if is_macOS:
+                    continue
+                elif mod_key == 'ctrl':
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
                     row.separator(factor=1)
