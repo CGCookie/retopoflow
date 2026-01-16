@@ -921,9 +921,9 @@ class PP_Logic:
         )
         # if using scale * mt * 2, the vert will be created far enough away from mirror to move freely
         # if using 0, the vert is created at mirror, and it will not be allowed to move away from mirror if clipping is enabled
-        if 'x' in mirror and sign_threshold(co.x, mt) != sx: co.x = 0 # sx * mt * 2
-        if 'y' in mirror and sign_threshold(co.y, mt) != sy: co.y = 0 # sy * mt * 2
-        if 'z' in mirror and sign_threshold(co.z, mt) != sz: co.z = 0 # sz * mt * 2
+        if 'x' in mirror and sx != 0 and sign_threshold(co.x, mt) != sx: co.x = 0 # sx * mt * 2
+        if 'y' in mirror and sy != 0 and sign_threshold(co.y, mt) != sy: co.y = 0 # sy * mt * 2
+        if 'z' in mirror and sz != 0 and sign_threshold(co.z, mt) != sz: co.z = 0 # sz * mt * 2
         return co
 
     def commit(self, context, event):
@@ -938,6 +938,7 @@ class PP_Logic:
 
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
+        free_move = self.free_move_edge_vert
 
         match self.state:
             case PP_Action.VERT:
@@ -947,6 +948,7 @@ class PP_Logic:
                 else:
                     bmv = self.bm.verts.new(self.hit)
                 select_now = [bmv]
+                free_move = True
 
             case PP_Action.SPLIT_EDGE:
                 # split hovered edge
@@ -1088,6 +1090,7 @@ class PP_Logic:
                         bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
                         if not bme:
                             bme = self.bm.edges.new((bmv0, bmv1))
+                            free_move = True
 
                         # select bme only if bmv1 not inside a face!
                         if wire := get_wire(bmv1):
@@ -1101,10 +1104,12 @@ class PP_Logic:
                         bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)
                         bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         bmv_from = bmv_split
+
                     if self.nearest.bmv:
                         bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv1])
                     else:
                         self.bm.edges.new((bmv_from, bmv1))
+                        free_move = True
                     bme = None
                 select_now = [bmv1]
                 select_later = [bme] if bme and self.insert_mode != 'EDGE-ONLY' else []
@@ -1240,6 +1245,7 @@ class PP_Logic:
                     if xform_direction(self.matrix_world_inv, view_forward_direction(context)).dot(bmf.normal) > 0:
                         bmf.normal_flip()
                 select_later += [bmf]
+                free_move = True
 
             case PP_Action.EDGE_BRIDGE:
                 # create quad between selected and hovered edges
@@ -1271,6 +1277,7 @@ class PP_Logic:
                     bmf.normal_flip()
                 select_now = [bmv2, bmv3]
                 select_later = [bmf]
+                free_move = True
 
             case PP_Action.TRI_QUAD:
                 # convert selected triangle into quad
@@ -1291,6 +1298,7 @@ class PP_Logic:
                 bmesh.ops.weld_verts(self.bm, targetmap={bmv_new: bmv})
                 select_now = [bmv]
                 select_later = [self.bmf]
+                free_move = True
 
             case _:
                 assert False, f'Unhandled PolyPen state {PP_Action[self.state]}'
@@ -1317,7 +1325,7 @@ class PP_Logic:
 
         bmops.flush_selection(self.bm, self.em)
 
-        if self.free_move_edge_vert:
+        if free_move:
             bpy.ops.retopoflow.translate('INVOKE_DEFAULT', False, move_hovered=False, snap_method='PROJECTED', use_native='FALSE')
         else:
             bpy.ops.transform.vert_slide('INVOKE_DEFAULT')  # TODO: add option to retopoflow.translate to handle this
