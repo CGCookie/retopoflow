@@ -157,7 +157,7 @@ class RFOperator_TopoRotate(RFOperator):
     spring_k: bpy.props.FloatProperty(
         name='Spring K',
         description='Spring force',
-        default=10.0,
+        default=5.0,
         min=0.0,
         max=1000.0,
     )
@@ -303,8 +303,8 @@ class RFOperator_TopoRotate(RFOperator):
         angle = math.atan2(self.mouse.y - self.patch_center.y, self.mouse.x - self.patch_center.x)
         delta_angle = self.mouse_angle - angle
         offset = round(delta_angle / (2.0 * math.pi) * self.count)
-        if offset == self.offset:
-            return {'RUNNING_MODAL'}
+        # if offset == self.offset:
+        #     return {'RUNNING_MODAL'}
 
         self.offset = offset
         iterations = self.iterations
