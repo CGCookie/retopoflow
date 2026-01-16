@@ -37,7 +37,7 @@ def parse_status_entry(status_entry: str) -> tuple[str, str]:
 # MARK: SharedStatusbarKeymap
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
-''' 
+'''
 These shared or generic keymaps will be drawn in the statusbar, right-aligned and after the active tool keymaps.
 - 'context' for all these keymaps is 'init' by default.
 - 'op_id': if not set or set to None, set 'event_type' as a string for the EventType.
@@ -179,6 +179,8 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)),
 
+    SharedStatusbarKeymap(label="Topo Rotate", icons=['EVENT_ALT', 'EVENT_R'], poll_tools = ('CONTOURS')).invert_poll_tools(),
+
     SharedStatusbarKeymap(label="Open Docs", icons=['EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)),
 
     SharedStatusbarKeymap(label="Report Issue", icons=['EVENT_F2'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
@@ -188,9 +190,9 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
     SharedStatusbarKeymap( # dynamic version
-        label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing", 
-        op_id="Mesh | wm.context_toggle", 
-        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
+        label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing",
+        op_id="Mesh | wm.context_toggle",
+        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'},
         poll_tools=('POLYSTRIPS', 'STROKES')
     ),
 )
