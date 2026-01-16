@@ -14,7 +14,6 @@ class Theme:
         'editmesh_active':  [1, 1, 1, 0.2],
         'wire_edit':        [0, 0, 0],
         'vertex':           [0, 0, 0],
-        'face_retopology':  [0.5, 0.5, 0.5, 0.5],
     }
     blue = {
         'vertex_select':    [0.5, 0.85, 1],
@@ -22,6 +21,7 @@ class Theme:
         'edge_mode_select': [0, 0.7, 1],
         'face_select':      [0, 0.5, 1, 0.5],
         'face_mode_select': [0, 0.5, 1, 0.5],
+        'face_retopology':  [0.25, 0.45, 0.65, 0.5],
     }
     green = {
         'vertex_select':    [0.2, 1, 0.25],
@@ -29,6 +29,7 @@ class Theme:
         'edge_mode_select': [0, 0.9, 0],
         'face_select':      [0, 0.8, 0.3, 0.5],
         'face_mode_select': [0, 0.8, 0.3, 0.5],
+        'face_retopology':  [0.175, 0.5, 0.25, 0.5],
     }
     orange = {
         'vertex_select':    [1, 0.85, 0.25],
@@ -36,13 +37,15 @@ class Theme:
         'edge_mode_select': [0.9, 0.65, 0],
         'face_select':      [1, 0.5, 0, 0.5],
         'face_mode_select': [1, 0.5, 0, 0.5],
+        'face_retopology':  [0.5, 0.4, 0.3, 0.5],
     }
     pink = {
-        'vertex_select':    [1, 0.5, 1],
-        'edge_select':      [0.85, 0.45, 0.85],
-        'edge_mode_select': [0.85, 0.45, 0.85],
+        'vertex_select':    [1, 0.7, 1],
+        'edge_select':      [0.85, 0.55, 0.85],
+        'edge_mode_select': [0.85, 0.55, 0.85],
         'face_select':      [1, 0, 0.75, 0.5],
         'face_mode_select': [1, 0, 0.75, 0.5],
+        'face_retopology':  [0.5, 0.3, 0.5, 0.5],
     }
 
     def store_default(context):
