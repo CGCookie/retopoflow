@@ -678,10 +678,9 @@ class Plane(Entity3D):
         lpoints = np.matrix([co - center for co in points]).T
         svd = np.linalg.svd(lpoints)
         left = svd[0]
-        x = Direction(left[:,0])
-        y = Direction(left[:,1])
-        z = Direction(left[:,2])
-        # normal = Normal(left[:,-1])
+        x = Direction(np.array(left[:,0]).flatten())
+        y = Direction(np.array(left[:,1]).flatten())
+        z = Direction(np.array(left[:,2]).flatten())
         return Plane(center, x=x, y=y, z=z)
 
     def __init__(self, o:Point, n:Normal=None, x:Direction=None, y:Direction=None, z:Direction=None):
