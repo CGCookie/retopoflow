@@ -200,6 +200,9 @@ def update_mirror_mod(context, modifier=None):
 
 def setup_mirror(context):
     obj = context.active_object
+
+    if obj == None: return
+
     props_obj = obj.retopoflow
 
     mod = get_mirror_mod(obj)
@@ -212,6 +215,9 @@ def setup_mirror(context):
 
 def cleanup_mirror(context):
     obj = context.active_object
+
+    if obj == None: return
+
     props_obj = obj.retopoflow
     mod = get_mirror_mod(obj)
 
