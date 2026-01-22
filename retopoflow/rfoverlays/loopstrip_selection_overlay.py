@@ -103,7 +103,7 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
                     if not lbl_pos: continue
                     count = len(mids)
-                    if is_vertex_select:
+                    if is_vertex_select and lbl != 'Loop':
                         count += 1
                     if count == 1: continue
                     text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
