@@ -176,7 +176,7 @@ def update_mirror_mod(context, modifier=None):
     mod = get_mirror_mod(obj) if modifier == None else modifier
 
     if not mod and use_mirror:
-        mod = obj.modifiers.new('Mirror', 'MIRROR')
+        mod = obj.modifiers.new('RF_Mirror', 'MIRROR')
 
     if mod:
         mod.use_axis = props_obj.mirror_axis
@@ -225,8 +225,9 @@ def cleanup_mirror(context):
 
     if mod:
         mod.show_in_editmode = props_obj.mirror_prev_edit
-        if not (mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]):
+        if 'RF_' in mod.name and not (mod.use_axis[0] or mod.use_axis[1] or mod.use_axis[2]):
             obj.modifiers.remove(mod)
+
 
 class RFOperator_AddMirror(RFRegisterClass, bpy.types.Operator):
     bl_idname = 'retopoflow.addmirror'
@@ -246,7 +247,7 @@ class RFOperator_AddMirror(RFRegisterClass, bpy.types.Operator):
 
     def execute(self, context):
         obj = context.active_object
-        obj.modifiers.new('Mirror', 'MIRROR')
+        obj.modifiers.new('RF_Mirror', 'MIRROR')
         return {'FINISHED'}
 
 class RFOperator_ApplyMirror(RFRegisterClass, bpy.types.Operator):
