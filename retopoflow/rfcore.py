@@ -28,6 +28,7 @@ from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
 from ..config.theme import Theme
+from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
@@ -410,6 +411,7 @@ class RFCore:
                 show_retopology(s)
 
         mirror.setup_mirror(context)
+        alter_user_keymaps(context)
 
         try:
             bpy.ops.retopoflow.core()
@@ -482,6 +484,7 @@ class RFCore:
             bpy.context.scene.retopoflow.saved_tool = ''
 
         mirror.cleanup_mirror(bpy.context)
+        restore_user_keymaps(bpy.context)
 
         RFCore.resetter.reset()
 

@@ -28,7 +28,9 @@ New:
 Improved:
 - Added retopology overlay offset to tool header
 - Added mirror modifier merge distance to Mirror panel
+- Fill Region is now disabled when picking shortest path (`Ctrl Shift LMB`) in Retopoflow
 - Deleting faceless edges is now off by default in the Cleanup operator
+- Unused outer Contours sample points are no longer shown when using Walk or Skip
 - Fixed PolyPen and Strokes not being able to extrude from a line of symmetry
 - Fixed Relax crash when a vertex has invalid coordinates
 - Fixed Tweak and Relax not using masking settings when using the quick switch hotkeys
