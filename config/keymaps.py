@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import bpy
 
 '''
 Standard US 101 QWERTY Keyboard
@@ -33,24 +34,83 @@ Standard US 101 QWERTY Keyboard
 '''
 
 
-altered_keymap_items = set()
+altered_keymap_items = []
+
+
+def store_keymap_item(km_item, altered):
+    altered_keymap_items.append({
+        'idname': km_item.idname,
+        'type': km_item.type,
+        'value': km_item.value,
+        'any': km_item.any,
+        'shift': km_item.shift,
+        'ctrl': km_item.ctrl,
+        'alt': km_item.alt,
+        'oskey': km_item.oskey,
+        'hyper': km_item.hyper,
+        'key_modifier': km_item.key_modifier,
+        'altered': altered
+    })
+
+
+def is_keymap_item_matching(km_item, saved_item):
+    return (km_item.idname == saved_item['idname'] and
+            km_item.type == saved_item['type'] and
+            km_item.value == saved_item['value'] and
+            km_item.any == saved_item['any'] and
+            km_item.shift == saved_item['shift'] and
+            km_item.ctrl == saved_item['ctrl'] and
+            km_item.alt == saved_item['alt'] and
+            km_item.oskey == saved_item['oskey'] and
+            km_item.hyper == saved_item['hyper'] and
+            km_item.key_modifier == saved_item['key_modifier']
+    )
 
 
 def alter_user_keymaps(context):
-    user_keyconfigs = context.window_manager.keyconfigs.user
-    for keymap in user_keyconfigs.keymaps:
+    wm = context.window_manager
+    for keymap in wm.keyconfigs.user.keymaps:
+        if not hasattr(keymap, 'keymap_items'):
+            continue
         for km_item in keymap.keymap_items:
             # Switches alternate pick shortest path behavior since default is blocked by RF
             if (km_item.idname == 'mesh.shortest_path_pick' and
                 km_item.ctrl == True and km_item.shift == True and
                 km_item.properties['use_fill'] == True
             ):
-                altered_keymap_items.add(km_item)
+                store_keymap_item(km_item, {
+                    'use_fill': True
+                })
                 km_item.properties['use_fill'] = False
-                return
+
+            # Stops boundary loops at inner corners for easier selection in Strokes
+            elif (km_item.idname == 'mesh.loop_select' and
+                  bpy.app.version >= (5, 1, 0)
+            ):
+                store_keymap_item(km_item, {
+                    'delimit_edge_loop': km_item.properties.delimit_edge_loop
+                })
+                km_item.properties.delimit_edge_loop = {'NGONS', 'OUTER_CORNERS', 'INNER_CORNERS'}
 
 
 def restore_user_keymaps(context):
-    for km_item in altered_keymap_items:
-        if km_item.idname == 'mesh.shortest_path_pick':
-            km_item.properties['use_fill'] = True
+    keymaps_to_change = len(altered_keymap_items)
+    wm = context.window_manager
+    for saved_item in altered_keymap_items:
+        for keymap in wm.keyconfigs.user.keymaps:
+            # if not hasattr(keymap, 'keymap_items'):
+            #     continue
+            for km_item in keymap.keymap_items:
+                if is_keymap_item_matching(km_item, saved_item):
+
+                    if saved_item['idname'] == 'mesh.shortest_path_pick':
+                        km_item.properties['use_fill'] = True
+                        keymaps_to_change -= 1
+
+                    elif saved_item['idname'] == 'mesh.loop_select':
+                        for idx, delimit in enumerate(saved_item['altered']['delimit_edge_loop']):
+                            km_item.properties.delimit_edge_loop = saved_item['altered']['delimit_edge_loop']
+                        keymaps_to_change -= 1
+
+                    if keymaps_to_change == 0:
+                        return
