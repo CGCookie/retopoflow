@@ -36,6 +36,7 @@ def draw_tool_switching_options(context, layout):
     col.prop(prefs, 'setup_fade_inactive')
     col.prop(prefs, 'setup_object_wires')
     col.prop(prefs, 'setup_retopo_overlay')
+    col.prop(prefs, 'setup_selection_adjustments')
     col.prop(prefs, 'setup_selection_mode')
     col.prop(prefs, 'setup_snapping')
 

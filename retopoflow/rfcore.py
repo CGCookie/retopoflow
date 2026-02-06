@@ -411,7 +411,8 @@ class RFCore:
                 show_retopology(s)
 
         mirror.setup_mirror(context)
-        alter_user_keymaps(context)
+        if prefs.setup_selection_adjustments:
+            alter_user_keymaps(context)
 
         try:
             bpy.ops.retopoflow.core()

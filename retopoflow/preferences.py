@@ -171,6 +171,14 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description=("Use a separate size for vertices and edges when in Retopoflow tools"),
         default=True,
     )
+    setup_selection_adjustments: bpy.props.BoolProperty(
+        name='Selection Adjustments',
+        description=("Alters the hotkeys for selection while Retopoflow is active. \n"
+                    " - Loop selection gets stopped at inner corners for better use with Strokes. \n"
+                    " - Pick Shortest Path with Shift has Fill Region disabled"
+                    ),
+        default=True,
+    )
     #endregion
 
     """ Tweaking """
@@ -260,13 +268,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
             row.prop(self, 'enable_help_hotkey', text='F1')
             row = panel.row(heading='Report Issue')
             row.prop(self, 'enable_issue_hotkey', text='F2')
+            panel.separator()
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
         header.label(text="Interface")
         if panel:
             draw_ui_options(context, panel)
-
 
         header, panel = layout.panel(idname='naming_panel_prefs', default_closed=True)
         header.label(text="Naming")
