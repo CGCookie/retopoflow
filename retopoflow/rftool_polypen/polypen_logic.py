@@ -312,7 +312,7 @@ class PP_Logic:
             return
 
         if self.nearest_bme.bme and not self.nearest_bme.bme.hide:
-            if self.bme and self.bme != self.nearest_bme.bme:
+            if self.bme and self.bme.is_valid and self.bme != self.nearest_bme.bme:
                 bmfs = set(self.bme.link_faces) & set(self.nearest_bme.bme.link_faces)
                 if len(bmfs) == 1:
                     bmf = next(iter(bmfs))
