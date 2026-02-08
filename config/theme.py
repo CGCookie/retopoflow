@@ -45,7 +45,15 @@ class Theme:
         'edge_mode_select': [0.85, 0.55, 0.85],
         'face_select':      [1, 0, 0.75, 0.5],
         'face_mode_select': [1, 0, 0.75, 0.5],
-        'face_retopology':  [0.5, 0.3, 0.5, 0.5],
+        'face_retopology':  [0.6, 0.3, 0.6, 0.5],
+    }
+    purple = {
+        'vertex_select':    [0.75, 0.65, 1],
+        'edge_select':      [0.825, 0.55, 1],
+        'edge_mode_select': [0.825, 0.55, 1],
+        'face_select':      [0.65, 0.25, 1, 0.5],
+        'face_mode_select': [0.65, 0.25, 1, 0.5],
+        'face_retopology':  [0.4, 0, 0.5, 0.5],
     }
 
     def store_default(context):

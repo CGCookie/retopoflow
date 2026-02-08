@@ -102,6 +102,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
             ('green', "Green", "Changes the color of components while using Retopoflow"),
             ('orange', "Orange", "Changes the color of components while using Retopoflow"),
             ('pink', "Pink", "Changes the color of components while using Retopoflow"),
+            ('purple', "Purple", "Changes the color of components while using Retopoflow"),
         ),
         default='blue',
         update=lambda self, context: Theme.set_theme(context, self.theme)
