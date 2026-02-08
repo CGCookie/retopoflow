@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bmesh
 import bpy
 from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.ops import connect_verts
 from bmesh.utils import edge_split
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
@@ -38,7 +39,7 @@ from ..preferences import RF_Prefs
 from ..common.bmesh import (
     bme_other_bmv, bme_other_bmf,
     bmes_share_bmv, bmes_shared_bmv,
-    bmf_midpoint,
+    bmf_midpoint, bmf_opposite_bme, bmf_is_quad,
     get_bmesh_emesh,
     clean_select_layers,
     NearestBMVert,
@@ -90,6 +91,7 @@ class PP_Action(ValueIntEnum):
     SPLIT_EDGE           = auto()   # split hovered edge
     SPLIT_QUAD           = auto()   # split hovered and selected edges and split quad
     SPLIT_QUAD_CENTER    = auto()   # split hovered, selected edges, and quad (preserves quadness, insert junction)
+    SPLIT_QUAD_EDGES     = auto()   # split edges of quad
     VERT_SPLIT_EDGE      = auto()   # split hovered edge and create edge from nearest selected vert to new vert
     WIRE_SPLIT_EDGE_FACE = auto()   # split hovered edge, create edge to selected vert, split face
     WIRE_VERT_SPLIT_FACE = auto()   # connect selected and nearest hovered verts and split face
@@ -189,6 +191,36 @@ def find_bmedges_to_split(context, matrix_world, bmv_start, p0, p1):
         if bmf := bme_other_bmf(bme, bmf):
             bmfs_search.append(bmf)
     return found
+
+def compute_quad_factor(co, a, b, c, d):
+    '''
+    find factors u,v where e=a+(b-a)*u, f=d+(c-d)*u, co=e+(f-e)*v.
+    for now, solving iteratively, but really should see if we can solve numerically!
+
+    0  u>    1
+    d--f-----c 1
+    |  |     |
+    |  o co  | v
+    |  | /   |
+    a--e-----b 0
+    0  u>    1
+    '''
+
+    # iteratively find u
+    ITERATIONS = 100
+    u_min, u, u_max = 0, 0.5, 1
+    ab = b - a
+    for _ in range(ITERATIONS):
+        e, f = a + u * (b - a), d + u * (c - d)
+        ef, eco = (f - e).normalized(), (co - e).normalized()
+        if ab.dot(ef) < ab.dot(eco):
+            u_min = u
+        else:
+            u_max = u
+        u = u_min + (u_max - u_min) * 0.5
+    e, f = a + u * (b - a), d + u * (c - d)
+    v = (co - e).length / (f - e).length
+    return (u, v)
 
 
 class PP_Logic:
@@ -324,6 +356,8 @@ class PP_Logic:
             if self.nearest_bme.bme.select:
                 self.state = PP_Action.SPLIT_EDGE
                 return
+            if self.update_split_face_loop(context):
+                return
 
         if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
             self.bmv = min(
@@ -438,9 +472,12 @@ class PP_Logic:
             )
             return
 
+        if self.update_split_face_loop(context):
+            return
+
         if len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
             self.state = PP_Action.EDGE_TRI
-            self.bme = next(iter(self.selected[BMEdge]), None)
+            self.bme = next(iter(self.selected[BMEdge]))  # only one selected edge
             return
 
         if len(self.selected[BMEdge]) > 1:
@@ -450,6 +487,93 @@ class PP_Logic:
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
             return
+
+    def update_split_face_loop(self, context):
+        bme_hovered = self.nearest_bme.bme
+        bmf_hovered = None
+        bmes_selected = list(self.selected[BMEdge])
+        bmes_selected.sort(key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)))
+        for bme_selected in bmes_selected:
+            if bme_hovered and bmes_share_bmv(bme_selected, bme_hovered):
+                continue
+            working = [bme_selected]
+            path_back = {}
+            while working:
+                bme = working.pop(0)
+                for bmf in bme.link_faces:
+                    if not bmf_is_quad(bmf): continue
+                    if bmf in path_back: continue
+                    bme_opposite = bmf_opposite_bme(bmf, bme)
+                    path_back[bmf] = bme
+                    path_back[bme_opposite] = bmf
+                    if point_inside_face(self.hit, points_of_bmface(bmf)):
+                        bmf_hovered = bmf
+                        break
+                    working.append(bme_opposite)
+                if bmf_hovered: break
+            if bmf_hovered: break
+
+        if not bmf_hovered:
+            return False
+
+        is_wire = not bme_hovered or bme_hovered not in bmf_hovered.edges
+
+        # get list of bmes to split
+        bmes_split = []
+        bmvs_split = []
+        bmf_back = bmf_hovered
+        while bmf_back in path_back:
+            bme_prev = path_back[bmf_back]
+            bmes_split.append(bme_prev)
+            bmvs = list(bmf_back.verts) # [bml.vert for bml in bmf_back.loops]
+            idx0, idx1 = [ bmvs.index(bmv) for bmv in bme_prev.verts ]
+            idx = idx0 if (idx1 + 1) % 4 == idx0 else idx1
+            bmvs = bmvs[idx:] + bmvs[:idx]
+            bmvs_split.append((bmvs[0], bmvs[3]))
+            if bme_prev not in path_back: break
+            bmf_back = path_back[bme_prev]
+        bmes_split.reverse()
+        bmvs_split.reverse()
+
+        if not is_wire and bmes_split[-1] != bme_hovered:
+            # need to add hovered bme
+            bmes_split.append(bme_hovered)
+            bmv0, bmv1 = bme_hovered.verts
+            bmvs = list(bmf_hovered.verts)
+            idx0, idx1 = bmvs.index(bmv0), bmvs.index(bmv1)
+            if (idx1 + 1) % 4 == idx0: bmv0, bmv1 = bmv1, bmv0
+            bmvs_split.append((bmv0, bmv1))
+
+        # get the weights (u,v) for splitting bmes
+        # get list of bmverts such that a,b,c,d are in correct order and
+        #   a and d are bmverts of selected
+        #   b and c are bmverts of opposite
+        # u is weight from selected a/d to opposite b/c
+        # v is weight along selected and opposite from a/b to d/c
+        bmvs = list(bmf_hovered.verts) # [bml.vert for bml in bmf_hovered.loops]
+        bme_bmf_hovered = path_back[bmf_hovered]
+        idx0, idx1 = [ bmvs.index(bmv) for bmv in bme_bmf_hovered.verts ]
+        idx = idx0 if (idx1 + 1) % 4 == idx0 else idx1
+        bmvs = bmvs[idx:] + bmvs[:idx]
+        a, b, c, d = [
+            location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv.co)
+            for bmv in bmvs
+        ]
+        u, v = compute_quad_factor(self.mouse, a, b, c, d)
+
+        self.state = PP_Action.SPLIT_QUAD_EDGES
+        self.bme = None
+        self.bme_hovered = None
+        self.split_info = {
+            'a,b,c,d': (a,b,c,d),
+            'bme selected': bme_selected,
+            'bmes split': bmes_split,
+            'bmvs split': bmvs_split,
+            'u,v': (u, v),
+            'wire': is_wire,
+        }
+
+        return True
 
 
     def draw(self, context):
@@ -521,6 +645,41 @@ class PP_Logic:
                     draw.color(color_border_open)
                     draw.vertex(p0 + d01).vertex(pt - d01)
                     draw.vertex(p1 - d01).vertex(pt + d01)
+
+            case PP_Action.SPLIT_QUAD_EDGES:
+                u, v = self.split_info['u,v']
+                pts = []
+                for (bmv0, bmv1) in self.split_info['bmvs split']:
+                    co = bmv0.co + v * (bmv1.co - bmv0.co)
+                    pt = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ co)
+                    pts.append(pt)
+                if self.split_info['wire']:
+                    pts.append(self.mouse)
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(vertex_size + 4)
+                    draw.border(width=2, color=color_point)
+                    draw.color(color_stipple)
+                    for pt in pts:
+                        draw.vertex(pt)
+                    # a,b,c,d = self.split_info['a,b,c,d']
+                    # e = a + u * (b - a)
+                    # f = d + u * (c - d)
+                    # g = e + v * (f - e)
+                    # draw.point_size(vertex_size + 8)
+                    # draw.color(Color4((1,0,0,1))); draw.vertex(a)
+                    # draw.color(Color4((0,1,0,1))); draw.vertex(b)
+                    # draw.color(Color4((0,0,1,1))); draw.vertex(c)
+                    # draw.color(Color4((1,1,0,1))); draw.vertex(d)
+                    # draw.color(Color4((1,0,1,1))); draw.vertex(e)
+                    # draw.color(Color4((0,1,1,1))); draw.vertex(f)
+                    # draw.color(Color4((1,1,1,1))); draw.vertex(g)
+                with Drawing.draw(context, CC_2D_LINES) as draw:
+                    draw.line_width(2)
+                    draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
+                    draw.color(color_border_open)
+                    for p0,p1 in iter_pairs(pts, False):
+                        d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                        draw.vertex(p0+d01).vertex(p1-d01)
 
             case PP_Action.SPLIT_QUAD | PP_Action.SPLIT_QUAD_CENTER:
                 bme0, bme1 = self.bme, self.nearest_bme.bme
@@ -1013,11 +1172,32 @@ class PP_Logic:
 
                 bme0_new, bmv0_new = edge_split(bme0, bmv00, percent)
                 bme1_new, bmv1_new = edge_split(bme1, bmv10, percent)
-                ret = bmesh.ops.connect_verts(self.bm, verts=[bmv0_new, bmv1_new])
+                ret = connect_verts(self.bm, verts=[bmv0_new, bmv1_new])
                 # select_now = [bmv0_new, bmv1_new]
                 # select_later = [bmv1_new]
                 select_now = [bmv1_new]
                 select_later = []
+
+            case PP_Action.SPLIT_QUAD_EDGES:
+                u, v = self.split_info['u,v']
+                bmvs_new = []
+                for (bme, (bmv0, bmv1)) in zip(self.split_info['bmes split'], self.split_info['bmvs split']):
+                    _, bmv_new = edge_split(bme, bmv0, v)
+                    bmvs_new.append(bmv_new)
+                for (bmv0, bmv1) in iter_pairs(bmvs_new, False):
+                    connect_verts(self.bm, verts=[bmv0, bmv1])
+                if self.split_info['wire']:
+                    bmv_new = self.bm.verts.new(self.hit)
+                    bme_new = self.bm.edges.new((bmv_new, bmvs_new[-1]))
+                    select_now = [bmv_new]
+                    free_move = True
+                else:
+                    select_now = [bmvs_new[-1]]
+                select_later = []
+                # TODO: mesh isn't updating
+                # TODO: selected verts after op not correct
+
+
 
             case PP_Action.SPLIT_QUAD_CENTER:
                 bme0, bme1 = self.bme, self.nearest_bme.bme
@@ -1109,13 +1289,13 @@ class PP_Logic:
                     bmf_split = next((bmf for bmf in bmv0.link_faces if bmv1 in bmf.verts), None)
                     bme = None
                     if bmf_split:
-                        ret = bmesh.ops.connect_verts(self.bm, verts=[bmv0, bmv1])
+                        ret = connect_verts(self.bm, verts=[bmv0, bmv1])
                         bme = next(iter(ret['edges']), None)
                         if split_co:
                             bme_cut = bme
                             _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
                             bmv_cut.co = split_co
-                            bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                            connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
                         bme = None
                     else:
                         bme = next(iter(bmops.shared_link_edges([bmv0, bmv1])), None)
@@ -1133,11 +1313,11 @@ class PP_Logic:
                         if bme_split == self.nearest_bme.bme: break
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
                         bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)
-                        bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv_split])
+                        connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         bmv_from = bmv_split
 
                     if self.nearest.bmv:
-                        bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv1])
+                        connect_verts(self.bm, verts=[bmv_from, bmv1])
                     else:
                         self.bm.edges.new((bmv_from, bmv1))
                         free_move = True
@@ -1187,7 +1367,7 @@ class PP_Logic:
                 self.bm.faces.new(bmf1_bmvs)
 
                 if bmv_opposite:
-                    bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_opposite])
+                    connect_verts(self.bm, verts=[self.bmv, bmv_opposite])
 
                 select_now = [bmv_connect]
                 select_later = []
@@ -1233,12 +1413,12 @@ class PP_Logic:
                 if not splits:
                     bmf_split = next((bmf for bmf in self.bmv.link_faces if bmv_new in bmf.verts), None)
                     if bmf_split:
-                        ret = bmesh.ops.connect_verts(self.bm, verts=[self.bmv, bmv_new])
+                        ret = connect_verts(self.bm, verts=[self.bmv, bmv_new])
                         if split_co:
                             bme_cut = ret['edges'][0]
                             _, bmv_cut = edge_split(bme_cut, self.bmv, 0.5)
                             bmv_cut.co = split_co
-                            bmesh.ops.connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
+                            connect_verts(self.bm, verts=[bmv_cut, bmv_opposite])
                     else:
                         bme_new = self.bm.edges.new((self.bmv, bmv_new))
                 else:
@@ -1247,9 +1427,9 @@ class PP_Logic:
                         if bme_split == self.nearest_bme.bme: break
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
                         bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)
-                        bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv_split])
+                        connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         bmv_from = bmv_split
-                    bmesh.ops.connect_verts(self.bm, verts=[bmv_from, bmv_new])
+                    connect_verts(self.bm, verts=[bmv_from, bmv_new])
                 select_now = [bmv_new]
                 select_later = []
 

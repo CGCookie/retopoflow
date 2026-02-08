@@ -188,6 +188,12 @@ def bmf_midpoint_radius(bmf):
 
 def bmf_is_quad(bmf):
     return len(bmf.edges) == 4
+def bmf_opposite_bme(bmf, bme):
+    # assumes bmf is a quad
+    return next(
+        ( bme_other for bme_other in bmf.edges if not bmes_share_bmv(bme, bme_other) ),
+        None,
+    )
 
 def quad_bmf_opposite_bme(bmf, bme):
     return next(bme_ for bme_ in bmf.edges if not bmes_share_bmv(bme, bme_))
