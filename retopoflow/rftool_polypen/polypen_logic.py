@@ -504,6 +504,7 @@ class PP_Logic:
                     if not bmf_is_quad(bmf): continue
                     if bmf in path_back: continue
                     bme_opposite = bmf_opposite_bme(bmf, bme)
+                    if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite): continue
                     path_back[bmf] = bme
                     path_back[bme_opposite] = bmf
                     if point_inside_face(self.hit, points_of_bmface(bmf)):
