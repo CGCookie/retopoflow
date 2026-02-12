@@ -507,6 +507,9 @@ class PP_Logic:
                     if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite): continue
                     path_back[bmf] = bme
                     path_back[bme_opposite] = bmf
+                    if bme_hovered == bme_opposite:
+                        bmf_hovered = bmf
+                        break
                     if point_inside_face(self.hit, points_of_bmface(bmf)):
                         bmf_hovered = bmf
                         break
