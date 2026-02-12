@@ -667,6 +667,7 @@ def activate_template(self, context):
     )
 
 
+'''
 class RFAssetShelf_Patches(RFAssetShelf):
     bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
     bl_category = 'Patches Templates'
@@ -694,7 +695,7 @@ class RFAssetShelf_Patches(RFAssetShelf):
         return RFAssetShelf.RFCore.selected_RFTool_idname == RFTool_Patches.bl_idname
 
 
-'''
+
 class RFTool_Patches(RFTool_Base):
     bl_idname = "retopoflow.patches"
     bl_label = "Patches"
