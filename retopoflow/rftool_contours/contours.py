@@ -108,7 +108,7 @@ class RFOperator_Contours_Insert(
         RFOperator_Execute,
     ):
     bl_idname = 'retopoflow.contours_insert'
-    bl_label = 'Contours: Insert new stroke'
+    bl_label = 'Contours: Insert Stroke'
     bl_description = 'Insert cut and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
@@ -152,26 +152,26 @@ class RFOperator_Contours_Insert(
 
     def draw(self, context):
         layout = self.layout
-        grid = layout.grid_flow(row_major=True, columns=2)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
         logic = RFOperator_Contours_Insert.logic
 
-        grid.label(text=f'Cyclic')
-        grid.prop(self, 'is_cycle', text='')
-
         if logic.action:
-            grid.label(text=f'Inserted')
-            grid.label(text=logic.action)
+            split = layout.split(factor=0.4)
+            col = split.column()
+            col.alignment='RIGHT'
+            col.label(text='Insert')
+            split.label(text=logic.action)
+
+        layout.prop(self, 'process_source_method', text='Method')
 
         if logic.show_span_count:
-            grid.label(text=f'Spans')
-            grid.prop(self, 'span_count', text='')
+            layout.prop(self, 'span_count', text='Spans')
 
         if logic.show_twist:
-            grid.label(text=f'Twist')
-            grid.prop(self, 'twist', text='')
+            layout.prop(self, 'twist', text='Twist')
 
-        grid.label(text=f'Method')
-        grid.prop(self, 'process_source_method', text='')
+        layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
