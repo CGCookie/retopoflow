@@ -143,6 +143,9 @@ def ensure_correct_normals(bm, bmfs):
         if bmf.normal.dot(no_local) < 0:
             bmf.normal_flip()
 
+def bmvs_share_bmf(bmv0, bmv1):
+    return any(bmf in bmv1.link_faces for bmf in bmv0.link_faces)
+
 def bmes_share_face(bme0, bme1):
     return any(bmf in bme1.link_faces for bmf in bme0.link_faces)
 
