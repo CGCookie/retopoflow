@@ -34,7 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary
-from ..common.bmesh_maths import is_bmvert_hidden
+from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmvert_attribute
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
@@ -101,6 +101,10 @@ class Tweak_Logic:
             if self.tweak.mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if self.tweak.include_corners  == False  and len(bmv.link_edges) == 2: continue
             if self.tweak.include_corners == False   and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
+            if self.tweak.include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
+            if self.tweak.include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
+            if self.tweak.include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
+            if self.tweak.include_creases == False   and is_bmvert_attribute(self.bm, bmv, 'crease_vert'): continue
             if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
             if self.tweak.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
             if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue

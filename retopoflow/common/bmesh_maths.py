@@ -301,3 +301,24 @@ def is_bmvert_hidden(context, bmv, *, factor=0.99):
     ray_e, hit_dist = hit['ray_world'][0], hit['distance']
     offset = context.space_data.overlay.retopology_offset
     return hit_dist < ((ray_e.xyz - point.xyz).length - offset) * factor
+
+def is_bmvert_on_edgemark(bm, bmv, mark):
+    if mark == 'seam':
+        for bme in bmv.link_edges:
+            if getattr(bme, mark): return True
+    elif mark == 'sharp':
+        for bme in bmv.link_edges:
+            if not getattr(bme, 'smooth'): return True
+    elif mark == 'crease':
+        bm.edges.ensure_lookup_table()
+        layer = bm.edges.layers.float.get('crease_edge')
+        if not layer: return False
+        for bme in bmv.link_edges:
+            if bme[layer]: return True
+    return False
+
+def is_bmvert_attribute(bm, bmv, attribute):
+    bm.verts.ensure_lookup_table()
+    layer = bm.verts.layers.float.get(attribute)
+    if layer and bmv[layer]: return True
+    return False

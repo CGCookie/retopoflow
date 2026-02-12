@@ -140,6 +140,21 @@ class RFOperator_Tweak(RFOperator):
         description='Include vertices that are hidden behind other geometry',
         default = False,
     )
+    include_creases: bpy.props.BoolProperty(
+        name='Creases',
+        description='Include vertices that are on edges that are creased',
+        default = True,
+    )
+    include_seams: bpy.props.BoolProperty(
+        name='Seams',
+        description='Include vertices that are on a UV seam',
+        default = True,
+    )
+    include_sharps: bpy.props.BoolProperty(
+        name='Sharps',
+        description='Include vertices that are on edges that are marked sharp',
+        default = True,
+    )
     mask_boundary: bpy.props.EnumProperty(
         name='Mask: Boundary',
         description='How to handle boundary geometry',
@@ -253,8 +268,12 @@ class RFTool_Tweak(RFTool_Base):
                 layout.row(heading='Boundary:', align=True).prop(props_tweak, 'mask_boundary', expand=True, icon_only=True)
                 # layout.prop(props_tweak, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
-                layout.prop(props_tweak, 'include_corners',   text="Corners")
-                layout.prop(props_tweak, 'include_occluded', text="Occluded")
+                row = layout.row(align=True)
+                row.prop(props_tweak, 'include_corners')
+                row.prop(props_tweak, 'include_seams')
+                row.prop(props_tweak, 'include_sharps')
+                row.prop(props_tweak, 'include_creases')
+                row.prop(props_tweak, 'include_occluded')
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
