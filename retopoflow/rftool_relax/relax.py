@@ -341,8 +341,8 @@ class RFTool_Relax(RFTool_Base):
                 layout.separator()
                 row = layout.row(align=True)
                 row.label(text='Pinning:')
-                row.operator('retopoflow.pinverts', text='', icon='PINNED').unpin=False
-                row.operator('retopoflow.pinverts', text='', icon='UNPINNED').unpin=True
+                row.operator('retopoflow.pinverts', text='', icon='PINNED')
+                row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
                 row.popover('RF_PT_Pinning', text='')
             else:
                 layout.popover('RF_PT_Masking')

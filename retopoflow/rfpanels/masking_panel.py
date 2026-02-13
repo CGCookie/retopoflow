@@ -58,8 +58,8 @@ def draw_masking_options(context, layout):
     draw_pinning_options(context, layout)
     layout.separator()
     row = layout.row()
-    row.operator('retopoflow.pinverts', text='Pin', icon='PINNED').unpin=False
-    row.operator('retopoflow.pinverts', text='Unpin', icon='UNPINNED').unpin=True
+    row.operator('retopoflow.pinverts', text='Pin', icon='PINNED')
+    row.operator('retopoflow.unpinverts', text='Unpin', icon='UNPINNED')
 
 def draw_masking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)

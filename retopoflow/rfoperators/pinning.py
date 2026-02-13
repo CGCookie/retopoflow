@@ -116,15 +116,13 @@ def unpin_bmvs(bm):
 class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
     bl_idname = "retopoflow.pinverts"
     bl_label = "Pin Verts"
-    bl_description = "Add or remove pins for the selected verts"
+    bl_description = "Add pins for the selected verts"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     bl_options = {'UNDO'}
 
     rf_label = "Pin Verts"
     RFCore = None
-
-    unpin: bpy.props.BoolProperty(default=False)
 
     @classmethod
     def poll(cls, context):
@@ -133,11 +131,29 @@ class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         bm = bmesh.from_edit_mesh(obj.data)
+        pin_bmvs(bm)
+        bmesh.update_edit_mesh(obj.data)
+        return {'FINISHED'}
 
-        if self.unpin:
-            unpin_bmvs(bm)
-        else:
-            pin_bmvs(bm)
 
+class RFOperator_UnpinVerts(RFRegisterClass, bpy.types.Operator):
+    bl_idname = "retopoflow.unpinverts"
+    bl_label = "Unpin Verts"
+    bl_description = "Remove pins for the selected verts"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO'}
+
+    rf_label = "Unpin Verts"
+    RFCore = None
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object and context.mode == 'EDIT_MESH'
+
+    def execute(self, context):
+        obj = context.active_object
+        bm = bmesh.from_edit_mesh(obj.data)
+        unpin_bmvs(bm)
         bmesh.update_edit_mesh(obj.data)
         return {'FINISHED'}
