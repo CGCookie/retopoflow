@@ -20,7 +20,6 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-from ..preferences import RF_Prefs
 from .interface_panel import draw_ui_options
 from .tool_switching_panel import draw_tool_switching_options
 

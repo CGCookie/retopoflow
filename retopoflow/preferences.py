@@ -23,6 +23,7 @@ import platform
 
 import bpy
 from .common.interface import update_toolbar
+from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
 
 
@@ -182,9 +183,11 @@ class RF_Prefs(bpy.types.AddonPreferences):
     )
     setup_pinning: bpy.props.BoolProperty(
         name='Pinning via Creases',
-        description=("Hijacks Blender's crease system to display pins without any performance overhead. "
-            "Disable this if you need to actively adjust creases while in Retopoflow mode"),
+        description=("Hijacks Blender's vertex crease system so we can display pins without any performance overhead. "
+            "Disable this if you need to actively adjust creases while in Retopoflow mode. \n\n"
+            "WARNING: Disabling will remove all current pins"),
         default=True,
+        update=lambda self, context: toggle_pinning(context, self.setup_pinning)
     )
     #endregion
 
