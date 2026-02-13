@@ -83,7 +83,7 @@ def restore_pinning(context):
     bmesh.update_edit_mesh(obj.data)
 
 
-def pin_bmvs(bm, selected_verts):
+def pin_bmvs(bm):
     pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
     if not pin_vert_layer:
         pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
@@ -92,19 +92,19 @@ def pin_bmvs(bm, selected_verts):
     if not crease_vert_layer:
         crease_vert_layer = bm.verts.layers.float.new('crease_vert')
 
-    for bmv in selected_verts:
+    for bmv in [bmv for bmv in bm.verts if bmv.select]:
         if bmv[pin_vert_layer] == False:
             bmv[pin_vert_layer] = True
             bmv[crease_vert_layer] += 0.99
 
 
-def unpin_bmvs(bm, selected_verts):
+def unpin_bmvs(bm):
     pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     if not pin_vert_layer or not crease_vert_layer:
         return
 
-    for bmv in selected_verts:
+    for bmv in [bmv for bmv in bm.verts if bmv.select]:
         if bmv[pin_vert_layer] == True:
             bmv[pin_vert_layer] = False
             bmv[crease_vert_layer] = bmv[crease_vert_layer] - 0.99
@@ -133,16 +133,11 @@ class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         bm = bmesh.from_edit_mesh(obj.data)
-        bm.verts.ensure_lookup_table()
-        selected_verts = [x for x in bm.verts if x.select]
-        if not selected_verts:
-            print('Nothing was pinned because nothing was selected')
-            return {'CANCELLED'}
 
         if self.unpin:
-            unpin_bmvs(bm, selected_verts)
+            unpin_bmvs(bm)
         else:
-            pin_bmvs(bm, selected_verts)
+            pin_bmvs(bm)
 
         bmesh.update_edit_mesh(obj.data)
         return {'FINISHED'}
