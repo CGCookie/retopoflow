@@ -273,11 +273,14 @@ class RFTool_Tweak(RFTool_Base):
                 layout.row(heading='Boundary:', align=True).prop(props_tweak, 'mask_boundary', expand=True, icon_only=True)
                 # layout.prop(props_tweak, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
-                row = layout.row(align=True)
-                row.label(text='Pinning:')
-                row.operator('retopoflow.pinverts', text='', icon='PINNED')
-                row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
-                row.popover('RF_PT_Pinning', text='')
+                if prefs.setup_pinning:
+                    row = layout.row(align=True)
+                    row.label(text='Pinning:')
+                    row.operator('retopoflow.pinverts', text='', icon='PINNED')
+                    row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
+                    row.popover('RF_PT_Pinning', text='')
+                else:
+                    layout.popover('RF_PT_Pinning', text='Pinning')
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)

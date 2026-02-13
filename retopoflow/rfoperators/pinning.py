@@ -22,40 +22,55 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy, bmesh
 from ..common.operator import RFRegisterClass
+from ..preferences import RF_Prefs
 
 
-crease_color = None
+has_creases_setup = False
 
 
 def setup_pinning(context):
     obj = context.active_object
-    if obj == None: return
+    if obj == None:
+        return
 
     bm = bmesh.from_edit_mesh(obj.data)
     bm.verts.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
+    crease_edge_layer = bm.edges.layers.float.get('crease_edge')
+    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+
+    prefs = RF_Prefs.get_prefs(context)
+    if not prefs.setup_pinning:
+        if pin_vert_layer:
+            bm.verts.layers.bool.remove(pin_vert_layer)
+        return
+
     if crease_vert_layer:
         for bmv in bm.verts:
             bmv[crease_vert_layer] = bmv[crease_vert_layer] / 100
-
-    crease_edge_layer = bm.edges.layers.float.get('crease_edge')
     if crease_edge_layer:
         for bme in bm.edges:
             bme[crease_edge_layer] = bme[crease_edge_layer] / 100
+    global has_creases_setup
+    has_creases_setup = True
 
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
     if pin_vert_layer:
+        if not crease_vert_layer:
+            crease_vert_layer = bm.verts.layers.float.new('crease_vert')
         for bmv in bm.verts:
             # Only going up to 0.99 so the previous value is preserved
             if bmv[pin_vert_layer]:
                 bmv[crease_vert_layer] += 0.99
+    else:
+        pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
 
     bmesh.update_edit_mesh(obj.data)
 
 
 def restore_pinning(context):
+    global has_creases_setup
     obj = context.active_object
     if obj == None: return
 
@@ -64,8 +79,13 @@ def restore_pinning(context):
     bm.edges.ensure_lookup_table()
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
+    crease_edge_layer = bm.edges.layers.float.get('crease_edge')
+    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+
+    if not pin_vert_layer:
+        return
+
     if crease_vert_layer:
-        pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
         for bmv in bm.verts:
             if pin_vert_layer:
                 if bmv[pin_vert_layer]:
@@ -73,12 +93,17 @@ def restore_pinning(context):
                 # Avoids precision errors
                 if bmv[crease_vert_layer] < 0.001:
                     bmv[crease_vert_layer] = 0
-            bmv[crease_vert_layer] = max(min(bmv[crease_vert_layer] * 100, 1), 0)
+            if has_creases_setup:
+                bmv[crease_vert_layer] = max(min(bmv[crease_vert_layer] * 100, 1), 0)
 
-    crease_edge_layer = bm.edges.layers.float.get('crease_edge')
-    if crease_edge_layer:
+    if crease_edge_layer and has_creases_setup:
         for bme in bm.edges:
             bme[crease_edge_layer] = max(min(bme[crease_edge_layer] * 100, 1), 0)
+
+    prefs = RF_Prefs.get_prefs(context)
+    if not prefs.setup_pinning:
+        if pin_vert_layer:
+            bm.verts.layers.bool.remove(pin_vert_layer)
 
     bmesh.update_edit_mesh(obj.data)
 

@@ -57,7 +57,7 @@ class RFMenu_PT_General(bpy.types.Panel):
     bl_idname = "RF_PT_General"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
-    bl_ui_units_x = 12
+    bl_ui_units_x = 13
 
     def draw(self, context):
         draw_general_options(context, self.layout)

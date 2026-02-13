@@ -415,6 +415,8 @@ class RFCore:
             alter_user_keymaps(context)
 
         pinning.setup_pinning(context)
+        if prefs.setup_pinning:
+            RFCore.resetter['context.preferences.themes[0].view_3d.crease'] = [1, 0, 0]
 
         try:
             bpy.ops.retopoflow.core()

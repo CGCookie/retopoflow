@@ -180,6 +180,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
                     ),
         default=True,
     )
+    setup_pinning: bpy.props.BoolProperty(
+        name='Pinning via Creases',
+        description=("Hijacks Blender's crease system to display pins without any performance overhead. "
+            "Disable this if you need to actively adjust creases while in Retopoflow mode"),
+        default=True,
+    )
     #endregion
 
     """ Tweaking """
