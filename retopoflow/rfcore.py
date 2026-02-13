@@ -66,7 +66,7 @@ from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
 
 # The operator files need to be imported here in order to be registered, even if they are not used
-from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool_settings
+from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
@@ -414,6 +414,8 @@ class RFCore:
         if prefs.setup_selection_adjustments:
             alter_user_keymaps(context)
 
+        pinning.setup_pinning(context)
+
         try:
             bpy.ops.retopoflow.core()
         except:
@@ -484,6 +486,7 @@ class RFCore:
         if not getattr(RFCore, 'is_saving', False):
             bpy.context.scene.retopoflow.saved_tool = ''
 
+        pinning.restore_pinning(bpy.context)
         mirror.cleanup_mirror(bpy.context)
         restore_user_keymaps(bpy.context)
 

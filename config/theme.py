@@ -9,11 +9,13 @@ class Theme:
         'edge_mode_select': [1, 0.85, 0],
         'face_select':      [1, 0.64, 0, 0.2],
         'face_mode_select': [1, 0.72, 0, 0.2],
+        'crease':           [0.8, 0, 0.6]
     }
     common = {
         'editmesh_active':  [1, 1, 1, 0.2],
         'wire_edit':        [0, 0, 0],
         'vertex':           [0, 0, 0],
+        'crease':           [1, 0, 0] # Becomes pins in RF
     }
     blue = {
         'vertex_select':    [0.5, 0.85, 1],

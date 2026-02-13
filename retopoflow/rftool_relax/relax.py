@@ -207,11 +207,6 @@ class RFOperator_Relax(RFOperator):
         description='Include vertices that are hidden behind other geometry',
         default = False,
     )
-    include_creases: bpy.props.BoolProperty(
-        name='Creases',
-        description='Include vertices that are on edges that are creased',
-        default = True,
-    )
     include_seams: bpy.props.BoolProperty(
         name='Seams',
         description='Include vertices that are on a UV seam',
@@ -221,6 +216,16 @@ class RFOperator_Relax(RFOperator):
         name='Sharps',
         description='Include vertices that are on edges that are marked sharp',
         default = True,
+    )
+    include_creases: bpy.props.BoolProperty(
+        name='Creases',
+        description='Include vertices that are on edges that are creased',
+        default = True,
+    )
+    include_pinned: bpy.props.BoolProperty(
+        name='Pinned',
+        description='Include vertices that have been pinned by Retopoflow',
+        default = False,
     )
     mask_boundary: bpy.props.EnumProperty(
         name='Mask: Boundary',
@@ -335,11 +340,10 @@ class RFTool_Relax(RFTool_Base):
                 # layout.prop(props_relax, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
                 row = layout.row(align=True)
-                row.prop(props_relax, 'include_corners')
-                row.prop(props_relax, 'include_seams')
-                row.prop(props_relax, 'include_sharps')
-                row.prop(props_relax, 'include_creases')
-                row.prop(props_relax, 'include_occluded')
+                row.label(text='Pinning:')
+                row.operator('retopoflow.pinverts', text='', icon='PINNED').unpin=False
+                row.operator('retopoflow.pinverts', text='', icon='UNPINNED').unpin=True
+                row.popover('RF_PT_Pinning', text='')
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)

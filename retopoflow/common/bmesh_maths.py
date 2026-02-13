@@ -317,8 +317,10 @@ def is_bmvert_on_edgemark(bm, bmv, mark):
             if bme[layer]: return True
     return False
 
-def is_bmvert_attribute(bm, bmv, attribute):
+def get_bmvert_attribute(bm, bmv, attribute, data_type):
     bm.verts.ensure_lookup_table()
-    layer = bm.verts.layers.float.get(attribute)
-    if layer and bmv[layer]: return True
-    return False
+    layer = getattr(bm.verts.layers, data_type).get(attribute)
+    if layer:
+        return bmv[layer]
+    else:
+        return None
