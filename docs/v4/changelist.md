@@ -2,7 +2,7 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
-### 4.0.3 (unreleased)
+### 4.1.0
 
 New:
 - Significantly improved knifing in PolyPen
@@ -11,12 +11,14 @@ New:
   - You can now add any number of cuts into the middle of a face and it will split when you connect to the other side
   - New knife points on edges are now correctly constrained to the edge
   - You can now start a cut from a selected edge without needing to fist insert a point
+- Tweak and Relax are now sensitive to pen pressure
+- Tweak and Relax now have a pinning system
+  - You can either add pins yourself or use attributes like seams or sharp edges
 - Added new Topo Rotate operator (`Alt R`) for rotating selected topology in place
 - Loop selection in Retopoflow now ends at inner corners by default in Blender 5.1+
     - We added the option for this and other loop delimiters to Blender 5.1 thanks to your support!
 - Fill Region is now disabled when picking shortest path (`Ctrl Shift LMB`) in Retopoflow
     - The Loop and Shortest Path default adjustments can be disabled in the Tool Switching preferences if needed
-- Tweak and Relax are now sensitive to pen pressure
 - Added preference for W pie menu to work from any tool or only Retopoflow tools
 - Blender's Status Bar now displays full hotkey hints for all tools
 - Added preset themes for the retopology overlay
