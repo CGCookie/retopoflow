@@ -126,6 +126,56 @@ class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
     def unregister(cls): pass
 
 
+class RFAssetShelf(bpy.types.AssetShelf):
+    bl_space_type = 'VIEW_3D'
+    asset_library_reference = 'CUSTOM'
+    RFCore = None
+
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFAssetShelf._subclasses.append(cls)
+        cls.rf_idname = cls.bl_idname
+        super().__init_subclass__(**kwargs)
+    @staticmethod
+    def get_all_RFOperators():
+        return RFAssetShelf._subclasses
+        # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+    @staticmethod
+    def register_all():
+        for op in RFAssetShelf.get_all_RFOperators():
+            bpy.utils.register_class(op)
+            op.register()
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFAssetShelf.get_all_RFOperators()):
+            op.unregister()
+            bpy.utils.unregister_class(op)
+
+    @classmethod
+    def poll(cls, context):
+        # make sure RFCore is running
+        if not RFAssetShelf.RFCore.is_running: return False
+
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
+
+        # make sure RFOperator has only one running instance!
+        if getattr(cls, '_is_running', False): return False
+
+        if not cls.can_start(context):
+            # print(f'{cls}.poll: {cls.can_start(context)=}')
+            return False
+
+        return True
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
+    @classmethod
+    def can_start(cls, context): return True
+
+
 class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     active_operators = []
     RFCore = None
@@ -346,8 +396,8 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     @classmethod
     def unregister(cls): pass
     @classmethod
-    def can_start(cls, context): return True
-    def can_init(self, context, event): return True
+    def can_start(cls, context) -> bool: return True
+    def can_init(self, context, event) -> bool: return True
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}
@@ -359,7 +409,24 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     def depsgraph_update(cls): pass
 
 
-def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False):
+class RF_AssetShelfOperator:
+    asset_library_type: bpy.props.EnumProperty(
+        name="Asset Library Type",
+        description="Asset Library Type",
+        items=[
+            # NOTE: BLENDER DOCS DO NOT DESCRIBE THE VALUES! :(
+            # https://github.com/blender/blender/blob/main/source/blender/makesdna/DNA_asset_types.h#L27
+            ("LOCAL", "Local", "Local", "", 1),
+            ("ALL", "All", "All", "", 2),
+            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
+            ("CUSTOM", "Custom", "Custom", "", 100),
+        ],
+    )
+    asset_library_identifier: bpy.props.StringProperty()
+    relative_asset_identifier: bpy.props.StringProperty()
+
+
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False, asset_shelf=False):
     if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
 
     if fn_invoke:
@@ -406,7 +473,7 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
 
     opname = f'RETOPOFLOW_OT_{name}'
 
-    return type(opname, (RFOp, RFOperator), {})
+    return type(opname, (RFOp, RF_AssetShelfOperator, RFOperator), {})
 
 
 def invoke_operator(name, label, **kwargs):

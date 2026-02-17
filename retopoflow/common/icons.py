@@ -65,7 +65,7 @@ def get_icon_value_from_icon_handle(icon_name: str) -> int:
         return icon_value
     else:
         return 0
-        
+
 def get_rftool_icon_value(rftool: RFTool_Base) -> int:
     return get_icon_value_from_icon_handle(rftool.rf_idname.split('.')[-1].lower())
 
@@ -92,7 +92,10 @@ class Icon(Enum):
         if not icon_path.is_file():
             icon_path = ICONS_DIRPATH / f"{icon_name}-icon.png"
         if not icon_path.is_file():
-            raise FileNotFoundError(f"Icon {icon_name} not found")
+            # SEPARATOR and SUPERHIVE are all caps, but some file systems are case sensitive
+            icon_path = ICONS_DIRPATH / f"{icon_name.lower()}-icon.png"
+        if not icon_path.is_file():
+            raise FileNotFoundError(f"Icon {icon_name} not found ({icon_path})")
         preview_collections["main"].load(icon_name, icon_path.as_posix(), 'IMAGE')
         _icon_preview_cache[icon_name] = preview_collections["main"][icon_name].icon_id
         return _icon_preview_cache[icon_name]
@@ -112,7 +115,7 @@ def unregister():
     # Clear icons cache
     _icon_cache.clear()
     _icon_preview_cache.clear()
-    
+
     # Clear preview collections
     previews.remove(preview_collections["main"])
     preview_collections.clear()

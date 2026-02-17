@@ -214,6 +214,7 @@ class Strokes_Logic:
         self.mirror = set()
         self.mirror_clip = False
         self.mirror_threshold = 0
+        self.ignore_correct_side = False
         for mod in context.edit_object.modifiers:
             if mod.type != 'MIRROR': continue
             if not mod.use_clip: continue
@@ -228,7 +229,18 @@ class Strokes_Logic:
         sides = [ self.get_mirror_side(pt) for pt in self.stroke3D ]
         all_sides = set(sides)
 
-        if not self.sel_edges:
+        correct_side = None
+        if self.sel_edges:
+            # check against selected geometry
+            sel_sides = [ self.get_mirror_side(bmv.co) for bme in self.sel_edges for bmv in bme.verts ]
+            correct_side = next((side for side in sel_sides if 0 not in side), None)
+            if correct_side is None:
+                self.ignore_correct_side = True
+            elif all(side == correct_side for side in all_sides if 0 not in side):
+                # stroke and selected geometry all on same side of mirror (or along)
+                return
+
+        if not correct_side:
             # nothing selected, so check against where the stroke started
             if len(all_sides) == 1: return  # stroke is entirely on one side of mirror or along mirror
             match self.mirror_correct:
@@ -243,11 +255,6 @@ class Strokes_Logic:
                 case 'LAST':
                     correct_side = next((side for side in sides[::-1] if 0 not in side))
             self.show_mirror_correct = True
-        else:
-            # check against selected geometry
-            sel_sides = [ self.get_mirror_side(bmv.co) for bme in self.sel_edges for bmv in bme.verts ]
-            correct_side = next(side for side in sel_sides if 0 not in side)
-            if all(side == correct_side for side in all_sides if 0 not in side): return   # stroke and selected geometry all on same side of mirror (or along)
 
         self.show_mirror_mode = True
 
@@ -1014,24 +1021,25 @@ class Strokes_Logic:
                 bmv0 = bme_other_bmv(bme, bmv0)
             bmvs_select = [row[-1] for row in bmvs]
 
-        side = self.get_mirror_side(bmvs[0][0].co)
-        if 0 in side:
-            for bmv in bmvs[0]:
-                if side[0] == 0: bmv.co.x = 0
-                if side[1] == 0: bmv.co.y = 0
-                if side[2] == 0: bmv.co.z = 0
-        side = self.get_mirror_side(bmvs[-1][0].co)
-        if 0 in side:
-            for bmv in bmvs[-1]:
-                if side[0] == 0: bmv.co.x = 0
-                if side[1] == 0: bmv.co.y = 0
-                if side[2] == 0: bmv.co.z = 0
-        side = self.get_mirror_side(self.stroke3D[-1])
-        if 0 in side:
-            for row in bmvs:
-                if side[0] == 0: row[-1].co.x = 0
-                if side[1] == 0: row[-1].co.y = 0
-                if side[2] == 0: row[-1].co.z = 0
+        if not self.ignore_correct_side:
+            side = self.get_mirror_side(bmvs[0][0].co)
+            if 0 in side:
+                for bmv in bmvs[0]:
+                    if side[0] == 0: bmv.co.x = 0
+                    if side[1] == 0: bmv.co.y = 0
+                    if side[2] == 0: bmv.co.z = 0
+            side = self.get_mirror_side(bmvs[-1][0].co)
+            if 0 in side:
+                for bmv in bmvs[-1]:
+                    if side[0] == 0: bmv.co.x = 0
+                    if side[1] == 0: bmv.co.y = 0
+                    if side[2] == 0: bmv.co.z = 0
+            side = self.get_mirror_side(self.stroke3D[-1])
+            if 0 in side:
+                for row in bmvs:
+                    if side[0] == 0: row[-1].co.x = 0
+                    if side[1] == 0: row[-1].co.y = 0
+                    if side[2] == 0: row[-1].co.z = 0
 
         # # fill in quads
         # bmfs = []

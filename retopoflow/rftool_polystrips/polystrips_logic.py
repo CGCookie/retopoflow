@@ -536,7 +536,7 @@ class PolyStrips_Logic:
             ######################################################
             # handle mirror
             m,mt = self.mirror,self.mirror_threshold
-            mx,my,my = self.mirror_side
+            mx,my,mz = self.mirror_side
             for bmvs_ in bmvs:
                 for bmv in bmvs_:
                     co = bmv.co

@@ -27,8 +27,10 @@ import time
 from ..addon_common.common.blender import iter_all_view3d_areas, iter_all_view3d_spaces
 from ..addon_common.common.debug import debugger
 from ..addon_common.common.resetter import Resetter
+from ..config.theme import Theme
+from ..config.keymaps import alter_user_keymaps, restore_user_keymaps
 from .common.bmesh import get_object_bmesh, get_bmesh_emesh
-from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass
+from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
 from .common import icons as icons_module
@@ -39,27 +41,32 @@ from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 from .rftool_statusbar import draw_rftool_statusbar
 
-from .rfpanels import (
-    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tools_pie
-)
-
-from . import preferences
-from .rfprops import rfprops_scene, rfprops_object
-
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
+# from .rftool_zipper.zipper         import RFTool_Zipper
 from .rftool_polystrips.polystrips import RFTool_PolyStrips
 from .rftool_strokes.strokes       import RFTool_Strokes
 from .rftool_contours.contours     import RFTool_Contours
+# from .rftool_patches.patches       import RFTool_Patches
 from .rftool_tweak.tweak           import RFTool_Tweak
 from .rftool_relax.relax           import RFTool_Relax
 
 RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
 
+from .rfpanels import (
+    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
+    relax_algorithm_panel, tweaking_panel,
+
+    tools_pie,  # MUST IMPORT THIS _AFTER_THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+
+)
+
+from . import preferences
+from .rfprops import rfprops_scene, rfprops_object
+
 # The operator files need to be imported here in order to be registered, even if they are not used
-from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, reset_tool_settings
+from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
@@ -115,6 +122,7 @@ class RFCore:
         RFOperator.register_all()
         RFOperator_Execute.register_all()
         RFRegisterClass.register_all()
+        RFAssetShelf.register_all()
         mesh_cleanup_panel.register()
         tweaking_panel.register()
         masking_panel.register()
@@ -156,6 +164,9 @@ class RFCore:
             print(f'Caught ReferenceError while trying to unregister')
             debugger.print_exception()
 
+        # Clean up bmesh cache.
+        get_object_bmesh.cache.clear()
+
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 
@@ -164,6 +175,7 @@ class RFCore:
         RFCore._unwrap_activate_tool = None
 
         # unregister RF operator and RF tools
+        RFAssetShelf.unregister_all()
         RFRegisterClass.unregister_all()
         RFOperator_Execute.unregister_all()
         RFOperator.unregister_all()
@@ -190,6 +202,20 @@ class RFCore:
         self.layout.separator()
         RFCore_NewTarget_Cursor.draw_menu_item(self, context)
         RFCore_NewTarget_Active.draw_menu_item(self, context)
+
+    @staticmethod
+    def iter_spaces():
+        for wm in bpy.data.window_managers:
+            for win in wm.windows:
+                screen = win.screen
+                for area in screen.areas:
+                    if area.type != 'VIEW_3D': continue
+                    for space in area.spaces:
+                        if space.type != 'VIEW_3D': continue
+                        for rgn in area.regions:
+                            if rgn.type != 'WINDOW': continue
+                            yield {'window':win, 'screen':screen, 'area':area, 'region':rgn, 'space':space}
+
 
     @staticmethod
     def switch_to_tool(bl_idname):
@@ -351,10 +377,23 @@ class RFCore:
         if prefs.setup_object_wires:
             RFCore.resetter['context.active_object.show_wire'] = True
             RFCore.resetter['context.active_object.show_all_edges'] = True
+
+        if prefs.setup_fade_inactive:
             def show_fade_inactive(space):
                 RFCore.resetter['space.overlay.show_fade_inactive'] = True
             for s in iter_all_view3d_spaces():
                 show_fade_inactive(s)
+
+        if prefs.setup_component_size:
+            RFCore.resetter['context.preferences.themes[0].view_3d.vertex_size'] = prefs.vertex_size
+            RFCore.resetter['context.preferences.themes[0].view_3d.edge_width'] = prefs.edge_width
+
+        Theme.store_default(context)
+        if prefs.theme != 'none':
+            settings = Theme.common | getattr(Theme, prefs.theme)
+            for pref in settings.keys():
+                prop_path = 'context.preferences.themes[0].view_3d.' + pref
+                RFCore.resetter[prop_path] = settings[pref]
 
         # Set up retopology overlay
         offset = context.space_data.overlay.retopology_offset
@@ -372,6 +411,10 @@ class RFCore:
                 show_retopology(s)
 
         mirror.setup_mirror(context)
+        if prefs.setup_selection_adjustments:
+            alter_user_keymaps(context)
+
+        pinning.setup_pinning(context)
 
         try:
             bpy.ops.retopoflow.core()
@@ -430,10 +473,6 @@ class RFCore:
                 print(f'  {e}')
                 debugger.print_exception()
 
-        # clean up cache, otherwise old bmesh objects may become invalid even if
-        # blender does not recognize them as invalid (bm.is_valid still True)
-        get_object_bmesh.cache.clear()
-
         bpy.app.handlers.save_pre.remove(RFCore.handle_save_pre)
         bpy.app.handlers.load_pre.remove(RFCore.handle_load_pre)
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
@@ -447,7 +486,9 @@ class RFCore:
         if not getattr(RFCore, 'is_saving', False):
             bpy.context.scene.retopoflow.saved_tool = ''
 
+        pinning.restore_pinning(bpy.context)
         mirror.cleanup_mirror(bpy.context)
+        restore_user_keymaps(bpy.context)
 
         RFCore.resetter.reset()
 
@@ -681,6 +722,7 @@ class RFCore:
         RFOperator.active_operator().reset()
 
 RFOperator.RFCore = RFCore
+RFAssetShelf.RFCore = RFCore
 RFCore_NewTarget_Active.RFCore = RFCore
 RFCore_NewTarget_Cursor.RFCore = RFCore
 RFBrush_Base.RFCore = RFCore

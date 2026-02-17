@@ -56,6 +56,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -699,8 +700,7 @@ RFOperator_PolyStrips_Overlay = create_quadstrip_selection_overlay(
 
 @execute_operator('switch_to_polystrips', 'RetopoFlow: Switch to PolyStrips', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polystrips')  # matches bl_idname of RFTool_Base below
+    RFTool_PolyStrips.activate_tool(context)
 
 
 class RFTool_PolyStrips(RFTool_Base):
@@ -725,11 +725,13 @@ class RFTool_PolyStrips(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_TopoRotate,
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
         props_polystrips = tool.operator_properties(RFOperator_PolyStrips.bl_idname)
         RFTool_PolyStrips.props = props_polystrips
 
@@ -744,6 +746,8 @@ class RFTool_PolyStrips(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 

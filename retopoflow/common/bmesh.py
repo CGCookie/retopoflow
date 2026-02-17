@@ -21,7 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Mesh
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils import Vector, Matrix
@@ -42,7 +43,7 @@ from .raycast import nearest_normal_valid_sources
 
 from .drawing import Drawing
 
-def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[bmesh.types.BMesh, bpy.types.Mesh]:
+def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[BMesh, Mesh]:
     em = context.edit_object.data
     bm = bmesh.from_edit_mesh(em)
     if ensure_lookup_tables:
@@ -142,6 +143,9 @@ def ensure_correct_normals(bm, bmfs):
         if bmf.normal.dot(no_local) < 0:
             bmf.normal_flip()
 
+def bmvs_share_bmf(bmv0, bmv1):
+    return any(bmf in bmv1.link_faces for bmf in bmv0.link_faces)
+
 def bmes_share_face(bme0, bme1):
     return any(bmf in bme1.link_faces for bmf in bme0.link_faces)
 
@@ -165,8 +169,6 @@ def bmes_shared_bmv(bme0, bme1):
 def bme_unshared_bmv(bme, bme_other):
     bmv0, bmv1 = bme.verts
     return bmv0 if bmv1 in bme_other.verts else bmv1
-def bmes_share_bmv(bme0, bme1):
-    return bool(set(bme0.verts) & set(bme1.verts))
 def bmvs_shared_bme(bmv0, bmv1):
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bmfs_shared_bme(bmf0, bmf1):
@@ -189,6 +191,12 @@ def bmf_midpoint_radius(bmf):
 
 def bmf_is_quad(bmf):
     return len(bmf.edges) == 4
+def bmf_opposite_bme(bmf, bme):
+    # assumes bmf is a quad
+    return next(
+        ( bme_other for bme_other in bmf.edges if not bmes_share_bmv(bme, bme_other) ),
+        None,
+    )
 
 def quad_bmf_opposite_bme(bmf, bme):
     return next(bme_ for bme_ in bmf.edges if not bmes_share_bmv(bme, bme_))
@@ -418,7 +426,7 @@ class NearestBMVert(NearestElem):
             all(bmv.is_valid for bmv in self.loose_bmvs),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10, filter_selected=True, filter_fn=None):
+    def update(self, context, co, *, distance:float=1.84467e19, distance2d:float=10, filter_selected=True, filter_fn=None):
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 

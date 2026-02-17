@@ -51,6 +51,7 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -498,8 +499,7 @@ RFOperator_Strokes_Overlay = create_loopstrip_selection_overlay(
 
 @execute_operator('switch_to_strokes', 'RetopoFlow: Switch to Strokes', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.strokes')  # matches bl_idname of RFTool_Base below
+    RFTool_Strokes.activate_tool(context)
 
 
 
@@ -524,11 +524,13 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_TopoRotate,
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
         props_strokes = tool.operator_properties(RFOperator_Strokes.bl_idname)
         RFTool_Strokes.props = props_strokes
 
@@ -550,13 +552,14 @@ class RFTool_Strokes(RFTool_Base):
             # row.prop(props_strokes, 'smooth_density1', text='', slider=True)
             row = layout.row(heading='T-Strips:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
-
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 

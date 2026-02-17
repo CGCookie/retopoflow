@@ -108,7 +108,7 @@ class RFOperator_Contours_Insert(
         RFOperator_Execute,
     ):
     bl_idname = 'retopoflow.contours_insert'
-    bl_label = 'Contours: Insert new stroke'
+    bl_label = 'Contours: Insert Stroke'
     bl_description = 'Insert cut and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
@@ -152,26 +152,26 @@ class RFOperator_Contours_Insert(
 
     def draw(self, context):
         layout = self.layout
-        grid = layout.grid_flow(row_major=True, columns=2)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
         logic = RFOperator_Contours_Insert.logic
 
-        grid.label(text=f'Cyclic')
-        grid.prop(self, 'is_cycle', text='')
-
         if logic.action:
-            grid.label(text=f'Inserted')
-            grid.label(text=logic.action)
+            split = layout.split(factor=0.4)
+            col = split.column()
+            col.alignment='RIGHT'
+            col.label(text='Insert')
+            split.label(text=logic.action)
+
+        layout.prop(self, 'process_source_method', text='Method')
 
         if logic.show_span_count:
-            grid.label(text=f'Spans')
-            grid.prop(self, 'span_count', text='')
+            layout.prop(self, 'span_count', text='Spans')
 
         if logic.show_twist:
-            grid.label(text=f'Twist')
-            grid.prop(self, 'twist', text='')
+            layout.prop(self, 'twist', text='Twist')
 
-        grid.label(text=f'Method')
-        grid.prop(self, 'process_source_method', text='')
+        layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
@@ -316,7 +316,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_neg_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_neg
+            for (p, d) in rays_neg if p is not None and d is not None
         ]
         rays_pos = [
             (Vector((*hit['co_world'], 1.0)), ray_from_point(context, hit['co_world'])[1])
@@ -324,7 +324,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_pos_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_pos
+            for (p, d) in rays_pos if p is not None and d is not None
         ]
         points = list(itertools.chain(
             [hit['co_world'] for hit in hits if hit],
@@ -369,8 +369,8 @@ RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
 
 @execute_operator('switch_to_contours', 'RetopoFlow: Switch to Contours', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.contours')  # matches bl_idname of RFTool_Base below
+    RFTool_Contours.activate_tool(context)
+
 
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
@@ -397,6 +397,7 @@ class RFTool_Contours(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
         props_contours = tool.operator_properties(RFOperator_Contours.bl_idname)
         RFTool_Contours.props = props_contours
 
@@ -412,6 +413,8 @@ class RFTool_Contours(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
         else:

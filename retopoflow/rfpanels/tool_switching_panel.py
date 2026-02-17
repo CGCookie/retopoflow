@@ -32,9 +32,12 @@ def draw_tool_switching_options(context, layout):
     col = layout.column(align=True)
     row = col.row(heading='Automatic')
     row.prop(prefs, 'setup_automerge')
+    col.prop(prefs, 'setup_component_size')
     col.prop(prefs, 'setup_fade_inactive')
     col.prop(prefs, 'setup_object_wires')
     col.prop(prefs, 'setup_retopo_overlay')
+    col.prop(prefs, 'setup_pinning')
+    col.prop(prefs, 'setup_selection_adjustments')
     col.prop(prefs, 'setup_selection_mode')
     col.prop(prefs, 'setup_snapping')
 

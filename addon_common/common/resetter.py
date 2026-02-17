@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 from bpy.types import bpy_prop_array
+from mathutils import Color
 import inspect
 
 class Resetter:
@@ -47,7 +48,7 @@ class Resetter:
             f_locals['__o'] = o
             pvalue = eval(f'__o.{a}', f_globals, f_locals)
 
-        if type(pvalue) is bpy_prop_array:
+        if type(pvalue) is bpy_prop_array or type(pvalue) is Color:
             pvalue = list(pvalue)
 
         # print(f'Resetter {self._label}: set {key} = {pvalue} ({type(pvalue)}) -> {value} ({type(value)})')
@@ -67,8 +68,13 @@ class Resetter:
             except: pass
 
     def __setitem__(self, key, value):
-        self.store(key, depth=2)
-        self._setter(key, value)
+        try:
+            self.store(key, depth=2)
+            self._setter(key, value)
+        except Exception as e:
+            print(f'Resetter: Exception caught while trying to set {key} = {value}')
+            print(f'  Exception: {e}')
+            raise e
 
     def __delitem__(self, key):
         value, _, _ = self._previous[key]

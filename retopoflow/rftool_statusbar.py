@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict, Any, Tuple, List, TYPE_CHECKING
 
 import bpy
+import platform
 
 from .common.icons import draw_rftool_icon, Icon
 from ..addon_common.common.useractions import blenderop_to_kmis, kmi_to_op_properties
@@ -12,6 +13,13 @@ from .preferences import RF_Prefs
 
 if TYPE_CHECKING:
     from .rfcore import RFCore
+
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+# MARK: Globals
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+
+is_macOS = 'macOS' in platform.platform()
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -37,7 +45,7 @@ def parse_status_entry(status_entry: str) -> tuple[str, str]:
 # MARK: SharedStatusbarKeymap
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
-''' 
+'''
 These shared or generic keymaps will be drawn in the statusbar, right-aligned and after the active tool keymaps.
 - 'context' for all these keymaps is 'init' by default.
 - 'op_id': if not set or set to None, set 'event_type' as a string for the EventType.
@@ -179,6 +187,8 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)),
 
+    SharedStatusbarKeymap(label="Topo Rotate", icons=['EVENT_ALT', 'EVENT_R'], poll_tools = ('CONTOURS')).invert_poll_tools(),
+
     SharedStatusbarKeymap(label="Open Docs", icons=['EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)),
 
     SharedStatusbarKeymap(label="Report Issue", icons=['EVENT_F2'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
@@ -188,9 +198,9 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
     SharedStatusbarKeymap( # dynamic version
-        label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing", 
-        op_id="Mesh | wm.context_toggle", 
-        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'}, 
+        label=lambda context: f"{'Disable' if context.scene.tool_settings.use_proportional_edit else 'Enable'} Proportional Editing",
+        op_id="Mesh | wm.context_toggle",
+        filter_op_props={'data_path': 'tool_settings.use_proportional_edit'},
         poll_tools=('POLYSTRIPS', 'STROKES')
     ),
 )
@@ -270,7 +280,9 @@ def draw_rftool_statusbar(statusbar: bpy.types.Header, context: bpy.types.Contex
         for mod_key in ('ctrl', 'shift', 'alt'):
             if mod_key in km_event and bool(km_event[mod_key]) or f'LEFT_{mod_key.upper()}' == event_type:
                 row.label(text='', icon=f'EVENT_{mod_key.upper()}')
-                if mod_key == 'ctrl':
+                if is_macOS:
+                    continue
+                elif mod_key == 'ctrl':
                     row.separator(factor=1.5)
                 elif mod_key == 'alt':
                     row.separator(factor=1)

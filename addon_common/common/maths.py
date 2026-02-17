@@ -678,10 +678,9 @@ class Plane(Entity3D):
         lpoints = np.matrix([co - center for co in points]).T
         svd = np.linalg.svd(lpoints)
         left = svd[0]
-        x = Direction(left[:,0])
-        y = Direction(left[:,1])
-        z = Direction(left[:,2])
-        # normal = Normal(left[:,-1])
+        x = Direction(np.array(left[:,0]).flatten())
+        y = Direction(np.array(left[:,1]).flatten())
+        z = Direction(np.array(left[:,2]).flatten())
         return Plane(center, x=x, y=y, z=z)
 
     def __init__(self, o:Point, n:Normal=None, x:Direction=None, y:Direction=None, z:Direction=None):
@@ -909,6 +908,9 @@ class Frame:
     def _mults(self, v):
         return self.x * v.x + self.y * v.y + self.z * v.z
 
+    def clone(self):
+        return Frame(o=self.o, x=self.x, y=self.y, z=self.z)
+
     def l2w_typed(self, data):
         ''' dispatched conversion '''
         t = type(data)
@@ -963,11 +965,21 @@ class Frame:
         z = self.l2w_direction(f.z)
         return Frame(o=o, x=x, y=y, z=z)
 
+    def rotate_about_x(self, radians: float):
+        c, s = cos(radians), sin(radians)
+        y, z = self.y, self.z
+        self.y = y * c - z * s
+        self.z = y * s + z * c
+    def rotate_about_y(self, radians: float):
+        c, s = cos(radians), sin(radians)
+        x, z = self.x, self.z
+        self.x = x * c + z * s
+        self.z = -x * s + z * c
     def rotate_about_z(self, radians: float):
         c, s = cos(radians), sin(radians)
         x, y = self.x, self.y
-        self.x = x * c + y * s
-        self.y = -x * s + y * c
+        self.x = x * c - y * s
+        self.y = x * s + y * c
 
 
 class XForm:
@@ -2109,6 +2121,19 @@ def all_combinations(things):
     if not things: return
     for i in range(1, len(things)+1):
         yield from combinations(things, i)
+
+def point_inside_face(pt, pts_face):
+    # assuming simple face (convex)
+    pt0 = pts_face[0]
+    return any(
+        intersect_point_tri(pt, pt0, pt1, pt2)
+        for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
+    )
+
+def points_of_bmface(bmf):
+    return [ bmv.co for bmv in bmf.verts ]
+
+
 
 if __name__ == '__main__':
     # run tests

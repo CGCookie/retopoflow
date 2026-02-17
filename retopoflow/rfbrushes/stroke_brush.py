@@ -23,38 +23,33 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMEdge, NearestBMFace
+from ..common.bmesh import (
+    get_bmesh_emesh,
+    NearestBMVert,
+    NearestBMEdge,
+    NearestBMFace,
+)
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
-from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp, bvec_point_to_bvec4
-from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
-)
+from ..common.drawing import Drawing
+from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
+from ..common.maths import bvec_point_to_bvec4
+from ..common.operator import RFOperator
 from ..common.easing import CubicEaseOut
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D, sign_threshold, all_combinations, closest_point_segment
+from ...addon_common.common.maths import (
+    clamp,
+    Direction,
+    Color,
+    Vec,
+    Point2D,
+    Vec2D,
+    sign_threshold,
+    all_combinations,
+    closest_point_segment,
+)
 from ...addon_common.common.timerhandler import TimerHandler
-from ...addon_common.common.utils import iter_pairs
 
 import math
 from time import time
@@ -68,7 +63,7 @@ from itertools import chain
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius=50, draw_leftright=False):
+def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius:float=50, draw_leftright=False):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:

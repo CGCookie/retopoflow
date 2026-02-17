@@ -19,8 +19,12 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import platform
+
 import bpy
 from .common.interface import update_toolbar
+from .rfoperators.pinning import toggle_pinning
+from ..config.theme import Theme
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
@@ -58,6 +62,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
         default=True,
         update=update_toolbar
     )
+    expand_offset: bpy.props.BoolProperty(
+        name='Expand Overlay Offset',
+        description=('Displays the retopology overlay offset in the tool header'),
+        default=True,
+        update=update_toolbar
+    )
     highlight_color: bpy.props.FloatVectorProperty(
         name='Highlight Color',
         description=('The color used by the insert tools when adding new geometry'),
@@ -65,6 +75,38 @@ class RF_Prefs(bpy.types.AddonPreferences):
         default=[1, 1, 0],
         min=0,
         max=1,
+    )
+    vertex_size: bpy.props.IntProperty(
+        name='Vertex Size',
+        description='The visual size of each vertex in the viewport. This is only used when Component Size is enabled under Tool Switching',
+        subtype='PIXEL',
+        default=4,
+        min=1,
+        max=32,
+        update=lambda self, context: setattr(context.preferences.themes[0].view_3d, 'vertex_size', self.vertex_size)
+    )
+    edge_width: bpy.props.IntProperty(
+        name='Edge Width',
+        description='The visual size of each edge in the viewport. This is only used when Component Size is enabled under Tool Switching',
+        subtype='PIXEL',
+        default=2,
+        min=1,
+        max=32,
+        update=lambda self, context: setattr(context.preferences.themes[0].view_3d, 'edge_width', self.edge_width)
+    )
+    theme: bpy.props.EnumProperty(
+        name="Theme",
+        description="The color of mesh compenents while using Retopoflow",
+        items=(
+            ('none', "Blender", "The theme is not changed from your regular Blender preferences"),
+            ('blue', "Blue", "Changes the color of components while using Retopoflow"),
+            ('green', "Green", "Changes the color of components while using Retopoflow"),
+            ('orange', "Orange", "Changes the color of components while using Retopoflow"),
+            ('pink', "Pink", "Changes the color of components while using Retopoflow"),
+            ('purple', "Purple", "Changes the color of components while using Retopoflow"),
+        ),
+        default='blue',
+        update=lambda self, context: Theme.set_theme(context, self.theme)
     )
     #endregion
 
@@ -125,6 +167,27 @@ class RF_Prefs(bpy.types.AddonPreferences):
         name='Snapping',
         description=("Automatically adjusts Blender's snapping settings for the selected Retopoflow tool"),
         default=True,
+    )
+    setup_component_size: bpy.props.BoolProperty(
+        name='Component Size',
+        description=("Use a separate size for vertices and edges when in Retopoflow tools"),
+        default=True,
+    )
+    setup_selection_adjustments: bpy.props.BoolProperty(
+        name='Selection Adjustments',
+        description=("Alters the hotkeys for selection while Retopoflow is active. \n"
+                    " - Loop selection gets stopped at inner corners for better use with Strokes. \n"
+                    " - Pick Shortest Path with Shift has Fill Region disabled"
+                    ),
+        default=True,
+    )
+    setup_pinning: bpy.props.BoolProperty(
+        name='Pinning via Creases',
+        description=("Hijacks Blender's vertex crease system so we can display pins without any performance overhead. "
+            "Disable this if you need to actively adjust creases while in Retopoflow mode. \n\n"
+            "WARNING: Disabling will remove all current pins"),
+        default=True,
+        update=lambda self, context: toggle_pinning(context, self.setup_pinning)
     )
     #endregion
 
@@ -215,13 +278,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
             row.prop(self, 'enable_help_hotkey', text='F1')
             row = panel.row(heading='Report Issue')
             row.prop(self, 'enable_issue_hotkey', text='F2')
+            panel.separator()
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
         header.label(text="Interface")
         if panel:
             draw_ui_options(context, panel)
-
 
         header, panel = layout.panel(idname='naming_panel_prefs', default_closed=True)
         header.label(text="Naming")
@@ -254,6 +317,16 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.use_property_split = True
             panel.use_property_decorate = False
             panel.prop(self, 'warn_no_sources')
+
+        if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
+            box = layout.box().column(align=True)
+            box.label(text="Notice for Windows users:", icon='ERROR')
+            box.label(text="If you encounter lagg issues while using a tablet, consider switching")
+            box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
+            row = box.row()
+            row.alignment = 'RIGHT'
+            row.operator('wm.url_open', text='Blender Report').url = 'https://projects.blender.org/blender/blender/issues/144139'
+            row.operator('wm.url_open', text='Retopoflow Report').url = 'https://github.com/CGCookie/retopoflow/issues/1574'
 
 
 def register():
