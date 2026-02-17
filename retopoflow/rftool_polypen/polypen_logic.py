@@ -528,6 +528,28 @@ class PP_Logic:
 
 
         # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        if len(self.selected[BMEdge]) == 1 and self.nearest.bmv:
+            bme_selected = next(iter(self.selected[BMEdge]))
+
+            if bme_selected.is_boundary:
+                # bme should have one face
+                bmf = next(iter(bme_selected.link_faces), None)
+                bmf_center = bmf_midpoint(bmf)
+                bmv0, bmv1 = bme_selected.verts
+                co0, co1 = bmv0.co, bmv1.co
+                bme_dir = (co1 - co0).normalized()
+                v_along = bme_dir * bme_dir.dot(bmf_center - co0)
+                v_perp = (bmf_center - co0) - v_along
+                if v_perp.dot(self.hit - co0) > 0:
+                    # mouse is on same side of edge as its face
+                    self.bme = bme_selected
+                    self.state = PP_Action.EDGE_SPLIT_EDGE
+                    return
+
+            self.bme = bme_selected
+            self.state = PP_Action.EDGE_TRI
+            return
+
         if len(self.selected[BMEdge]) == 1 and self.nearest_bmf.bmf:
             self.bme = next(iter(self.selected[BMEdge]))
             self.state = PP_Action.EDGE_SPLIT_EDGE
@@ -554,6 +576,20 @@ class PP_Logic:
         for bme_selected in bmes_selected:
             if bme_hovered and bmes_share_bmv(bme_selected, bme_hovered):
                 continue
+
+            if bme_selected.is_boundary:
+                # bme should have one face
+                bmf = next(iter(bme_selected.link_faces), None)
+                bmf_center = bmf_midpoint(bmf)
+                bmv0, bmv1 = bme_selected.verts
+                co0, co1 = bmv0.co, bmv1.co
+                bme_dir = (co1 - co0).normalized()
+                v_along = bme_dir * bme_dir.dot(bmf_center - co0)
+                v_perp = (bmf_center - co0) - v_along
+                if v_perp.dot(self.hit - co0) < 0:
+                    # mouse is on other side of edge as its face
+                    continue
+
             working = [bme_selected]
             path_back = {}
             while working:
