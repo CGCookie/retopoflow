@@ -121,7 +121,7 @@ def rip_rotate_zip(context, ITERATIONS, SPRING_K, SPRING_C, OFFSET, *, undo=Fals
     if undo:
         bpy.ops.ed.undo_push(message=f'Rip Rotate Zip commit {time.time()}')
 
-def find_duplicate(bmv0, other_bmvs, *, threshold=0.0001) -> BMVert | None:
+def find_duplicate(bmv0, other_bmvs, *, threshold=0.000001) -> BMVert | None:
     if not other_bmvs: return None
     bmv1 = min(other_bmvs, key=lambda bmv1:(bmv0.co - bmv1.co).length)
     return bmv1 if (bmv0.co - bmv1.co).length <= threshold else None
@@ -196,6 +196,7 @@ class RFOperator_TopoRotate(RFOperator):
         perimeter = get_perimeter_bmedges(self.bmfaces)
         if not perimeter: return
         self.count : int = len(perimeter)
+        is_boundary = [bme.is_boundary for bme in perimeter]
 
         # rip the patch away!
         res = bmesh.ops.split_edges(self.bm, edges=perimeter)
@@ -209,36 +210,23 @@ class RFOperator_TopoRotate(RFOperator):
         # grab inner perimeter and outer perimiter of ripped faces again, because there are new edges
         self.perimeter0 = get_perimeter_bmedges(self.bmfaces)
         self.perimeter0_bmverts = [ bmes_shared_bmv(bme0, bme1) for (bme0, bme1) in iter_pairs(self.perimeter0, True) ]
-        # rotate perimeter so first entry in inner perimeter has match in outer perimeter
         perimeter1 = all_bmedges - set(self.perimeter0)
         perimeter1_bmverts = { bmv for bme in perimeter1 for bmv in bme.verts }
-        if len(perimeter1_bmverts) < len(self.perimeter0_bmverts):
-            # special case where patch is along boundary or is entire island
-            perimeter1_bmverts = [
-                find_duplicate(bmv0, perimeter1_bmverts)
-                for bmv0 in self.perimeter0_bmverts
-            ]
-            new_bmverts = [bmv is None for bmv in perimeter1_bmverts]
-            self.perimeter1_bmverts = [
-                bmv1 if bmv1 is not None else self.bm.verts.new(bmv0.co)
-                for (bmv0, bmv1) in zip(self.perimeter0_bmverts, perimeter1_bmverts)
-            ]
-            self.perimeter1 = []
-            for (i0, bmv0) in enumerate(self.perimeter1_bmverts):
-                i1 = (i0 + 1) % self.count
-                bmv1 = self.perimeter1_bmverts[i1]
-                if new_bmverts[i0] or new_bmverts[i1]:
-                    self.bm.edges.new((bmv0, bmv1))
-                self.perimeter1.append( bmvs_shared_bme(bmv0, bmv1) )
-            print(self.perimeter1 )
-        else:
-            self.perimeter1_bmverts = [
-                find_duplicate(bmv0, perimeter1_bmverts)
-                for bmv0 in self.perimeter0_bmverts
-            ]
-            self.perimeter1 = [
-                bmvs_shared_bme(bmv0, bmv1) for (bmv0, bmv1) in iter_pairs(self.perimeter1_bmverts, True)
-            ]
+        perimeter1_bmverts = [
+            find_duplicate(bmv0, perimeter1_bmverts)
+            for bmv0 in self.perimeter0_bmverts
+        ]
+        self.perimeter1_bmverts = [
+            bmv1 if bmv1 is not None else self.bm.verts.new(bmv0.co)
+            for (bmv0, bmv1) in zip(self.perimeter0_bmverts, perimeter1_bmverts)
+        ]
+        self.perimeter1 = []
+        for (i0, bmv0) in enumerate(self.perimeter1_bmverts):
+            i1 = (i0 + 1) % self.count
+            bmv1 = self.perimeter1_bmverts[i1]
+            bme = next(iter(set(bmv0.link_edges) & set(bmv1.link_edges)), None)
+            if not bme: bme = self.bm.edges.new((bmv0, bmv1))
+            self.perimeter1.append(bme)
         self.perimeter1 = self.perimeter1[1:] + self.perimeter1[:1]
 
         self.all_bmverts = { bmv for bmf in self.bmfaces for bmv in bmf.verts }
