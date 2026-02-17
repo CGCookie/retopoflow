@@ -29,7 +29,8 @@ original_crease_color = [0.8, 0, 0.6]
 
 def setup_pinning(context):
     obj = context.active_object
-    if obj == None:
+
+    if obj == None or context.mode != 'EDIT_MESH':
         return
 
     theme = context.preferences.themes[0].view_3d
@@ -67,8 +68,9 @@ def setup_pinning(context):
 
 def restore_pinning(context):
     obj = context.active_object
-    if obj == None: return
 
+    if obj == None or context.mode != 'EDIT_MESH':
+        return
 
     theme = context.preferences.themes[0].view_3d
     global original_crease_color
