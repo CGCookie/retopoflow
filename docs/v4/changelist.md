@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+## 4.1.1
+
+- Masking and pinning options are now shared between Tweak and Relax
+
 ### 4.1.0
 
 New:
