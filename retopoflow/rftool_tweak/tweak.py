@@ -129,68 +129,6 @@ class RFOperator_Tweak(RFOperator):
         default=0.75,
     )
 
-
-    include_corners: bpy.props.BoolProperty(
-        name='Corners',
-        description='Include corners (vertices with exactly two edges)',
-        default = True,
-    )
-    include_seams: bpy.props.BoolProperty(
-        name='Seams',
-        description='Include vertices that are on a UV seam',
-        default = True,
-    )
-    include_sharps: bpy.props.BoolProperty(
-        name='Sharps',
-        description='Include vertices that are on edges that are marked sharp',
-        default = True,
-    )
-    include_creases: bpy.props.BoolProperty(
-        name='Creases',
-        description='Include vertices that are on edges that are creased',
-        default = True,
-    )
-    include_pinned: bpy.props.BoolProperty(
-        name='Pinned',
-        description='Include vertices that have been pinned by Retopoflow',
-        default = False,
-    )
-    include_occluded: bpy.props.BoolProperty(
-        name='Occluded',
-        description='Include vertices that are hidden behind other geometry',
-        default = False,
-    )
-    mask_boundary: bpy.props.EnumProperty(
-        name='Mask: Boundary',
-        description='How to handle boundary geometry',
-        items=[
-            ('INCLUDE', 'Include', 'Tweak vertices regardless of being along boundary', 'SELECT_EXTEND', 2),
-            ('SLIDE',   'Slide',   'Tweak vertices along boundary, but move them by sliding along boundary', 'SNAP_MIDPOINT', 1),
-            ('EXCLUDE', 'Exclude', 'Do not tweak vertices along boundary', 'SELECT_DIFFERENCE', 0),
-        ],
-        default='INCLUDE',
-    )
-    mask_symmetry: bpy.props.EnumProperty(
-        name='Mask: Symmetry',
-        description='How to handle geometry near symmetry plane',
-        items=[
-            ('INCLUDE', 'Include', 'Tweak vertices regardless of being along symmetry plane', 'SELECT_EXTEND', 2),
-            ('SLIDE',   'Slide',   'Tweak vertices along symmetry plane, but move them by sliding along symmetry plane', 'SNAP_MIDPOINT', 1),
-            ('EXCLUDE', 'Exclude', 'Do not tweak vertices along symmetry plane', 'SELECT_DIFFERENCE', 0),
-        ],
-        default='SLIDE',
-    )
-    mask_selected: bpy.props.EnumProperty(
-        name='Mask: Selected',
-        description='How to handle selected geometry',
-        items=[
-            ('ALL',     'All',     'Tweak vertices regardless of selection', 'SELECT_EXTEND', 2),
-            ('ONLY',    'Only',    'Tweak only selected vertices', 'SELECT_INTERSECT', 1),
-            ('EXCLUDE', 'Exclude', 'Tweak only unselected vertices', 'SELECT_DIFFERENCE', 0),
-        ],
-        default='ALL',
-    )
-
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
         RFTool_Tweak.rf_brush.update(context, event, force=True)
@@ -256,6 +194,7 @@ class RFTool_Tweak(RFTool_Base):
     def draw_settings(context, layout, tool):
         props_tweak = tool.operator_properties(RFOperator_Tweak.bl_idname)
         RFTool_Tweak.props = props_tweak
+        props_scene = context.scene.retopoflow
         prefs = RF_Prefs.get_prefs(context)
 
         # TOOL_HEADER: 3d view > toolbar
@@ -268,10 +207,10 @@ class RFTool_Tweak(RFTool_Base):
             layout.prop(props_tweak, 'brush_falloff', slider=True)
             if prefs.expand_masking:
                 draw_line_separator(layout)
-                layout.row(heading='Selected:', align=True).prop(props_tweak, 'mask_selected', expand=True, icon_only=True)
+                layout.row(heading='Selected:', align=True).prop(props_scene, 'mask_selected', expand=True, icon_only=True)
                 layout.separator()
-                layout.row(heading='Boundary:', align=True).prop(props_tweak, 'mask_boundary', expand=True, icon_only=True)
-                # layout.prop(props_tweak, 'mask_symmetry', text="Symmetry")  # TODO: Implement
+                layout.row(heading='Boundary:', align=True).prop(props_scene, 'mask_boundary', expand=True, icon_only=True)
+                # layout.prop(props_scene, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
                 if prefs.setup_pinning:
                     row = layout.row(align=True)
