@@ -188,6 +188,71 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         max=1,
         update=lambda self, context: update_nodes_preview(context)
     )
+    #endregion
+
+    """ Masking and Pinning """
+    #region
+    include_corners: bpy.props.BoolProperty(
+        name='Corners',
+        description='Include corners (vertices with exactly two edges)',
+        default = True,
+    )
+    include_occluded: bpy.props.BoolProperty(
+        name='Occluded',
+        description='Include vertices that are hidden behind other geometry',
+        default = False,
+    )
+    include_seams: bpy.props.BoolProperty(
+        name='Seams',
+        description='Include vertices that are on a UV seam',
+        default = True,
+    )
+    include_sharps: bpy.props.BoolProperty(
+        name='Sharps',
+        description='Include vertices that are on edges that are marked sharp',
+        default = True,
+    )
+    include_creases: bpy.props.BoolProperty(
+        name='Creases',
+        description='Include vertices that are on edges that are creased',
+        default = True,
+    )
+    include_pinned: bpy.props.BoolProperty(
+        name='Pinned',
+        description='Include vertices that have been pinned by Retopoflow',
+        default = False,
+    )
+    mask_boundary: bpy.props.EnumProperty(
+        name='Mask: Boundary',
+        description='How to handle boundary geometry',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of being along boundary', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Relax vertices along boundary, but move them by sliding along boundary', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices along boundary', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='INCLUDE',
+    )
+    mask_symmetry: bpy.props.EnumProperty(
+        name='Mask: Symmetry',
+        description='How to handle geometry near symmetry plane',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of being along symmetry plane', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Relax vertices along symmetry plane, but move them by sliding along symmetry plane', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices along symmetry plane', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='SLIDE',
+    )
+    mask_selected: bpy.props.EnumProperty(
+        name='Mask: Selected',
+        description='How to handle selected geometry',
+        items=[
+            ('ALL',     'All',     'Relax vertices regardless of selection', 'SELECT_EXTEND', 2),
+            ('ONLY',    'Only',    'Relax only selected vertices', 'SELECT_INTERSECT', 1),
+            ('EXCLUDE', 'Exclude', 'Relax only unselected vertices', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='ALL',
+    )
+    #endregion
 
     """ Sources """
     snap_only_selected: bpy.props.BoolProperty(

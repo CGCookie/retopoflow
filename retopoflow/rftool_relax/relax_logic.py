@@ -159,6 +159,33 @@ class Relax_Logic:
         self.brush = brush
         self.relax = relax
 
+        # gather options
+        opt_mask_boundary    = context.scene.retopoflow.mask_boundary
+        opt_mask_selected    = context.scene.retopoflow.mask_selected
+        opt_mask_symmetry    = context.scene.retopoflow.mask_symmetry
+        opt_include_corner   = context.scene.retopoflow.include_corners
+        opt_include_seams    = context.scene.retopoflow.include_seams
+        opt_include_sharps   = context.scene.retopoflow.include_sharps
+        opt_include_pinned   = context.scene.retopoflow.include_pinned
+        opt_include_creases  = context.scene.retopoflow.include_creases
+        opt_include_occluded = context.scene.retopoflow.include_occluded
+        opt_method           = relax.algorithm_method
+        opt_steps            = relax.algorithm_iterations
+        opt_prevent_bounce   = relax.algorithm_prevent_bounce
+        opt_max_radius       = relax.algorithm_max_distance_radius
+        opt_max_edges        = relax.algorithm_max_distance_edges
+        opt_edge_length      = relax.algorithm_average_edge_lengths
+        opt_straight_edges   = relax.algorithm_straighten_edges
+        opt_face_radius      = relax.algorithm_average_face_radius
+        opt_face_sides       = relax.algorithm_average_face_lengths
+        opt_face_angles      = relax.algorithm_average_face_angles
+        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
+
+        opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
+        opt_mask_symmetry_exclude = opt_mask_symmetry == 'EXCLUDE'
+        opt_mask_selected_exclude = opt_mask_selected == 'EXCLUDE'
+        opt_mask_selected_only = opt_mask_selected == 'ONLY'
+
         self.mirror = set()
         self.mirror_clip = False
         self.mirror_threshold = Vector((0, 0, 0))
@@ -182,7 +209,7 @@ class Relax_Logic:
         self.bounce_mult = {}
 
         self._boundary = []
-        if relax.mask_boundary == 'SLIDE':
+        if opt_mask_boundary == 'SLIDE':
             self._boundary = [
                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
                 for bme in self.bm.edges
@@ -201,40 +228,16 @@ class Relax_Logic:
                     return True
             return False
 
-        # gather options
-        opt_mask_boundary    = relax.mask_boundary
-        opt_mask_symmetry    = relax.mask_symmetry
-        opt_include_corner   = relax.include_corners
-        opt_include_seams    = relax.include_seams
-        opt_include_sharps   = relax.include_sharps
-        opt_include_pinned   = relax.include_pinned
-        opt_include_creases  = relax.include_creases
-        opt_include_occluded = relax.include_occluded
-        opt_mask_selected    = relax.mask_selected
-        opt_method           = relax.algorithm_method
-        opt_steps            = relax.algorithm_iterations
-        opt_prevent_bounce   = relax.algorithm_prevent_bounce
-        opt_max_radius       = relax.algorithm_max_distance_radius
-        opt_max_edges        = relax.algorithm_max_distance_edges
-        opt_edge_length      = relax.algorithm_average_edge_lengths
-        opt_straight_edges   = relax.algorithm_straighten_edges
-        opt_face_radius      = relax.algorithm_average_face_radius
-        opt_face_sides       = relax.algorithm_average_face_lengths
-        opt_face_angles      = relax.algorithm_average_face_angles
-        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
-
-        opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
-        opt_mask_symmetry_exclude = opt_mask_symmetry == 'EXCLUDE'
-        opt_mask_selected_exclude = opt_mask_selected == 'EXCLUDE'
-        opt_mask_selected_only = opt_mask_selected == 'ONLY'
-
         self.verts_filtered = []
         for bmv in self.bm.verts:
             if bmv.hide: continue
             if len(bmv.link_faces) == 0: continue
             if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_mask_boundary_exclude and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
+            if opt_mask_boundary_exclude and (
+                is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+            ):
+                continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
@@ -275,11 +278,15 @@ class Relax_Logic:
         relax = self.relax
 
         # gather options
-        opt_mask_boundary    = relax.mask_boundary
-        opt_mask_symmetry    = relax.mask_symmetry
-        opt_include_corner   = relax.include_corners
-        opt_include_occluded = relax.include_occluded
-        opt_mask_selected    = relax.mask_selected
+        opt_mask_boundary    = context.scene.retopoflow.mask_boundary
+        opt_mask_selected    = context.scene.retopoflow.mask_selected
+        opt_mask_symmetry    = context.scene.retopoflow.mask_symmetry
+        opt_include_corner   = context.scene.retopoflow.include_corners
+        opt_include_seams    = context.scene.retopoflow.include_seams
+        opt_include_sharps   = context.scene.retopoflow.include_sharps
+        opt_include_pinned   = context.scene.retopoflow.include_pinned
+        opt_include_creases  = context.scene.retopoflow.include_creases
+        opt_include_occluded = context.scene.retopoflow.include_occluded
         opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce

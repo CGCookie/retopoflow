@@ -17,13 +17,13 @@ After creating a new or extruded stroke, you can scroll with `Ctrl Mouse Wheel` 
 
 Strokes is context aware and adapts to the current selection, surrounding geometry, and shape of your stroke. The basic stroke types should feel intuitive right away, but diving into the more advanced stroke types will help you to work significantly faster.
 
-You do not need to remember the names of the strokes while working, but they are listed here for clarity. 
+You do not need to remember the names of the strokes while working, but they are listed here for clarity.
 
-### Edge Strip 
+### Edge Strip
 
 A basic Edge Strip is created when you draw a new stroke that is not connected to any other geometry.
 
-### Equals Strip 
+### Equals Strip
 
 An Equals Strip is created when you extrude a set of selected edges by drawing a stroke that does not connect to any existing vertices. For best results, draw the stroke roughly paralell to the selected edges, or draw far enough away from them for the Smoothing setting to crete a nice blend.
 
@@ -37,7 +37,7 @@ You can also create an Equals Strip by selecting a set of edges in a loop and dr
 
 ### T Strip
 
-A T Strip is created by starting the stroke over any of the selected vertices and drawing perpendicular to the selected edges. This type of strip has a special **Extrapolation** option that determines whether or not the newly created geometry follows the curve of the selected geometry. 
+A T Strip is created by starting the stroke over any of the selected vertices and drawing perpendicular to the selected edges. This type of strip has a special **Extrapolation** option that determines whether or not the newly created geometry follows the curve of the selected geometry.
 
 ![](images/strokes_t_01.jpg)
 
@@ -47,11 +47,11 @@ An I Strip is created by starting a stroke from a vertex in the set of selected 
 
 ![](images/strokes_i_01.jpg)
 
-After creating an I Strip, you can use `Alt Scroll` to shift the bridge along the loop you connected to. 
+After creating an I Strip, you can use `Alt Scroll` to shift the bridge along the loop you connected to.
 
 ### L Strip
 
-An L Strip is created when you draw starting from the end of one selected set of vertices, create a corner, and end on a vertex that is connected to the original selection. 
+An L Strip is created when you draw starting from the end of one selected set of vertices, create a corner, and end on a vertex that is connected to the original selection.
 
 ![](images/strokes_L_01.jpg)
 
@@ -75,7 +75,7 @@ An Equals Loop is created by drawing a second loop inside or outside a selected 
 
 ### T Loop
 
-A T Loop is created by drawing a stroke that starts at a vertex in a selected loop and moves inwards or outwards. This can also be used to bridge the loop to an outer or inner loop. 
+A T Loop is created by drawing a stroke that starts at a vertex in a selected loop and moves inwards or outwards. This can also be used to bridge the loop to an outer or inner loop.
 
 ![](images/strokes_loop_t.jpg)
 
@@ -102,6 +102,8 @@ A T Loop is created by drawing a stroke that starts at a vertex in a selected lo
 ## Selecting
 
 The default selection mode for Contours is Vertex + Edge because it is helpful to be able to quickly select edges and loops while also clearly seeing the number and position of the newly creted vertices.
+
+General selection options for all tools can be read about on the [Retopoflow Mode](general.html) docs page under Selection.
 
 
 ## Transforming

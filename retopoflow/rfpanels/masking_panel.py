@@ -26,10 +26,10 @@ from ..preferences import RF_Prefs
 
 def draw_pinning_options(context, layout):
     prefs = RF_Prefs.get_prefs(context)
+    props = context.scene.retopoflow
+
     layout.use_property_split = True
     layout.use_property_decorate = False
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-    props = tool.operator_properties(tool.idname)
     layout.row(heading='Transform').prop(props, 'include_corners')
     layout.prop(props, 'include_seams')
     layout.prop(props, 'include_sharps')
@@ -49,8 +49,7 @@ class RFMenu_PT_Pinning(bpy.types.Panel):
 
 
 def draw_masking_options(context, layout):
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-    props = tool.operator_properties(tool.idname)
+    props = context.scene.retopoflow
 
     layout.use_property_split = True
     layout.use_property_decorate = False

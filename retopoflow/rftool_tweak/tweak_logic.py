@@ -62,7 +62,7 @@ class Tweak_Logic:
             self.mirror_clip = mod.use_clip
 
         self.brush = brush
-        self.tweak = tweak
+        self.props_scene = context.scene.retopoflow
 
         self._time = time.time()
 
@@ -70,7 +70,7 @@ class Tweak_Logic:
         self.collect_verts(context, event)
 
     def collect_boundary(self):
-        if self.tweak.mask_boundary != 'SLIDE': return
+        if self.props_scene.mask_boundary != 'SLIDE': return
         self._boundary = [
             (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
             for bme in self.bm.edges
@@ -94,22 +94,37 @@ class Tweak_Logic:
 
         # right now, falloff brush works in 3D... should switch to 2D?
         radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
+        props = self.props_scene
         for bmv in self.bm.verts:
             if bmv.hide: continue
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
             if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
-            if self.tweak.mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
-            if self.tweak.include_corners  == False  and len(bmv.link_edges) == 2: continue
-            if self.tweak.include_corners == False   and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-            if self.tweak.include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
-            if self.tweak.include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if self.tweak.include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool'): continue
-            if self.tweak.include_creases == False   and 0 < get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') < 0.99: continue
-            if self.tweak.include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
-            if self.tweak.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if self.tweak.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if self.tweak.mask_selected == 'EXCLUDE' and bmv.select: continue
-            if self.tweak.mask_selected == 'ONLY'    and not bmv.select: continue
+
+            if props.mask_boundary == 'EXCLUDE' and (
+                is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+            ):
+                continue
+            if props.include_corners  == False and (
+                len(bmv.link_edges) == 2 or (len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3)
+            ):
+                continue
+            if props.include_creases == False and (
+                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool')
+            ):
+                continue
+            if props.include_pinned == False and (
+                get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool')
+            ):
+                continue
+            if props.include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
+            if props.include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
+            if props.include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
+            if props.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
+            if props.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
+            if props.mask_selected == 'EXCLUDE' and bmv.select: continue
+            if props.mask_selected == 'ONLY'    and not bmv.select: continue
+
             self.verts.append((
                 bmv,
                 Vector(bmv.co),
@@ -142,7 +157,9 @@ class Tweak_Logic:
         if delta.length_squared == 0: return
 
         for (bmv, co_orig, xy, strength) in self.verts:
-            if self.tweak.mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
+            if self.props_scene.mask_boundary == 'SLIDE' and (
+                is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+            ):
                 new_co = Vector(bmv.co)
                 delta_strength = delta.length * strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)

@@ -31,6 +31,8 @@ After you create a new loop but before that loop is connected to any other geome
 
 The default selection mode for Contours is Vertex + Edge because it is helpful to be able to quickly select edges and loops while also clearly seeing the number and position of the newly creted vertices.
 
+General selection options for all tools can be read about on the [Retopoflow Mode](general.html) docs page under Selection.
+
 
 ## Transforming
 
