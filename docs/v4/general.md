@@ -3,11 +3,18 @@ In previous versions, Retopoflow tools were only accessable in a special mode th
 
 Entering a Retopoflow tool will adjust Blender's settings for:
 - The selection mode
+- Selection hotkey defaults
 - Snapping
 - Auto-merging vertices
 - The retopology overlay
 - Fading inactive geometry
-- Object wireframes (for seeing the result of modifiers)
+- The theme for mesh components
+- Vertex creases
+  - This enables pinning in Tweak and Relax
+- Object wireframes
+  - For seeing the result of modifiers, off by default
+
+While that is a big list, you should never have to think about any of those things and the tools should 'just work', which is why they are automatic.
 
 Switching out of a Retopoflow tool will restore all of your previous settings. You can enable or disable any of these automatic behaviors in Retopoflow's preferences.
 
@@ -30,7 +37,9 @@ Selection in Retopoflow tools follows Blender's selection paradigm as much as po
 
 The main difference is when using the brush-based tools like Tweak and Relax. In those, selection cannot be done with `LMB` (left mouse button) because that action is already used to apply the brush. Instead, you can use other Blender hotkeys like `Shift LMB` to toggle select, `B` to box select, or `Ctrl RMB drag` to lasso select.
 
-Also, since `Ctrl LMB` is already used for creating new geometry in the other tools, Blender's Pick Shortest Path operator is not accessable with that hotkey. However, you can still use `Shift Ctrl LMB` to the same effect.
+Also, since `Ctrl LMB` is already used for creating new geometry in the other tools, Blender's Pick Shortest Path operator is not accessable with that hotkey. However, you can still use `Shift Ctrl LMB` to the same effect. The Fill Region option is disabled by default for `Shift Ctrl LMB` in Retopoflow to make it behave like `Ctrl LMB`.
+
+Loop selection in Retopoflow in Blender 5.1+ will end at inner corners by default. You can disable this and the above shortest path tweak by turning off Selection Adjustments in the Tool Switching preferences.
 
 The tools in Retopoflow can be used in any selection mode, but are generally more useful in some than others. For example, PolyPen expects to connect to edges and verts but not faces, so switching to PolyPen enables both edge and vert selection and disables face selection by default. All tools have a preferred selection mode that is set automatically when switching to the tool.
 
@@ -56,6 +65,8 @@ Brush tools have the same **Brush** settings, though they are not shared across 
 - **Strength** controls how much the brush effects the geometry and can be adjusted with the hotkey `Shift F`
 - **Falloff** controls how much the strength of the brush is feathered near the edges and can be adjusted with the hotkey `Ctrl F`
 
+Brush tools share the same **Masking** settings, so masking seams for Tweak will also mask seams for Relax.
+
 ## General Options
 
 The far right side of the tool settings in any Retopoflow tool is the General Options dropdown. In it, you can:
@@ -72,3 +83,5 @@ If you are seeing the retopology object through the source object, decrease the 
 ## Switching Tools
 
 You can quickly switch between Retopoflow tools and access some of their common settings by using the Retopoflow pie menu. It is currently mapped to the hotkey `W` while a Retopoflow tool is active.
+
+You can add a custom hotkey for any tool by right clicking and choosing Assign Shortcut.

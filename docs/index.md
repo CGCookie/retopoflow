@@ -16,7 +16,7 @@ We also have a full course on using Retopoflow, which is available for free [on 
 
 Retopoflow has been completely refactored in version 4, and this documentation has been updated to match. For information on how to use version 3, switch to the previous docs by using the dropdown on the left.
 
-Even though we will not be adding new featues to it, Retopoflow 3 will still be supprted for at least two years after the official launch of Retopoflow 4.
+Even though we will not be adding new featues to it, Retopoflow 3 will still be supprted for at least two years after the official launch of Retopoflow 4. Support will end in October of 2027.
 
 If you've already purchased Retopoflow 3 on Superhive, you can get version 4 for 25% off while logged in by using the coupoon code **retopoflow-og**.
 

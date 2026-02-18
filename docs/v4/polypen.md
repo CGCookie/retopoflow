@@ -29,13 +29,21 @@ PolyPen can also be used to fill a quad between two edges. To fill in **Tri / Qu
 
 ## Cutting
 
-PolyPen can also be used as a simple knife. To make a cut, hold `Ctrl` and either hover over a selected edge if there is a selection, or any edge if there is no selection. `LMB` on the edge and then `LMB` on any edge that is connected to the same face.
+PolyPen can also be used as a knife. To make a cut, deselect everything and `Ctrl LMB` on an edge or vertex. Then, with that newly created vertex still selected, `LMB` on any edge or vertex that is connected to the same mesh island while continuing to hold `Ctrl`. You can also select any existing vertex or edge before knifing to start the cut from there.
 
-PolyPen's knife cannot currently cut through multiple edges at the same time, cannot cut in the middle of a face, and does not have alignment guides like Blender's knife. We plan to improve the knife functionalty going forward. In the meantime, for more advanced features, it is recommended to use Blender's knife with the hotkey `K` and then use Retopoflow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
+If you select an edge to start from and knife to another edge along the same face loop, PolyPen will insert a partial edge loop instead of a straight cut. This allows you to quickly insert partial loops along curved surfaces.
+
+You can make cuts into the middle of faces and PolyPen will split the face as soon as the cut reaches another side. If the cut does not reach another side, the newly created edges will remain as loose geometry.
+
+PolyPen's knife can automatically insert simple quad junctions if Knife Junctions is enabled in the tool properties. To insert a junction, start a cut on one side of a quad and end the cut on an adjacent side.
+
+You can also always use Blender's knife with the hotkey `K` and then use Retopoflow's [Mesh Cleanup operator](mesh_cleanup.html) on the result to snap the new vertices to the surface of the source object.
 
 ## Selecting
 
 The default selection mode for PolyPen is Vertex + Edge so that you can quickly tweak both vertices and edges. However, you can work in just Vertex mode if you find yourself accidentally selecting edges.
+
+General selection options for all tools can be read about on the [Retopoflow Mode](general.html) docs page under Selection.
 
 
 ## Transforming
