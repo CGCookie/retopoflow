@@ -21,6 +21,32 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from ..preferences import RF_Prefs
+
+
+def draw_pinning_options(context, layout):
+    prefs = RF_Prefs.get_prefs(context)
+    layout.use_property_split = True
+    layout.use_property_decorate = False
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+    props = tool.operator_properties(tool.idname)
+    layout.row(heading='Transform').prop(props, 'include_corners')
+    layout.prop(props, 'include_seams')
+    layout.prop(props, 'include_sharps')
+    layout.prop(props, 'include_creases')
+    if prefs.setup_pinning:
+        layout.prop(props, 'include_pinned')
+    layout.prop(props, 'include_occluded')
+
+class RFMenu_PT_Pinning(bpy.types.Panel):
+    bl_label = "Pinning"
+    bl_idname = "RF_PT_Pinning"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+
+    def draw(self, context):
+        draw_pinning_options(context, self.layout)
+
 
 def draw_masking_options(context, layout):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
@@ -32,8 +58,13 @@ def draw_masking_options(context, layout):
     layout.prop(props, 'mask_selected', text="Selected")
     layout.prop(props, 'mask_boundary', text="Boundary")
     # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
-    layout.row(heading='Include').prop(props, 'include_corners',  text="Corners")
-    layout.prop(props, 'include_occluded', text="Occluded")
+    draw_pinning_options(context, layout)
+    prefs = RF_Prefs.get_prefs(context)
+    if prefs.setup_pinning:
+        layout.separator()
+        row = layout.row()
+        row.operator('retopoflow.pinverts', text='Pin', icon='PINNED')
+        row.operator('retopoflow.unpinverts', text='Unpin', icon='UNPINNED')
 
 def draw_masking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)
@@ -50,8 +81,11 @@ class RFMenu_PT_Masking(bpy.types.Panel):
     def draw(self, context):
         draw_masking_options(context, self.layout)
 
+
 def register():
     bpy.utils.register_class(RFMenu_PT_Masking)
+    bpy.utils.register_class(RFMenu_PT_Pinning)
 
 def unregister():
     bpy.utils.unregister_class(RFMenu_PT_Masking)
+    bpy.utils.unregister_class(RFMenu_PT_Pinning)

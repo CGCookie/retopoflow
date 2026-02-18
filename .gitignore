@@ -1,6 +1,9 @@
 # do not include the CG Cookie built indicator file
 .cgcookie
 
+# IDE specific
+.vscode/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -117,3 +120,9 @@ test-models
 tmp/
 test/
 issues/
+
+# blender backup files
+*.blend1
+*.blend2
+*.blend3
+*.blend4

@@ -68,6 +68,7 @@ from .tweak_logic import Tweak_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
@@ -98,7 +99,7 @@ class RFOperator_Tweak(RFOperator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Tweak'}),
     ]
     rf_status = ['LMB: Tweak']
 
@@ -133,6 +134,26 @@ class RFOperator_Tweak(RFOperator):
         name='Corners',
         description='Include corners (vertices with exactly two edges)',
         default = True,
+    )
+    include_seams: bpy.props.BoolProperty(
+        name='Seams',
+        description='Include vertices that are on a UV seam',
+        default = True,
+    )
+    include_sharps: bpy.props.BoolProperty(
+        name='Sharps',
+        description='Include vertices that are on edges that are marked sharp',
+        default = True,
+    )
+    include_creases: bpy.props.BoolProperty(
+        name='Creases',
+        description='Include vertices that are on edges that are creased',
+        default = True,
+    )
+    include_pinned: bpy.props.BoolProperty(
+        name='Pinned',
+        description='Include vertices that have been pinned by Retopoflow',
+        default = False,
     )
     include_occluded: bpy.props.BoolProperty(
         name='Occluded',
@@ -207,8 +228,7 @@ class RFOperator_Tweak(RFOperator):
 
 @execute_operator('switch_to_tweak', 'RetopoFlow: Switch to Tweak', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.tweak')  # matches bl_idname of RFTool_Base below
+    RFTool_Tweak.activate_tool(context)
 
 
 class RFTool_Tweak(RFTool_Base):
@@ -227,6 +247,7 @@ class RFTool_Tweak(RFTool_Base):
         RFOperator_Tweak,
         RFOperator_MaximizeWatcher,
         RFOperator_TweakBrush_Adjust,
+        RFOperator_TopoRotate,
         RFOperator_Launch_Help,
         RFOperator_Launch_NewIssue,
         RFOperator_Relax_QuickSwitch,
@@ -252,8 +273,14 @@ class RFTool_Tweak(RFTool_Base):
                 layout.row(heading='Boundary:', align=True).prop(props_tweak, 'mask_boundary', expand=True, icon_only=True)
                 # layout.prop(props_tweak, 'mask_symmetry', text="Symmetry")  # TODO: Implement
                 layout.separator()
-                layout.prop(props_tweak, 'include_corners',   text="Corners")
-                layout.prop(props_tweak, 'include_occluded', text="Occluded")
+                if prefs.setup_pinning:
+                    row = layout.row(align=True)
+                    row.label(text='Pinning:')
+                    row.operator('retopoflow.pinverts', text='', icon='PINNED')
+                    row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
+                    row.popover('RF_PT_Pinning', text='')
+                else:
+                    layout.popover('RF_PT_Pinning', text='Pinning')
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
@@ -261,6 +288,8 @@ class RFTool_Tweak(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 

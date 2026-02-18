@@ -27,7 +27,7 @@ from ..rfoperators.mirror import update_nodes_preview, update_mirror_mod
 class RFProps_Scene(bpy.types.PropertyGroup):
     """
     These are properties that are more general than individual tool settings
-    but make sense to change from scene to scene and not save as a preference. 
+    but make sense to change from scene to scene and not save as a preference.
     E.G. scenes of different scales would require different merge thresholds.
     """
 
@@ -85,7 +85,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     cleaning_use_delete_faceless: bpy.props.BoolProperty(
         name='Delete Faceless Edges',
         description="Deletes Edges that have no faces",
-        default=True
+        default=False
     )
     cleaning_use_delete_interior: bpy.props.BoolProperty(
         name='Delete Interior Faces',

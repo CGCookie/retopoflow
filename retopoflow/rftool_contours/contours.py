@@ -108,7 +108,7 @@ class RFOperator_Contours_Insert(
         RFOperator_Execute,
     ):
     bl_idname = 'retopoflow.contours_insert'
-    bl_label = 'Contours: Insert new stroke'
+    bl_label = 'Contours: Insert Stroke'
     bl_description = 'Insert cut and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
@@ -152,26 +152,26 @@ class RFOperator_Contours_Insert(
 
     def draw(self, context):
         layout = self.layout
-        grid = layout.grid_flow(row_major=True, columns=2)
+        layout.use_property_split = True
+        layout.use_property_decorate = False
         logic = RFOperator_Contours_Insert.logic
 
-        grid.label(text=f'Cyclic')
-        grid.prop(self, 'is_cycle', text='')
-
         if logic.action:
-            grid.label(text=f'Inserted')
-            grid.label(text=logic.action)
+            split = layout.split(factor=0.4)
+            col = split.column()
+            col.alignment='RIGHT'
+            col.label(text='Insert')
+            split.label(text=logic.action)
+
+        layout.prop(self, 'process_source_method', text='Method')
 
         if logic.show_span_count:
-            grid.label(text=f'Spans')
-            grid.prop(self, 'span_count', text='')
+            layout.prop(self, 'span_count', text='Spans')
 
         if logic.show_twist:
-            grid.label(text=f'Twist')
-            grid.prop(self, 'twist', text='')
+            layout.prop(self, 'twist', text='Twist')
 
-        grid.label(text=f'Method')
-        grid.prop(self, 'process_source_method', text='')
+        layout.row(heading='Cyclic').prop(self, 'is_cycle', text='')
 
     def execute(self, context):
         logic = RFOperator_Contours_Insert.logic
@@ -199,23 +199,30 @@ class RFOperator_Contours_Insert(
         return {'FINISHED'}
 
     @staticmethod
-    def create_redo_operator(idname, description, keymap):
+    def create_redo_operator(idname: str, description: str, keymap: dict, op_props: dict | None = None):
         # add keymap to RFOperator_Contours_Insert.rf_keymaps
         # note: still creating RFOperator_Contours_Insert, so using RFOperator_Contours_Insert_Keymaps.rf_keymaps
-        RFOperator_Contours_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, None) )
+        def _poll(context) -> bool:
+            last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
+            return last_op == RFOperator_Contours_Insert.bl_label
+
+        if op_props is not None:
+            op_props['km_poll'] = _poll
+
+        RFOperator_Contours_Insert_Keymaps.rf_keymaps.append( (f'retopoflow.{idname}', keymap, op_props) )
         def wrapper(fn):
+            nonlocal _poll
             @execute_operator(idname, description, options={'INTERNAL'})
             @wraps(fn)
             def wrapped(context):
-                last_op = context.window_manager.operators[-1].name if context.window_manager.operators else None
-                if last_op != RFOperator_Contours_Insert.bl_label: return
+                if not _poll(context): return
                 fn(context, RFOperator_Contours_Insert.logic)
                 bpy.ops.ed.undo()
                 RFOperator_Contours_Insert.reinsert(context)
             return wrapped
         return wrapper
 
-    @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1})
+    @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, {'km_context': ('init', 'ready'), 'km_label': 'Change Spans'})
     def decrease_spans(context, logic):
         logic.span_count -= 1
 
@@ -223,7 +230,7 @@ class RFOperator_Contours_Insert(
     def increase_spans(context, logic):
         logic.span_count += 1
 
-    @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1})
+    @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, {'km_context': ('init', 'ready'), 'km_label': 'Change Twist'})
     def decrease_spans(context, logic):
         if logic.show_twist: logic.twist -= 5
 
@@ -245,15 +252,18 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
 
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, None),  # prevents object selection with Ctrl+LMB Click
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK',        'ctrl': True}, {'km_context': ('init', 'ready'), 'km_label': 'Insert Strip'}),  # prevents object selection with Ctrl+LMB Click
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK', 'ctrl': True}, None),
 
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
-        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
+        (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Draw Contour Stroke'}),
 
-        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, None),
+        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
-    rf_status = ['LMB: Insert']
+    rf_status = {
+        'ready': ('LMB: Insert', ),
+        'insert': ('RMB: Cancel', )
+    }
 
     sample_points: bpy.props.IntProperty(
         name='Samples',
@@ -269,10 +279,13 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
     )
 
     def init(self, context, event):
+        self.km_context = 'ready'
         RFTool_Contours.rf_brush.set_operator(self)
         self.tickle(context)
 
     def finish(self, context):
+        self.set_statusbar_override(None)
+        self.km_context = 'init'
         RFTool_Contours.rf_brush.set_operator(None)
 
     def reset(self):
@@ -303,7 +316,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_neg_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_neg
+            for (p, d) in rays_neg if p is not None and d is not None
         ]
         rays_pos = [
             (Vector((*hit['co_world'], 1.0)), ray_from_point(context, hit['co_world'])[1])
@@ -311,7 +324,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         ]
         pts_pos_back = [
             raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
-            for (p, d) in rays_pos
+            for (p, d) in rays_pos if p is not None and d is not None
         ]
         points = list(itertools.chain(
             [hit['co_world'] for hit in hits if hit],
@@ -331,10 +344,12 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             return {'CANCELLED'}
 
         if RFTool_Contours.rf_brush.is_stroking():
-            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE'}:
+            self.set_statusbar_override(self.rf_status['insert'])
+            if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'}:
                 self.RFCore.handle_update(context, event)
                 return {'RUNNING_MODAL'}
         else:
+            self.set_statusbar_override(None)
             if not event.ctrl:
                 Cursors.restore()
                 self.tickle(context)
@@ -354,8 +369,8 @@ RFOperator_Contours_Overlay = create_loopstrip_selection_overlay(
 
 @execute_operator('switch_to_contours', 'RetopoFlow: Switch to Contours', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.contours')  # matches bl_idname of RFTool_Base below
+    RFTool_Contours.activate_tool(context)
+
 
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
@@ -382,6 +397,7 @@ class RFTool_Contours(RFTool_Base):
     )
 
     def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
         props_contours = tool.operator_properties(RFOperator_Contours.bl_idname)
         RFTool_Contours.props = props_contours
 
@@ -397,6 +413,8 @@ class RFTool_Contours(RFTool_Base):
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
         else:
@@ -423,7 +441,7 @@ class RFTool_Contours(RFTool_Base):
             cls.resetter.store('context.tool_settings.snap_elements_base')
             cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
         if prefs.setup_selection_mode:
-            cls.resetter['context.tool_settings.mesh_select_mode'] = [False, True, False]
+            cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 
     @classmethod
     def deactivate(cls, context):

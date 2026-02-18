@@ -97,11 +97,16 @@ def create_loopstrip_selection_overlay(opname, rftool_idname, idname, label, onl
                     self.selected_boundaries = ([], [])
 
             # draw info about each selected boundary strip
+            is_vertex_select = bpy.context.tool_settings.mesh_select_mode[0]
             for (lbl, boundaries) in zip(['Strip', 'Loop'], self.selected_boundaries):
                 for (mids, corners) in boundaries:
                     lbl_pos = get_label_pos(bpy.context, lbl, mids, corners)
                     if not lbl_pos: continue
-                    text = f'{lbl}: {len(mids)}'
+                    count = len(mids)
+                    if is_vertex_select and lbl != 'Loop':
+                        count += 1
+                    if count == 1: continue
+                    text = f'{lbl}: {count}' if lbl == 'Loop' else str(count)
                     tw, th = Drawing.get_text_width(text), Drawing.get_text_height(text)
                     lbl_pos -= Vector((tw / 2, -th / 2))
                     Drawing.text_draw2D(text, lbl_pos.xy, color=(1,1,0,1), dropshadow=(0,0,0,0.75))

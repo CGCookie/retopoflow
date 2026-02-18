@@ -2,6 +2,55 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.1.0
+
+New:
+- Significantly improved knifing in PolyPen
+  - You can now make cuts across multiple faces
+  - PolyPen can now automatically adds quad junctions when cutting between adjacent edges on a quad
+  - You can now add any number of cuts into the middle of a face and it will split when you connect to the other side
+  - New knife points on edges are now correctly constrained to the edge
+  - You can now start a cut from a selected edge without needing to fist insert a point
+- Tweak and Relax are now sensitive to pen pressure
+- Tweak and Relax now have a pinning system
+  - You can either add pins yourself or use attributes like seams or sharp edges
+- Added new Topo Rotate operator (`Alt R`) for rotating selected topology in place
+- Loop selection in Retopoflow now ends at inner corners by default in Blender 5.1+
+    - We added the option for this and other loop delimiters to Blender 5.1 thanks to your support!
+- Fill Region is now disabled when picking shortest path (`Ctrl Shift LMB`) in Retopoflow
+    - The Loop and Shortest Path default adjustments can be disabled in the Tool Switching preferences if needed
+- Added preference for W pie menu to work from any tool or only Retopoflow tools
+- Blender's Status Bar now displays full hotkey hints for all tools
+- Added preset themes for the retopology overlay
+  - The new default is Blue for improved accessibility (and vibes)
+  - You can use any custom theme you have set in Blender by setting the theme to "Blender"
+- Added ability to change vert and edge thickness while using Retopoflow
+  - Thew new default is 4px for verts and 2px for edges for improved clarity
+- Added warning for Windows tablet users if they are using WindowsInk drivers
+  - WindowsInk can currently cause some lag spikes in recent Blender versions, even without Retopoflow
+
+Improved:
+- Relax initialization and acceleration structure building is now up to 5x faster
+- Contours is now about 2x faster
+- Added retopology overlay offset to tool header
+- Added mirror modifier merge distance to Mirror panel
+- Deleting faceless edges is now off by default in the Cleanup operator
+- Unused outer Contours sample points are no longer shown when using Walk or Skip
+- Fixed PolyPen and Strokes not being able to extrude from a line of symmetry
+- Fixed Relax crash when a vertex has invalid coordinates
+- Fixed Tweak and Relax not using masking settings when using the quick switch hotkeys
+- Fixed Contours crash when cutting a singular face that is behind the source mesh
+- Fixed Contours breaking with a vector subtraction error in rare situations
+- Fixed Contours breaking with a matrix error in rare situations
+- Fixed Contours getting twisted on certain shapes
+- Fixed issue when cancelling a Contours cut with a right click
+- Fixed issue with mirroring on the -Y and -Z axis in Polystrips
+- Fixed crash when a source object is a curve with a geometry nodes modifier that has no output
+- Fixed Fade Inactive not turning on when tool switching
+- Fixed wireframe mirror display mode in Blender 5.0
+- Fixed issue with enabling the add-on with certain graphics drivers
+- Fixed small memory leak in custom overlays
+
 ### 4.0.2
 - Added option to only snap to selected objects
 - Added support for Blender 5.0

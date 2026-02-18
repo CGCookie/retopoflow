@@ -36,7 +36,7 @@ from math import isnan, inf
 from typing import Tuple
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, bme_midpoint, bmf_midpoint
-from ..common.bmesh_maths import is_bmvert_hidden
+from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, get_bmvert_attribute
 from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction, xform_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 from ..common.drawing import (
@@ -205,6 +205,10 @@ class Relax_Logic:
         opt_mask_boundary    = relax.mask_boundary
         opt_mask_symmetry    = relax.mask_symmetry
         opt_include_corner   = relax.include_corners
+        opt_include_seams    = relax.include_seams
+        opt_include_sharps   = relax.include_sharps
+        opt_include_pinned   = relax.include_pinned
+        opt_include_creases  = relax.include_creases
         opt_include_occluded = relax.include_occluded
         opt_mask_selected    = relax.mask_selected
         opt_method           = relax.algorithm_method
@@ -233,10 +237,15 @@ class Relax_Logic:
             if opt_mask_boundary_exclude and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
             if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-            if opt_mask_symmetry_exclude and is_bmvert_on_symmetry_plane(bmv): continue
+            if opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
+            if opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
+            if opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool'): continue
+            if opt_include_creases == False   and 0 < get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') < 0.99: continue
+            if opt_include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
+            if opt_mask_symmetry_exclude      and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if opt_mask_selected_exclude and bmv.select: continue
-            if opt_mask_selected_only and not bmv.select: continue
+            if opt_mask_selected_exclude      and bmv.select: continue
+            if opt_mask_selected_only         and not bmv.select: continue
             self.verts_filtered.append(bmv)
 
         depsgraph = context.evaluated_depsgraph_get()
@@ -255,9 +264,9 @@ class Relax_Logic:
 
 
     def update(self, context, event):
-        if event.type == 'PEN': self.pressure = event.pressure
-
-        if event.type != 'TIMER': return
+        if event.type != 'TIMER':
+            self.pressure = getattr(event, 'pressure', 1.0)
+            return
 
         hit = raycast_valid_sources(context, mouse_from_event(event))
         if not hit: return
@@ -313,7 +322,8 @@ class Relax_Logic:
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
         self._time = cur_time
-        strength = 1.0
+
+        strength = self.pressure
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)

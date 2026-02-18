@@ -20,20 +20,12 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import re
-import os
 
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
 from ...addon_common.common.useractions import event_match_blenderop, get_kmi_properties
 from .interface import show_message
 
-re_status_entry = re.compile(r'((?P<icon>LMB|MMB|RMB): *)?(?P<text>.*)')
-map_icons = {
-    'LMB': 'MOUSE_LMB',
-    'MMB': 'MOUSE_MMB',
-    'RMB': 'MOUSE_RMB',
-}
 
 dev_env = 'vscode_development' in __file__
 
@@ -72,7 +64,38 @@ class RFRegisterClass:
 def chain_rf_keymaps(*classes, extra=[]):
     return tuple( [keymap for cls in classes for keymap in cls.rf_keymaps] + extra )
 
-class RFOperator_Execute(bpy.types.Operator):
+
+class RFOperator_KeymapContext:
+    km_context: bpy.props.StringProperty(
+        name='Keymap Context',
+        description='Context for the tool keymap',
+        update=lambda self, context: RFOperator_KeymapContext._update_km_context(self.km_context, context)
+    )
+
+    @staticmethod
+    def _update_km_context(km_context: str, context: bpy.types.Context):
+        if RFOperator.RFCore is None:
+            return
+        if km_context == 'OVERRIDE':
+            # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
+            # NOTE: 'km_context' is not reset as we need is as a fallback when we exit the override
+            pass
+        else:
+            # print(f'RFOperator_KeymapContext._update_km_context {RFOperator.RFCore.km_context=} -> {km_context=}')
+            RFOperator.RFCore.km_status_override = None
+            RFOperator.RFCore.km_context = km_context if km_context else None
+
+    def set_statusbar_override(self, status: str | tuple[str, ...] | None):
+        if status is None:
+            # print(f'RFOperator_KeymapContext:: reset_override {RFOperator.RFCore.km_context=}')
+            self.km_context = RFOperator.RFCore.km_context if RFOperator.RFCore.km_context is not None else ''
+            return
+        # print(f'RFOperator_KeymapContext:: set_statusbar_override. {status=}')
+        RFOperator.RFCore.km_status_override = status
+        self.km_context = 'OVERRIDE'  # IMPORTANT: updating a property triggers statusbar update!
+
+
+class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
     _subclasses = []
     def __init_subclass__(cls, **kwargs):
         RFOperator._subclasses.append(cls)
@@ -103,7 +126,57 @@ class RFOperator_Execute(bpy.types.Operator):
     def unregister(cls): pass
 
 
-class RFOperator(bpy.types.Operator):
+class RFAssetShelf(bpy.types.AssetShelf):
+    bl_space_type = 'VIEW_3D'
+    asset_library_reference = 'CUSTOM'
+    RFCore = None
+
+    _subclasses = []
+    def __init_subclass__(cls, **kwargs):
+        RFAssetShelf._subclasses.append(cls)
+        cls.rf_idname = cls.bl_idname
+        super().__init_subclass__(**kwargs)
+    @staticmethod
+    def get_all_RFOperators():
+        return RFAssetShelf._subclasses
+        # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
+    @staticmethod
+    def register_all():
+        for op in RFAssetShelf.get_all_RFOperators():
+            bpy.utils.register_class(op)
+            op.register()
+    @staticmethod
+    def unregister_all():
+        for op in reversed(RFAssetShelf.get_all_RFOperators()):
+            op.unregister()
+            bpy.utils.unregister_class(op)
+
+    @classmethod
+    def poll(cls, context):
+        # make sure RFCore is running
+        if not RFAssetShelf.RFCore.is_running: return False
+
+        if not context.edit_object: return False
+        if context.edit_object.type != 'MESH': return False
+
+        # make sure RFOperator has only one running instance!
+        if getattr(cls, '_is_running', False): return False
+
+        if not cls.can_start(context):
+            # print(f'{cls}.poll: {cls.can_start(context)=}')
+            return False
+
+        return True
+
+    @classmethod
+    def register(cls): pass
+    @classmethod
+    def unregister(cls): pass
+    @classmethod
+    def can_start(cls, context): return True
+
+
+class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     active_operators = []
     RFCore = None
     InvalidationManager = None
@@ -166,13 +239,6 @@ class RFOperator(bpy.types.Operator):
         type(self)._is_running = True
         RFOperator.active_operators.append(self)
         context.window_manager.modal_handler_add(self)
-        def status(header, context):
-            try:
-                self.status(header, context)
-            except Exception as e:
-                print(f'Caught exception while trying to set status {e}')
-                context.workspace.status_text_set(None)
-        context.workspace.status_text_set(status)
         self.last_op = None
         self.working_area = context.area
         self.working_window = context.window
@@ -272,7 +338,6 @@ class RFOperator(bpy.types.Operator):
                 # print(RFOperator.active_operators)
                 pass
             if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
-            context.workspace.status_text_set(None)
             for area in context.screen.areas: area.tag_redraw()
             Cursors.restore()
             if RFOperator.active_operators:
@@ -326,27 +391,13 @@ class RFOperator(bpy.types.Operator):
                 print(e)
         RFOperator.tickled = tickled
 
-
-    def status(self, header, context):
-        layout = header.layout
-        row = layout.row()
-        row.ui_units_x = 7
-        row.label(text=self.bl_label)
-        if hasattr(self, 'rf_status'):
-            row = layout.row()
-            row.ui_units_x = 10 * len(self.rf_status)
-            for e in self.rf_status:
-                m_entry = re_status_entry.match(e)
-                icon = m_entry['icon'] or ''
-                row.label(text=m_entry['text'], icon=map_icons.get(icon, icon))
-
     @classmethod
     def register(cls): pass
     @classmethod
     def unregister(cls): pass
     @classmethod
-    def can_start(cls, context): return True
-    def can_init(self, context, event): return True
+    def can_start(cls, context) -> bool: return True
+    def can_init(self, context, event) -> bool: return True
     def init(self, context, event): pass
     def reset(self): pass
     def update(self, context, event): return {'FINISHED'}
@@ -358,7 +409,24 @@ class RFOperator(bpy.types.Operator):
     def depsgraph_update(cls): pass
 
 
-def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False):
+class RF_AssetShelfOperator:
+    asset_library_type: bpy.props.EnumProperty(
+        name="Asset Library Type",
+        description="Asset Library Type",
+        items=[
+            # NOTE: BLENDER DOCS DO NOT DESCRIBE THE VALUES! :(
+            # https://github.com/blender/blender/blob/main/source/blender/makesdna/DNA_asset_types.h#L27
+            ("LOCAL", "Local", "Local", "", 1),
+            ("ALL", "All", "All", "", 2),
+            ("ESSENTIALS", "Essentials", "Essentials", "", 3),
+            ("CUSTOM", "Custom", "Custom", "", 100),
+        ],
+    )
+    asset_library_identifier: bpy.props.StringProperty()
+    relative_asset_identifier: bpy.props.StringProperty()
+
+
+def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_invoke=None, fn_exec=None, fn_modal=None, options=set(), pass_self=False, asset_shelf=False):
     if idname.startswith('retopoflow.'): idname = idname[len('retopoflow.'):]
 
     if fn_invoke:
@@ -405,7 +473,7 @@ def create_operator(name, idname, label, *, description=None, fn_poll=None, fn_i
 
     opname = f'RETOPOFLOW_OT_{name}'
 
-    return type(opname, (RFOp, RFOperator), {})
+    return type(opname, (RFOp, RF_AssetShelfOperator, RFOperator), {})
 
 
 def invoke_operator(name, label, **kwargs):

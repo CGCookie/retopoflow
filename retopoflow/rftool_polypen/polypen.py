@@ -53,6 +53,8 @@ from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_T
 from ..rfoperators.transform import RFOperator_Translate
 from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.topo_rotate import RFOperator_TopoRotate
+from ..rfoperators.zipper import RFOperator_Zipper
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
@@ -84,7 +86,8 @@ class PolyPen_Insert_Modes:
         ops_insert = []
         def gen_insert_mode(idname, label, value):
             nonlocal ops_insert
-            rf_idname = f'retopoflow.polypen_setinsertmode_{idname.lower()}'
+            mode_idname = f'polypen_setinsertmode_{idname.lower()}'
+            rf_idname = f'retopoflow.{mode_idname}'
             rf_label = label
             class RFTool_OT_PolyPen_SetInsertMode:
                 bl_idname = rf_idname
@@ -157,12 +160,14 @@ class RFOperator_PolyPen(RFOperator):
     bl_options = set()
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
+        (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': ' Start PolyPen'}),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, None),
     ]
-    rf_status = ['LMB: Insert', 'MMB: (nothing)', 'RMB: (nothing)']
+    rf_status = {
+        'ready': ('LMB: Insert', ),
+    }
 
     insert_mode: wrap_property(
         PolyPen_Insert_Modes, 'insert_mode', 'enum',
@@ -179,6 +184,16 @@ class RFOperator_PolyPen(RFOperator):
         max=1.00,
         default=1.00,
     )
+    quad_preserve: bpy.props.BoolProperty(
+        name='Knife Junctions',
+        description='Insert junctions automatically when knifing across adjacent edges in quads',
+        default=True,
+    )
+    free_move_edge_vert: bpy.props.BoolProperty(
+        name='Free Move',
+        description='Allow new vert knifed into edge to move freely',
+        default=False,
+    )
 
     @classmethod
     def can_start(cls, context):
@@ -186,6 +201,8 @@ class RFOperator_PolyPen(RFOperator):
 
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
+        self.set_statusbar_override(self.rf_status['ready'])
+        print(f'POLYPEN INIT {self.km_context=}')
         self.logic = PP_Logic(context, event)
         self.tickle(context)
         self.done = False
@@ -205,9 +222,10 @@ class RFOperator_PolyPen(RFOperator):
                 # wait until we're active (could happen when transforming)
                 return {'PASS_THROUGH'}
             self.logic.cleanup()
+            self.set_statusbar_override(None)
             return {'FINISHED'}
 
-        self.logic.update(context, event, self.insert_mode, self.quad_stability)
+        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.free_move_edge_vert)
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             self.logic.commit(context, event)
@@ -226,8 +244,7 @@ class RFOperator_PolyPen(RFOperator):
 
 @execute_operator('switch_to_polypen', 'RetopoFlow: Switch to PolyPen', fn_poll=poll_retopoflow)
 def switch_rftool(context):
-    import bl_ui
-    bl_ui.space_toolsystem_common.activate_by_id(context, 'VIEW_3D', 'retopoflow.polypen')  # matches bl_idname of RFTool_Base below
+    RFTool_PolyPen.activate_tool(context)
 
 
 class RFTool_PolyPen(RFTool_Base):
@@ -248,9 +265,12 @@ class RFTool_PolyPen(RFTool_Base):
         RFOperator_Launch_NewIssue,
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
+        RFOperator_TopoRotate,
+        RFOperator_Zipper,
     )
 
     def draw_settings(context, layout, tool):
+        prefs = RF_Prefs.get_prefs(context)
         props_polypen = tool.operator_properties(RFOperator_PolyPen.bl_idname)
         RFTool_PolyPen.props = props_polypen
 
@@ -258,12 +278,17 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
+            if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
+                layout.separator()
+                layout.prop(props_polypen, 'quad_preserve')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
             draw_mirror_popover(context, layout)
+            if prefs.expand_offset:
+                layout.prop(context.scene.retopoflow, 'retopo_offset', text='Overlay Offset')
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
 
@@ -274,6 +299,8 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
+                if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
+                    panel.row(heading='Knife').prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)

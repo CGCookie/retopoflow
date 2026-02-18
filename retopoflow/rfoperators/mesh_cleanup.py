@@ -62,13 +62,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     def execute(self, context):
         props = context.scene.retopoflow
 
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-
         obj = context.active_object
-        mesh = obj.data
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
+        bm = bmesh.from_edit_mesh(obj.data)
 
         components = self.get_components(bm) # Needs to be updated before ops if a component gets removed
 
@@ -91,7 +86,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
             for v in components['verts']:
                 if v.is_valid and not v.link_edges:
                     bm.verts.remove(v)
-            
+
         components = self.get_components(bm)
 
         # Add any necissary geometry
@@ -111,7 +106,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                     to_triangulate.append(f)
             bmesh.ops.triangulate(bm, faces=to_triangulate)
 
-        # Clean up remaining components 
+        # Clean up remaining components
         if props.cleaning_use_fill_holes:
             bmesh.ops.holes_fill(bm, edges=components['edges'], sides=4)
 
@@ -127,12 +122,9 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                 world_co = obj.matrix_world @ v.co
                 v.co = nearest_point_valid_sources(context, world_co, world=False)
 
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        bm.to_mesh(mesh)
-        bm.free()
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bmesh.update_edit_mesh(obj.data)
 
-        # Not ideal to do outside the main bmesh section, 
+        # Not ideal to do outside the main bmesh section,
         # but select interior faces is a fairly complex algorithm
         if props.cleaning_use_delete_interior:
             prev_select_mode = context.tool_settings.mesh_select_mode
@@ -147,8 +139,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
             interior_faces = get_selected(context)
             selected_interior_faces = [f for f in interior_faces[obj.name]['faces'] if f in prev_faces]
             selected_interior_edges = [e for e in interior_faces[obj.name]['edges'] if e in prev_edges]
-            bm = bmesh.new()
-            bm.from_mesh(mesh)
+            bm = bmesh.from_edit_mesh(obj.data)
             removed = {obj.name: {'verts': [], 'edges': [], 'faces': []}}
             for f in bm.faces:
                 if f.index in selected_interior_faces:
@@ -160,8 +151,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                     removed[obj.name]['edges'].append(e.index)
                     bm.edges.remove(e)
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-            bm.to_mesh(mesh)
-            bm.free()
+            bmesh.update_edit_mesh(obj.data)
             restore_selected(context, prev_selection, skip=removed)
             bpy.ops.object.mode_set(mode='EDIT', toggle=False)
             context.tool_settings.mesh_select_mode = prev_select_mode

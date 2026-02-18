@@ -23,38 +23,33 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, NearestBMVert, NearestBMEdge, NearestBMFace
+from ..common.bmesh import (
+    get_bmesh_emesh,
+    NearestBMVert,
+    NearestBMEdge,
+    NearestBMFace,
+)
 from ..common.bmesh_maths import is_bmvert_hidden
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
-from ..common.icons import get_path_to_blender_icon
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, size2D_to_size, vec_forward, mouse_from_event
-from ..common.maths import view_forward_direction, lerp, bvec_point_to_bvec4
-from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
-)
+from ..common.drawing import Drawing
+from ..common.raycast import raycast_valid_sources, size2D_to_size, mouse_from_event
+from ..common.maths import bvec_point_to_bvec4
+from ..common.operator import RFOperator
 from ..common.easing import CubicEaseOut
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
-from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common import gpustate
 from ...addon_common.common.blender import event_modifier_check
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.maths import Color, Frame
-from ...addon_common.common.maths import clamp, Direction, Vec, Point, Point2D, Vec2D, sign_threshold, all_combinations, closest_point_segment
+from ...addon_common.common.maths import (
+    clamp,
+    Direction,
+    Color,
+    Vec,
+    Point2D,
+    Vec2D,
+    sign_threshold,
+    all_combinations,
+    closest_point_segment,
+)
 from ...addon_common.common.timerhandler import TimerHandler
-from ...addon_common.common.utils import iter_pairs
 
 import math
 from time import time
@@ -68,7 +63,7 @@ from itertools import chain
 def filter_bmvs(bmvs):
     return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius=50, draw_leftright=False):
+def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius:float=50, draw_leftright=False):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:
@@ -1117,9 +1112,11 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
         rf_keymaps = [
             # bl_idname
-            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, None),  #, 'ctrl': False, 'shift': False
+            (f'retopoflow.{idname}', {'type': 'F', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Adjust Radius'}),  #, 'ctrl': False, 'shift': False
         ]
-        rf_status = ['LMB: Commit', 'RMB: Cancel']
+        rf_status = {
+            'adjust': ('LMB: Commit', 'RMB: Cancel')
+        }
 
         def can_init(self, context, event):
             return not any(
@@ -1128,6 +1125,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
             )
 
         def init(self, context, event):
+            self.set_statusbar_override(self.rf_status['adjust'])
             dist = self.radius_to_dist()
             self.prev_radius = RFBrush_Stroke.stroke_radius
             self._change_pre = dist
@@ -1141,15 +1139,16 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
         def radius_to_dist(self):
             return RFBrush_Stroke.stroke_radius
 
+        def finish(self, context, cancel=False):
+            if cancel:
+                self.dist_to_radius(self._change_pre)
+            self.set_statusbar_override(None)
+
         def update(self, context, event):
-            if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-                return {'FINISHED'}
-            if event.type == 'RIGHTMOUSE' and event.value == 'PRESS':
-                self.dist_to_radius(self._change_pre)
-                return {'CANCELLED'}
-            if event.type == 'ESC' and event.value == 'PRESS':
-                self.dist_to_radius(self._change_pre)
-                return {'CANCELLED'}
+            if event.type in {'LEFTMOUSE', 'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
+                cancel = event.type in {'RIGHTMOUSE', 'ESC'}
+                self.finish(context, cancel=cancel)
+                return {'CANCELLED'} if cancel else {'FINISHED'}
 
             if event.type == 'MOUSEMOVE':
                 mouse = Point2D((event.mouse_region_x, event.mouse_region_y))

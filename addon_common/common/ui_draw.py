@@ -125,6 +125,12 @@ if not bpy.app.background:
     ui_draw_shader, ui_draw_ubos = gpustate.gpu_shader('UI_Draw', vertex_shader, fragment_shader, defines=defines)
     ui_draw_batch = batch_for_shader(ui_draw_shader, *draw_data)
 
+def free_ui_draw_shaders_and_batches():
+    """Release UI draw GPU resources."""
+    g = globals()
+    for name in ('ui_draw_ubos', 'ui_draw_batch', 'ui_draw_shader'):
+        g.pop(name, None)
+
 
 class UI_Draw:
     default_stylesheet = None

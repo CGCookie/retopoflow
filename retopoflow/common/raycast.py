@@ -43,6 +43,14 @@ def vec_forward(context):
     # TODO: remove invert!
     r3d = context.space_data.region_3d
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
+def vec_right(context):
+    # TODO: remove invert!
+    r3d = context.space_data.region_3d
+    return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((1,0,0))
+def vec_up(context):
+    # TODO: remove invert!
+    r3d = context.space_data.region_3d
+    return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,1,0))
 
 def distance_between_locations(a, b):
     a, b = point_to_bvec3(a), point_to_bvec3(b)
@@ -127,18 +135,34 @@ def ray_from_mouse(context, event):
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized(), 0.0)),
     )
 
+def direction_from_mouse(context, event) -> Vector:
+    if not context.region_data: return (None, None)
+    mouse = (event.mouse_region_x, event.mouse_region_y)
+    v = region_2d_to_vector_3d(context.region, context.region_data, mouse).normalized()
+    return Vector(( v.x, v.y, v.z, 0.0 ))
+
+def direction_from_point(context, point_screen_or_world) -> Vector:
+    if not context.region_data: return (None, None)
+    if len(point_screen_or_world) > 2:
+        point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        if not point_screen: return (None, None)
+    else:
+        point_screen = point_screen_or_world
+    v = region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized()
+    return Vector(( v.x, v.y, v.z, 0.0 ))
+
 def ray_from_point(context, point_screen_or_world):
     # if point is 2d, treat as being in screen space
     # if 3d, treat as world space
     if not context.region_data or not point_screen_or_world: return (None, None)
     if len(point_screen_or_world) > 2:
-        point_world = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
-        if not point_world: return (None, None)
+        point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        if not point_screen: return (None, None)
     else:
-        point_world = point_screen_or_world
+        point_screen = point_screen_or_world
     return (
-        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_world), 1.0)),
-        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_world).normalized(), 0.0)),
+        Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_screen), 1.0)),
+        Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized(), 0.0)),
     )
 
 def ray_from_point_through_point(context, pt0_world, pt1_world):
@@ -203,7 +227,7 @@ def iter_all_valid_sources(context):
             obj.mode == 'OBJECT' and
             has_faces(context, obj) and
             obj.visible_get() and
-            (not ts.use_snap_selectable or not obj.hide_select) and 
+            (not ts.use_snap_selectable or not obj.hide_select) and
             (not props.snap_only_selected or obj.select_get())
         )
     )
@@ -360,3 +384,37 @@ def nearest_normal_valid_sources(context, point, *, world=True):
     M = context.edit_object.matrix_world
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
+
+def nearest_point_normal_valid_sources(context, point_world, *, world=True):
+    point_world = Vector((*point_world, 1.0))
+    best_hit = None
+    best_no_world = None
+    best_dist = float('inf')
+
+    for obj in iter_all_valid_sources(context):
+        M = obj.matrix_world
+        Mi = M.inverted()
+        Mit = Mi.transposed()
+        point_local = Mi @ point_world
+        result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
+        if not result: continue
+        co_world = M @ Vector((*co, 1.0))
+        no_world = xform_normal(Mit, normal)
+        dist = distance_between_locations(point_world, co_world)
+        # print(f'  HIT {obj.name} {co_world} {dist}')
+        if dist >= best_dist: continue
+        best_hit = co_world
+        best_no_world = no_world
+        best_dist = dist
+
+    if not best_hit: return (None, None)
+
+    hit = Vector((*point_to_bvec3(best_hit), 1.0))
+    if world:
+        return (point_to_bvec3(hit), best_no_world)
+
+    M = context.edit_object.matrix_world
+    Mt = M.transposed()
+    Mi = M.inverted()
+    hit = Mi @ hit
+    return (point_to_bvec3(hit), xform_direction(Mt, best_no_world))

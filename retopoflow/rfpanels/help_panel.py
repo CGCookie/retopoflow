@@ -20,6 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
+from ..common.icons import Icon
 
 def draw_help(context, layout):
     layout.operator(
@@ -31,10 +32,10 @@ def draw_help(context, layout):
     ).url = 'https://orangeturbine.com/#contact'
 
     layout.operator(
-        "wm.url_open", text='View on Superhive', icon='IMPORT'
+        "wm.url_open", text='View on Superhive', icon_value=Icon.SUPERHIVE.icon_id
     ).url = 'https://blendermarket.com/products/retopoflow'
-    
-    
+
+
 def draw_help_panel(context, layout):
     header, panel = layout.panel(idname='help_panel_common', default_closed=True)
     header.label(text="Help")

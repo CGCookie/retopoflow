@@ -589,8 +589,26 @@ if not bpy.app.background and bpy.app.version >= (3, 2, 0):
     # 3D triangle
     shader_2D_triangle, ubos_2D_triangle = create_shader('triangle_2D.glsl')
     batch_2D_triangle = batch_for_shader(shader_2D_triangle, 'TRIS', {'pos': [(1,0), (0,1), (0,0)]})
+    
+    del pts
 
     Drawing.glCheckError(f'Compiled point, lineseg, circle shaders')
+
+
+def free_shaders_and_batches():
+    if bpy.app.background: return
+    names = (
+        'shader_2D_point', 'ubos_2D_point', 'batch_2D_point',
+        'shader_2D_lineseg', 'ubos_2D_lineseg', 'batch_2D_lineseg',
+        'shader_2D_circle', 'ubos_2D_circle', 'batch_2D_circle',
+        'shader_3D_circle', 'ubos_3D_circle', 'batch_3D_circle',
+        'shader_3D_triangle', 'ubos_3D_triangle', 'batch_3D_triangle',
+        'shader_2D_triangle', 'ubos_2D_triangle', 'batch_2D_triangle',
+    )
+    g = globals()
+    for name in names:
+        # pop so we do not throw if the shader was never created
+        g.pop(name, None)
 
 
 ######################################################################################################
