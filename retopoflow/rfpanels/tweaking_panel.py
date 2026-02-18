@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..preferences import RF_Prefs
+from ..common.interface import draw_section_header
 
 
 def draw_tweaking_options(context, layout):
@@ -33,7 +34,7 @@ def draw_tweaking_options(context, layout):
 
     if context.area.type != 'PREFERENCES':
         col = grid.column()
-        col.label(text='Auto Merge')
+        draw_section_header(context, col, 'Auto Merge')
         col.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
         row = col.row()
         row.enabled = context.scene.tool_settings.use_mesh_automerge
@@ -41,7 +42,7 @@ def draw_tweaking_options(context, layout):
         col.separator()
 
     col = grid.column()
-    col.label(text='Selection')
+    draw_section_header(context, col, 'Selection')
     col.prop(props, 'tweaking_distance', text='Distance')
     row = col.row(heading='Mouse')
     row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
@@ -50,7 +51,7 @@ def draw_tweaking_options(context, layout):
     col.separator()
 
     col = grid.column()
-    col.label(text='Transform')
+    draw_section_header(context, col, 'Transform')
     col.prop(props, 'tweaking_use_native', text='Native')
 
 

@@ -21,13 +21,12 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..preferences import RF_Prefs
+from ..common.interface import draw_section_header, draw_section_indent
 
 def draw_tool_switching_options(context, layout):
     prefs = RF_Prefs.get_prefs(context)
 
     layout.use_property_split = True
-
-    layout.label(text='Switching')
 
     col = layout.column(align=True)
     row = col.row(heading='Automatic')
@@ -42,22 +41,32 @@ def draw_tool_switching_options(context, layout):
     col.prop(prefs, 'setup_snapping')
 
     if context.area.type == 'PREFERENCES':
-        layout.separator()
-        layout.label(text=('You can assign a custom hotkey for any tool by:'), icon='INFO')
-        row = layout.split(factor=0.4)
-        row.separator()
+        layout.separator(type='SPACE')
+        layout.separator(type='LINE', factor=1)
+        layout.separator(type='SPACE')
+        draw_section_header(context, layout, text='You can assign a custom hotkey for any tool by:', icon='INFO')
+        row = layout.row(align=True)
+        draw_section_indent(context, row)
+        draw_section_indent(context, row)
         col = row.column()
         col.label(text=('1. Right Clicking'))
         col.label(text=('2. Choosing Assign Shortcut'))
         col.label(text=('3. Saving Preferences'))
+        layout.separator(type='SPACE')
+        layout.separator(type='LINE', factor=1)
     else:
         from ..rfcore import RFCore
-        row = layout.row(align=False)
-        row.operator('retopoflow.applysettings')
+        row = layout.row()
+        draw_section_indent(context, row)
         col = row.column()
-        col.enabled = RFCore.resetter._backup != {}
-        col.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
+        col.separator(type='SPACE', factor=2)
 
-        layout.label(text='Defaults')
+        row2 = col.row(align=False)
+        row2.operator('retopoflow.applysettings')
+        col2 = row2.column()
+        col2.enabled = RFCore.resetter._backup != {}
+        col2.operator('retopoflow.restoresettings', text='', icon='RECOVER_LAST')
 
-        layout.operator('retopoflow.resettoolsettings')
+        col.separator(type='LINE', factor=4)
+        col.operator('retopoflow.resettoolsettings', icon='LOOP_BACK')
+        col.separator(type='SPACE')

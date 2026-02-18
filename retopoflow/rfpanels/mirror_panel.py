@@ -23,6 +23,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import bpy
 from ..preferences import RF_Prefs
 from ..rfoperators.mirror import get_mirror_mod
+from ..common.interface import draw_section_header, draw_section_indent
 
 
 def draw_mirror_options(context, layout):
@@ -48,7 +49,7 @@ def draw_mirror_options(context, layout):
         layout.label(text='PolyStrips')
         layout.prop(tool_props, 'mirror_correct', text='Active Side')
 
-    layout.label(text='Modifier')
+    draw_section_header(context, layout, 'Modifier')
 
     row=layout.row(align=True, heading='Axis')
     if mod:
@@ -103,9 +104,13 @@ def draw_mirror_options(context, layout):
                 row.label(text=('viewport is set to Material or Texture'))
 
         layout.separator()
-        layout.operator('retopoflow.applymirror')
+        row = layout.row()
+        draw_section_indent(context, row)
+        row.operator('retopoflow.applymirror')
     else:
-        layout.operator('retopoflow.addmirror')
+        row = layout.row()
+        draw_section_indent(context, row)
+        row.operator('retopoflow.addmirror')
 
 
 def draw_mirror_panel(context, layout):

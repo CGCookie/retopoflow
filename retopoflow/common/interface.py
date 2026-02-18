@@ -7,6 +7,23 @@ def draw_line_separator(layout):
         return layout.separator()
 
 
+def draw_section_indent(context, layout):
+    if context.region.type != 'TOOL_HEADER':
+        if context.region.width > 350:
+            layout.label(icon='BLANK1')
+        if context.region.width > 570:
+            layout.label(icon='BLANK1')
+
+
+def draw_section_header(context, layout, text='', icon=''):
+    row = layout.row(align=True)
+    draw_section_indent(context, row)
+    if icon:
+        row.label(text=text, icon=icon)
+    else:
+        row.label(text=text)
+
+
 def update_toolbar(self, context):
     from ..rftool_base import RFTool_Base
     RFTool_Base.unregister_all()
