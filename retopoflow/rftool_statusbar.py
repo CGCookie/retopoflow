@@ -95,6 +95,8 @@ class SharedStatusbarKeymap:
             event_value: str = kmi.value
             if len(event_type) == 1 and 'A' <= event_type <= 'Z':
                 icons.append(f'EVENT_{kmi.type.upper()}')
+            elif len(event_type) == 2 and event_type[0] == 'F':
+                icons.append(f'EVENT_{kmi.type.upper()}')
             elif event_type.endswith('MOUSE') and not event_type.startswith(('M', 'W')):
                 mouse_button_key: str = event_type[0].upper() # L->'LMB', M->'MMB', R->'RMB'
                 icon = f'MOUSE_{mouse_button_key}MB'
@@ -129,8 +131,11 @@ class SharedStatusbarKeymap:
         if self.op_id is None:
             return None
         kmis = blenderop_to_kmis(self.op_id)
+        if not kmis:
+            return None
         if self.filter_op_props is None:
-            return kmis
+            kmi = list(kmis)[0]
+            return kmi
         filtered_kmis = set()
         for kmi in kmis:
             op, op_props = kmi_to_op_properties(kmi)
@@ -185,16 +190,33 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     SharedStatusbarKeymap(label="Relax Brush", icons=['EVENT_SHIFT', 'MOUSE_LMB_DRAG'], poll_tools = ('RELAX')).invert_poll_tools(),
 
-    SharedStatusbarKeymap(label="Retopoflow Pie Menu", icons=['EVENT_W'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)),
-
     SharedStatusbarKeymap(label="Topo Rotate", icons=['EVENT_ALT', 'EVENT_R'], poll_tools = ('CONTOURS')).invert_poll_tools(),
 
-    SharedStatusbarKeymap(label="Open Docs", icons=['EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)),
+    SharedStatusbarKeymap(
+        label="RF Pie Menu",
+        op_id="3D View | wm.call_menu_pie",
+        filter_op_props={'name': 'RF_MT_Tools'},
+        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)
+    ),
 
-    SharedStatusbarKeymap(label="Report Issue", icons=['EVENT_ALT', 'EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
+    SharedStatusbarKeymap(
+        label="Open Docs",
+        op_id="3D View | retopoflow.launch_help",
+        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)
+    ),
+
+    SharedStatusbarKeymap(
+        label="Report Issue",
+        op_id="3D View | retopoflow.launch_newissue",
+        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)
+    ),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
-    SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version
+    SharedStatusbarKeymap( # dynamic version
+        label="Knife",
+        op_id="Mesh | mesh.knife_tool",
+        filter_op_props={'only_selected': False}
+    ),
 
     # SharedStatusbarKeymap(label="Toggle Proportional Editing", icons=['EVENT_O']), # static version
     SharedStatusbarKeymap( # dynamic version

@@ -261,7 +261,7 @@ def event_match_blenderop(event, blenderop):
     return None
 
 def blenderop_to_kmis(blenderop):
-    keymaps = bpy.context.window_manager.keyconfigs.active.keymaps
+    keymaps = bpy.context.window_manager.keyconfigs.user.keymaps
     i18n_translate = bpy.app.translations.pgettext                  # bpy.app.translations.pgettext tries to translate the given parameter
 
     m = re_blenderop.match(blenderop)
@@ -271,7 +271,8 @@ def blenderop_to_kmis(blenderop):
     okeymap, ooperator = m['keymap'], m['operator']
     tkeymap, toperator = i18n_translate(okeymap), i18n_translate(ooperator)
     keymap = keymaps.get(okeymap, None) or keymaps.get(tkeymap, None)
-    if not keymap: return set()
+    if not keymap:
+        return set()
     return {
         kmi
         for kmi in keymap.keymap_items
@@ -753,8 +754,3 @@ class ActionHandler:
         if not ActionHandler._actions: return
         ActionHandler._actions.done()
         ActionHandler._actions = None
-
-
-
-
-
