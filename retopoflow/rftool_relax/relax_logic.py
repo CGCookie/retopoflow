@@ -242,8 +242,12 @@ class Relax_Logic:
             if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
             if opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
             if opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool'): continue
-            if opt_include_creases == False   and 0 < get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') < 0.99: continue
+            if opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'): continue
+            if opt_include_creases == False and (
+                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+            ):
+                continue
             if opt_include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
             if opt_mask_symmetry_exclude      and is_bmvert_on_symmetry_plane(bmv): continue
             if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue

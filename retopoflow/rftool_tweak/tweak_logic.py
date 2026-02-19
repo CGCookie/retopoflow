@@ -110,11 +110,11 @@ class Tweak_Logic:
                 continue
             if props.include_creases == False and (
                 get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool')
+                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
             ):
                 continue
             if props.include_pinned == False and (
-                get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'bool')
+                get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
             ):
                 continue
             if props.include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue

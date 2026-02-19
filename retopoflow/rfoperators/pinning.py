@@ -59,7 +59,8 @@ def setup_pinning(context):
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     crease_edge_layer = bm.edges.layers.float.get('crease_edge')
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    # Pins should probably be a boolean layer, but that was not allowed in Blender 4.2
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
 
     if crease_vert_layer:
         for bmv in bm.verts:
@@ -76,7 +77,7 @@ def setup_pinning(context):
             if bmv[pin_vert_layer]:
                 bmv[crease_vert_layer] += 0.99
     else:
-        pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
+        pin_vert_layer = bm.verts.layers.float.new('retopoflow_pins')
 
     bmesh.update_edit_mesh(obj.data)
 
@@ -96,7 +97,7 @@ def restore_pinning(context):
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     crease_edge_layer = bm.edges.layers.float.get('crease_edge')
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
 
     if not pin_vert_layer:
         return
@@ -119,7 +120,7 @@ def restore_pinning(context):
     prefs = RF_Prefs.get_prefs(context)
     if not prefs.setup_pinning:
         if pin_vert_layer:
-            bm.verts.layers.bool.remove(pin_vert_layer)
+            bm.verts.layers.float.remove(pin_vert_layer)
 
     bmesh.update_edit_mesh(obj.data)
 
@@ -136,9 +137,9 @@ def toggle_pinning(context, enable):
 
 
 def pin_bmvs(bm):
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
     if not pin_vert_layer:
-        pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
+        pin_vert_layer = bm.verts.layers.float.new('retopoflow_pins')
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     if not crease_vert_layer:
@@ -151,7 +152,7 @@ def pin_bmvs(bm):
 
 
 def unpin_bmvs(bm):
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     if not pin_vert_layer or not crease_vert_layer:
         return
