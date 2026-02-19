@@ -17,8 +17,6 @@ class RFMenu_MT_ToolPie(Menu):
             return False
         from ..preferences import RF_Prefs
         prefs = RF_Prefs.get_prefs(context)
-        if not prefs.enable_pie_hotkey:
-            return False
         if prefs.pie_tool_context == 'ANY_TOOL':
             return True
         if prefs.pie_tool_context == 'RF_TOOL':

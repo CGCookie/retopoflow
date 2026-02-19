@@ -195,20 +195,17 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
     SharedStatusbarKeymap(
         label="RF Pie Menu",
         op_id="3D View | wm.call_menu_pie",
-        filter_op_props={'name': 'RF_MT_Tools'},
-        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_pie_hotkey)
+        filter_op_props={'name': 'RF_MT_Tools'}
     ),
 
     SharedStatusbarKeymap(
         label="Open Docs",
-        op_id="3D View | retopoflow.launch_help",
-        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)
+        op_id="3D View | retopoflow.launch_help"
     ),
 
     SharedStatusbarKeymap(
         label="Report Issue",
-        op_id="3D View | retopoflow.launch_newissue",
-        poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)
+        op_id="3D View | retopoflow.launch_newissue"
     ),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version

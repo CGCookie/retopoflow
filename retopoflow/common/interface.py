@@ -4,7 +4,10 @@ import bpy
 def draw_keymap_options(layout, keymap_item):
     if not keymap_item:
         return
-    split = layout.split()
+    row = layout.row(align=True)
+    row.prop(keymap_item, 'active', text='', icon_only=False, toggle=False)
+    split = row.split()
+    split.enabled = keymap_item.active
     key = split.row(align=True)
     key.prop(keymap_item, 'type', text='', event=True)
     modifiers = split.row(align=True)

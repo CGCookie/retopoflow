@@ -33,9 +33,8 @@ class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        from ..preferences import RF_Prefs
         from ..rfcore import RFCore
-        return RF_Prefs.get_prefs(context).enable_help_hotkey and RFCore.is_running
+        return RFCore.is_running
 
     def execute(self, context):
         from ..rfcore import RFCore
@@ -64,9 +63,8 @@ class RFOperator_Launch_NewIssue(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(self, context):
-        from ..preferences import RF_Prefs
         from ..rfcore import RFCore
-        return RF_Prefs.get_prefs(context).enable_issue_hotkey and RFCore.is_running
+        return RFCore.is_running
 
     def execute(self, context):
         bpy.ops.wm.url_open(url='https://github.com/CGCookie/retopoflow/issues/new/choose')

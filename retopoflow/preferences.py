@@ -112,21 +112,6 @@ class RF_Prefs(bpy.types.AddonPreferences):
     #endregion
 
     """ Hotkeys """
-    enable_help_hotkey: bpy.props.BoolProperty(
-        name='Launch Tool Help',
-        description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
-        default=True
-    )
-    enable_issue_hotkey: bpy.props.BoolProperty(
-        name='Report an Issue',
-        description=('Enables F1 to launch the tool help while using a Retopoflow tool'),
-        default=True
-    )
-    enable_pie_hotkey: bpy.props.BoolProperty(
-        name='Retopoflow Pie Menu',
-        description=('Enables W to bring up the Retopoflow pie menu while in a Retopoflow tool'),
-        default=True
-    )
     pie_tool_context: bpy.props.EnumProperty(
         name="Pie Tool Context",
         description="The context in which the pie hotmenu will be shown",
@@ -269,26 +254,18 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.use_property_decorate = False
 
             row = panel.row(heading='Retopoflow Pie Menu')
-            row.prop(self, 'enable_pie_hotkey', text='')
-            input = row.row()
-            input.enabled = self.enable_pie_hotkey
-            draw_keymap_options(input, get_user_keymap_item(context, 'RF_MT_Tools'))
+            pie_kmi = get_user_keymap_item(context, 'RF_MT_Tools')
+            draw_keymap_options(row, pie_kmi)
             row = panel.row()
-            row.enabled = self.enable_pie_hotkey
+            row.enabled = pie_kmi and pie_kmi.active
             row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
             panel.separator()
 
             row = panel.row(heading='Open Docs')
-            row.prop(self, 'enable_help_hotkey', text='')
-            input = row.row()
-            input.enabled = self.enable_help_hotkey
-            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_help'))
+            draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.launch_help'))
 
             row = panel.row(heading='Report Issue')
-            row.prop(self, 'enable_issue_hotkey', text='')
-            input = row.row()
-            input.enabled = self.enable_issue_hotkey
-            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_newissue'))
+            draw_keymap_options(row, get_user_keymap_item(context, 'retopoflow.launch_newissue'))
 
             panel.separator(type='SPACE')
             panel.separator(type='LINE', factor=1)
