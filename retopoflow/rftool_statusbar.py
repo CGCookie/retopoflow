@@ -191,7 +191,7 @@ SHARED_STATUSBAR_KEYMAPS__POST_TOOL = (
 
     SharedStatusbarKeymap(label="Open Docs", icons=['EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_help_hotkey)),
 
-    SharedStatusbarKeymap(label="Report Issue", icons=['ALT', 'EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
+    SharedStatusbarKeymap(label="Report Issue", icons=['EVENT_ALT', 'EVENT_F1'], poll_fn=(lambda context: RF_Prefs.get_prefs(context).enable_issue_hotkey)),
 
     # SharedStatusbarKeymap(label="Knife", icons=['EVENT_K']), # static version
     SharedStatusbarKeymap(label="Knife", op_id="Mesh | mesh.knife_tool", filter_op_props={'only_selected': False}), # dynamic version

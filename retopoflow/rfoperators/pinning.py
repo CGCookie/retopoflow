@@ -27,16 +27,31 @@ from ..common.operator import RFRegisterClass
 original_crease_color = [0.8, 0, 0.6]
 
 
+def get_theme_crease(context):
+    theme = context.preferences.themes[0].view_3d
+    if bpy.app.version >= (5,0,0):
+        return theme.crease
+    else:
+        return theme.edge_crease
+
+
+def set_theme_crease(context, color):
+    theme = context.preferences.themes[0].view_3d
+    if bpy.app.version >= (5,0,0):
+        theme.crease = color
+    else:
+        theme.edge_crease = color
+
+
 def setup_pinning(context):
     obj = context.active_object
 
     if obj == None or context.mode != 'EDIT_MESH':
         return
 
-    theme = context.preferences.themes[0].view_3d
     global original_crease_color
-    original_crease_color = [x for x in theme.crease]
-    theme.crease = [1, 0, 0]
+    original_crease_color = [x for x in get_theme_crease(context)]
+    set_theme_crease(context, [1, 0, 0])
 
     bm = bmesh.from_edit_mesh(obj.data)
     bm.verts.ensure_lookup_table()
@@ -72,9 +87,8 @@ def restore_pinning(context):
     if obj == None or context.mode != 'EDIT_MESH':
         return
 
-    theme = context.preferences.themes[0].view_3d
     global original_crease_color
-    theme.crease = original_crease_color
+    set_theme_crease(context, original_crease_color)
 
     bm = bmesh.from_edit_mesh(obj.data)
     bm.verts.ensure_lookup_table()
