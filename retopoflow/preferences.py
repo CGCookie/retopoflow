@@ -25,6 +25,7 @@ import bpy
 from .common.interface import update_toolbar, draw_section_header, draw_section_indent
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
+from ..config.keymaps import get_user_keymap_item
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
@@ -268,7 +269,10 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.use_property_decorate = False
 
             row = panel.row(heading='Retopoflow Pie Menu')
-            row.prop(self, 'enable_pie_hotkey', text=' W')
+            row.prop(self, 'enable_pie_hotkey', text='')
+            key = row.row()
+            key.enabled = self.enable_pie_hotkey
+            key.prop(get_user_keymap_item(context, 'RF_MT_Tools'), 'type', text='', event=True)
             row = panel.row()
             row.enabled = self.enable_pie_hotkey
             row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)

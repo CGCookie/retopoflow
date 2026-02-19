@@ -67,6 +67,17 @@ def is_keymap_item_matching(km_item, saved_item):
     )
 
 
+def get_user_keymap_item(context, idname):
+    is_menu = '_MT_' in idname
+    for keymap in context.window_manager.keyconfigs.user.keymaps:
+        for km_item in keymap.keymap_items:
+            if is_menu:
+                if km_item.idname == 'wm.call_menu_pie' and km_item.properties['name'] == idname:
+                    return km_item
+            else:
+                if km_item.idname == idname:
+                    return km_item
+
 def alter_user_keymaps(context):
     wm = context.window_manager
     for keymap in wm.keyconfigs.user.keymaps:
