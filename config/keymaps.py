@@ -36,6 +36,7 @@ Standard US 101 QWERTY Keyboard
 
 altered_keymap_items = []
 
+#TODO: Cleanup: unify the functions here with those in addon_common/common/useractions.py
 
 def store_keymap_item(km_item, altered):
     kmi = {

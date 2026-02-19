@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.1.2
+
+- Added option to constrain new knife cuts to the UI
+- The status bar hotkeys now correctly show customized hotkeys
+
 ### 4.1.1
 
 - Masking and pinning options are now shared between Tweak and Relax
