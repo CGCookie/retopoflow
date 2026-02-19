@@ -251,7 +251,7 @@ class PP_Logic:
         self.insert_mode = None
         self.quad_preserve = None
         self.parallel_stable = None
-        self.free_move_edge_vert = None
+        self.constrain_edge_vert = None
         self.reset()
         self.update(context, event, None, 1.00, True, False)
 
@@ -268,7 +268,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, free_move_edge_vert):
+    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, constrain_edge_vert):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
@@ -276,7 +276,7 @@ class PP_Logic:
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
         self.quad_preserve = quad_preserve and self.insert_mode in ('TRI/QUAD', 'QUAD-ONLY')
-        self.free_move_edge_vert = free_move_edge_vert
+        self.constrain_edge_vert = constrain_edge_vert
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -1244,7 +1244,7 @@ class PP_Logic:
         snap_verts = []     # to be snapped before wrapping up commit
         select_now = []     # to be selected before move
         select_later = []   # to be selected after move
-        free_move = self.free_move_edge_vert
+        free_move = not self.constrain_edge_vert
 
         match self.state:
             case PP_Action.VERT:
@@ -1261,7 +1261,7 @@ class PP_Logic:
                 bme = self.nearest_bme.bme
                 bmev0, bmev1 = bme.verts
                 bme_new, bmv_new = edge_split(bme, bmev0, 0.5)
-                if self.free_move_edge_vert:
+                if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
                 else:
                     d = (bmev1.co - bmev0.co).normalized()
@@ -1541,7 +1541,7 @@ class PP_Logic:
                     bmv_opposite, bmv_center = find_opposite_and_center_wire(self.bmv, bme) if self.quad_preserve else (None, None)
 
                     _, bmv_new = edge_split(bme, bmev0, 0.5)
-                    if self.free_move_edge_vert:
+                    if not self.constrain_edge_vert:
                         bmv_new.co = self.hit
                     else:
                         d = (bmev1.co - bmev0.co).normalized()
@@ -1605,7 +1605,7 @@ class PP_Logic:
                                 split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
 
                 _, bmv_new = edge_split(bme, bmev0, 0.5)
-                if self.free_move_edge_vert:
+                if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
                 else:
                     d = (bmev1.co - bmev0.co).normalized()

@@ -188,10 +188,10 @@ class RFOperator_PolyPen(RFOperator):
         description='Insert junctions automatically when knifing across adjacent edges in quads',
         default=True,
     )
-    free_move_edge_vert: bpy.props.BoolProperty(
-        name='Free Move',
-        description='Allow new vert knifed into edge to move freely',
-        default=False,
+    constrain_edge_vert: bpy.props.BoolProperty(
+        name='Constrain',
+        description='Snaps new verts knifed into an edge to that edge',
+        default=True,
     )
 
     @classmethod
@@ -224,7 +224,7 @@ class RFOperator_PolyPen(RFOperator):
             self.set_statusbar_override(None)
             return {'FINISHED'}
 
-        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.free_move_edge_vert)
+        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert)
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             self.logic.commit(context, event)
@@ -275,9 +275,12 @@ class RFTool_PolyPen(RFTool_Base):
             layout.prop(props_polypen, 'insert_mode', text='Insert')
             if props_polypen.insert_mode == 'QUAD-ONLY':
                 layout.prop(props_polypen, 'quad_stability', slider=True)
+            layout.separator()
+            row = layout.row(align=True)
+            row.label(text='Knife:')
+            row.prop(props_polypen, 'constrain_edge_vert', text='Constrain')
             if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
-                layout.separator()
-                layout.prop(props_polypen, 'quad_preserve')
+                row.prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
@@ -296,8 +299,10 @@ class RFTool_PolyPen(RFTool_Base):
                 panel.prop(props_polypen, 'insert_mode', text='Method')
                 if props_polypen.insert_mode == 'QUAD-ONLY':
                     panel.prop(props_polypen, 'quad_stability', slider=True)
+                col = panel.column(align=True)
+                col.row(heading='Knife').prop(props_polypen, 'constrain_edge_vert', text='Constrain')
                 if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
-                    panel.row(heading='Knife').prop(props_polypen, 'quad_preserve', text='Junctions')
+                    col.prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
             draw_mirror_panel(context, layout)
