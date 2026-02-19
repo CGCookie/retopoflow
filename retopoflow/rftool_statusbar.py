@@ -135,11 +135,13 @@ class SharedStatusbarKeymap:
             return None
         if self.filter_op_props is None:
             kmi = list(kmis)[0]
+            if not kmi.active:
+                return None
             return kmi
         filtered_kmis = set()
         for kmi in kmis:
             op, op_props = kmi_to_op_properties(kmi)
-            if all(op_props.get(k, None) == v for k, v in self.filter_op_props.items()):
+            if kmi.active and all(op_props.get(k, None) == v for k, v in self.filter_op_props.items()):
                 filtered_kmis.add(kmi)
         if not filtered_kmis:
             return None
@@ -173,6 +175,8 @@ class SharedStatusbarKeymap:
             if km_context != self.context:
                 return
         if not self.poll(context, active_tool_idname):
+            return
+        if self.op_id and not self.get_kmi():
             return
         self._draw_icons(context, layout)
 
