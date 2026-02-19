@@ -58,15 +58,15 @@ from .rfpanels import (
     general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
     relax_algorithm_panel, tweaking_panel,
 
-    tools_pie,  # MUST IMPORT THIS _AFTER_THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+    tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
 
 from . import preferences
 from .rfprops import rfprops_scene, rfprops_object
 
-# The operator files need to be imported here in order to be registered, even if they are not used
-from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings
+# Operator files need to be imported here in order to be registered, even if they are not used in this file
+from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings, launch_browser
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
 
@@ -129,8 +129,9 @@ class RFCore:
         general_panel.register()
         help_panel.register()
         mirror_panel.register()
-        tools_pie.register()
         relax_algorithm_panel.register()
+        launch_browser.register()
+        tools_pie.register()
 
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
@@ -190,6 +191,7 @@ class RFCore:
         tools_pie.unregister()
         rfprops_scene.unregister()
         rfprops_object.unregister()
+        launch_browser.unregister()
         preferences.unregister()
         icons_module.unregister()
 

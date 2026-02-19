@@ -78,8 +78,6 @@ from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
-from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
-
 from ..preferences import RF_Prefs
 
 RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
@@ -186,8 +184,6 @@ class RFTool_Tweak(RFTool_Base):
         RFOperator_MaximizeWatcher,
         RFOperator_TweakBrush_Adjust,
         RFOperator_TopoRotate,
-        RFOperator_Launch_Help,
-        RFOperator_Launch_NewIssue,
         RFOperator_Relax_QuickSwitch,
     )
 

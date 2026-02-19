@@ -21,7 +21,79 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import re
+from ..common.operator import RFRegisterClass
 
+
+class RFOperator_Launch_Help(RFRegisterClass, bpy.types.Operator):
+    bl_idname = "retopoflow.launch_help"
+    bl_label = 'Launch Retopoflow Docs'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = set()
+
+    @classmethod
+    def poll(self, context):
+        from ..preferences import RF_Prefs
+        from ..rfcore import RFCore
+        return RF_Prefs.get_prefs(context).enable_help_hotkey and RFCore.is_running
+
+    def execute(self, context):
+        from ..rfcore import RFCore
+        active_tool = RFCore.selected_RFTool_idname
+        help = {
+            'retopoflow.polypen': 'https://docs.retopoflow.com/v4/polypen.html',
+            'retopoflow.polystrips': 'https://docs.retopoflow.com/v4/polystrips.html',
+            'retopoflow.strokes': 'https://docs.retopoflow.com/v4/strokes.html',
+            'retopoflow.contours': 'https://docs.retopoflow.com/v4/contours.html',
+            'retopoflow.tweak': 'https://docs.retopoflow.com/v4/tweak.html',
+            'retopoflow.relax': 'https://docs.retopoflow.com/v4/relax.html',
+        }
+        if 'retopoflow' in active_tool:
+            bpy.ops.wm.url_open(url=help[active_tool])
+        else:
+            bpy.ops.wm.url_open(url='https://docs.retopoflow.com/index.html')
+        return {'FINISHED'}
+
+
+class RFOperator_Launch_NewIssue(RFRegisterClass, bpy.types.Operator):
+    bl_idname = "retopoflow.launch_newissue"
+    bl_label = 'Report Retopoflow Issue'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = set()
+
+    @classmethod
+    def poll(self, context):
+        from ..preferences import RF_Prefs
+        from ..rfcore import RFCore
+        return RF_Prefs.get_prefs(context).enable_issue_hotkey and RFCore.is_running
+
+    def execute(self, context):
+        bpy.ops.wm.url_open(url='https://github.com/CGCookie/retopoflow/issues/new/choose')
+        return {'FINISHED'}
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if keyconfigs:
+        km = keyconfigs.keymaps.new(name='3D View', space_type='VIEW_3D')
+        kmi = km.keymap_items.new('retopoflow.launch_help', 'F1', 'PRESS', ctrl=False, shift=False, alt=False)
+        keymaps.append((km, kmi))
+
+        km = keyconfigs.keymaps.new(name='3D View', space_type='VIEW_3D')
+        kmi = km.keymap_items.new('retopoflow.launch_newissue', 'F1', 'PRESS', ctrl=False, shift=False, alt=True)
+        keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()
+
+
+# Previous operator was generated to be unique to every tool
+"""
 from ..common.operator import create_operator
 
 def key_type(k): return re.sub(r'(ctrl|shift|alt|oskey)\+', '', k, flags=re.IGNORECASE)
@@ -102,3 +174,4 @@ RFOperator_Launch_Help = create_launch_browser_operator(
     fn_launch=launch_help,
     rf_keymap_press='F1',
 )
+"""

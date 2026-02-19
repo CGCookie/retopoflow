@@ -22,7 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 import platform
 
 import bpy
-from .common.interface import update_toolbar, draw_section_header, draw_section_indent
+from .common.interface import update_toolbar, draw_section_header, draw_section_indent, draw_keymap_options
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
 from ..config.keymaps import get_user_keymap_item
@@ -272,27 +272,28 @@ class RF_Prefs(bpy.types.AddonPreferences):
             row.prop(self, 'enable_pie_hotkey', text='')
             input = row.row()
             input.enabled = self.enable_pie_hotkey
-            pie_kmi = get_user_keymap_item(context, 'RF_MT_Tools')
-            split = input.split()
-            key = split.row()
-            key.prop(pie_kmi, 'type', text='', event=True)
-            modifiers = split.row()
-            modifiers.prop(pie_kmi, 'shift_ui', toggle=True)
-            modifiers.prop(pie_kmi, 'ctrl_ui', toggle=True)
-            modifiers.prop(pie_kmi, 'alt_ui', toggle=True)
+            draw_keymap_options(input, get_user_keymap_item(context, 'RF_MT_Tools'))
             row = panel.row()
             row.enabled = self.enable_pie_hotkey
             row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
             panel.separator()
+
             row = panel.row(heading='Open Docs')
-            row.prop(self, 'enable_help_hotkey', text=' F1')
+            row.prop(self, 'enable_help_hotkey', text='')
+            input = row.row()
+            input.enabled = self.enable_help_hotkey
+            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_help'))
+
             row = panel.row(heading='Report Issue')
-            row.prop(self, 'enable_issue_hotkey', text=' F2')
+            row.prop(self, 'enable_issue_hotkey', text='')
+            input = row.row()
+            input.enabled = self.enable_issue_hotkey
+            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_newissue'))
 
             panel.separator(type='SPACE')
             panel.separator(type='LINE', factor=1)
             panel.separator(type='SPACE')
-            draw_section_header(context, panel, 'You can change the hotkey for any action by:', icon='INFO')
+            draw_section_header(context, panel, 'You can change the hotkey for any other action by:', icon='INFO')
             row = panel.row(align=True)
             draw_section_indent(context, row)
             draw_section_indent(context, row)
@@ -301,7 +302,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
             col.label(text=('2. Searching for Retopoflow'))
             col.label(text=('3. Changing the keymap'))
             col.label(text=('3. Saving Preferences'))
-            draw_section_header(context, panel, 'Not all custom adjustments can be guaranteed to work')
+            draw_section_header(context, panel, 'Not all custom adjustments can be guaranteed to work.')
             panel.separator(type='SPACE')
             panel.separator(type='LINE', factor=1)
 
@@ -346,7 +347,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
             box = layout.box().column(align=True)
             box.label(text="Notice for Windows users:", icon='ERROR')
-            box.label(text="If you encounter lagg issues while using a tablet, consider switching")
+            box.label(text="If you encounter lag issues while using a tablet, consider switching")
             box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
             row = box.row()
             row.alignment = 'RIGHT'

@@ -49,7 +49,6 @@ from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
 from ..rfoperators.transform import RFOperator_Translate
-from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
@@ -525,8 +524,6 @@ class RFTool_Strokes(RFTool_Base):
         RFOperator_Relax_QuickSwitch,
         RFOperator_Tweak_QuickSwitch,
         RFOperator_TopoRotate,
-        RFOperator_Launch_Help,
-        RFOperator_Launch_NewIssue,
     )
 
     def draw_settings(context, layout, tool):

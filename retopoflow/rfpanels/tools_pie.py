@@ -9,7 +9,7 @@ from ..rftool_patches.patches import Patches_Orientations
 
 class RFMenu_MT_ToolPie(Menu):
     bl_idname = 'RF_MT_Tools'
-    bl_label = 'RetopoFlow Tools Pie'
+    bl_label = 'Retopoflow Tools Pie Menu'
 
     @classmethod
     def poll(cls, context):

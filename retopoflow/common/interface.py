@@ -1,5 +1,18 @@
 import bpy
 
+
+def draw_keymap_options(layout, keymap_item):
+    if not keymap_item:
+        return
+    split = layout.split()
+    key = split.row(align=True)
+    key.prop(keymap_item, 'type', text='', event=True)
+    modifiers = split.row(align=True)
+    modifiers.prop(keymap_item, 'shift_ui', toggle=True)
+    modifiers.prop(keymap_item, 'ctrl_ui', toggle=True)
+    modifiers.prop(keymap_item, 'alt_ui', toggle=True)
+
+
 def draw_line_separator(layout):
     if bpy.app.version >= (4,2,0):
         return layout.separator(type='LINE')
