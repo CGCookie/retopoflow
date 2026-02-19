@@ -1,10 +1,40 @@
 import bpy
 
+
+def draw_keymap_options(layout, keymap_item):
+    if not keymap_item:
+        return
+    split = layout.split()
+    key = split.row(align=True)
+    key.prop(keymap_item, 'type', text='', event=True)
+    modifiers = split.row(align=True)
+    modifiers.prop(keymap_item, 'shift_ui', toggle=True)
+    modifiers.prop(keymap_item, 'ctrl_ui', toggle=True)
+    modifiers.prop(keymap_item, 'alt_ui', toggle=True)
+
+
 def draw_line_separator(layout):
     if bpy.app.version >= (4,2,0):
         return layout.separator(type='LINE')
     else:
         return layout.separator()
+
+
+def draw_section_indent(context, layout):
+    if context.region.type != 'TOOL_HEADER':
+        if context.region.width > 350:
+            layout.label(icon='BLANK1')
+        if context.region.width > 570:
+            layout.label(icon='BLANK1')
+
+
+def draw_section_header(context, layout, text='', icon=''):
+    row = layout.row(align=True)
+    draw_section_indent(context, row)
+    if icon:
+        row.label(text=text, icon=icon)
+    else:
+        row.label(text=text)
 
 
 def update_toolbar(self, context):

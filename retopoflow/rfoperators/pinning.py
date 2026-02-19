@@ -27,16 +27,31 @@ from ..common.operator import RFRegisterClass
 original_crease_color = [0.8, 0, 0.6]
 
 
+def get_theme_crease(context):
+    theme = context.preferences.themes[0].view_3d
+    if bpy.app.version >= (5,0,0):
+        return theme.crease
+    else:
+        return theme.edge_crease
+
+
+def set_theme_crease(context, color):
+    theme = context.preferences.themes[0].view_3d
+    if bpy.app.version >= (5,0,0):
+        theme.crease = color
+    else:
+        theme.edge_crease = color
+
+
 def setup_pinning(context):
     obj = context.active_object
 
     if obj == None or context.mode != 'EDIT_MESH':
         return
 
-    theme = context.preferences.themes[0].view_3d
     global original_crease_color
-    original_crease_color = [x for x in theme.crease]
-    theme.crease = [1, 0, 0]
+    original_crease_color = [x for x in get_theme_crease(context)]
+    set_theme_crease(context, [1, 0, 0])
 
     bm = bmesh.from_edit_mesh(obj.data)
     bm.verts.ensure_lookup_table()
@@ -44,7 +59,8 @@ def setup_pinning(context):
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     crease_edge_layer = bm.edges.layers.float.get('crease_edge')
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    # Pins should probably be a boolean layer, but that was not allowed in Blender 4.2
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
 
     if crease_vert_layer:
         for bmv in bm.verts:
@@ -61,7 +77,7 @@ def setup_pinning(context):
             if bmv[pin_vert_layer]:
                 bmv[crease_vert_layer] += 0.99
     else:
-        pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
+        pin_vert_layer = bm.verts.layers.float.new('retopoflow_pins')
 
     bmesh.update_edit_mesh(obj.data)
 
@@ -72,9 +88,8 @@ def restore_pinning(context):
     if obj == None or context.mode != 'EDIT_MESH':
         return
 
-    theme = context.preferences.themes[0].view_3d
     global original_crease_color
-    theme.crease = original_crease_color
+    set_theme_crease(context, original_crease_color)
 
     bm = bmesh.from_edit_mesh(obj.data)
     bm.verts.ensure_lookup_table()
@@ -82,7 +97,7 @@ def restore_pinning(context):
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     crease_edge_layer = bm.edges.layers.float.get('crease_edge')
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
 
     if not pin_vert_layer:
         return
@@ -105,7 +120,7 @@ def restore_pinning(context):
     prefs = RF_Prefs.get_prefs(context)
     if not prefs.setup_pinning:
         if pin_vert_layer:
-            bm.verts.layers.bool.remove(pin_vert_layer)
+            bm.verts.layers.float.remove(pin_vert_layer)
 
     bmesh.update_edit_mesh(obj.data)
 
@@ -122,9 +137,9 @@ def toggle_pinning(context, enable):
 
 
 def pin_bmvs(bm):
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
     if not pin_vert_layer:
-        pin_vert_layer = bm.verts.layers.bool.new('retopoflow_pins')
+        pin_vert_layer = bm.verts.layers.float.new('retopoflow_pins')
 
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     if not crease_vert_layer:
@@ -137,7 +152,7 @@ def pin_bmvs(bm):
 
 
 def unpin_bmvs(bm):
-    pin_vert_layer = bm.verts.layers.bool.get('retopoflow_pins')
+    pin_vert_layer = bm.verts.layers.float.get('retopoflow_pins')
     crease_vert_layer = bm.verts.layers.float.get('crease_vert')
     if not pin_vert_layer or not crease_vert_layer:
         return

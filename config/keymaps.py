@@ -38,7 +38,7 @@ altered_keymap_items = []
 
 
 def store_keymap_item(km_item, altered):
-    altered_keymap_items.append({
+    kmi = {
         'idname': km_item.idname,
         'type': km_item.type,
         'value': km_item.value,
@@ -47,10 +47,13 @@ def store_keymap_item(km_item, altered):
         'ctrl': km_item.ctrl,
         'alt': km_item.alt,
         'oskey': km_item.oskey,
-        'hyper': km_item.hyper,
         'key_modifier': km_item.key_modifier,
         'altered': altered
-    })
+    }
+    if hasattr(km_item, 'hyper'):
+        kmi['hyper'] = km_item.hyper
+
+    altered_keymap_items.append(kmi)
 
 
 def is_keymap_item_matching(km_item, saved_item):
@@ -62,9 +65,24 @@ def is_keymap_item_matching(km_item, saved_item):
             km_item.ctrl == saved_item['ctrl'] and
             km_item.alt == saved_item['alt'] and
             km_item.oskey == saved_item['oskey'] and
-            km_item.hyper == saved_item['hyper'] and
-            km_item.key_modifier == saved_item['key_modifier']
+            km_item.key_modifier == saved_item['key_modifier'] and
+            (not hasattr(km_item, 'hyper') or km_item.hyper == saved_item['hyper'])
     )
+
+
+# Returns the first matching keymap item. There could be multiple!
+# Add arguments to further filter if needed
+def get_user_keymap_item(context, idname):
+    is_menu = '_MT_' in idname
+    menu_idnames = ['wm.call_menu', 'wm.call_menu_pie']
+    for keymap in context.window_manager.keyconfigs.user.keymaps:
+        for km_item in keymap.keymap_items:
+            if is_menu:
+                if km_item.idname in menu_idnames and km_item.properties['name'] == idname:
+                    return km_item
+            else:
+                if km_item.idname == idname:
+                    return km_item
 
 
 def alter_user_keymaps(context):

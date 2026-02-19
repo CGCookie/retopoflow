@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from ..common.interface import draw_section_indent
 
 
 def draw_cleanup_options(context, layout, draw_operators=True):
@@ -29,7 +30,7 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
-    
+
     col = grid.column()
     row = col.row(heading='Merge')
     row = col.row(heading='Snap')
@@ -75,6 +76,7 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     if draw_operators:
         layout.separator()
         row = layout.row()
+        draw_section_indent(context, row)
         row.operator('retopoflow.meshcleanup', text='Selected').affect_all=False
         row.operator('retopoflow.meshcleanup', text='All').affect_all=True
 

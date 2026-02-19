@@ -21,17 +21,22 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..common.icons import Icon
+from ..common.interface import draw_section_indent
 
 def draw_help(context, layout):
-    layout.operator(
+    row = layout.row()
+    draw_section_indent(context, row)
+    col = row.column()
+
+    col.operator(
         'wm.url_open', text='Read the Docs', icon='HELP'
     ).url = 'https://docs.retopoflow.com'
 
-    layout.operator(
+    col.operator(
         'wm.url_open', text='Report an Issue', icon='ERROR'
     ).url = 'https://orangeturbine.com/#contact'
 
-    layout.operator(
+    col.operator(
         "wm.url_open", text='View on Superhive', icon_value=Icon.SUPERHIVE.icon_id
     ).url = 'https://blendermarket.com/products/retopoflow'
 

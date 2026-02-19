@@ -79,8 +79,6 @@ from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.help_panel import draw_help_panel
 from ..common.interface import draw_line_separator
 
-from ..rfoperators.launch_browser import RFOperator_Launch_Help, RFOperator_Launch_NewIssue
-
 from ..preferences import RF_Prefs
 
 RFBrush_Relax, RFOperator_RelaxBrush_Adjust = create_falloff_brush(
@@ -251,8 +249,6 @@ class RFTool_Relax(RFTool_Base):
         RFOperator_Relax,
         RFOperator_MaximizeWatcher,
         RFOperator_RelaxBrush_Adjust,
-        RFOperator_Launch_Help,
-        RFOperator_Launch_NewIssue,
         RFOperator_Tweak_QuickSwitch,
         RFOperator_TopoRotate,
     )

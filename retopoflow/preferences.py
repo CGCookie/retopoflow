@@ -22,9 +22,10 @@ Created by Jonathan Denning, Jonathan Lampel
 import platform
 
 import bpy
-from .common.interface import update_toolbar
+from .common.interface import update_toolbar, draw_section_header, draw_section_indent, draw_keymap_options
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
+from ..config.keymaps import get_user_keymap_item
 
 
 class RF_Prefs(bpy.types.AddonPreferences):
@@ -267,18 +268,43 @@ class RF_Prefs(bpy.types.AddonPreferences):
             panel.use_property_split = True
             panel.use_property_decorate = False
 
-            # Pie Menu
             row = panel.row(heading='Retopoflow Pie Menu')
-            row.prop(self, 'enable_pie_hotkey', text='W')
+            row.prop(self, 'enable_pie_hotkey', text='')
+            input = row.row()
+            input.enabled = self.enable_pie_hotkey
+            draw_keymap_options(input, get_user_keymap_item(context, 'RF_MT_Tools'))
             row = panel.row()
             row.enabled = self.enable_pie_hotkey
             row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
             panel.separator()
+
             row = panel.row(heading='Open Docs')
-            row.prop(self, 'enable_help_hotkey', text='F1')
+            row.prop(self, 'enable_help_hotkey', text='')
+            input = row.row()
+            input.enabled = self.enable_help_hotkey
+            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_help'))
+
             row = panel.row(heading='Report Issue')
-            row.prop(self, 'enable_issue_hotkey', text='F2')
-            panel.separator()
+            row.prop(self, 'enable_issue_hotkey', text='')
+            input = row.row()
+            input.enabled = self.enable_issue_hotkey
+            draw_keymap_options(input, get_user_keymap_item(context, 'retopoflow.launch_newissue'))
+
+            panel.separator(type='SPACE')
+            panel.separator(type='LINE', factor=1)
+            panel.separator(type='SPACE')
+            draw_section_header(context, panel, 'You can change the hotkey for any other action by:', icon='INFO')
+            row = panel.row(align=True)
+            draw_section_indent(context, row)
+            draw_section_indent(context, row)
+            col = row.column()
+            col.label(text=("1. Opening Blender's keymap preferences"))
+            col.label(text=('2. Searching for Retopoflow'))
+            col.label(text=('3. Changing the keymap'))
+            col.label(text=('3. Saving Preferences'))
+            draw_section_header(context, panel, 'Not all custom adjustments can be guaranteed to work.')
+            panel.separator(type='SPACE')
+            panel.separator(type='LINE', factor=1)
 
         from .rfpanels.interface_panel import draw_ui_options
         header, panel = layout.panel(idname='RF_interface_prefs', default_closed=True)
@@ -291,9 +317,9 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if panel:
             panel.use_property_split = True
             panel.use_property_decorate = True
-            panel.label(text='New at Cursor')
+            draw_section_header(context, panel, 'New at Cursor')
             panel.prop(self, 'name_new', text='Name')
-            panel.label(text='New from Active')
+            draw_section_header(context, panel, 'New from Active')
             panel.prop(self, 'name_search', text='Try to Replace')
             panel.prop(self, 'name_replace', text='With')
             panel.separator()
@@ -321,7 +347,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
         if bpy.app.version >= (4,5,0) and context.preferences.inputs.tablet_api != 'WINTAB' and platform.system() == 'Windows':
             box = layout.box().column(align=True)
             box.label(text="Notice for Windows users:", icon='ERROR')
-            box.label(text="If you encounter lagg issues while using a tablet, consider switching")
+            box.label(text="If you encounter lag issues while using a tablet, consider switching")
             box.label(text="to WinTab API in [ Blender Preferences > Input > Tablet > Tablet API ].")
             row = box.row()
             row.alignment = 'RIGHT'
