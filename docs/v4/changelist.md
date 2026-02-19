@@ -2,9 +2,12 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
-## 4.1.1
+### 4.1.1
 
 - Masking and pinning options are now shared between Tweak and Relax
+- The pie menu, documentation, and report issue hotkeys are now customizable
+- The default hotkey for reporting an issue is now `Alt F1`
+
 
 ### 4.1.0
 
