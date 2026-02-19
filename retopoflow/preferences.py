@@ -270,9 +270,16 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
             row = panel.row(heading='Retopoflow Pie Menu')
             row.prop(self, 'enable_pie_hotkey', text='')
-            key = row.row()
-            key.enabled = self.enable_pie_hotkey
-            key.prop(get_user_keymap_item(context, 'RF_MT_Tools'), 'type', text='', event=True)
+            input = row.row()
+            input.enabled = self.enable_pie_hotkey
+            pie_kmi = get_user_keymap_item(context, 'RF_MT_Tools')
+            split = input.split()
+            key = split.row()
+            key.prop(pie_kmi, 'type', text='', event=True)
+            modifiers = split.row()
+            modifiers.prop(pie_kmi, 'shift_ui', toggle=True)
+            modifiers.prop(pie_kmi, 'ctrl_ui', toggle=True)
+            modifiers.prop(pie_kmi, 'alt_ui', toggle=True)
             row = panel.row()
             row.enabled = self.enable_pie_hotkey
             row.prop(self, 'pie_tool_context', text='Triggers From', expand=False)
