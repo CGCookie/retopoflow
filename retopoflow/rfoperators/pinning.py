@@ -210,3 +210,22 @@ class RFOperator_UnpinVerts(RFRegisterClass, bpy.types.Operator):
         unpin_bmvs(bm)
         bmesh.update_edit_mesh(obj.data)
         return {'FINISHED'}
+
+
+keymaps = []
+
+def register():
+    keyconfigs = bpy.context.window_manager.keyconfigs.addon
+    if keyconfigs:
+        km = keyconfigs.keymaps.new(name='3D View', space_type='VIEW_3D')
+        kmi = km.keymap_items.new('retopoflow.pinverts', 'P', 'PRESS', ctrl=False, shift=True, alt=False)
+        keymaps.append((km, kmi))
+
+        km = keyconfigs.keymaps.new(name='3D View', space_type='VIEW_3D')
+        kmi = km.keymap_items.new('retopoflow.unpinverts', 'P', 'PRESS', ctrl=False, shift=False, alt=True)
+        keymaps.append((km, kmi))
+
+def unregister():
+    for km, kmi in keymaps:
+        km.keymap_items.remove(kmi)
+    keymaps.clear()
