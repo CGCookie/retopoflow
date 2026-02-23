@@ -179,7 +179,8 @@ class RFOperator_PinVerts(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.active_object and context.mode == 'EDIT_MESH'
+        from ..rfcore import RFCore
+        return RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
 
     def execute(self, context):
         obj = context.active_object
@@ -202,7 +203,8 @@ class RFOperator_UnpinVerts(RFRegisterClass, bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.active_object and context.mode == 'EDIT_MESH'
+        from ..rfcore import RFCore
+        return RFCore.is_running and context.active_object and context.mode == 'EDIT_MESH'
 
     def execute(self, context):
         obj = context.active_object
