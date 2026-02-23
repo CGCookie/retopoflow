@@ -158,7 +158,7 @@ def unpin_bmvs(bm):
         return
 
     for bmv in [bmv for bmv in bm.verts if bmv.select]:
-        if bmv[pin_vert_layer] == True:
+        if bmv[pin_vert_layer]:
             bmv[pin_vert_layer] = False
             bmv[crease_vert_layer] = bmv[crease_vert_layer] - 0.99
             # Avoids precision errors
