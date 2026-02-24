@@ -127,6 +127,11 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         description="Splits n-gons, into quads if possible",
         default=False
     )
+    cleaning_include_pins: bpy.props.BoolProperty(
+        name='Include Pins',
+        description="Allow pinned vertices to be affected",
+        default=False
+    )
     #endregion
 
     """ Mirror """

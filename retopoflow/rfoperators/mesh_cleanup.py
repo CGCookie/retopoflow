@@ -24,6 +24,7 @@ import bpy, bmesh
 from ..common.operator import RFRegisterClass
 from ..common.raycast import nearest_point_valid_sources
 from ..common.selection import get_selected, restore_selected
+from ..common.bmesh_maths import get_bmvert_attribute
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_options
 
 
@@ -45,19 +46,27 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
     def draw(self, context):
         draw_cleanup_options(context, self.layout, draw_operators=False)
 
-    def get_components(self, bm):
-        if self.affect_all:
-            return {
-                'verts': [ v for v in bm.verts if not v.hide ],
-                'edges': [ e for e in bm.edges if not e.hide ],
-                'faces': [ f for f in bm.faces if not f.hide ],
-            }
-        else:
-            return {
-                'verts': [ v for v in bm.verts if v.select and not v.hide ],
-                'edges': [ e for e in bm.edges if e.select and not e.hide ],
-                'faces': [ f for f in bm.faces if f.select and not f.hide ],
-            }
+    def is_bmv_included(self, context, bm, bmv):
+        props = context.scene.retopoflow
+        return (
+            not bmv.hide and
+            (self.affect_all or bmv.select) and
+            (props.cleaning_include_pins or not get_bmvert_attribute(bm, bmv, 'crease_vert', 'float'))
+        )
+
+    def is_bmc_included(self, bmc):
+        #calling it bm component since it works with both edges and faces
+        return (
+            (self.affect_all or bmc.select) and
+            not bmc.hide
+        )
+
+    def get_components(self, context, bm):
+        return {
+            'verts': [ v for v in bm.verts if self.is_bmv_included(context, bm, v) ],
+            'edges': [ e for e in bm.edges if self.is_bmc_included(e) ],
+            'faces': [ f for f in bm.faces if self.is_bmc_included(f)],
+        }
 
     def execute(self, context):
         props = context.scene.retopoflow
@@ -65,7 +74,7 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         obj = context.active_object
         bm = bmesh.from_edit_mesh(obj.data)
 
-        components = self.get_components(bm) # Needs to be updated before ops if a component gets removed
+        components = self.get_components(context, bm)
 
         # Remove unnecissary components first
         if props.cleaning_use_merge:
@@ -87,7 +96,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
                 if v.is_valid and not v.link_edges:
                     bm.verts.remove(v)
 
-        components = self.get_components(bm)
+        # Refresh since some verts may have been deleted in a previous step
+        components = self.get_components(context, bm)
 
         # Add any necissary geometry
         if props.cleaning_use_triangulate_concave:

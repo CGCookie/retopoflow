@@ -32,22 +32,22 @@ def draw_cleanup_options(context, layout, draw_operators=True):
     grid.use_property_decorate = False
 
     col = grid.column()
-    row = col.row(heading='Merge')
-    row = col.row(heading='Snap')
-    row.prop(props, 'cleaning_use_snap', text='To Surface')
+    col.row(heading='Include').prop(props, 'cleaning_include_pins', text='Pinned')
     col.separator()
 
     col = grid.column()
-    row = col.row(heading='Merge')
-    row.prop(props, 'cleaning_use_merge', text='By Distance')
+    col.row(heading='Snap').prop(props, 'cleaning_use_snap', text='To Surface')
+    col.separator()
+
+    col = grid.column()
+    col.row(heading='Merge').prop(props, 'cleaning_use_merge', text='By Distance')
     row = col.row()
     row.enabled = props.cleaning_use_merge
     row.prop(props, 'cleaning_merge_threshold', text='Threshold')
     col.separator()
 
     col = grid.column(align=True)
-    row = col.row(heading='Normals')
-    row.prop(props, 'cleaning_use_recalculate_normals', text='Recalculate')
+    col.row(heading='Normals').prop(props, 'cleaning_use_recalculate_normals', text='Recalculate')
     row = col.row()
     row.enabled = props.cleaning_use_recalculate_normals
     row.prop(props, 'cleaning_flip_normals', text='Inside')

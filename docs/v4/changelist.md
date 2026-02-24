@@ -6,6 +6,10 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added option to constrain new knife cuts to the UI
 - The status bar hotkeys now correctly show customized hotkeys
+- Added hotkeys, `Shift P` and `Alt P`, for pinning and unpinning
+- Pinned verts are now skipped by default by the clean up operator
+- Fixed issue with verts interpolated from pins unable to be unpinned
+
 
 ### 4.1.1
 
