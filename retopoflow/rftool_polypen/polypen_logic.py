@@ -186,7 +186,9 @@ def find_bmedges_to_split(context, matrix_world, bmelem_start : BMVert | BMEdge,
     found = []
     if type(bmelem_start) is BMVert:
         bmv = bmelem_start
-        while bmv.is_wire:
+        seen = set()
+        while bmv.is_wire and bmv not in seen:
+            seen.add(bmv)
             bmvn = next((bme_other_bmv(bme, bmv) for bme in bmv.link_edges), None)
             if bmvn is None: break
             bmv = bmvn
