@@ -401,6 +401,8 @@ class PP_Logic:
             elif self.nearest_bme.bme:
                 if check_split_face(self.bmv, self.nearest_bme.bme) is not None:
                     self.state = PP_Action.WIRE_SPLIT_EDGE_FACE
+                elif any(bmv in self.nearest_bme.bme.verts for bmv in self.selected[BMVert]):
+                    self.state = PP_Action.SPLIT_EDGE
                 else:
                     self.state = PP_Action.VERT_SPLIT_EDGE
             else:

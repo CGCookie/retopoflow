@@ -225,6 +225,7 @@ class RFOperator_PolyPen(RFOperator):
             return {'FINISHED'}
 
         self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert)
+        # print(self.logic.state.name)
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
             self.logic.commit(context, event)
