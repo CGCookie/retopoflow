@@ -29,12 +29,26 @@ import heapq
 from ..preferences import RF_Prefs
 from ..common.bmesh import (
     get_bmesh_emesh,
+    bmf_midpoint,
     NearestBMVert, NearestBMEdge, NearestBMFace,
 )
 from ..common.bmesh_maths import is_bmvert_hidden
 from ..common.operator import execute_operator, RFOperator
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, mouse_from_event, nearest_point_valid_sources
-from ..common.maths import view_forward_direction, proportional_edit, xform_direction
+from ..common.raycast import (
+    raycast_valid_sources,
+    raycast_point_valid_sources,
+    mouse_from_event,
+    nearest_point_valid_sources,
+    nearest_normal_valid_sources,
+)
+from ..common.maths import (
+    view_forward_direction,
+    proportional_edit,
+    xform_direction,
+    normal_to_bvec3, normal_to_bvec4,
+    point_to_bvec3, point_to_bvec4,
+    xform_normal,
+)
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.maths import sign_threshold
@@ -389,14 +403,16 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        if self.snap_method == 'PROJECTED':
-            forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
-            for bmf, _ in self.bmfs:
-                if not bmf.is_valid: continue
-                bmf.normal_update()
-                if forward.dot(bmf.normal) > 0:
-                    bmf.normal_flip()
-        elif self.snap_method == 'NEAREST':
-            # workaround fix for issue #1462
-            # TODO: revisit this and handle correctly!
-            pass
+        # get normal of nearest point on surface from center of bmface
+        # if that normal and bmface's normal are opposite, then flip the bmface normal
+        # this should work regardless of snap method (project or nearest)
+        # see https://github.com/CGCookie/retopoflow/issues/1731
+        M, Mt = self.matrix_world, self.matrix_world.transposed()
+        for (bmf, _) in self.bmfs:
+            if not bmf.is_valid: continue
+            co_world = point_to_bvec3(M @ point_to_bvec4(bmf_midpoint(bmf)))
+            no_world = nearest_normal_valid_sources(context, co_world)
+            no_local = xform_normal(Mt, no_world)
+            bmf.normal_update()
+            if no_local.dot(bmf.normal) < 0:
+                bmf.normal_flip()

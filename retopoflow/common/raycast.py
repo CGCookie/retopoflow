@@ -358,8 +358,9 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
-def nearest_normal_valid_sources(context, point, *, world=True):
-    point_world = Vector((*point, 1.0))
+def nearest_normal_valid_sources(context, point_world, *, world=True):
+    point3_world = point_to_bvec3(point_world)
+    point4_world = point_to_bvec4(point_world)
     best_no_world = None
     best_dist = float('inf')
     # print(f'RAY {ray_world}')
@@ -367,12 +368,12 @@ def nearest_normal_valid_sources(context, point, *, world=True):
         M = obj.matrix_world
         Mi = M.inverted()
         Mit = Mi.transposed()
-        point_local = Mi @ point
+        point_local = point_to_bvec3(Mi @ point4_world)
         result, co, normal, idx = obj.closest_point_on_mesh(point_local)
         if not result: continue
         co_world = xform_point(M, co)
         no_world = xform_normal(Mit, normal)
-        dist = distance_between_locations(point_world, co_world)
+        dist = distance_between_locations(point3_world, co_world)
         # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue
         best_no_world = no_world
