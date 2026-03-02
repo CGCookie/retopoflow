@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.1.3
+
+- Fixed issue with PolyPen freezing when operating on loose edges
+- Fixed issue with faces flipping when using proportional editing
+
 ### 4.1.2
 
 - Added option to constrain new knife cuts to the UI
