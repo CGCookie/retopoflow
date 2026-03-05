@@ -579,14 +579,14 @@ class RFCore:
         RFCore.event_mouse = (x,y)
 
     @staticmethod
-    def handle_save_pre(*args, **kwargs):
+    def handle_save_pre(path_blend):
         RFCore.is_saving = True
         bpy.context.scene.retopoflow.saved_tool = RFCore.selected_RFTool_idname
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
         bpy.app.handlers.save_post.append(RFCore.handle_save_post)
 
     @staticmethod
-    def handle_save_post(*args, **kwargs):
+    def handle_save_post(path_blend):
         bpy.app.handlers.save_post.remove(RFCore.handle_save_post)
         # if bpy.context.scene.retopoflow.saved_tool: RFCore.quick_switch_to_reset(bpy.context.scene.retopoflow.saved_tool)
         if bpy.context.scene.retopoflow.saved_tool:
@@ -595,8 +595,24 @@ class RFCore:
         del RFCore.is_saving
 
     @staticmethod
+    def handle_load_pre(path_blend):
+        # switch away from RF
+        print(f'LOAD PRE!!')
+        # # find 3D view area
+        # for area in bpy.context.screen.areas:
+        #     if area.type != 'VIEW_3D': continue
+        #     for rgn in area.regions:
+        #         if rgn.type != 'WINDOW': continue
+        #         with bpy.context.temp_override(area=area, region=rgn):
+        #             print(f'switching tool')
+        #             bpy.ops.wm.tool_set_by_id(name='builtin.move')
+        if getattr(bpy.context.workspace, 'tools', None):
+            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
+        RFCore.stop()
+
+    @staticmethod
     @bpy.app.handlers.persistent
-    def handle_load_post(*args, **kwargs):
+    def handle_load_post(path_blend):
         if not hasattr(bpy.context.scene, 'retopoflow'): return
         if not getattr(bpy.context.scene.retopoflow, 'saved_tool', ''): return
         RFCore.quick_switch_to_reset(bpy.context.scene.retopoflow.saved_tool)
@@ -694,22 +710,6 @@ class RFCore:
         brush = selected_RFTool.rf_brush
         if brush: brush.depsgraph_update()
         RFOperator.tickle(bpy.context)
-
-    @staticmethod
-    def handle_load_pre(path_blend):
-        # switch away from RF
-        print(f'LOAD PRE!!')
-        # # find 3D view area
-        # for area in bpy.context.screen.areas:
-        #     if area.type != 'VIEW_3D': continue
-        #     for rgn in area.regions:
-        #         if rgn.type != 'WINDOW': continue
-        #         with bpy.context.temp_override(area=area, region=rgn):
-        #             print(f'switching tool')
-        #             bpy.ops.wm.tool_set_by_id(name='builtin.move')
-        if getattr(bpy.context.workspace, 'tools', None):
-            bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
-        RFCore.stop()
 
     @staticmethod
     def handle_redo_post(*args, **kwargs):
