@@ -33,7 +33,6 @@ from .common.bmesh import get_object_bmesh, get_bmesh_emesh
 from .common.operator import RFOperator, RFOperator_Execute, RFRegisterClass, RFAssetShelf
 from .common.raycast import prep_raycast_valid_sources, iter_all_valid_sources
 from .common.interface import show_message
-from .common.window import get_temp_windows
 from .common import icons as icons_module
 from ..addon_common.common.drawing import free_shaders_and_batches
 from ..addon_common.common.ui_draw import free_ui_draw_shaders_and_batches
@@ -285,11 +284,7 @@ class RFCore:
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
         # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
-        if RFCore.is_paused:
-            return
-        if get_temp_windows(context.window_manager.windows):
-            print("Retopoflow cannot start with a temporary window active")
-            return
+        if RFCore.is_paused: return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None

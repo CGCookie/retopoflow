@@ -40,10 +40,12 @@ def draw_section_header(context, layout, text='', icon=''):
         row.label(text=text)
 
 
-def update_toolbar(self, context):
-    from ..rftool_base import RFTool_Base
-    RFTool_Base.unregister_all()
-    RFTool_Base.register_all()
+def get_temp_windows(context):
+    temp_windows = []
+    for win in context.window_manager.windows:
+        if win.screen.is_temporary:
+            temp_windows.append(win)
+    return temp_windows
 
 
 def show_message(message: str, title: str, icon: str = "INFO"):
@@ -52,3 +54,9 @@ def show_message(message: str, title: str, icon: str = "INFO"):
         for line in message.split("\n"):
             col.label(text=line)
     bpy.context.window_manager.popup_menu(popup_handler, title=title, icon=icon)
+
+
+def update_toolbar(self, context):
+    from ..rftool_base import RFTool_Base
+    RFTool_Base.unregister_all()
+    RFTool_Base.register_all()
