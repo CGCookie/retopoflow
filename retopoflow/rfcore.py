@@ -285,22 +285,25 @@ class RFCore:
     @staticmethod
     def tool_changed(context, space_type, idname, **kwargs):
         # print(f'tool_changed(context, {space_type=}, {idname=}, {kwargs=})')
-        if RFCore.is_paused: return
-
+        if RFCore.is_paused:
+            return
         if get_temp_windows(context.window_manager.windows):
-                print('Retopoflow cannot start with a temporary window active')
-                return
+            print("Retopoflow cannot start with a temporary window active")
+            return
 
         prev_selected_RFTool_idname = RFCore.selected_RFTool_idname
         RFCore.selected_RFTool_idname = idname if idname in RFTools else None
 
-        RFCore._update_statusbar(context)
+        if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
+            RFCore.stop()
+            return
 
         if not prev_selected_RFTool_idname and RFCore.selected_RFTool_idname:
             # need to start RFCore in the correct context
             if not context.area:
                 RFCore.quick_switch_to_reset(RFCore.selected_RFTool_idname)
                 return
+
             if context.area.type == 'VIEW_3D': RFCore.start(context)
             else:
                 started = False
@@ -345,8 +348,7 @@ class RFCore:
                             print(f'Caught exception while trying to activate overlay {e}')
                             RFCore.restart()
 
-        if prev_selected_RFTool_idname and not RFCore.selected_RFTool_idname:
-            RFCore.stop()
+        RFCore._update_statusbar(context)
 
     @staticmethod
     def start(context):
