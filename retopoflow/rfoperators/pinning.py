@@ -84,14 +84,18 @@ def setup_pinning(context):
 
 def restore_pinning(context):
     obj = context.active_object
-
-    if obj == None or context.mode != 'EDIT_MESH':
+    if obj == None:
         return
 
     global original_crease_color
     set_theme_crease(context, original_crease_color)
 
-    bm = bmesh.from_edit_mesh(obj.data)
+    if context.mode == 'EDIT_MESH':
+        bm = bmesh.from_edit_mesh(obj.data)
+    else:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+
     bm.verts.ensure_lookup_table()
     bm.edges.ensure_lookup_table()
 
@@ -122,7 +126,11 @@ def restore_pinning(context):
         if pin_vert_layer:
             bm.verts.layers.float.remove(pin_vert_layer)
 
-    bmesh.update_edit_mesh(obj.data)
+    if context.mode == 'EDIT_MESH':
+        bmesh.update_edit_mesh(obj.data)
+    else:
+        bm.to_mesh(obj.data)
+        bm.free()
 
 
 def toggle_pinning(context, enable):
