@@ -2,6 +2,10 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.1.4
+
+- Fixed PolyPen knife sometimes trying to insert loops when it should not
+
 ### 4.1.3
 
 - Fixed issue with PolyPen freezing when operating on loose edges
