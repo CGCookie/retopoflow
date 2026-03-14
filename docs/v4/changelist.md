@@ -5,6 +5,7 @@ This document contains details about what has changed in Retopoflow in version 4
 ### 4.1.4
 
 - Fixed PolyPen knife sometimes trying to insert loops when it should not
+- Fixed issue with creases when jumping straight to object mode
 
 ### 4.1.3
 
