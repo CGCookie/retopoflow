@@ -501,7 +501,7 @@ class Relax_Logic:
                     weighted_o = bmv.co * shape_preservervation
                     weighted_q = bmv.co * (1.0 - shape_preservervation)
                     if bmv.is_boundary:
-                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.other_vert(bmv) and x.other_vert(bmv).is_boundary]
+                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if (x.other_vert(bmv) and x.is_boundary)]
                     else:
                         neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.other_vert(bmv)]
                     average_co = Vector([
