@@ -179,6 +179,7 @@ class Relax_Logic:
         opt_face_radius      = relax.algorithm_average_face_radius
         opt_face_sides       = relax.algorithm_average_face_lengths
         opt_face_angles      = relax.algorithm_average_face_angles
+        opt_laplacian        = relax.algorithm_laplacian
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
         opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
@@ -301,6 +302,7 @@ class Relax_Logic:
         opt_face_radius      = relax.algorithm_average_face_radius
         opt_face_sides       = relax.algorithm_average_face_lengths
         opt_face_angles      = relax.algorithm_average_face_angles
+        opt_laplacian        = relax.algorithm_laplacian
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
         opt_draw_all         = False
@@ -486,6 +488,29 @@ class Relax_Logic:
                         except Exception:
                             # Exception is thrown if d10_2 or d12_2 are 0-length
                             pass
+
+            if opt_laplacian:
+                shape_preservervation = 0.1
+                for bmv in chk_verts:
+                    # Skip corners
+                    if len(bmv.link_edges) == 2: continue
+                    if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
+                    # weighted_o could be self.prev[bmv] for 'true' laplacian
+                    # but that doesn't update as well
+                    weighted_o = bmv.co * shape_preservervation
+                    weighted_q = bmv.co * (1.0 - shape_preservervation)
+                    if bmv.is_boundary:
+                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.other_vert(bmv) and x.other_vert(bmv).is_boundary]
+                    else:
+                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.other_vert(bmv)]
+                    average_co = Vector([
+                        sum([x.co[0] for x in neighbors]),
+                        sum([x.co[1] for x in neighbors]),
+                        sum([x.co[2] for x in neighbors])]
+                    ) / len(neighbors)
+                    laplacian_disp = average_co - (weighted_o + weighted_q)
+                    if bmv.is_boundary: laplacian_disp /= 10
+                    add_force(bmv, laplacian_disp, wrt=bmv.co, sign=0, mult=40)
 
         # perform smoothing
         for step in range(1 if opt_method == 'RK4' else opt_steps):

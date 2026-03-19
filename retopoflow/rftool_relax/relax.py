@@ -193,6 +193,11 @@ class RFOperator_Relax(RFOperator):
         description='Try to move vertices so faces are not flipped',
         default=False,
     )
+    algorithm_laplacian: bpy.props.BoolProperty(
+        name='Algorithm: Laplacian Smooth',
+        description="Average vertex locations similarly to Blender's smooth sculpting brush",
+        default=True,
+    )
 
     def init(self, context, event):
         self.logic = Relax_Logic(context, event, RFTool_Relax.rf_brush, self)

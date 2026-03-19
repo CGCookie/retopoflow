@@ -4,13 +4,16 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.1.4
 
+- Added new vertex smoothing algorithm option for Relax
 - Fixed PolyPen knife sometimes trying to insert loops when it should not
 - Fixed issue with creases when jumping straight to object mode
+
 
 ### 4.1.3
 
 - Fixed issue with PolyPen freezing when operating on loose edges
 - Fixed issue with faces flipping when using proportional editing
+
 
 ### 4.1.2
 

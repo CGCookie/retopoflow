@@ -35,6 +35,7 @@ def draw_relax_algo_options(context, layout):
         col.prop(props, 'algorithm_iterations', text="Iterations")
 
     col = layout.column(heading="Average")
+    col.prop(props, 'algorithm_laplacian', text='Vertex Positions')
     col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')
     col.prop(props, 'algorithm_average_face_radius',  text='Face Radius')
     col.prop(props, 'algorithm_average_face_angles',  text='Face Angles')
