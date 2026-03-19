@@ -497,15 +497,12 @@ class Relax_Logic:
                                 pass
 
             if opt_laplacian:
-                shape_preservervation = 0.1
+                # Doesn't seem to work well with how the brush iterates
+                shape_preservervation = 0
                 for bmv in chk_verts:
                     # Skip corners
                     if len(bmv.link_edges) == 2: continue
                     if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-                    # weighted_o could be self.prev[bmv] for 'true' laplacian
-                    # but that doesn't update as well
-                    weighted_o = bmv.co * shape_preservervation
-                    weighted_q = bmv.co * (1.0 - shape_preservervation)
                     if bmv.is_boundary:
                         neighbors = [x.other_vert(bmv) for x in bmv.link_edges if (x.other_vert(bmv) and x.is_boundary)]
                     else:
@@ -515,9 +512,12 @@ class Relax_Logic:
                         sum([x.co[1] for x in neighbors]),
                         sum([x.co[2] for x in neighbors])]
                     ) / len(neighbors)
+                    if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
+                    weighted_o = self.prev[bmv] * shape_preservervation
+                    weighted_q = bmv.co * (1 - shape_preservervation)
                     laplacian_disp = average_co - (weighted_o + weighted_q)
                     if bmv.is_boundary: laplacian_disp /= 10
-                    add_force(bmv, laplacian_disp, wrt=bmv.co, sign=0, mult=40)
+                    add_force(bmv, laplacian_disp, mult=40)
 
         # perform smoothing
         for step in range(1 if opt_method == 'RK4' else opt_steps):
