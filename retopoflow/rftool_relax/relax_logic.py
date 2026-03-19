@@ -434,60 +434,61 @@ class Relax_Logic:
                     add_force(bmv, vec * (vec.length * strength * 5), bmv.co, 1, 40)
 
             # attempt to "square" up the faces
-            for bmf in chk_faces:
-                if bmf not in faces: continue
-                bmvs = bmf.verts
-                cnt = len(bmvs)
-                ctr = bmf_midpoint(bmf)
-                rels = [bmv.co - ctr for bmv in bmvs]
-                bmf_z = bmf.normal.normalized()
-                if abs(bmf_z.dot(self.forward)) < 0.95:
-                    bmf_y = bmf_z.cross(self.forward).normalized()
-                    bmf_x = bmf_y.cross(bmf_z).normalized()
-                else:
-                    bmf_x = self.up.cross(bmf_z).normalized()
-                    bmf_y = bmf_z.cross(bmf_x).normalized()
+            if opt_face_radius or opt_face_sides or opt_face_angles:
+                for bmf in chk_faces:
+                    if bmf not in faces: continue
+                    bmvs = bmf.verts
+                    cnt = len(bmvs)
 
-                # push verts toward average dist from verts to face center
-                if opt_face_radius:
-                    avg_rel_len = sum(rel.length for rel in rels) / cnt
-                    for rel, bmv in zip(rels, bmvs):
-                        rel_len = rel.length
-                        f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
-                        add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
+                    # push verts toward average dist from verts to face center
+                    if opt_face_radius:
+                        ctr = bmf_midpoint(bmf)
+                        rels = [bmv.co - ctr for bmv in bmvs]
+                        avg_rel_len = sum(rel.length for rel in rels) / cnt
+                        for rel, bmv in zip(rels, bmvs):
+                            rel_len = rel.length
+                            f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
+                            add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
 
-                # push verts toward equal edge lengths
-                if opt_face_sides:
-                    avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / cnt
-                    for bme in bmf.edges:
-                        bmv0, bmv1 = bme.verts
-                        vec = bme_vector(bme)
-                        edge_len = vec.length
-                        f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
-                        add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
-                        add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
+                    # push verts toward equal edge lengths
+                    if opt_face_sides:
+                        avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / cnt
+                        for bme in bmf.edges:
+                            bmv0, bmv1 = bme.verts
+                            vec = bme_vector(bme)
+                            edge_len = vec.length
+                            f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
+                            add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
+                            add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
 
-                # push verts toward equal spread
-                if opt_face_angles:
-                    sum_of_interior_angles = math.pi * (cnt - 2)
-                    angle_target = sum_of_interior_angles / cnt
-                    for i1 in range(cnt):
-                        i0 = (i1 + cnt - 1) % cnt
-                        i2 = (i1 + 1) % cnt
-                        bmv0, bmv1, bmv2 = bmvs[i0], bmvs[i1], bmvs[i2]
-                        v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
-                        d10, d12 = v10.normalized(), v12.normalized()
-                        d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
-                        d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
-                        try:
-                            angle = d10_2.angle_signed(d12_2)
-                            angle_diff = angle_target - angle
-                            mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
-                            add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
-                            add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
-                        except Exception:
-                            # Exception is thrown if d10_2 or d12_2 are 0-length
-                            pass
+                    # push verts toward equal spread
+                    if opt_face_angles:
+                        bmf_z = bmf.normal.normalized()
+                        if abs(bmf_z.dot(self.forward)) < 0.95:
+                            bmf_y = bmf_z.cross(self.forward).normalized()
+                            bmf_x = bmf_y.cross(bmf_z).normalized()
+                        else:
+                            bmf_x = self.up.cross(bmf_z).normalized()
+                            bmf_y = bmf_z.cross(bmf_x).normalized()
+                        sum_of_interior_angles = math.pi * (cnt - 2)
+                        angle_target = sum_of_interior_angles / cnt
+                        for i1 in range(cnt):
+                            i0 = (i1 + cnt - 1) % cnt
+                            i2 = (i1 + 1) % cnt
+                            bmv0, bmv1, bmv2 = bmvs[i0], bmvs[i1], bmvs[i2]
+                            v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
+                            d10, d12 = v10.normalized(), v12.normalized()
+                            d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
+                            d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
+                            try:
+                                angle = d10_2.angle_signed(d12_2)
+                                angle_diff = angle_target - angle
+                                mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
+                                add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
+                                add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
+                            except Exception:
+                                # Exception is thrown if d10_2 or d12_2 are 0-length
+                                pass
 
             if opt_laplacian:
                 shape_preservervation = 0.1
