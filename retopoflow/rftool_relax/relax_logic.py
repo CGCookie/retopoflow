@@ -496,6 +496,7 @@ class Relax_Logic:
                                 # Exception is thrown if d10_2 or d12_2 are 0-length
                                 pass
 
+            # Push verts towards the average of their neighbors
             if opt_laplacian:
                 # Doesn't seem to work well with how the brush iterates
                 shape_preservervation = 0
@@ -504,9 +505,9 @@ class Relax_Logic:
                     if len(bmv.link_edges) == 2: continue
                     if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
                     if bmv.is_boundary:
-                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if (x.other_vert(bmv) and x.is_boundary)]
+                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.is_boundary]
                     else:
-                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.other_vert(bmv)]
+                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges]
                     average_co = Vector([
                         sum([x.co[0] for x in neighbors]),
                         sum([x.co[1] for x in neighbors]),
