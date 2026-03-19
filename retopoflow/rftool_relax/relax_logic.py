@@ -229,32 +229,38 @@ class Relax_Logic:
                     return True
             return False
 
+        def is_bmvert_included(bmv):
+            if (
+                bmv.hide or
+                len(bmv.link_faces) == 0 or
+                isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z) or
+                bmv.is_boundary and is_bmvert_on_ngon(bmv) or
+                opt_mask_boundary_exclude and (
+                    is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+                ) or
+                opt_include_corner == False    and len(bmv.link_edges) == 2 or
+                opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3 or
+                opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam') or
+                opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp') or
+                opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float') or
+                opt_include_creases == False   and (
+                    get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+                    not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+                ) or
+                opt_include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease') or
+                opt_mask_symmetry_exclude      and is_bmvert_on_symmetry_plane(bmv) or
+                opt_include_occluded == False  and is_bmvert_hidden(context, bmv) or
+                opt_mask_selected_exclude      and bmv.select or
+                opt_mask_selected_only         and not bmv.select
+            ):
+                return False
+            else:
+                return True
+
         self.verts_filtered = []
         for bmv in self.bm.verts:
-            if bmv.hide: continue
-            if len(bmv.link_faces) == 0: continue
-            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
-            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_mask_boundary_exclude and (
-                is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
-            ):
-                continue
-            if opt_include_corner == False    and len(bmv.link_edges) == 2: continue
-            if opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-            if opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
-            if opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'): continue
-            if opt_include_creases == False and (
-                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ):
-                continue
-            if opt_include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
-            if opt_mask_symmetry_exclude      and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if opt_mask_selected_exclude      and bmv.select: continue
-            if opt_mask_selected_only         and not bmv.select: continue
-            self.verts_filtered.append(bmv)
+            if is_bmvert_included(bmv):
+                self.verts_filtered.append(bmv)
 
         depsgraph = context.evaluated_depsgraph_get()
         object_evaluated = context.edit_object.evaluated_get(depsgraph)
