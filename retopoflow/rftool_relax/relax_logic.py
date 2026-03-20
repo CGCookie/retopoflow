@@ -393,18 +393,40 @@ class Relax_Logic:
         def relax_3d():
             reset_forces()
 
+
             # push edges closer to average edge length
             if opt_edge_length:
-                # compute average edge length
-                avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
-                for bme in chk_edges:
-                    if bme not in edges: continue
-                    bmv0, bmv1 = bme.verts
-                    vec = bme_vector(bme)
-                    edge_len = vec.length
-                    f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
-                    add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
-                    add_force(bmv1, +f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
+                use_springs = False
+                if use_springs:
+                    #TODO: How much worse is performance?
+                    avg_edge_len = sum([bme.calc_length() for bme in edges]) / len(edges)
+                    for bmv in chk_verts:
+                        if bmv not in verts: continue
+                        spring_force = Vector((0,0,0))
+                        for bme in bmv.link_edges:
+                            edge_len = bme.calc_length()
+                            edge_vector = bmv.co - bme.other_vert(bmv).co
+                            if not edge_len: continue
+                            # positive compression means the vert should move away from the opposite vert
+                            # negative means it should be pulled towards it, like a spring
+                            compression = (avg_edge_len - edge_len) / avg_edge_len
+                            if compression == 0: continue
+                            direction = edge_vector.normalized()
+                            magnitude = compression * abs(avg_edge_len - edge_len) * strength
+                            # TODO: Make this strong enough to push against any force that makes an edge shrink to zero
+                            spring_force += direction * magnitude
+                        if spring_force.length:
+                            add_force(bmv, spring_force, bmv.co, 1, 40)
+                else:
+                    avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
+                    for bme in chk_edges:
+                        if bme not in edges: continue
+                        bmv0, bmv1 = bme.verts
+                        vec = bme_vector(bme)
+                        edge_len = vec.length
+                        f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
+                        add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
+                        add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
 
             # push verts if neighboring faces seem flipped (still WiP!)
             if opt_correct_flipped:
@@ -501,6 +523,7 @@ class Relax_Logic:
                 # Doesn't seem to work well with how the brush iterates
                 shape_preservervation = 0
                 for bmv in chk_verts:
+                    if bmv not in verts: continue
                     # Skip corners
                     if len(bmv.link_edges) == 2: continue
                     if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
