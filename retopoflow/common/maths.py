@@ -43,6 +43,19 @@ def view_up_direction(context):
     mat = r3d.view_matrix
     return (mat.inverted() @ Vector((0,1,0,0))).xyz
 
+def bbox_center(bmvs):
+    maximum = Vector([
+        max([v.co[0] for v in bmvs]),
+        max([v.co[1] for v in bmvs]),
+        max([v.co[2] for v in bmvs])
+    ])
+    minimum = Vector([
+        min([v.co[0] for v in bmvs]),
+        min([v.co[1] for v in bmvs]),
+        min([v.co[2] for v in bmvs])
+    ])
+    average = (maximum - minimum) / 2
+    return minimum + average
 
 def distance_point_linesegment(pt, p0, p1, *, min_factor=0.05, max_factor=0.95, default=float('inf')):
     if not pt or not p0 or not p1: return default
