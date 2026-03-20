@@ -459,7 +459,7 @@ class Relax_Logic:
                     else:
                         center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
                     vec = center - bmv.co
-                    add_force(bmv, vec * (vec.length * strength * 5), bmv.co, 1, 40)
+                    add_force(bmv, vec * (vec.length * strength * 100), bmv.co, 1, 40)
 
             # attempt to "square" up the faces
             if opt_face_radius or opt_face_sides or opt_face_angles:
