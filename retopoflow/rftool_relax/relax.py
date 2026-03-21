@@ -180,7 +180,7 @@ class RFOperator_Relax(RFOperator):
     )
     algorithm_average_face_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Face-Edge Lengths',
-        description='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
+        description='Squash / stretch face edges so sides are equal in length (WARNING: can cause faces to flip)',
         default=False,
     )
     algorithm_average_face_angles: bpy.props.BoolProperty(
