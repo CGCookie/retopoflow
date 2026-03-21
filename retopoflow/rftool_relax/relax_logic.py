@@ -390,158 +390,161 @@ class Relax_Logic:
             fn = bmf_compute_normal(bmf)
             return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
 
+        def laplacian_smooth(bmv, shape_preservation=0):
+            ''' Push verts towards the average of their neighbors '''
+            # Skip corners
+            edge_count = len(bmv.link_edges)
+            if edge_count == 2: return
+            if edge_count == 4 and len(bmv.link_faces) == 3: return
+            if bmv.is_boundary:
+                neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.is_boundary]
+            else:
+                neighbors = [x.other_vert(bmv) for x in bmv.link_edges]
+            average_co = Vector([
+                sum([x.co[0] for x in neighbors]),
+                sum([x.co[1] for x in neighbors]),
+                sum([x.co[2] for x in neighbors])]
+            ) / len(neighbors)
+            if shape_preservation:
+                # Shape Preservation doesn't seem to work well with how the brush iterates
+                if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
+                weighted_o = self.prev[bmv] * shape_preservation
+                weighted_q = bmv.co * (1 - shape_preservation)
+                displacement = average_co - (weighted_o + weighted_q)
+            else:
+                displacement = average_co - bmv.co
+            if bmv.is_boundary: displacement /= 10
+            add_force(bmv, displacement, mult=40)
+
+        def straighten_edges(bmv):
+            ''' push verts to straighten edges (still WiP!) '''
+            if is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
+                # improve handling of boundary edges and verts when straightening edges
+                # see issue #1504
+                if opt_mask_boundary == 'EXCLUDE': return
+                if len(bmv.link_edges) == 2: return  # ignore corners
+                center = Point.average([
+                    bme.other_vert(bmv).co for bme in bmv.link_edges if is_bmedge_boundary(
+                        bme, self.mirror, self.mirror_threshold, self.mirror_clip
+                )])
+            else:
+                center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
+            vec = center - bmv.co
+            add_force(bmv, vec * (vec.length * strength * 100), bmv.co, 1, 40)
+
+        def average_edge_length(bme, avg_edge_len):
+            ''' Expand and contract edges closer to average edge length '''
+            bmv0, bmv1 = bme.verts
+            vec = bme_vector(bme)
+            edge_len = vec.length
+            f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
+            add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
+            add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
+
+        def average_edge_length_springs(bmv, avg_edge_len):
+            # Intended to help edges not collapse around holes but
+            # doesn't seem to make a significant difference and has
+            # high performance cost
+            if bmv not in verts: return
+            spring_force = Vector((0,0,0))
+            for bme in bmv.link_edges:
+                edge_len = bme.calc_length()
+                edge_vector = bmv.co - bme.other_vert(bmv).co
+                if not edge_len: return
+                # positive compression means the vert should move away from the opposite vert
+                # negative means it should be pulled towards it, like a spring
+                compression = (avg_edge_len - edge_len) / avg_edge_len
+                if compression == 0: return
+                direction = edge_vector.normalized()
+                magnitude = compression * abs(avg_edge_len - edge_len) * strength
+                spring_force += direction * magnitude
+            if spring_force.length:
+                add_force(bmv, spring_force, bmv.co, 1, 40)
+
+        def average_face_radius(bmf, bmv_count):
+            ''' push verts toward average dist from verts to face center '''
+            ctr = bmf_midpoint(bmf)
+            rels = [bmv.co - ctr for bmv in bmf.verts]
+            avg_rel_len = sum(rel.length for rel in rels) / bmv_count
+            for rel, bmv in zip(rels, bmf.verts):
+                rel_len = rel.length
+                f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
+                add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
+
+        def average_face_sides(bmf, bmv_count):
+            ''' push verts toward equal edge lengths '''
+            avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / bmv_count
+            for bme in bmf.edges:
+                bmv0, bmv1 = bme.verts
+                vec = bme_vector(bme)
+                edge_len = vec.length
+                f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
+                add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
+                add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
+
+        def average_face_angles(bmf, bmv_count):
+            ''' push verts toward equal spread '''
+            bmf_z = bmf.normal.normalized()
+            if abs(bmf_z.dot(self.forward)) < 0.95:
+                bmf_y = bmf_z.cross(self.forward).normalized()
+                bmf_x = bmf_y.cross(bmf_z).normalized()
+            else:
+                bmf_x = self.up.cross(bmf_z).normalized()
+                bmf_y = bmf_z.cross(bmf_x).normalized()
+            sum_of_interior_angles = math.pi * (bmv_count - 2)
+            angle_target = sum_of_interior_angles / bmv_count
+            for i1 in range(bmv_count):
+                i0 = (i1 + bmv_count - 1) % bmv_count
+                i2 = (i1 + 1) % bmv_count
+                bmv0, bmv1, bmv2 = bmf.verts[i0], bmf.verts[i1], bmf.verts[i2]
+                v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
+                d10, d12 = v10.normalized(), v12.normalized()
+                d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
+                d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
+                try:
+                    angle = d10_2.angle_signed(d12_2)
+                    angle_diff = angle_target - angle
+                    mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
+                    add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
+                    add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
+                except Exception:
+                    # Exception is thrown if d10_2 or d12_2 are 0-length
+                    pass
+
+        def correct_flipped_faces():
+            ''' push verts if neighboring faces seem flipped (still WiP!) '''
+            bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
+            for bmf in bmf_flipped:
+                # find a non-flipped neighboring face
+                for bme in bmf.edges:
+                    bmfs = { f for f in bme.link_faces if f not in bmf_flipped }
+                    if len(bmfs) != 1: continue
+                    bmf_other = next(iter(bmfs))
+                    if bmf_other not in chk_faces: continue
+                    # pull edge toward bmf_other center
+                    vec = bmf_midpoint(bmf_other) - bme_midpoint(bme)
+                    bmv0,bmv1 = bme.verts
+                    add_force(bmv0, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
+                    add_force(bmv1, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
+
         def relax_3d():
             reset_forces()
-
-
-            # push edges closer to average edge length
+            if opt_straight_edges or opt_laplacian:
+                for bmv in verts & chk_verts:
+                    if opt_laplacian: laplacian_smooth(bmv)
+                    if opt_straight_edges: straighten_edges(bmv)
             if opt_edge_length:
-                use_springs = False
-                if use_springs:
-                    #TODO: How much worse is performance?
-                    avg_edge_len = sum([bme.calc_length() for bme in edges]) / len(edges)
-                    for bmv in chk_verts:
-                        if bmv not in verts: continue
-                        spring_force = Vector((0,0,0))
-                        for bme in bmv.link_edges:
-                            edge_len = bme.calc_length()
-                            edge_vector = bmv.co - bme.other_vert(bmv).co
-                            if not edge_len: continue
-                            # positive compression means the vert should move away from the opposite vert
-                            # negative means it should be pulled towards it, like a spring
-                            compression = (avg_edge_len - edge_len) / avg_edge_len
-                            if compression == 0: continue
-                            direction = edge_vector.normalized()
-                            magnitude = compression * abs(avg_edge_len - edge_len) * strength
-                            # TODO: Make this strong enough to push against any force that makes an edge shrink to zero
-                            spring_force += direction * magnitude
-                        if spring_force.length:
-                            add_force(bmv, spring_force, bmv.co, 1, 40)
-                else:
-                    avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
-                    for bme in chk_edges:
-                        if bme not in edges: continue
-                        bmv0, bmv1 = bme.verts
-                        vec = bme_vector(bme)
-                        edge_len = vec.length
-                        f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
-                        add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
-                        add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
-
-            # push verts if neighboring faces seem flipped (still WiP!)
-            if opt_correct_flipped:
-                bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
-                for bmf in bmf_flipped:
-                    # find a non-flipped neighboring face
-                    for bme in bmf.edges:
-                        bmfs = { f for f in bme.link_faces if f not in bmf_flipped }
-                        if len(bmfs) != 1: continue
-                        bmf_other = next(iter(bmfs))
-                        if bmf_other not in chk_faces: continue
-                        # pull edge toward bmf_other center
-                        vec = bmf_midpoint(bmf_other) - bme_midpoint(bme)
-                        bmv0,bmv1 = bme.verts
-                        add_force(bmv0, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
-                        add_force(bmv1, vec * strength * 5, bmf_midpoint(bmf), 1, 40)
-
-            # push verts to straighten edges (still WiP!)
-            if opt_straight_edges:
-                for bmv in chk_verts:
-                    if is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
-                        # improve handling of boundary edges and verts when straightening edges
-                        # see issue #1504
-                        if opt_mask_boundary == 'EXCLUDE': continue
-                        if len(bmv.link_edges) == 2: continue  # ignore corners
-                        center = Point.average([
-                            bme.other_vert(bmv).co for bme in bmv.link_edges if is_bmedge_boundary(
-                                bme, self.mirror, self.mirror_threshold, self.mirror_clip
-                        )])
-                    else:
-                        center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
-                    vec = center - bmv.co
-                    add_force(bmv, vec * (vec.length * strength * 100), bmv.co, 1, 40)
-
-            # attempt to "square" up the faces
-            if opt_face_radius or opt_face_sides or opt_face_angles:
-                for bmf in chk_faces:
-                    if bmf not in faces: continue
-                    bmvs = bmf.verts
-                    cnt = len(bmvs)
-
-                    # push verts toward average dist from verts to face center
-                    if opt_face_radius:
-                        ctr = bmf_midpoint(bmf)
-                        rels = [bmv.co - ctr for bmv in bmvs]
-                        avg_rel_len = sum(rel.length for rel in rels) / cnt
-                        for rel, bmv in zip(rels, bmvs):
-                            rel_len = rel.length
-                            f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
-                            add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
-
-                    # push verts toward equal edge lengths
-                    if opt_face_sides:
-                        avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / cnt
-                        for bme in bmf.edges:
-                            bmv0, bmv1 = bme.verts
-                            vec = bme_vector(bme)
-                            edge_len = vec.length
-                            f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
-                            add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
-                            add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
-
-                    # push verts toward equal spread
-                    if opt_face_angles:
-                        bmf_z = bmf.normal.normalized()
-                        if abs(bmf_z.dot(self.forward)) < 0.95:
-                            bmf_y = bmf_z.cross(self.forward).normalized()
-                            bmf_x = bmf_y.cross(bmf_z).normalized()
-                        else:
-                            bmf_x = self.up.cross(bmf_z).normalized()
-                            bmf_y = bmf_z.cross(bmf_x).normalized()
-                        sum_of_interior_angles = math.pi * (cnt - 2)
-                        angle_target = sum_of_interior_angles / cnt
-                        for i1 in range(cnt):
-                            i0 = (i1 + cnt - 1) % cnt
-                            i2 = (i1 + 1) % cnt
-                            bmv0, bmv1, bmv2 = bmvs[i0], bmvs[i1], bmvs[i2]
-                            v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
-                            d10, d12 = v10.normalized(), v12.normalized()
-                            d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
-                            d12_2 = Vector((bmf_x.dot(d12), bmf_y.dot(d12))).normalized()
-                            try:
-                                angle = d10_2.angle_signed(d12_2)
-                                angle_diff = angle_target - angle
-                                mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
-                                add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
-                                add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
-                            except Exception:
-                                # Exception is thrown if d10_2 or d12_2 are 0-length
-                                pass
-
-            # Push verts towards the average of their neighbors
-            if opt_laplacian:
-                # Doesn't seem to work well with how the brush iterates
-                shape_preservervation = 0
-                for bmv in chk_verts:
-                    if bmv not in verts: continue
-                    # Skip corners
-                    if len(bmv.link_edges) == 2: continue
-                    if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: continue
-                    if bmv.is_boundary:
-                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.is_boundary]
-                    else:
-                        neighbors = [x.other_vert(bmv) for x in bmv.link_edges]
-                    average_co = Vector([
-                        sum([x.co[0] for x in neighbors]),
-                        sum([x.co[1] for x in neighbors]),
-                        sum([x.co[2] for x in neighbors])]
-                    ) / len(neighbors)
-                    if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
-                    weighted_o = self.prev[bmv] * shape_preservervation
-                    weighted_q = bmv.co * (1 - shape_preservervation)
-                    laplacian_disp = average_co - (weighted_o + weighted_q)
-                    if bmv.is_boundary: laplacian_disp /= 10
-                    add_force(bmv, laplacian_disp, mult=40)
+                avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
+                for bme in edges & chk_edges:
+                    average_edge_length(bme, avg_edge_len)
+            if opt_face_angles or opt_face_radius or opt_face_sides:
+                # attempt to "square" up the faces
+                for bmf in faces & chk_faces:
+                    bmv_count = len(bmf.verts)
+                    if opt_face_angles: average_face_angles(bmf, bmv_count)
+                    if opt_face_radius: average_face_radius(bmf, bmv_count)
+                    if opt_face_sides: average_face_sides(bmf, bmv_count)
+            if opt_correct_flipped: correct_flipped_faces()
 
         # perform smoothing
         for step in range(1 if opt_method == 'RK4' else opt_steps):
