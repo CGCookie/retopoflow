@@ -331,12 +331,13 @@ class Relax_Logic:
         object_evaluated = context.edit_object.evaluated_get(depsgraph)
         bbox = object_evaluated.bound_box
         self.verts_accel.rebuild(bbox=bbox)
+        if not self.verts_filtered: return
         verts = self.verts_accel.get(hit['co_world'], radius3D)
+        if not verts: return
         edges = { bme for bmv in verts for bme in bmv.link_edges }
+        if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
         vert_strength = { bmv:brush.get_strength_Point(M @ bmv.co) for bmv in verts }
-
-        if not verts or not edges: return
 
         cur_time = time.time()
         time_delta = min(cur_time - self._time, 0.1)
