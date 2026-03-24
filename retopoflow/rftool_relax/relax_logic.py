@@ -68,9 +68,6 @@ class Accel:
         self.time = time.time() - 1000
         self.rebuild(bbox=bbox)
 
-    def rebuild(self, *, delta=1.0):
-        if time.time() - self.time < delta: return
-        M = self.matrix_world
     def rebuild(self, *, bbox=None, delta=1.0) -> None:
         if time.time() - self.time < delta:
             return
