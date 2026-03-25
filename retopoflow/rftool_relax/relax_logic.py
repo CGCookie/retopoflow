@@ -396,19 +396,29 @@ class Relax_Logic:
 
         def straighten_edges(bmv):
             ''' push verts to straighten edges (still WiP!) '''
-            if is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
-                # improve handling of boundary edges and verts when straightening edges
-                # see issue #1504
-                if opt_mask_boundary == 'EXCLUDE': return
-                if len(bmv.link_edges) == 2: return  # ignore corners
-                center = Point.average([
-                    bme.other_vert(bmv).co for bme in bmv.link_edges if is_bmedge_boundary(
+            is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+            if is_boundary and opt_mask_boundary == 'EXCLUDE': return
+            if len(bmv.link_edges) == 2: return  # ignore corners
+            if is_boundary:
+                connected_edges = [
+                    bme for bme in bmv.link_edges if is_bmedge_boundary(
                         bme, self.mirror, self.mirror_threshold, self.mirror_clip
-                )])
+                )]
             else:
-                center = Point.average(bme.other_vert(bmv).co for bme in bmv.link_edges)
+                connected_edges = list(bmv.link_edges)
+            if not connected_edges: return
+            if opt_laplacian or opt_edge_length:
+                # Faster method when verts are being spread out anyway
+                center = Point.average([bme.other_vert(bmv).co for bme in connected_edges])
+                force_mult = 1
+            else:
+                # Slower method that does not spread out verts
+                min_length = min(bme.calc_length() for bme in connected_edges)
+                directions = [(bme.other_vert(bmv).co - bmv.co).normalized() for bme in connected_edges]
+                center = Point.average([bmv.co + (d * min_length) for d in directions])
+                force_mult = 10
             vec = center - bmv.co
-            add_force(bmv, vec * (vec.length * strength * 100), bmv.co, 1, 40)
+            add_force(bmv, vec * strength * force_mult, bmv.co, 1, 40)
 
         def average_edge_length(bme, avg_edge_len):
             ''' Expand and contract edges closer to average edge length '''
