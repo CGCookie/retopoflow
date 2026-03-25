@@ -166,7 +166,7 @@ class RFOperator_Relax(RFOperator):
     algorithm_average_edge_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Edge Lengths',
         description='Squash / stretch each edge toward the average edge length near the brush',
-        default=True,
+        default=False,
     )
     algorithm_straighten_edges: bpy.props.BoolProperty(
         name='Algorithm: Straighten Edges',
@@ -176,7 +176,7 @@ class RFOperator_Relax(RFOperator):
     algorithm_equalize_faces: bpy.props.BoolProperty(
         name='Algorithm: Equalize Faces',
         description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths',
-        default=True,
+        default=False,
     )
     # algorithm_average_face_radius: bpy.props.BoolProperty(
     #     name='Algorithm: Average face radius',
