@@ -282,9 +282,7 @@ class Relax_Logic:
         opt_max_edges        = relax.algorithm_max_distance_edges
         opt_edge_length      = relax.algorithm_average_edge_lengths
         opt_straight_edges   = relax.algorithm_straighten_edges
-        opt_face_radius      = relax.algorithm_equalize_faces
-        opt_face_angles      = relax.algorithm_equalize_faces
-        opt_face_sides       = False # relax.algorithm_average_face_lengths
+        opt_equalize_faces   = relax.algorithm_equalize_faces
         opt_laplacian        = relax.algorithm_laplacian
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
@@ -375,6 +373,7 @@ class Relax_Logic:
             if edge_count == 2: return
             if edge_count == 4 and len(bmv.link_faces) == 3: return
             if bmv.is_boundary:
+                if edge_count > 4: return
                 neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.is_boundary]
             else:
                 neighbors = [x.other_vert(bmv) for x in bmv.link_edges]
@@ -392,13 +391,14 @@ class Relax_Logic:
             else:
                 displacement = average_co - bmv.co
             if bmv.is_boundary: displacement /= 10
-            add_force(bmv, displacement, mult=40)
+            add_force(bmv, displacement / 2, mult=40)
 
         def straighten_edges(bmv):
             ''' push verts to straighten edges (still WiP!) '''
             is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             if is_boundary and opt_mask_boundary == 'EXCLUDE': return
-            if len(bmv.link_edges) == 2: return  # ignore corners
+            if len(bmv.link_edges) == 2: return  # skip corners
+            if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: return
             if is_boundary:
                 connected_edges = [
                     bme for bme in bmv.link_edges if is_bmedge_boundary(
@@ -413,6 +413,7 @@ class Relax_Logic:
                 force_mult = 1
             else:
                 # Slower method that does not spread out verts
+                if len(bmv.link_edges) > 4: return
                 min_length = min(bme.calc_length() for bme in connected_edges)
                 directions = [(bme.other_vert(bmv).co - bmv.co).normalized() for bme in connected_edges]
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
@@ -499,6 +500,15 @@ class Relax_Logic:
                     # Exception is thrown if d10_2 or d12_2 are 0-length
                     pass
 
+        def average_face_areas(bmf, bmv_count, avg_area):
+            ''' scale faces towards the average '''
+            # Useful for preserving area when faces should retain uneven sides
+            diff = (bmf.calc_area() / bmv_count) - avg_area
+            center = Point.average(bmv.co for bmv in bmf.verts)
+            for bmv in bmf.verts:
+                vec = (center - bmv.co) * diff
+                add_force(bmv, vec * strength * 10, bmf_midpoint(bmf), 1, 40)
+
         def correct_flipped_faces():
             ''' push verts if neighboring faces seem flipped (still WiP!) '''
             bmf_flipped = { bmf for bmf in chk_faces if bmf_is_flipped(bmf) }
@@ -525,13 +535,13 @@ class Relax_Logic:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in edges & chk_edges:
                     average_edge_length(bme, avg_edge_len)
-            if opt_face_angles or opt_face_radius or opt_face_sides:
-                # attempt to "square" up the faces
+            if opt_equalize_faces:
+                avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
                 for bmf in faces & chk_faces:
                     bmv_count = len(bmf.verts)
-                    if opt_face_angles: average_face_angles(bmf, bmv_count)
-                    if opt_face_radius: average_face_radius(bmf, bmv_count)
-                    if opt_face_sides: average_face_sides(bmf, bmv_count)
+                    average_face_angles(bmf, bmv_count)
+                    average_face_radius(bmf, bmv_count)
+                    average_face_areas(bmf, bmv_count, avg_vert_area)
             if opt_correct_flipped: correct_flipped_faces()
 
         # perform smoothing
