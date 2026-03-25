@@ -166,18 +166,6 @@ class Relax_Logic:
         opt_include_pinned   = context.scene.retopoflow.include_pinned
         opt_include_creases  = context.scene.retopoflow.include_creases
         opt_include_occluded = context.scene.retopoflow.include_occluded
-        opt_method           = relax.algorithm_method
-        opt_steps            = relax.algorithm_iterations
-        opt_prevent_bounce   = relax.algorithm_prevent_bounce
-        opt_max_radius       = relax.algorithm_max_distance_radius
-        opt_max_edges        = relax.algorithm_max_distance_edges
-        opt_edge_length      = relax.algorithm_average_edge_lengths
-        opt_straight_edges   = relax.algorithm_straighten_edges
-        opt_face_radius      = relax.algorithm_average_face_radius
-        opt_face_sides       = relax.algorithm_average_face_lengths
-        opt_face_angles      = relax.algorithm_average_face_angles
-        opt_laplacian        = relax.algorithm_laplacian
-        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 
         opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
         opt_mask_symmetry_exclude = opt_mask_symmetry == 'EXCLUDE'
@@ -287,14 +275,6 @@ class Relax_Logic:
 
         # gather options
         opt_mask_boundary    = context.scene.retopoflow.mask_boundary
-        opt_mask_selected    = context.scene.retopoflow.mask_selected
-        opt_mask_symmetry    = context.scene.retopoflow.mask_symmetry
-        opt_include_corner   = context.scene.retopoflow.include_corners
-        opt_include_seams    = context.scene.retopoflow.include_seams
-        opt_include_sharps   = context.scene.retopoflow.include_sharps
-        opt_include_pinned   = context.scene.retopoflow.include_pinned
-        opt_include_creases  = context.scene.retopoflow.include_creases
-        opt_include_occluded = context.scene.retopoflow.include_occluded
         opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce
@@ -302,9 +282,9 @@ class Relax_Logic:
         opt_max_edges        = relax.algorithm_max_distance_edges
         opt_edge_length      = relax.algorithm_average_edge_lengths
         opt_straight_edges   = relax.algorithm_straighten_edges
-        opt_face_radius      = relax.algorithm_average_face_radius
-        opt_face_sides       = relax.algorithm_average_face_lengths
-        opt_face_angles      = relax.algorithm_average_face_angles
+        opt_face_radius      = relax.algorithm_equalize_faces
+        opt_face_angles      = relax.algorithm_equalize_faces
+        opt_face_sides       = False # relax.algorithm_average_face_lengths
         opt_laplacian        = relax.algorithm_laplacian
         opt_correct_flipped  = relax.algorithm_correct_flipped_faces
 

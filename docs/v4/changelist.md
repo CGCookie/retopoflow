@@ -5,9 +5,12 @@ This document contains details about what has changed in Retopoflow in version 4
 ### 4.1.4
 
 - Added new vertex smoothing algorithm option for Relax
+    - This is enabled by default and should make most cases significantly more stable
+- Cleaned up Relax Algorithms UI
 - Fixed PolyPen knife sometimes trying to insert loops when it should not
 - Fixed issue with creases when jumping straight to object mode
 - Fixed theme preferences being incorrectly saved in Blender 5.1 if exiting Blender while Retopoflow is active
+- Fixed silent error in console when using Relax on geometry without faces
 
 ### 4.1.3
 

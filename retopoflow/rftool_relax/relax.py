@@ -165,7 +165,7 @@ class RFOperator_Relax(RFOperator):
     )
     algorithm_average_edge_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Edge Lengths',
-        description='Squash / stretch each edge toward the average edge length',
+        description='Squash / stretch each edge toward the average edge length near the brush',
         default=True,
     )
     algorithm_straighten_edges: bpy.props.BoolProperty(
@@ -173,21 +173,26 @@ class RFOperator_Relax(RFOperator):
         description='Try to straighten edges',
         default=True,
     )
-    algorithm_average_face_radius: bpy.props.BoolProperty(
-        name='Move face vertices so their distance to face center is equalized',
-        description='Algorithm: Average face radius',
+    algorithm_equalize_faces: bpy.props.BoolProperty(
+        name='Algorithm: Equalize Faces',
+        description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths',
         default=True,
     )
-    algorithm_average_face_lengths: bpy.props.BoolProperty(
-        name='Algorithm: Average Face-Edge Lengths',
-        description='Squash / stretch face edges so sides are equal in length (WARNING: can cause faces to flip)',
-        default=False,
-    )
-    algorithm_average_face_angles: bpy.props.BoolProperty(
-        name='Algorithm: Average Face Angles',
-        description='Move face vertices so they are equally spread around face center',
-        default=True,
-    )
+    # algorithm_average_face_radius: bpy.props.BoolProperty(
+    #     name='Algorithm: Average face radius',
+    #     description='Move face vertices towards their average distance from the face center',
+    #     default=True,
+    # )
+    # algorithm_average_face_lengths: bpy.props.BoolProperty(
+    #     name='Algorithm: Average Face-Edge Lengths',
+    #     description='Squash / stretch face edges so sides are equal in length (WARNING: can cause faces to flip)',
+    #     default=False,
+    # )
+    # algorithm_average_face_angles: bpy.props.BoolProperty(
+    #     name='Algorithm: Average Face Angles',
+    #     description='Move face vertices so they are equally spread around the face center',
+    #     default=True,
+    # )
     algorithm_correct_flipped_faces: bpy.props.BoolProperty(
         name='Algorithm: Correct Flipped Faces',
         description='Try to move vertices so faces are not flipped',
