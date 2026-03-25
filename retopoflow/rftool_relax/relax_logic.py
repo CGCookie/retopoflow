@@ -397,9 +397,11 @@ class Relax_Logic:
             ''' push verts to straighten edges (still WiP!) '''
             is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             if is_boundary and opt_mask_boundary == 'EXCLUDE': return
-            if len(bmv.link_edges) == 2: return  # skip corners
-            if len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3: return
+            edge_count = len(bmv.link_edges)
+            if edge_count == 2: return  # skip corners
+            if edge_count == 4 and len(bmv.link_faces) == 3: return
             if is_boundary:
+                if edge_count > 4: return
                 connected_edges = [
                     bme for bme in bmv.link_edges if is_bmedge_boundary(
                         bme, self.mirror, self.mirror_threshold, self.mirror_clip
