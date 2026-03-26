@@ -428,7 +428,7 @@ class Relax_Logic:
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
                 force_mult = 0.25
             vec = center - bmv.co
-            add_force(bmv, vec * strength * force_mult, bmv.co, 1, 40)
+            add_force(bmv, vec * strength * force_mult / self.scale_avg, bmv.co, 1, 40)
 
         def average_edge_length(bme, avg_edge_len):
             ''' Expand and contract edges closer to average edge length '''
@@ -504,7 +504,7 @@ class Relax_Logic:
                 try:
                     angle = d10_2.angle_signed(d12_2)
                     angle_diff = angle_target - angle
-                    mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2.5
+                    mag = angle_diff * 0.2 * strength * self.scale_avg * (v10.length + v12.length) ** 2.5
                     add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
                     add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
                 except Exception:
@@ -521,8 +521,8 @@ class Relax_Logic:
                     other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in bmf.edges]
                     if other_boundary_verts:
                         center = Point.average([bmv.co, other_boundary_verts[0].co])
-                vec = (center - bmv.co) * diff
-                add_force(bmv, vec * strength * 100, bmf_midpoint(bmf), 1, 40)
+                vec = (center - bmv.co) * diff * self.scale_avg * 500
+                add_force(bmv, vec * strength, bmf_midpoint(bmf), 1, 40)
 
         def correct_flipped_faces():
             ''' push verts if neighboring faces seem flipped (still WiP!) '''
@@ -561,6 +561,7 @@ class Relax_Logic:
             if opt_correct_flipped: correct_flipped_faces()
 
         # perform smoothing
+        strength_base = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
         if opt_method == 'AUTO':
             vert_count = len(verts)
             if opt_equalize_faces: vert_count *= 2 # It's pretty slow
@@ -574,32 +575,32 @@ class Relax_Logic:
             if opt_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
+                strength = strength_base
                 relax_3d()
                 k1 = displace.copy()
 
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
                     bmv.co = original[bmv] + f1 / 2
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
+                strength = strength_base / 2
                 relax_3d()
                 k2 = displace.copy()
 
                 for bmv in original:
                     f2 = k2[bmv] if bmv in k2 else Vector((0,0,0))
                     bmv.co = original[bmv] + f2 / 2
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 2
+                strength = strength_base / 2
                 relax_3d()
                 k3 = displace.copy()
 
                 for bmv in original:
                     f3 = k3[bmv] if bmv in k3 else Vector((0,0,0))
                     bmv.co = original[bmv] + f3
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
+                strength = strength_base
                 relax_3d()
                 k4 = displace.copy()
 
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / 6
+                strength = strength_base / 6
                 displace.clear()
                 for bmv in original:
                     f1 = k1[bmv] if bmv in k1 else Vector((0,0,0))
@@ -611,7 +612,7 @@ class Relax_Logic:
                     #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / steps
+                strength = strength_base / steps
                 relax_3d()
 
             if opt_prevent_bounce:
