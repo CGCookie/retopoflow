@@ -426,7 +426,7 @@ class Relax_Logic:
                 min_length = min(bme.calc_length() for bme in connected_edges)
                 directions = [(bme.other_vert(bmv).co - bmv.co).normalized() for bme in connected_edges]
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
-                force_mult = 0.25
+                force_mult = 1
             vec = center - bmv.co
             add_force(bmv, vec * strength * force_mult / self.scale_avg, bmv.co, 1, 40)
 
