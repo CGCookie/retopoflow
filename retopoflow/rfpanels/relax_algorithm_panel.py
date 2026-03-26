@@ -40,9 +40,10 @@ def draw_relax_algo_options(context, layout):
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
     layout.separator()
-    layout.row().prop(props, 'algorithm_method', expand=False)
+    layout.row().prop(props, 'algorithm_method', expand=False, text='Integration')
     if props.algorithm_method == 'STEPS':
         layout.prop(props, 'algorithm_iterations', text="Iterations")
+    layout.separator()
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')

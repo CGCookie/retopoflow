@@ -132,7 +132,7 @@ class RFOperator_Relax(RFOperator):
         name='Method',
         description='How Relax updates the position of the vertices under the brush',
         items=[
-            ('AUTO', 'Auto', 'Chooses a substep amount based on the vertex count to balance quality and performance'),
+            ('AUTO', 'Auto', 'Uses an automatic number of substeps based on the enabled options and vertex count to balance quality and performance'),
             ('STEPS', 'Substeps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
             ('RK4', 'RK4 (Experimental)', 'Use Runge-Kutta integration to improve stability while smoothing'),
         ],
@@ -171,12 +171,13 @@ class RFOperator_Relax(RFOperator):
     )
     algorithm_straighten_edges: bpy.props.BoolProperty(
         name='Algorithm: Straighten Edges',
-        description='Try to straighten edges',
+        description='Moves each vertex towards making its connected edges straighter',
         default=True,
     )
     algorithm_equalize_faces: bpy.props.BoolProperty(
         name='Algorithm: Equalize Faces',
-        description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths',
+        description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths and overall area. ' \
+            'Slow but useful when other methods collapse faces too much',
         default=False,
     )
     # algorithm_average_face_radius: bpy.props.BoolProperty(
