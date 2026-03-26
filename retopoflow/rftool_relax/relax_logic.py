@@ -337,7 +337,12 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            options = [opt_laplacian, opt_edge_length, opt_straight_edges, opt_equalize_faces]
+            options = [
+                opt_laplacian,
+                opt_edge_length,
+                opt_straight_edges,
+                opt_equalize_faces, opt_equalize_faces, opt_equalize_faces, opt_equalize_faces,
+            ]
             weight_mult = 1 / len([x for x in options if x == True])
             displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
             if opt_draw_all and wrt:
@@ -461,7 +466,9 @@ class Relax_Logic:
             avg_rel_len = sum(rel.length for rel in rels) / bmv_count
             for rel, bmv in zip(rels, bmf.verts):
                 rel_len = rel.length
-                f = rel * ((avg_rel_len - rel_len) * strength * 5.0)
+                diff = avg_rel_len - rel_len
+                if diff > 0: diff /= 10 # Reduces shrinking
+                f = rel * diff * strength * 5
                 add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
 
         def average_face_sides(bmf, bmv_count):
@@ -471,7 +478,7 @@ class Relax_Logic:
                 bmv0, bmv1 = bme.verts
                 vec = bme_vector(bme)
                 edge_len = vec.length
-                f = vec * ((avg_face_edge_len - edge_len) * strength * 5.0)
+                f = vec * ((avg_face_edge_len - edge_len) * strength * 2)
                 add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
                 add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
 
@@ -497,7 +504,7 @@ class Relax_Logic:
                 try:
                     angle = d10_2.angle_signed(d12_2)
                     angle_diff = angle_target - angle
-                    mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2
+                    mag = angle_diff * 0.2 * strength * (v10.length + v12.length) ** 2.5
                     add_force(bmv0, d10.cross(bmf_z).normalized() * -mag, bmv0.co, angle_diff, 40)
                     add_force(bmv2, d12.cross(bmf_z).normalized() * mag, bmv1.co, angle_diff, 40)
                 except Exception:
@@ -507,10 +514,13 @@ class Relax_Logic:
         def average_face_areas(bmf, bmv_count, avg_vert_area):
             ''' scale faces towards the average '''
             # Useful for preserving area when faces should retain uneven sides
-            #TODO: prevent boundary verts from pushing outwards
             diff = (bmf.calc_area() / bmv_count) - avg_vert_area
             center = Point.average(bmv.co for bmv in bmf.verts)
             for bmv in bmf.verts:
+                if bmv.is_boundary and len(bmv.link_edges) == 3:
+                    other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in bmf.edges]
+                    if other_boundary_verts:
+                        center = Point.average([bmv.co, other_boundary_verts[0].co])
                 vec = (center - bmv.co) * diff
                 add_force(bmv, vec * strength * 100, bmf_midpoint(bmf), 1, 40)
 
@@ -546,6 +556,7 @@ class Relax_Logic:
                     bmv_count = len(bmf.verts)
                     average_face_angles(bmf, bmv_count)
                     average_face_radius(bmf, bmv_count)
+                    average_face_sides(bmf, bmv_count)
                     average_face_areas(bmf, bmv_count, avg_vert_area)
             if opt_correct_flipped: correct_flipped_faces()
 
