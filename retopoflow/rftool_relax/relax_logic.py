@@ -561,7 +561,16 @@ class Relax_Logic:
             if opt_correct_flipped: correct_flipped_faces()
 
         # perform smoothing
-        for step in range(1 if opt_method == 'RK4' else opt_steps):
+        if opt_method == 'AUTO':
+            vert_count = len(verts)
+            if opt_equalize_faces: vert_count *= 2 # It's pretty slow
+            if opt_mask_boundary == 'SLIDE': vert_count *= 4 # It's extremely slow
+            steps = min(10, max(1, int(100 / vert_count)))
+        elif opt_method == 'RK4':
+            steps = 1
+        else:
+            steps = opt_steps
+        for step in range(steps):
             if opt_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
@@ -602,7 +611,7 @@ class Relax_Logic:
                     #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / opt_steps
+                strength = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure / steps
                 relax_3d()
 
             if opt_prevent_bounce:

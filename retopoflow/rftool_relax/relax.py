@@ -132,10 +132,11 @@ class RFOperator_Relax(RFOperator):
         name='Method',
         description='How Relax updates the position of the vertices under the brush',
         items=[
-            ('STEPS', 'Steps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
+            ('AUTO', 'Auto', 'Chooses a substep amount based on the vertex count to balance quality and performance'),
+            ('STEPS', 'Substeps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
             ('RK4', 'RK4 (Experimental)', 'Use Runge-Kutta integration to improve stability while smoothing'),
         ],
-        default='STEPS',
+        default='AUTO',
     )
     algorithm_iterations: bpy.props.IntProperty(
         name='Algorithm: Iterations',
