@@ -337,7 +337,9 @@ class Relax_Logic:
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            displace[bmv] += f.xyz * vert_strength[bmv]
+            options = [opt_laplacian, opt_edge_length, opt_straight_edges, opt_equalize_faces]
+            weight_mult = 1 / len([x for x in options if x == True])
+            displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
             if opt_draw_all and wrt:
                 if sign > 0:
                     self.draw_vectors[0].append((wrt, f.xyz * mult * vert_strength[bmv]))
@@ -390,8 +392,8 @@ class Relax_Logic:
                 displacement = average_co - (weighted_o + weighted_q)
             else:
                 displacement = average_co - bmv.co
-            if bmv.is_boundary: displacement /= 10
-            add_force(bmv, displacement / 2, mult=40)
+            if bmv.is_boundary: displacement /= 2
+            add_force(bmv, displacement / 10, mult=40)
 
         def straighten_edges(bmv):
             ''' push verts to straighten edges (still WiP!) '''
@@ -419,7 +421,7 @@ class Relax_Logic:
                 min_length = min(bme.calc_length() for bme in connected_edges)
                 directions = [(bme.other_vert(bmv).co - bmv.co).normalized() for bme in connected_edges]
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
-                force_mult = 10
+                force_mult = 0.25
             vec = center - bmv.co
             add_force(bmv, vec * strength * force_mult, bmv.co, 1, 40)
 
@@ -428,7 +430,7 @@ class Relax_Logic:
             bmv0, bmv1 = bme.verts
             vec = bme_vector(bme)
             edge_len = vec.length
-            f = vec * (2.0 * (avg_edge_len - edge_len) * strength)
+            f = vec * ((avg_edge_len - edge_len) * strength * 2)
             add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
             add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
 
@@ -502,14 +504,15 @@ class Relax_Logic:
                     # Exception is thrown if d10_2 or d12_2 are 0-length
                     pass
 
-        def average_face_areas(bmf, bmv_count, avg_area):
+        def average_face_areas(bmf, bmv_count, avg_vert_area):
             ''' scale faces towards the average '''
             # Useful for preserving area when faces should retain uneven sides
-            diff = (bmf.calc_area() / bmv_count) - avg_area
+            #TODO: prevent boundary verts from pushing outwards
+            diff = (bmf.calc_area() / bmv_count) - avg_vert_area
             center = Point.average(bmv.co for bmv in bmf.verts)
             for bmv in bmf.verts:
                 vec = (center - bmv.co) * diff
-                add_force(bmv, vec * strength * 10, bmf_midpoint(bmf), 1, 40)
+                add_force(bmv, vec * strength * 100, bmf_midpoint(bmf), 1, 40)
 
         def correct_flipped_faces():
             ''' push verts if neighboring faces seem flipped (still WiP!) '''
