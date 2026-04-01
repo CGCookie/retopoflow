@@ -435,7 +435,8 @@ class Relax_Logic:
             bmv0, bmv1 = bme.verts
             vec = bme_vector(bme)
             edge_len = vec.length
-            f = vec * ((avg_edge_len - edge_len) * strength * 2)
+            diff = avg_edge_len - edge_len
+            f = vec * (diff * strength)
             add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
             add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
 
