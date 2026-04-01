@@ -24,6 +24,7 @@ from bpy.app.handlers import persistent
 import tempfile
 import os
 from ..rfoverlays.overlays import overlay_names
+from ...addon_common.common.blender import show_blender_popup
 
 class AutoSave:
     SECOND_TIMER_WAIT     = 0.25
@@ -34,20 +35,30 @@ class AutoSave:
     actively_saving   : bool = False
 
     @staticmethod
-    def is_enabled():
-        return bpy.context.preferences.filepaths.use_auto_save_temporary_files
+    def is_enabled() -> bool:
+        return bool(bpy.context.preferences.filepaths.use_auto_save_temporary_files)
 
     @staticmethod
-    def autosave_minutes():
+    def autosave_minutes() -> int:
         return 60 * int(bpy.context.preferences.filepaths.auto_save_time)
 
     @staticmethod
-    def random_identifier():
+    def random_identifier() -> int:
         # not really random, but this is what blender's source does!  see wm_autosave_location
         return os.getpid()
 
     @staticmethod
-    def path_autosave():
+    def can_write(path : str) -> bool:
+        if os.path.exists(path):
+            return os.access(path, os.W_OK)
+        try:    open(path, 'w').close()
+        except: return False
+        try:    os.remove(path)
+        except: return False
+        return True
+
+    @staticmethod
+    def path_autosave() -> str | None:
         if bpy.data.filepath:
             path_blend = str(bpy.data.filepath)
             path_blendfile = os.path.basename(path_blend)
@@ -58,17 +69,29 @@ class AutoSave:
 
         path_tmp = str(bpy.context.preferences.filepaths.temporary_directory) or tempfile.gettempdir()
         path = os.path.join(path_tmp, filename_autosave)
-        if not os.access(path, os.W_OK):
-            path_tmp = tempfile.gettempdir()
-            path = os.path.join(path_tmp, filename_autosave)
-        if not os.access(path, os.W_OK):
-            print(f'AutoSave: Cannot write to autosave file {path=}')
-            print(f'  filepath:     {bpy.data.filepath}')
-            print(f'  random id:    {AutoSave.random_identifier()}')
-            print(f'  blender temp: {bpy.context.preferences.filepaths.temporary_directory}')
-            print(f'  system temp:  {tempfile.gettempdir()}')
-            print(f'  autosave:     {filename_autosave}')
-        return path
+        if AutoSave.can_write(path): return path
+
+        path_tmp = tempfile.gettempdir()
+        path = os.path.join(path_tmp, filename_autosave)
+        if AutoSave.can_write(path): return path
+
+        message = '\n'.join([
+            f'Cannot write to autosave file: "{path}".',
+            f'Check Edit > Prefs > File Paths > Data > Temp Files points to a valid folder with which you have write permissions.',
+            f'Check terminal/console for a more detailed report.',
+        ])
+        detailed_message = '\n'.join([
+            f'Cannot write to autosave file',
+            f'  autosave:     {path=}',
+            f'  filename:     {filename_autosave}',
+            f'  blend path:   {bpy.data.filepath}',
+            f'  random id:    {AutoSave.random_identifier()}',
+            f'  blender temp: {bpy.context.preferences.filepaths.temporary_directory}',
+            f'  system temp:  {tempfile.gettempdir()}',
+        ])
+        show_blender_popup(message, title='Retopoflow AutoSave Error', icon="ERROR") # wrap=80
+        print(detailed_message)
+        return None
 
     @staticmethod
     @persistent
@@ -148,12 +171,18 @@ class AutoSave:
             # artist is using modal operator, so we should wait...
             # print(f'          waiting for {modal_operators} to finish')
             return AutoSave.SECOND_TIMER_WAIT
+
+        filepath = AutoSave.path_autosave()
+        if not filepath:
+            # something failed with getting an autosave path!
+            return
+
         try:
             AutoSave.actively_saving = True
             # NOTE: this will create .blend1, .blend2, etc. files
             #       not deleting previous versions
             bpy.ops.wm.save_as_mainfile(
-                filepath=AutoSave.path_autosave(),
+                filepath=filepath,
                 check_existing=False,
                 compress=True,
                 copy=True,
@@ -168,6 +197,12 @@ class AutoSave:
                 # attempt again!
                 return AutoSave.SECOND_TIMER_WAIT
 
+            message = '\n'.join([
+                'An unexpected exception was thrown while trying to perform autosave.',
+                'Disabling Retopoflow AutoSave feature for now.',
+                'Check terminal / console for more details.',
+            ])
+            show_blender_popup(message, title='Retopoflow AutoSave Error', icon="ERROR")
             print(f'AutoSave: Hit maximum failed attempts!  disabling autosave for now')
         finally:
             AutoSave.actively_saving = False

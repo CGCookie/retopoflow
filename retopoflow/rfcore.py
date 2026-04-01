@@ -606,7 +606,8 @@ class RFCore:
         if bpy.context.scene.retopoflow.saved_tool:
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
         bpy.context.scene.retopoflow.saved_tool = ''
-        del RFCore.is_saving
+        if hasattr(RFCore, 'is_saving'):
+            del RFCore.is_saving
 
     @staticmethod
     def handle_load_pre(path_blend):
