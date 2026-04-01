@@ -28,8 +28,6 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line_2d
 
-import math
-import time
 from collections import deque
 from collections.abc import Iterable
 from enum import auto
@@ -38,7 +36,7 @@ from ..preferences import RF_Prefs
 
 from ..common.bmesh import (
     bmvs_share_bmf,
-    bme_other_bmv, bme_other_bmf,
+    bme_other_bmv, bme_other_bmf, bme_midpoint, bme_cos,
     bmes_share_bmv, bmes_shared_bmv,
     bmf_midpoint, bmf_opposite_bme, bmf_is_quad,
     get_bmesh_emesh,
@@ -537,15 +535,28 @@ class PP_Logic:
 
             if bme_selected.is_boundary:
                 # bme should have one face
+                # if edge connecting center of selected bmedge and hovered bmvert crosses the
+                # bmface adjacent to selected bmedge, then we split selected edge!
                 bmf = next(iter(bme_selected.link_faces), None)
-                bmf_center = bmf_midpoint(bmf)
-                bmv0, bmv1 = bme_selected.verts
-                co0, co1 = bmv0.co, bmv1.co
-                bme_dir = (co1 - co0).normalized()
-                v_along = bme_dir * bme_dir.dot(bmf_center - co0)
-                v_perp = (bmf_center - co0) - v_along
-                if v_perp.dot(self.hit - co0) > 0:
-                    # mouse is on same side of edge as its face
+                bmv_co = self.nearest.bmv.co
+                bme_co = bme_midpoint(bme_selected)
+                bme_co0, bme_co1 = bme_cos(bme_selected)
+                bmf_co = bmf_midpoint(bmf)
+                bmf_pt  = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmf_co)
+                bme_pt  = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bme_co)
+                bme_pt0 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bme_co0)
+                bme_pt1 = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bme_co1)
+                bmv_pt  = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ bmv_co)
+
+                # compute vector perpendicular to selected bmedge in screen space that is
+                # pointing toward center of adjacent bmface
+                v_bme_perp = Vector((bme_pt1.y - bme_pt0.y, bme_pt0.x - bme_pt1.x))
+                if v_bme_perp.dot(bmf_pt - bme_pt) < 0:
+                    v_bme_perp.negate()
+
+                # check if vector from center of selected bmedge to hovered bmvert is
+                # pointing in same direction as perpendicular vector computed above
+                if v_bme_perp.dot(bmv_pt - bme_pt) > 0:
                     self.bme = bme_selected
                     self.state = PP_Action.EDGE_SPLIT_EDGE
                     return

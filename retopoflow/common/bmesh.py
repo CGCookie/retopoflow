@@ -178,6 +178,9 @@ def bme_vector(bme):
 def bme_length(bme):
     bmv0,bmv1 = bme.verts
     return (bmv0.co - bmv1.co).length
+def bme_cos(bme : BMEdge) -> tuple[Vector, Vector]:
+    bmv0, bmv1 = bme.verts
+    return (bmv0.co, bmv1.co)
 
 def bmf_midpoint(bmf):
     return sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
