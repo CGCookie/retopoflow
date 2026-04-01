@@ -2,6 +2,22 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.1.5
+
+- Added new vertex smoothing algorithm option for Relax
+    - This is enabled by default and should make most cases significantly more stable
+    - It uses a Laplacian method and behaves similar to Blender's smooth brush in sculpt mode
+- Relax's Straighten Edges option can now work without spreading out the vertices
+    - This helps fix issues when working with non-square rectangles
+- A new Relax option, Equalize Faces, combines the previous face options while additionally averaging the area of each face
+- Added a new Auto mode to Relax for automatically setting the number of substeps in the simulation
+    - This makes it more stable at low vertex counts and faster at high vertex counts
+- Improved Relax behavior at extreme scales
+- Fixed issue with creases when jumping straight to object mode
+- Fixed theme preferences being incorrectly saved in Blender 5.1 if exiting Blender while Retopoflow is active
+- Fixed silent error in console when using Relax on geometry without faces
+
+
 ### 4.1.4
 
 - Fixed PolyPen knife sometimes trying to insert loops when it should not
@@ -10,6 +26,7 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Fixed issue with PolyPen freezing when operating on loose edges
 - Fixed issue with faces flipping when using proportional editing
+
 
 ### 4.1.2
 

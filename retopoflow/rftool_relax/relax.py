@@ -132,10 +132,11 @@ class RFOperator_Relax(RFOperator):
         name='Method',
         description='How Relax updates the position of the vertices under the brush',
         items=[
-            ('STEPS', 'Steps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
+            ('AUTO', 'Auto', 'Uses an automatic number of substeps based on the enabled options and vertex count to balance quality and performance'),
+            ('STEPS', 'Substeps', 'Use multiple tiny incremental steps for classic smoothing behavior'),
             ('RK4', 'RK4 (Experimental)', 'Use Runge-Kutta integration to improve stability while smoothing'),
         ],
-        default='STEPS',
+        default='AUTO',
     )
     algorithm_iterations: bpy.props.IntProperty(
         name='Algorithm: Iterations',
@@ -165,33 +166,44 @@ class RFOperator_Relax(RFOperator):
     )
     algorithm_average_edge_lengths: bpy.props.BoolProperty(
         name='Algorithm: Average Edge Lengths',
-        description='Squash / stretch each edge toward the average edge length',
-        default=True,
+        description='Squash / stretch each edge toward the average edge length near the brush',
+        default=False,
     )
     algorithm_straighten_edges: bpy.props.BoolProperty(
         name='Algorithm: Straighten Edges',
-        description='Try to straighten edges',
+        description='Moves each vertex towards making its connected edges straighter',
         default=True,
     )
-    algorithm_average_face_radius: bpy.props.BoolProperty(
-        name='Move face vertices so their distance to face center is equalized',
-        description='Algorithm: Average face radius',
-        default=True,
-    )
-    algorithm_average_face_lengths: bpy.props.BoolProperty(
-        name='Algorithm: Average Face-Edge Lengths',
-        description='Squash / stretch face edges so lengths are equal in length (WARNING: can cause faces to flip)',
+    algorithm_equalize_faces: bpy.props.BoolProperty(
+        name='Algorithm: Equalize Faces',
+        description='Moves vertices of each face to be even distance from and evenly spread around the face center while also averaging the side lengths and overall area. ' \
+            'Slow but useful when other methods collapse faces too much',
         default=False,
     )
-    algorithm_average_face_angles: bpy.props.BoolProperty(
-        name='Algorithm: Average Face Angles',
-        description='Move face vertices so they are equally spread around face center',
-        default=True,
-    )
+    # algorithm_average_face_radius: bpy.props.BoolProperty(
+    #     name='Algorithm: Average face radius',
+    #     description='Move face vertices towards their average distance from the face center',
+    #     default=True,
+    # )
+    # algorithm_average_face_lengths: bpy.props.BoolProperty(
+    #     name='Algorithm: Average Face-Edge Lengths',
+    #     description='Squash / stretch face edges so sides are equal in length (WARNING: can cause faces to flip)',
+    #     default=False,
+    # )
+    # algorithm_average_face_angles: bpy.props.BoolProperty(
+    #     name='Algorithm: Average Face Angles',
+    #     description='Move face vertices so they are equally spread around the face center',
+    #     default=True,
+    # )
     algorithm_correct_flipped_faces: bpy.props.BoolProperty(
         name='Algorithm: Correct Flipped Faces',
         description='Try to move vertices so faces are not flipped',
         default=False,
+    )
+    algorithm_laplacian: bpy.props.BoolProperty(
+        name='Algorithm: Laplacian Smooth',
+        description="Average vertex locations similarly to Blender's smooth sculpting brush",
+        default=True,
     )
 
     def init(self, context, event):

@@ -21,6 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 
 import bpy
+from ..common.interface import draw_section_header
+
 
 def draw_relax_algo_options(context, layout):
     tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
@@ -29,29 +31,26 @@ def draw_relax_algo_options(context, layout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    col = layout.column(heading="Integration")
-    col.row().prop(props, 'algorithm_method', expand=False)
-    if props.algorithm_method == 'STEPS':
-        col.prop(props, 'algorithm_iterations', text="Iterations")
-
-    col = layout.column(heading="Average")
-    col.prop(props, 'algorithm_average_edge_lengths', text='Edge Lengths')
-    col.prop(props, 'algorithm_average_face_radius',  text='Face Radius')
-    col.prop(props, 'algorithm_average_face_angles',  text='Face Angles')
-    col.prop(props, 'algorithm_average_face_lengths', text='Face Lengths')
-
-    col = layout.column(heading="Straighten")
-    col.prop(props, 'algorithm_straighten_edges', text='Edges')
+    layout.row(heading="Smooth").prop(props, 'algorithm_laplacian', text='Vertices')
+    layout.row(heading="Average").prop(props, 'algorithm_average_edge_lengths', text='Edges')
+    layout.row(heading="Straighten").prop(props, 'algorithm_straighten_edges', text='Edges')
+    layout.column(heading="Equalize").prop(props, 'algorithm_equalize_faces',  text='Faces')
 
     col = layout.column(heading="Correct")
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
-    header, panel = layout.panel(idname='relax_panel_algo_max', default_closed=True)
+    layout.separator()
+    layout.row().prop(props, 'algorithm_method', expand=False, text='Integration')
+    if props.algorithm_method == 'STEPS':
+        layout.prop(props, 'algorithm_iterations', text="Iterations")
+    layout.separator()
+
+    header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')
     if panel:
-        panel.prop(props, 'algorithm_max_distance_radius', text="Radius")
-        panel.prop(props, 'algorithm_max_distance_edges',  text="Edges")
-        panel.prop(props, 'algorithm_prevent_bounce', text='Prevent Bounce')
+        panel.prop(props, 'algorithm_max_distance_radius', text="Brush Radius")
+        panel.prop(props, 'algorithm_max_distance_edges',  text="Edge Length")
+        panel.row(heading='Prevent').prop(props, 'algorithm_prevent_bounce', text='Bounce')
 
 def draw_relax_algo_panel(context, layout):
     header, panel = layout.panel(idname='relax_panel_algo', default_closed=False)

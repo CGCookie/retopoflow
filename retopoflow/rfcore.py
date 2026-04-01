@@ -365,6 +365,8 @@ class RFCore:
         bpy.app.handlers.load_pre.append(RFCore.handle_load_pre)
         bpy.app.handlers.depsgraph_update_post.append(RFCore.handle_depsgraph_update)
         bpy.app.handlers.save_pre.append(RFCore.handle_save_pre)
+        if bpy.app.version >= (5,1,0):
+            bpy.app.handlers.exit_pre.append(RFCore.handle_exit_pre)
 
         # Setup tool settings
         prefs = preferences.RF_Prefs.get_prefs(context)
@@ -483,6 +485,8 @@ class RFCore:
         bpy.app.handlers.redo_post.remove(RFCore.handle_redo_post)
         bpy.app.handlers.undo_post.remove(RFCore.handle_undo_post)
         bpy.app.handlers.depsgraph_update_post.remove(RFCore.handle_depsgraph_update)
+        if bpy.app.version >= (5,1,0):
+            bpy.app.handlers.exit_pre.remove(RFCore.handle_exit_pre)
 
         RFCore.remove_handlers()
 
@@ -578,6 +582,10 @@ class RFCore:
         x,y = map(int, point)
         context.window.cursor_warp(x, y)
         RFCore.event_mouse = (x,y)
+
+    @staticmethod
+    def handle_exit_pre(is_not_background_process):
+        bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
 
     @staticmethod
     def handle_save_pre(path_blend):
