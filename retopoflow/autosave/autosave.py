@@ -198,8 +198,9 @@ class AutoSave:
                 return AutoSave.SECOND_TIMER_WAIT
 
             message = '\n'.join([
-                'An unexpected exception was thrown while trying to perform autosave.',
+                'Something unexpected happened while trying to perform autosave.',
                 'Disabling Retopoflow AutoSave feature for now.',
+                'Be sure to save often!',
                 'Check terminal / console for more details.',
             ])
             show_blender_popup(message, title='Retopoflow AutoSave Error', icon="ERROR")
