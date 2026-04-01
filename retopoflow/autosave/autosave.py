@@ -87,6 +87,7 @@ class AutoSave:
             if in_edit_mode:
                 AutoSave.register_first_timer()     # in edit mode, so start first timer
 
+        # might not need the following line since we check the modal operators before saving...
         AutoSave.register_second_timer(True)        # change detected, so restart second timer if going
 
     @staticmethod
@@ -102,7 +103,7 @@ class AutoSave:
 
     @staticmethod
     @persistent
-    def watch_for_load(*args, **kwargs):
+    def watch_for_load(*args, **kwargs):        # might not need this anymore
         # print(f'AutoSave: loaded')
         pass
 
@@ -175,12 +176,12 @@ class AutoSave:
     def register():
         # print(f'AutoSave: Registering!!!')
         bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_post.append(AutoSave.watch_for_load)
+        bpy.app.handlers.load_post.append(AutoSave.watch_for_load)                  # might not need this anymore
         bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
 
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
         bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_post.remove(AutoSave.watch_for_load)
+        bpy.app.handlers.load_post.remove(AutoSave.watch_for_load)                  # might not need this anymore
         bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
