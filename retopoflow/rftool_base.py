@@ -74,6 +74,7 @@ class RFTool_Base(bpy.types.WorkSpaceTool):
             bpy.utils.register_tool(rft, separator=(i==0), after=after, group=(i==0 and not prefs.expand_tools))
             after = rft.bl_idname
             rft.register()
+        print(f'RF registered {len(RFTool_Base.get_all_RFTools())} RFTools')
 
     @staticmethod
     def unregister_all():

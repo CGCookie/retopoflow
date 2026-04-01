@@ -55,6 +55,7 @@ class RFRegisterClass:
         for op in RFRegisterClass.get_all_classes():
             bpy.utils.register_class(op)
             op.register()
+        print(f'RF registered {len(RFRegisterClass.get_all_classes())} RFRegisterClasses')
     @staticmethod
     def unregister_all():
         for op in reversed(RFRegisterClass.get_all_classes()):
@@ -110,6 +111,7 @@ class RFOperator_Execute(RFOperator_KeymapContext, bpy.types.Operator):
         for op in RFOperator_Execute.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
+        print(f'RF registered {len(RFOperator_Execute.get_all_RFOperators())} RFOperator_Executes')
     @staticmethod
     def unregister_all():
         for op in reversed(RFOperator_Execute.get_all_RFOperators()):
@@ -145,6 +147,7 @@ class RFAssetShelf(bpy.types.AssetShelf):
         for op in RFAssetShelf.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
+        print(f'RF registered {len(RFAssetShelf.get_all_RFOperators())} RFAssetShelfs')
     @staticmethod
     def unregister_all():
         for op in reversed(RFAssetShelf.get_all_RFOperators()):
@@ -211,6 +214,7 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         for op in RFOperator.get_all_RFOperators():
             bpy.utils.register_class(op)
             op.register()
+        print(f'RF registered {len(RFOperator.get_all_RFOperators())} RFOperators')
     @staticmethod
     def unregister_all():
         for op in reversed(RFOperator.get_all_RFOperators()):
