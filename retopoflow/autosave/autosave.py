@@ -1,0 +1,186 @@
+'''
+Copyright (C) 2026 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Lampel
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
+import bpy
+from bpy.app.handlers import persistent
+import tempfile
+import os
+from ..rfoverlays.overlays import overlay_names
+
+class AutoSave:
+    SECOND_TIMER_WAIT     = 0.25
+    MAX_AUTOSAVE_FAILURES = 5
+
+    edit_mode         : bool = False
+    autosave_failures : int  = 0
+    actively_saving   : bool = False
+
+    @staticmethod
+    def is_enabled():
+        return bpy.context.preferences.filepaths.use_auto_save_temporary_files
+
+    @staticmethod
+    def autosave_minutes():
+        return 60 * int(bpy.context.preferences.filepaths.auto_save_time)
+
+    @staticmethod
+    def random_identifier():
+        # not really random, but this is what blender's source does!  see wm_autosave_location
+        return os.getpid()
+
+    @staticmethod
+    def path_autosave():
+        if bpy.data.filepath:
+            path_blend = str(bpy.data.filepath)
+            path_blendfile = os.path.basename(path_blend)
+            filename, ext = os.path.splitext(path_blendfile)
+            filename_autosave = f'{filename}_{AutoSave.random_identifier()}_autosave{ext}'
+        else:
+            filename_autosave = f'{AutoSave.random_identifier()}_autosave.blend'
+
+        path_tmp = str(bpy.context.preferences.filepaths.temporary_directory) or tempfile.gettempdir()
+        path = os.path.join(path_tmp, filename_autosave)
+        if not os.access(path, os.W_OK):
+            path_tmp = tempfile.gettempdir()
+            path = os.path.join(path_tmp, filename_autosave)
+        if not os.access(path, os.W_OK):
+            print(f'AutoSave: Cannot write to autosave file {path=}')
+            print(f'  filepath:     {bpy.data.filepath}')
+            print(f'  random id:    {AutoSave.random_identifier()}')
+            print(f'  blender temp: {bpy.context.preferences.filepaths.temporary_directory}')
+            print(f'  system temp:  {tempfile.gettempdir()}')
+            print(f'  autosave:     {filename_autosave}')
+        return path
+
+    @staticmethod
+    @persistent
+    def watch_for_changes(*args, **kwargs):
+        if not AutoSave.is_enabled(): return        # auto-save is disabled!
+        if AutoSave.actively_saving: return         # currently saving so ignore!
+        # print(f'AutoSave: depsgraph changed {args=} {kwargs=}')
+
+        in_edit_mode = bool(bpy.context.mode == 'EDIT_MESH')
+        was_edit_mode = AutoSave.edit_mode
+        AutoSave.edit_mode = in_edit_mode
+        # print(f'          {was_edit_mode=} {in_edit_mode=}')
+
+        if in_edit_mode != was_edit_mode:
+            AutoSave.unregister_first_timer()       # change into/out of edit mode
+            if in_edit_mode:
+                AutoSave.register_first_timer()     # in edit mode, so start first timer
+
+        AutoSave.register_second_timer(True)        # change detected, so restart second timer if going
+
+    @staticmethod
+    @persistent
+    def watch_for_save(*args, **kwargs):
+        # print(f'AutoSave: saved')
+        # manual saving should reset first timer so we do not auto-save right afterwards
+        if not bpy.app.timers.is_registered(AutoSave.first_timer):
+            return
+
+        AutoSave.unregister_first_timer()
+        AutoSave.register_first_timer()
+
+    @staticmethod
+    @persistent
+    def watch_for_load(*args, **kwargs):
+        # print(f'AutoSave: loaded')
+        pass
+
+    @staticmethod
+    def register_first_timer():
+        AutoSave.unregister_first_timer()
+        bpy.app.timers.register(
+            AutoSave.first_timer,
+            first_interval=AutoSave.autosave_minutes() - AutoSave.SECOND_TIMER_WAIT,
+        )
+
+    @staticmethod
+    def unregister_first_timer():
+        if bpy.app.timers.is_registered(AutoSave.first_timer):
+            bpy.app.timers.unregister(AutoSave.first_timer)
+
+    @staticmethod
+    def register_second_timer(only_if_registered : bool):
+        if only_if_registered and not bpy.app.timers.is_registered(AutoSave.second_timer):
+            return
+        AutoSave.unregister_second_timer()
+        bpy.app.timers.register(
+            AutoSave.second_timer,
+            first_interval=AutoSave.SECOND_TIMER_WAIT,
+        )
+
+    @staticmethod
+    def unregister_second_timer():
+        if bpy.app.timers.is_registered(AutoSave.second_timer):
+            bpy.app.timers.unregister(AutoSave.second_timer)
+
+    @staticmethod
+    def first_timer(*args, **kwargs):
+        # print(f'AutoSave: first timer')
+        AutoSave.register_second_timer(False)
+
+    @staticmethod
+    def second_timer(*args, **kwargs):
+        # print(f'AutoSave: second timer')
+        modal_operators = set(op.name for op in bpy.context.window.modal_operators) - {'RetopoFlow Core'} - overlay_names
+        if modal_operators:
+            # artist is using modal operator, so we should wait...
+            # print(f'          waiting for {modal_operators} to finish')
+            return AutoSave.SECOND_TIMER_WAIT
+        try:
+            AutoSave.actively_saving = True
+            # NOTE: this will create .blend1, .blend2, etc. files
+            #       not deleting previous versions
+            bpy.ops.wm.save_as_mainfile(
+                filepath=AutoSave.path_autosave(),
+                check_existing=False,
+                compress=True,
+                copy=True,
+            )
+            AutoSave.register_first_timer()
+            # print(f'          SUCCESS!')
+        except Exception as e:
+            print(f'AutoSave: Caught exception while attempting to auto-save {e}')
+
+            AutoSave.autosave_failures += 1
+            if AutoSave.autosave_failures <= AutoSave.MAX_AUTOSAVE_FAILURES:
+                # attempt again!
+                return AutoSave.SECOND_TIMER_WAIT
+
+            print(f'AutoSave: Hit maximum failed attempts!  disabling autosave for now')
+        finally:
+            AutoSave.actively_saving = False
+
+    @staticmethod
+    def register():
+        # print(f'AutoSave: Registering!!!')
+        bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
+        bpy.app.handlers.load_post.append(AutoSave.watch_for_load)
+        bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
+
+    @staticmethod
+    def unregister():
+        # print(f'AutoSave: Unregistering)
+        bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
+        bpy.app.handlers.load_post.remove(AutoSave.watch_for_load)
+        bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)

@@ -24,6 +24,8 @@ from mathutils import Vector
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_location_3d
 
+from .overlays import overlay_names
+
 from ..common.operator import RFOperator, RFOperator_KeymapContext
 from ..common.bmesh import get_bmesh_emesh, bme_midpoint, get_boundary_strips_cycles, bmfs_shared_bme, quad_bmf_opposite_bme
 from ..common.drawing import Drawing
@@ -76,6 +78,8 @@ def get_quadstrips(bmfs):
 def create_quadstrip_selection_overlay(opname, rftool_idname, idname, label, only_boundary):
     paused_update = False
     paused_overlay = False
+
+    overlay_names.add(label)
 
     class RFOperator_QuadStrip_Selection_Overlay(RFOperator_KeymapContext):
         bl_idname = f'retopoflow.{idname}'

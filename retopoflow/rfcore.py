@@ -69,6 +69,7 @@ from .rfprops import rfprops_scene, rfprops_object
 from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings, launch_browser
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
+from .autosave.autosave import AutoSave
 
 
 '''
@@ -134,6 +135,8 @@ class RFCore:
         launch_browser.register()
         tools_pie.register()
 
+        AutoSave.register()
+
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
         from ..addon_common.common.functools import wrap_function
@@ -175,6 +178,8 @@ class RFCore:
         # unwrap tool change function
         RFCore._unwrap_activate_tool()
         RFCore._unwrap_activate_tool = None
+
+        AutoSave.unregister()
 
         # unregister RF operator and RF tools
         RFAssetShelf.unregister_all()
