@@ -4,6 +4,11 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.1.5
 
+- Added new Edit Mode Auto-Save feature for backing up modeling sessions
+    - Blender's Auto-Save does not work in Edit Mode, so this fills that gap
+    - It uses the same location and time increment as Blender's Auto-Save
+    - You can recover using the usual File -> Recover menu
+    - You can disable this feature if you already use another auto-save add-on for Edit Mode
 - Added new vertex smoothing algorithm option for Relax
     - This is enabled by default and should make most cases significantly more stable
     - It uses a Laplacian method and behaves similar to Blender's smooth brush in sculpt mode

@@ -34,7 +34,7 @@ def draw_autosave(self, context, layout):
     layout.separator(type='LINE', factor=1)
     layout.separator(type='SPACE')
     if context.region.width > 1000:
-        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode. Retopoflow's AutoSave does.")
+        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode. Retopoflow's Auto-Save does.")
     else:
         layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode.")
         layout.label(text="Retopoflow's Auto-Save does.")
