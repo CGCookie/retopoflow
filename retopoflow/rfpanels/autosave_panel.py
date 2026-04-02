@@ -28,17 +28,30 @@ def draw_autosave(self, context, layout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    layout.prop(self, 'enable_autosave', text='Enable AutoSave')
+    layout.prop(self, 'enable_autosave', text='Edit Mode Auto-Save')
     layout.separator()
 
     layout.separator(type='LINE', factor=1)
     layout.separator(type='SPACE')
-    layout.label(text='Retopoflow AutoSave is similar to Blender Auto-Save, except')
-    layout.label(text='Blender Auto-Save does NOT run when in Edit Mode while')
-    layout.label(text='Retopoflow AutoSave does.')
-    layout.label(text='')
-    layout.label(text='NOTE: Disable Retopoflow AutoSave', icon='WARNING_LARGE')
-    layout.label(text='if you have another auto save add-on enabled or')
-    layout.label(text='if you do not want auto save working in Edit Mode.')
+    if context.region.width > 1000:
+        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode. Retopoflow's AutoSave does.")
+    else:
+        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode.")
+        layout.label(text="Retopoflow's Auto-Save does.")
+    layout.separator(type='SPACE')
+    if context.region.width > 1750:
+        layout.label(text=(
+            'Disable Retopoflow AutoSave if you have another auto save add-on enabled, '
+            'notice too much lag, or do not want auto save working in Edit Mode.'
+        ))
+    elif context.region.width > 1000:
+        layout.label(text='Disable Retopoflow AutoSave if you have another auto save add-on enabled, ')
+        layout.label(text='notice too much lag, or do not want auto save working in Edit Mode.')
+    else:
+        layout.separator(type='SPACE')
+        layout.label(text='Disable Retopoflow AutoSave if you')
+        layout.label(text='• have another auto save add-on enabled,')
+        layout.label(text='• notice too much lag, or')
+        layout.label(text='• do not want auto save working in Edit Mode.')
     layout.separator(type='SPACE')
     layout.separator(type='LINE', factor=1)

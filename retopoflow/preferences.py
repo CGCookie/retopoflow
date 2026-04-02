@@ -40,14 +40,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     """ RF AutoSave """
     enable_autosave: bpy.props.BoolProperty(
-        name='Enable Retopoflow AutoSave',
+        name='Edit Mode Auto-Save',
         description=(
-            "Enables Retopoflow's AutoSave feature that automatically saves a backup of the current work. "
-            "This functions similarly to Blender's Auto-Save, except Retopoflow's AutoSave works in Edit Mode "
-            "while Blender's Auto-Save does not."
+            "Automatically save a backup every few minutes while in Edit Mode. "
+            "Blender's Auto-Save does not work in Edit Mode, so this feature is needed to recover long modeling sessions."
             "\n\n"
-            "NOTE: disable this feature if you have another auto save add-on enabled or if you notice a "
-            "significant slow down and do not want auto save working in Edit Mode."
+            "Disable if you have another auto save add-on enabled or if you notice a "
+            "significant slow down and do not want to auto save while working in Edit Mode."
         ),
         default=True,
     )
@@ -263,7 +262,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
         from .rfpanels.autosave_panel import draw_autosave
         header, panel = layout.panel(idname='autosave_prefs', default_closed=True)
-        header.label(text='AutoSave')
+        header.label(text='Auto-Save')
         if panel:
             draw_autosave(self, context, panel)
 
