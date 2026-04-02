@@ -245,10 +245,20 @@ class AutoSave:
         bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
         bpy.app.handlers.load_pre.append(AutoSave.watch_for_load)
         bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
+        AutoSave.edit_mode = False
+        AutoSave.autosave_failures = 0
+        AutoSave.actively_saving = False
 
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
+        
+        AutoSave.unregister_first_timer()
+        AutoSave.unregister_second_timer()
+        AutoSave.edit_mode = False
+        AutoSave.autosave_failures = 0
+        AutoSave.actively_saving = False
+
         if AutoSave.watch_for_changes in bpy.app.handlers.depsgraph_update_post:
             bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
         if AutoSave.watch_for_load in bpy.app.handlers.load_pre:
