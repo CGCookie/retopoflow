@@ -30,7 +30,7 @@ from ..preferences import RF_Prefs
 class AutoSave:
     SECOND_TIMER_WAIT     : float = 0.25
     MAX_AUTOSAVE_FAILURES : int   = 5
-    USE_DEBUG_TIMING      : bool  = True
+    USE_DEBUG_TIMING      : bool  = False
 
     edit_mode         : bool = False
     autosave_failures : int  = 0
