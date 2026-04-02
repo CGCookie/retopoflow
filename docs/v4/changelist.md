@@ -16,6 +16,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Fixed issue with creases when jumping straight to object mode
 - Fixed theme preferences being incorrectly saved in Blender 5.1 if exiting Blender while Retopoflow is active
 - Fixed silent error in console when using Relax on geometry without faces
+- Fixed issues with PolyPen attempting to knife when it should create a triangle
 
 
 ### 4.1.4
