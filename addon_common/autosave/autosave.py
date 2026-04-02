@@ -249,6 +249,9 @@ class AutoSave:
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
-        bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)
-        bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
+        if AutoSave.watch_for_changes in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
+        if AutoSave.watch_for_load in bpy.app.handlers.load_pre:
+            bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)
+        if AutoSave.watch_for_save in bpy.app.handlers.save_post:
+            bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
