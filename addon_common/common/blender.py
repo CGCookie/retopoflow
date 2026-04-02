@@ -1073,7 +1073,7 @@ def show_blender_popup(message, *, title="Message", icon="INFO", wrap=80):
            GO_LEFT, PLUG, UI, NODE, NODE_SEL,
            FULLSCREEN, SPLITSCREEN, RIGHTARROW_THIN, BORDERMOVE,
            VIEWZOOM, ZOOMIN, ZOOMOUT, ...
-    see: https://git.blender.org/gitweb/gitweb.cgi/blender.git/blob/HEAD:/source/blender/editors/include/UI_icons.h
+    see: https://projects.blender.org/blender/blender/src/branch/main/source/blender/editors/include/UI_icons.hh
     '''  # noqa
 
     if not message: return

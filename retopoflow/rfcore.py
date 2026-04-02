@@ -39,6 +39,7 @@ from ..addon_common.common.ui_draw import free_ui_draw_shaders_and_batches
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
+from .rfoverlays.overlays import overlay_names
 from .rftool_statusbar import draw_rftool_statusbar
 
 # NOTE: import order determines tool order
@@ -68,6 +69,8 @@ from .rfprops import rfprops_scene, rfprops_object
 # Operator files need to be imported here in order to be registered, even if they are not used in this file
 from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings, launch_browser
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
+
+from ..addon_common.autosave.autosave import AutoSave
 
 
 
@@ -134,6 +137,10 @@ class RFCore:
         launch_browser.register()
         tools_pie.register()
 
+        AutoSave.register()
+        AutoSave.exclude_modal_operator('RetopoFlow Core')
+        AutoSave.exclude_modal_operators(overlay_names)
+
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common
         from ..addon_common.common.functools import wrap_function
@@ -175,6 +182,8 @@ class RFCore:
         # unwrap tool change function
         RFCore._unwrap_activate_tool()
         RFCore._unwrap_activate_tool = None
+
+        AutoSave.unregister()
 
         # unregister RF operator and RF tools
         RFAssetShelf.unregister_all()
@@ -589,6 +598,9 @@ class RFCore:
 
     @staticmethod
     def handle_save_pre(path_blend):
+        if AutoSave.actively_saving:
+            # RF AutoSave is doing the work, so let's skip the switch
+            return
         RFCore.is_saving = True
         bpy.context.scene.retopoflow.saved_tool = RFCore.selected_RFTool_idname
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
@@ -601,7 +613,8 @@ class RFCore:
         if bpy.context.scene.retopoflow.saved_tool:
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', bpy.context.scene.retopoflow.saved_tool)
         bpy.context.scene.retopoflow.saved_tool = ''
-        del RFCore.is_saving
+        if hasattr(RFCore, 'is_saving'):
+            del RFCore.is_saving
 
     @staticmethod
     def handle_load_pre(path_blend):

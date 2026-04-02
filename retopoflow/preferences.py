@@ -26,7 +26,7 @@ from .common.interface import update_toolbar, draw_section_header, draw_section_
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
 from ..config.keymaps import get_user_keymap_item
-
+from ..addon_common.autosave.autosave import AutoSave
 
 class RF_Prefs(bpy.types.AddonPreferences):
     # Grabs the full extension name regardless of which library it is in
@@ -37,6 +37,20 @@ class RF_Prefs(bpy.types.AddonPreferences):
     def get_prefs(context):
         bl_idname = __package__.rsplit('.', 1)[0]
         return context.preferences.addons[bl_idname].preferences
+
+    """ RF AutoSave """
+    enable_autosave: bpy.props.BoolProperty(
+        name='Edit Mode Auto-Save',
+        description=(
+            "Automatically save a backup every few minutes while in Edit Mode. "
+            "Blender's Auto-Save does not work in Edit Mode, so this feature is needed to recover long modeling sessions."
+            "\n\n"
+            "Disable if you have another auto save add-on enabled or if you notice a "
+            "significant slow down and do not want to auto save while working in Edit Mode."
+        ),
+        default=True,
+        update=AutoSave.enabled_updater,
+    )
 
     """ Display """
     #region
@@ -246,6 +260,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
+
+        from .rfpanels.autosave_panel import draw_autosave
+        header, panel = layout.panel(idname='autosave_prefs', default_closed=True)
+        header.label(text='Auto-Save')
+        if panel:
+            draw_autosave(self, context, panel)
 
         from .rfpanels.hotkeys_panel import draw_hotkeys
         header, panel = layout.panel(idname='hotkey_panel_prefs', default_closed=True)
