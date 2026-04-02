@@ -140,7 +140,7 @@ class AutoSave:
 
     @staticmethod
     @persistent
-    def watch_for_load(*args, **kwargs):        # might not need this anymore
+    def watch_for_load(*args, **kwargs):
         # print(f'AutoSave: loaded')
         # reset state of everything!
         AutoSave.unregister_first_timer()
@@ -243,12 +243,12 @@ class AutoSave:
     def register():
         # print(f'AutoSave: Registering!!!')
         bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_pre.append(AutoSave.watch_for_load)                  # might not need this anymore
+        bpy.app.handlers.load_pre.append(AutoSave.watch_for_load)
         bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
 
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
         bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)                  # might not need this anymore
+        bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)
         bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
