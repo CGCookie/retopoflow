@@ -39,6 +39,7 @@ from ..addon_common.common.ui_draw import free_ui_draw_shaders_and_batches
 
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
+from .rfoverlays.overlays import overlay_names
 from .rftool_statusbar import draw_rftool_statusbar
 
 # NOTE: import order determines tool order
@@ -69,7 +70,8 @@ from .rfprops import rfprops_scene, rfprops_object
 from .rfoperators import mesh_cleanup, apply_retopo_settings, mirror, pinning, reset_tool_settings, launch_browser
 from .rfoperators.newtarget import RFCore_NewTarget_Cursor, RFCore_NewTarget_Active
 
-from .autosave.autosave import AutoSave
+from ..addon_common.autosave.autosave import AutoSave
+
 
 
 '''
@@ -136,6 +138,8 @@ class RFCore:
         tools_pie.register()
 
         AutoSave.register()
+        AutoSave.exclude_modal_operator('RetopoFlow Core')
+        AutoSave.exclude_modal_operators(overlay_names)
 
         # wrap tool change function so we know when the artist switches tool
         from bl_ui import space_toolsystem_common

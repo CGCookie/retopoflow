@@ -21,27 +21,34 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from bpy.app.handlers import persistent
-import tempfile
+
 import os
 import re
-from ..rfoverlays.overlays import overlay_names
-from ...addon_common.common.blender import show_blender_popup
-from ..preferences import RF_Prefs
+import tempfile
+from collections.abc import Iterable
+
+from ..common.blender import show_blender_popup
+
 
 class AutoSave:
     SECOND_TIMER_WAIT     : float = 0.25
     MAX_AUTOSAVE_FAILURES : int   = 5
     USE_DEBUG_TIMING      : bool  = False
 
-    edit_mode         : bool = False
-    autosave_failures : int  = 0
-    actively_saving   : bool = False
+    enabled           : bool     = True
+    edit_mode         : bool     = False
+    autosave_failures : int      = 0
+    actively_saving   : bool     = False
+    exclude_modal_ops : set[str] = set()
+
+    @staticmethod
+    def enabled_updater(_, v : bool): AutoSave.enabled = v
 
     @staticmethod
     def is_enabled() -> bool:
         return all([
-            RF_Prefs.get_prefs(bpy.context).enable_autosave,
-            bpy.context.preferences.filepaths.use_auto_save_temporary_files,
+            AutoSave.enabled,
+            bool(bpy.context.preferences.filepaths.use_auto_save_temporary_files),
         ])
 
     @staticmethod
@@ -84,7 +91,7 @@ class AutoSave:
         if AutoSave.can_write(path): return path
 
         message = '\n'.join([
-            f'Cannot write to autosave file: "{path}".',
+            f'Cannot write to auto save file: "{path}".',
             f'Check Edit > Prefs > File Paths > Data > Temp Files points to a valid folder with which you have write permissions.',
             f'Check terminal/console for a more detailed report.',
         ])
@@ -97,7 +104,7 @@ class AutoSave:
             f'  blender temp: {bpy.context.preferences.filepaths.temporary_directory}',
             f'  system temp:  {tempfile.gettempdir()}',
         ])
-        show_blender_popup(message, title='Retopoflow AutoSave Error', icon="ERROR") # wrap=80
+        show_blender_popup(message, title='Auto-Save Error', icon="ERROR") # wrap=80
         print(detailed_message)
         return None
 
@@ -182,7 +189,7 @@ class AutoSave:
     @staticmethod
     def second_timer(*args, **kwargs):
         # print(f'AutoSave: second timer')
-        modal_operators = set(op.name for op in bpy.context.window.modal_operators) - {'RetopoFlow Core'} - overlay_names
+        modal_operators = set(op.name for op in bpy.context.window.modal_operators) - AutoSave.exclude_modal_ops
         if modal_operators:
             # artist is using modal operator, so we should wait...
             # print(f'          waiting for {modal_operators} to finish')
@@ -206,7 +213,7 @@ class AutoSave:
             AutoSave.register_first_timer()
             # print(f'          SUCCESS!')
         except Exception as e:
-            print(f'AutoSave: Caught exception while attempting to auto-save {e}')
+            print(f'Auto-Save: Caught exception while attempting to auto-save {e}')
 
             AutoSave.autosave_failures += 1
             if AutoSave.autosave_failures <= AutoSave.MAX_AUTOSAVE_FAILURES:
@@ -214,15 +221,23 @@ class AutoSave:
                 return AutoSave.SECOND_TIMER_WAIT
 
             message = '\n'.join([
-                'Something unexpected happened while trying to perform autosave.',
-                'Disabling Retopoflow AutoSave feature for now.',
+                'Something unexpected happened while trying to perform auto save.',
+                'Disabling Auto-Save feature for now.',
                 'Be sure to save often!',
                 'Check terminal / console for more details.',
             ])
-            show_blender_popup(message, title='Retopoflow AutoSave Error', icon="ERROR")
-            print(f'AutoSave: Hit maximum failed attempts!  disabling autosave for now')
+            show_blender_popup(message, title='Auto-Save Error', icon="ERROR")
+            print(f'Auto-Save: Hit maximum failed attempts!  disabling auto save for now')
         finally:
             AutoSave.actively_saving = False
+
+    @staticmethod
+    def exclude_modal_operator(label : str):
+        AutoSave.exclude_modal_ops.add(label)
+    @staticmethod
+    def exclude_modal_operators(labels : Iterable[str]):
+        for label in labels:
+            AutoSave.exclude_modal_ops.add(label)
 
     @staticmethod
     def register():

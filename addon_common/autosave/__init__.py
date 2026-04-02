@@ -1,5 +1,5 @@
 '''
-Copyright (C) 2024 CG Cookie
+Copyright (C) 2026 CG Cookie
 http://cgcookie.com
 hello@cgcookie.com
 
@@ -19,5 +19,4 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-
-overlay_names : set[str] = set()
+__all__ = ['autosave']

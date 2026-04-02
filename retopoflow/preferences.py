@@ -26,7 +26,7 @@ from .common.interface import update_toolbar, draw_section_header, draw_section_
 from .rfoperators.pinning import toggle_pinning
 from ..config.theme import Theme
 from ..config.keymaps import get_user_keymap_item
-
+from ..addon_common.autosave.autosave import AutoSave
 
 class RF_Prefs(bpy.types.AddonPreferences):
     # Grabs the full extension name regardless of which library it is in
@@ -49,6 +49,7 @@ class RF_Prefs(bpy.types.AddonPreferences):
             "significant slow down and do not want to auto save while working in Edit Mode."
         ),
         default=True,
+        update=AutoSave.enabled_updater,
     )
 
     """ Display """
