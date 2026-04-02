@@ -594,6 +594,9 @@ class RFCore:
 
     @staticmethod
     def handle_save_pre(path_blend):
+        if AutoSave.actively_saving:
+            # RF AutoSave is doing the work, so let's skip the switch
+            return
         RFCore.is_saving = True
         bpy.context.scene.retopoflow.saved_tool = RFCore.selected_RFTool_idname
         bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')

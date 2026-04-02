@@ -27,8 +27,9 @@ from ..rfoverlays.overlays import overlay_names
 from ...addon_common.common.blender import show_blender_popup
 
 class AutoSave:
-    SECOND_TIMER_WAIT     = 0.25
-    MAX_AUTOSAVE_FAILURES = 5
+    SECOND_TIMER_WAIT     : float = 0.25
+    MAX_AUTOSAVE_FAILURES : int   = 5
+    USE_DEBUG_TIMING      : bool  = False
 
     edit_mode         : bool = False
     autosave_failures : int  = 0
@@ -40,6 +41,7 @@ class AutoSave:
 
     @staticmethod
     def autosave_minutes() -> int:
+        if AutoSave.USE_DEBUG_TIMING: return 5
         return 60 * int(bpy.context.preferences.filepaths.auto_save_time)
 
     @staticmethod
