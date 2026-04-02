@@ -33,25 +33,29 @@ def draw_autosave(self, context, layout):
 
     layout.separator(type='LINE', factor=1)
     layout.separator(type='SPACE')
+
     if context.region.width > 1000:
-        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode. Retopoflow's Auto-Save does.")
+        layout.label(text="Blender's Auto-Save does NOT run in Edit Mode. Retopoflow's Auto-Save does.")
     else:
-        layout.label(text="Blender's Auto-Save does NOT run when in Edit Mode.")
+        layout.label(text="Blender's Auto-Save does NOT run in Edit Mode.")
         layout.label(text="Retopoflow's Auto-Save does.")
-    layout.separator(type='SPACE')
+
     if context.region.width > 1750:
         layout.label(text=(
-            'Disable Retopoflow AutoSave if you have another auto save add-on enabled, '
-            'notice too much lag, or do not want auto save working in Edit Mode.'
+            'Disable Retopoflow Auto-Save if you have another auto-save add-on enabled, '
+            'notice too much lag, enjoy risk, or do not want to Auto-Save in Edit Mode.'
         ))
     elif context.region.width > 1000:
-        layout.label(text='Disable Retopoflow AutoSave if you have another auto save add-on enabled, ')
-        layout.label(text='notice too much lag, or do not want auto save working in Edit Mode.')
+        layout.label(text='Disable Retopoflow Auto-Save if you have another auto-save add-on enabled, ')
+        layout.label(text='notice too much lag, enjoy risk, or do not want to auto-save in Edit Mode.')
     else:
         layout.separator(type='SPACE')
-        layout.label(text='Disable Retopoflow AutoSave if you')
-        layout.label(text='• have another auto save add-on enabled,')
-        layout.label(text='• notice too much lag, or')
-        layout.label(text='• do not want auto save working in Edit Mode.')
+        col = layout.column(align=True)
+        col.label(text='Disable Retopoflow Auto-Save if you')
+        col.label(text='• have another auto-save add-on enabled')
+        col.label(text='• notice too much lag')
+        col.label(text='• enjoy risk or')
+        col.label(text='• do not want to auto-save in Edit Mode.')
+
     layout.separator(type='SPACE')
     layout.separator(type='LINE', factor=1)
