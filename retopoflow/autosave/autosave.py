@@ -23,6 +23,7 @@ import bpy
 from bpy.app.handlers import persistent
 import tempfile
 import os
+import re
 from ..rfoverlays.overlays import overlay_names
 from ...addon_common.common.blender import show_blender_popup
 from ..preferences import RF_Prefs
@@ -69,6 +70,7 @@ class AutoSave:
             path_blend = str(bpy.data.filepath)
             path_blendfile = os.path.basename(path_blend)
             filename, ext = os.path.splitext(path_blendfile)
+            filename = re.sub(r'_\d+_autosave$', '', filename)  # strip trailing `_####_autosave` in filename so it does not "double up"
             filename_autosave = f'{filename}_{AutoSave.random_identifier()}_autosave{ext}'
         else:
             filename_autosave = f'{AutoSave.random_identifier()}_autosave.blend'
@@ -133,7 +135,12 @@ class AutoSave:
     @persistent
     def watch_for_load(*args, **kwargs):        # might not need this anymore
         # print(f'AutoSave: loaded')
-        pass
+        # reset state of everything!
+        AutoSave.unregister_first_timer()
+        AutoSave.unregister_second_timer()
+        AutoSave.edit_mode = False
+        AutoSave.autosave_failures = 0
+        AutoSave.actively_saving = False
 
     @staticmethod
     def register_first_timer():
@@ -221,12 +228,12 @@ class AutoSave:
     def register():
         # print(f'AutoSave: Registering!!!')
         bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_post.append(AutoSave.watch_for_load)                  # might not need this anymore
+        bpy.app.handlers.load_pre.append(AutoSave.watch_for_load)                  # might not need this anymore
         bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
 
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
         bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_post.remove(AutoSave.watch_for_load)                  # might not need this anymore
+        bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)                  # might not need this anymore
         bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
