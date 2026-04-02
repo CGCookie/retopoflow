@@ -228,6 +228,7 @@ class AutoSave:
             ])
             show_blender_popup(message, title='Auto-Save Error', icon="ERROR")
             print(f'Auto-Save: Hit maximum failed attempts!  disabling auto save for now')
+            AutoSave.enabled = False   # this is only temporary; does not update the preferences
         finally:
             AutoSave.actively_saving = False
 
@@ -252,7 +253,7 @@ class AutoSave:
     @staticmethod
     def unregister():
         # print(f'AutoSave: Unregistering)
-        
+
         AutoSave.unregister_first_timer()
         AutoSave.unregister_second_timer()
         AutoSave.edit_mode = False
