@@ -38,6 +38,20 @@ class RF_Prefs(bpy.types.AddonPreferences):
         bl_idname = __package__.rsplit('.', 1)[0]
         return context.preferences.addons[bl_idname].preferences
 
+    """ RF AutoSave """
+    enable_autosave: bpy.props.BoolProperty(
+        name='Enable Retopoflow AutoSave',
+        description=(
+            "Enables Retopoflow's AutoSave feature that automatically saves a backup of the current work. "
+            "This functions similarly to Blender's Auto-Save, except Retopoflow's AutoSave works in Edit Mode "
+            "while Blender's Auto-Save does not."
+            "\n\n"
+            "NOTE: disable this feature if you have another auto save add-on enabled or if you notice a "
+            "significant slow down and do not want auto save working in Edit Mode."
+        ),
+        default=True,
+    )
+
     """ Display """
     #region
     expand_masking: bpy.props.BoolProperty(
@@ -246,6 +260,12 @@ class RF_Prefs(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
+
+        from .rfpanels.autosave_panel import draw_autosave
+        header, panel = layout.panel(idname='autosave_prefs', default_closed=True)
+        header.label(text='AutoSave')
+        if panel:
+            draw_autosave(self, context, panel)
 
         from .rfpanels.hotkeys_panel import draw_hotkeys
         header, panel = layout.panel(idname='hotkey_panel_prefs', default_closed=True)

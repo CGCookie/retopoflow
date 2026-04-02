@@ -25,11 +25,12 @@ import tempfile
 import os
 from ..rfoverlays.overlays import overlay_names
 from ...addon_common.common.blender import show_blender_popup
+from ..preferences import RF_Prefs
 
 class AutoSave:
     SECOND_TIMER_WAIT     : float = 0.25
     MAX_AUTOSAVE_FAILURES : int   = 5
-    USE_DEBUG_TIMING      : bool  = False
+    USE_DEBUG_TIMING      : bool  = True
 
     edit_mode         : bool = False
     autosave_failures : int  = 0
@@ -37,7 +38,10 @@ class AutoSave:
 
     @staticmethod
     def is_enabled() -> bool:
-        return bool(bpy.context.preferences.filepaths.use_auto_save_temporary_files)
+        return all([
+            RF_Prefs.get_prefs(bpy.context).enable_autosave,
+            bpy.context.preferences.filepaths.use_auto_save_temporary_files,
+        ])
 
     @staticmethod
     def autosave_minutes() -> int:
@@ -98,9 +102,8 @@ class AutoSave:
     @staticmethod
     @persistent
     def watch_for_changes(*args, **kwargs):
-        if not AutoSave.is_enabled(): return        # auto-save is disabled!
-        if AutoSave.actively_saving: return         # currently saving so ignore!
         # print(f'AutoSave: depsgraph changed {args=} {kwargs=}')
+        if AutoSave.actively_saving: return         # currently saving so ignore!
 
         in_edit_mode = bool(bpy.context.mode == 'EDIT_MESH')
         was_edit_mode = AutoSave.edit_mode
@@ -163,7 +166,11 @@ class AutoSave:
     @staticmethod
     def first_timer(*args, **kwargs):
         # print(f'AutoSave: first timer')
-        AutoSave.register_second_timer(False)
+        if not AutoSave.is_enabled():
+            # autosave is disabled, so simply reset first timer (artist might enable it again)
+            AutoSave.register_first_timer()
+        else:
+            AutoSave.register_second_timer(False)
 
     @staticmethod
     def second_timer(*args, **kwargs):
