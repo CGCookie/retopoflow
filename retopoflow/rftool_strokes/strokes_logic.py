@@ -382,8 +382,11 @@ class Strokes_Logic:
         fix_strip(self.longest_strip1)
 
     def process_snap_geometry(self, context):
-        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0])
-        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1])
+        # NOTE: snapped geo could be stale (from redo panel), so do not rely on it having valid geometry
+        #       however, we can still check if it is None to see if we _should_ try to consider snapping
+        snapped_bmvs, snapped_bmes, snapped_bmfs = self.snapped_geo
+        self.snap_bmv0 = self.bmv_closest(context, self.bm.verts, self.stroke3D[0]) if snapped_bmvs[0] is not None else None
+        self.snap_bmv1 = self.bmv_closest(context, self.bm.verts, self.stroke3D[-1]) if snapped_bmvs[1] is not None else None
 
         # cycle
         self.snap_bmv0_cycle0 = self.snap_bmv0 and self.longest_cycle0 and any(self.snap_bmv0 in bme.verts for bme in self.longest_cycle0)
