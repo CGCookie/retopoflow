@@ -33,7 +33,7 @@ from ..common.blender import show_blender_popup
 class AutoSave:
     SECOND_TIMER_WAIT     : float = 0.25
     MAX_AUTOSAVE_FAILURES : int   = 5
-    USE_DEBUG_TIMING      : bool  = True
+    USE_DEBUG_TIMING      : bool  = False
 
     enabled           : bool     = True
     edit_mode         : bool     = False
