@@ -166,6 +166,7 @@ class RFCore:
         if RFCore.selected_RFTool_idname:
             # RFTool is active, so switch away first!
             bl_ui.space_toolsystem_common.activate_by_id(bpy.context, 'VIEW_3D', 'builtin.move')
+            bpy.context.workspace.status_text_set(None)
 
         try:
             RFCore.stop()
