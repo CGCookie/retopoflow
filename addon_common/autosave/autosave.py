@@ -33,7 +33,7 @@ from ..common.blender import show_blender_popup
 class AutoSave:
     SECOND_TIMER_WAIT     : float = 0.25
     MAX_AUTOSAVE_FAILURES : int   = 5
-    USE_DEBUG_TIMING      : bool  = False
+    USE_DEBUG_TIMING      : bool  = True
 
     enabled           : bool     = True
     edit_mode         : bool     = False
@@ -110,7 +110,7 @@ class AutoSave:
 
     @staticmethod
     @persistent
-    def watch_for_changes(*args, **kwargs):
+    def handle_depsgraph_change(*args, **kwargs):
         # print(f'AutoSave: depsgraph changed {args=} {kwargs=}')
         if AutoSave.actively_saving: return         # currently saving so ignore!
 
@@ -129,7 +129,7 @@ class AutoSave:
 
     @staticmethod
     @persistent
-    def watch_for_save(*args, **kwargs):
+    def handle_post_save(*args, **kwargs):
         # print(f'AutoSave: saved')
         # manual saving should reset first timer so we do not auto-save right afterwards
         if not bpy.app.timers.is_registered(AutoSave.first_timer):
@@ -140,14 +140,22 @@ class AutoSave:
 
     @staticmethod
     @persistent
-    def watch_for_load(*args, **kwargs):
-        # print(f'AutoSave: loaded')
+    def handle_pre_load(*args, **kwargs):
+        # print(f'AutoSave: loading')
         # reset state of everything!
         AutoSave.unregister_first_timer()
         AutoSave.unregister_second_timer()
         AutoSave.edit_mode = False
         AutoSave.autosave_failures = 0
         AutoSave.actively_saving = False
+
+    @staticmethod
+    @persistent
+    def handle_post_load(*args, **kwargs):
+        print(f'AutoSave: loaded')
+        if AutoSave.handle_depsgraph_change not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(AutoSave.handle_depsgraph_change)
+        AutoSave.register()
 
     @staticmethod
     def register_first_timer():
@@ -243,9 +251,15 @@ class AutoSave:
     @staticmethod
     def register():
         # print(f'AutoSave: Registering!!!')
-        bpy.app.handlers.depsgraph_update_post.append(AutoSave.watch_for_changes)
-        bpy.app.handlers.load_pre.append(AutoSave.watch_for_load)
-        bpy.app.handlers.save_post.append(AutoSave.watch_for_save)
+        if AutoSave.handle_depsgraph_change not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(AutoSave.handle_depsgraph_change)
+        if AutoSave.handle_pre_load not in bpy.app.handlers.load_pre:
+            bpy.app.handlers.load_pre.append(AutoSave.handle_pre_load)
+        if AutoSave.handle_post_load not in bpy.app.handlers.load_post:
+            bpy.app.handlers.load_post.append(AutoSave.handle_post_load)
+        if AutoSave.handle_post_save not in bpy.app.handlers.save_post:
+            bpy.app.handlers.save_post.append(AutoSave.handle_post_save)
+
         AutoSave.edit_mode = False
         AutoSave.autosave_failures = 0
         AutoSave.actively_saving = False
@@ -260,9 +274,11 @@ class AutoSave:
         AutoSave.autosave_failures = 0
         AutoSave.actively_saving = False
 
-        if AutoSave.watch_for_changes in bpy.app.handlers.depsgraph_update_post:
-            bpy.app.handlers.depsgraph_update_post.remove(AutoSave.watch_for_changes)
-        if AutoSave.watch_for_load in bpy.app.handlers.load_pre:
-            bpy.app.handlers.load_pre.remove(AutoSave.watch_for_load)
-        if AutoSave.watch_for_save in bpy.app.handlers.save_post:
-            bpy.app.handlers.save_post.remove(AutoSave.watch_for_save)
+        if AutoSave.handle_depsgraph_change in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.remove(AutoSave.handle_depsgraph_change)
+        if AutoSave.handle_pre_load in bpy.app.handlers.load_pre:
+            bpy.app.handlers.load_pre.remove(AutoSave.handle_pre_load)
+        if AutoSave.handle_post_load in bpy.app.handlers.load_post:
+            bpy.app.handlers.load_post.remove(AutoSave.handle_post_load)
+        if AutoSave.handle_post_save in bpy.app.handlers.save_post:
+            bpy.app.handlers.save_post.remove(AutoSave.handle_post_save)
