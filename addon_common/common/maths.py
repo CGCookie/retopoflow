@@ -24,7 +24,7 @@ import random
 import numpy as np
 from math import sqrt, acos, cos, sin, floor, ceil, isinf, sqrt, pi, isnan
 from typing import List
-from itertools import chain, combinations
+from itertools import combinations
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
@@ -2038,7 +2038,7 @@ def segment2D_intersection(a0, a1, b0, b1):
     return p
 
 
-def clamp(v, min_v, max_v):
+def clamp(v : float, min_v : float, max_v : float) -> float:
     return max(min_v, min(max_v, v))
 
 
@@ -2109,12 +2109,12 @@ def closest_points_segments(a0, a1, b0, b1):
     atob = constrain_point_segment(btoa, a0, a1)
     return (atob, btoa)
 
-def sign(v):
+def sign(v : float) -> float:
     if v > 0: return 1
     if v < 0: return -1
     return 0
 
-def sign_threshold(v, threshold):
+def sign_threshold(v : float, threshold : float) -> float:
     return 0 if -threshold <= v <= threshold else sign(v)
 
 def all_combinations(things):

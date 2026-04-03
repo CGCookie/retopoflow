@@ -37,7 +37,8 @@ from .maths import (
     xform_point, xform_vector, xform_direction, xform_normal,
 )
 
-def mouse_from_event(event): return (event.mouse_region_x, event.mouse_region_y)
+def mouse_from_event(event) -> type[int, int]:
+    return (event.mouse_region_x, event.mouse_region_y)
 
 def vec_forward(context):
     # TODO: remove invert!

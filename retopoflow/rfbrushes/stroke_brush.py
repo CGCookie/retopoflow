@@ -21,8 +21,10 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bmesh.types import BMVert
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+
 from ..rfbrush_base import RFBrush_Base
 from ..common.bmesh import (
     get_bmesh_emesh,
@@ -54,16 +56,30 @@ from ...addon_common.common.timerhandler import TimerHandler
 import math
 from time import time
 from itertools import chain
+from typing import override
+from collections.abc import Iterable
 
 
 #########################################################
 # TODO: This RFBrush is a mess!  rewrite using states?
 #########################################################
 
-def filter_bmvs(bmvs):
-    return [ bmv for bmv in bmvs if bmv.is_boundary or bmv.is_wire ]
+def filter_bmvs(bmvs : Iterable[BMVert]) -> list[BMVert]:
+    return [
+        bmv
+        for bmv in bmvs
+        if bmv.is_boundary or bmv.is_wire
+    ]
 
-def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False), radius:float=50, draw_leftright=False):
+def create_stroke_brush(
+    idname : str,
+    label : str,
+    *,
+    smoothing : float = 0.5,
+    snap : tuple[bool, bool, bool] = (True, False, False),
+    radius : float = 50,
+    draw_leftright : bool = False,
+):
     snap_verts, snap_edges, snap_faces = snap
     snap_any = snap_verts or snap_edges or snap_faces
     if snap_edges:
@@ -72,36 +88,48 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
     class RFBrush_Stroke(RFBrush_Base):
         # brush settings
-        stroke_radius = radius
+        stroke_radius : float = radius
 
-        snap_distance  = 10  # pixel distance when to consider snapping to vert or stroke end (cycle) or mirrored vert
-        far_distance   = 20  # mouse must move this far away from stroke start to start considering cycle
+        snap_distance : int = 10  # pixel distance when to consider snapping to vert or stroke end (cycle) or mirrored vert
+        far_distance  : int = 20  # mouse must move this far away from stroke start to start considering cycle
 
         # brush visualization settings
-        outer_color         = Color((1, 1, 1, 0.75))
-        below_alpha         = Color((1, 1, 1, 0.25))
-        inner_color         = Color((1, 1, 1, 0.10))
-        miss_color          = Color((1, 0, 0, 1.00))
-        snap_color          = Color((1, 1, 0, 1.00))
-        cycle_color         = Color((1, 1, 0, 1.00))
-        stroke_color        = Color((1, 1, 0, 1.00))
-        stroke_mirror_color = Color((1, 1, 0, 0.25))
-        mouse_mirror_color  = Color((1, 1, 0, 0.50))
-        mouse_mirror_radius = 7
-        push_above          = 0.01
-        shrink_below        = 0.80
-        stroke_smooth       = smoothing  # [0,1], higher => more smoothing
+        outer_color         : Color = Color((1, 1, 1, 0.75))
+        below_alpha         : Color = Color((1, 1, 1, 0.25))
+        inner_color         : Color = Color((1, 1, 1, 0.10))
+        miss_color          : Color = Color((1, 0, 0, 1.00))
+        snap_color          : Color = Color((1, 1, 0, 1.00))
+        cycle_color         : Color = Color((1, 1, 0, 1.00))
+        stroke_color        : Color = Color((1, 1, 0, 1.00))
+        stroke_mirror_color : Color = Color((1, 1, 0, 0.25))
+        mouse_mirror_color  : Color = Color((1, 1, 0, 0.50))
+        mouse_mirror_radius : int   = 7
+        push_above          : float = 0.01
+        shrink_below        : float = 0.80
+        stroke_smooth       : float = smoothing  # [0,1], higher => more smoothing
 
         # hack to know which areas the mouse is in
-        mouse_areas = set()  # TODO: make sure this actually works with multiple areas / quad
+        mouse_areas : set[bpy.types.Area] = set()  # TODO: make sure this actually works with multiple areas / quad
+
+        # type hinting
+        mouse : None | tuple[int, int] = None
+        shift_held : bool = False
+        matrix_world     : None | Matrix = None
+        matrix_world_inv : None | Matrix = None
+        matrix_world_ti  : None | Matrix = None
+        edit_scale : None | float = None
+        nearest_bmv : None | NearestBMVert = None
+        nearest_bme : None | NearestBMEdge = None
+        nearest_bmf : None | NearestBMFace = None
 
         @classmethod
         def get_stroke_smooth(cls):
             return cls.stroke_smooth
         @classmethod
-        def set_stroke_smooth(cls, value):
+        def set_stroke_smooth(cls, value : float):
             cls.stroke_smooth = clamp(value, 0.00, 1.00)
 
+        @override
         def init(self):
             self.mouse = None
 
@@ -142,6 +170,7 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
 
             self.timer = None
 
+        @override
         def stop(self):
             self.set_operator(None)
 
@@ -198,8 +227,8 @@ def create_stroke_brush(idname, label, *, smoothing=0.5, snap=(True,False,False)
                 self.reset()
 
 
-        def get_scaled_radius(self):
-            return self.hit_scale * self.stroke_radius
+        def get_scaled_radius(self) -> float:
+            return (self.hit_scale or 0) * self.stroke_radius
 
         def is_stroking(self):
             return self.stroke is not None
