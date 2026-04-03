@@ -56,7 +56,6 @@ from ...addon_common.common.timerhandler import TimerHandler
 import math
 from time import time
 from itertools import chain
-from typing import override
 from collections.abc import Iterable
 
 
@@ -129,7 +128,6 @@ def create_stroke_brush(
         def set_stroke_smooth(cls, value : float):
             cls.stroke_smooth = clamp(value, 0.00, 1.00)
 
-        @override
         def init(self):
             self.mouse = None
 
@@ -170,7 +168,6 @@ def create_stroke_brush(
 
             self.timer = None
 
-        @override
         def stop(self):
             self.set_operator(None)
 
