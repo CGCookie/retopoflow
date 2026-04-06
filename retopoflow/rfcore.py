@@ -389,6 +389,8 @@ class RFCore:
             RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
+            if context.scene.tool_settings.snap_face_nearest_steps < 6:
+                RFCore.resetter['context.scene.tool_settings.snap_face_nearest_steps'] = 6
 
         # Setup viewport settings
         if prefs.setup_object_wires:
