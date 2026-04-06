@@ -111,6 +111,16 @@ def alter_user_keymaps(context):
                 })
                 km_item.properties.delimit_edge_loop = {'NGONS', 'OUTER_CORNERS', 'INNER_CORNERS'}
 
+            # Prevents loop cuts from snapping to own vertices at small scales
+            elif (km_item.idname == 'mesh.loopcut_slide'):
+                print([x for x in km_item.properties.keys()])
+                store_keymap_item(km_item, {
+                    'use_snap_self': km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self,
+                    'use_snap_edit': km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit,
+                })
+                km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self = False
+                km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit = False
+
 
 def restore_user_keymaps(context):
     keymaps_to_change = len(altered_keymap_items)
@@ -129,6 +139,11 @@ def restore_user_keymaps(context):
                     elif saved_item['idname'] == 'mesh.loop_select':
                         for idx, delimit in enumerate(saved_item['altered']['delimit_edge_loop']):
                             km_item.properties.delimit_edge_loop = saved_item['altered']['delimit_edge_loop']
+                        keymaps_to_change -= 1
+
+                    elif saved_item['idname'] == 'mesh.loopcut_slide':
+                        km_item.properties.TRANSFORM_OT_edge_slide.use_snap_self = saved_item['altered']['use_snap_self']
+                        km_item.properties.TRANSFORM_OT_edge_slide.use_snap_edit = saved_item['altered']['use_snap_edit']
                         keymaps_to_change -= 1
 
                     if keymaps_to_change == 0:
