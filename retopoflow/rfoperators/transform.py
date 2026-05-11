@@ -420,6 +420,7 @@ class RFOperator_Translate(RFOperator):
             if not bmf.is_valid: continue
             co_world = point_to_bvec3(M @ point_to_bvec4(bmf_midpoint(bmf)))
             no_world = nearest_normal_valid_sources(context, co_world)
+            if no_world == None: continue
             no_local = xform_normal(Mt, no_world)
             bmf.normal_update()
             if no_local.dot(bmf.normal) < 0:
