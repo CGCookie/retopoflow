@@ -53,6 +53,9 @@ def draw_tweaking_options(context, layout):
     col = grid.column()
     draw_section_header(context, col, 'Transform')
     col.prop(props, 'tweaking_use_native', text='Native')
+    col2 = col.column()
+    col2.enabled = not props.tweaking_use_native
+    col2.prop(props, 'tweaking_update_normals')
 
 
 def draw_tweaking_panel(context, layout):

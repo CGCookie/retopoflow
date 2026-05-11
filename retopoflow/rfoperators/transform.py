@@ -103,6 +103,11 @@ class RFOperator_Translate(RFOperator):
         description='Set as true if the user hit a hotkey to transform rather than used the mouse',
         default=False,
     )
+    use_update_normals: bpy.props.BoolProperty(
+        name='Update Normals',
+        description='Update the normals of the affected faces to try to keep them facing outwards',
+        default=True
+    )
 
     @staticmethod
     @execute_operator(f'{bl_idname}_grab', f'{bl_label} Grab')
@@ -121,6 +126,7 @@ class RFOperator_Translate(RFOperator):
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
+        self.use_update_normals = prefs.tweaking_update_normals
         if self.use_native == 'AUTO':
             self.use_native = 'TRUE' if prefs.tweaking_use_native else 'FALSE'
 
@@ -313,7 +319,8 @@ class RFOperator_Translate(RFOperator):
             merging[bmv_into] = bmv
         bmesh.ops.weld_verts(self.bm, targetmap=merging)
 
-        self.update_normals(context, event)
+        if self.use_update_normals:
+            self.update_normals(context, event)
 
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
@@ -397,7 +404,8 @@ class RFOperator_Translate(RFOperator):
                     self.highlight.add(self.nearest_bmv.bmv)
             bmv.co = co
 
-        self.update_normals(context, event)
+        if self.use_update_normals:
+            self.update_normals(context, event)
 
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()

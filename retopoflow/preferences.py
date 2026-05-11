@@ -222,6 +222,10 @@ class RF_Prefs(bpy.types.AddonPreferences):
         ),
         default=False,
     )
+    tweaking_update_normals: bpy.props.BoolProperty(
+        name='Update Normals',
+        description='Update the normals of the affected faces to try to keep them facing outwards',
+        default=True)
     #endregion
 
     """ Naming """
