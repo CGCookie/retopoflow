@@ -252,8 +252,9 @@ class PP_Logic:
         self.quad_preserve = None
         self.parallel_stable = None
         self.constrain_edge_vert = None
+        self.use_loop_cuts = None
         self.reset()
-        self.update(context, event, None, 1.00, True, False)
+        self.update(context, event, None, 1.00, True, False, True)
 
     def reset(self):
         self.bm = None
@@ -268,7 +269,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, constrain_edge_vert):
+    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, constrain_edge_vert, use_loop_cuts):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
@@ -277,6 +278,7 @@ class PP_Logic:
         self.parallel_stable = parallel_stable
         self.quad_preserve = quad_preserve and self.insert_mode in ('TRI/QUAD', 'QUAD-ONLY')
         self.constrain_edge_vert = constrain_edge_vert
+        self.use_loop_cuts = use_loop_cuts
 
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
@@ -584,6 +586,9 @@ class PP_Logic:
             return
 
     def update_split_face_loop(self, context):
+        if not self.use_loop_cuts:
+            return False
+
         bme_hovered = self.nearest_bme.bme
         bmf_hovered = None
         bmes_selected = list(self.selected[BMEdge])

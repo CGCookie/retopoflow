@@ -193,6 +193,11 @@ class RFOperator_PolyPen(RFOperator):
         description='Snaps new verts knifed into an edge to that edge',
         default=True,
     )
+    use_loop_cuts: bpy.props.BoolProperty(
+        name = 'Loop Cuts',
+        description = "Allow PolyPen's knife to follow along quad loops",
+        default = True,
+    )
 
     @classmethod
     def can_start(cls, context):
@@ -224,7 +229,7 @@ class RFOperator_PolyPen(RFOperator):
             self.set_statusbar_override(None)
             return {'FINISHED'}
 
-        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert)
+        self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert, self.use_loop_cuts)
         # print(f'PolyPen logic state: "{self.logic.state.name}"')
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
@@ -279,7 +284,9 @@ class RFTool_PolyPen(RFTool_Base):
             layout.separator()
             row = layout.row(align=True)
             row.label(text='Knife:')
+            row.separator()
             row.prop(props_polypen, 'constrain_edge_vert', text='Constrain')
+            row.prop(props_polypen, 'use_loop_cuts', text='Loop Cuts')
             if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
                 row.prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_line_separator(layout)
@@ -302,6 +309,7 @@ class RFTool_PolyPen(RFTool_Base):
                     panel.prop(props_polypen, 'quad_stability', slider=True)
                 col = panel.column(align=True)
                 col.row(heading='Knife').prop(props_polypen, 'constrain_edge_vert', text='Constrain')
+                col.prop(props_polypen, 'use_loop_cuts', text='Loop Cuts')
                 if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
                     col.prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_cleanup_panel(context, layout)
