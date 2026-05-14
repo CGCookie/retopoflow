@@ -389,8 +389,16 @@ class RFCore:
             RFCore.resetter['context.scene.tool_settings.use_snap_translate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
+            RFCore.resetter.store('context.tool_settings.snap_elements_base')
+            RFCore.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
             if context.scene.tool_settings.snap_face_nearest_steps < 6:
                 RFCore.resetter['context.scene.tool_settings.snap_face_nearest_steps'] = 6
+
+        if prefs.setup_selection_mode:
+            RFCore.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
+
+        if prefs.setup_automerge:
+            RFCore.resetter['context.tool_settings.use_mesh_automerge'] = True
 
         # Setup viewport settings
         if prefs.setup_object_wires:
