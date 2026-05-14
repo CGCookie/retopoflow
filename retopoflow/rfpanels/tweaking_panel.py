@@ -51,6 +51,14 @@ def draw_tweaking_options(context, layout):
     col.separator()
 
     col = grid.column()
+    draw_section_header(context, col, 'Snapping')
+    row = col.row(heading='Auto')
+    row.prop(props, 'tweaking_use_auto_snap_method', text='Projection Method')
+    row = col.row()
+    row.enabled = props.tweaking_use_auto_snap_method or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
+    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
+    col.separator()
+
     draw_section_header(context, col, 'Transform')
     col.prop(props, 'tweaking_use_native', text='Native')
     col2 = col.column()
@@ -70,6 +78,7 @@ class RFMenu_PT_TweakCommon(bpy.types.Panel):
     bl_idname = "RF_PT_TweakCommon"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
+    bl_ui_units_x = 12
 
     def draw(self, context):
         draw_tweaking_options(context, self.layout)

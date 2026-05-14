@@ -225,7 +225,13 @@ class RF_Prefs(bpy.types.AddonPreferences):
     tweaking_update_normals: bpy.props.BoolProperty(
         name='Update Normals',
         description='Update the normals of the affected faces to try to keep them facing outwards',
-        default=True)
+        default=True
+        )
+    tweaking_use_auto_snap_method: bpy.props.BoolProperty(
+        name='Auto Projection',
+        description="Whether the snapping uses Blender's Face Project or Face Nearest snap settings or is automatic based on the selection",
+        default=True,
+    )
     #endregion
 
     """ Naming """

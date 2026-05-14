@@ -93,6 +93,11 @@ class RFOperator_Translate(RFOperator):
         ],
         default='AUTO',
     )
+    use_auto_snap_method: bpy.props.BoolProperty(
+        name = 'Auto Projection',
+        description="Whether the snapping uses Blender's Face Project or Face Nearest snap settings or is automatic based on the selection",
+        default=True,
+    )
     move_hovered: bpy.props.BoolProperty(
         name='Select and Move Hovered',
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
@@ -127,6 +132,7 @@ class RFOperator_Translate(RFOperator):
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.use_update_normals = prefs.tweaking_update_normals
+        self.use_auto_snap_method = prefs.tweaking_use_auto_snap_method
         if self.use_native == 'AUTO':
             self.use_native = 'TRUE' if prefs.tweaking_use_native else 'FALSE'
 
@@ -158,31 +164,32 @@ class RFOperator_Translate(RFOperator):
                     #self.bm.select_history.validate()
                     bmops.flush_selection(self.bm, self.em)
 
-        if self.use_native == 'TRUE':
-            if self.snap_method == 'AUTO':
-                bpy.ops.transform.translate('INVOKE_DEFAULT')
+        self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
+        # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
+        # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
 
+        if self.use_auto_snap_method:
+            if self.snap_method == 'AUTO':
+                if self.use_screen_space(context, self.bmvs):
+                    self.snap_method = 'PROJECTED'
+                else:
+                    self.snap_method = 'NEAREST'
+        else:
+            if 'FACE_PROJECT' in context.scene.tool_settings.snap_elements_individual:
+                self.snap_method = 'PROJECTED'
+            else:
+                self.snap_method = 'NEAREST'
+
+        if self.use_native == 'TRUE':
             ts = context.scene.tool_settings
             prev_snap_individual = ts.snap_elements_individual
-
             if self.snap_method == 'PROJECTED':
                 ts.snap_elements_individual = {'FACE_PROJECT'}
                 bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=True)
             elif self.snap_method == 'NEAREST':
                 ts.snap_elements_individual = {'FACE_NEAREST'}
                 bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=False)
-
             ts.snap_elements_individual = prev_snap_individual
-
-        self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
-        # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
-        # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
-
-        if self.snap_method == 'AUTO':
-            if len(self.bmvs) < 3 or context.scene.tool_settings.snap_elements_individual == {'FACE_PROJECT'}:
-                self.snap_method = 'PROJECTED'
-            else:
-                self.snap_method = 'NEAREST'
 
         # gather neighboring geo
         if self.bmvs and context.tool_settings.use_proportional_edit:
@@ -425,3 +432,13 @@ class RFOperator_Translate(RFOperator):
             bmf.normal_update()
             if no_local.dot(bmf.normal) < 0:
                 bmf.normal_flip()
+
+    def use_screen_space(self, context, bmvs):
+        if len(bmvs) > 10:
+            return False
+        view_dir = context.region_data.view_rotation @ Vector((0, 0, -1))
+        for v in bmvs:
+            normal = context.active_object.matrix_world.to_3x3() @ v.normal
+            if normal.dot(view_dir) > -0.5:
+                return False
+        return True
