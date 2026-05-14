@@ -2,6 +2,20 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+
+### 4.1.6
+
+- Improved auto picking projection method during transforms
+    - If a lot of vertices are selected or any of their normals are not pointing towards the view, Face Nearest is used. Otherwise, Face Project.
+- Added option to disable auto picking projection method
+- Added option to disable loop cutting feature in PolyPen's knife
+- Added option to disable transforms correcting face normals
+- Increased default Face Nearest snapping steps
+- Fixed crash when disabling the Retopoflow add-on while using it
+- Fixed snapping to self during loop cut and slide
+- Fixed some Blender settings not being returned to previous values when exiting
+
+
 ### 4.1.5
 
 - Added new Edit Mode Auto-Save feature for backing up modeling sessions
