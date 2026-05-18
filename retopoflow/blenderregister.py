@@ -80,7 +80,7 @@ except ModuleNotFoundError as e:
 except Exception as e:
     print('RetopoFlow: Unexpected Exception caught when trying to enable add-on!')
     print(e)
-    from .addon_common.common.debug import Debugger
+    from ..addon_common.common.debug import Debugger
     message,h = Debugger.get_exception_info_and_hash()
     message = '\n'.join('- %s'%l for l in message.splitlines())
     print(message)
@@ -703,7 +703,7 @@ if import_succeeded:
             row.operator(expand_help_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand help panel'])
 
             if not options['expand help panel']: return
-            
+
             box = layout.box()
 
             col = box.column(align=True)
@@ -800,7 +800,7 @@ if import_succeeded:
             layout.separator()
             self.draw_advanced(context, layout)
 
- 
+
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Warnings(Panel):
         bl_space_type = 'VIEW_3D'
@@ -960,7 +960,7 @@ if import_succeeded:
             row.label(text='See warning details')
             row.operator('cgcookie.retopoflow_help_warningdetails', text='', icon='HELP')
             row.operator('cgcookie.retopoflow_online_warningdetails', text='', icon='URL')
-   
+
 
     """
     @add_to_registry
@@ -995,7 +995,7 @@ if import_succeeded:
                     buttons.operator(c.bl_idname, text='', icon_value=c.icon_id)
 
     """
-    
+
     """
     @add_to_registry
     class VIEW3D_PT_ReteopoFlow_ObjectMode(Panel):
@@ -1039,7 +1039,7 @@ if import_succeeded:
             row.operator(expand_help_op.bl_idname, text='', icon=icon, emboss=False, depress=options['expand help panel'])
 
             if not options['expand help panel']: return
-            
+
             box = layout.box()
 
             col = box.column(align=True)
@@ -1151,7 +1151,7 @@ if import_succeeded:
             # if retopoflow.RetopoFlow.has_backup():
             #     box.label(text=options['last auto save path'])
     """
-    
+
     """
     @add_to_registry
     class VIEW3D_PT_RetopoFlow_Updater(Panel):

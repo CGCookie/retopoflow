@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in RetopoFlow since version 2.x.
 
+### RetopoFlow 3.4.9&rarr;3.4.10
+
+- Fixed disconnected edge sometimes being created in PolyStrips
+- Fixed issue enabling add-on in certain environments
+
 ### RetopoFlow 3.4.8&rarr;3.4.9
 
 - Fix parsing error when packaging as extension

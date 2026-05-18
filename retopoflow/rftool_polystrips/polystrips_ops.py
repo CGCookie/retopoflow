@@ -227,6 +227,7 @@ class PolyStrips_Ops:
                 if from_edge is None:
                     pt,tn,pe = mark_info(marks, 0)
                     first_edge = create_edge(pt, -tn, radius, pe)
+                    from_edge = first_edge
 
             # Create edges and faces
             if from_edge is None:

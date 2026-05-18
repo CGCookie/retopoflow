@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "retopoflow"
-version = "3.4.9"
+version = "3.4.11"
 name = "RetopoFlow 3"
 tagline = "A unified suite of retopology tools for Blender"
 maintainer = "Orange Turbine - Dr. Jon Denning, Jonathan Williamson, Jonathan Lampel, JF Matheu <orangeturbine@cgcookie.com>"
@@ -24,7 +24,7 @@ tags = ["Modeling", "Mesh"]
 
 blender_version_min = "4.2.0"
 # Optional: maximum supported Blender version
-# blender_version_max = "5.1.0"
+# blender_version_max = "6.1.0"
 
 # License conforming to https://spdx.org/licenses/ (use "SPDX: prefix)
 # https://docs.blender.org/manual/en/dev/extensions/licenses.html
