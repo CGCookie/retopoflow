@@ -47,7 +47,6 @@ from ..addon_common.common.ui_document import UI_Document
 from ..addon_common.common.utils import normalize_triplequote
 from ..addon_common.hive.hive import Hive
 
-
 ###########################################
 # RetopoFlow Configurations
 
@@ -463,19 +462,23 @@ class Options:
         'select automerge':            True,
     }
 
-    db = None           # current options dict
-    fndb = None         # name of file in which to store db (set up in __init__)
-    is_dirty = False    # does the internal db differ from db stored in file? (need writing)
-    last_change = 0     # when did we last changed an option?
-    write_delay = 1.0   # seconds to wait before writing db to file
-    write_error = False # True when we failed to write options to file
+    db = None                      # current options dict
+    fndb = None                    # name of file in which to store db (set up in __init__)
+    is_dirty = False               # does the internal db differ from db stored in file? (need writing)
+    last_change = 0                # when did we last changed an option?
+    write_delay = 1.0              # seconds to wait before writing db to file
+    write_error = False            # True when we failed to write options to file
+    save_options_to_user = False   # Saves to the user folder instead of add-on folder
 
     def __init__(self):
         self._callbacks = []
         self._calling = False
         if not Options.fndb:
-            Options.fndb = get_path_from_addon_root(retopoflow_files['options filename'])
-            # Options.fndb = self.get_path('options filename')
+            if Options.save_options_to_user:
+                bpy.utils.user_resource("DATAFILES", create=True) # Ensures datafiles folder exists
+                Options.fndb = bpy.utils.user_resource("DATAFILES", path=retopoflow_files['options filename'], create=False)
+            else:
+                Options.fndb = get_path_from_addon_root(retopoflow_files['options filename'])
             print(f'RetopoFlow options path: {Options.fndb}')
             self.read()
             self['version update'] = (self['rf version'] != retopoflow_product['version'])
@@ -506,7 +509,10 @@ class Options:
         self._calling = False
 
     def get_path(self, key):
-        return get_path_from_addon_root(retopoflow_files[key])
+        if Options.save_options_to_user:
+            return bpy.utils.user_resource("DATAFILES", path=retopoflow_files[key], create=False)
+        else:
+            return get_path_from_addon_root(retopoflow_files[key])
 
     def get_path_incremented(self, key):
         p = self.get_path(key)
@@ -1005,7 +1011,7 @@ class SessionOptions:
             return {k: cls._convert_to_json_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):
             return [cls._convert_to_json_serializable(item) for item in obj]
-        
+
         # Check for custom Color class from addon_common.common.maths...
         if isinstance(obj, Color):
             # Use Color.as_vec4().to_tuple() as specified
@@ -1117,7 +1123,7 @@ class SessionOptions:
     def set(cls, *args):
         # always get the full data dict first
         data = cls._get_data()
-        
+
         if len(args) == 1:
             # `args` contains a dictionary
             dict_keys_vals = args[0]
@@ -1142,7 +1148,7 @@ class SessionOptions:
             for key in keys[:-1]:
                 parent_data = parent_data[key]
             parent_data[keys[-1]] = value
-        
+
         # save the modified data back to the text block
         cls._save_data(data)
 
