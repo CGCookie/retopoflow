@@ -264,6 +264,9 @@ class PP_Logic:
     constrain_edge_vert : bool | None
     use_loop_cuts : bool | None
 
+    ignore_splitting_backfaces : bool
+    ignore_splitting_radius_ratio : float
+
     def __init__(self, context:Context, event:Event):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
@@ -274,6 +277,11 @@ class PP_Logic:
         self.parallel_stable = None
         self.constrain_edge_vert = None
         self.use_loop_cuts = None
+
+        # see https://github.com/cgcookie/retopoflow/issues/1770
+        self.ignore_splitting_backfaces = True
+        self.ignore_splitting_radius_ratio = 0.25
+
         self.reset()
         self.update(context, event, None, 1.00, True, False, True)
 
@@ -642,12 +650,16 @@ class PP_Logic:
                 if v_bme_perp.dot(self.mouse - bme_pt) < 0:
                     continue
 
+            vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
+
             working = [bme_selected]
             path_back = {}
             while working:
                 bme = working.pop(0)
                 for bmf in bme.link_faces:
                     if not bmf_is_quad(bmf): continue
+                    if self.ignore_splitting_backfaces and bmf.normal.dot(vec_forward) > 0:
+                        continue
                     if bmf in path_back: continue
                     bme_opposite = bmf_opposite_bme(bmf, bme)
                     if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite): continue
@@ -657,14 +669,19 @@ class PP_Logic:
                         bmf_hovered = bmf
                         break
                     pts = points_of_bmface(bmf)
-                    if point_inside_face(self.hit, pts):
-                        pts_2d = [
-                            location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
-                            for pt in pts
-                        ]
-                        if point_inside_face_2d(self.mouse, pts_2d):
-                            bmf_hovered = bmf
-                            break
+                    midpt = bmf_midpoint(bmf)
+                    p = point_inside_face(self.hit, pts)
+                    if not p: continue
+                    radius = max((bmv.co-midpt).length for bmv in bmf.verts)
+                    dist = (self.hit - p).length
+                    if dist > radius * self.ignore_splitting_radius_ratio: continue
+                    pts_2d = [
+                        location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
+                        for pt in pts
+                    ]
+                    if point_inside_face_2d(self.mouse, pts_2d):
+                        bmf_hovered = bmf
+                        break
                     working.append(bme_opposite)
                 if bmf_hovered: break
             if bmf_hovered: break

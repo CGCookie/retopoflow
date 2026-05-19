@@ -2139,10 +2139,10 @@ def point_inside_face(pt, pts_face):
     face_radius = max((pt_face - face_center).length_squared for pt_face in pts_face)
     if (pt - face_center).length_squared > face_radius: return False
     pt0 = pts_face[0]
-    return any(
-        intersect_point_tri(pt, pt0, pt1, pt2)
-        for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
-    )
+    for (pt1, pt2) in zip(pts_face[1:], pts_face[2:]):
+        p = intersect_point_tri(pt, pt0, pt1, pt2)
+        if p: return p
+    return None
 
 def points_of_bmface(bmf):
     return [ bmv.co for bmv in bmf.verts ]
