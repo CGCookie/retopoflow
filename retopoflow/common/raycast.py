@@ -24,7 +24,8 @@ import bpy
 import time
 import math
 
-from mathutils import Vector
+from bpy.types import Context, Object
+from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
     region_2d_to_vector_3d,
@@ -252,11 +253,11 @@ def raycast_valid_sources(context, point):
     best = None
 
     Me = context.edit_object.matrix_world
-    Mei = Me.inverted()
+    Mei = Me.inverted_safe()
     Met = Me.transposed()
     for obj in iter_all_valid_sources(context):
         M   = obj.matrix_world
-        Mi  = M.inverted()
+        Mi  = M.inverted_safe()
         Mit = Mi.transposed()
         #Mt  = M.transposed()
         ray_local = (
@@ -311,7 +312,7 @@ def raycast_ray_valid_sources(context, ray_world, *, world=True):
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         ray_local = (
             Mi @ ray_world[0],
             (Mi @ vector_to_bvec4(ray_world[1])).normalized(),
@@ -329,7 +330,7 @@ def raycast_ray_valid_sources(context, ray_world, *, world=True):
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
         M = context.edit_object.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
@@ -340,7 +341,7 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         point_local = Mi @ point_world
         result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
         if not result: continue
@@ -355,26 +356,24 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:
         M = context.edit_object.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
 def nearest_normal_valid_sources(context, point_world, *, world=True):
-    point3_world = point_to_bvec3(point_world)
-    point4_world = point_to_bvec4(point_world)
     best_no_world = None
     best_dist = float('inf')
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         Mit = Mi.transposed()
-        point_local = point_to_bvec3(Mi @ point4_world)
+        point_local = point_to_bvec3(xform_point(Mi, point_world))
         result, co, normal, idx = obj.closest_point_on_mesh(point_local)
         if not result: continue
         co_world = xform_point(M, co)
         no_world = xform_normal(Mit, normal)
-        dist = distance_between_locations(point3_world, co_world)
+        dist = distance_between_locations(point_world, co_world)
         # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue
         best_no_world = no_world
@@ -387,6 +386,108 @@ def nearest_normal_valid_sources(context, point_world, *, world=True):
     Mt = M.transposed()
     return xform_direction(Mt, best_no_world)
 
+
+class MatrixInfo:
+    M   : Matrix
+    Mi  : Matrix
+    Mt  : Matrix
+    Mit : Matrix
+
+    def __init__(self, *, context:Context|None=None, matrix:Matrix|None=None, object:Object|None=None):
+        assert context or matrix or object, 'Must specify either context, matrix, or object'
+        if context:
+            object = context.edit_object
+        if object:
+            matrix = object.matrix_world
+        self.M   = matrix
+        self.Mi  = matrix.inverted_safe()
+        self.Mt  = matrix.transposed()
+        self.Mit = self.Mi.transposed()
+
+    def l2w_point(self, point:Vector) -> Vector:
+        return xform_point(self.M, point)
+
+    def l2w_normal(self, normal:Vector) -> Vector:
+        return xform_normal(self.Mit, normal)
+
+    def l2w_vector(self, vector:Vector) -> Vector:
+        return xform_vector(self.M, vector)
+
+    def l2w_direction(self, direction:Vector) -> Vector:
+        return xform_direction(self.M, direction)
+
+    def w2l_point(self, point:Vector) -> Vector:
+        return xform_point(self.Mi, point)
+
+    def w2l_normal(self, normal:Vector) -> Vector:
+        return xform_normal(self.Mt, normal)
+
+    def w2l_vector(self, vector:Vector) -> Vector:
+        return xform_vector(self.Mi, vector)
+
+    def w2l_direction(self, direction:Vector) -> Vector:
+        return xform_direction(self.Mi, direction)
+
+
+
+class FindNearest:
+    matinfo : MatrixInfo
+
+    from_point_world : Vector
+    from_point_local : Vector
+
+    distance_world : float
+    object         : Object | None
+    face_index     : int    | None
+    point_world    : Vector | None
+    normal_world   : Vector | None
+    point_local    : Vector | None
+    normal_local   : Vector | None
+
+    @property
+    def found(self):
+        return math.isfinite(self.distance_world)
+
+    def __init__(self, context:Context, *, point_world:Vector|None=None, point_local:Vector|None=None, matinfo:MatrixInfo|None=None):
+        assert point_world or point_local, f'Must specify either point_world or point_local'
+
+        self.matinfo = matinfo if matinfo else MatrixInfo(context=context)
+
+        if point_world:
+            self.from_point_world = point_world
+            self.from_point_local = self.matinfo.w2l_point(point_world)
+        elif point_local:
+            self.from_point_local = point_local
+            self.from_point_world = self.matinfo.l2w_point(point_local)
+
+        self.distance_world = float('inf')
+        self.object         = None
+        self.face_index     = None
+        self.point_world    = None
+        self.normal_world   = None
+        self.point_local    = None
+        self.normal_local   = None
+
+        # print(f'RAY {ray_world}')
+        for obj in iter_all_valid_sources(context):
+            matinfo_obj = MatrixInfo(object=obj)
+            point_local_obj = matinfo_obj.w2l_point(point_world)
+            result, co, normal, idx = obj.closest_point_on_mesh(point_local_obj)
+            if not result: continue
+            co_world = matinfo_obj.l2w_point(co)
+            no_world = matinfo_obj.l2w_point(normal)
+            dist = distance_between_locations(point_world, co_world)
+            if dist < self.distance_world:
+                self.distance_world = dist
+                self.object         = obj
+                self.face_index     = idx
+                self.point_world    = co_world
+                self.normal_world   = no_world
+                self.point_local    = self.matinfo.w2l_point(co_world)
+                self.normal_local   = self.matinfo.w2l_normal(no_world)
+
+
+
 def nearest_point_normal_valid_sources(context, point_world, *, world=True):
     point_world = Vector((*point_world, 1.0))
     best_hit = None
@@ -395,7 +496,7 @@ def nearest_point_normal_valid_sources(context, point_world, *, world=True):
 
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         Mit = Mi.transposed()
         point_local = Mi @ point_world
         result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
@@ -417,6 +518,6 @@ def nearest_point_normal_valid_sources(context, point_world, *, world=True):
 
     M = context.edit_object.matrix_world
     Mt = M.transposed()
-    Mi = M.inverted()
+    Mi = M.inverted_safe()
     hit = Mi @ hit
     return (point_to_bvec3(hit), xform_direction(Mt, best_no_world))

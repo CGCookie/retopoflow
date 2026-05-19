@@ -40,6 +40,8 @@ from ..common.raycast import (
     mouse_from_event,
     nearest_point_valid_sources,
     nearest_normal_valid_sources,
+    MatrixInfo,
+    FindNearest,
 )
 from ..common.maths import (
     view_forward_direction,
@@ -125,7 +127,7 @@ class RFOperator_Translate(RFOperator):
         # print(f'STARTING TRANSLATE')
         prefs = RF_Prefs.get_prefs(context)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         M, Mi = self.matrix_world, self.matrix_world_inv
         self.nearest_bmv = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
@@ -418,19 +420,29 @@ class RFOperator_Translate(RFOperator):
         context.area.tag_redraw()
 
     def update_normals(self, context, event):
-        # get normal of nearest point on surface from center of bmface
+        # get normal of nearest point on surface from each bmvert of bmface
         # if that normal and bmface's normal are opposite, then flip the bmface normal
         # this should work regardless of snap method (project or nearest)
         # see https://github.com/CGCookie/retopoflow/issues/1731
-        M, Mt = self.matrix_world, self.matrix_world.transposed()
+        # see https://github.com/CGCookie/retopoflow/issues/1762
+        matinfo = MatrixInfo(context=context)
         for (bmf, _) in self.bmfs:
             if not bmf.is_valid: continue
-            co_world = point_to_bvec3(M @ point_to_bvec4(bmf_midpoint(bmf)))
-            no_world = nearest_normal_valid_sources(context, co_world)
-            if no_world == None: continue
-            no_local = xform_normal(Mt, no_world)
             bmf.normal_update()
-            if no_local.dot(bmf.normal) < 0:
+            if False:
+                # broken #1762
+                co_world = matinfo.l2w_point(bmf_midpoint(bmf))
+                nearest = FindNearest(context, point_world=co_world, matinfo=matinfo)
+                if not nearest.found: continue
+                v = nearest.normal_local
+            else:
+                v = Vector((0,0,0))
+                for bmv in bmf.verts:
+                    co_world = matinfo.l2w_point(bmv.co)
+                    nearest = FindNearest(context, point_world=co_world, matinfo=matinfo)
+                    if not nearest.found: continue
+                    v += nearest.normal_local
+            if bmf.normal.dot(v) < 0:
                 bmf.normal_flip()
 
     def use_screen_space(self, context, bmvs):

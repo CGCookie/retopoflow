@@ -93,7 +93,7 @@ def fit_cubicbezier(l_v, l_t):
     # fill the A matrix with data
     A_matrix = Matrix(tuple(zip(*[iter(A_values)]*4)))
     try:
-        A_inv = A_matrix.inverted()
+        A_inv = A_matrix.inverted_safe()
     except:
         return (float('inf'), l_v[0], l_v[0], l_v[0], l_v[0])
 

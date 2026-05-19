@@ -206,8 +206,8 @@ def create_stroke_brush(
             bm = get_bmesh_emesh(context, ensure_lookup_tables=True)[0] if context.edit_object else None
             if bm is not None and bm.is_valid:
                 self.matrix_world = bpy.context.edit_object.matrix_world
-                self.matrix_world_inv = self.matrix_world.inverted()
-                self.matrix_world_ti = self.matrix_world.inverted().transposed()
+                self.matrix_world_inv = self.matrix_world.inverted_safe()
+                self.matrix_world_ti = self.matrix_world.inverted_safe().transposed()
                 self.edit_scale = max(self.matrix_world.to_scale())
 
                 if snap_verts:
@@ -294,8 +294,8 @@ def create_stroke_brush(
 
             if getattr(context, 'edit_object', None):
                 self.matrix_world = bpy.context.edit_object.matrix_world
-                self.matrix_world_inv = self.matrix_world.inverted()
-                self.matrix_world_ti = self.matrix_world.inverted().transposed()
+                self.matrix_world_inv = self.matrix_world.inverted_safe()
+                self.matrix_world_ti = self.matrix_world.inverted_safe().transposed()
                 self.edit_scale = max(self.matrix_world.to_scale())
             else:
                 self.matrix_world = None

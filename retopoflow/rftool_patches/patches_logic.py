@@ -305,7 +305,7 @@ class Patches_Context:
 
         # TRANSFORMATIONS
         self.M = context.edit_object.matrix_world
-        self.Mi = self.M.inverted()
+        self.Mi = self.M.inverted_safe()
         self.edit_scale = max(self.M.to_scale())            # TODO: needed?
 
         # LAYERS

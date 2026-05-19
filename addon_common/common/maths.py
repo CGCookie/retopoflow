@@ -1788,7 +1788,7 @@ def has_inverse(mat):
     if smat not in d:
         if len(d) > 1000: d.clear()
         try:
-            _ = mat.inverted()
+            _ = mat.inverted_safe()
             d[smat] = True
         except:
             d[smat] = False

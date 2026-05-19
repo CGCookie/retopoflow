@@ -175,7 +175,7 @@ class Strokes_Logic:
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
 
         self.stroke3D = list(self.stroke3D_original)  # stroke can change, so keep a copy of original
         self.important_indices = []

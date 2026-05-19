@@ -245,7 +245,7 @@ class PP_Logic:
 
     def __init__(self, context, event):
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.update_bmesh_selection = False
         self.mouse = None
         self.insert_mode = None
@@ -1851,7 +1851,7 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable
         hit2 = raycast_point_valid_sources(context, p2)
         hit3 = raycast_point_valid_sources(context, p3)
         if hit2 and hit3:
-            Mi = matrix_world.inverted()
+            Mi = matrix_world.inverted_safe()
             return Mi @ hit2, Mi @ hit3
         dist01 /= 2
     return None, None
