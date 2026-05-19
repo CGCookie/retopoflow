@@ -29,7 +29,7 @@ from itertools import combinations
 import gpu
 from mathutils import Matrix, Vector, Quaternion
 from bmesh.types import BMVert
-from mathutils.geometry import intersect_line_plane, intersect_point_tri
+from mathutils.geometry import intersect_line_plane, intersect_point_tri, intersect_point_tri_2d
 
 from .colors import colorname_to_color
 from .decorators import stats_wrapper, blender_version_wrapper
@@ -2121,6 +2121,17 @@ def all_combinations(things):
     if not things: return
     for i in range(1, len(things)+1):
         yield from combinations(things, i)
+
+def point_inside_face_2d(pt, pts_face):
+    # assuming simple face (convex)
+    face_center = sum(pts_face, Vector((0,0))) / len(pts_face)
+    face_radius = max((pt_face - face_center).length_squared for pt_face in pts_face)
+    if (pt - face_center).length_squared > face_radius: return False
+    pt0 = pts_face[0]
+    return any(
+        intersect_point_tri_2d(pt, pt0, pt1, pt2)
+        for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
+    )
 
 def point_inside_face(pt, pts_face):
     # assuming simple face (convex)

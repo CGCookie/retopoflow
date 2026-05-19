@@ -26,11 +26,12 @@ import bmesh
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh, BMLayerAccessVert, BMLayerAccessEdge, BMLayerAccessFace
 
 
+BMElemType = Union[type[BMVert] | type[BMEdge] | type[BMFace]]
 BMElem = Union[BMVert | BMEdge | BMFace]
 BMLayer = Union[BMLayerAccessVert | BMLayerAccessEdge | BMLayerAccessFace]
 
 
-def get_layer(bm : BMesh, bmelem_type : BMElem, layer_type : str, name : str) -> BMLayer:
+def get_layer(bm : BMesh, bmelem_type : BMElemType, layer_type : str, name : str) -> BMLayer:
     # https://docs.blender.org/api/current/bmesh.types.html#bmesh.types.bmesh.types.BMLayerAccessVert
     # BMVert has extra layer types: deform, shape, skin
     assert layer_type in { 'bool', 'color', 'float', 'float_color', 'float_vector', 'int', 'string' }, f'get_layer: Unhandled layer_type {layer_type}'
@@ -58,7 +59,7 @@ def get_select_layers(bm):
 
 
 
-def get_all_selected(bm : BMesh) -> dict[BMElem, set[BMElem]]:
+def get_all_selected(bm : BMesh) -> dict[BMElemType, set[BMElem]]:
     return {
         BMVert: get_all_selected_bmverts(bm),
         BMEdge: get_all_selected_bmedges(bm),
