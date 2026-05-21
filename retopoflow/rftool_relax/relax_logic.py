@@ -268,7 +268,7 @@ class Relax_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted()
         self.scale_avg = sum(context.edit_object.matrix_world.to_scale()) / 3
-        self.mouse = None
+        self.mouse = mouse_from_event(event)
         self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
         self.up = xform_direction(self.matrix_world_inv, view_up_direction(context))
@@ -395,11 +395,21 @@ class Relax_Logic:
 
 
     def update(self, context, event):
-        if event.type != 'TIMER':
+        if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             self.pressure = getattr(event, 'pressure', 1.0)
+            self.mouse = mouse_from_event(event)
+        elif event.type == 'TIMER':
+            mouse = mouse_from_event(event)
+            if mouse: self.mouse = mouse
+        else:
             return
 
-        hit = raycast_valid_sources(context, mouse_from_event(event))
+        # Limit updates so moving the mouse doesn't update faster than timer
+        if time.time() - self._time < 1.0 / 120: return
+
+        if not self.mouse: return
+
+        hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
 
         brush = self.brush
