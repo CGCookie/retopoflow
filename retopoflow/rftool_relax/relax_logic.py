@@ -32,6 +32,7 @@ from mathutils.bvhtree import BVHTree
 
 import math
 import time
+import heapq
 from math import isnan, inf
 from typing import Tuple
 
@@ -143,6 +144,125 @@ class Accel:
         }
 
 
+class BoundaryAccel:
+    BINS_COUNT: int = 16
+
+    def __init__(self, segments):
+        self.segments = list(segments)
+        self._bin_scale_x, self._bin_scale_y, self._bin_scale_z = 0.0, 0.0, 0.0
+        self._cell_dx, self._cell_dy, self._cell_dz = 0.0, 0.0, 0.0
+        self.min_x, self.min_y, self.min_z = 0.0, 0.0, 0.0
+        self.max_x, self.max_y, self.max_z = 0.0, 0.0, 0.0
+        self.bins = {}
+        self.rebuild()
+
+    def rebuild(self):
+        if not self.segments: return
+
+        xs = [co.x for seg in self.segments for co in seg]
+        ys = [co.y for seg in self.segments for co in seg]
+        zs = [co.z for seg in self.segments for co in seg]
+        self.min_x, self.max_x = min(xs), max(xs)
+        self.min_y, self.max_y = min(ys), max(ys)
+        self.min_z, self.max_z = min(zs), max(zs)
+
+        dx = max(0.001, self.max_x - self.min_x)
+        dy = max(0.001, self.max_y - self.min_y)
+        dz = max(0.001, self.max_z - self.min_z)
+        self._bin_scale_x = BoundaryAccel.BINS_COUNT / dx
+        self._bin_scale_y = BoundaryAccel.BINS_COUNT / dy
+        self._bin_scale_z = BoundaryAccel.BINS_COUNT / dz
+        self._cell_dx = dx / BoundaryAccel.BINS_COUNT
+        self._cell_dy = dy / BoundaryAccel.BINS_COUNT
+        self._cell_dz = dz / BoundaryAccel.BINS_COUNT
+
+        max_bin = BoundaryAccel.BINS_COUNT - 1
+        bins = {}
+        for i, (v0, v1) in enumerate(self.segments):
+            min_ix = clamp(int((min(v0.x, v1.x) - self.min_x) * self._bin_scale_x), 0, max_bin)
+            max_ix = clamp(int((max(v0.x, v1.x) - self.min_x) * self._bin_scale_x), 0, max_bin)
+            min_iy = clamp(int((min(v0.y, v1.y) - self.min_y) * self._bin_scale_y), 0, max_bin)
+            max_iy = clamp(int((max(v0.y, v1.y) - self.min_y) * self._bin_scale_y), 0, max_bin)
+            min_iz = clamp(int((min(v0.z, v1.z) - self.min_z) * self._bin_scale_z), 0, max_bin)
+            max_iz = clamp(int((max(v0.z, v1.z) - self.min_z) * self._bin_scale_z), 0, max_bin)
+            for ix in range(min_ix, max_ix + 1):
+                for iy in range(min_iy, max_iy + 1):
+                    for iz in range(min_iz, max_iz + 1):
+                        key = (ix, iy, iz)
+                        if key not in bins:
+                            bins[key] = [i]
+                        else:
+                            bins[key].append(i)
+        self.bins = bins
+
+    def _index(self, co: Vector) -> Tuple[int, int, int]:
+        max_bin = BoundaryAccel.BINS_COUNT - 1
+        ix = clamp(int((co.x - self.min_x) * self._bin_scale_x), 0, max_bin)
+        iy = clamp(int((co.y - self.min_y) * self._bin_scale_y), 0, max_bin)
+        iz = clamp(int((co.z - self.min_z) * self._bin_scale_z), 0, max_bin)
+        return (ix, iy, iz)
+
+    def _bin_dist2(self, co: Vector, ix: int, iy: int, iz: int) -> float:
+        bx0 = self.min_x + ix * self._cell_dx
+        by0 = self.min_y + iy * self._cell_dy
+        bz0 = self.min_z + iz * self._cell_dz
+        bx1 = bx0 + self._cell_dx
+        by1 = by0 + self._cell_dy
+        bz1 = bz0 + self._cell_dz
+
+        dx = 0.0 if bx0 <= co.x <= bx1 else min(abs(co.x - bx0), abs(co.x - bx1))
+        dy = 0.0 if by0 <= co.y <= by1 else min(abs(co.y - by0), abs(co.y - by1))
+        dz = 0.0 if bz0 <= co.z <= bz1 else min(abs(co.z - bz0), abs(co.z - bz1))
+        return dx * dx + dy * dy + dz * dz
+
+    def closest_point(self, co: Vector):
+        if not self.segments: return
+
+        start = self._index(co)
+        heap = [(0.0, start)]
+        visited_bins = set()
+        visited_segments = set()
+        max_bin = BoundaryAccel.BINS_COUNT - 1
+
+        best_p = None
+        best_d2 = inf
+
+        while heap:
+            bin_d2, (ix, iy, iz) = heapq.heappop(heap)
+            key = (ix, iy, iz)
+            if key in visited_bins:
+                continue
+            visited_bins.add(key)
+
+            if bin_d2 > best_d2:
+                break
+
+            for seg_idx in self.bins.get(key, []):
+                if seg_idx in visited_segments:
+                    continue
+                visited_segments.add(seg_idx)
+                v0, v1 = self.segments[seg_idx]
+                p = closest_point_segment(co, v0, v1)
+                d2 = (p - co).length_squared
+                if d2 < best_d2:
+                    best_p, best_d2 = p, d2
+
+            if ix > 0 and (ix - 1, iy, iz) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix - 1, iy, iz), (ix - 1, iy, iz)))
+            if ix < max_bin and (ix + 1, iy, iz) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix + 1, iy, iz), (ix + 1, iy, iz)))
+            if iy > 0 and (ix, iy - 1, iz) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix, iy - 1, iz), (ix, iy - 1, iz)))
+            if iy < max_bin and (ix, iy + 1, iz) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix, iy + 1, iz), (ix, iy + 1, iz)))
+            if iz > 0 and (ix, iy, iz - 1) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix, iy, iz - 1), (ix, iy, iz - 1)))
+            if iz < max_bin and (ix, iy, iz + 1) not in visited_bins:
+                heapq.heappush(heap, (self._bin_dist2(co, ix, iy, iz + 1), (ix, iy, iz + 1)))
+
+        return best_p
+
+
 class Relax_Logic:
     def __init__(self, context, event, brush, relax):
         self.matrix_world = context.edit_object.matrix_world
@@ -194,13 +314,25 @@ class Relax_Logic:
         self.prev_displace = {}
         self.bounce_mult = {}
 
-        self._boundary = []
+        self.boundary = []
+        self.boundary_verts = set()
+        self.boundary_accel = None
         if opt_mask_boundary == 'SLIDE':
-            self._boundary = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+            boundary_edges = [
+                bme
                 for bme in self.bm.edges
                 if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
             ]
+            self.boundary = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in boundary_edges
+            ]
+            self.boundary_verts = {
+                bmv
+                for bme in boundary_edges
+                for bmv in bme.verts
+            }
+            self.boundary_accel = BoundaryAccel(self.boundary)
 
         self.bvh = BVHTree.FromBMesh(self.bm)
 
@@ -658,12 +790,8 @@ class Relax_Logic:
                 if opt_draw_net:
                     self.draw_vectors[2].append((bmv.co, displace_vec * 100))
 
-                if opt_mask_boundary == 'SLIDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
-                    p, d = None, None
-                    for (v0, v1) in self._boundary:
-                        p_ = closest_point_segment(co, v0, v1)
-                        d_ = (p_ - co).length
-                        if p is None or d_ < d: p, d = p_, d_
+                if opt_mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
+                    p = self.boundary_accel.closest_point(co) if self.boundary_accel else None
                     if p is not None:
                         co = p
 
