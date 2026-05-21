@@ -36,7 +36,7 @@ import time
 from math import isnan, inf
 from typing import Tuple
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, bme_midpoint, bmf_midpoint
+from ..common.bmesh import get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint
 from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, get_bmvert_attribute
 from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction, xform_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -266,18 +266,6 @@ class Relax_Logic:
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
-
-        def is_bmvert_on_ngon(bmv):
-            for bmf in bmv.link_faces:
-                if len(bmf.edges) > 4:
-                    return True
-            return False
-
-        def is_bmvert_corner(bmv):
-            return (
-                len(bmv.link_edges) == 2 or
-                len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3
-            )
 
         def is_bmvert_included(bmv):
             if (

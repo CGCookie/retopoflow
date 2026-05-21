@@ -582,3 +582,15 @@ def is_bmvert_boundary(bmv, mirror, threshold, clip, include_hidden_boundary=Tru
     if 'y' in mirror and abs(bmv.co.y) <= threshold.y: return False
     if 'z' in mirror and abs(bmv.co.z) <= threshold.z: return False
     return True
+
+def is_bmvert_corner(bmv):
+    return (
+        len(bmv.link_edges) == 2 or
+        len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3
+    )
+
+def is_bmvert_on_ngon(bmv):
+    for bmf in bmv.link_faces:
+        if len(bmf.edges) > 4:
+            return True
+    return False

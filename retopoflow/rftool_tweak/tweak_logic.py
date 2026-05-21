@@ -33,7 +33,7 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner
 from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, get_bmvert_attribute
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -100,13 +100,11 @@ class Tweak_Logic:
             # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
             if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
 
-            if props.mask_boundary == 'EXCLUDE' and (
+            if self.props_scene.mask_boundary == 'EXCLUDE' and (
                 is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             ):
                 continue
-            if props.include_corners  == False and (
-                len(bmv.link_edges) == 2 or (len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3)
-            ):
+            if (props.include_corners  == False or self.props_scene.mask_boundary == 'SLIDE') and is_bmvert_corner(bmv):
                 continue
             if props.include_creases == False and (
                 get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
