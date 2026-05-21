@@ -29,10 +29,10 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 
 import math
 import time
-import heapq
 from math import isnan, inf
 from typing import Tuple
 
@@ -145,120 +145,47 @@ class Accel:
 
 
 class BoundaryAccel:
-    BINS_COUNT: int = 16
+    QUERY_K = 16
 
     def __init__(self, segments):
         self.segments = list(segments)
-        self._bin_scale_x, self._bin_scale_y, self._bin_scale_z = 0.0, 0.0, 0.0
-        self._cell_dx, self._cell_dy, self._cell_dz = 0.0, 0.0, 0.0
-        self.min_x, self.min_y, self.min_z = 0.0, 0.0, 0.0
-        self.max_x, self.max_y, self.max_z = 0.0, 0.0, 0.0
-        self.bins = {}
+        self._kdtree = None
+        self._entry_to_seg = []
         self.rebuild()
 
     def rebuild(self):
-        if not self.segments: return
+        if not self.segments:
+            self._kdtree = None
+            return
 
-        xs = [co.x for seg in self.segments for co in seg]
-        ys = [co.y for seg in self.segments for co in seg]
-        zs = [co.z for seg in self.segments for co in seg]
-        self.min_x, self.max_x = min(xs), max(xs)
-        self.min_y, self.max_y = min(ys), max(ys)
-        self.min_z, self.max_z = min(zs), max(zs)
-
-        dx = max(0.001, self.max_x - self.min_x)
-        dy = max(0.001, self.max_y - self.min_y)
-        dz = max(0.001, self.max_z - self.min_z)
-        self._bin_scale_x = BoundaryAccel.BINS_COUNT / dx
-        self._bin_scale_y = BoundaryAccel.BINS_COUNT / dy
-        self._bin_scale_z = BoundaryAccel.BINS_COUNT / dz
-        self._cell_dx = dx / BoundaryAccel.BINS_COUNT
-        self._cell_dy = dy / BoundaryAccel.BINS_COUNT
-        self._cell_dz = dz / BoundaryAccel.BINS_COUNT
-
-        max_bin = BoundaryAccel.BINS_COUNT - 1
-        bins = {}
-        for i, (v0, v1) in enumerate(self.segments):
-            min_ix = clamp(int((min(v0.x, v1.x) - self.min_x) * self._bin_scale_x), 0, max_bin)
-            max_ix = clamp(int((max(v0.x, v1.x) - self.min_x) * self._bin_scale_x), 0, max_bin)
-            min_iy = clamp(int((min(v0.y, v1.y) - self.min_y) * self._bin_scale_y), 0, max_bin)
-            max_iy = clamp(int((max(v0.y, v1.y) - self.min_y) * self._bin_scale_y), 0, max_bin)
-            min_iz = clamp(int((min(v0.z, v1.z) - self.min_z) * self._bin_scale_z), 0, max_bin)
-            max_iz = clamp(int((max(v0.z, v1.z) - self.min_z) * self._bin_scale_z), 0, max_bin)
-            for ix in range(min_ix, max_ix + 1):
-                for iy in range(min_iy, max_iy + 1):
-                    for iz in range(min_iz, max_iz + 1):
-                        key = (ix, iy, iz)
-                        if key not in bins:
-                            bins[key] = [i]
-                        else:
-                            bins[key].append(i)
-        self.bins = bins
-
-    def _index(self, co: Vector) -> Tuple[int, int, int]:
-        max_bin = BoundaryAccel.BINS_COUNT - 1
-        ix = clamp(int((co.x - self.min_x) * self._bin_scale_x), 0, max_bin)
-        iy = clamp(int((co.y - self.min_y) * self._bin_scale_y), 0, max_bin)
-        iz = clamp(int((co.z - self.min_z) * self._bin_scale_z), 0, max_bin)
-        return (ix, iy, iz)
-
-    def _bin_dist2(self, co: Vector, ix: int, iy: int, iz: int) -> float:
-        bx0 = self.min_x + ix * self._cell_dx
-        by0 = self.min_y + iy * self._cell_dy
-        bz0 = self.min_z + iz * self._cell_dz
-        bx1 = bx0 + self._cell_dx
-        by1 = by0 + self._cell_dy
-        bz1 = bz0 + self._cell_dz
-
-        dx = 0.0 if bx0 <= co.x <= bx1 else min(abs(co.x - bx0), abs(co.x - bx1))
-        dy = 0.0 if by0 <= co.y <= by1 else min(abs(co.y - by0), abs(co.y - by1))
-        dz = 0.0 if bz0 <= co.z <= bz1 else min(abs(co.z - bz0), abs(co.z - bz1))
-        return dx * dx + dy * dy + dz * dz
+        entry_to_seg = []
+        kd = KDTree(len(self.segments) * 2)
+        for seg_idx, (v0, v1) in enumerate(self.segments):
+            kd.insert(v0, len(entry_to_seg))
+            entry_to_seg.append(seg_idx)
+            kd.insert(v1, len(entry_to_seg))
+            entry_to_seg.append(seg_idx)
+        kd.balance()
+        self._kdtree = kd
+        self._entry_to_seg = entry_to_seg
 
     def closest_point(self, co: Vector):
-        if not self.segments: return
+        if not self._kdtree: return None
 
-        start = self._index(co)
-        heap = [(0.0, start)]
-        visited_bins = set()
-        visited_segments = set()
-        max_bin = BoundaryAccel.BINS_COUNT - 1
-
+        k = min(BoundaryAccel.QUERY_K, len(self._entry_to_seg))
+        checked_segs = set()
         best_p = None
         best_d2 = inf
 
-        while heap:
-            bin_d2, (ix, iy, iz) = heapq.heappop(heap)
-            key = (ix, iy, iz)
-            if key in visited_bins:
-                continue
-            visited_bins.add(key)
-
-            if bin_d2 > best_d2:
-                break
-
-            for seg_idx in self.bins.get(key, []):
-                if seg_idx in visited_segments:
-                    continue
-                visited_segments.add(seg_idx)
-                v0, v1 = self.segments[seg_idx]
-                p = closest_point_segment(co, v0, v1)
-                d2 = (p - co).length_squared
-                if d2 < best_d2:
-                    best_p, best_d2 = p, d2
-
-            if ix > 0 and (ix - 1, iy, iz) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix - 1, iy, iz), (ix - 1, iy, iz)))
-            if ix < max_bin and (ix + 1, iy, iz) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix + 1, iy, iz), (ix + 1, iy, iz)))
-            if iy > 0 and (ix, iy - 1, iz) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix, iy - 1, iz), (ix, iy - 1, iz)))
-            if iy < max_bin and (ix, iy + 1, iz) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix, iy + 1, iz), (ix, iy + 1, iz)))
-            if iz > 0 and (ix, iy, iz - 1) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix, iy, iz - 1), (ix, iy, iz - 1)))
-            if iz < max_bin and (ix, iy, iz + 1) not in visited_bins:
-                heapq.heappush(heap, (self._bin_dist2(co, ix, iy, iz + 1), (ix, iy, iz + 1)))
+        for (_co, entry_idx, _dist) in self._kdtree.find_n(co, k):
+            seg_idx = self._entry_to_seg[entry_idx]
+            if seg_idx in checked_segs: continue
+            checked_segs.add(seg_idx)
+            v0, v1 = self.segments[seg_idx]
+            p = closest_point_segment(co, v0, v1)
+            d2 = (p - co).length_squared
+            if d2 < best_d2:
+                best_p, best_d2 = p, d2
 
         return best_p
 
