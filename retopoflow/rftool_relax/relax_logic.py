@@ -273,6 +273,12 @@ class Relax_Logic:
                     return True
             return False
 
+        def is_bmvert_corner(bmv):
+            return (
+                len(bmv.link_edges) == 2 or
+                len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3
+            )
+
         def is_bmvert_included(bmv):
             if (
                 bmv.hide or
@@ -282,8 +288,7 @@ class Relax_Logic:
                 opt_mask_boundary_exclude and (
                     is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
                 ) or
-                opt_include_corner == False    and len(bmv.link_edges) == 2 or
-                opt_include_corner == False    and len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3 or
+                (opt_include_corner == False or opt_mask_boundary == 'SLIDE') and is_bmvert_corner(bmv) or
                 opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam') or
                 opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp') or
                 opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float') or
