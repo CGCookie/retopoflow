@@ -33,15 +33,15 @@ from ...addon_common.common.maths import clamp, Point, Vector, Normal
 def view_forward_direction(context):
     r3d = context.region_data
     mat = r3d.view_matrix
-    return (mat.inverted() @ Vector((0,0,-1,0))).xyz
+    return (mat.inverted_safe() @ Vector((0,0,-1,0))).xyz
 def view_right_direction(context):
     r3d = context.region_data
     mat = r3d.view_matrix
-    return (mat.inverted() @ Vector((1,0,0,0))).xyz
+    return (mat.inverted_safe() @ Vector((1,0,0,0))).xyz
 def view_up_direction(context):
     r3d = context.region_data
     mat = r3d.view_matrix
-    return (mat.inverted() @ Vector((0,1,0,0))).xyz
+    return (mat.inverted_safe() @ Vector((0,1,0,0))).xyz
 
 def bbox_center(bmvs):
     maximum = Vector([

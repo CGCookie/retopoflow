@@ -105,7 +105,7 @@ class Zipper_Logic:
 
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.nearest     = NearestBMVert(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=True)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.selected = bmops.get_all_selected_bmverts(self.bm)

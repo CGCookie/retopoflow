@@ -125,7 +125,7 @@ def crossed_quad(pt0, pt1, pt2, pt3):
 
 def ensure_correct_normals(bm, bmfs):
     M_local = bpy.context.edit_object.matrix_world
-    Mi_local = M_local.inverted()
+    Mi_local = M_local.inverted_safe()
     Mt_local = M_local.transposed()
     bmesh.ops.recalc_face_normals(bm, faces=bmfs)
     for bmf in bmfs:

@@ -587,7 +587,7 @@ class PolyStrips_Logic:
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.edit_scale = max(self.matrix_world.to_scale())
         self.bm.verts.ensure_lookup_table()
         self.bm.edges.ensure_lookup_table()

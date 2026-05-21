@@ -190,7 +190,7 @@ class RFOperator_TopoRotate(RFOperator):
     def init(self, context, event):
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self.M = context.edit_object.matrix_world
-        self.Mi = self.M.inverted()
+        self.Mi = self.M.inverted_safe()
         self.bmfaces : set[BMFace] = bmops.get_all_selected_bmfaces(self.bm)
 
         perimeter = get_perimeter_bmedges(self.bmfaces)

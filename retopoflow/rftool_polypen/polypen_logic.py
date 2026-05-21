@@ -21,11 +21,12 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bmesh
 import bpy
-from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Context, Event, Mesh
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bmesh.ops import connect_verts
 from bmesh.utils import edge_split
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
 
 from collections import deque
@@ -60,7 +61,8 @@ from ..common.maths import (
     clamp, xform_direction,
 )
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import intersection2d_line_line, sign_threshold, point_inside_face, points_of_bmface
+from ...addon_common.common.bmesh_ops import BMElemType, BMElem
+from ...addon_common.common.maths import intersection2d_line_line, sign_threshold, point_inside_face, points_of_bmface, point_inside_face_2d
 from ...addon_common.common.colors import Color4
 from ...addon_common.common.utils import iter_pairs
 
@@ -243,9 +245,31 @@ def compute_quad_factor(co, a, b, c, d):
 class PP_Logic:
     state : PP_Action
 
-    def __init__(self, context, event):
+    matrix_world : Matrix
+    matrix_world_inv : Matrix
+
+    bm : BMesh | None
+    em : Mesh | None
+    bme : BMEdge | None
+    nearest : NearestBMVert | None
+    nearest_bme : NearestBMEdge | None
+    nearest_bmf : NearestBMFace | None
+    selected : dict[BMElemType, set[BMElem]] | None
+
+    update_bmesh_selection : bool
+    mouse : Vector | None
+    insert_mode : str | None
+    quad_preserve : bool | None
+    parallel_stable : float
+    constrain_edge_vert : bool | None
+    use_loop_cuts : bool | None
+
+    ignore_splitting_backfaces : bool
+    ignore_splitting_radius_ratio : float
+
+    def __init__(self, context:Context, event:Event):
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.update_bmesh_selection = False
         self.mouse = None
         self.insert_mode = None
@@ -253,6 +277,11 @@ class PP_Logic:
         self.parallel_stable = None
         self.constrain_edge_vert = None
         self.use_loop_cuts = None
+
+        # see https://github.com/cgcookie/retopoflow/issues/1770
+        self.ignore_splitting_backfaces = True
+        self.ignore_splitting_radius_ratio = 0.25
+
         self.reset()
         self.update(context, event, None, 1.00, True, False, True)
 
@@ -269,7 +298,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def update(self, context, event, insert_mode, parallel_stable, quad_preserve, constrain_edge_vert, use_loop_cuts):
+    def update(self, context:Context, event:Event, insert_mode:str|None, parallel_stable:float, quad_preserve:bool, constrain_edge_vert:bool, use_loop_cuts:bool):
         # update previsualization and commit data structures with mouse position
         # ex: if triangle is selected, determine which edge to split to make quad
         # print('UPDATE')
@@ -621,12 +650,16 @@ class PP_Logic:
                 if v_bme_perp.dot(self.mouse - bme_pt) < 0:
                     continue
 
+            vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
+
             working = [bme_selected]
             path_back = {}
             while working:
                 bme = working.pop(0)
                 for bmf in bme.link_faces:
                     if not bmf_is_quad(bmf): continue
+                    if self.ignore_splitting_backfaces and bmf.normal.dot(vec_forward) > 0:
+                        continue
                     if bmf in path_back: continue
                     bme_opposite = bmf_opposite_bme(bmf, bme)
                     if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite): continue
@@ -635,7 +668,18 @@ class PP_Logic:
                     if bme_hovered == bme_opposite:
                         bmf_hovered = bmf
                         break
-                    if point_inside_face(self.hit, points_of_bmface(bmf)):
+                    pts = points_of_bmface(bmf)
+                    midpt = bmf_midpoint(bmf)
+                    p = point_inside_face(self.hit, pts)
+                    if not p: continue
+                    radius = max((bmv.co-midpt).length for bmv in bmf.verts)
+                    dist = (self.hit - p).length
+                    if dist > radius * self.ignore_splitting_radius_ratio: continue
+                    pts_2d = [
+                        location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
+                        for pt in pts
+                    ]
+                    if point_inside_face_2d(self.mouse, pts_2d):
                         bmf_hovered = bmf
                         break
                     working.append(bme_opposite)
@@ -1851,7 +1895,7 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable
         hit2 = raycast_point_valid_sources(context, p2)
         hit3 = raycast_point_valid_sources(context, p3)
         if hit2 and hit3:
-            Mi = matrix_world.inverted()
+            Mi = matrix_world.inverted_safe()
             return Mi @ hit2, Mi @ hit3
         dist01 /= 2
     return None, None

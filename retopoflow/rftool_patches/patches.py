@@ -253,7 +253,7 @@ class RFOperator_Patches_Insert(RFOperator):
 
         self.bm, self.em = get_bmesh_emesh(context)
         self.M = context.edit_object.matrix_world
-        self.Mi = self.M.inverted()
+        self.Mi = self.M.inverted_safe()
         self.Mit = self.Mi.transposed()
         self.edit_scale = max(self.M.to_scale())
 
@@ -965,7 +965,7 @@ class RFOperator_Patches_Drag_template(RFOperator):
             case _:
                 assert False, f'Unhandled orientation: {self.orientation}'
         if not world:
-            Mi = context.edit_object.matrix_world.inverted()
+            Mi = context.edit_object.matrix_world.inverted_safe()
             return (Mi @ direction_to_bvec4(z)).xyz
         return z
 
@@ -973,7 +973,7 @@ class RFOperator_Patches_Drag_template(RFOperator):
         if not self.mouse_hit: return [ [None, None] for v in self.vps ]
 
         M = context.edit_object.matrix_world
-        Mi = M.inverted()
+        Mi = M.inverted_safe()
         Mit = Mi.transposed()
         Mt = M.transposed()
 

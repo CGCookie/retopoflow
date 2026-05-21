@@ -331,7 +331,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
         RFTool_PolyStrips.rf_overlay.instance.depsgraph_version = None
 
         mouse = mouse_from_event(event)
-        M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted()
+        M, Mi = context.edit_object.matrix_world, context.edit_object.matrix_world.inverted_safe()
 
         use_proportional_edit = context.tool_settings.use_proportional_edit
 

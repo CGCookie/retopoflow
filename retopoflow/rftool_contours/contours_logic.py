@@ -108,7 +108,7 @@ class Contours_Logic:
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted()
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
 
         try:
             if not self.process_source(context): return
