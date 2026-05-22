@@ -302,7 +302,20 @@ def is_bmvert_hidden(context, bmv, *, factor=0.99):
     offset = context.space_data.overlay.retopology_offset
     return hit_dist < ((ray_e.xyz - point.xyz).length - offset) * factor
 
-def is_bmvert_on_edgemark(bm, bmv, mark):
+def is_bmedge_edgemark(bm, bme, mark, ensure_lookup=True):
+    if mark == 'seam':
+        if getattr(bme, mark): return True
+    elif mark == 'sharp':
+        if not getattr(bme, 'smooth'): return True
+    elif mark == 'crease':
+        if ensure_lookup:
+            bm.edges.ensure_lookup_table()
+        layer = bm.edges.layers.float.get('crease_edge')
+        if not layer: return False
+        if bme[layer]: return True
+    return False
+
+def is_bmvert_on_edgemark(bm, bmv, mark, ensure_lookup=True):
     if mark == 'seam':
         for bme in bmv.link_edges:
             if getattr(bme, mark): return True
@@ -310,7 +323,8 @@ def is_bmvert_on_edgemark(bm, bmv, mark):
         for bme in bmv.link_edges:
             if not getattr(bme, 'smooth'): return True
     elif mark == 'crease':
-        bm.edges.ensure_lookup_table()
+        if ensure_lookup:
+            bm.edges.ensure_lookup_table()
         layer = bm.edges.layers.float.get('crease_edge')
         if not layer: return False
         for bme in bmv.link_edges:

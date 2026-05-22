@@ -25,11 +25,13 @@ from bpy.types import Mesh
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 from mathutils import Vector, Matrix
+from math import inf
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import clamp
+from ...addon_common.common.maths import clamp, closest_point_segment
 from .maths import (
     view_forward_direction,
     distance_point_linesegment,
@@ -466,6 +468,53 @@ def edges_to_triangles(count):
             for i in range(count*2)
         ]
     return edges_to_triangles.triangle_inds[:count]
+
+
+class EdgeAccel:
+    QUERY_K = 16
+
+    def __init__(self, segments):
+        self.segments = list(segments)
+        self._kdtree = None
+        self._entry_to_seg = []
+        self.rebuild()
+
+    def rebuild(self):
+        if not self.segments:
+            self._kdtree = None
+            return
+
+        entry_to_seg = []
+        kd = KDTree(len(self.segments) * 2)
+        for seg_idx, (v0, v1) in enumerate(self.segments):
+            kd.insert(v0, len(entry_to_seg))
+            entry_to_seg.append(seg_idx)
+            kd.insert(v1, len(entry_to_seg))
+            entry_to_seg.append(seg_idx)
+        kd.balance()
+        self._kdtree = kd
+        self._entry_to_seg = entry_to_seg
+
+    def closest_point(self, co: Vector):
+        if not self._kdtree: return None
+
+        k = min(EdgeAccel.QUERY_K, len(self._entry_to_seg))
+        checked_segs = set()
+        best_p = None
+        best_d2 = inf
+
+        for (_co, entry_idx, _dist) in self._kdtree.find_n(co, k):
+            seg_idx = self._entry_to_seg[entry_idx]
+            if seg_idx in checked_segs: continue
+            checked_segs.add(seg_idx)
+            v0, v1 = self.segments[seg_idx]
+            p = closest_point_segment(co, v0, v1)
+            d2 = (p - co).length_squared
+            if d2 < best_d2:
+                best_p, best_d2 = p, d2
+
+        return best_p
+
 
 class NearestBMEdge(NearestElem):
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):

@@ -228,7 +228,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default = False,
     )
     mask_boundary: bpy.props.EnumProperty(
-        name='Mask: Boundary',
+        name='Mask Boundary',
         description='How to handle boundary geometry',
         items=[
             ('INCLUDE', 'Include', 'Relax vertices regardless of being along boundary', 'SELECT_EXTEND', 2),
@@ -238,7 +238,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default='INCLUDE',
     )
     mask_symmetry: bpy.props.EnumProperty(
-        name='Mask: Symmetry',
+        name='Mask Symmetry',
         description='How to handle geometry near symmetry plane',
         items=[
             ('INCLUDE', 'Include', 'Relax vertices regardless of being along symmetry plane', 'SELECT_EXTEND', 2),
@@ -248,7 +248,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         default='SLIDE',
     )
     mask_selected: bpy.props.EnumProperty(
-        name='Mask: Selected',
+        name='Mask Selected',
         description='How to handle selected geometry',
         items=[
             ('ALL',     'All',     'Relax vertices regardless of selection', 'SELECT_EXTEND', 2),
@@ -256,6 +256,36 @@ class RFProps_Scene(bpy.types.PropertyGroup):
             ('EXCLUDE', 'Exclude', 'Relax only unselected vertices', 'SELECT_DIFFERENCE', 0),
         ],
         default='ALL',
+    )
+    mask_creases: bpy.props.EnumProperty(
+        name='Mask Creases',
+        description='How to handle creased edges',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of being along a crease', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Relax vertices along a crease, but move them by sliding along the crease', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices along a crease', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='INCLUDE',
+    )
+    mask_sharps: bpy.props.EnumProperty(
+        name='Mask Sharps',
+        description='How to handle sharp edges',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of being along a sharp edge', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Relax vertices along a sharp edge, but move them by sliding along it', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices along a sharp edge', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='INCLUDE',
+    )
+    mask_seams: bpy.props.EnumProperty(
+        name='Mask Seams',
+        description='How to handle seams',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of being along a seams', 'SELECT_EXTEND', 2),
+            ('SLIDE',   'Slide',   'Relax vertices along a seams, but move them by sliding along it', 'SNAP_MIDPOINT', 1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices along a seams', 'SELECT_DIFFERENCE', 0),
+        ],
+        default='INCLUDE',
     )
     #endregion
 

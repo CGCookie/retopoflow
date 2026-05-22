@@ -19,25 +19,18 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
 import bmesh
-import bpy
-import gpu
-from bmesh.types import BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_line_line_2d
+from mathutils import Vector
 from mathutils.bvhtree import BVHTree
-from mathutils.kdtree import KDTree
 
 import math
 import time
 from math import isnan, inf
 from typing import Tuple
 
-from ..common.bmesh import get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint
-from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, get_bmvert_attribute
+from ..common.bmesh import get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel
+from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute
 from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction, xform_direction
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 from ..common.drawing import (
@@ -52,8 +45,8 @@ from ..common.drawing import (
 )
 
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold, clamp
-from ...addon_common.common.colors import Color4, Color
+from ...addon_common.common.maths import Point, sign, sign_threshold, clamp
+from ...addon_common.common.colors import Color4
 from ..common.iter_utils import AttrIter, CastIter
 
 
@@ -144,52 +137,6 @@ class Accel:
         }
 
 
-class BoundaryAccel:
-    QUERY_K = 16
-
-    def __init__(self, segments):
-        self.segments = list(segments)
-        self._kdtree = None
-        self._entry_to_seg = []
-        self.rebuild()
-
-    def rebuild(self):
-        if not self.segments:
-            self._kdtree = None
-            return
-
-        entry_to_seg = []
-        kd = KDTree(len(self.segments) * 2)
-        for seg_idx, (v0, v1) in enumerate(self.segments):
-            kd.insert(v0, len(entry_to_seg))
-            entry_to_seg.append(seg_idx)
-            kd.insert(v1, len(entry_to_seg))
-            entry_to_seg.append(seg_idx)
-        kd.balance()
-        self._kdtree = kd
-        self._entry_to_seg = entry_to_seg
-
-    def closest_point(self, co: Vector):
-        if not self._kdtree: return None
-
-        k = min(BoundaryAccel.QUERY_K, len(self._entry_to_seg))
-        checked_segs = set()
-        best_p = None
-        best_d2 = inf
-
-        for (_co, entry_idx, _dist) in self._kdtree.find_n(co, k):
-            seg_idx = self._entry_to_seg[entry_idx]
-            if seg_idx in checked_segs: continue
-            checked_segs.add(seg_idx)
-            v0, v1 = self.segments[seg_idx]
-            p = closest_point_segment(co, v0, v1)
-            d2 = (p - co).length_squared
-            if d2 < best_d2:
-                best_p, best_d2 = p, d2
-
-        return best_p
-
-
 class Relax_Logic:
     def __init__(self, context, event, brush, relax):
         self.matrix_world = context.edit_object.matrix_world
@@ -207,17 +154,12 @@ class Relax_Logic:
         opt_mask_boundary    = context.scene.retopoflow.mask_boundary
         opt_mask_selected    = context.scene.retopoflow.mask_selected
         opt_mask_symmetry    = context.scene.retopoflow.mask_symmetry
+        opt_mask_sharps      = context.scene.retopoflow.mask_sharps
+        opt_mask_creases     = context.scene.retopoflow.mask_creases
+        opt_mask_seams       = context.scene.retopoflow.mask_seams
         opt_include_corner   = context.scene.retopoflow.include_corners
-        opt_include_seams    = context.scene.retopoflow.include_seams
-        opt_include_sharps   = context.scene.retopoflow.include_sharps
         opt_include_pinned   = context.scene.retopoflow.include_pinned
-        opt_include_creases  = context.scene.retopoflow.include_creases
         opt_include_occluded = context.scene.retopoflow.include_occluded
-
-        opt_mask_boundary_exclude = opt_mask_boundary == 'EXCLUDE'
-        opt_mask_symmetry_exclude = opt_mask_symmetry == 'EXCLUDE'
-        opt_mask_selected_exclude = opt_mask_selected == 'EXCLUDE'
-        opt_mask_selected_only = opt_mask_selected == 'ONLY'
 
         self.mirror = set()
         self.mirror_clip = False
@@ -234,6 +176,7 @@ class Relax_Logic:
 
         self.bm, self.em = get_bmesh_emesh(context)
         self.bm.faces.ensure_lookup_table()
+        self.bm.edges.ensure_lookup_table()
         self._time = time.time()
         self.pressure = 1.0
 
@@ -259,7 +202,67 @@ class Relax_Logic:
                 for bme in boundary_edges
                 for bmv in bme.verts
             }
-            self.boundary_accel = BoundaryAccel(self.boundary)
+            self.boundary_accel = EdgeAccel(self.boundary)
+
+        self.crease = []
+        self.crease_verts = set()
+        self.crease_accel = None
+        if opt_mask_creases == 'SLIDE':
+            crease_edges = [
+                bme
+                for bme in self.bm.edges
+                if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)
+            ]
+            self.crease = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in crease_edges
+            ]
+            self.crease_verts = {
+                bmv
+                for bme in crease_edges
+                for bmv in bme.verts
+            }
+            self.crease_accel = EdgeAccel(self.crease)
+
+        self.sharp = []
+        self.sharp_verts = set()
+        self.sharp_accel = None
+        if opt_mask_sharps == 'SLIDE':
+            sharp_edges = [
+                bme
+                for bme in self.bm.edges
+                if is_bmedge_edgemark(self.bm, bme, 'sharp')
+            ]
+            self.sharp = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in sharp_edges
+            ]
+            self.sharp_verts = {
+                bmv
+                for bme in sharp_edges
+                for bmv in bme.verts
+            }
+            self.sharp_accel = EdgeAccel(self.sharp)
+
+        self.seam = []
+        self.seam_verts = set()
+        self.seam_accel = None
+        if opt_mask_seams == 'SLIDE':
+            seam_edges = [
+                bme
+                for bme in self.bm.edges
+                if is_bmedge_edgemark(self.bm, bme, 'seam')
+            ]
+            self.seam = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in seam_edges
+            ]
+            self.seam_verts = {
+                bmv
+                for bme in seam_edges
+                for bmv in bme.verts
+            }
+            self.seam_accel = EdgeAccel(self.seam)
 
         self.bvh = BVHTree.FromBMesh(self.bm)
 
@@ -267,37 +270,32 @@ class Relax_Logic:
             # TODO: IMPLEMENT!
             return False
 
-        def is_bmvert_included(bmv):
-            if (
-                bmv.hide or
-                len(bmv.link_faces) == 0 or
-                isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z) or
-                bmv.is_boundary and is_bmvert_on_ngon(bmv) or
-                opt_mask_boundary_exclude and (
-                    is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
-                ) or
-                (opt_include_corner == False or opt_mask_boundary == 'SLIDE') and is_bmvert_corner(bmv) or
-                opt_include_seams == False     and is_bmvert_on_edgemark(self.bm, bmv, 'seam') or
-                opt_include_sharps == False    and is_bmvert_on_edgemark(self.bm, bmv, 'sharp') or
-                opt_include_pinned == False    and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float') or
-                opt_include_creases == False   and (
-                    get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                    not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-                ) or
-                opt_include_creases == False   and is_bmvert_on_edgemark(self.bm, bmv, 'crease') or
-                opt_mask_symmetry_exclude      and is_bmvert_on_symmetry_plane(bmv) or
-                opt_include_occluded == False  and is_bmvert_hidden(context, bmv) or
-                opt_mask_selected_exclude      and bmv.select or
-                opt_mask_selected_only         and not bmv.select
-            ):
-                return False
-            else:
-                return True
-
         self.verts_filtered = []
         for bmv in self.bm.verts:
-            if is_bmvert_included(bmv):
-                self.verts_filtered.append(bmv)
+            if bmv.hide: continue
+            if len(bmv.link_faces) == 0: continue
+            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
+            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
+            if opt_include_occluded == False and is_bmvert_hidden(context, bmv): continue
+            if opt_include_corner == False   and is_bmvert_corner(bmv): continue
+            if opt_include_pinned == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'): continue
+            if opt_mask_creases == 'EXCLUDE' and (
+                    get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+                    not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+            ): continue
+            if opt_mask_creases  == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False): continue
+            if opt_mask_seams    == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
+            if opt_mask_sharps   == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
+            if opt_mask_boundary == 'EXCLUDE'  and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
+            if opt_mask_symmetry == 'EXCLUDE'  and is_bmvert_on_symmetry_plane(bmv): continue
+            if opt_mask_selected == 'EXCLUDE'  and bmv.select: continue
+            if opt_mask_selected == 'ONLY'     and not bmv.select: continue
+            if opt_mask_boundary == 'SLIDE'    and is_bmvert_corner(bmv): continue
+            if opt_mask_seams    == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'seam') for bme in bmv.link_edges]) > 2: continue
+            if opt_mask_sharps   == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'sharp') for bme in bmv.link_edges]) > 2: continue
+            if opt_mask_creases  == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False) for bme in bmv.link_edges]) > 2: continue
+
+            self.verts_filtered.append(bmv)
 
         depsgraph = context.evaluated_depsgraph_get()
         object_evaluated = context.edit_object.evaluated_get(depsgraph)
@@ -337,6 +335,9 @@ class Relax_Logic:
 
         # gather options
         opt_mask_boundary    = context.scene.retopoflow.mask_boundary
+        opt_mask_creases     = context.scene.retopoflow.mask_creases
+        opt_mask_seams       = context.scene.retopoflow.mask_seams
+        opt_mask_sharps      = context.scene.retopoflow.mask_sharps
         opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce
@@ -628,7 +629,10 @@ class Relax_Logic:
         if opt_method == 'AUTO':
             vert_count = len(verts)
             if opt_equalize_faces: vert_count *= 2 # It's pretty slow
-            if opt_mask_boundary == 'SLIDE': vert_count *= 4 # It's extremely slow
+            if opt_mask_boundary == 'SLIDE': vert_count *= 2 # Sliding is slow
+            if opt_mask_creases == 'SLIDE': vert_count *= 2
+            if opt_mask_sharps == 'SLIDE': vert_count *= 2
+            if opt_mask_seams == 'SLIDE': vert_count *= 2
             steps = min(10, max(1, int(100 / vert_count)))
         elif opt_method == 'RK4':
             steps = 1
@@ -722,6 +726,18 @@ class Relax_Logic:
 
                 if opt_mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
                     p = self.boundary_accel.closest_point(co) if self.boundary_accel else None
+                    if p is not None:
+                        co = p
+                if opt_mask_seams == 'SLIDE' and bmv in self.seam_verts:
+                    p = self.seam_accel.closest_point(co) if self.seam_accel else None
+                    if p is not None:
+                        co = p
+                if opt_mask_creases == 'SLIDE' and bmv in self.crease_verts:
+                    p = self.crease_accel.closest_point(co) if self.crease_accel else None
+                    if p is not None:
+                        co = p
+                if opt_mask_sharps == 'SLIDE' and bmv in self.sharp_verts:
+                    p = self.sharp_accel.closest_point(co) if self.sharp_accel else None
                     if p is not None:
                         co = p
 

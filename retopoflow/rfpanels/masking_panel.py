@@ -30,13 +30,19 @@ def draw_pinning_options(context, layout):
 
     layout.use_property_split = True
     layout.use_property_decorate = False
-    layout.row(heading='Transform').prop(props, 'include_corners')
-    layout.prop(props, 'include_seams')
-    layout.prop(props, 'include_sharps')
-    layout.prop(props, 'include_creases')
+    layout.prop(props, 'mask_creases', text="Creases")
+    layout.prop(props, 'mask_seams', text="Seams")
+    layout.prop(props, 'mask_sharps', text="Sharps")
+    layout.row(heading='Include').prop(props, 'include_corners')
     if prefs.setup_pinning:
         layout.prop(props, 'include_pinned')
     layout.prop(props, 'include_occluded')
+    prefs = RF_Prefs.get_prefs(context)
+    if prefs.setup_pinning:
+        layout.separator()
+        row = layout.row()
+        row.operator('retopoflow.pinverts', text='Pin', icon='PINNED')
+        row.operator('retopoflow.unpinverts', text='Unpin', icon='UNPINNED')
 
 class RFMenu_PT_Pinning(bpy.types.Panel):
     bl_label = "Pinning"
@@ -58,12 +64,6 @@ def draw_masking_options(context, layout):
     layout.prop(props, 'mask_boundary', text="Boundary")
     # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
     draw_pinning_options(context, layout)
-    prefs = RF_Prefs.get_prefs(context)
-    if prefs.setup_pinning:
-        layout.separator()
-        row = layout.row()
-        row.operator('retopoflow.pinverts', text='Pin', icon='PINNED')
-        row.operator('retopoflow.unpinverts', text='Unpin', icon='UNPINNED')
 
 def draw_masking_panel(context, layout):
     header, panel = layout.panel(idname='tweak_panel_common', default_closed=False)

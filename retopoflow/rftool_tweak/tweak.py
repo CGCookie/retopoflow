@@ -210,12 +210,11 @@ class RFTool_Tweak(RFTool_Base):
                 layout.separator()
                 if prefs.setup_pinning:
                     row = layout.row(align=True)
-                    row.label(text='Pinning:')
                     row.operator('retopoflow.pinverts', text='', icon='PINNED')
                     row.operator('retopoflow.unpinverts', text='', icon='UNPINNED')
-                    row.popover('RF_PT_Pinning', text='')
+                    row.popover('RF_PT_Pinning', text='Masking')
                 else:
-                    layout.popover('RF_PT_Pinning', text='Pinning')
+                    layout.popover('RF_PT_Pinning', text='Masking')
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
