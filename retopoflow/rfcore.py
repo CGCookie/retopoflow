@@ -897,13 +897,17 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         if source_count == 0 and prefs.warn_no_sources:
             selected = context.scene.retopoflow.snap_only_selected
             selectable = context.scene.tool_settings.use_snap_selectable
+            obj = context.scene.retopoflow.snap_object
+            collection = context.scene.retopoflow.snap_collection
             message = (
                 f"No sources detected.\n"
                 f"Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to."
             )
-            if selected: message = message + "\nOnly use selected objects as sources is ON"
-            if selectable: message = message + "\nOnly use selectable objects as sources is ON"
-            if selected or selectable: message = message + "\nYou can change the source settings in the General panel"
+            if selected: message = message + "\nOnly use selected objects as sources is ON."
+            if selectable: message = message + "\nOnly use selectable objects as sources is ON."
+            if obj: message = message + f"\nThe object {obj.name} is set to be the only possible source."
+            if not obj and collection: message = message + f"\nOnly objects in the collection {collection.name} are set as possible sources."
+            if any([selectable, selected, obj, collection]): message = message + "\nYou can change the source settings in the General panel."
             show_message(message=message, title="Retopoflow", icon="ERROR")
             self.report({'ERROR'}, message)
 

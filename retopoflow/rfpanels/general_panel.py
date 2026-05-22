@@ -34,9 +34,12 @@ def draw_general_options(context, layout):
     if panel:
         panel.use_property_split = True
         panel.use_property_decorate = False
-        row = panel.row(heading='Only Include')
-        row.prop(context.scene.retopoflow, 'snap_only_selected', text='Selected')
-        panel.prop(context.scene.tool_settings, 'use_snap_selectable', text='Selectable')
+        panel.prop(context.scene.retopoflow, 'snap_object', text='Only Include')
+        col = panel.column()
+        col.enabled = context.scene.retopoflow.snap_object == None
+        col.prop(context.scene.retopoflow, 'snap_collection', text=' ')
+        col.prop(context.scene.retopoflow, 'snap_only_selected', text='Selected')
+        col.prop(context.scene.tool_settings, 'use_snap_selectable', text='Selectable')
 
     header, panel = layout.panel(idname='RF_general_tools_panel', default_closed=True)
     header.label(text='Tools')

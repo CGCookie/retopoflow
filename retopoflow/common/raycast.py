@@ -219,19 +219,28 @@ def has_faces(context, obj):
     else:
         return False
 
-def iter_all_valid_sources(context):
+def is_valid_source(context, obj):
     ts = context.scene.tool_settings
     props = context.scene.retopoflow
+    if obj.mode != 'OBJECT': return False
+    if not obj.visible_get(): return False
+    if not has_faces(context, obj): return False
+    if props.snap_object:
+        return obj == props.snap_object
+    else:
+        if props.snap_collection and obj not in [x for x in props.snap_collection.objects]:
+            return False
+        if ts.use_snap_selectable and obj.hide_select:
+            return False
+        if props.snap_only_selected and not obj.select_get():
+            return False
+        return True
+
+def iter_all_valid_sources(context):
     yield from (
         obj
         for obj in context.view_layer.objects
-        if (
-            obj.mode == 'OBJECT' and
-            has_faces(context, obj) and
-            obj.visible_get() and
-            (not ts.use_snap_selectable or not obj.hide_select) and
-            (not props.snap_only_selected or obj.select_get())
-        )
+        if is_valid_source(context, obj)
     )
 
 # Note: the initial call to obj.ray_cast can take a noticeable moment if obj is really big (>1m triangles)

@@ -207,21 +207,6 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         description='Include vertices that are hidden behind other geometry',
         default = False,
     )
-    include_seams: bpy.props.BoolProperty(
-        name='Seams',
-        description='Include vertices that are on a UV seam',
-        default = True,
-    )
-    include_sharps: bpy.props.BoolProperty(
-        name='Sharps',
-        description='Include vertices that are on edges that are marked sharp',
-        default = True,
-    )
-    include_creases: bpy.props.BoolProperty(
-        name='Creases',
-        description='Include vertices that are on edges that are creased',
-        default = True,
-    )
     include_pinned: bpy.props.BoolProperty(
         name='Pinned',
         description='Include vertices that have been pinned by Retopoflow',
@@ -294,6 +279,16 @@ class RFProps_Scene(bpy.types.PropertyGroup):
         name='Exclude Non-selected',
         description='Only selected objects in Object Mode are considered as valid sources. This allows you to manage what you snap to in the Outliner',
         default=False
+    )
+    snap_object: bpy.props.PointerProperty(
+        name='Source Object',
+        type=bpy.types.Object,
+        poll= lambda self, obj: obj.mode != 'EDIT' and obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT'],
+    )
+    snap_collection: bpy.props.PointerProperty(
+        name='Source Collection',
+        type=bpy.types.Collection,
+        poll= lambda self, collection: collection in [c for c in bpy.data.collections if bpy.context.scene.user_of_id(c)],
     )
 
 def register():
