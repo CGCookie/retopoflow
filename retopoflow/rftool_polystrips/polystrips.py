@@ -571,7 +571,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
     # bl_region_type = 'TOOLS'
     bl_options = set()
 
-    loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
+    loop_select_op = 'mesh.loop_select' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
 
     rf_keymaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
