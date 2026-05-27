@@ -279,6 +279,11 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         min=0.10,
         max=1.00,
     )
+    select_loops: bpy.props.BoolProperty(
+        name = 'Tweak Loops',
+        description = 'Select and transform loops while tweaking edges with the mouse',
+        default = True
+    )
 
     def init(self, context, event):
         self.km_context = 'ready'
@@ -408,6 +413,8 @@ class RFTool_Contours(RFTool_Base):
             if props_contours.process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
+            layout.separator()
+            layout.prop(props_contours, 'select_loops')
             draw_line_separator(layout)
             layout.popover('RF_PT_TweakCommon', text='Tweaking')
             row = layout.row(align=True)
@@ -419,6 +426,7 @@ class RFTool_Contours(RFTool_Base):
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
         else:
+            layout.prop(props_contours, 'select_loops')
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:

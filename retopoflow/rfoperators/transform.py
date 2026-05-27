@@ -105,6 +105,16 @@ class RFOperator_Translate(RFOperator):
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
         default=True,
     )
+    select_loops: bpy.props.BoolProperty(
+        name='Select Loops',
+        description='Select the edge loops connected to the selection before transforming.',
+        default=False,
+    )
+    use_slide: bpy.props.BoolProperty(
+        name='Use Slide',
+        description='Slide the selected verts or edges instead of grabbing them.',
+        default=False,
+    )
     used_keyboard: bpy.props.BoolProperty(
         name='Used Keyboard',
         description='Set as true if the user hit a hotkey to transform rather than used the mouse',
@@ -165,6 +175,24 @@ class RFOperator_Translate(RFOperator):
                     bmops.select(self.bm, nearest_bmelem)
                     #self.bm.select_history.validate()
                     bmops.flush_selection(self.bm, self.em)
+
+        # Handle loop selection
+        active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        if active_tool and active_tool.idname == 'retopoflow.contours' and self.used_keyboard == False:
+            contours_props = active_tool.operator_properties(active_tool.idname)
+            self.select_loops = getattr(contours_props, 'select_loops', False)
+        if self.select_loops:
+            selected_edges = bmops.get_all_selected_bmedges(self.bm)
+            if len(selected_edges):
+                prev_mode = tuple(context.tool_settings.mesh_select_mode)
+                context.tool_settings.mesh_select_mode = (False, True, False)
+                if bpy.app.version >= (5, 1, 0):
+                    bpy.ops.mesh.select_edge_loop_multi()
+                else:
+                    bpy.ops.mesh.loop_multi_select(ring=False)
+                context.tool_settings.mesh_select_mode = prev_mode
+                bmops.flush_selection(self.bm, self.em)
+                self.use_slide = True
 
         self.bmvs = list(bmops.get_all_selected_bmverts(self.bm))
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
@@ -262,14 +290,16 @@ class RFOperator_Translate(RFOperator):
         if self.use_native == 'TRUE':
             return {'FINISHED'}
 
-        if event.type == 'G' and event.value == 'PRESS':
-            selected_bmvs = bmops.get_all_selected_bmverts(self.bm)
-            selected_bmes = bmops.get_all_selected_bmedges(self.bm)
-            verts_in_selected_edges = {bmv for bme in selected_bmes for bmv in bme.verts}
-            has_unconnected_selected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_bmvs)
-            use_edge_slide = bool(selected_bmes) and not has_unconnected_selected_vert
+        if self.use_slide or (event.type == 'G' and event.value == 'PRESS'):
+            selected_edges = bmops.get_all_selected_bmedges(self.bm)
+            selected_verts = bmops.get_all_selected_bmverts(self.bm)
+            verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
+            has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
+            use_edge_slide = bool(selected_edges) and not has_unconnected_vert
+            use_edge_slide = True
             slide_op = bpy.ops.transform.edge_slide if use_edge_slide else bpy.ops.transform.vert_slide
-            result = slide_op('INVOKE_DEFAULT')
+            clamp = not all([v.is_boundary for v in selected_edges])
+            result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
             if 'RUNNING_MODAL' in result or 'FINISHED' in result:
                 return {'FINISHED'}
 
