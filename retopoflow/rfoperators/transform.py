@@ -70,7 +70,7 @@ class RFOperator_Translate(RFOperator):
         (f'{bl_idname}_grab', {'type': 'G', 'value': 'PRESS'}, None),
         (bl_idname, {'type': 'LEFTMOUSE', 'value': 'CLICK_DRAG'}, None),
     ]
-    rf_status = ['LMB: Commit', 'MMB: (nothing)', 'RMB: Cancel']
+    rf_status = ['LMB: Commit', 'G: Slide', 'MMB: (nothing)', 'RMB: Cancel']
 
     color_highlight_border = Color4((255/255, 255/255, 40/255, 1.0))
     color_highlight_fill = Color4((255/255, 255/255, 40/255, 0.0))
@@ -261,6 +261,17 @@ class RFOperator_Translate(RFOperator):
     def update(self, context, event):
         if self.use_native == 'TRUE':
             return {'FINISHED'}
+
+        if event.type == 'G' and event.value == 'PRESS':
+            selected_bmvs = bmops.get_all_selected_bmverts(self.bm)
+            selected_bmes = bmops.get_all_selected_bmedges(self.bm)
+            verts_in_selected_edges = {bmv for bme in selected_bmes for bmv in bme.verts}
+            has_unconnected_selected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_bmvs)
+            use_edge_slide = bool(selected_bmes) and not has_unconnected_selected_vert
+            slide_op = bpy.ops.transform.edge_slide if use_edge_slide else bpy.ops.transform.vert_slide
+            result = slide_op('INVOKE_DEFAULT')
+            if 'RUNNING_MODAL' in result or 'FINISHED' in result:
+                return {'FINISHED'}
 
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
