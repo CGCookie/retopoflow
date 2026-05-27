@@ -383,6 +383,8 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
     # bl_region_type = 'TOOLS'
     bl_options = set()
 
+    loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
+
     rf_keymaps = [
         (bl_idname, {'type': 'LEFT_CTRL',  'value': 'PRESS'}, None),
         (bl_idname, {'type': 'RIGHT_CTRL', 'value': 'PRESS'}, None),
@@ -393,7 +395,7 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Draw Stroke'}),
 
-        ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
+        (loop_select_op, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
 
     rf_status = {

@@ -172,6 +172,8 @@ class RFOperator_Patches_Insert(RFOperator):
     bl_description = 'Fill in holes and add templated geometry'
     bl_options = set()
 
+    loop_select_op = 'mesh.select_edge_loop_multi' if bpy.app.version >= (5, 1, 0) else 'mesh.loop_multi_select'
+
     rf_keymaps = [
         (bl_idname, {'type': 'I', 'value': 'PRESS'}, None),
         # (bl_idname, {'type': 'LEFT_CTRL', 'value': 'PRESS'}, None),
@@ -180,7 +182,7 @@ class RFOperator_Patches_Insert(RFOperator):
         # below is needed to handle case when CTRL is pressed when mouse is initially outside area
         # (bl_idname, {'type': 'MOUSEMOVE', 'value': 'ANY', 'ctrl': True}, {'km_context': 'insert', 'km_label': 'Insert Patch'}),
 
-        # ('mesh.loop_multi_select', {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
+        # (loop_select_op, {'type': 'LEFTMOUSE', 'value': 'DOUBLE_CLICK'}, {'km_context': 'init', 'km_label': 'Select Strip'}),
     ]
 
     rf_status = {
