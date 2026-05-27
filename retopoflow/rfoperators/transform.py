@@ -210,7 +210,7 @@ class RFOperator_Translate(RFOperator):
             else:
                 self.snap_method = 'NEAREST'
 
-        if self.use_native == 'TRUE':
+        if self.use_native == 'TRUE' and self.use_slide == False:
             ts = context.scene.tool_settings
             prev_snap_individual = ts.snap_elements_individual
             if self.snap_method == 'PROJECTED':
@@ -287,8 +287,6 @@ class RFOperator_Translate(RFOperator):
         # Cursors.set('NONE')  # PAINT_CROSS
 
     def update(self, context, event):
-        if self.use_native == 'TRUE':
-            return {'FINISHED'}
 
         if self.use_slide or (event.type == 'G' and event.value == 'PRESS'):
             selected_edges = bmops.get_all_selected_bmedges(self.bm)
@@ -302,6 +300,9 @@ class RFOperator_Translate(RFOperator):
             result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
             if 'RUNNING_MODAL' in result or 'FINISHED' in result:
                 return {'FINISHED'}
+
+        if self.use_native == 'TRUE':
+            return {'FINISHED'}
 
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel_reset(context, event)
