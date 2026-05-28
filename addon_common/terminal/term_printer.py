@@ -22,23 +22,82 @@ Created by Jonathan Denning
 from __future__ import annotations
 from typing import Any, Iterable
 from contextlib import contextmanager
+from enum import IntEnum, auto, StrEnum
 from ..ext import termcolor
 import random
 import time
+import textwrap
+
+
+class TextColor(StrEnum):
+    BLACK = 'black'
+    RED = 'red'
+    GREEN = 'green'
+    YELLOW = 'yellow'
+    BLUE = 'blue'
+    MAGENTA = 'magenta'
+    CYAN = 'cyan'
+    WHITE = 'white'
+    LIGHT_GREY = 'light_grey'
+    LIGHT_GRAY = 'light_grey'
+    DARK_GREY = 'dark_grey'
+    DARK_GRAY = 'dark_grey'
+    LIGHT_RED = 'light_red'
+    LIGHT_GREEN = 'light_green'
+    LIGHT_YELLOW = 'light_yellow'
+    LIGHT_BLUE = 'light_blue'
+    LIGHT_MAGENTA = 'light_magenta'
+    LIGHT_CYAN = 'light_cyan'
+
+class HighlightColor(StrEnum):
+    BLACK = 'on_black'
+    RED = 'on_red'
+    GREEN = 'on_green'
+    YELLOW = 'on_yellow'
+    BLUE = 'on_blue'
+    MAGENTA = 'on_magenta'
+    CYAN = 'on_cyan'
+    WHITE = 'on_white'
+    LIGHT_GREY = 'on_light_grey'
+    LIGHT_GRAY = 'on_light_grey'
+    DARK_GREY = 'on_dark_grey'
+    DARK_GRAY = 'on_dark_grey'
+    LIGHT_RED = 'on_light_red'
+    LIGHT_GREEN = 'on_light_green'
+    LIGHT_YELLOW = 'on_light_yellow'
+    LIGHT_BLUE = 'on_light_blue'
+    LIGHT_MAGENTA = 'on_light_magenta'
+    LIGHT_CYAN = 'on_light_cyan'
+
+class TextAttribute(StrEnum):
+    BOLD = 'bold'
+    DARK = 'dark'
+    ITALIC = 'italic'
+    UNDERLINE = 'underline'
+    BLINK = 'blink'
+    REVERSE = 'reverse'
+    CONCEALED = 'concealed'
+    STRIKE = 'strike'
 
 def colored(
     text: str,
-    color: str | None = None,
+    textcolor: TextColor | str | None = None,
     *,
-    highlight: str | None = None,
-    attributes: Iterable[str] | None = None,
+    highlight: HighlightColor | str | None = None,
+    attributes: Iterable[TextAttribute | str] | None = None,
     no_color: bool | None = None,
     force_color: bool | None = None,
 ) -> str:
+    if textcolor is not None:
+        textcolor = str(textcolor)
+    if highlight is not None:
+        highlight = f'on_{highlight}'
+    if attributes is not None:
+        attributes = [ str(attr) for attr in attributes ]
     return termcolor.colored(
         text,
-        color=color,
-        on_color=f'on_{highlight}' if highlight else None,
+        color=textcolor,
+        on_color=highlight,
         attrs=attributes,
         no_color=no_color,
         force_color=force_color,
@@ -47,9 +106,9 @@ def colored(
 def cprint(
     text: str,
     *,
-    color: str | None = None,
-    highlight: str | None = None,
-    attributes: Iterable[str] | None = None,
+    color: TextColor | str | None = None,
+    highlight: HighlightColor | str | None = None,
+    attributes: Iterable[TextAttribute | str] | None = None,
     no_color: bool | None = None,
     force_color: bool | None = None,
     **kwargs: Any,
@@ -57,7 +116,7 @@ def cprint(
     print(
         colored(
             text,
-            color=color,
+            textcolor=color,
             highlight=highlight,
             attributes=attributes,
             no_color=no_color,
@@ -66,12 +125,31 @@ def cprint(
         **kwargs,
     )
 
-def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', color=None, highlight=None, attributes=None, wrap=120, indent=4):
-    lines = [line for lines_ in lines for line in lines_.splitlines()]
+class BorderType(IntEnum):
+    # TODO: eventually switch all code to use enum
+    SINGLE = auto()
+    DOUBLE = auto()
+
+def boxed(
+    *olines : str,
+    title : str | None = None,
+    prefix : str = '',
+    margin : str = '',                                          # margin around box
+    pad : str = ' ',                                            # padding just inside box
+    sides : BorderType | str = BorderType.SINGLE,               # single- or double-sided walls
+    color : TextColor | str | None = None,                      # color of text
+    highlight : HighlightColor | str | None = None,             # color of background
+    attributes : Iterable[TextAttribute | str] | None = None,   # any attributes
+    wrap : int = 120,
+    indent : int = 4,
+):
+    lines = [line for oline in olines for line in oline.splitlines()]
     # https://www.w3.org/TR/xml-entity-names/025.html
     tl,tm,tr,lm,rm,bl,bm,br,lt,rt = {
         'single': '┌─┐││└─┘┤├',
         'double': '╔═╗║║╚═╝╡╞',
+        BorderType.SINGLE: '┌─┐││└─┘┤├',
+        BorderType.DOUBLE: '╔═╗║║╚═╝╡╞',
     }[sides]
     if title:
         title = f'{tm}{lt} {title} {rt}{tm}'
@@ -80,28 +158,33 @@ def boxed(*lines, title=None, prefix='', margin='', pad=' ', sides='single', col
         title_width = 0
     pad_width = len(pad) * 2
     width = max(max(len(line) for line in lines), title_width)
-    if wrap and width > wrap:
-        width = wrap
-        wrapped_lines = []
-        for line in lines:
-            cur_indent = len(line) - len(line.lstrip()) + indent
-            first = True
-            while True:
-                if first: first = False
-                else:     line = (' '*cur_indent) + line
-                wrapped_lines.append(line[:wrap])
-                line = line[wrap:]
-                if not line: break
-        lines = wrapped_lines
+    lines = [ wline for line in lines for wline in textwrap.wrap(line, wrap) ]
+    # if wrap and width > wrap:
+    #     width = wrap
+    #     wrapped_lines = []
+    #     for line in lines:
+    #         cur_indent = len(line) - len(line.lstrip()) + indent
+    #         first = True
+    #         while True:
+    #             if first: first = False
+    #             else:     line = (' '*cur_indent) + line
+    #             wrapped_lines.append(line[:wrap])
+    #             line = line[wrap:]
+    #             if not line: break
+    #     lines = wrapped_lines
     if prefix: print(prefix, end='')
     if title:
         cprint(f'{margin}{tl}{title}{tm*(width+pad_width-len(title))}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)
     else:
         cprint(f'{margin}{tl}{tm*(width+pad_width)}{tr}{margin}', color=color, highlight=highlight, attributes=attributes)
+    if pad:
+        cprint(f'{margin}{lm}{pad}{" "*width}{pad}{rm}{margin}', color=color, highlight=highlight, attributes=attributes)
     for line in lines:
         if prefix: print(prefix, end='')
         cprint(f'{margin}{lm}{pad}{line}{" "*(width - len(line))}{pad}{rm}{margin}', color=color, highlight=highlight, attributes=attributes)
     if prefix: print(prefix, end='')
+    if pad:
+        cprint(f'{margin}{lm}{pad}{" "*width}{pad}{rm}{margin}', color=color, highlight=highlight, attributes=attributes)
     cprint(f'{margin}{bl}{bm*(width+pad_width)}{br}{margin}', color=color, highlight=highlight, attributes=attributes)
 
 sprint_data = {

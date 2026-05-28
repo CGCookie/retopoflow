@@ -23,6 +23,7 @@ import bpy
 
 import time
 import math
+from typing import Any
 
 from bpy.types import Context, Object
 from mathutils import Vector, Matrix
@@ -253,7 +254,7 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context, point):
+def raycast_valid_sources(context:Context, point:Vector) -> dict[str,Any]|None:
     ray_world = ray_from_point(context, point)
 
     # print(f'raycast_valid_sources {ray_world=}')

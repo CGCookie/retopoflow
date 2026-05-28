@@ -23,7 +23,11 @@ from typing import Union
 
 import bpy
 import bmesh
-from bmesh.types import BMVert, BMEdge, BMFace, BMesh, BMLayerAccessVert, BMLayerAccessEdge, BMLayerAccessFace
+from bmesh.types import (
+    BMVert, BMEdge, BMFace, BMesh,
+    BMLayerAccessVert, BMLayerAccessEdge, BMLayerAccessFace,
+    BMLayerItem
+)
 
 
 BMElemType = Union[type[BMVert] | type[BMEdge] | type[BMFace]]
@@ -45,7 +49,7 @@ def get_layer(bm : BMesh, bmelem_type : BMElemType, layer_type : str, name : str
     return layer.get(name)
 
 
-def get_select_layers(bm):
+def get_select_layers(bm) -> tuple[BMLayerItem, BMLayerItem, BMLayerItem]:
     if 'rf_vert_select_after_move' not in bm.verts.layers.int:
         bm.verts.layers.int.new('rf_vert_select_after_move')
     if 'rf_edge_select_after_move' not in bm.edges.layers.int:

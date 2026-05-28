@@ -21,13 +21,14 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-from bpy.types import Mesh
+from bpy.types import Mesh, Context
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils import Vector, Matrix
 from math import inf
+from typing import Callable
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
@@ -151,7 +152,7 @@ def bmvs_share_bmf(bmv0, bmv1):
 def bmes_share_face(bme0, bme1):
     return any(bmf in bme1.link_faces for bmf in bme0.link_faces)
 
-def bme_midpoint(bme):
+def bme_midpoint(bme : BMEdge) -> Vector:
     bmv0,bmv1 = bme.verts
     return (bmv0.co + bmv1.co) / 2
 # def bme_other_bmv(bme, bmv):
@@ -162,7 +163,8 @@ def bme_other_bmv(bme, bmv):
     return bmv0 if bmv1 == bmv else bmv1
 def bme_other_bmf(bme, bmf):
     return next((bmf_ for bmf_ in bme.link_faces if bmf_ != bmf), None)
-def bmes_share_bmv(bme0, bme1):
+def bmes_share_bmv(bme0 : BMEdge | None, bme1 : BMEdge | None) -> bool:
+    if not bme0 or not bme1: return False
     a0,a1 = bme0.verts
     b0,b1 = bme1.verts
     return (a0==b0) or (a0==b1) or (a1==b0) or (a1==b1)
@@ -184,7 +186,7 @@ def bme_cos(bme : BMEdge) -> tuple[Vector, Vector]:
     bmv0, bmv1 = bme.verts
     return (bmv0.co, bmv1.co)
 
-def bmf_midpoint(bmf):
+def bmf_midpoint(bmf : BMFace) -> Vector:
     return sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
 def bmf_radius(bmf):
     mid = bmf_midpoint(bmf)
@@ -517,6 +519,11 @@ class EdgeAccel:
 
 
 class NearestBMEdge(NearestElem):
+    bvh_edges : BVHTree
+    loose_bmes : list[BMEdge]
+    bme : BMEdge|None
+    co2d : Vector
+
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
@@ -536,24 +543,26 @@ class NearestBMEdge(NearestElem):
             all(bme.is_valid for bme in self.loose_bmes),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10, ignore_selected=True, filter_fn=None):
+    def update(self, context:Context, co:Vector, *, distance:float=1.84467e19, distance2d:float=10, ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> BMEdge|None:
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
         self.bme = None
-        if not self.is_valid: return None
+        if not self.is_valid:
+            return None
 
         bme_co, bme_norm, bme_idx, bme_dist = self.bvh_edges.find_nearest(co, distance) # distance=1.0
         bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh_faces.find_nearest(co, distance) # distance=1.0
 
-        bmes = []
+        bmes : list[BMEdge] = []
         if bme_idx is not None: bmes += [self.loose_bmes[bme_idx]]
         if bmf_idx is not None: bmes += self.bm.faces[bmf_idx].edges
         if filter_fn:
             bmes = [bme for bme in bmes if filter_fn(bme)]
         if ignore_selected:
             bmes = [bme for bme in bmes if not any(bmv.select for bmv in bme.verts)]
-        if not bmes: return None
+        if not bmes:
+            return None
 
         inf = float('inf')
         co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
@@ -563,7 +572,8 @@ class NearestBMEdge(NearestElem):
         ]
         dists = [distance_point_linesegment(co2d, *co2d_) for co2d_ in co2ds]
         bme,dist = min(zip(bmes, dists), key=(lambda bme_dist: bme_dist[1]))
-        if dist > Drawing.scale(distance2d): return
+        if dist > Drawing.scale(distance2d):
+            return None
 
         self.bme = bme
         co2d0, co2d1 = [location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmv.co) for bmv in bme.verts]

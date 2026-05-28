@@ -21,7 +21,8 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from mathutils import Vector, Matrix
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Context
 
 from .bmesh import (
     get_bmesh_emesh,
@@ -293,7 +294,7 @@ def generate_point_inside_bmf(bmf):
         return (crossings % 2) == 1
     return point_inside_bmf
 
-def is_bmvert_hidden(context, bmv, *, factor=0.99):
+def is_bmvert_hidden(context:Context, bmv:BMVert, *, factor:float=0.99) -> bool:
     if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
     hit = raycast_valid_sources(context, point)

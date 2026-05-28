@@ -28,7 +28,7 @@ from itertools import combinations
 
 import gpu
 from mathutils import Matrix, Vector, Quaternion
-from bmesh.types import BMVert
+from bmesh.types import BMVert, BMFace
 from mathutils.geometry import intersect_line_plane, intersect_point_tri, intersect_point_tri_2d
 
 from .colors import colorname_to_color
@@ -2133,7 +2133,7 @@ def point_inside_face_2d(pt, pts_face):
         for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
     )
 
-def point_inside_face(pt, pts_face):
+def point_inside_face(pt : Vector, pts_face : list[Vector]) -> Vector | None:
     # assuming simple face (convex)
     face_center = sum(pts_face, Vector((0,0,0))) / len(pts_face)
     face_radius = max((pt_face - face_center).length_squared for pt_face in pts_face)
@@ -2144,7 +2144,7 @@ def point_inside_face(pt, pts_face):
         if p: return p
     return None
 
-def points_of_bmface(bmf):
+def points_of_bmface(bmf : BMFace) -> list[Vector]:
     return [ bmv.co for bmv in bmf.verts ]
 
 

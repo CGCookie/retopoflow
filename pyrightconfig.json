@@ -1,0 +1,6 @@
+{
+  "reportInvalidTypeForm": "none",
+  "reportMissingImports": "none",
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+}

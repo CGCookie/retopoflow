@@ -19,11 +19,15 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+from __future__ import annotations
+
 import bpy
+from bpy.types import Context
 
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import Debugger
 from ...addon_common.common.useractions import event_match_blenderop, get_kmi_properties
+from ...addon_common.terminal import term_printer
 from .interface import show_message
 
 
@@ -66,25 +70,28 @@ def chain_rf_keymaps(*classes, extra=[]):
     return tuple( [keymap for cls in classes for keymap in cls.rf_keymaps] + extra )
 
 
+def update_km_context(self, context:Context):
+    if RFOperator.RFCore is None:
+        return
+    if self.km_context == 'OVERRIDE':
+        # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
+        # NOTE: 'km_context' is not reset as we need is as a fallback when we exit the override
+        pass
+    else:
+        # print(f'RFOperator_KeymapContext._update_km_context {RFOperator.RFCore.km_context=} -> {km_context=}')
+        RFOperator.RFCore.km_status_override = None
+        RFOperator.RFCore.km_context = self.km_context if self.km_context else None
+
 class RFOperator_KeymapContext:
     km_context: bpy.props.StringProperty(
         name='Keymap Context',
         description='Context for the tool keymap',
-        update=lambda self, context: RFOperator_KeymapContext._update_km_context(self.km_context, context)
+        update=update_km_context,
     )
 
     @staticmethod
     def _update_km_context(km_context: str, context: bpy.types.Context):
-        if RFOperator.RFCore is None:
-            return
-        if km_context == 'OVERRIDE':
-            # NOTE: 'km_status_override' is set by caller ('set_statusbar_override')
-            # NOTE: 'km_context' is not reset as we need is as a fallback when we exit the override
-            pass
-        else:
-            # print(f'RFOperator_KeymapContext._update_km_context {RFOperator.RFCore.km_context=} -> {km_context=}')
-            RFOperator.RFCore.km_status_override = None
-            RFOperator.RFCore.km_context = km_context if km_context else None
+        update_km_context(km_context, context)
 
     def set_statusbar_override(self, status: str | tuple[str, ...] | None):
         if status is None:
@@ -181,11 +188,13 @@ class RFAssetShelf(bpy.types.AssetShelf):
 
 class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
     active_operators = []
-    RFCore = None
+    RFCore : object|None = None
     InvalidationManager = None
     tickled = None
+    _subclasses : list[RFOperator] = []
 
-    _subclasses = []
+    rf_idname : str
+
     def __init_subclass__(cls, **kwargs):
         RFOperator._subclasses.append(cls)
         cls.rf_idname = cls.bl_idname
@@ -206,7 +215,7 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         return any(cls is type(op) for op in RFOperator.active_operators)
 
     @staticmethod
-    def get_all_RFOperators():
+    def get_all_RFOperators() -> list[RFOperator]:
         return RFOperator._subclasses
         # return RFOperator.__subclasses__()  # this only works if the subclass is still in scope!!!!!
     @staticmethod
@@ -217,13 +226,45 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         print(f'RF registered {len(RFOperator.get_all_RFOperators())} RFOperators')
     @staticmethod
     def unregister_all():
+        exceptions : list[tuple[str,Exception]] = []
         for op in reversed(RFOperator.get_all_RFOperators()):
-            op.unregister()
-            bpy.utils.unregister_class(op)
+            try:
+                op.unregister()
+            except Exception as e:
+                exceptions.append((op.rf_idname, e))
+            try:
+                bpy.utils.unregister_class(op)
+            except Exception as e:
+                exceptions.append((op.rf_idname, e))
+        if not exceptions: return
+
+        print()
+        term_printer.boxed(
+            *[ f'{rf_idname}: {e}\n' for (rf_idname, e) in exceptions ],
+            title='Warning: caught exceptions while trying to unregister RFOperators'
+        )
+        print()
+
+        # w = 100
+        # def p(s:str, *, indent:tuple[str,str]=('','')):
+        #     lines = textwrap.wrap(s, w)
+        #     for (i, line) in enumerate(lines):
+        #         line = (indent[0] if i == 0 else indent[1]) + line
+        #         line = line + ' '*(w - len(line))
+        #         print(f'| {line} |')
+        # print()
+        # print( f'+={"="*w}=+')
+        # p('Warning: caught exceptions while trying to unregister RFOperators')
+        # p('-'*w)
+        # for (rf_idname, e) in exceptions:
+        #     p(f'{rf_idname}: {e}', indent=('- ', '  '))
+        # print( f'+={"="*w}=+')
+        # print()
 
     @classmethod
     def poll(cls, context):
         # make sure RFCore is running
+        if not RFOperator.RFCore: return False
         if not RFOperator.RFCore.is_running: return False
 
         if not context.edit_object: return False
