@@ -20,78 +20,77 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bpy
-import os
-import time
 import math
 import bmesh
-from itertools import chain, takewhile
+from itertools import chain
 from collections import defaultdict
-from bmesh.types import BMVert, BMEdge, BMFace
+from collections.abc import Sequence, Iterator
+from math import isclose
+from bmesh.types import BMVert, BMEdge, BMFace, BMesh
+from bpy.types import Context, Mesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Matrix
-from ..rftool_base import RFTool_Base
-from ..rfbrush_base import RFBrush_Base
+from mathutils import Matrix, Vector
 from ..common.bmesh import (
     get_bmesh_emesh, get_object_bmesh,
-    clean_select_layers,
-    NearestBMVert, NearestBMEdge,
-    has_mirror_x, has_mirror_y, has_mirror_z, mirror_threshold,
-    crossed_quad,
-    bme_other_bmv, bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
+    has_mirror_x, has_mirror_y, has_mirror_z,
+    bmf_midpoint_radius, bme_other_bmf, bmf_is_quad, quad_bmf_opposite_bme,
     ensure_correct_normals,
     find_selected_cycle_or_path,
 )
-from ..common.icons import get_path_to_blender_icon
-from ..common.operator import (
-    invoke_operator, execute_operator,
-    RFOperator, RFRegisterClass,
-    chain_rf_keymaps, wrap_property,
-)
 from ..common.maths import (
-    bvec_to_point, point_to_bvec3, vector_to_bvec3,
+    bvec_to_point, point_to_bvec3,
     pt_x0, pt_y0, pt_z0,
     lerp,
 )
-from ..common.raycast import (
-    raycast_valid_sources, raycast_point_valid_sources, raycast_ray_valid_sources,
-    nearest_point_valid_sources, nearest_normal_valid_sources, raycast_ray_valid_sources,
-    ray_from_point_through_point,
-    size2D_to_size,
-    vec_forward,
-    mouse_from_event,
-    plane_normal_from_points,
-)
+from ..common.raycast import raycast_ray_valid_sources, nearest_point_valid_sources
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.blender_cursors import Cursors
-from ...addon_common.common.colors import Color4
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import (
-    Point2D, Point, Normal, Vector, Plane, Ray,
-    closest_point_segment,
-)
-from ...addon_common.common.profiler import time_it
-from ...addon_common.common.utils import iter_pairs, rotate_cycle
+from ...addon_common.common.maths import Point, Plane
+from ...addon_common.common.utils import iter_pairs
 from ...addon_common.ext.circle_fit import hyperLSQ
-from ..common.drawing import (
-    Drawing,
-    CC_2D_POINTS,
-    CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
-)
-
 
 
 class Contours_Logic:
-    def __init__(self, context, hit, plane, circle_hit, span_count, process_source_method, hits):
+    matrix_world : Matrix | None
+    matrix_world_inv : Matrix | None
+    bm : BMesh | None
+    em : Mesh | None
+
+    hit : dict[str, ...]
+    hits : list[dict[str, ...]]
+    plane : Plane
+    circle_hit : tuple[float, ...]
+    initial : bool
+
+    process_source_method : str
+    last_process_source_method : str | None
+
+    action : str
+    show_span_count : bool
+    span_count : int
+    show_twist : bool
+    twist : float
+    cyclic : bool
+
+    edge_ring : set[BMEdge] | None
+    cyclic_ring : bool
+    sel_path : list[BMEdge] | None
+    sel_cyclic : bool | None
+    bridge : bool | None
+
+    points : list[Vector] | None
+    plane_fit : Plane | None
+    circle_fit : tuple[float, ...] | None
+    path_length : float | None
+    mirror_clipped_loop : bool | None
+
+    def __init__(self, context:Context, hit:dict[str,...], plane:Plane, circle_hit:tuple[float, ...], span_count:int, process_source_method:str, hits:list[dict[str, ...]]):
         self.hit = hit
         self.plane = plane
         self.circle_hit = circle_hit
-        self.process_source_method = process_source_method
         self.hits = hits
+        self.process_source_method = process_source_method
+        self.last_process_source_method = None
 
         self.action = ''
         self.initial = True
@@ -103,12 +102,25 @@ class Contours_Logic:
         self.twist = 0
 
         self.cyclic = False
+        self.bm, self.em = None, None
+        self.matrix_world, self.matrix_world_inv = None, None
 
-    def update(self, context):
+        self.edge_ring = None
+        self.cyclic_ring = False
+        self.sel_path = None
+        self.sel_cyclic = None
+        self.bridge = None
+        self.points = None
+        self.plane_fit = None
+        self.circle_fit = None
+        self.path_length = None
+        self.mirror_clipped_loop = None
+
+    def update(self, context:Context):
         self.bm, self.em = get_bmesh_emesh(context)
         bmops.flush_selection(self.bm, self.em)
         self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted_safe()
+        self.matrix_world_inv = self.matrix_world.inverted_safe() if self.matrix_world else None
 
         try:
             if not self.process_source(context): return
@@ -121,7 +133,7 @@ class Contours_Logic:
 
         self.initial = False
 
-    def process_source(self, context):
+    def process_source(self, context:Context) -> bool:
         # process source only once, unless settings have changed
         if not self.initial and self.last_process_source_method == self.process_source_method:
             # print(f'skipping re-processing source')
@@ -138,7 +150,7 @@ class Contours_Logic:
             case _:
                 assert False, f'Unhandled source processing method "{self.process_source_method}"'
 
-    def process_target(self, context):
+    def process_target(self, context:Context):
         # did we hit current geometry and need to insert an edge loop?
         self.edge_ring = None
         self.cyclic_ring = False
@@ -146,7 +158,10 @@ class Contours_Logic:
         self.sel_cyclic = False
         self.bridge = None
 
-        if not self.bm.verts: return
+        if not self.bm.verts:
+            return
+        if self.plane_fit is None:
+            return
 
         M = self.matrix_world
         rgn, r3d = context.region, context.region_data
@@ -199,8 +214,9 @@ class Contours_Logic:
         self.sel_path, self.sel_cyclic = find_selected_cycle_or_path(self.bm, hit_co3, only_boundary=False)
         self.bridge = bool(self.sel_path) and (self.cyclic == self.sel_cyclic)
 
-    def find_boundary_for_bridging(self, context):
-        if not self.bridge: return
+    def find_boundary_for_bridging(self, context:Context):
+        if not self.bridge or not self.sel_path:
+            return
 
         # print(f'-----------------------------------------------------')
 
@@ -264,7 +280,7 @@ class Contours_Logic:
             best_path, best_cyclic, best_dist = bmes, cyclic, d
         self.sel_path, self.sel_cyclic = best_path, best_cyclic
 
-    def insert(self, context):
+    def insert(self, context:Context):
         if self.edge_ring:
             # cut in new edge loop
             self.insert_edge_ring(context)
@@ -275,7 +291,10 @@ class Contours_Logic:
             self.insert_new_cut(context)
         bmops.flush_selection(self.bm, self.em)
 
-    def insert_edge_ring(self, context):
+    def insert_edge_ring(self, context:Context):
+        if self.edge_ring is None:
+            return
+
         # USE SELECTION TO FIGURE OUT WHICH VERTS ARE NEW!
         # select only the edges on either side of cut
         bmeloops = {
@@ -294,7 +313,7 @@ class Contours_Logic:
         self.action = 'Loop Cut' if self.cyclic else 'Strip Cut'
         self.show_twist = self.cyclic
 
-    def insert_bridge(self, context):
+    def insert_bridge(self, context:Context):
         nbmelems = bmesh.ops.extrude_edge_only(self.bm, edges=self.sel_path)['geom']
         nbmvs = [bmelem for bmelem in nbmelems if type(bmelem) is BMVert]
 
@@ -302,10 +321,12 @@ class Contours_Logic:
         self.action = 'Bridging Loop' if self.cyclic else 'Bridging Strip'
         self.show_twist = self.cyclic
 
-    def finish_edgering_bridge(self, context, nbmelems, nbmvs):
+    def finish_edgering_bridge(self, context:Context, nbmelems:Sequence[BMVert|BMEdge|BMFace], nbmvs:Sequence[BMVert]):
+        if self.points is None or self.plane_fit is None or self.circle_fit is None:
+            return
+
         plane_fit = self.plane_fit
         circle_fit = self.circle_fit
-        points = self.points
 
         # compute useful statistics about newly created geometry
         npoints = [Point(bmv.co) for bmv in nbmvs]
@@ -381,13 +402,17 @@ class Contours_Logic:
         bmops.select_iter(self.bm, nbmvs)
 
 
-    def insert_new_cut(self, context):
+    def insert_new_cut(self, context:Context):
+        M, Mi = self.matrix_world, self.matrix_world_inv
         path_length = self.path_length
-        points = []
+
+        if self.points is None or M is None or Mi is None or path_length is None:
+            return
+
+        points : list[Vector] = []
         for pt in self.points:
             if points and (points[-1] - pt).length == 0: continue
             points += [pt]
-        M, Mi = self.matrix_world, self.matrix_world_inv
 
         segment_count = self.span_count
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
@@ -483,7 +508,7 @@ class Contours_Logic:
     #######################################################
     # different methods for processing source
 
-    def process_source_fast(self, context):
+    def process_source_fast(self, context:Context) -> bool:
         plane_cut = self.plane
         hit_obj = self.hit['object']
         M = hit_obj.matrix_world
@@ -533,10 +558,8 @@ class Contours_Logic:
 
         return True
 
-    def process_source_skip(self, context):
+    def process_source_skip(self, context:Context) -> bool:
         plane_cut = self.plane
-        hit_obj = self.hit['object']
-        M = hit_obj.matrix_world
 
         pt = self.hit['co_world']
         pt0, pt1 = self.hits[0]['co_world'], self.hits[-1]['co_world']
@@ -601,7 +624,7 @@ class Contours_Logic:
 
         return True
 
-    def process_source_walk(self, context):
+    def process_source_walk(self, context:Context):
         '''
         gathers cut info of high-res mesh (hit_obj) starting at hit_bmf
         '''
@@ -618,29 +641,41 @@ class Contours_Logic:
         # walk hit object to find all geometry connected to hit_bmf that intersects cut plane
         # note: this will stop at holes that intersect the cut plane (will _not_ walk around them)
 
-        def point_plane_signed_dist(pt): return plane_cut.signed_distance_to(pt)
-        def bmv_plane_signed_dist(bmv):  return point_plane_signed_dist(M @ bmv.co)
-        def bmv_intersect_plane(bmv):    return (M @ bmv.co) if bmv_plane_signed_dist(bmv) == 0 else None
-        def bme_intersect_plane(bme):
-            co0, co1 = (M @ bmv.co for bmv in bme.verts)
+        def point_plane_signed_dist(pt : Vector) -> float:
+            return plane_cut.signed_distance_to(pt)
+        def bmv_plane_signed_dist(bmv:BMVert) -> float:
+            return point_plane_signed_dist(M @ bmv.co)
+        def bmv_intersect_plane(bmv : BMVert) -> Vector|None:
+            if not isclose(bmv_plane_signed_dist(bmv), 0):
+                return None
+            return M @ bmv.co
+        def bme_intersect_plane(bme : BMEdge) -> Vector|None:
+            co0, co1 = ((M @ bmv.co) for bmv in bme.verts)
             s0, s1 = point_plane_signed_dist(co0), point_plane_signed_dist(co1)
-            if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0): return None
+            if (s0 <= 0 and s1 <= 0) or (s0 >= 0 and s1 >= 0):
+                return None
             return co0 + (co1 - co0) * (s0 / (s0 - s1))
-        def intersect_plane(bmelem):
-            fn = bmv_intersect_plane if type(bmelem) is BMVert else bme_intersect_plane
-            return fn(bmelem)
+        def intersect_plane(bmelem : BMVert|BMEdge) -> Vector|None:
+            if isinstance(bmelem, BMVert):
+                return bmv_intersect_plane(bmelem)
+            if isinstance(bmelem, BMEdge):
+                return bme_intersect_plane(bmelem)
+            assert False, f'Unexpected type {type(bmelem)} ({bmelem})'
 
-        bmf_graph = {}
-        bmf_intersections = defaultdict(dict)
-        working = { hit_bmf }
+        bmf_graph : dict[BMFace, set[BMFace]] = {}
+        bmf_intersections : dict[BMFace, dict[BMVert|BMEdge|BMFace, Vector]] = defaultdict(dict)
+        working : set[BMFace] = { hit_bmf }
         while working:
             bmf = working.pop()
-            if bmf in bmf_graph: continue  # already processed
+            if bmf in bmf_graph:
+                # already processed
+                continue
             bmf_graph[bmf] = set()
             for bmelem in chain(bmf.verts, bmf.edges):
                 co = intersect_plane(bmelem)
-                if not co: continue
-                bmfs = set(bmelem.link_faces) - {bmf}
+                if not co:
+                    continue
+                bmfs = set(bmelem.link_faces) - { bmf }
                 working |= bmfs
                 bmf_graph[bmf] |= bmfs
                 bmf_intersections[bmf][bmelem] = co
@@ -651,23 +686,28 @@ class Contours_Logic:
         ####################################################################################################
         # find longest cycle or path in bmf_graph
 
-        def find_cycle_or_path():
-            longest_path = []
-            longest_cycle = []
+        def find_cycle_or_path() -> tuple[list[BMFace], bool]:
+            longest_path : list[BMFace] = []
+            longest_cycle : list[BMFace] = []
 
-            start_bmfs = {
+            start_bmfs : set[BMFace] = {
                 bmf for bmf in bmf_intersections
                 if any(
                     (type(bmelem) is BMVert) or (type(bmelem) is BMEdge and len(bmelem.link_faces) == 1)
                     for bmelem in bmf_intersections[bmf]
                 )
             }
-            if not start_bmfs: start_bmfs = set(bmf_graph.keys())
+            if not start_bmfs:
+                start_bmfs = set(bmf_graph.keys())
 
             for start_bmf in start_bmfs:
-                working = [(start_bmf, iter(bmf_graph[start_bmf]))]
-                touched = { start_bmf }
-                while working:
+                working : list[tuple[BMFace, Iterator[dict[BMFace, set[BMFace]]]]] = [(start_bmf, iter(bmf_graph[start_bmf]))]
+                touched : set[BMFace] = { start_bmf }
+                # limiting the number of finds we search for to prevent really long searches!
+                # see https://github.com/CGCookie/retopoflow/issues/1773
+                limit_finds = 10
+
+                while working and limit_finds > 0:
                     cur_bmf, cur_iter = working[-1]
                     next_bmf = next(cur_iter, None)
 
@@ -678,6 +718,7 @@ class Contours_Logic:
 
                         working.pop()
                         touched.remove(cur_bmf)
+                        limit_finds -= 1
                         continue
 
                     if next_bmf in touched:
@@ -709,18 +750,20 @@ class Contours_Logic:
         # find points in order
 
         points = []
-        def add_path_end(bmf):
+        def add_path_end(bmf:BMFace) -> list[Vector]:
             bmelem = next((
                 bmelem for bmelem in bmf_intersections[bmf]
                 if type(bmelem) != BMFace and len(bmelem.link_faces) == 1
             ), None)
             return [ self.matrix_world_inv @ bmf_intersections[bmf][bmelem] ] if bmelem else []
-        if not cyclic: points += add_path_end(path[0])
+        if not cyclic:
+            points += add_path_end(path[0])
         points += [
             self.matrix_world_inv @ bmf_intersections[bmf0][bmf1]
             for (bmf0, bmf1) in iter_pairs(path, cyclic)
         ]
-        if not cyclic: points += add_path_end(path[-1])
+        if not cyclic:
+            points += add_path_end(path[-1])
 
 
         ####################################################################################################
@@ -767,7 +810,7 @@ class Contours_Logic:
         return True
 
 
-    def handle_mirrors(self, context, points):
+    def handle_mirrors(self, context:Context, points:list[Vector]) -> tuple[list[Vector], bool]:
         mirror_clipped_loop = False
 
         mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
@@ -785,10 +828,14 @@ class Contours_Logic:
             sy = 1 if not my or co.y > 0 else -1
             sz = 1 if not mz or co.z > 0 else -1
 
-        def correct_x(co): return not mx or (1 if co.x > 0 else -1) == sx
-        def correct_y(co): return not my or (1 if co.y > 0 else -1) == sy
-        def correct_z(co): return not mz or (1 if co.z > 0 else -1) == sz
-        def correct_xyz(co): return correct_x(co) and correct_y(co) and correct_z(co)
+        def correct_x(co:Vector) -> bool:
+            return not mx or (1 if co.x > 0 else -1) == sx
+        def correct_y(co:Vector) -> bool:
+            return not my or (1 if co.y > 0 else -1) == sy
+        def correct_z(co:Vector) -> bool:
+            return not mz or (1 if co.z > 0 else -1) == sz
+        def correct_xyz(co:Vector) -> bool:
+            return correct_x(co) and correct_y(co) and correct_z(co)
 
         if mx and any(not correct_x(pt) for pt in points) and any(correct_x(pt) for pt in points):
             l = len(points)

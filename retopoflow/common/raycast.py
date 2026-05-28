@@ -254,7 +254,7 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context:Context, point:Vector) -> dict[str,Any]|None:
+def raycast_valid_sources(context:Context, point:Vector) -> dict[str,...]|None:
     ray_world = ray_from_point(context, point)
 
     # print(f'raycast_valid_sources {ray_world=}')
@@ -314,7 +314,7 @@ def raycast_point_valid_sources(context, point_screen_or_world, **kwargs):
     ray_world = ray_from_point(context, point_screen_or_world)
     return raycast_ray_valid_sources(context, ray_world, **kwargs)
 
-def raycast_ray_valid_sources(context, ray_world, *, world=True):
+def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True) -> Vector|None:
     if ray_world[0] is None: return None
 
     best_hit = None
@@ -344,10 +344,11 @@ def raycast_ray_valid_sources(context, ray_world, *, world=True):
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
-def nearest_point_valid_sources(context, point_world, *, world=True):
+def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True) -> Vector|None:
     point_world = Vector((*point_world, 1.0))
     best_hit = None
     best_dist = float('inf')
+
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
@@ -361,7 +362,9 @@ def nearest_point_valid_sources(context, point_world, *, world=True):
         if dist >= best_dist: continue
         best_hit = co_world
         best_dist = dist
-    if not best_hit: return None
+
+    if not best_hit:
+        return None
 
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
     if not world:

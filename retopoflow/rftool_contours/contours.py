@@ -23,6 +23,7 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context
 
 from ..rfbrushes.cut_brush import RFBrush_Cut
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
@@ -49,6 +50,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
+from ...addon_common.common.maths import Plane
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
@@ -82,7 +84,7 @@ class RFOperator_Contours_Insert_Properties:
     used to prevent duplicate code across both operators
     '''
 
-    span_count: bpy.props.IntProperty(
+    span_count: bpy.props.IntProperty(                  # pyright: ignore [reportUninitializedInstanceVariable]
         name='Span Count',
         description='Number of vertices to create in a new cut',
         default=8,
@@ -90,7 +92,7 @@ class RFOperator_Contours_Insert_Properties:
         max=100,
     )
 
-    process_source_method: bpy.props.EnumProperty(
+    process_source_method: bpy.props.EnumProperty(      # pyright: ignore [reportUninitializedInstanceVariable]
         name='Process Source Method',
         description="Source processing method",
         items=[
@@ -124,6 +126,7 @@ class RFOperator_Contours_Insert(
         default=False,  # will be set on initial cut
     )
 
+    logic : Contours_Logic
     contours_data = None
 
     @staticmethod
@@ -302,7 +305,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
         vn = (4 * self.sample_width) * (v / 2)**3 + 0.5
         return mouse0 + (mouse1 - mouse0) * vn
 
-    def process_cut(self, context, hit, plane, mouse0, mouse1):
+    def process_cut(self, context:Context, hit:dict[str,...], plane:Plane, mouse0:Vector, mouse1:Vector):
         n = self.sample_points // 2
 
         hits_neg = list(itertools.takewhile(
@@ -337,7 +340,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             [hit['co_world'] for hit in hits if hit],
             pts_neg_back, pts_pos_back
         ))
-        circle_hit = hyperLSQ([list(plane.w2l_point(pt).xy) for pt in points])
+        circle_hit = hyperLSQ([list(plane.w2l_point(pt).xy) for pt in points if pt])
 
         RFOperator_Contours_Insert.insert(context, hit, plane, circle_hit, self.span_count, self.process_source_method, hits)
 

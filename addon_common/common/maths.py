@@ -698,22 +698,22 @@ class Plane(Entity3D):
             return 0
         return -1 if d < 0 else 1
 
-    def distance_to(self, p: Point):
+    def distance_to(self, p: Point|Vector) -> float:
         return abs((p - self.o).dot(self.n))
 
-    def signed_distance_to(self, p: Point):
+    def signed_distance_to(self, p: Point|Vector) -> float:
         return (p - self.o).dot(self.n)
 
-    def project(self, p: Point):
+    def project(self, p: Point|Vector) -> Vector:
         return p + self.n * (self.o - p).dot(self.n)
 
-    def w2l_point(self, p: Point):
+    def w2l_point(self, p: Point|Vector) -> Vector:
         return self.frame.w2l_point(p)
-    def l2w_point(self, p: Point):
+    def l2w_point(self, p: Point|Vector) -> Vector:
         return self.frame.l2w_point(p)
-    def w2l_direction(self, d: Direction):
+    def w2l_direction(self, d: Direction|Vector) -> Vector:
         return self.frame.w2l_direction(d)
-    def l2w_direction(self, d: Direction):
+    def l2w_direction(self, d: Direction|Vector) -> Vector:
         return self.frame.l2w_direction(d)
 
     def polygon_intersects(self, points: List[Point]):
@@ -927,10 +927,10 @@ class Frame:
         )
         return self.fn_w2l_typed[t](data)
 
-    def w2l_point(self, p: Point) -> Point:
+    def w2l_point(self, p: Point|Vector) -> Point|Vector:
         return Point(self._dots(p - self.o))
 
-    def l2w_point(self, p: Point) -> Point:
+    def l2w_point(self, p: Point|Vector) -> Point|Vector:
         return Point(self.o + self._mults(p))
 
     def w2l_vector(self, v: Vector) -> Vec:

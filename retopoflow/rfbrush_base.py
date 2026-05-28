@@ -20,7 +20,7 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 class RFBrush_Base:
-    RFCore = None
+    RFCore : object | None = None
     InvalidationManager = None
 
     _subclasses = {}

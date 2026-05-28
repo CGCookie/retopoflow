@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+from bpy.types import Area, Context, Event
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from ..rftool_base import RFTool_Base
@@ -65,7 +66,15 @@ class RFBrush_Cut(RFBrush_Base):
     stipple_mult = Color((1,1,1,0))
 
     # hack to know which areas the mouse is in
-    mouse_areas = set()  # TODO: make sure this actually works with multiple areas / quad
+    mouse_areas : set[Area] = set()  # TODO: make sure this actually works with multiple areas / quad
+
+    shift_held : bool               # pyright: ignore [reportUninitializedInstanceVariable]
+    operator : RFOperator | None    # pyright: ignore [reportUninitializedInstanceVariable]
+    mousedown : Vector | None       # pyright: ignore [reportUninitializedInstanceVariable]
+    mousemiddle : Vector | None     # pyright: ignore [reportUninitializedInstanceVariable]
+    mouse : Vector | None           # pyright: ignore [reportUninitializedInstanceVariable]
+    is_cancelled : bool             # pyright: ignore [reportUninitializedInstanceVariable]
+    hit : dict[str, ...] | None     # pyright: ignore [reportUninitializedInstanceVariable]
 
     def init(self):
         self.operator = None
@@ -75,7 +84,7 @@ class RFBrush_Cut(RFBrush_Base):
     def stop(self):
         self.set_operator(None)
 
-    def set_operator(self, operator):
+    def set_operator(self, operator:RFOperator|None):
         # this is called whenever operator using brush is started
         # note: artist just used another operator, so the data likely changed.
         #       reset nearest info so that we can rebuild structure!
@@ -89,10 +98,19 @@ class RFBrush_Cut(RFBrush_Base):
         self.hit = None
         self.is_cancelled = False
 
-    def is_stroking(self):
-        return self.operator and self.operator.is_active() and self.mousedown is not None
+    def is_stroking(self) -> bool:
+        if self.operator is None:
+            return False
+        if not self.operator.is_active():
+            return False
+        if self.mousedown is None:
+            return False
+        return True
 
-    def update(self, context, event):
+    def update(self, context:Context, event:Event):
+        if not self.RFCore:
+            return
+
         try:
             if self.operator: self.operator.is_active()
         except ReferenceError as referr:
@@ -136,8 +154,11 @@ class RFBrush_Cut(RFBrush_Base):
                 self.hit = raycast_valid_sources(context, self.mousemiddle)
                 context.area.tag_redraw()
 
-    def draw_postpixel(self, context):
-        if not self.RFCore.is_current_area(context): return
+    def draw_postpixel(self, context:Context):
+        if not self.RFCore:
+            return
+        if not self.RFCore.is_current_area(context):
+            return
         if not self.operator: return
         #if context.area not in self.mouse_areas: return
         if self.shift_held: return

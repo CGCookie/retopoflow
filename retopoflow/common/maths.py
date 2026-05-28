@@ -93,7 +93,7 @@ def bvec_vector_to_bvec4(v):
     return Vector((v[0], v[1], v[2], 0))
 def bvec_to_point(v):
     return Point((*point_to_bvec3(v), 1.0))
-def point_to_bvec3(pt):
+def point_to_bvec3(pt : Point|Vector) -> Vector:
     return pt.xyz / pt.w if len(pt) == 4 else pt.xyz
 def point_to_bvec4(pt):
     return Vector((*point_to_bvec3(pt), 1))

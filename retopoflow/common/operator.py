@@ -201,17 +201,17 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
         super().__init_subclass__(**kwargs)
 
     @staticmethod
-    def active_operator():
+    def active_operator() -> RFOperator | None:
         return RFOperator.active_operators[-1] if RFOperator.active_operators else None
     @classmethod
-    def is_active(cls):
+    def is_active(cls) -> bool:
         return type(RFOperator.active_operator()) is cls
     @staticmethod
-    def is_active_static(cls):
+    def is_active_static(cls) -> bool:
         return type(RFOperator.active_operator()) is cls
 
     @classmethod
-    def is_running(cls):
+    def is_running(cls) -> bool:
         return any(cls is type(op) for op in RFOperator.active_operators)
 
     @staticmethod
