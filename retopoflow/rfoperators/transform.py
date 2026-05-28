@@ -183,7 +183,8 @@ class RFOperator_Translate(RFOperator):
             self.select_loops = getattr(contours_props, 'select_loops', False)
         if self.select_loops:
             selected_edges = bmops.get_all_selected_bmedges(self.bm)
-            if len(selected_edges):
+            selected_faces = bmops.get_all_selected_bmfaces(self.bm)
+            if len(selected_edges) and not len(selected_faces):
                 prev_mode = tuple(context.tool_settings.mesh_select_mode)
                 context.tool_settings.mesh_select_mode = (False, True, False)
                 if bpy.app.version >= (5, 1, 0):
@@ -296,7 +297,6 @@ class RFOperator_Translate(RFOperator):
             use_edge_slide = bool(selected_edges) and not has_unconnected_vert
             slide_op = bpy.ops.transform.edge_slide if use_edge_slide else bpy.ops.transform.vert_slide
             clamp = not use_edge_slide or not all([v.is_boundary for v in selected_edges])
-            print(clamp)
             result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
             if 'RUNNING_MODAL' in result or 'FINISHED' in result:
                 return {'FINISHED'}
