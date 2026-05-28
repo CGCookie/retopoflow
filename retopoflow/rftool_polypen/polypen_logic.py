@@ -60,6 +60,7 @@ from ..common.maths import (
     view_forward_direction,
     distance2d_point_bmedge,
     clamp, xform_direction,
+    perpendicular_direction2,
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.bmesh_ops import BMElemType, BMElem
@@ -332,6 +333,7 @@ class PP_Logic:
     bme : BMEdge | None             # BMEdge to extrude from / work with
     bmf : BMFace | None             # BMFace to work with
     bme_hovered : BMEdge | None
+    bme_hovered_bmvs : list[BMVert] | None
     bmv2 : BMVert | None            # EDGE_QUAD when extruding to BMVerts or hit locations
     hit2 : Vector | None            # ...
     bmv3 : BMVert | None            # ...
@@ -378,6 +380,7 @@ class PP_Logic:
         self.bme = None
         self.bmf = None
         self.bme_hovered = None
+        self.bme_hovered_bmvs = None
         self.bmv2 = None
         self.bmv3 = None
         self.hit2 = None
@@ -580,6 +583,12 @@ class PP_Logic:
                         self.state = PP_Action.EDGE_TRI
                         return
 
+                    if self.bme.is_boundary and self.bme_hovered.is_boundary:
+                        # selected and hovered BMEdges are boundary, so let's assume artist wishes to bridge
+                        self.state = PP_Action.EDGE_BRIDGE
+                        self.bme_hovered_bmvs = [bmv2, bmv3]
+                        return
+
                     # find where mouse is on hovered edge, then find proportional point on selected edge
                     # if line between these points cuts a face, then we knife
                     # otherwise, we bridge edges
@@ -595,10 +604,6 @@ class PP_Logic:
                         self.state = PP_Action.SPLIT_QUAD
                         return
 
-                    if self.bme_hovered.is_boundary:
-                        self.state = PP_Action.EDGE_BRIDGE
-                        self.bme_hovered_bmvs = [bmv2, bmv3]
-                        return
 
         if insert_mode == 'QUAD-ONLY':
             sel_bme = min(
@@ -661,21 +666,13 @@ class PP_Logic:
                 # if edge connecting center of selected bmedge and hovered bmvert crosses the
                 # bmface adjacent to selected bmedge, then we split selected edge!
                 bmf = next(iter(bme_selected.link_faces), None)
-                bmv_co = self.nearest.bmv.co
-                bme_co = bme_midpoint(bme_selected)
-                bme_co0, bme_co1 = bme_cos(bme_selected)
-                bmf_co = bmf_midpoint(bmf)
-                bmf_pt  = self.project(bmf_co)
-                bme_pt  = self.project(bme_co)
-                bme_pt0 = self.project(bme_co0)
-                bme_pt1 = self.project(bme_co1)
-                bmv_pt  = self.project(bmv_co)
+                bmv_pt  = self.project(self.nearest.bmv.co)
+                bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_midpoint(bme_selected), *bme_cos(bme_selected))
+                bmf_pt  = self.project(bmf_midpoint(bmf))
 
                 # compute vector perpendicular to selected bmedge in screen space that is
                 # pointing toward center of adjacent bmface
-                v_bme_perp = Vector((bme_pt1.y - bme_pt0.y, bme_pt0.x - bme_pt1.x))
-                if v_bme_perp.dot(bmf_pt - bme_pt) < 0:
-                    v_bme_perp.negate()
+                v_bme_perp = perpendicular_direction2(bme_pt0 - bme_pt1, bmf_pt - bme_pt)
 
                 # check if vector from center of selected bmedge to hovered bmvert is
                 # pointing in same direction as perpendicular vector computed above

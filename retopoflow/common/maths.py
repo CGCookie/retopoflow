@@ -174,3 +174,9 @@ def proportional_edit(falloff_type, dist):
             return random.random()
         case _:
             return 1
+
+def perpendicular_direction2(vec2 : Vector, vec2_along : Vector) -> Vector:
+    vec2_perp = Vector((-vec2.y, vec2.x)).normalized()
+    if vec2_perp.dot(vec2_along) < 0:
+        vec2_perp.negate()
+    return vec2_perp
