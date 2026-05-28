@@ -24,8 +24,9 @@ class RFMenu_MT_ToolPie(Menu):
             return tool is not None and tool.idname.split('.')[0] == 'retopoflow'
         return False
 
-    def draw_bottom_menu(self, pie):
-        tool = bpy.context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    def draw_bottom_menu(self, context, pie):
+        scene_props = context.scene.retopoflow
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
         pie_emboss = 'PIE_MENU' if bpy.app.version >= (5,0,0) else 'RADIAL_MENU'
 
         back = pie.box().column(align=True)
@@ -120,11 +121,20 @@ class RFMenu_MT_ToolPie(Menu):
             col.prop(props, 'brush_radius')
             col.prop(props, 'brush_strength', slider=True)
             col.prop(props, 'brush_falloff', slider=True)
-            col.row(align=True, heading='Selected').prop(props, 'mask_selected', expand=True, icon_only=True)
-            col.row(align=True, heading='Boundary').prop(props, 'mask_boundary', expand=True, icon_only=True)
+
+            split = col.row().split(factor=0.4, align=True)
+            split.label(text='Selected')
+            split.prop(scene_props, 'mask_selected', expand=True, icon_only=True)
+            split = col.row().split(factor=0.4, align=True)
+            split.label(text='Boundary')
+            split.prop(scene_props, 'mask_boundary', expand=True, icon_only=True)
+            split = col.row().split(factor=0.4, align=True)
+            split.label(text='Seams')
+            split.prop(scene_props, 'mask_seams', expand=True, icon_only=True)
+
             row = col.row(align=True)
-            row.prop(props, 'include_corners')
-            row.prop(props, 'include_occluded')
+            row.prop(scene_props, 'include_corners')
+            row.prop(scene_props, 'include_pinned')
 
         elif tool.idname == 'retopoflow.patches':
             props = tool.operator_properties(tool.idname)
@@ -175,7 +185,7 @@ class RFMenu_MT_ToolPie(Menu):
         )
 
         # South
-        self.draw_bottom_menu(pie)
+        self.draw_bottom_menu(context, pie)
 
         # North
         pie.operator(
