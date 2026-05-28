@@ -668,7 +668,7 @@ def activate_template(self, context):
         self.asset_library_type,
     )
 
-
+'''
 class RFAssetShelf_Patches(RFAssetShelf):
     bl_idname = 'VIEW3D_AST_Retopoflow_Patches' #'retopoflow.patches'
     bl_category = 'Patches Templates'
@@ -766,7 +766,7 @@ class RFTool_Patches(RFTool_Base):
     @classmethod
     def deactivate(cls, context):
         cls.resetter.reset()
-
+'''
 '''
 @execute_operator('switch_to_patches', 'RetopoFlow: Switch to Patches', fn_poll=poll_retopoflow)
 def switch_rftool(context):
