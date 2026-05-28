@@ -145,13 +145,13 @@ class Tweak_Logic:
                 continue
             if (props.include_corners  == False or self.props_scene.mask_boundary == 'SLIDE') and is_bmvert_corner(bmv):
                 continue
-            if props.include_creases == False and (
-                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ):
-                continue
             if props.include_pinned == False and (
                 get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+            ):
+                continue
+            if props.mask_creases == 'EXCLUDE' and (
+                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
             ):
                 continue
             if props.mask_creases  == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
