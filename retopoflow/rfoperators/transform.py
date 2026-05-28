@@ -294,9 +294,9 @@ class RFOperator_Translate(RFOperator):
             verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
             has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
             use_edge_slide = bool(selected_edges) and not has_unconnected_vert
-            use_edge_slide = True
             slide_op = bpy.ops.transform.edge_slide if use_edge_slide else bpy.ops.transform.vert_slide
-            clamp = not all([v.is_boundary for v in selected_edges])
+            clamp = not use_edge_slide or not all([v.is_boundary for v in selected_edges])
+            print(clamp)
             result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
             if 'RUNNING_MODAL' in result or 'FINISHED' in result:
                 return {'FINISHED'}
