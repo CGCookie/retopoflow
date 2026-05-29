@@ -402,6 +402,8 @@ class Relax_Logic:
         self.seam_accel = edge_data['seam_accel']
         self.verts_accel_time = time.time()
 
+        self.occlusion_cache = {}
+
         self.draw_vectors = [[],[],[]]
 
     def cancel(self, context):
@@ -409,8 +411,6 @@ class Relax_Logic:
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
-
-
     def update(self, context, event):
         if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
             self.pressure = getattr(event, 'pressure', 1.0)
@@ -472,15 +472,18 @@ class Relax_Logic:
         self.verts_accel.rebuild(bbox=bbox)
         if not self.verts_filtered: return
         verts = self.verts_accel.get(hit['co_world'], radius3D)
-        if not opt_include_occluded:
-            # Occlusion testing is expensive, so doing it here
-            # to not test the whole mesh or invalidate the cache on view change
-            verts = {
-                bmv
-                for bmv in verts
-                if not is_bmvert_hidden(context, bmv)
-            }
         verts = {bmv for bmv in verts if bmv in self.verts_filtered}
+        if not opt_include_occluded:
+            # Occlusion testing is expensive so only test each vert once per stroke
+            visible_verts = set()
+            for bmv in verts:
+                is_hidden = self.occlusion_cache.get(bmv)
+                if is_hidden is None:
+                    is_hidden = is_bmvert_hidden(context, bmv)
+                    self.occlusion_cache[bmv] = is_hidden
+                if not is_hidden:
+                    visible_verts.add(bmv)
+            verts = visible_verts
         if not verts: return
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         if not edges: return
