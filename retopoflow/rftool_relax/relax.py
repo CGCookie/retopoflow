@@ -205,9 +205,20 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
+    algorithm_use_cache: bpy.props.BoolProperty(
+        name = 'Use Cache',
+        description = 'Reuse the acceleration structure between strokes if possible',
+        default = True,
+    )
 
     def init(self, context, event):
-        self.logic = Relax_Logic(context, event, RFTool_Relax.rf_brush, self)
+        self.logic = Relax_Logic(
+            context,
+            event,
+            RFTool_Relax.rf_brush,
+            self,
+            cache=RFTool_Relax._stroke_cache,
+        )
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
 
@@ -254,6 +265,7 @@ class RFTool_Relax(RFTool_Base):
     bl_operator = 'retopoflow.relax'
 
     rf_brush = RFBrush_Relax()
+    _stroke_cache = {}
 
     props = None  # needed to reset properties
 
@@ -340,3 +352,4 @@ class RFTool_Relax(RFTool_Base):
     def deactivate(cls, context):
         cls.resetter.reset()
         cls.rf_brush.stop()
+        cls._stroke_cache.clear()

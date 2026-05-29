@@ -40,6 +40,7 @@ def draw_relax_algo_options(context, layout):
     col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
     layout.separator()
+    layout.row(heading='Acceleration').prop(props, 'algorithm_use_cache', text='Use Cache')
     layout.row().prop(props, 'algorithm_method', expand=False, text='Integration')
     if props.algorithm_method == 'STEPS':
         layout.prop(props, 'algorithm_iterations', text="Iterations")

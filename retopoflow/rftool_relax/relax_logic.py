@@ -117,9 +117,9 @@ class Accel:
 
     def index(self, co_world: Vector) -> Tuple[int, int, int]:
         max_bin_index = Accel.BINS_COUNT - 1
-        ix = clamp(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index)
-        iy = clamp(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index)
-        iz = clamp(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index)
+        ix = int(clamp(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index))
+        iy = int(clamp(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index))
+        iz = int(clamp(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index))
         return (ix, iy, iz)
 
     def get(self, co_world, radius_world):
@@ -137,8 +137,152 @@ class Accel:
         }
 
 
+class EdgeAccelBuilder:
+    @staticmethod
+    def build(bm, verts, mirror, mirror_threshold, mirror_clip, mask_boundary, mask_creases, mask_sharps, mask_seams):
+        local_edges = {bme for bmv in verts for bme in bmv.link_edges}
+
+        boundary = []
+        boundary_verts = set()
+        boundary_accel = None
+        if mask_boundary == 'SLIDE':
+            boundary_edges = [
+                bme for bme in local_edges
+                if is_bmedge_boundary(bme, mirror, mirror_threshold, mirror_clip)
+            ]
+            boundary = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in boundary_edges
+            ]
+            boundary_verts = {
+                bmv for bme in boundary_edges for bmv in bme.verts
+            }
+            boundary_accel = EdgeAccel(boundary)
+
+        crease = []
+        crease_verts = set()
+        crease_accel = None
+        if mask_creases == 'SLIDE':
+            crease_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, 'crease', ensure_lookup=False)
+            ]
+            crease = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in crease_edges
+            ]
+            crease_verts = {
+                bmv for bme in crease_edges for bmv in bme.verts
+            }
+            crease_accel = EdgeAccel(crease)
+
+        sharp = []
+        sharp_verts = set()
+        sharp_accel = None
+        if mask_sharps == 'SLIDE':
+            sharp_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, 'sharp')
+            ]
+            sharp = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in sharp_edges
+            ]
+            sharp_verts = {
+                bmv for bme in sharp_edges for bmv in bme.verts
+            }
+            sharp_accel = EdgeAccel(sharp)
+
+        seam = []
+        seam_verts = set()
+        seam_accel = None
+        if mask_seams == 'SLIDE':
+            seam_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, 'seam')
+            ]
+            seam = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in seam_edges
+            ]
+            seam_verts = {
+                bmv for bme in seam_edges for bmv in bme.verts
+            }
+            seam_accel = EdgeAccel(seam)
+
+        edge_data = {
+            'boundary': boundary,
+            'boundary_verts': boundary_verts,
+            'boundary_accel': boundary_accel,
+            'crease': crease,
+            'crease_verts': crease_verts,
+            'crease_accel': crease_accel,
+            'sharp': sharp,
+            'sharp_verts': sharp_verts,
+            'sharp_accel': sharp_accel,
+            'seam': seam,
+            'seam_verts': seam_verts,
+            'seam_accel': seam_accel,
+        }
+        return edge_data
+
+
+class RelaxStrokeCache:
+    def __init__(self, cache, *, context, bm, matrix_world):
+        self.cache = cache if isinstance(cache, dict) else None
+        self.context = context
+        self.bm = bm
+        self.matrix_world = matrix_world
+
+        self.accel_key = (
+            context.edit_object.as_pointer(),
+            id(bm),
+            len(bm.verts),
+            len(bm.edges),
+            len(bm.faces),
+        )
+
+    def get_verts_accel(self):
+        if not self.cache:
+            return None
+        cached_accel = self.cache.get('verts_accel')
+        if not isinstance(cached_accel, dict):
+            return None
+        if cached_accel.get('key') != self.accel_key:
+            return None
+        if cached_accel.get('bm') is not self.bm:
+            return None
+        return cached_accel
+
+    def set_verts_accel(self, *, verts_filtered, verts_accel):
+        if self.cache is None:
+            return
+        self.cache['verts_accel'] = {
+            'key': self.accel_key,
+            'bm': self.bm,
+            'verts_filtered': verts_filtered,
+            'verts_accel': verts_accel,
+        }
+
+    def get_or_build_verts_accel(self):
+        cached_accel = self.get_verts_accel()
+        if cached_accel is not None:
+            return cached_accel['verts_filtered'], cached_accel['verts_accel']
+
+        context = self.context
+        bm = self.bm
+        verts_filtered = list(bm.verts)
+
+        depsgraph = context.evaluated_depsgraph_get()
+        object_evaluated = context.edit_object.evaluated_get(depsgraph)
+        bbox = object_evaluated.bound_box
+        verts_accel = Accel(verts_filtered, self.matrix_world, bbox=bbox)
+        self.set_verts_accel(verts_filtered=verts_filtered, verts_accel=verts_accel)
+        return verts_filtered, verts_accel
+
+
 class Relax_Logic:
-    def __init__(self, context, event, brush, relax):
+    def __init__(self, context, event, brush, relax, cache=None):
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.scale_avg = sum(context.edit_object.matrix_world.to_scale()) / 3
@@ -160,6 +304,7 @@ class Relax_Logic:
         opt_include_corner   = context.scene.retopoflow.include_corners
         opt_include_pinned   = context.scene.retopoflow.include_pinned
         opt_include_occluded = context.scene.retopoflow.include_occluded
+        opt_use_cache        = relax.algorithm_use_cache
 
         self.mirror = set()
         self.mirror_clip = False
@@ -184,123 +329,77 @@ class Relax_Logic:
         self.prev_displace = {}
         self.bounce_mult = {}
 
-        self.boundary = []
-        self.boundary_verts = set()
-        self.boundary_accel = None
-        if opt_mask_boundary == 'SLIDE':
-            boundary_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
-            ]
-            self.boundary = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-                for bme in boundary_edges
-            ]
-            self.boundary_verts = {
-                bmv
-                for bme in boundary_edges
-                for bmv in bme.verts
-            }
-            self.boundary_accel = EdgeAccel(self.boundary)
-
-        self.crease = []
-        self.crease_verts = set()
-        self.crease_accel = None
-        if opt_mask_creases == 'SLIDE':
-            crease_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)
-            ]
-            self.crease = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-                for bme in crease_edges
-            ]
-            self.crease_verts = {
-                bmv
-                for bme in crease_edges
-                for bmv in bme.verts
-            }
-            self.crease_accel = EdgeAccel(self.crease)
-
-        self.sharp = []
-        self.sharp_verts = set()
-        self.sharp_accel = None
-        if opt_mask_sharps == 'SLIDE':
-            sharp_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'sharp')
-            ]
-            self.sharp = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-                for bme in sharp_edges
-            ]
-            self.sharp_verts = {
-                bmv
-                for bme in sharp_edges
-                for bmv in bme.verts
-            }
-            self.sharp_accel = EdgeAccel(self.sharp)
-
-        self.seam = []
-        self.seam_verts = set()
-        self.seam_accel = None
-        if opt_mask_seams == 'SLIDE':
-            seam_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'seam')
-            ]
-            self.seam = [
-                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-                for bme in seam_edges
-            ]
-            self.seam_verts = {
-                bmv
-                for bme in seam_edges
-                for bmv in bme.verts
-            }
-            self.seam_accel = EdgeAccel(self.seam)
-
-        self.bvh = BVHTree.FromBMesh(self.bm)
-
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
 
-        self.verts_filtered = []
-        for bmv in self.bm.verts:
-            if bmv.hide: continue
-            if len(bmv.link_faces) == 0: continue
-            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
-            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_include_occluded == False and is_bmvert_hidden(context, bmv): continue
-            if opt_include_corner == False   and is_bmvert_corner(bmv): continue
-            if opt_include_pinned == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'): continue
+        def is_vert_included(bmv):
+            if bmv.hide: return False
+            if len(bmv.link_faces) == 0: return False
+            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): return False
+            if opt_mask_selected == 'EXCLUDE' and bmv.select: return False
+            if opt_mask_selected == 'ONLY' and not bmv.select: return False
+            if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
+            if opt_include_corner == False and is_bmvert_corner(bmv): return False
+            if opt_include_pinned == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'):
+                return False
+            if opt_mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv):
+                return False
             if opt_mask_creases == 'EXCLUDE' and (
                     get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
                     not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ): continue
-            if opt_mask_creases  == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False): continue
-            if opt_mask_seams    == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
-            if opt_mask_sharps   == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if opt_mask_boundary == 'EXCLUDE'  and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
-            if opt_mask_symmetry == 'EXCLUDE'  and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_mask_selected == 'EXCLUDE'  and bmv.select: continue
-            if opt_mask_selected == 'ONLY'     and not bmv.select: continue
-            if opt_mask_boundary == 'SLIDE'    and is_bmvert_corner(bmv): continue
-            if opt_mask_seams    == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'seam') for bme in bmv.link_edges]) > 2: continue
-            if opt_mask_sharps   == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'sharp') for bme in bmv.link_edges]) > 2: continue
-            if opt_mask_creases  == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False) for bme in bmv.link_edges]) > 2: continue
+            ):
+                return False
+            if opt_mask_creases == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False):
+                return False
+            if opt_mask_seams == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'seam'):
+                return False
+            if opt_mask_sharps == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'):
+                return False
+            if opt_mask_boundary == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
+                return False
+            if opt_mask_boundary == 'SLIDE' and is_bmvert_corner(bmv):
+                return False
+            if opt_mask_seams == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'seam')) > 2:
+                return False
+            if opt_mask_sharps == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'sharp')) > 2:
+                return False
+            if opt_mask_creases == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)) > 2:
+                return False
+            return True
 
-            self.verts_filtered.append(bmv)
-
-        depsgraph = context.evaluated_depsgraph_get()
-        object_evaluated = context.edit_object.evaluated_get(depsgraph)
-        bbox = object_evaluated.bound_box
-        self.verts_accel = Accel(self.verts_filtered, self.matrix_world, bbox=bbox)
+        # Cache verts and edges between strokes
+        stroke_cache = RelaxStrokeCache(
+            cache if opt_use_cache else None,
+            context=context,
+            bm=self.bm,
+            matrix_world=self.matrix_world
+        )
+        verts, self.verts_accel = stroke_cache.get_or_build_verts_accel()
+        self.verts_filtered = set([bmv for bmv in verts if is_vert_included(bmv)])
+        edge_data = EdgeAccelBuilder.build(
+            self.bm,
+            self.verts_filtered,
+            self.mirror,
+            self.mirror_threshold,
+            self.mirror_clip,
+            opt_mask_boundary,
+            opt_mask_creases,
+            opt_mask_sharps,
+            opt_mask_seams,
+        )
+        self.boundary = edge_data['boundary']
+        self.boundary_verts = edge_data['boundary_verts']
+        self.boundary_accel = edge_data['boundary_accel']
+        self.crease = edge_data['crease']
+        self.crease_verts = edge_data['crease_verts']
+        self.crease_accel = edge_data['crease_accel']
+        self.sharp = edge_data['sharp']
+        self.sharp_verts = edge_data['sharp_verts']
+        self.sharp_accel = edge_data['sharp_accel']
+        self.seam = edge_data['seam']
+        self.seam_verts = edge_data['seam_verts']
+        self.seam_accel = edge_data['seam_accel']
         self.verts_accel_time = time.time()
 
         self.draw_vectors = [[],[],[]]
@@ -335,9 +434,11 @@ class Relax_Logic:
 
         # gather options
         opt_mask_boundary    = context.scene.retopoflow.mask_boundary
+        opt_mask_selected    = context.scene.retopoflow.mask_selected
         opt_mask_creases     = context.scene.retopoflow.mask_creases
         opt_mask_seams       = context.scene.retopoflow.mask_seams
         opt_mask_sharps      = context.scene.retopoflow.mask_sharps
+        opt_include_occluded = context.scene.retopoflow.include_occluded
         opt_method           = relax.algorithm_method
         opt_steps            = relax.algorithm_iterations
         opt_prevent_bounce   = relax.algorithm_prevent_bounce
@@ -371,6 +472,15 @@ class Relax_Logic:
         self.verts_accel.rebuild(bbox=bbox)
         if not self.verts_filtered: return
         verts = self.verts_accel.get(hit['co_world'], radius3D)
+        if not opt_include_occluded:
+            # Occlusion testing is expensive, so doing it here
+            # to not test the whole mesh or invalidate the cache on view change
+            verts = {
+                bmv
+                for bmv in verts
+                if not is_bmvert_hidden(context, bmv)
+            }
+        verts = {bmv for bmv in verts if bmv in self.verts_filtered}
         if not verts: return
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         if not edges: return
