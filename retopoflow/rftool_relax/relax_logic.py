@@ -316,7 +316,6 @@ class Accel:
 class Relax_Logic:
     bm : BMesh
     em : Mesh
-    bvh : BVHTree
     matrix_world : Matrix
     matrix_world_inv : Matrix
     scale_avg : float
@@ -470,9 +469,6 @@ class Relax_Logic:
             self.seam = [ bme_cos(bme) for bme in seam_edges ]
             self.seam_verts = { bmv for bme in seam_edges for bmv in bme.verts }
             self.seam_accel = EdgeAccel(self.seam)
-
-        timings.append(('bvh', time.time()))
-        self.bvh = BVHTree.FromBMesh(self.bm)
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
