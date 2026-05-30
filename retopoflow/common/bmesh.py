@@ -557,7 +557,11 @@ def edges_to_triangles(count:int, *, triangle_inds:list[tuple[int,int,int]]=[]) 
 class EdgeAccel:
     QUERY_K = 16
 
-    def __init__(self, segments):
+    segments : list[tuple[Vector, Vector]]
+    _kdtree : KDTree | None
+    _entry_to_seg : list[int]
+
+    def __init__(self, segments: list[tuple[Vector, Vector]]):
         self.segments = list(segments)
         self._kdtree = None
         self._entry_to_seg = []
@@ -579,7 +583,7 @@ class EdgeAccel:
         self._kdtree = kd
         self._entry_to_seg = entry_to_seg
 
-    def closest_point(self, co: Vector):
+    def closest_point(self, co: Vector) -> Vector | None:
         if not self._kdtree: return None
 
         k = min(EdgeAccel.QUERY_K, len(self._entry_to_seg))
@@ -713,16 +717,23 @@ class NearestBMFace(NearestElem):
 
 
 
-def is_bmedge_boundary(bme, mirror, threshold, clip, include_hidden_boundary=True):
-    if bme.hide: return False
-    if not bme.is_boundary and include_hidden_boundary: return any([x.hide for x in bme.link_faces])
-    if not bme.is_boundary: return False
-    if not clip: return True
-    bmv0, bmv1 = bme.verts
-    co0, co1 = bmv0.co, bmv1.co
-    if 'x' in mirror and abs(co0.x) <= threshold.x and abs(co1.x) <= threshold.x: return False
-    if 'y' in mirror and abs(co0.y) <= threshold.y and abs(co1.y) <= threshold.y: return False
-    if 'z' in mirror and abs(co0.z) <= threshold.z and abs(co1.z) <= threshold.z: return False
+def is_bmedge_boundary(bme:BMEdge, mirror:set[str], threshold:Vector, clip:bool, *, include_hidden_boundary:bool=True):
+    if bme.hide:
+        return False
+
+    if not bme.is_boundary and include_hidden_boundary:
+        return any(bmf.hide for bmf in bme.link_faces)
+
+    if not bme.is_boundary:
+        return False
+
+    if clip:
+        tx, ty, tz = threshold
+        co0, co1 = bme_cos(bme)
+        if 'x' in mirror and abs(co0.x) <= tx and abs(co1.x) <= tx: return False
+        if 'y' in mirror and abs(co0.y) <= ty and abs(co1.y) <= ty: return False
+        if 'z' in mirror and abs(co0.z) <= tz and abs(co1.z) <= tz: return False
+
     return True
 
 def is_bmvert_boundary(bmv:BMVert, mirror:set[str], threshold:Vector, clip:bool, *, include_hidden_boundary:bool=True):

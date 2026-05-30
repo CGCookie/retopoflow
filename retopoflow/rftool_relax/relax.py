@@ -212,6 +212,10 @@ class RFOperator_Relax(RFOperator):
         default = True,
     )
 
+
+    logic : Relax_Logic     # pyright: ignore[reportUninitializedInstanceVariable]
+    timer : TimerHandler    # pyright: ignore[reportUninitializedInstanceVariable]
+
     def init(self, context, event):
         self.logic = Relax_Logic(
             context,
@@ -248,6 +252,7 @@ class RFOperator_Relax(RFOperator):
         self.timer.stop()
 
     def draw_postpixel(self, context):
+        if not self.RFCore: return
         if not self.RFCore.is_current_area(context): return
         self.logic.draw(context)
 

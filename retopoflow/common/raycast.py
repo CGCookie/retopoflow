@@ -258,7 +258,10 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context : Context, point : Vector|Sequence[float]) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
+def raycast_valid_sources(context : Context, point : Vector|Sequence[float]|None) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
+    if not point:
+        return None
+
     ray_world = ray_from_point(context, point)
 
     # print(f'raycast_valid_sources {ray_world=}')

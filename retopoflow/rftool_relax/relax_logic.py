@@ -62,8 +62,7 @@ from ..common.drawing import (
 )
 
 from ...addon_common.terminal import term_printer
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import Point, sign_threshold, clamp_int
+from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
 from ...addon_common.common.colors import Color4
 from ..common.iter_utils import AttrIter, CastIter
 
@@ -674,6 +673,8 @@ class Relax_Logic:
 
 
     def update(self, context:Context, event:Event):
+        self.verts_accel.rebuild(context)
+
         match event.type:
             case 'MOUSEMOVE':
                 self.pressure = getattr(event, 'pressure', 1.0)
@@ -687,16 +688,17 @@ class Relax_Logic:
             case _:
                 return
 
-        if not self.mouse: return
-
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
+        co_world : Vector = hit['co_world']  # pyright: ignore[reportAssignmentType]
 
         # Limit updates so moving the mouse doesn't update faster than timer
         cur_time = time.time()
         time_delta = cur_time - self._time
-        if time_delta < 1.0 / 120: return
-        time_delta = min(time_delta, 0.1)
+        if time_delta < 1.0 / 120:
+            # do not run faster than 120Hz!
+            return
+        time_delta = clamp(time_delta, 0.0, 0.1)
         self._time = cur_time
 
         # debugging options
@@ -715,10 +717,8 @@ class Relax_Logic:
         #     bmops.select(self.bm, bmelem)
         # bmops.flush_selection(self.bm, self.em)
 
-        self.verts_accel.rebuild(context)
-
         if not self.verts_filtered: return
-        verts = self.verts_accel.get(hit['co_world'], radius3D)
+        verts = self.verts_accel.get(co_world, radius3D)
         if self.exclude_opt('occluded'):
             verts = { bmv for bmv in verts if not self.is_bmvert_hidden(bmv) }
         if not verts: return
@@ -964,7 +964,7 @@ class Relax_Logic:
             steps = 1
         else:
             steps = relax.algorithm_iterations
-        for step in range(steps):
+        for _i_step in range(steps):
             if relax.algorithm_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
@@ -1050,21 +1050,18 @@ class Relax_Logic:
                 if opt_draw_net:
                     self.draw_vectors_net.append((bmv.co, displace_vec * 100))
 
-                if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
-                    p = self.boundary_accel.closest_point(co) if self.boundary_accel else None
-                    if p is not None:
+                if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts and self.boundary_accel:
+                    if p := self.boundary_accel.closest_point(co):
+                        print(f'snapping {co} to {p} on boundary')
                         co = p
-                if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
-                    p = self.seam_accel.closest_point(co) if self.seam_accel else None
-                    if p is not None:
+                if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts and self.seam_accel:
+                    if p := self.seam_accel.closest_point(co):
                         co = p
-                if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts:
-                    p = self.crease_accel.closest_point(co) if self.crease_accel else None
-                    if p is not None:
+                if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts and self.crease_accel:
+                    if p := self.crease_accel.closest_point(co):
                         co = p
-                if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts:
-                    p = self.sharp_accel.closest_point(co) if self.sharp_accel else None
-                    if p is not None:
+                if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts and self.sharp_accel:
+                    if p := self.sharp_accel.closest_point(co):
                         co = p
 
                 co_world = M @ Vector((*co.xyz, 1.0))
@@ -1107,7 +1104,7 @@ class Relax_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
-        print(f'elapsed: {time.time() - self._time:0.3f}s v:{len(verts)} e:{len(edges)} f:{len(faces)}')
+        print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')
 
 
     def draw(self, context:Context):
