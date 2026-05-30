@@ -69,7 +69,8 @@ from ..common.iter_utils import AttrIter, CastIter
 
 
 class Accel:
-    BINS_COUNT: int = 10
+    BINS_COUNT : int = 10
+    MIN_REBUILD_TIME : float = 2.0
 
     bmverts : list[BMVert]
     matrix_world : Matrix
@@ -85,27 +86,31 @@ class Accel:
     time : float
     bins : list[list[list[list[BMVert]]]]
 
-    def __init__(self, bmverts:list[BMVert], matrix_world:Matrix, *, bbox:list[Vector]|None=None):
+    def __init__(self, context:Context, bmverts:list[BMVert], matrix_world:Matrix, *, bbox:list[Vector]|None=None):
         self.bmverts = bmverts
         self.matrix_world = matrix_world
         self.min_x, self.min_y, self.min_z = 0, 0, 0
         self.max_x, self.max_y, self.max_z = 0, 0, 0
         self._bin_scale_x, self._bin_scale_y, self._bin_scale_z = 0, 0, 0
         self.time = time.time() - 1000
-        self.rebuild(bbox=bbox)
+        self.rebuild(context)
 
-    def rebuild(self, *, bbox:list[Vector]|None=None, delta:float=1.0):
-        if time.time() - self.time < delta:
+    def rebuild(self, context:Context):
+        if time.time() - self.time < Accel.MIN_REBUILD_TIME:
             return
         if len(self.bmverts) == 0:
             return
-        if bbox is not None:
-            # Check if any corner has NaN values.
-            for corner in bbox:
-                if isnan(corner[0]) or isnan(corner[1]) or isnan(corner[2]):
-                    print('RelaxLogic.Accel.rebuild: NaN values were found in bbox: ' + str(corner))
-                    bbox = None  # fallback to using bmesh verts (slower but already filtered for NaN values)
-                    break
+
+        depsgraph = context.evaluated_depsgraph_get()
+        object_evaluated = context.edit_object.evaluated_get(depsgraph)
+        bbox : list[Vector]|None = list(object_evaluated.bound_box)
+
+        # Check if any corner has NaN values.
+        for corner in bbox:
+            if isnan(corner[0]) or isnan(corner[1]) or isnan(corner[2]):
+                print('RelaxLogic.Accel.rebuild: NaN values were found in bbox: ' + str(corner))
+                bbox = None  # fallback to using bmesh verts (slower but already filtered for NaN values)
+                break
 
         # Initilization.
         MW = self.matrix_world
@@ -353,7 +358,6 @@ class Relax_Logic:
     bounce_mult : dict[BMVert, float]       # ...
 
     verts_accel : Accel
-    verts_accel_time : float
 
     # debugging and profiling
     draw_vectors_positive : list[tuple[Vector,Vector]]
@@ -572,14 +576,8 @@ class Relax_Logic:
             #     if not is_point_hidden_fast(matrix_world @ bmv.co)
             # ]
 
-        timings.append(('depsgraph and bbox', time.time()))
-        depsgraph = context.evaluated_depsgraph_get()
-        object_evaluated = context.edit_object.evaluated_get(depsgraph)
-        bbox = object_evaluated.bound_box
-
         timings.append(('accel', time.time()))
-        self.verts_accel = Accel(self.verts_filtered, self.matrix_world, bbox=bbox)
-        self.verts_accel_time = time.time()
+        self.verts_accel = Accel(context, self.verts_filtered, self.matrix_world)
 
         timings.append(('finished', time.time()))
         total_time = timings[-1][1] - timings[0][1]
@@ -661,7 +659,6 @@ class Relax_Logic:
         # self.seam = edge_data['seam']
         # self.seam_verts = edge_data['seam_verts']
         # self.seam_accel = edge_data['seam_accel']
-        # self.verts_accel_time = time.time()
 
         # self.occlusion_cache = {}
 
@@ -690,13 +687,17 @@ class Relax_Logic:
             case _:
                 return
 
-        # Limit updates so moving the mouse doesn't update faster than timer
-        if time.time() - self._time < 1.0 / 120: return
-
         if not self.mouse: return
 
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
+
+        # Limit updates so moving the mouse doesn't update faster than timer
+        cur_time = time.time()
+        time_delta = cur_time - self._time
+        if time_delta < 1.0 / 120: return
+        time_delta = min(time_delta, 0.1)
+        self._time = cur_time
 
         # debugging options
         opt_draw_all         = False
@@ -714,10 +715,8 @@ class Relax_Logic:
         #     bmops.select(self.bm, bmelem)
         # bmops.flush_selection(self.bm, self.em)
 
-        depsgraph = context.evaluated_depsgraph_get()
-        object_evaluated = context.edit_object.evaluated_get(depsgraph)
-        bbox = object_evaluated.bound_box
-        self.verts_accel.rebuild(bbox=bbox)
+        self.verts_accel.rebuild(context)
+
         if not self.verts_filtered: return
         verts = self.verts_accel.get(hit['co_world'], radius3D)
         if self.exclude_opt('occluded'):
@@ -727,10 +726,6 @@ class Relax_Logic:
         if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
         vert_strength = { bmv:brush.get_strength_Point(M @ bmv.co) for bmv in verts }
-
-        cur_time = time.time()
-        time_delta = min(cur_time - self._time, 0.1)
-        self._time = cur_time
 
         strength = self.pressure
 
@@ -1111,6 +1106,8 @@ class Relax_Logic:
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
+
+        print(f'elapsed: {time.time() - self._time:0.3f}s v:{len(verts)} e:{len(edges)} f:{len(faces)}')
 
 
     def draw(self, context:Context):
