@@ -34,6 +34,7 @@ from collections.abc import Iterator, Sequence
 
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel,
+    bmv_co_isnan,
     bme_cos,
     bme_vector, bme_length,
     bmf_is_flipped,
@@ -477,16 +478,18 @@ class Relax_Logic:
             # TODO: IMPLEMENT!
             return False
 
-        timings.append(('filtering', time.time()))
+        timings.append(('filtering:initial', time.time()))
         self.verts_filtered : list[BMVert] = [
             bmv for bmv in self.bm.verts
-            if all([
-                not bmv.hide,
-                len(bmv.link_faces) > 0,
-                not any(isnan(v) for v in bmv.co),
-                not (bmv.is_boundary and is_bmvert_on_ngon(bmv)),
+            if not any([
+                bmv.hide,
+                bmv.is_wire,
+                bmv.is_boundary and is_bmvert_on_ngon(bmv),
+                bmv_co_isnan(bmv),
             ])
         ]
+
+        timings.append(('filtering: bmvert and bmedge features', time.time()))
         if self.exclude_opt('corners'):
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
         if self.exclude_opt('pinned'):
@@ -525,6 +528,7 @@ class Relax_Logic:
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
             ]
 
+        timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
         self.is_bmvert_hidden = lambda _bmv: False  # nop where every bmvert is visible
         if self.exclude_opt('occluded'):
@@ -1051,8 +1055,8 @@ class Relax_Logic:
                 # displace_dist *= vert_strength[bmv]
                 if relax.algorithm_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
-                displace_vec = displace[bmv].normalized() * displace_dist
-                co = bmv.co + displace_vec
+                displace_vec : Vector = displace[bmv].normalized() * displace_dist
+                co : Vector = bmv.co + displace_vec
 
                 if opt_draw_net:
                     self.draw_vectors_net.append((bmv.co, displace_vec * 100))
@@ -1075,8 +1079,9 @@ class Relax_Logic:
                         co = p
 
                 co_world = M @ Vector((*co.xyz, 1.0))
-                co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                co_local_snapped = Mi @ co_world_snapped if co_world_snapped else co
+                co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world.xyz), world=True)
+                if not co_world_snapped: continue
+                co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
 
                 if self.mirror:
                     co_orig = self.prev[bmv]
@@ -1094,7 +1099,8 @@ class Relax_Logic:
                         if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                         if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                         co_world = M @ Vector((*co, 1.0))
-                        co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                        co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True)
+                        if not co_world_snapped: continue
                         co = Mi @ co_world_snapped
                         if d < 0.001: break  # break out if change was below threshold
                     if zero['x']: co.x = 0
@@ -1113,8 +1119,11 @@ class Relax_Logic:
         context.area.tag_redraw()
 
 
-    def draw(self, context):
-        M = context.edit_object.matrix_world
+    def draw(self, context:Context):
+        if not self.draw_vectors_positive and not self.draw_vectors_negative and not self.draw_vectors_net:
+            return
+
+        M = self.matrix_world
         rgn, r3d = context.region, context.region_data
 
         with Drawing.draw(context, CC_2D_LINES) as draw:

@@ -27,7 +27,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils import Vector, Matrix
-from math import inf
+from math import inf, isnan
 from typing import Callable, Iterator, Sequence
 
 from ...addon_common.common.decorators import add_cache
@@ -118,6 +118,10 @@ def verts_to_triangles(count):
         verts_to_triangles.triangle_inds = [[i,i,i] for i in range(count*2)]
     return verts_to_triangles.triangle_inds[:count]
 
+
+def bmv_co_isnan(bmv:BMVert) -> bool:
+    x,y,z = bmv.co
+    return isnan(x+y+z)
 
 def crossed_quad(pt0, pt1, pt2, pt3):
     v01 = pt1 - pt0
