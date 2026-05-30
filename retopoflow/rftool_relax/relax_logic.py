@@ -21,31 +21,34 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-from mathutils import Vector
+from bpy.types import Context, Event, Region, RegionView3D
+from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
+from bmesh.types import BMVert
 
 import math
 import time
 from math import isnan, inf
-from typing import Tuple
+from typing import Callable
+from collections.abc import Iterator
 
 from ..common.bmesh import get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel
-from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute
-from ..common.maths import point_to_bvec4, view_forward_direction, view_right_direction, view_up_direction, xform_direction
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
+from ..common.bmesh_maths import is_bmvert_hidden_fast, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
+from ..common.maths import (
+    view_forward_direction, view_right_direction, view_up_direction,
+    xform_direction,
+    point_to_bvec3,
+    direction_to_bvec3,
+)
+from ..common.raycast import raycast_valid_sources, nearest_point_valid_sources, mouse_from_event, iter_all_valid_sources
 from ..common.drawing import (
     Drawing,
-    CC_2D_POINTS,
     CC_2D_LINES,
-    CC_2D_LINE_STRIP,
-    CC_2D_LINE_LOOP,
-    CC_2D_TRIANGLES,
-    CC_2D_TRIANGLE_FAN,
-    CC_3D_TRIANGLES,
 )
 
+from ...addon_common.terminal import term_printer
 from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import Point, sign, sign_threshold, clamp
+from ...addon_common.common.maths import Point, sign_threshold, clamp_int
 from ...addon_common.common.colors import Color4
 from ..common.iter_utils import AttrIter, CastIter
 
@@ -53,7 +56,21 @@ from ..common.iter_utils import AttrIter, CastIter
 class Accel:
     BINS_COUNT: int = 10
 
-    def __init__(self, bmverts, matrix_world, bbox=None):
+    bmverts : list[BMVert]
+    matrix_world : Matrix
+    min_x : float
+    min_y : float
+    min_z : float
+    max_x : float
+    max_y : float
+    max_z : float
+    _bin_scale_x : float
+    _bin_scale_y : float
+    _bin_scale_z : float
+    time : float
+    bins : list[list[list[list[BMVert]]]]
+
+    def __init__(self, bmverts:list[BMVert], matrix_world:Matrix, bbox:tuple[Vector,Vector]|None=None):
         self.bmverts = bmverts
         self.matrix_world = matrix_world
         self.min_x, self.min_y, self.min_z = 0, 0, 0
@@ -62,7 +79,7 @@ class Accel:
         self.time = time.time() - 1000
         self.rebuild(bbox=bbox)
 
-    def rebuild(self, *, bbox=None, delta=1.0) -> None:
+    def rebuild(self, *, bbox:tuple[Vector,Vector]|None=None, delta:float=1.0):
         if time.time() - self.time < delta:
             return
         if len(self.bmverts) == 0:
@@ -77,7 +94,7 @@ class Accel:
 
         # Initilization.
         MW = self.matrix_world
-        loc_points = AttrIter(self.bmverts, 'co') if bbox is None else CastIter(bbox, Vector)
+        loc_points : Iterator[Vector] = AttrIter(self.bmverts, 'co') if bbox is None else CastIter(bbox, Vector)
         self.time = time.time()
         self.bins = [[[[] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)]
         self.min_x, self.min_y, self.min_z = inf, inf, inf
@@ -115,14 +132,14 @@ class Accel:
             ix, iy, iz = get_index(MW @ bmv.co)
             bins[ix][iy][iz].append(bmv)
 
-    def index(self, co_world: Vector) -> Tuple[int, int, int]:
+    def index(self, co_world: Vector) -> tuple[int, int, int]:
         max_bin_index = Accel.BINS_COUNT - 1
-        ix = clamp(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index)
-        iy = clamp(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index)
-        iz = clamp(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index)
+        ix = clamp_int(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index)
+        iy = clamp_int(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index)
+        iz = clamp_int(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index)
         return (ix, iy, iz)
 
-    def get(self, co_world, radius_world):
+    def get(self, co_world:Vector, radius_world:float) -> set[BMVert]:
         M = self.matrix_world
         r2 = radius_world * radius_world
         min_ix, min_iy, min_iz = self.index(co_world - Vector((radius_world, radius_world, radius_world)))
@@ -138,10 +155,26 @@ class Accel:
 
 
 class Relax_Logic:
-    def __init__(self, context, event, brush, relax):
+    matrix_world : Matrix
+    matrix_world_inv : Matrix
+    scale_avg : float
+    mouse : tuple[int, int]
+    forward : Vector
+    right : Vector
+    up : Vector
+
+    draw_vectors_positive : list[tuple[Vector,Vector]]
+    draw_vectors_negative : list[tuple[Vector,Vector]]
+    draw_vectors_net : list[tuple[Vector,Vector]]
+
+    def __init__(self, context:Context, event:Event, brush, relax):
+        timings : list[tuple[str,float]] = [('start', time.time())]
+
+        assert context.edit_object, 'Expected to be editing a mesh object'
+
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
-        self.scale_avg = sum(context.edit_object.matrix_world.to_scale()) / 3
+        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
         self.mouse = mouse_from_event(event)
         self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
@@ -174,9 +207,7 @@ class Relax_Logic:
             self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
             self.mirror_clip = mod.use_clip
 
-        self.bm, self.em = get_bmesh_emesh(context)
-        self.bm.faces.ensure_lookup_table()
-        self.bm.edges.ensure_lookup_table()
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self._time = time.time()
         self.pressure = 1.0
 
@@ -184,6 +215,12 @@ class Relax_Logic:
         self.prev_displace = {}
         self.bounce_mult = {}
 
+        self.draw_vectors_positive = []
+        self.draw_vectors_negative = []
+        self.draw_vectors_net = []
+
+
+        timings.append(('boundaries', time.time()))
         self.boundary = []
         self.boundary_verts = set()
         self.boundary_accel = None
@@ -204,6 +241,7 @@ class Relax_Logic:
             }
             self.boundary_accel = EdgeAccel(self.boundary)
 
+        timings.append(('creases', time.time()))
         self.crease = []
         self.crease_verts = set()
         self.crease_accel = None
@@ -211,7 +249,7 @@ class Relax_Logic:
             crease_edges = [
                 bme
                 for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)
+                if is_bmedge_edgemark(self.bm, bme, BMMarking.crease)
             ]
             self.crease = [
                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
@@ -224,6 +262,7 @@ class Relax_Logic:
             }
             self.crease_accel = EdgeAccel(self.crease)
 
+        timings.append(('sharps', time.time()))
         self.sharp = []
         self.sharp_verts = set()
         self.sharp_accel = None
@@ -231,7 +270,7 @@ class Relax_Logic:
             sharp_edges = [
                 bme
                 for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'sharp')
+                if is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)
             ]
             self.sharp = [
                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
@@ -244,6 +283,7 @@ class Relax_Logic:
             }
             self.sharp_accel = EdgeAccel(self.sharp)
 
+        timings.append(('seams', time.time()))
         self.seam = []
         self.seam_verts = set()
         self.seam_accel = None
@@ -251,7 +291,7 @@ class Relax_Logic:
             seam_edges = [
                 bme
                 for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, 'seam')
+                if is_bmedge_edgemark(self.bm, bme, BMMarking.seam)
             ]
             self.seam = [
                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
@@ -264,46 +304,134 @@ class Relax_Logic:
             }
             self.seam_accel = EdgeAccel(self.seam)
 
+        timings.append(('bvh', time.time()))
         self.bvh = BVHTree.FromBMesh(self.bm)
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
 
-        self.verts_filtered = []
-        for bmv in self.bm.verts:
-            if bmv.hide: continue
-            if len(bmv.link_faces) == 0: continue
-            if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): continue
-            if bmv.is_boundary and is_bmvert_on_ngon(bmv): continue
-            if opt_include_occluded == False and is_bmvert_hidden(context, bmv): continue
-            if opt_include_corner == False   and is_bmvert_corner(bmv): continue
-            if opt_include_pinned == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'): continue
-            if opt_mask_creases == 'EXCLUDE' and (
+        timings.append(('filtering', time.time()))
+        self.verts_filtered : list[BMVert] = [
+            bmv for bmv in self.bm.verts
+            if all([
+                not bmv.hide,
+                len(bmv.link_faces) > 0,
+                not any(isnan(v) for v in bmv.co),
+                not (bmv.is_boundary and is_bmvert_on_ngon(bmv)),
+            ])
+        ]
+        if not opt_include_corner:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_corner(bmv)
+            ]
+        if not opt_include_pinned:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+            ]
+        if opt_mask_creases == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not (
                     get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
                     not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ): continue
-            if opt_mask_creases  == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False): continue
-            if opt_mask_seams    == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
-            if opt_mask_sharps   == 'EXCLUDE'  and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if opt_mask_boundary == 'EXCLUDE'  and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip): continue
-            if opt_mask_symmetry == 'EXCLUDE'  and is_bmvert_on_symmetry_plane(bmv): continue
-            if opt_mask_selected == 'EXCLUDE'  and bmv.select: continue
-            if opt_mask_selected == 'ONLY'     and not bmv.select: continue
-            if opt_mask_boundary == 'SLIDE'    and is_bmvert_corner(bmv): continue
-            if opt_mask_seams    == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'seam') for bme in bmv.link_edges]) > 2: continue
-            if opt_mask_sharps   == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'sharp') for bme in bmv.link_edges]) > 2: continue
-            if opt_mask_creases  == 'SLIDE'    and sum([is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False) for bme in bmv.link_edges]) > 2: continue
+                )
+            ]
+        if opt_mask_creases  == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease)
+            ]
+        if opt_mask_seams    == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam)
+            ]
+        if opt_mask_sharps   == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp)
+            ]
+        if opt_mask_boundary == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+            ]
+        if opt_mask_symmetry == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_on_symmetry_plane(bmv)
+            ]
+        if opt_mask_selected == 'EXCLUDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not bmv.select
+            ]
+        if opt_mask_selected == 'ONLY':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if bmv.select
+            ]
+        if opt_mask_boundary == 'SLIDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_corner(bmv)
+            ]
+        if opt_mask_seams    == 'SLIDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) <= 2
+            ]
+        if opt_mask_sharps   == 'SLIDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) >= 2
+            ]
+        if opt_mask_creases  == 'SLIDE':
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
+            ]
+        if not opt_include_occluded:
+            # ASSUMING WE HAVE A REGION AND REGIONVIEW3D!
+            rgn : Region = context.region
+            r3d : RegionView3D = context.region_data
+            matrix_world = self.matrix_world
+            retopology_offset : float = context.space_data.overlay.retopology_offset
+            raycast_list : list[Callable[[Vector, Vector], Vector|None]] = []
+            for obj in iter_all_valid_sources(context):
+                M = obj.matrix_world
+                Mi = obj.matrix_world.inverted_safe()
+                def ray_cast(ray_e_world:Vector, ray_d_world:Vector) -> Vector|None:
+                    ray_e_local = point_to_bvec3(Mi @ ray_e_world)
+                    ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
+                    result, co_local, _, _ = obj.ray_cast(ray_e_local, ray_d_local)
+                    if not result: return None
+                    co_world = M @ co_local
+                    return co_world
+                raycast_list.append(ray_cast)
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not is_bmvert_hidden_fast(rgn, r3d, raycast_list, retopology_offset, matrix_world @ bmv.co)
+            ]
 
-            self.verts_filtered.append(bmv)
-
+        timings.append(('depsgraph and bbox', time.time()))
         depsgraph = context.evaluated_depsgraph_get()
         object_evaluated = context.edit_object.evaluated_get(depsgraph)
         bbox = object_evaluated.bound_box
+
+        timings.append(('accel', time.time()))
         self.verts_accel = Accel(self.verts_filtered, self.matrix_world, bbox=bbox)
         self.verts_accel_time = time.time()
 
-        self.draw_vectors = [[],[],[]]
+        timings.append(('finished', time.time()))
+        report = [
+            f'{time1-time0:0.3f}s {label}'
+            for (label, time0), (_label, time1) in zip(timings[:-1], timings[1:])
+        ]
+        term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
     def cancel(self, context):
         for (bmv, co) in self.prev.items():
@@ -312,15 +440,19 @@ class Relax_Logic:
         context.area.tag_redraw()
 
 
-    def update(self, context, event):
-        if event.type in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:
-            self.pressure = getattr(event, 'pressure', 1.0)
-            self.mouse = mouse_from_event(event)
-        elif event.type == 'TIMER':
-            mouse = mouse_from_event(event)
-            if mouse: self.mouse = mouse
-        else:
-            return
+    def update(self, context:Context, event:Event):
+        match event.type:
+            case 'MOUSEMOVE':
+                self.pressure = getattr(event, 'pressure', 1.0)
+                self.mouse = mouse_from_event(event)
+            case 'TIMER':
+                mouse = mouse_from_event(event)
+                if mouse: self.mouse = mouse
+            case 'INBETWEEN_MOUSEMOVE':
+                # explicitly ignoring!!
+                return
+            case _:
+                return
 
         # Limit updates so moving the mouse doesn't update faster than timer
         if time.time() - self._time < 1.0 / 120: return
@@ -390,7 +522,9 @@ class Relax_Logic:
         chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
         chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
 
-        self.draw_vectors = [[],[], []]
+        self.draw_vectors_positive.clear()
+        self.draw_vectors_negative.clear()
+        self.draw_vectors_net.clear()
 
         displace = {}
         def reset_forces():
@@ -410,9 +544,9 @@ class Relax_Logic:
             displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
             if opt_draw_all and wrt:
                 if sign > 0:
-                    self.draw_vectors[0].append((wrt, f.xyz * mult * vert_strength[bmv]))
+                    self.draw_vectors_positive.append((wrt, f.xyz * mult * vert_strength[bmv]))
                 elif sign < 0:
-                    self.draw_vectors[1].append((wrt, f.xyz * mult * vert_strength[bmv]))
+                    self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
 
         def bme_length(bme):
             return bme_vector(bme).length
@@ -722,7 +856,7 @@ class Relax_Logic:
                 co = bmv.co + displace_vec
 
                 if opt_draw_net:
-                    self.draw_vectors[2].append((bmv.co, displace_vec * 100))
+                    self.draw_vectors_net.append((bmv.co, displace_vec * 100))
 
                 if opt_mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
                     p = self.boundary_accel.closest_point(co) if self.boundary_accel else None
@@ -788,7 +922,7 @@ class Relax_Logic:
             #draw.point_size(vertex_size + 4)
             #draw.border(width=2, color=(1,1,0))
             draw.color(Color4((0, 1, 0, 0.5)))
-            for (co,v) in self.draw_vectors[0]:
+            for (co,v) in self.draw_vectors_positive:
                 co0, co1 = co, co + v
                 pt0 = location_3d_to_region_2d(rgn, r3d, M @ co0)
                 pt1 = location_3d_to_region_2d(rgn, r3d, M @ co1)
@@ -796,7 +930,7 @@ class Relax_Logic:
                     draw.vertex(pt0)
                     draw.vertex(pt1)
             draw.color(Color4((1, 0, 0, 0.5)))
-            for (co,v) in self.draw_vectors[1]:
+            for (co,v) in self.draw_vectors_negative:
                 co0, co1 = co, co + v
                 pt0 = location_3d_to_region_2d(rgn, r3d, M @ co0)
                 pt1 = location_3d_to_region_2d(rgn, r3d, M @ co1)
@@ -804,7 +938,7 @@ class Relax_Logic:
                     draw.vertex(pt0)
                     draw.vertex(pt1)
             draw.color(Color4((1, 1, 0, 0.5)))
-            for (co,v) in self.draw_vectors[2]:
+            for (co,v) in self.draw_vectors_net:
                 co0, co1 = co, co + v
                 pt0 = location_3d_to_region_2d(rgn, r3d, M @ co0)
                 pt1 = location_3d_to_region_2d(rgn, r3d, M @ co1)

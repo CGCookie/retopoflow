@@ -40,7 +40,8 @@ from ..common.bmesh import (
     bmvs_share_bmf,
     bme_other_bmv, bme_other_bmf, bme_midpoint, bme_cos,
     bmes_share_bmv, bmes_shared_bmv,
-    bmf_midpoint, bmf_opposite_bme, bmf_is_quad,
+    bmf_midpoint, bmf_opposite_bme, bmf_is_quad, bmf_is_pentagon,
+    bmf_is_tri,
     get_bmesh_emesh,
     clean_select_layers,
     NearestBMVert, NearestBMEdge, NearestBMFace,
@@ -58,6 +59,7 @@ from ..common.raycast import (
 from ..common.maths import (
     direction_to_bvec4,
     view_forward_direction,
+    distance2d_point_bmvert,
     distance2d_point_bmedge,
     clamp, xform_direction,
     perpendicular_direction2,
@@ -100,21 +102,30 @@ class PP_Action(ValueIntEnum):
     WIRE_VERT_SPLIT_FACE = auto()   # connect selected and nearest hovered verts and split face
 
 
-def get_wire(bmv : BMVert):
+def get_wire(bmv : BMVert) -> list[BMVert|BMEdge]|None:
+    """
+    Returns wire starting at given BMVert as a list alternating between BMVert and BMEdge,
+    starting with BMVert at end of wire, and ending with given BMVert.
+    """
     if not bmv.is_wire: return None
-    wire = [ bmv ]
-    seen = set()
+    bmv_pre = bmv
+    wire : list[BMVert|BMEdge] = [ bmv ]
+    seen : set[BMEdge] = set()
     while wire[-1].is_wire:
-        bmes = list(set(wire[-1].link_edges) - seen)
-        if len(bmes) != 1: return None
+        bmes : list[BMEdge] = list(set(bmv_pre.link_edges) - seen)
+        if len(bmes) != 1:
+            return None
         bme = bmes[0]
         seen.add(bme)
-        bmv = bme_other_bmv(bme, wire[-1])
-        wire += [bme, bmv]
+        bmv_next = bme_other_bmv(bme, bmv_pre)
+        if not bmv_next:
+            break
+        wire += [bme, bmv_next]
+        bmv_pre = bmv_next
     wire.reverse()
     return wire
 
-def get_wire_split_face(bmv):
+def get_wire_split_face(bmv : BMVert) -> tuple[list[BMVert|BMEdge], BMFace] | None:
     wire = get_wire(bmv)
     if not wire: return None
     # find which face has bmv in it
@@ -124,7 +135,7 @@ def get_wire_split_face(bmv):
             return (wire, bmf)
     return None
 
-def check_split_face(bmv_selected : BMVert, bmelem_hovered : BMVert | BMEdge):
+def check_split_face(bmv_selected : BMVert, bmelem_hovered : BMVert | BMEdge) -> tuple[list[BMVert|BMEdge], BMFace] | None:
     wire = get_wire(bmv_selected)
     if not wire: return None
     bmfs = list(set(bmelem_hovered.link_faces) & set(wire[0].link_faces))
@@ -133,7 +144,7 @@ def check_split_face(bmv_selected : BMVert, bmelem_hovered : BMVert | BMEdge):
     if len(bmfs) == 2:
         # looping back to adjacent edge, so figure out which bmf we need to split
         bmf0_co, bmf1_co = map(bmf_midpoint, bmfs)
-        wire_bmv = wire[2]
+        wire_bmv : BMVert = wire[2]
         if (wire_bmv.co - bmf0_co).length < (wire_bmv.co - bmf1_co).length:
             return (wire, bmfs[0])
         else:
@@ -147,15 +158,19 @@ def find_opposite_and_corner(bme0 : BMEdge, bme1 : BMEdge) -> tuple[BMVert, BMVe
     bmvs = set(bme0.verts) | set(bme1.verts)
     bmvo = next(bmv for bmv in bmf.verts if bmv not in bmvs)
     bmvc = bmes_shared_bmv(bme0, bme1)
+    if not bmvc: return (None, None)
     return (bmvo, bmvc)
 
-def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -> tuple[BMVert, BMVert] | tuple[None, None]:
+def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -> tuple[BMVert|None, BMVert|None]:
     res = check_split_face(bmv_selected, bme_hovered)
     if not res: return (None, None)                     # not splitting a face
     wire, bmf = res
     if len(wire) != 3: return (None, None)              # only handling wire with one extra vert (center)
     if len(bmf.verts) != 5: return (None, None)         # only handling quad with one extra vert
-    bmes_adj = set(wire[0].link_edges)
+    wire_first_bmv, wire_last_bmv, = wire[0], wire[-1]
+    assert type(wire_first_bmv) is BMVert, f'Unexpected type {type(wire_first_bmv)} ({wire_first_bmv})'
+    assert type(wire_last_bmv) is BMVert, f'Unexpected type {type(wire_last_bmv)} ({wire_last_bmv})'
+    bmes_adj : set[BMEdge] = set(wire_first_bmv.link_edges)
     if bme_hovered in bmes_adj: return (None, None)     # cannot loop back on adjacent edge
     bme_opposite = next(
         (
@@ -168,11 +183,12 @@ def find_opposite_and_center_wire(bmv_selected : BMVert, bme_hovered : BMEdge) -
     )
     if not bme_opposite: return (None, None)                # could not find oppositev edge
     if bme_hovered == bme_opposite: return (None, None)     # cannot hover opposite edge
-    bmv_opposite = bme_other_bmv(bme_opposite, bmes_shared_bmv(bme_hovered, bme_opposite))
-    bmv_center = wire[-1]
-    return (bmv_opposite, bmv_center)
+    bmv_shared = bmes_shared_bmv(bme_hovered, bme_opposite)
+    if not bmv_shared: return (None, None)                  # no BMVert in common
+    bmv_opposite = bme_other_bmv(bme_opposite, bmv_shared)
+    return (bmv_opposite, wire_last_bmv)
 
-def find_crossed_edge(context, matrix_world, pt0, pt1, bmedges : Iterable[BMEdge]) -> tuple[BMEdge, Vector] | None:
+def find_crossed_edge(context: Context, matrix_world : Matrix, pt0 : Vector, pt1 : Vector, bmedges : Iterable[BMEdge]) -> tuple[BMEdge, Vector] | None:
     rgn, r3d = context.region, context.region_data
     for bme in bmedges:
         bmv0, bmv1 = bme.verts
@@ -184,36 +200,43 @@ def find_crossed_edge(context, matrix_world, pt0, pt1, bmedges : Iterable[BMEdge
         return (bme, pt)
     return None
 
-def find_bmedges_to_split(context, matrix_world, bmelem_start : BMVert | BMEdge, p0, p1):
-    found = []
+def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start : BMVert|BMEdge, p0 : Vector, p1 : Vector) -> list[tuple[BMVert|BMEdge, Vector]]:
+    found : list[tuple[BMVert|BMEdge, Vector]] = []
+    touched : set[BMEdge|BMVert] = set()
+    bmfs_search : deque[BMFace] = deque()
+
     if type(bmelem_start) is BMVert:
         bmv = bmelem_start
-        seen = set()
+        seen : set[BMVert] = set()
         while bmv.is_wire and bmv not in seen:
             seen.add(bmv)
             bmvn = next((bme_other_bmv(bme, bmv) for bme in bmv.link_edges), None)
             if bmvn is None: break
             bmv = bmvn
-        bmfs_search = deque(bmv.link_faces)
-        touched = set(bmelem_start.link_edges)
-    else:  # elif type(bmelem_start) is BMEdge:
-        bmfs_search = deque(bmelem_start.link_faces)
-        touched = { bmelem_start }
+        bmfs_search.extend(bmv.link_faces)
+        touched.add(bmelem_start.link_edges)
+    elif type(bmelem_start) is BMEdge:
+        bmfs_search.extend(bmelem_start.link_faces)
+        touched.add(bmelem_start)
         found.append((bmelem_start, p0))
+    else:
+        assert False, f'Unhandled type {type(bmelem_start)} ({bmelem_start})'
 
     while bmfs_search:
-        bmf = bmfs_search.popleft()
+        bmf : BMFace = bmfs_search.popleft()
         bmes = set(bmf.edges) - touched
         res = find_crossed_edge(context, matrix_world, p0, p1, bmes)
         if not res: continue
         bme, pt = res
         touched.add(bme)
         found.append((bme, pt))
-        if bmf := bme_other_bmf(bme, bmf):
-            bmfs_search.append(bmf)
+        bmf_other = bme_other_bmf(bme, bmf)
+        if bmf_other:
+            bmfs_search.append(bmf_other)
+
     return found
 
-def compute_quad_factor(co, a, b, c, d):
+def compute_quad_factor(co : Vector, a : Vector, b : Vector, c : Vector, d : Vector) -> tuple[float, float]:
     '''
     find factors u,v where e=a+(b-a)*u, f=d+(c-d)*u, co=e+(f-e)*v.
     for now, solving iteratively, but really should see if we can solve numerically!
@@ -244,25 +267,25 @@ def compute_quad_factor(co, a, b, c, d):
     return (u, v)
 
 
-def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable, *, min_dist_ratio=1.1):
+def PP_get_edge_quad_verts(context:Context, p0:Vector, p1:Vector, mouse:Vector|None, matrix_world:Matrix, parallel_stable:float, *, min_dist_ratio:float=1.1) -> tuple[Vector|None,Vector|None]:
     '''
     this function is used in quad-only mode to find positions of quad verts based on selected edge and mouse position
     a Desmos construction of how this works: https://www.desmos.com/geometry/5w40xowuig
     '''
-    if not p0 or not p1 or not mouse: return None, None
+    if not p0 or not p1 or not mouse: return (None, None)
     v01 = p1 - p0
     dist01 = v01.length
     d01 = v01 / dist01
     mid01 = p0 + v01 / 2
     mid23 = mouse
     between = mid23 - mid01
-    if between.length < 0.0001: return None, None
+    if between.length < 0.0001: return (None, None)
 
     mid0123 = mid01 + between * clamp(parallel_stable, 0.01, 0.99)  # [0,1] larger => more parallel to original
     perp = Vector((-between.y, between.x))
     if perp.dot(v01) < 0: perp.negate()
     intersection = intersection2d_line_line(p0, p1, mid0123, mid0123 + perp)
-    if not intersection: return None, None
+    if not intersection: return (None, None)
 
     dist = d01.dot(intersection - mid01)
     if abs(dist) < dist01 * min_dist_ratio:
@@ -272,27 +295,28 @@ def PP_get_edge_quad_verts(context, p0, p1, mouse, matrix_world, parallel_stable
     toward = (mid23 - intersection).normalized()
     if toward.dot(perp) < 0: dist01 = -dist01
 
-    between_len = between.length * v01.normalized().dot(perp)
+    # between_len = between.length * v01.normalized().dot(perp)
 
-    for tries in range(32):
+    for _tries in range(32):
         p2, p3 = mid23 + toward * (dist01 / 2), mid23 - toward * (dist01 / 2)
         hit2 = raycast_point_valid_sources(context, p2)
         hit3 = raycast_point_valid_sources(context, p3)
         if hit2 and hit3:
             Mi = matrix_world.inverted_safe()
-            return Mi @ hit2, Mi @ hit3
+            return (Mi @ hit2, Mi @ hit3)
         dist01 /= 2
-    return None, None
+
+    return (None, None)
 
 
-def is_point_inside_bmface(project : Callable[[Vector], Vector], point3D : Vector, point2D : Vector, bmf : BMFace, radius_ratio : float) -> bool:
+def is_point_inside_bmface(project : Callable[[Vector|None], Vector|None], point3D : Vector, point2D : Vector, bmf : BMFace, radius_ratio : float) -> bool:
     """
     Check if given point is inside the givin BMFace.
     Note: because BMFaces need not be planar, we need to check in 2D and 3D.
     """
     midpt = bmf_midpoint(bmf)
-    radius = max((bmv.co-midpt).length for bmv in bmf.verts)
     pts = points_of_bmface(bmf)
+    radius : float = max((bmv.co - midpt).length for bmv in bmf.verts)
 
     # check if point is within BMFace in 2D (projected to screen)
     if not point_inside_face_2d(point2D, [ project(pt) for pt in pts ]):
@@ -301,11 +325,7 @@ def is_point_inside_bmface(project : Callable[[Vector], Vector], point3D : Vecto
     # check if point is within BFace in 3D
     p = point_inside_face(point3D, pts)
     dist = (point3D - p).length if p else float('inf')
-    if dist > radius * radius_ratio:
-        return False
-
-
-    return True
+    return dist > radius * radius_ratio
 
 
 
@@ -322,9 +342,9 @@ class PP_Logic:
     nearest : NearestBMVert | None
     nearest_bme : NearestBMEdge | None
     nearest_bmf : NearestBMFace | None
-    selected : dict[BMElemType, set[BMElem]] | None
+    selected : dict[BMElemType, set[BMVert]|set[BMEdge]|set[BMFace]] | None
 
-    project : Callable[[Vector], Vector]
+    project : Callable[[Vector|None], Vector|None]
 
     state : PP_Action
 
@@ -335,8 +355,8 @@ class PP_Logic:
     bme_hovered : BMEdge | None
     bme_hovered_bmvs : list[BMVert] | None
     bmv2 : BMVert | None            # EDGE_QUAD when extruding to BMVerts or hit locations
-    hit2 : Vector | None            # ...
     bmv3 : BMVert | None            # ...
+    hit2 : Vector | None            # ...
     hit3 : Vector | None            # ...
 
     update_bmesh_selection : bool
@@ -347,13 +367,14 @@ class PP_Logic:
     constrain_edge_vert : bool | None
     use_loop_cuts : bool | None
 
-    layer_sel_vert : BMLayerItem
-    layer_sel_edge : BMLayerItem
-    layer_sel_face : BMLayerItem
+    layer_sel_vert : BMLayerItem    # pyright: ignore [reportMissingTypeArgument]
+    layer_sel_edge : BMLayerItem    # pyright: ignore [reportMissingTypeArgument]
+    layer_sel_face : BMLayerItem    # pyright: ignore [reportMissingTypeArgument]
 
     split_info : dict[str, ...] | None
 
     def __init__(self, context:Context, event:Event):
+        assert context.edit_object, 'Expected to be running in edit mode'
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.update_bmesh_selection = False
@@ -385,12 +406,13 @@ class PP_Logic:
         self.bmv3 = None
         self.hit2 = None
         self.hit3 = None
+        self.hit = None
 
     def cleanup(self):
         if not self.bm or not self.bm.is_valid: return
         clean_select_layers(self.bm)
 
-    def project_all(self, *pts : Vector) -> Iterable[Vector]:
+    def project_all(self, *pts : Vector) -> Iterable[Vector|None]:
         yield from map(self.project, pts)
 
     def update(self, context:Context, event:Event, insert_mode:str|None, parallel_stable:float, quad_preserve:bool, constrain_edge_vert:bool, use_loop_cuts:bool):
@@ -399,7 +421,7 @@ class PP_Logic:
         # print('UPDATE')
 
         M, rgn, r3d = self.matrix_world, context.region, context.region_data
-        self.project = lambda p: location_3d_to_region_2d(rgn, r3d, M @ p)
+        self.project = lambda p: location_3d_to_region_2d(rgn, r3d, M @ p) if p else None
 
         self.insert_mode = insert_mode
         self.parallel_stable = parallel_stable
@@ -410,6 +432,7 @@ class PP_Logic:
         if not self.bm or not self.bm.is_valid:
             self.bm, self.em = get_bmesh_emesh(context)
             self.layer_sel_vert, self.layer_sel_edge, self.layer_sel_face = bmops.get_select_layers(self.bm)
+            print(type(self.layer_sel_vert), type(self.layer_sel_edge), type(self.layer_sel_face))
             self.selected = None
             self.nearest = None
             self.nearest_bme = None
@@ -456,12 +479,12 @@ class PP_Logic:
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
-        hit = raycast_valid_sources(context, mouse_from_event(event))
-        if hit:
-            self.hit = hit['co_local']
+        if hit := raycast_valid_sources(context, mouse_from_event(event)):
+            self.hit = hit['co_local']  # pyright: ignore[reportAttributeAccessIssue]
         else:
             self.hit = None
-            return
+
+        if not self.hit: return
 
         self.nearest.update(
             context,
@@ -469,9 +492,9 @@ class PP_Logic:
             filter_fn=lambda bmv: not is_bmvert_hidden(context, bmv),
         )
         if self.nearest.bmv:
-            self.hit = Vector(self.nearest.bmv.co)
+            self.hit = self.nearest.bmv.co
 
-        _ = self.nearest_bme.update(
+        self.nearest_bme.update(        # pyright: ignore [reportUnusedCallResult]
             context,
             self.hit,
             ignore_selected=False,
@@ -502,8 +525,8 @@ class PP_Logic:
         if self.nearest_bme.bme and not self.nearest_bme.bme.hide:
             if self.bme and self.bme.is_valid and self.bme != self.nearest_bme.bme:
                 bmfs = set(self.bme.link_faces) & set(self.nearest_bme.bme.link_faces)
-                if len(bmfs) == 1:
-                    bmf = next(iter(bmfs))
+                bmf = next(iter(bmfs), None)
+                if bmf:
                     if self.quad_preserve and len(bmf.verts) == 4 and bmes_share_bmv(self.bme, self.nearest_bme.bme):
                         self.state = PP_Action.SPLIT_QUAD_CENTER
                     else:
@@ -516,9 +539,10 @@ class PP_Logic:
                 return
 
         if len(self.selected[BMEdge]) == 0 or insert_mode == 'EDGE-ONLY':
+            sel_bmvs : set[BMVert] = self.selected[BMVert]  # pyright: ignore[reportAssignmentType]
             self.bmv = min(
-                self.selected[BMVert],
-                key=(lambda bmv:(self.hit - bmv.co).length),
+                sel_bmvs,
+                key=lambda bmv:distance2d_point_bmvert(context, self.matrix_world, self.hit, bmv),
             )
             if self.nearest.bmv:
                 if check_split_face(self.bmv, self.nearest.bmv) is not None:
@@ -539,9 +563,10 @@ class PP_Logic:
 
         if insert_mode in {'TRI/QUAD', 'QUAD-ONLY'} and self.nearest_bme.bme and not self.nearest.bmv:
             # find hovered bme but make sure it doesn't share a face with selected bme
-            sel_bme = min(
-                self.selected[BMEdge],
-                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+            sel_bme : BMEdge = min(
+                sel_bmes,
+                key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
             )
             sel_bmf = next((bmf for bmf in sel_bme.link_faces if bmf.select), None)
             if insert_mode == 'QUAD-ONLY' or (not sel_bmf or len(sel_bmf.verts) != 3):
@@ -594,64 +619,71 @@ class PP_Logic:
                     # otherwise, we bridge edges
 
                     pt1 = self.project(self.hit)  # self.mouse could be None??
-                    w = (p3 - p2).normalized().dot(pt1 - p2) / (p3 - p2).length
-                    pt0 = p0 + (p1 - p0) * w
-                    splits = find_bmedges_to_split(context, self.matrix_world, self.bme, pt0, pt1)
-                    # print(f'{w=:0.2f} {len(splits)=}')
-                    # print(f'  {p0} {pt0} {p1}')
-                    # print(f'  {p3} {pt1} {p2}')
-                    if len(splits) > 1:
-                        self.state = PP_Action.SPLIT_QUAD
-                        return
+                    if pt1:
+                        w = (p3 - p2).normalized().dot(pt1 - p2) / (p3 - p2).length
+                        pt0 = p0 + (p1 - p0) * w
+                        splits = find_bmedges_to_split(context, self.matrix_world, self.bme, pt0, pt1)
+                        # print(f'{w=:0.2f} {len(splits)=}')
+                        # print(f'  {p0} {pt0} {p1}')
+                        # print(f'  {p3} {pt1} {p2}')
+                        if len(splits) > 1:
+                            self.state = PP_Action.SPLIT_QUAD
+                            return
 
 
         if insert_mode == 'QUAD-ONLY':
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
             sel_bme = min(
-                self.selected[BMEdge],
+                sel_bmes,
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
             bmv0, bmv1 = sel_bme.verts
             p0, p1 = self.project_all(bmv0.co, bmv1.co)
-            hit2, hit3 = PP_get_edge_quad_verts(context, p0, p1, self.mouse, self.matrix_world, self.parallel_stable)
-            p2, p3 = self.project_all(hit2, hit3)
-            if not (p0 and p1 and p2 and p3): return
+            if p0 and p1:
+                hit2, hit3 = PP_get_edge_quad_verts(context, p0, p1, self.mouse, self.matrix_world, self.parallel_stable)
+                if not hit2 or not hit3: return
+                p2, p3 = self.project_all(hit2, hit3)
+                if not (p0 and p1 and p2 and p3): return
 
-            # ensure verts order makes a nice looking quad
-            v01 = (p1 - p0)
-            dotdir = v01.dot(p2 - p0) - v01.dot(p3 - p0)
-            if dotdir < 0:
-                p2, p3 = p3, p2
-                hit2, hit3 = hit3, hit2
-            # but swap verts if line segments are crossing
-            if intersect_line_line_2d(p0, p3, p1, p2):
-                p2, p3 = p3, p2
-                hit2, hit3 = hit3, hit2
+                # ensure verts order makes a nice looking quad
+                v01 = (p1 - p0)
+                dotdir = v01.dot(p2 - p0) - v01.dot(p3 - p0)
+                if dotdir < 0:
+                    p2, p3 = p3, p2
+                    hit2, hit3 = hit3, hit2
+                # but swap verts if line segments are crossing
+                if intersect_line_line_2d(p0, p3, p1, p2):
+                    p2, p3 = p3, p2
+                    hit2, hit3 = hit3, hit2
 
-            self.bmv2 = None
-            self.bmv3 = None
-            self.nearest.update(context, hit2)
-            if self.nearest.bmv:
-                self.bmv2 = self.nearest.bmv
-                hit2 = self.nearest.bmv.co
-            self.nearest.update(context, hit3)
-            if self.nearest.bmv:
-                self.bmv3 = self.nearest.bmv
-                hit3 = self.nearest.bmv.co
-            self.nearest.bmv = None
+                self.bmv2 = None
+                self.bmv3 = None
+                self.nearest.update(context, hit2)
+                if self.nearest.bmv:
+                    self.bmv2 = self.nearest.bmv
+                    hit2 = self.nearest.bmv.co
+                self.nearest.update(context, hit3)
+                if self.nearest.bmv:
+                    self.bmv3 = self.nearest.bmv
+                    hit3 = self.nearest.bmv.co
+                self.nearest.bmv = None
 
-            self.state = PP_Action.EDGE_QUAD
-            self.bme = sel_bme
-            self.hit2, self.hit3 = hit2, hit3
-            return
+                self.state = PP_Action.EDGE_QUAD
+                self.bme = sel_bme
+                self.hit2 = hit2
+                self.hit3 = hit3
+                return
 
-        if insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1 and len(next(iter(self.selected[BMFace])).edges) == 3:
-            self.state = PP_Action.TRI_QUAD
-            self.bmf = next(iter(self.selected[BMFace]))
-            self.bme = min(
-                self.bmf.edges,
-                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
-            )
-            return
+        if insert_mode == 'TRI/QUAD' and len(self.selected[BMFace]) == 1:
+            sel_bmfs : set[BMFace] = self.selected[BMFace]  # pyright: ignore[reportAssignmentType]
+            self.bmf = next(iter(sel_bmfs), None)
+            if self.bmf and bmf_is_tri(self.bmf):
+                self.state = PP_Action.TRI_QUAD
+                self.bme = min(
+                    self.bmf.edges,
+                    key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme),
+                )
+                return
 
         if self.update_split_face_loop(context):
             return
@@ -659,83 +691,105 @@ class PP_Logic:
 
         # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         if len(self.selected[BMEdge]) == 1 and self.nearest.bmv:
-            bme_selected = next(iter(self.selected[BMEdge]))
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+            bme_selected : BMEdge = next(iter(sel_bmes))
 
             if bme_selected.is_boundary:
                 # bme should have one face
                 # if edge connecting center of selected bmedge and hovered bmvert crosses the
                 # bmface adjacent to selected bmedge, then we split selected edge!
-                bmf = next(iter(bme_selected.link_faces), None)
-                bmv_pt  = self.project(self.nearest.bmv.co)
-                bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_midpoint(bme_selected), *bme_cos(bme_selected))
-                bmf_pt  = self.project(bmf_midpoint(bmf))
+                bmf : BMFace | None = next(iter(bme_selected.link_faces), None)
+                if bmf:
+                    bmv_pt  = self.project(self.nearest.bmv.co)
+                    bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_midpoint(bme_selected), *bme_cos(bme_selected))
+                    bmf_pt  = self.project(bmf_midpoint(bmf))
+                    if bmv_pt and bmf_pt and bme_pt and bme_pt0 and bme_pt1:
+                        # compute vector perpendicular to selected bmedge in screen space that is
+                        # pointing toward center of adjacent bmface
+                        v_bme_perp = perpendicular_direction2(bme_pt0 - bme_pt1, bmf_pt - bme_pt)
 
-                # compute vector perpendicular to selected bmedge in screen space that is
-                # pointing toward center of adjacent bmface
-                v_bme_perp = perpendicular_direction2(bme_pt0 - bme_pt1, bmf_pt - bme_pt)
-
-                # check if vector from center of selected bmedge to hovered bmvert is
-                # pointing in same direction as perpendicular vector computed above
-                if v_bme_perp.dot(bmv_pt - bme_pt) > 0:
-                    self.bme = bme_selected
-                    self.state = PP_Action.EDGE_SPLIT_EDGE
-                    return
+                        # check if vector from center of selected bmedge to hovered bmvert is
+                        # pointing in same direction as perpendicular vector computed above
+                        if v_bme_perp.dot(bmv_pt - bme_pt) > 0:
+                            self.bme = bme_selected
+                            self.state = PP_Action.EDGE_SPLIT_EDGE
+                            return
 
             self.bme = bme_selected
             self.state = PP_Action.EDGE_TRI
             return
 
         if len(self.selected[BMEdge]) == 1 and self.nearest_bmf.bmf:
-            self.bme = next(iter(self.selected[BMEdge]))
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+            self.bme = next(iter(sel_bmes))
             self.state = PP_Action.EDGE_SPLIT_EDGE
             return
 
         if len(self.selected[BMVert]) == 2 and len(self.selected[BMEdge]) == 1:
             self.state = PP_Action.EDGE_TRI
-            self.bme = next(iter(self.selected[BMEdge]))  # only one selected edge
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+            self.bme = next(iter(sel_bmes))  # only one selected edge
             return
 
         if len(self.selected[BMEdge]) > 1:
             self.state = PP_Action.EDGE_TRI
+            sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType]
             self.bme = min(
-                self.selected[BMEdge],
+                sel_bmes,
                 key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
             )
             return
 
-    def update_split_face_loop(self, context:Context):
+    def update_split_face_loop(self, context:Context) -> bool:
         """
         find path from one of the selected BMEdges to the hovered BMEdge
         """
 
-        if not self.use_loop_cuts:
+        if not self.use_loop_cuts or not self.nearest or not self.nearest_bme or not self.selected:
+            return False
+        if not self.hit or not self.mouse:
             return False
 
-        bme_hovered : BMEdge = self.nearest_bme.bme
-        bmes_selected : list[BMEdge] = list(self.selected[BMEdge]) if self.selected else []
-        bmes_selected.sort(key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)))
+        bmes_selected : list[BMEdge] = []
+        sel_bmvs : set[BMVert] = self.selected[BMVert]  # pyright: ignore[reportAssignmentType]
+        bmes_selected.extend([
+            bme
+            for bmv in sel_bmvs
+            for bmf in bmv.link_faces
+            if bmf_is_pentagon(bmf)
+            for bme in bmf.edges
+            if len(set(bme.verts) & self.selected[BMVert]) == 0
+        ])
+        sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType]
+        bmes_selected.extend(sel_bmes)
+        if not bmes_selected:
+            return False
 
-        if bme_hovered and bme_hovered.is_boundary:
-            # bme should have one face
-            # if edge connecting center of selected bmedge and hovered bmvert crosses the
-            # bmface adjacent to selected bmedge, then we split selected edge!
-            bmf = next(iter(bme_hovered.link_faces), None)
-            bme_co = bme_midpoint(bme_hovered)
-            bme_co0, bme_co1 = bme_cos(bme_hovered)
-            bmf_co = bmf_midpoint(bmf)
-            bmf_pt  = self.project(bmf_co)
-            bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_co, bme_co0, bme_co1)
+        bmv_hovered : BMVert|None = self.nearest.bmv
+        bme_hovered : BMEdge|None = self.nearest_bme.bme
+        bmes_selected.sort(key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme))
 
-            # compute vector perpendicular to selected bmedge in screen space that is
-            # pointing toward center of adjacent bmface
-            v_bme_perp = Vector((bme_pt1.y - bme_pt0.y, bme_pt0.x - bme_pt1.x))
-            if v_bme_perp.dot(bmf_pt - bme_pt) < 0:
-                v_bme_perp.negate()
+        # if bme_hovered and bme_hovered.is_boundary:
+        #     # bme should have one face
+        #     # if edge connecting center of selected bmedge and hovered bmvert crosses the
+        #     # bmface adjacent to selected bmedge, then we split selected edge!
+        #     bmf = next(iter(bme_hovered.link_faces), None)
+        #     bme_co = bme_midpoint(bme_hovered)
+        #     bme_co0, bme_co1 = bme_cos(bme_hovered)
+        #     bmf_co = bmf_midpoint(bmf)
+        #     bmf_pt  = self.project(bmf_co)
+        #     bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_co, bme_co0, bme_co1)
 
-            # check if vector from center of selected bmedge to hovered bmvert is
-            # pointing in same direction as perpendicular vector computed above
-            if v_bme_perp.dot(self.mouse - bme_pt) < 0:
-                return False
+        #     # compute vector perpendicular to selected bmedge in screen space that is
+        #     # pointing toward center of adjacent bmface
+        #     v_bme_perp = Vector((bme_pt1.y - bme_pt0.y, bme_pt0.x - bme_pt1.x))
+        #     if v_bme_perp.dot(bmf_pt - bme_pt) < 0:
+        #         v_bme_perp.negate()
+
+        #     # check if vector from center of selected bmedge to hovered bmvert is
+        #     # pointing in same direction as perpendicular vector computed above
+        #     if v_bme_perp.dot(self.mouse - bme_pt) < 0:
+        #         return False
 
         vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
 
@@ -746,7 +800,7 @@ class PP_Logic:
 
             for bmf_next in bme_selected.link_faces:
                 if not bmf_is_quad(bmf_next):
-                    # only consider quads
+                    # only start walking if starting from a quad
                     continue
 
                 if self.ignore_splitting_backfaces and bmf_next.normal.dot(vec_forward) > 0:
@@ -760,6 +814,8 @@ class PP_Logic:
                     continue
 
                 bme_opposite = bmf_opposite_bme(bmf_next, bme_selected)
+                if not bme_opposite:
+                    continue
                 if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite):
                     # opposite BMEdge is not hovered BMEdge, but they share BMVerts (should split face into corner)
                     continue
@@ -769,13 +825,18 @@ class PP_Logic:
                     bmf_next: bme_selected,
                 }
                 bmf_hovered : BMFace | None = None
-                working = [bme_opposite]
+                working : list[BMEdge] = [bme_opposite]
                 while working and not bmf_hovered:
                     bme = working.pop(0)
 
                     for bmf in bme.link_faces:
                         if not bmf_is_quad(bmf):
-                            # only consider quads
+                            # only continue walking if quads
+                            if bmv_hovered and bmv_hovered in bmf.verts:
+                                # ending on pentagon!
+                                bmf_hovered = path_back[bme]  # pyright: ignore[reportAssignmentType]
+                                print(f'HIT PENTAGON!')
+                                break
                             continue
 
                         if self.ignore_splitting_backfaces and bmf.normal.dot(vec_forward) > 0:
@@ -787,6 +848,8 @@ class PP_Logic:
                             continue
 
                         bme_opposite = bmf_opposite_bme(bmf, bme)
+                        if not bme_opposite:
+                            continue
 
                         if bme_hovered and bme_hovered != bme_opposite and bmes_share_bmv(bme_hovered, bme_opposite):
                             # opposite BMEdge is not hovered BMEdge, but they share BMVerts (should split face into corner)
@@ -824,10 +887,10 @@ class PP_Logic:
 
         # get list of BMEdges to split
         bmes_split : list[BMEdge] = []
-        bmvs_split : list[BMVert] = []
+        bmvs_split : list[tuple[BMVert, BMVert]] = []
         bmf_back : BMFace = bmf_hovered
         while bmf_back in path_back:
-            bme_prev : BMEdge = path_back[bmf_back]
+            bme_prev : BMEdge = path_back[bmf_back]                         # pyright: ignore[reportAssignmentType]
             bmes_split.append(bme_prev)
             bmvs : list[BMVert] = list(bmf_back.verts) # [bml.vert for bml in bmf_back.loops]
             idx0, idx1 = [ bmvs.index(bmv) for bmv in bme_prev.verts ]
@@ -835,7 +898,7 @@ class PP_Logic:
             bmvs : list[BMVert] = bmvs[idx:] + bmvs[:idx]   # rotate so bme_prev is (bmvs[3], bmvs[0])
             bmvs_split.append((bmvs[0], bmvs[3]))
             if bme_prev not in path_back: break
-            bmf_back = path_back[bme_prev]
+            bmf_back = path_back[bme_prev]                                  # pyright: ignore[reportAssignmentType]
 
         # add selected BMEdge to split
         bmes_split.append(bme_selected)
@@ -848,7 +911,7 @@ class PP_Logic:
         bmes_split.reverse()
         bmvs_split.reverse()
 
-        if not is_wire and bmes_split[-1] != bme_hovered:
+        if not is_wire and bmes_split[-1] != bme_hovered and bme_hovered:
             # need to add hovered BMEdge
             bmes_split.append(bme_hovered)
             bmv0, bmv1 = bme_hovered.verts
@@ -864,11 +927,14 @@ class PP_Logic:
         # u is weight from selected a/d to opposite b/c
         # v is weight along selected and opposite from a/b to d/c
         bmvs = list(bmf_hovered.verts) # [bml.vert for bml in bmf_hovered.loops]
-        bme_bmf_hovered = path_back[bmf_hovered]
+        bme_bmf_hovered : BMEdge = path_back[bmf_hovered]                   # pyright: ignore[reportAssignmentType]
         idx0, idx1 = [ bmvs.index(bmv) for bmv in bme_bmf_hovered.verts ]
         idx = idx0 if (idx1 + 1) % 4 == idx0 else idx1
         bmvs = bmvs[idx:] + bmvs[:idx]
         a, b, c, d = [ self.project(bmv.co) for bmv in bmvs ]
+        if not self.mouse or not a or not b or not c or not d:
+            return False
+
         u, v = compute_quad_factor(self.mouse, a, b, c, d)
 
         self.state = PP_Action.SPLIT_QUAD_EDGES
@@ -896,6 +962,9 @@ class PP_Logic:
         if self.state in {PP_Action.EDGE_TRI, PP_Action.EDGE_QUAD, PP_Action.TRI_QUAD} and (not self.bme or not self.bme.is_valid):
             self.bme = None
             return
+
+        scaled_8px = Drawing.scale(8)
+        if scaled_8px is None: return
 
         theme = context.preferences.themes[0].view_3d
         props = RF_Prefs.get_prefs(context)
@@ -933,10 +1002,10 @@ class PP_Logic:
                 if not self.nearest_bme.bme: return
                 bmv0, bmv1 = self.nearest_bme.bme.verts
                 pt = self.nearest_bme.co2d
-                p0 = self.project(bmv0.co)
-                p1 = self.project(bmv1.co)
+                p0, p1 = self.project(bmv0.co), self.project(bmv1.co)
+                if not pt or not p0 or not p1: return
                 # pt = self.project(self.bme)
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d01 = (p1 - p0).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -957,6 +1026,7 @@ class PP_Logic:
                     draw.vertex(p1 - d01).vertex(pt + d01)
 
             case PP_Action.SPLIT_QUAD_EDGES:
+                if not self.split_info: return
                 u, v = self.split_info['u,v']
                 pts = []
                 for (bmv0, bmv1) in self.split_info['bmvs split']:
@@ -988,25 +1058,30 @@ class PP_Logic:
                     draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
                     draw.color(color_border_open)
                     for p0,p1 in iter_pairs(pts, False):
-                        d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                        d01 = (p1 - p0).normalized() * scaled_8px
                         draw.vertex(p0+d01).vertex(p1-d01)
 
             case PP_Action.SPLIT_QUAD | PP_Action.SPLIT_QUAD_CENTER:
                 bme0, bme1 = self.bme, self.nearest_bme.bme
+                if not bme0 or not bme1 or not self.bme: return
+
                 if self.state == PP_Action.SPLIT_QUAD:
                     bmv00, bmv01 = bme0.verts
                     bmv10, bmv11 = bme1.verts
                     if (bmv01.co - bmv00.co).dot(bmv11.co - bmv10.co) < 0: bmv10, bmv11 = bmv11, bmv10
                 else:
                     bmv00 = bmv10 = bmes_shared_bmv(bme0, bme1)
+                    if not bmv00 or not bmv10: return
                     bmv01 = bme_other_bmv(bme0, bmv00)
                     bmv11 = bme_other_bmv(bme1, bmv10)
+                    if not bmv01 or not bmv11: return
 
                 p00 = self.project(bmv00.co)
                 p01 = self.project(bmv01.co)
                 p10 = self.project(bmv10.co)
                 p11 = self.project(bmv11.co)
                 pt = self.nearest_bme.co2d
+                if not pt or not p00 or not p01 or not p10 or not p11: return
 
                 v0, v1 = (p01 - p00), (p11 - p10)
                 l0, l1 = v0.length, v1.length
@@ -1017,7 +1092,7 @@ class PP_Logic:
 
                 splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1)
 
-                def find_opposite_and_center():
+                def find_opposite_and_center_split_quad() -> tuple[Vector|None, Vector|None]:
                     if self.state != PP_Action.SPLIT_QUAD_CENTER: return (None, None)
                     bmvc = bmes_shared_bmv(bme0, bme1)
                     if not bmvc: return (None, None)
@@ -1028,13 +1103,15 @@ class PP_Logic:
                     if not bmvo: return (None, None)
                     pc = self.project(bmvc.co)
                     po = self.project(bmvo.co)
+                    if not pc or not po: return (None, None)
                     dist = ((pc - p0).length + (pc - p1).length) / 1.5
                     pnn = pc + (po - pc).normalized() * dist
                     return (po, pnn)
-                po, pc = find_opposite_and_center()
+
+                po, pc = find_opposite_and_center_split_quad()
 
                 ## pt = self.project(self.bme)
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d01 = (p1 - p0).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1065,11 +1142,12 @@ class PP_Logic:
                         draw.vertex(po).vertex(pc)
 
             case PP_Action.WIRE_VERT_SPLIT_FACE:
+                if not self.bmv or not self.nearest.bmv: return
                 p0 = self.project(self.bmv.co)
                 pt = self.project(self.nearest.bmv.co)
                 if not (p0 and pt): return
                 diff = pt - p0
-                d = diff.normalized() * Drawing.scale(8)
+                d = diff.normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1091,14 +1169,15 @@ class PP_Logic:
                     draw.vertex(p0 + d).vertex(pt - d)
 
             case PP_Action.VERT_SPLIT_EDGE | PP_Action.WIRE_SPLIT_EDGE_FACE:
-                if not self.nearest_bme.bme: return
+                if not self.bmv or not self.nearest_bme.bme: return
                 bmv0, bmv1 = self.nearest_bme.bme.verts
                 pt = self.nearest_bme.co2d
                 p0 = self.project(bmv0.co)
                 p1 = self.project(bmv1.co)
                 pn = self.project(self.bmv.co)
+                if not pt or not p0 or not p1 or not pn: return
 
-                def find_opposite_and_center():
+                def find_opposite_and_center_split_edge() -> tuple[Vector|None,Vector|None]:
                     if not self.quad_preserve: return (None, None)
 
                     if self.state == PP_Action.WIRE_SPLIT_EDGE_FACE:
@@ -1122,10 +1201,11 @@ class PP_Logic:
                     bmv_opposite = next(iter(bmvs))
                     po = self.project(bmv_opposite.co)
                     pc = self.project(bmv_corner.co)
+                    if not po or not pc: return (None, None)
                     dist = ((pc - pt).length + (pc - pn).length) / 1.5
                     pnn = pc + (po - pc).normalized() * dist
                     return (po, pnn)
-                po, pnn = find_opposite_and_center()
+                po, pnn = find_opposite_and_center_split_edge()
 
                 splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt)
                 splits = [
@@ -1135,7 +1215,7 @@ class PP_Logic:
                 ]
 
                 # pt = self.project(self.bme)
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d01 = (p1 - p0).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1172,8 +1252,10 @@ class PP_Logic:
 
             case PP_Action.VERT_EDGE | PP_Action.EDGE_SPLIT_EDGE:
                 if self.state == PP_Action.VERT_EDGE:
+                    if not self.bmv: return
                     p0 = self.project(self.bmv.co)
                 else:  # elif self.state == PP_Action.EDGE_SPLIT_EDGE:
+                    if not self.bme: return
                     bmv0, bmv1 = self.bme.verts
                     co0, co1 = bmv0.co, bmv1.co
                     co = co0 + (co1 - co0) / 2
@@ -1185,11 +1267,12 @@ class PP_Logic:
                 pt = self.project(co)
                 if not (p0 and pt): return
                 diff = pt - p0
-                d = diff.normalized() * Drawing.scale(8)
+                d = diff.normalized() * scaled_8px
 
                 po,pnn = None,None
-                if self.state == PP_Action.VERT_EDGE and self.quad_preserve and self.nearest.bmv:
-                    bmvs = { bmes_shared_bmv(bme0, bme1) for bme0 in self.bmv.link_edges for bme1 in self.nearest.bmv.link_edges if bmes_share_bmv(bme0, bme1) }
+                if self.state == PP_Action.VERT_EDGE and self.quad_preserve and self.nearest.bmv and self.bmv:
+                    bmvs_ : set[BMVert|None] = { bmes_shared_bmv(bme0, bme1) for bme0 in self.bmv.link_edges for bme1 in self.nearest.bmv.link_edges if bmes_share_bmv(bme0, bme1) }
+                    bmvs : set[BMVert] = { bmv for bmv in bmvs_ if bmv }
                     if len(bmvs) == 1:
                         bmv_corner = next(iter(bmvs))
                         bmf = next(iter(set(self.bmv.link_faces) & set(self.nearest.bmv.link_faces)), None)
@@ -1200,13 +1283,16 @@ class PP_Logic:
                                 pn = self.project(self.nearest.bmv.co)
                                 po = self.project(bmv_opposite.co)
                                 pc = self.project(bmv_corner.co)
-                                dist = ((pc - pt).length + (pc - pn).length) / 1.5
-                                pnn = pc + (po - pc).normalized() * dist
+                                if pn and po and pc:
+                                    dist = ((pc - pt).length + (pc - pn).length) / 1.5
+                                    pnn = pc + (po - pc).normalized() * dist
 
-                if self.state == PP_Action.VERT_EDGE:
-                    splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, p0, pt)
-                else:  # elif self.state == PP_Action.EDGE_SPLIT_EDGE:
-                    splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt)
+                splits : list[tuple[BMVert|BMEdge, Vector]] = []
+                if self.state == PP_Action.VERT_EDGE and self.bmv:
+                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bmv, p0, pt))
+                elif self.bme:  # elif self.state == PP_Action.EDGE_SPLIT_EDGE:
+                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt))
+
                 if self.nearest.bmv:
                     splits = [
                         (bme, pt)
@@ -1231,7 +1317,7 @@ class PP_Logic:
                     for _,p in splits:
                         draw.vertex(p)
 
-                if diff.length > Drawing.scale(8):
+                if diff.length > scaled_8px:
                     with Drawing.draw(context, CC_2D_LINES) as draw:
                         draw.line_width(2)
                         draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
@@ -1244,14 +1330,15 @@ class PP_Logic:
                             draw.vertex(po).vertex(pnn)
 
             case PP_Action.EDGE_TRI:
+                if not self.bme: return
                 bmv0, bmv1 = self.bme.verts
                 p0 = self.project(bmv0.co)
                 p1 = self.project(bmv1.co)
                 pt = self.project(self.hit)
                 if not (p0 and p1 and pt): return
-                d0t = (pt - p0).normalized() * Drawing.scale(8)
-                d1t = (pt - p1).normalized() * Drawing.scale(8)
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
+                d0t = (pt - p0).normalized() * scaled_8px
+                d1t = (pt - p1).normalized() * scaled_8px
+                d01 = (p1 - p0).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1281,6 +1368,7 @@ class PP_Logic:
                     draw.vertex(pt).vertex(p0).vertex(p1)
 
             case PP_Action.EDGE_BRIDGE:
+                if not self.bme or not self.bme_hovered_bmvs: return
                 bmv0, bmv1 = self.bme.verts
                 bmv2, bmv3 = self.bme_hovered_bmvs
                 p0 = self.project(bmv0.co)
@@ -1289,10 +1377,10 @@ class PP_Logic:
                 p3 = self.project(bmv3.co)
                 if not (p0 and p1 and p2 and p3): return
 
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
-                d12 = (p2 - p1).normalized() * Drawing.scale(8)
-                d23 = (p3 - p2).normalized() * Drawing.scale(8)
-                d30 = (p0 - p3).normalized() * Drawing.scale(8)
+                d01 = (p1 - p0).normalized() * scaled_8px
+                d12 = (p2 - p1).normalized() * scaled_8px
+                d23 = (p3 - p2).normalized() * scaled_8px
+                d30 = (p0 - p3).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1321,6 +1409,7 @@ class PP_Logic:
                     draw.vertex(p0).vertex(p2).vertex(p3)
 
             case PP_Action.EDGE_QUAD:
+                if not self.bme: return
                 bmv0, bmv1 = self.bme.verts
                 hit2, hit3 = self.hit2, self.hit3
                 p0 = self.project(bmv0.co)
@@ -1330,10 +1419,10 @@ class PP_Logic:
                 if not (p0 and p1 and p2 and p3): return
 
                 v01, v12, v23, v30 = (p1 - p0), (p2 - p1), (p3 - p2), (p0 - p3)
-                d01 = v01.normalized() * Drawing.scale(8)
-                d12 = v12.normalized() * Drawing.scale(8)
-                d23 = v23.normalized() * Drawing.scale(8)
-                d30 = v30.normalized() * Drawing.scale(8)
+                d01 = v01.normalized() * scaled_8px
+                d12 = v12.normalized() * scaled_8px
+                d23 = v23.normalized() * scaled_8px
+                d30 = v30.normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1352,8 +1441,8 @@ class PP_Logic:
                     draw.stipple(pattern=[5,5], offset=0, color=color_stipple)
 
                     draw.color(color_border_open)
-                    if v30.length > Drawing.scale(8): draw.vertex(p0 - d30).vertex(p3 + d30)
-                    if v12.length > Drawing.scale(8): draw.vertex(p1 + d12).vertex(p2 - d12)
+                    if v30.length > scaled_8px: draw.vertex(p0 - d30).vertex(p3 + d30)
+                    if v12.length > scaled_8px: draw.vertex(p1 + d12).vertex(p2 - d12)
                     draw.vertex(p2 + d23).vertex(p3 - d23)
 
                     draw.color(color_border_open)
@@ -1366,6 +1455,7 @@ class PP_Logic:
 
 
             case PP_Action.TRI_QUAD:
+                if not self.bme or not self.bmf: return
                 bmev0, bmev1 = self.bme.verts
                 bmv0, bmv1, bmv2 = self.bmf.verts
                 if (bmev0 == bmv0 and bmev1 == bmv1) or (bmev0 == bmv1 and bmev1 == bmv0):
@@ -1379,11 +1469,11 @@ class PP_Logic:
                 p2 = self.project(bmv2.co)
                 pt = self.project(self.hit)
                 if not (p0 and p1 and p2 and pt): return
-                d0t = (pt - p0).normalized() * Drawing.scale(8)
-                d1t = (pt - p1).normalized() * Drawing.scale(8)
-                d01 = (p1 - p0).normalized() * Drawing.scale(8)
-                d02 = (p2 - p0).normalized() * Drawing.scale(8)
-                d12 = (p2 - p1).normalized() * Drawing.scale(8)
+                d0t = (pt - p0).normalized() * scaled_8px
+                d1t = (pt - p1).normalized() * scaled_8px
+                d01 = (p1 - p0).normalized() * scaled_8px
+                d02 = (p2 - p0).normalized() * scaled_8px
+                d12 = (p2 - p1).normalized() * scaled_8px
 
                 with Drawing.draw(context, CC_2D_POINTS) as draw:
                     draw.point_size(vertex_size + 4)
@@ -1427,6 +1517,7 @@ class PP_Logic:
         if has_mirror_z(context): mirror.add('z')
         if not mirror: return co
         mt = mirror_threshold(context)
+        if mt is None: return co
         signs = [
             Vector((sign_threshold(bmv.co.x, mt), sign_threshold(bmv.co.y, mt), sign_threshold(bmv.co.z, mt)))
             for bmv in bmvs_based

@@ -23,9 +23,11 @@ import bpy
 
 import time
 import math
-from typing import Any
+from typing import Callable
+from collections.abc import Sequence, Iterable
 
-from bpy.types import Context, Object
+from bpy.types import Context, Event, Scene, Region, RegionView3D
+from bpy.types import Object as BObject
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
@@ -35,27 +37,27 @@ from bpy_extras.view3d_utils import (
 )
 
 from .maths import (
-    point_to_bvec3, vector_to_bvec3, point_to_bvec4, vector_to_bvec4,
+    point_to_bvec3, vector_to_bvec3, point_to_bvec4, vector_to_bvec4, direction_to_bvec3,
     xform_point, xform_vector, xform_direction, xform_normal,
 )
 
-def mouse_from_event(event) -> type[int, int]:
+def mouse_from_event(event:Event) -> tuple[int, int]:
     return (event.mouse_region_x, event.mouse_region_y)
 
-def vec_forward(context):
+def vec_forward(context : Context) -> Vector:
     # TODO: remove invert!
     r3d = context.space_data.region_3d
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,0,-1))
-def vec_right(context):
+def vec_right(context : Context) -> Vector:
     # TODO: remove invert!
     r3d = context.space_data.region_3d
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((1,0,0))
-def vec_up(context):
+def vec_up(context : Context) -> Vector:
     # TODO: remove invert!
     r3d = context.space_data.region_3d
     return r3d.view_matrix.to_3x3().inverted_safe() @ Vector((0,1,0))
 
-def distance_between_locations(a, b):
+def distance_between_locations(a:Vector, b:Vector) -> float:
     a, b = point_to_bvec3(a), point_to_bvec3(b)
     return (a - b).length
 
@@ -154,15 +156,15 @@ def direction_from_point(context, point_screen_or_world) -> Vector:
     v = region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized()
     return Vector(( v.x, v.y, v.z, 0.0 ))
 
-def ray_from_point(context, point_screen_or_world):
+def ray_from_point(context:Context, point_screen_or_world:Vector|Sequence[float]) -> tuple[Vector|None, Vector|None]:
     # if point is 2d, treat as being in screen space
     # if 3d, treat as world space
     if not context.region_data or not point_screen_or_world: return (None, None)
     if len(point_screen_or_world) > 2:
-        point_screen = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
+        point_screen : Sequence[float] = location_3d_to_region_2d(context.region, context.region_data, point_screen_or_world)
         if not point_screen: return (None, None)
     else:
-        point_screen = point_screen_or_world
+        point_screen : Sequence[float] = point_screen_or_world
     return (
         Vector((*region_2d_to_origin_3d(context.region, context.region_data, point_screen), 1.0)),
         Vector((*region_2d_to_vector_3d(context.region, context.region_data, point_screen).normalized(), 0.0)),
@@ -220,9 +222,11 @@ def has_faces(context, obj):
     else:
         return False
 
-def is_valid_source(context, obj):
-    ts = context.scene.tool_settings
-    props = context.scene.retopoflow
+def is_valid_source(context:Context, obj:BObject) -> bool:
+    scene : Scene|None = context.scene
+    if not scene: return False
+    ts = scene.tool_settings
+    props = getattr(scene, 'retopoflow')
     if obj.mode != 'OBJECT': return False
     if not obj.visible_get(): return False
     if not has_faces(context, obj): return False
@@ -237,7 +241,7 @@ def is_valid_source(context, obj):
             return False
         return True
 
-def iter_all_valid_sources(context):
+def iter_all_valid_sources(context:Context) -> Iterable[BObject]:
     yield from (
         obj
         for obj in context.view_layer.objects
@@ -254,7 +258,7 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context:Context, point:Vector) -> dict[str,...]|None:
+def raycast_valid_sources(context : Context, point : Vector|Sequence[float]) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
     ray_world = ray_from_point(context, point)
 
     # print(f'raycast_valid_sources {ray_world=}')
@@ -310,9 +314,39 @@ def raycast_valid_sources(context:Context, point:Vector) -> dict[str,...]|None:
     #     hit = Mi @ hit
     # return hit.xyz
 
-def raycast_point_valid_sources(context, point_screen_or_world, **kwargs):
-    ray_world = ray_from_point(context, point_screen_or_world)
-    return raycast_ray_valid_sources(context, ray_world, **kwargs)
+
+def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
+    point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
+    if not point_screen:
+        return (None, None)
+    return (
+        Vector((*region_2d_to_origin_3d(rgn, r3d, point_screen), 1.0)),
+        Vector((*region_2d_to_vector_3d(rgn, r3d, point_screen).normalized(), 0.0)),
+    )
+
+
+def raycast_dist_sources_fast(
+    rgn:Region, r3d:RegionView3D,
+    raycast_list : list[Callable[[Vector,Vector], Vector|None]],
+    point_world : Vector|Sequence[float],
+) -> float:
+    ray_e_world, ray_d_world = ray_from_point_fast(rgn, r3d, point_world)
+    if not ray_e_world or not ray_d_world: return float('inf')
+
+    best_dist = float('inf')
+    for ray_cast in raycast_list:
+        co_world = ray_cast(ray_e_world, ray_d_world)
+        if not co_world: continue
+        dist_world = distance_between_locations(ray_e_world, co_world)
+        best_dist = min(best_dist, dist_world)
+
+    return best_dist
+
+
+def raycast_point_valid_sources(context:Context, point_screen_or_world:Vector, **kwargs) -> Vector|None:
+    ray_e_world, ray_d_world = ray_from_point(context, point_screen_or_world)
+    if not ray_e_world or not ray_d_world: return None
+    return raycast_ray_valid_sources(context, (ray_e_world, ray_d_world), **kwargs)
 
 def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True) -> Vector|None:
     if ray_world[0] is None: return None
@@ -406,7 +440,7 @@ class MatrixInfo:
     Mt  : Matrix
     Mit : Matrix
 
-    def __init__(self, *, context:Context|None=None, matrix:Matrix|None=None, object:Object|None=None):
+    def __init__(self, *, context:Context|None=None, matrix:Matrix|None=None, object:BObject|None=None):
         assert context or matrix or object, 'Must specify either context, matrix, or object'
         if context:
             object = context.edit_object
@@ -450,7 +484,7 @@ class FindNearest:
     from_point_local : Vector
 
     distance_world : float
-    object         : Object | None
+    object         : BObject | None
     face_index     : int    | None
     point_world    : Vector | None
     normal_world   : Vector | None

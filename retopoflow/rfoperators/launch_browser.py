@@ -91,7 +91,7 @@ def unregister():
 
 
 # Previous operator was generated to be unique to every tool
-"""
+r"""
 from ..common.operator import create_operator
 
 def key_type(k): return re.sub(r'(ctrl|shift|alt|oskey)\+', '', k, flags=re.IGNORECASE)

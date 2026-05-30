@@ -21,14 +21,14 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
-from bpy.types import Mesh, Context
+from bpy.types import Mesh, Context, MirrorModifier
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 from mathutils import Vector, Matrix
 from math import inf
-from typing import Callable
+from typing import Callable, Iterator, Sequence
 
 from ...addon_common.common.decorators import add_cache
 from ...addon_common.common import bmesh_ops as bmops
@@ -46,8 +46,10 @@ from .raycast import nearest_normal_valid_sources
 
 from .drawing import Drawing
 
-def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[BMesh, Mesh]:
+def get_bmesh_emesh(context:Context, *, ensure_lookup_tables:bool=False) -> tuple[BMesh, Mesh]:
+    assert context.edit_object, 'Expected to be editing a mesh'
     em = context.edit_object.data
+    assert isinstance(em, Mesh), 'Expected to be editing a mesh'
     bm = bmesh.from_edit_mesh(em)
     if ensure_lookup_tables:
         bm.verts.ensure_lookup_table()
@@ -60,20 +62,22 @@ def get_bmesh_emesh(context, *, ensure_lookup_tables=False) -> tuple[BMesh, Mesh
         bm.faces.index_update()
     return (bm, em)
 
-def iter_mirror_modifiers(obj):
-    yield from (
-        mod
-        for mod in obj.modifiers
-        if mod.type == 'MIRROR' and (mod.show_render or mod.show_viewport)
-    )
-def mirror_threshold(context):
+def iter_mirror_modifiers(obj : bpy.types.Object|None) -> Iterator[MirrorModifier]:
+    if not obj: return
+    for mod in obj.modifiers:
+        if mod.type != 'MIRROR': continue
+        # if not isinstance(mod, MirrorModifier): continue
+        if not mod.show_render and not mod.show_viewport: continue
+        yield mod                                                                       # pyright: ignore [reportReturnType]
+
+def mirror_threshold(context: Context) -> float|None:
     return next((mod.merge_threshold for mod in iter_mirror_modifiers(context.edit_object)), None)
-def has_mirror_x(context):
-    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.edit_object))
-def has_mirror_y(context):
-    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.edit_object))
-def has_mirror_z(context):
-    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.edit_object))
+def has_mirror_x(context:Context) -> bool:
+    return any(mod.use_axis[0] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
+def has_mirror_y(context:Context) -> bool:
+    return any(mod.use_axis[1] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
+def has_mirror_z(context:Context) -> bool:
+    return any(mod.use_axis[2] for mod in iter_mirror_modifiers(context.edit_object))   # pyright: ignore [reportIndexIssue]
 
 @add_cache('cache', {})
 def get_object_bmesh(obj):
@@ -160,23 +164,30 @@ def bme_midpoint(bme : BMEdge) -> Vector:
     return (bmv0.co + bmv1.co) / 2
 # def bme_other_bmv(bme, bmv):
 #     return next((bmv_ for bmv_ in bme.verts if bmv_ != bmv), None)
-def bme_other_bmv(bme, bmv):
+def bme_other_bmv(bme : BMEdge, bmv : BMVert) -> BMVert|None:
     bmv0, bmv1 = bme.verts
-    if bmv != bmv0 and bmv != bmv1: return None
+    if bmv != bmv0 and bmv != bmv1:
+        return None
     return bmv0 if bmv1 == bmv else bmv1
-def bme_other_bmf(bme, bmf):
+def bme_other_bmf(bme : BMEdge, bmf : BMFace) -> BMFace|None:
     return next((bmf_ for bmf_ in bme.link_faces if bmf_ != bmf), None)
 def bmes_share_bmv(bme0 : BMEdge | None, bme1 : BMEdge | None) -> bool:
     if not bme0 or not bme1: return False
     a0,a1 = bme0.verts
     b0,b1 = bme1.verts
     return (a0==b0) or (a0==b1) or (a1==b0) or (a1==b1)
-def bmes_shared_bmv(bme0, bme1):
-    return next(iter(set(bme0.verts) & set(bme1.verts)), None)
+def bmes_shared_bmv(bme0 : BMEdge, bme1 : BMEdge) -> BMVert | None:
+    v00, v01 = bme0.verts
+    v10, v11 = bme1.verts
+    if v00 == v10 or v00 == v11:
+        return v00
+    if v01 == v10 or v01 == v11:
+        return v01
+    return None
 def bme_unshared_bmv(bme, bme_other):
     bmv0, bmv1 = bme.verts
     return bmv0 if bmv1 in bme_other.verts else bmv1
-def bmvs_shared_bme(bmv0, bmv1):
+def bmvs_shared_bme(bmv0 : BMVert, bmv1 : BMVert) -> BMEdge | None:
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bmfs_shared_bme(bmf0, bmf1):
     return next((bme for bme in bmf0.edges if bme in bmf1.edges), None)
@@ -199,9 +210,43 @@ def bmf_midpoint_radius(bmf):
     rad = max((bmv.co - mid).length for bmv in bmf.verts)
     return (mid, rad)
 
-def bmf_is_quad(bmf):
+def bmf_is_tri(bmf:BMFace) -> bool:
+    return len(bmf.edges) == 3
+def bmf_is_quad(bmf:BMFace) -> bool:
     return len(bmf.edges) == 4
-def bmf_opposite_bme(bmf, bme):
+def bmf_is_pentagon(bmf:BMFace) -> bool:
+    return len(bmf.edges) == 5
+
+def bmf_opposite_bmelem(bmf:BMFace, bmelem:BMVert|BMEdge) -> BMVert | BMEdge | None:
+    try:
+        l = len(bmf.edges)
+        if l % 2 == 0:
+            # even-sided face
+            o = l // 2                          # offset
+            if isinstance(bmelem, BMEdge):
+                idx0 = bmf.edges.index(bmelem)
+                idx1 = (idx0 + o) % l
+                return bmf.edges[idx1]
+            elif isinstance(bmelem, BMVert):
+                idx0 = bmf.verts.index(bmelem)
+                idx1 = (idx0 + o) % l
+                return bmf.verts[idx1]
+        else:
+            # odd-sided face
+            o1, o2 = l // 2, l // 2 + 1         # offsets
+            if isinstance(bmelem, BMEdge):
+                idx0 = bmf.edges.index(bmelem)
+                idx1, idx2 = (idx0 + o1) % l, (idx0 + o2) % l
+                return bmes_shared_bmv(bmf.edges[idx1], bmf.edges[idx2])
+            elif isinstance(bmelem, BMVert):
+                idx0 = bmf.verts.index(bmelem)
+                idx1, idx2 = (idx0 + o1) % l, (idx0 + o2) % l
+                return bmvs_shared_bme(bmf.verts[idx1], bmf.verts[idx2])
+    except:
+        return None
+
+
+def bmf_opposite_bme(bmf:BMFace, bme:BMEdge) -> BMEdge | None:
     # assumes bmf is a quad
     return next(
         ( bme_other for bme_other in bmf.edges if not bmes_share_bmv(bme, bme_other) ),
@@ -405,6 +450,11 @@ def nearest_bme_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.8
 
 
 class NearestElem:
+    bm : BMesh
+    matrix : Matrix
+    matrix_inv : Matrix
+    bvh_faces : BVHTree
+
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         self.bm = bm
         self.matrix = matrix
@@ -417,6 +467,10 @@ class NearestElem:
 
 
 class NearestBMVert(NearestElem):
+    loose_bmvs : list[BMVert]
+    bvh_verts : BVHTree
+    bmv : BMVert | None
+
     def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
         super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
@@ -461,18 +515,17 @@ class NearestBMVert(NearestElem):
         co2ds = [location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmv.co) for bmv in bmvs]
         dists = [(co2d - co2d_).length if co2d_ else inf for co2d_ in co2ds]
         bmv,dist = min(zip(bmvs, dists), key=(lambda bmv_dist: bmv_dist[1]))
-        if dist <= Drawing.scale(distance2d):
+        if dist <= (Drawing.scale(distance2d) or 0):
             self.bmv = bmv
 
 
-@add_cache('triangle_inds', [])
-def edges_to_triangles(count):
-    if count > len(edges_to_triangles.triangle_inds):
-        edges_to_triangles.triangle_inds = [
-            [i*2+0, i*2+1, i*2+1]     # IMPORTANT: first two have to be different, otherwise BVH cannot see it?
-            for i in range(count*2)
-        ]
-    return edges_to_triangles.triangle_inds[:count]
+def edges_to_triangles(count:int, *, triangle_inds:list[tuple[int,int,int]]=[]) -> list[tuple[int,int,int]]:  # pyright: ignore [reportCallInDefaultInitializer]
+    if count > len(triangle_inds):
+        triangle_inds.extend([
+            (i*2+0, i*2+1, i*2+1)     # IMPORTANT: first two have to be different, otherwise BVH cannot see it?
+            for i in range(len(triangle_inds), count*2)
+        ])
+    return triangle_inds[:count]
 
 
 class EdgeAccel:
@@ -524,19 +577,19 @@ class EdgeAccel:
 class NearestBMEdge(NearestElem):
     bvh_edges : BVHTree
     loose_bmes : list[BMEdge]
-    bme : BMEdge|None
-    co2d : Vector
+    bme : BMEdge | None
+    co2d : Vector | None
 
-    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
+    def __init__(self, bm:BMesh, matrix:Matrix, matrix_inv:Matrix, *, ensure_lookup_tables:bool=True):
         super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
         # assuming there are relatively few loose bmes (bmedge that is not part of a bmface)
         self.loose_bmes = [bme for bme in self.bm.edges if not bme.link_faces]
-        loose_bme_cos = [bmv.co for bme in self.loose_bmes for bmv in bme.verts]
-
+        loose_bme_cos : list[Sequence[float]] = [bmv.co for bme in self.loose_bmes for bmv in bme.verts]
         self.bvh_edges = BVHTree.FromPolygons(loose_bme_cos, edges_to_triangles(len(self.loose_bmes)), all_triangles=True)
 
         self.bme = None
+        self.co2d = None
 
     @property
     def is_valid(self):
@@ -546,20 +599,23 @@ class NearestBMEdge(NearestElem):
             all(bme.is_valid for bme in self.loose_bmes),
         ))
 
-    def update(self, context:Context, co:Vector, *, distance:float=1.84467e19, distance2d:float=10, ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> BMEdge|None:
+    def update(self, context:Context, co:Vector|None, *, distance:float=1.84467e19, distance2d:float=10, ignore_selected:bool=True, filter_fn:None|Callable[[BMEdge], bool]=None) -> BMEdge|None:
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
         self.bme = None
-        if not self.is_valid:
+        scaled_distance2d = Drawing.scale(distance2d)
+        if not self.is_valid or not co or not scaled_distance2d:
             return None
 
-        bme_co, bme_norm, bme_idx, bme_dist = self.bvh_edges.find_nearest(co, distance) # distance=1.0
-        bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh_faces.find_nearest(co, distance) # distance=1.0
+        _, _, bme_idx, _ = self.bvh_edges.find_nearest(co, distance) # distance=1.0
+        _, _, bmf_idx, _ = self.bvh_faces.find_nearest(co, distance) # distance=1.0
 
         bmes : list[BMEdge] = []
-        if bme_idx is not None: bmes += [self.loose_bmes[bme_idx]]
-        if bmf_idx is not None: bmes += self.bm.faces[bmf_idx].edges
+        if bme_idx is not None:
+            bmes.append(self.loose_bmes[bme_idx])
+        if bmf_idx is not None:
+            bmes.extend(self.bm.faces[bmf_idx].edges)
         if filter_fn:
             bmes = [bme for bme in bmes if filter_fn(bme)]
         if ignore_selected:
@@ -567,7 +623,6 @@ class NearestBMEdge(NearestElem):
         if not bmes:
             return None
 
-        inf = float('inf')
         co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
         co2ds = [
             ( location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmv.co) for bmv in bme.verts )
@@ -575,16 +630,20 @@ class NearestBMEdge(NearestElem):
         ]
         dists = [distance_point_linesegment(co2d, *co2d_) for co2d_ in co2ds]
         bme,dist = min(zip(bmes, dists), key=(lambda bme_dist: bme_dist[1]))
-        if dist > Drawing.scale(distance2d):
+        if dist > scaled_distance2d:
             return None
 
         self.bme = bme
         co2d0, co2d1 = [location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmv.co) for bmv in bme.verts]
-        self.co2d = closest_point_linesegment(co2d, co2d0, co2d1)
+        co2d = closest_point_linesegment(co2d, co2d0, co2d1)
+        if not co2d: return None
+        self.co2d = co2d
         return self.bme
 
 class NearestBMFace(NearestElem):
-    def __init__(self, bm, matrix, matrix_inv, *, ensure_lookup_tables=True):
+    bmf : BMFace | None
+
+    def __init__(self, bm:BMesh, matrix:Matrix, matrix_inv:Matrix, *, ensure_lookup_tables:bool=True):
         super().__init__(bm, matrix, matrix_inv, ensure_lookup_tables=ensure_lookup_tables)
 
         self.bmf = None
@@ -596,30 +655,35 @@ class NearestBMFace(NearestElem):
             (self.bmf is None or self.bmf.is_valid),
         ))
 
-    def update(self, context, co, *, distance=1.84467e19, distance2d=10, filter_selected=True, filter_fn=None):
+    def update(self, context:Context, co:Vector|None, *, distance:float=1.84467e19, distance2d:int=10, filter_selected:bool=True, filter_fn:Callable[[BMFace],bool]|None=None):
         # NOTE: distance here is local to object!!!  target object could be scaled!
         # even stranger is if target is non-uniformly scaled
 
         self.bmf = None
-        if not self.is_valid: return
-        if not co: return
+        scaled_distance2d = Drawing.scale(distance2d)
+        if not self.is_valid or not co or not scaled_distance2d:
+            return
 
-        bmf_co, bmf_norm, bmf_idx, bmf_dist = self.bvh_faces.find_nearest(co, distance) # distance=1.0
+        bmf_co, _, bmf_idx, _ = self.bvh_faces.find_nearest(co, distance) # distance=1.0
+        if bmf_co is None or bmf_idx is None: return
 
-        if bmf_idx is not None:
-            co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
-            bmf_co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmf_co)
-            if (co2d - bmf_co2d).length < Drawing.scale(distance2d):
-                try:
-                    self.bmf = self.bm.faces[bmf_idx]
-                except IndexError:
-                    print(f'WARN: ftable is outdated. bmf_idx={bmf_idx}, face_count={len(self.bm.faces)}')
-                    self.bm.faces.ensure_lookup_table()  # Fix 1617
-                    self.bmf = self.bm.faces[bmf_idx]
+        co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ co)
+        bmf_co2d = location_3d_to_region_2d(context.region, context.region_data, self.matrix @ bmf_co)
+        if not co2d or not bmf_co2d: return
+        if (co2d - bmf_co2d).length < scaled_distance2d:
+            try:
+                self.bmf = self.bm.faces[bmf_idx]
+            except IndexError:
+                print(f'WARN: ftable is outdated. bmf_idx={bmf_idx}, face_count={len(self.bm.faces)}')
+                self.bm.faces.ensure_lookup_table()  # Fix 1617
+                self.bmf = self.bm.faces[bmf_idx]
+
         if filter_fn and self.bmf:
-            if not filter_fn(self.bmf): self.bmf = None
+            if not filter_fn(self.bmf):
+                self.bmf = None
         elif filter_selected and self.bmf:
-            if self.bmf.select: self.bmf = None
+            if self.bmf.select:
+                self.bmf = None
 
 
 
@@ -635,9 +699,9 @@ def is_bmedge_boundary(bme, mirror, threshold, clip, include_hidden_boundary=Tru
     if 'z' in mirror and abs(co0.z) <= threshold.z and abs(co1.z) <= threshold.z: return False
     return True
 
-def is_bmvert_boundary(bmv, mirror, threshold, clip, include_hidden_boundary=True):
+def is_bmvert_boundary(bmv:BMVert, mirror:set[str], threshold:Vector, clip:bool, *, include_hidden_boundary:bool=True):
     if bmv.hide: return False
-    if not bmv.is_boundary and include_hidden_boundary: return any([x.hide for x in bmv.link_edges])
+    if not bmv.is_boundary and include_hidden_boundary: return any(bme.hide for bme in bmv.link_edges)
     if not bmv.is_boundary: return False
     if not clip: return True
     if 'x' in mirror and abs(bmv.co.x) <= threshold.x: return False
@@ -645,14 +709,11 @@ def is_bmvert_boundary(bmv, mirror, threshold, clip, include_hidden_boundary=Tru
     if 'z' in mirror and abs(bmv.co.z) <= threshold.z: return False
     return True
 
-def is_bmvert_corner(bmv):
+def is_bmvert_corner(bmv : BMVert) -> bool:
     return (
         len(bmv.link_edges) == 2 or
         len(bmv.link_edges) == 4 and len(bmv.link_faces) == 3
     )
 
-def is_bmvert_on_ngon(bmv):
-    for bmf in bmv.link_faces:
-        if len(bmf.edges) > 4:
-            return True
-    return False
+def is_bmvert_on_ngon(bmv : BMVert) -> bool:
+    return any(len(bmf.edges) > 4 for bmf in bmv.link_faces)

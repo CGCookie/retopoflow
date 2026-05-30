@@ -396,7 +396,7 @@ class CC_3D_TRIANGLES(CC_DRAW):
 
 class Drawing:
     @staticmethod
-    def scale(s : float) -> float | None:
+    def scale(s : float|None) -> float|None:
         return s * (bpy.context.preferences.system.ui_scale) if s is not None else None
 
     @staticmethod

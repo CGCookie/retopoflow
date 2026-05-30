@@ -19,7 +19,8 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import os, bpy
+import os
+import bpy
 
 
 def append_path(file_name, data_type):
@@ -27,7 +28,7 @@ def append_path(file_name, data_type):
         os.path.dirname(__file__), '..', '..', 'assets', f"{file_name}\\{data_type}\\"
     ))
 
-  
+
 def append_node(node_tree_name, nodes=None, is_geo_node=True):
     if any(x.name == node_tree_name for x in bpy.data.node_groups):
         # No need to append if it already exists

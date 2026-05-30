@@ -19,8 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from typing import Union
-
 import bpy
 import bmesh
 from bmesh.types import (
@@ -30,9 +28,9 @@ from bmesh.types import (
 )
 
 
-BMElemType = Union[type[BMVert] | type[BMEdge] | type[BMFace]]
-BMElem = Union[BMVert | BMEdge | BMFace]
-BMLayer = Union[BMLayerAccessVert | BMLayerAccessEdge | BMLayerAccessFace]
+BMElemType = type[BMVert] | type[BMEdge] | type[BMFace]
+BMElem = BMVert | BMEdge | BMFace
+BMLayer = BMLayerAccessVert | BMLayerAccessEdge | BMLayerAccessFace
 
 
 def get_layer(bm : BMesh, bmelem_type : BMElemType, layer_type : str, name : str) -> BMLayer:
@@ -63,7 +61,7 @@ def get_select_layers(bm) -> tuple[BMLayerItem, BMLayerItem, BMLayerItem]:
 
 
 
-def get_all_selected(bm : BMesh) -> dict[BMElemType, set[BMElem]]:
+def get_all_selected(bm : BMesh) -> dict[BMElemType, set[BMVert]|set[BMEdge]|set[BMFace]]:
     return {
         BMVert: get_all_selected_bmverts(bm),
         BMEdge: get_all_selected_bmedges(bm),

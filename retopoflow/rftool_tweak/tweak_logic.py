@@ -34,7 +34,7 @@ import math
 import time
 
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, EdgeAccel
-from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute
+from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
 
@@ -43,8 +43,7 @@ from ...addon_common.common.maths import closest_point_segment, Point, sign, sig
 
 class Tweak_Logic:
     def __init__(self, context, event, brush, tweak):
-        self.bm, self.em = get_bmesh_emesh(context)
-        self.bm.faces.ensure_lookup_table()
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
 
@@ -89,7 +88,7 @@ class Tweak_Logic:
         self._seam_verts = set()
         self._seam_accel = None
         if self.props_scene.mask_seams != 'SLIDE': return
-        seam_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, 'seam')]
+        seam_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.seam)]
         self._seam_verts = {bmv for bme in seam_edges for bmv in bme.verts}
         self._seam_accel = EdgeAccel(
             (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in seam_edges
@@ -99,7 +98,7 @@ class Tweak_Logic:
         self._sharp_verts = set()
         self._sharp_accel = None
         if self.props_scene.mask_sharps != 'SLIDE': return
-        sharp_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, 'sharp')]
+        sharp_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)]
         self._sharp_verts = {bmv for bme in sharp_edges for bmv in bme.verts}
         self._sharp_accel = EdgeAccel(
             (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in sharp_edges
@@ -110,7 +109,7 @@ class Tweak_Logic:
         self._crease_accel = None
         if self.props_scene.mask_creases != 'SLIDE': return
         self.bm.edges.ensure_lookup_table()
-        crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)]
+        crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.crease, ensure_lookup=False)]
         self._crease_verts = {bmv for bme in crease_edges for bmv in bme.verts}
         self._crease_accel = EdgeAccel(
             (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in crease_edges
@@ -154,12 +153,12 @@ class Tweak_Logic:
                 not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
             ):
                 continue
-            if props.mask_creases  == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'crease'): continue
-            if props.mask_seams    == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'seam'): continue
-            if props.mask_sharps   == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'): continue
-            if props.mask_seams    == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, 'seam') for bme in bmv.link_edges]) > 2: continue
-            if props.mask_sharps   == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, 'sharp') for bme in bmv.link_edges]) > 2: continue
-            if props.mask_creases  == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False) for bme in bmv.link_edges]) > 2: continue
+            if props.mask_creases  == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease): continue
+            if props.mask_seams    == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam): continue
+            if props.mask_sharps   == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp): continue
+            if props.mask_seams    == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges]) > 2: continue
+            if props.mask_sharps   == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges]) > 2: continue
+            if props.mask_creases  == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges]) > 2: continue
             if props.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
             if props.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
             if props.mask_selected == 'EXCLUDE' and bmv.select: continue

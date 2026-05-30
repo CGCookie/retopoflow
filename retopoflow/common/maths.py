@@ -23,10 +23,13 @@ import bpy
 import bmesh
 from mathutils import Vector, Matrix, Quaternion
 from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context
+from bmesh.types import BMVert, BMEdge
 
 import math
 import numpy as np
 import random
+from collections.abc import Sequence
 
 from ...addon_common.common.maths import clamp, Point, Vector, Normal
 
@@ -57,8 +60,9 @@ def bbox_center(bmvs):
     average = (maximum - minimum) / 2
     return minimum + average
 
-def distance_point_linesegment(pt, p0, p1, *, min_factor=0.05, max_factor=0.95, default=float('inf')):
-    if not pt or not p0 or not p1: return default
+def distance_point_linesegment(pt:Vector|None, p0:Vector|None, p1:Vector|None, *, min_factor:float=0.05, max_factor:float=0.95, default:float=float('inf')) -> float:
+    if not pt or not p0 or not p1:
+        return default
     v01 = p1 - p0
     l01_squared = v01.length_squared
     if l01_squared <= 0.00001:
@@ -72,15 +76,22 @@ def distance_point_bmedge(pt, bme, **kwargs):
     bmv0, bmv1 = bme.verts
     return distance_point_linesegment(pt, bmv0.co, bmv1.co, **kwargs)
 
-def distance2d_point_bmedge(context, matrix, pt, bme):
+def distance2d_point_bmvert(context:Context, matrix:Matrix, pt3D:Vector|None, bmv:BMVert) -> float:
+    if not pt3D: return float('inf')
+    p = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt3D)
+    v = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv.co)
+    return (p - v).length if p and v else float('inf')
+
+def distance2d_point_bmedge(context:Context, matrix:Matrix, pt3D:Vector|None, bme:BMEdge) -> float:
+    if not pt3D: return float('inf')
     bmv0, bmv1 = bme.verts
-    p  = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt)
+    p  = location_3d_to_region_2d(context.region, context.region_data, matrix @ pt3D)
     p0 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv0.co)
     p1 = location_3d_to_region_2d(context.region, context.region_data, matrix @ bmv1.co)
-    if not p or not p0 or not p1: return float('inf')
-    return distance_point_linesegment(p, p0, p1)
+    return distance_point_linesegment(p, p0, p1) if p and p0 and p1 else float('inf')
 
-def closest_point_linesegment(pt, p0, p1):
+def closest_point_linesegment(pt:Vector|None, p0:Vector|None, p1:Vector|None) -> Vector|None:
+    if not pt or not p0 or not p1: return None
     v01 = p1 - p0
     l01_squared = v01.length_squared
     if l01_squared < 1e-5: return p0  # p0 and p1 are basically coincident (#1581)
@@ -93,16 +104,21 @@ def bvec_vector_to_bvec4(v):
     return Vector((v[0], v[1], v[2], 0))
 def bvec_to_point(v):
     return Point((*point_to_bvec3(v), 1.0))
-def point_to_bvec3(pt : Point|Vector) -> Vector:
-    return pt.xyz / pt.w if len(pt) == 4 else pt.xyz
+def point_to_bvec3(pt : Point|Vector|Sequence[float]) -> Vector:
+    if len(pt) == 4:
+        x,y,z,w = pt
+        return Vector((x/w, y/w, z/w))
+    x,y,z = pt
+    return Vector((x,y,z))
 def point_to_bvec4(pt):
     return Vector((*point_to_bvec3(pt), 1))
 def vector_to_bvec3(v):
     return v.xyz
 def vector_to_bvec4(v):
     return Vector((*v.xyz, 0))
-def direction_to_bvec3(v):
-    return v.xyz
+def direction_to_bvec3(v:Vector|Sequence[float]) -> Vector:
+    x,y,z,*_ = v
+    return Vector((x,y,z))
 def direction_to_bvec4(v):
     return Vector((*v.xyz, 0))
 def normal_to_bvec3(v):

@@ -2041,6 +2041,9 @@ def segment2D_intersection(a0, a1, b0, b1):
 def clamp(v : float, min_v : float, max_v : float) -> float:
     return max(min_v, min(max_v, v))
 
+def clamp_int(v : int, min_v : int, max_v : int) -> int:
+    return max(min_v, min(max_v, v))
+
 
 def mid(v0, v1, v2):
     v0,v1 = min(v0,v1),max(v0,v1)
@@ -2122,8 +2125,9 @@ def all_combinations(things):
     for i in range(1, len(things)+1):
         yield from combinations(things, i)
 
-def point_inside_face_2d(pt, pts_face):
+def point_inside_face_2d(pt:Vector|None, pts_face:list[Vector|None]) -> bool:
     # assuming simple face (convex)
+    if not pt or not all(pts_face): return False
     face_center = sum(pts_face, Vector((0,0))) / len(pts_face)
     face_radius = max((pt_face - face_center).length_squared for pt_face in pts_face)
     if (pt - face_center).length_squared > face_radius: return False

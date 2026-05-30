@@ -21,29 +21,21 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from mathutils import Vector, Matrix
-from bmesh.types import BMVert, BMEdge, BMFace
-from bpy.types import Context
+from bmesh.types import BMVert, BMEdge, BMesh
+from bpy.types import Context, Region, RegionView3D
 
 from .bmesh import (
-    get_bmesh_emesh,
-    bme_midpoint, get_boundary_strips_cycles,
+    get_boundary_strips_cycles,
     bme_other_bmv,
-    bmes_shared_bmv,
-    bme_unshared_bmv,
-    bmvs_shared_bme,
-    bme_vector,
     bme_length,
 )
-from .raycast import raycast_point_valid_sources, raycast_valid_sources
-from .maths import view_forward_direction, lerp, point_to_bvec4
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.bezier import interpolate_cubic
-from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import closest_point_segment, segment2D_intersection, Point
-from ...addon_common.common.maths import clamp, Direction
+from .raycast import raycast_valid_sources, raycast_dist_sources_fast, ray_from_point_fast
+from .maths import point_to_bvec4
+from ...addon_common.common.maths import closest_point_segment, Point, Direction
 from ...addon_common.common.utils import iter_pairs
 
-import math
+from enum import IntEnum, auto
+from typing import Callable
 
 
 ## TODO: organize and generalize this code a bit better!
@@ -303,33 +295,49 @@ def is_bmvert_hidden(context:Context, bmv:BMVert, *, factor:float=0.99) -> bool:
     offset = context.space_data.overlay.retopology_offset
     return hit_dist < ((ray_e.xyz - point.xyz).length - offset) * factor
 
-def is_bmedge_edgemark(bm, bme, mark, ensure_lookup=True):
-    if mark == 'seam':
-        if getattr(bme, mark): return True
-    elif mark == 'sharp':
-        if not getattr(bme, 'smooth'): return True
-    elif mark == 'crease':
-        if ensure_lookup:
-            bm.edges.ensure_lookup_table()
-        layer = bm.edges.layers.float.get('crease_edge')
-        if not layer: return False
-        if bme[layer]: return True
+def is_bmvert_hidden_fast(
+    rgn:Region, r3d:RegionView3D,
+    raycast_list:list[Callable[[Vector,Vector], Vector|None]],
+    retopology_offset:float,
+    point_world:Vector,
+    *,
+    factor:float=0.99,
+) -> bool:
+    ray_e_world, _ = ray_from_point_fast(rgn, r3d, point_world)
+    if not ray_e_world: return True
+    dist_world = raycast_dist_sources_fast(rgn, r3d, raycast_list, point_world)
+    return dist_world * dist_world < ((ray_e_world.xyz - point_world.xyz).length_squared - retopology_offset) * factor
+
+
+class BMMarking(IntEnum):
+    seam = auto()
+    sharp = auto()
+    crease = auto()
+
+
+
+def is_bmedge_edgemark(bm:BMesh, bme:BMEdge, mark:BMMarking):
+    match mark:
+        case BMMarking.seam:
+            return getattr(bme, 'seam')
+        case BMMarking.sharp:
+            return not getattr(bme, 'smooth')
+        case BMMarking.crease:
+            layer = bm.edges.layers.float.get('crease_edge')
+            if not layer: return False
+            return bme[layer]
     return False
 
-def is_bmvert_on_edgemark(bm, bmv, mark, ensure_lookup=True):
-    if mark == 'seam':
-        for bme in bmv.link_edges:
-            if getattr(bme, mark): return True
-    elif mark == 'sharp':
-        for bme in bmv.link_edges:
-            if not getattr(bme, 'smooth'): return True
-    elif mark == 'crease':
-        if ensure_lookup:
-            bm.edges.ensure_lookup_table()
-        layer = bm.edges.layers.float.get('crease_edge')
-        if not layer: return False
-        for bme in bmv.link_edges:
-            if bme[layer]: return True
+def is_bmvert_on_edgemark(bm:BMesh, bmv:BMVert, mark:BMMarking) -> bool:
+    match mark:
+        case BMMarking.seam:
+            return any( getattr(bme, 'seam') for bme in bmv.link_edges )
+        case BMMarking.sharp:
+            return not all( getattr(bme, 'smooth') for bme in bmv.link_edges )
+        case BMMarking.crease:
+            layer = bm.edges.layers.float.get('crease_edge')
+            if not layer: return False
+            return any( bme[layer] for bme in bmv.link_edges )
     return False
 
 def get_bmvert_attribute(bm, bmv, attribute, data_type):
