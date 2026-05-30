@@ -29,13 +29,13 @@ from .bmesh import (
     bme_other_bmv,
     bme_length,
 )
-from .raycast import raycast_valid_sources, raycast_dist_sources_fast, ray_from_point_fast
+from .raycast import raycast_valid_sources
 from .maths import point_to_bvec4
 from ...addon_common.common.maths import closest_point_segment, Point, Direction
 from ...addon_common.common.utils import iter_pairs
 
 from enum import IntEnum, auto
-from typing import Callable
+from typing import Any
 
 
 ## TODO: organize and generalize this code a bit better!
@@ -295,26 +295,11 @@ def is_bmvert_hidden(context:Context, bmv:BMVert, *, factor:float=0.99) -> bool:
     offset = context.space_data.overlay.retopology_offset
     return hit_dist < ((ray_e.xyz - point.xyz).length - offset) * factor
 
-def is_bmvert_hidden_fast(
-    rgn:Region, r3d:RegionView3D,
-    raycast_list:list[Callable[[Vector,Vector], Vector|None]],
-    retopology_offset:float,
-    point_world:Vector,
-    *,
-    factor:float=0.99,
-) -> bool:
-    ray_e_world, _ = ray_from_point_fast(rgn, r3d, point_world)
-    if not ray_e_world: return True
-    dist_world = raycast_dist_sources_fast(rgn, r3d, raycast_list, point_world)
-    return dist_world * dist_world < ((ray_e_world.xyz - point_world.xyz).length_squared - retopology_offset) * factor
-
 
 class BMMarking(IntEnum):
     seam = auto()
     sharp = auto()
     crease = auto()
-
-
 
 def is_bmedge_edgemark(bm:BMesh, bme:BMEdge, mark:BMMarking):
     match mark:
@@ -340,10 +325,18 @@ def is_bmvert_on_edgemark(bm:BMesh, bmv:BMVert, mark:BMMarking) -> bool:
             return any( bme[layer] for bme in bmv.link_edges )
     return False
 
-def get_bmvert_attribute(bm, bmv, attribute, data_type):
+
+def is_bmvert_pinned(bm : BMesh, bmv: BMVert) -> bool:
+    return get_bmvert_attribute(bm, bmv, 'retopoflow_pins', 'float')
+
+def is_bmvert_creased(bm : BMesh, bmv : BMVert) -> bool:
+    return get_bmvert_attribute(bm, bmv, 'crease_vert', 'float')
+
+
+def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
     bm.verts.ensure_lookup_table()
-    layer = getattr(bm.verts.layers, data_type).get(attribute)
+    layer = getattr(bm.verts.layers, data_type).get(attribute) # pyright: ignore[reportAny]
     if layer:
-        return bmv[layer]
+        return bmv[layer]  # pyright: ignore[reportAny]
     else:
         return None

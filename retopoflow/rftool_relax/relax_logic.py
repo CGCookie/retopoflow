@@ -20,27 +20,41 @@ Created by Jonathan Denning, Jonathan Lampel
 '''
 
 import bmesh
-from bpy_extras.view3d_utils import location_3d_to_region_2d
-from bpy.types import Context, Event, Region, RegionView3D
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
+from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
-from bmesh.types import BMVert
+from mathutils.kdtree import KDTree
+from bmesh.types import BMesh, BMVert
 
 import math
 import time
 from math import isnan, inf
 from typing import Callable
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
-from ..common.bmesh import get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel
-from ..common.bmesh_maths import is_bmvert_hidden_fast, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
+from ..common.bmesh import (
+    get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel,
+    bme_vector, bme_length,
+    bmf_is_flipped,
+)
+from ..common.bmesh_maths import (
+    is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
+    is_bmvert_pinned,
+    is_bmvert_creased,
+)
 from ..common.maths import (
     view_forward_direction, view_right_direction, view_up_direction,
     xform_direction,
     point_to_bvec3,
     direction_to_bvec3,
 )
-from ..common.raycast import raycast_valid_sources, nearest_point_valid_sources, mouse_from_event, iter_all_valid_sources
+from ..common.raycast import (
+    raycast_valid_sources,
+    nearest_point_valid_sources,
+    mouse_from_event,
+    iter_all_valid_sources,
+)
 from ..common.drawing import (
     Drawing,
     CC_2D_LINES,
@@ -70,7 +84,7 @@ class Accel:
     time : float
     bins : list[list[list[list[BMVert]]]]
 
-    def __init__(self, bmverts:list[BMVert], matrix_world:Matrix, bbox:tuple[Vector,Vector]|None=None):
+    def __init__(self, bmverts:list[BMVert], matrix_world:Matrix, *, bbox:tuple[Vector,Vector]|None=None):
         self.bmverts = bmverts
         self.matrix_world = matrix_world
         self.min_x, self.min_y, self.min_z = 0, 0, 0
@@ -154,20 +168,202 @@ class Accel:
         }
 
 
+class EdgeAccelBuilder:
+    @staticmethod
+    def build(bm, verts, mirror, mirror_threshold, mirror_clip, mask_boundary, mask_creases, mask_sharps, mask_seams):
+        local_edges = {bme for bmv in verts for bme in bmv.link_edges}
+
+        boundary = []
+        boundary_verts = set()
+        boundary_accel = None
+        if mask_boundary == 'SLIDE':
+            boundary_edges = [
+                bme for bme in local_edges
+                if is_bmedge_boundary(bme, mirror, mirror_threshold, mirror_clip)
+            ]
+            boundary = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in boundary_edges
+            ]
+            boundary_verts = {
+                bmv for bme in boundary_edges for bmv in bme.verts
+            }
+            boundary_accel = EdgeAccel(boundary)
+
+        crease = []
+        crease_verts = set()
+        crease_accel = None
+        if mask_creases == 'SLIDE':
+            crease_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, BMMarking.crease)
+            ]
+            crease = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in crease_edges
+            ]
+            crease_verts = {
+                bmv for bme in crease_edges for bmv in bme.verts
+            }
+            crease_accel = EdgeAccel(crease)
+
+        sharp = []
+        sharp_verts = set()
+        sharp_accel = None
+        if mask_sharps == 'SLIDE':
+            sharp_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, BMMarking.sharp)
+            ]
+            sharp = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in sharp_edges
+            ]
+            sharp_verts = {
+                bmv for bme in sharp_edges for bmv in bme.verts
+            }
+            sharp_accel = EdgeAccel(sharp)
+
+        seam = []
+        seam_verts = set()
+        seam_accel = None
+        if mask_seams == 'SLIDE':
+            seam_edges = [
+                bme for bme in local_edges
+                if is_bmedge_edgemark(bm, bme, BMMarking.seam)
+            ]
+            seam = [
+                (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
+                for bme in seam_edges
+            ]
+            seam_verts = {
+                bmv for bme in seam_edges for bmv in bme.verts
+            }
+            seam_accel = EdgeAccel(seam)
+
+        edge_data = {
+            'boundary': boundary,
+            'boundary_verts': boundary_verts,
+            'boundary_accel': boundary_accel,
+            'crease': crease,
+            'crease_verts': crease_verts,
+            'crease_accel': crease_accel,
+            'sharp': sharp,
+            'sharp_verts': sharp_verts,
+            'sharp_accel': sharp_accel,
+            'seam': seam,
+            'seam_verts': seam_verts,
+            'seam_accel': seam_accel,
+        }
+        return edge_data
+
+
+class RelaxStrokeCache:
+    def __init__(self, cache, *, context, bm, matrix_world):
+        self.cache = cache if isinstance(cache, dict) else None
+        self.context = context
+        self.bm = bm
+        self.matrix_world = matrix_world
+
+        self.accel_key = (
+            context.edit_object.as_pointer(),
+            id(bm),
+            len(bm.verts),
+            len(bm.edges),
+            len(bm.faces),
+        )
+
+    def get_verts_accel(self):
+        if not self.cache:
+            return None
+        cached_accel = self.cache.get('verts_accel')
+        if not isinstance(cached_accel, dict):
+            return None
+        if cached_accel.get('key') != self.accel_key:
+            return None
+        if cached_accel.get('bm') is not self.bm:
+            return None
+        return cached_accel
+
+    def set_verts_accel(self, *, verts_filtered, verts_accel):
+        if self.cache is None:
+            return
+        self.cache['verts_accel'] = {
+            'key': self.accel_key,
+            'bm': self.bm,
+            'verts_filtered': verts_filtered,
+            'verts_accel': verts_accel,
+        }
+
+    def get_or_build_verts_accel(self):
+        cached_accel = self.get_verts_accel()
+        if cached_accel is not None:
+            return cached_accel['verts_filtered'], cached_accel['verts_accel']
+
+        context = self.context
+        bm = self.bm
+        verts_filtered = list(bm.verts)
+
+        depsgraph = context.evaluated_depsgraph_get()
+        object_evaluated = context.edit_object.evaluated_get(depsgraph)
+        bbox = object_evaluated.bound_box
+        verts_accel = Accel(verts_filtered, self.matrix_world, bbox=bbox)
+        self.set_verts_accel(verts_filtered=verts_filtered, verts_accel=verts_accel)
+        return verts_filtered, verts_accel
+
+
 class Relax_Logic:
+    bm : BMesh
+    em : Mesh
+    bvh : BVHTree
     matrix_world : Matrix
     matrix_world_inv : Matrix
     scale_avg : float
-    mouse : tuple[int, int]
+    mirror : set[str]
+    mirror_clip : bool
+    mirror_threshold : Vector
+
+    rf_options : PropertyGroup
+
+    boundary : list[tuple[Vector,Vector]]
+    boundary_verts : set[BMVert]
+    boundary_accel : EdgeAccel | None
+    crease : list[tuple[Vector,Vector]]
+    crease_verts : set[BMVert]
+    crease_accel : EdgeAccel | None
+    sharp : list[tuple[Vector,Vector]]
+    sharp_verts : set[BMVert]
+    sharp_accel : EdgeAccel | None
+    seam : list[tuple[Vector,Vector]]
+    seam_verts : set[BMVert]
+    seam_accel : EdgeAccel | None
+
     forward : Vector
     right : Vector
     up : Vector
 
+    mouse : tuple[int, int]
+    pressure : float
+
+    prev_position : dict[BMVert, Vector]    # remember where verts were in case of cancel
+    prev_displace : dict[BMVert, Vector]    # attempt at preventing verts bouncing unstably
+    bounce_mult : dict[BMVert, float]       # ...
+
+    verts_accel : Accel
+    verts_accel_time : float
+
+    # debugging and profiling
     draw_vectors_positive : list[tuple[Vector,Vector]]
     draw_vectors_negative : list[tuple[Vector,Vector]]
     draw_vectors_net : list[tuple[Vector,Vector]]
+    _time : float
 
-    def __init__(self, context:Context, event:Event, brush, relax):
+    def mask_opt(self, name : str) -> str:
+        return str(getattr(self.rf_options, f'mask_{name}'))
+    def include_opt(self, name : str) -> bool:
+        return bool(getattr(self.rf_options, f'include_{name}'))
+
+    def __init__(self, context:Context, event:Event, brush, relax, cache=None):
         timings : list[tuple[str,float]] = [('start', time.time())]
 
         assert context.edit_object, 'Expected to be editing a mesh object'
@@ -184,15 +380,8 @@ class Relax_Logic:
         self.relax = relax
 
         # gather options
-        opt_mask_boundary    = context.scene.retopoflow.mask_boundary
-        opt_mask_selected    = context.scene.retopoflow.mask_selected
-        opt_mask_symmetry    = context.scene.retopoflow.mask_symmetry
-        opt_mask_sharps      = context.scene.retopoflow.mask_sharps
-        opt_mask_creases     = context.scene.retopoflow.mask_creases
-        opt_mask_seams       = context.scene.retopoflow.mask_seams
-        opt_include_corner   = context.scene.retopoflow.include_corners
-        opt_include_pinned   = context.scene.retopoflow.include_pinned
-        opt_include_occluded = context.scene.retopoflow.include_occluded
+        self.rf_options = context.scene.retopoflow
+        # opt_use_cache = relax.algorithm_use_cache
 
         self.mirror = set()
         self.mirror_clip = False
@@ -211,7 +400,7 @@ class Relax_Logic:
         self._time = time.time()
         self.pressure = 1.0
 
-        self.prev = {}
+        self.prev_position = {}
         self.prev_displace = {}
         self.bounce_mult = {}
 
@@ -224,7 +413,7 @@ class Relax_Logic:
         self.boundary = []
         self.boundary_verts = set()
         self.boundary_accel = None
-        if opt_mask_boundary == 'SLIDE':
+        if self.mask_opt('boundary') == 'SLIDE':
             boundary_edges = [
                 bme
                 for bme in self.bm.edges
@@ -245,7 +434,7 @@ class Relax_Logic:
         self.crease = []
         self.crease_verts = set()
         self.crease_accel = None
-        if opt_mask_creases == 'SLIDE':
+        if self.mask_opt('creases') == 'SLIDE':
             crease_edges = [
                 bme
                 for bme in self.bm.edges
@@ -266,7 +455,7 @@ class Relax_Logic:
         self.sharp = []
         self.sharp_verts = set()
         self.sharp_accel = None
-        if opt_mask_sharps == 'SLIDE':
+        if self.mask_opt('sharps') == 'SLIDE':
             sharp_edges = [
                 bme
                 for bme in self.bm.edges
@@ -287,7 +476,7 @@ class Relax_Logic:
         self.seam = []
         self.seam_verts = set()
         self.seam_accel = None
-        if opt_mask_seams == 'SLIDE':
+        if self.mask_opt('seams') == 'SLIDE':
             seam_edges = [
                 bme
                 for bme in self.bm.edges
@@ -311,7 +500,10 @@ class Relax_Logic:
             # TODO: IMPLEMENT!
             return False
 
-        timings.append(('filtering', time.time()))
+        ##########################################################################################
+        # denning
+
+        timings.append(('filtering: all but occlusion', time.time()))
         self.verts_filtered : list[BMVert] = [
             bmv for bmv in self.bm.verts
             if all([
@@ -321,100 +513,83 @@ class Relax_Logic:
                 not (bmv.is_boundary and is_bmvert_on_ngon(bmv)),
             ])
         ]
-        if not opt_include_corner:
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_corner(bmv)
-            ]
-        if not opt_include_pinned:
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ]
-        if opt_mask_creases == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not (
-                    get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                    not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-                )
-            ]
-        if opt_mask_creases  == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease)
-            ]
-        if opt_mask_seams    == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam)
-            ]
-        if opt_mask_sharps   == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp)
-            ]
-        if opt_mask_boundary == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
-            ]
-        if opt_mask_symmetry == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_on_symmetry_plane(bmv)
-            ]
-        if opt_mask_selected == 'EXCLUDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not bmv.select
-            ]
-        if opt_mask_selected == 'ONLY':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if bmv.select
-            ]
-        if opt_mask_boundary == 'SLIDE':
-            self.verts_filtered = [
-                bmv for bmv in self.verts_filtered
-                if not is_bmvert_corner(bmv)
-            ]
-        if opt_mask_seams    == 'SLIDE':
+        if not self.include_opt('corners'):
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+        if not self.include_opt('pinned'):
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_pinned(self.bm, bmv) ]
+        if self.mask_opt('creases') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_creased(self.bm, bmv) or is_bmvert_pinned(self.bm, bmv) ]
+        if self.mask_opt('creases')  == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease) ]
+        if self.mask_opt('seams')    == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
+        if self.mask_opt('sharps')   == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        if self.mask_opt('boundary') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip) ]
+        if self.mask_opt('symmetry') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_symmetry_plane(bmv) ]
+        if self.mask_opt('selected') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv.select ]
+        if self.mask_opt('selected') == 'ONLY':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv.select ]
+        if self.mask_opt('boundary') == 'SLIDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+        if self.mask_opt('seams')    == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) <= 2
             ]
-        if opt_mask_sharps   == 'SLIDE':
+        if self.mask_opt('sharps')   == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) >= 2
             ]
-        if opt_mask_creases  == 'SLIDE':
+        if self.mask_opt('creases')  == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
             ]
-        if not opt_include_occluded:
+
+        timings.append(('filtering: only occlusion', time.time()))
+        if not self.include_opt('occluded'):
             # ASSUMING WE HAVE A REGION AND REGIONVIEW3D!
             rgn : Region = context.region
             r3d : RegionView3D = context.region_data
             matrix_world = self.matrix_world
             retopology_offset : float = context.space_data.overlay.retopology_offset
-            raycast_list : list[Callable[[Vector, Vector], Vector|None]] = []
+
+            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = []
             for obj in iter_all_valid_sources(context):
-                M = obj.matrix_world
                 Mi = obj.matrix_world.inverted_safe()
-                def ray_cast(ray_e_world:Vector, ray_d_world:Vector) -> Vector|None:
+                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float) -> bool:
                     ray_e_local = point_to_bvec3(Mi @ ray_e_world)
                     ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
-                    result, co_local, _, _ = obj.ray_cast(ray_e_local, ray_d_local)
-                    if not result: return None
-                    co_world = M @ co_local
-                    return co_world
-                raycast_list.append(ray_cast)
+                    return obj.ray_cast(ray_e_local, ray_d_local, distance=max_distance)[0]
+                is_bmvert_hidden_list.append(hidden_tester)
+
+            def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
+                point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
+                if not point_screen: return (None, None)
+                return (
+                    Vector((*region_2d_to_origin_3d(rgn, r3d, point_screen), 1.0)),
+                    Vector((*region_2d_to_vector_3d(rgn, r3d, point_screen).normalized(), 0.0)),
+                )
+
+            def is_bmvert_hidden_fast(point_world:Vector, *,factor:float=0.99) -> bool:
+                ray_to_e_world, ray_to_d_world = ray_from_point_fast(rgn, r3d, point_world)
+                if not ray_to_e_world or not ray_to_d_world: return True
+                ray_from_d_world = -ray_to_d_world
+                ray_from_e_world = point_world.xyz + ray_from_d_world.xyz * retopology_offset
+                max_distance = (ray_to_e_world.xyz - point_world.xyz).length * factor
+                return any(
+                    fn(ray_from_e_world, ray_from_d_world, max_distance)
+                    for fn in is_bmvert_hidden_list
+                )
+
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
-                if not is_bmvert_hidden_fast(rgn, r3d, raycast_list, retopology_offset, matrix_world @ bmv.co)
+                if not is_bmvert_hidden_fast(matrix_world @ bmv.co)
             ]
 
         timings.append(('depsgraph and bbox', time.time()))
@@ -426,15 +601,104 @@ class Relax_Logic:
         self.verts_accel = Accel(self.verts_filtered, self.matrix_world, bbox=bbox)
         self.verts_accel_time = time.time()
 
+        # timings.append(('kdtree', time.time()))
+        # kdt = KDTree(len(self.bm.verts))
+        # for i, bmv in enumerate(self.bm.verts):
+        #     kdt.insert(bmv.co, i)
+
+
         timings.append(('finished', time.time()))
+        total_time = timings[-1][1] - timings[0][1]
         report = [
             f'{time1-time0:0.3f}s {label}'
             for (label, time0), (_label, time1) in zip(timings[:-1], timings[1:])
-        ]
+        ] + [f'{total_time:0.3f}s Total']
         term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
+
+        # denning
+        ##########################################################################################
+        # lampel
+
+
+        # def is_vert_included(bmv):
+        #     if bmv.hide: return False
+        #     if len(bmv.link_faces) == 0: return False
+        #     if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): return False
+        #     if self.mask_opt('selected') == 'EXCLUDE' and bmv.select: return False
+        #     if self.mask_opt('selected') == 'ONLY' and not bmv.select: return False
+        #     if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
+        #     if self.include_opt('corner') == False and is_bmvert_corner(bmv): return False
+        #     if self.include_opt('pinned') == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'):
+        #         return False
+        #     if self.mask_opt('symmetry') == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv):
+        #         return False
+        #     if self.mask_opt('creases') == 'EXCLUDE' and (
+        #             get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
+        #             not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
+        #     ):
+        #         return False
+        #     if self.mask_opt('creases') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False):
+        #         return False
+        #     if self.mask_opt('seams') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'seam'):
+        #         return False
+        #     if self.mask_opt('sharps') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'):
+        #         return False
+        #     if self.mask_opt('boundary') == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
+        #         return False
+        #     if self.mask_opt('boundary') == 'SLIDE' and is_bmvert_corner(bmv):
+        #         return False
+        #     if self.mask_opt('seams') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'seam')) > 2:
+        #         return False
+        #     if self.mask_opt('sharps') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'sharp')) > 2:
+        #         return False
+        #     if self.mask_opt('creases') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)) > 2:
+        #         return False
+        #     return True
+
+        # Cache verts and edges between strokes
+        # stroke_cache = RelaxStrokeCache(
+        #     cache if opt_use_cache else None,
+        #     context=context,
+        #     bm=self.bm,
+        #     matrix_world=self.matrix_world
+        # )
+        # verts, self.verts_accel = stroke_cache.get_or_build_verts_accel()
+        # self.verts_filtered = set([bmv for bmv in verts if is_vert_included(bmv)])
+        # edge_data = EdgeAccelBuilder.build(
+        #     self.bm,
+        #     self.verts_filtered,
+        #     self.mirror,
+        #     self.mirror_threshold,
+        #     self.mirror_clip,
+        #     self.mask_opt('boundary'),
+        #     self.mask_opt('creases'),
+        #     self.mask_opt('sharps'),
+        #     self.mask_opt('seams'),
+        # )
+        # self.boundary = edge_data['boundary']
+        # self.boundary_verts = edge_data['boundary_verts']
+        # self.boundary_accel = edge_data['boundary_accel']
+        # self.crease = edge_data['crease']
+        # self.crease_verts = edge_data['crease_verts']
+        # self.crease_accel = edge_data['crease_accel']
+        # self.sharp = edge_data['sharp']
+        # self.sharp_verts = edge_data['sharp_verts']
+        # self.sharp_accel = edge_data['sharp_accel']
+        # self.seam = edge_data['seam']
+        # self.seam_verts = edge_data['seam_verts']
+        # self.seam_accel = edge_data['seam_accel']
+        # self.verts_accel_time = time.time()
+
+        # self.occlusion_cache = {}
+
+        # end
+        ##########################################################################################
+
+
+
     def cancel(self, context):
-        for (bmv, co) in self.prev.items():
+        for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
@@ -462,40 +726,21 @@ class Relax_Logic:
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
 
-        brush = self.brush
-        relax = self.relax
-
-        # gather options
-        opt_mask_boundary    = context.scene.retopoflow.mask_boundary
-        opt_mask_creases     = context.scene.retopoflow.mask_creases
-        opt_mask_seams       = context.scene.retopoflow.mask_seams
-        opt_mask_sharps      = context.scene.retopoflow.mask_sharps
-        opt_method           = relax.algorithm_method
-        opt_steps            = relax.algorithm_iterations
-        opt_prevent_bounce   = relax.algorithm_prevent_bounce
-        opt_max_radius       = relax.algorithm_max_distance_radius
-        opt_max_edges        = relax.algorithm_max_distance_edges
-        opt_edge_length      = relax.algorithm_average_edge_lengths
-        opt_straight_edges   = relax.algorithm_straighten_edges
-        opt_equalize_faces   = relax.algorithm_equalize_faces
-        opt_laplacian        = relax.algorithm_laplacian
-        opt_correct_flipped  = relax.algorithm_correct_flipped_faces
-
+        # debugging options
         opt_draw_all         = False
         opt_draw_net         = False
 
         M = self.matrix_world
         Mi = self.matrix_world_inv
+        brush = self.brush
+        relax = self.relax
+        radius3D = self.brush.get_scaled_radius()
 
-        # collect data for smoothing
-        radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
-
-        if False:
-            # Debug: select all verts under brush
-            bmops.deselect_all(self.bm)
-            for bmelem in nearest_bmverts:
-                bmops.select(self.bm, bmelem)
-            bmops.flush_selection(self.bm, self.em)
+        # # Debug: select all verts under brush
+        # bmops.deselect_all(self.bm)
+        # for bmelem in nearest_bmverts:
+        #     bmops.select(self.bm, bmelem)
+        # bmops.flush_selection(self.bm, self.em)
 
         depsgraph = context.evaluated_depsgraph_get()
         object_evaluated = context.edit_object.evaluated_get(depsgraph)
@@ -503,6 +748,18 @@ class Relax_Logic:
         self.verts_accel.rebuild(bbox=bbox)
         if not self.verts_filtered: return
         verts = self.verts_accel.get(hit['co_world'], radius3D)
+        # verts = {bmv for bmv in verts if bmv in self.verts_filtered}
+        # if not self.include_opt('occluded'):
+        #     # Occlusion testing is expensive so only test each vert once per stroke
+        #     visible_verts = set()
+        #     for bmv in verts:
+        #         is_hidden = self.occlusion_cache.get(bmv)
+        #         if is_hidden is None:
+        #             is_hidden = is_bmvert_hidden(context, bmv)
+        #             self.occlusion_cache[bmv] = is_hidden
+        #         if not is_hidden:
+        #             visible_verts.add(bmv)
+        #     verts = visible_verts
         if not verts: return
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         if not edges: return
@@ -535,10 +792,10 @@ class Relax_Logic:
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
             options = [
-                opt_laplacian,
-                opt_edge_length,
-                opt_straight_edges,
-                opt_equalize_faces, opt_equalize_faces, opt_equalize_faces, opt_equalize_faces,
+                relax.algorithm_laplacian,
+                relax.algorithm_average_edge_lengths,
+                relax.algorithm_straighten_edges,
+                relax.algorithm_equalize_faces, relax.algorithm_equalize_faces, relax.algorithm_equalize_faces, relax.algorithm_equalize_faces,
             ]
             weight_mult = 1 / len([x for x in options if x == True])
             displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
@@ -547,28 +804,6 @@ class Relax_Logic:
                     self.draw_vectors_positive.append((wrt, f.xyz * mult * vert_strength[bmv]))
                 elif sign < 0:
                     self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
-
-        def bme_length(bme):
-            return bme_vector(bme).length
-        def bme_vector(bme):
-            # should take into account xform??
-            v0, v1 = bme.verts
-            return (v1.co - v0.co)
-        def bmf_compute_normal(bmf):
-            ''' computes normal based on verts '''
-            # TODO: should use loop rather than verts?
-            an = Vector((0,0,0))
-            vs = list(bmf.verts)
-            bmv1, bmv2 = vs[-2], vs[-1]
-            v1 = bmv2.co - bmv1.co
-            for bmv in vs:
-                bmv0, bmv1, bmv2 = bmv1, bmv2, bmv
-                v0, v1 = -v1, bmv2.co - bmv1.co
-                an = an + v0.cross(v1)
-            return an.normalized()
-        def bmf_is_flipped(bmf):
-            fn = bmf_compute_normal(bmf)
-            return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
 
         def laplacian_smooth(bmv, shape_preservation=0):
             ''' Push verts towards the average of their neighbors '''
@@ -588,8 +823,8 @@ class Relax_Logic:
             ) / len(neighbors)
             if shape_preservation:
                 # Shape Preservation doesn't seem to work well with how the brush iterates
-                if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
-                weighted_o = self.prev[bmv] * shape_preservation
+                if bmv not in self.prev_position: self.prev_position[bmv] = Vector(bmv.co)
+                weighted_o = self.prev_position[bmv] * shape_preservation
                 weighted_q = bmv.co * (1 - shape_preservation)
                 displacement = average_co - (weighted_o + weighted_q)
             else:
@@ -600,7 +835,7 @@ class Relax_Logic:
         def straighten_edges(bmv):
             ''' push verts to straighten edges (still WiP!) '''
             is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
-            if is_boundary and opt_mask_boundary == 'EXCLUDE': return
+            if is_boundary and self.mask_opt('boundary') == 'EXCLUDE': return
             edge_count = len(bmv.link_edges)
             if edge_count == 2: return  # skip corners
             if edge_count == 4 and len(bmv.link_faces) == 3: return
@@ -613,7 +848,7 @@ class Relax_Logic:
             else:
                 connected_edges = list(bmv.link_edges)
             if not connected_edges: return
-            if opt_laplacian or opt_edge_length:
+            if relax.algorithm_laplacian or relax.algorithm_average_edge_lengths:
                 # Faster method when verts are being spread out anyway
                 center = Point.average([bme.other_vert(bmv).co for bme in connected_edges])
                 force_mult = 1
@@ -740,15 +975,15 @@ class Relax_Logic:
 
         def relax_3d():
             reset_forces()
-            if opt_straight_edges or opt_laplacian:
+            if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
                 for bmv in verts & chk_verts:
-                    if opt_laplacian: laplacian_smooth(bmv)
-                    if opt_straight_edges: straighten_edges(bmv)
-            if opt_edge_length:
+                    if relax.algorithm_laplacian: laplacian_smooth(bmv)
+                    if relax.algorithm_straighten_edges: straighten_edges(bmv)
+            if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in edges & chk_edges:
                     average_edge_length(bme, avg_edge_len)
-            if opt_equalize_faces:
+            if relax.algorithm_equalize_faces:
                 avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
                 for bmf in faces & chk_faces:
                     bmv_count = len(bmf.verts)
@@ -756,24 +991,24 @@ class Relax_Logic:
                     average_face_radius(bmf, bmv_count)
                     average_face_sides(bmf, bmv_count)
                     average_face_areas(bmf, bmv_count, avg_vert_area)
-            if opt_correct_flipped: correct_flipped_faces()
+            if relax.algorithm_correct_flipped_faces: correct_flipped_faces()
 
         # perform smoothing
         strength_base = 10.0 * self.scale_avg * brush.strength / radius3D * time_delta * self.pressure
-        if opt_method == 'AUTO':
+        if relax.algorithm_method == 'AUTO':
             vert_count = len(verts)
-            if opt_equalize_faces: vert_count *= 2 # It's pretty slow
-            if opt_mask_boundary == 'SLIDE': vert_count *= 2 # Sliding is slow
-            if opt_mask_creases == 'SLIDE': vert_count *= 2
-            if opt_mask_sharps == 'SLIDE': vert_count *= 2
-            if opt_mask_seams == 'SLIDE': vert_count *= 2
+            if relax.algorithm_equalize_faces: vert_count *= 2 # It's pretty slow
+            if self.mask_opt('boundary') == 'SLIDE': vert_count *= 2 # Sliding is slow
+            if self.mask_opt('creases') == 'SLIDE': vert_count *= 2
+            if self.mask_opt('sharps') == 'SLIDE': vert_count *= 2
+            if self.mask_opt('seams') == 'SLIDE': vert_count *= 2
             steps = min(10, max(1, int(100 / vert_count)))
-        elif opt_method == 'RK4':
+        elif relax.algorithm_method == 'RK4':
             steps = 1
         else:
-            steps = opt_steps
+            steps = relax.algorithm_iterations
         for step in range(steps):
-            if opt_method == 'RK4':
+            if relax.algorithm_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
                 strength = strength_base
@@ -816,7 +1051,7 @@ class Relax_Logic:
                 strength = strength_base / steps
                 relax_3d()
 
-            if opt_prevent_bounce:
+            if relax.algorithm_prevent_bounce:
                 for (bmv, v1) in displace.items():
                     if bmv not in self.prev_displace: continue
                     v0 = self.prev_displace[bmv]
@@ -834,8 +1069,8 @@ class Relax_Logic:
                 for bmv in displace
             )
             if displace_max > 1e-8:
-                mult *= min(1.0, radius3D * opt_max_radius / displace_max)
-            # print(time_delta, radius3D, opt_max_radius, displace_max, mult)
+                mult *= min(1.0, radius3D * relax.algorithm_max_distance_radius / displace_max)
+            # print(time_delta, radius3D, relax.algorithm_max_distance_radius, displace_max, mult)
             if displace_max > radius3D:
                 print('Relax: Limiting distance')
                 break
@@ -843,14 +1078,14 @@ class Relax_Logic:
             # update
             update_to = {}
             for bmv in displace:
-                if bmv not in self.prev: self.prev[bmv] = Vector(bmv.co)
+                if bmv not in self.prev_position: self.prev_position[bmv] = Vector(bmv.co)
 
                 displace_dist = displace[bmv].length * mult
                 if bmv.link_edges and displace_dist > 1e-8:
                     avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
-                    displace_dist *= min(1.0, avg_edge_len * opt_max_edges / displace_dist)
+                    displace_dist *= min(1.0, avg_edge_len * relax.algorithm_max_distance_edges / displace_dist)
                 # displace_dist *= vert_strength[bmv]
-                if opt_prevent_bounce:
+                if relax.algorithm_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
                 displace_vec = displace[bmv].normalized() * displace_dist
                 co = bmv.co + displace_vec
@@ -858,19 +1093,19 @@ class Relax_Logic:
                 if opt_draw_net:
                     self.draw_vectors_net.append((bmv.co, displace_vec * 100))
 
-                if opt_mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
+                if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
                     p = self.boundary_accel.closest_point(co) if self.boundary_accel else None
                     if p is not None:
                         co = p
-                if opt_mask_seams == 'SLIDE' and bmv in self.seam_verts:
+                if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
                     p = self.seam_accel.closest_point(co) if self.seam_accel else None
                     if p is not None:
                         co = p
-                if opt_mask_creases == 'SLIDE' and bmv in self.crease_verts:
+                if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts:
                     p = self.crease_accel.closest_point(co) if self.crease_accel else None
                     if p is not None:
                         co = p
-                if opt_mask_sharps == 'SLIDE' and bmv in self.sharp_verts:
+                if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts:
                     p = self.sharp_accel.closest_point(co) if self.sharp_accel else None
                     if p is not None:
                         co = p

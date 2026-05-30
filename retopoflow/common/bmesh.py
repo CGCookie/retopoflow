@@ -191,11 +191,15 @@ def bmvs_shared_bme(bmv0 : BMVert, bmv1 : BMVert) -> BMEdge | None:
     return next((bme for bme in bmv0.link_edges if bmv1 in bme.verts), None)
 def bmfs_shared_bme(bmf0, bmf1):
     return next((bme for bme in bmf0.edges if bme in bmf1.edges), None)
-def bme_vector(bme):
-    return (bme.verts[1].co - bme.verts[0].co)
-def bme_length(bme):
+
+def bme_vector(bme:BMEdge) -> Vector:
+    bmv0,bmv1 = bme.verts
+    return bmv1.co - bmv0.co
+
+def bme_length(bme:BMEdge) -> float:
     bmv0,bmv1 = bme.verts
     return (bmv0.co - bmv1.co).length
+
 def bme_cos(bme : BMEdge) -> tuple[Vector, Vector]:
     bmv0, bmv1 = bme.verts
     return (bmv0.co, bmv1.co)
@@ -216,6 +220,24 @@ def bmf_is_quad(bmf:BMFace) -> bool:
     return len(bmf.edges) == 4
 def bmf_is_pentagon(bmf:BMFace) -> bool:
     return len(bmf.edges) == 5
+
+def bmf_compute_normal(bmf:BMFace) -> Vector:
+    ''' computes normal based on verts '''
+    # TODO: should use loop rather than verts?
+    an = Vector((0,0,0))
+    vs = list(bmf.verts)
+    bmv1, bmv2 = vs[-2], vs[-1]
+    v1 = bmv2.co - bmv1.co
+    for bmv in vs:
+        bmv0, bmv1, bmv2 = bmv1, bmv2, bmv
+        v0, v1 = -v1, bmv2.co - bmv1.co
+        an = an + v0.cross(v1).normalized()
+    return an.normalized()
+
+def bmf_is_flipped(bmf:BMFace) -> bool:
+    fn = bmf_compute_normal(bmf)
+    return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
+
 
 def bmf_opposite_bmelem(bmf:BMFace, bmelem:BMVert|BMEdge) -> BMVert | BMEdge | None:
     try:

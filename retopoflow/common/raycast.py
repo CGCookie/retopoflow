@@ -315,33 +315,6 @@ def raycast_valid_sources(context : Context, point : Vector|Sequence[float]) -> 
     # return hit.xyz
 
 
-def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
-    point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
-    if not point_screen:
-        return (None, None)
-    return (
-        Vector((*region_2d_to_origin_3d(rgn, r3d, point_screen), 1.0)),
-        Vector((*region_2d_to_vector_3d(rgn, r3d, point_screen).normalized(), 0.0)),
-    )
-
-
-def raycast_dist_sources_fast(
-    rgn:Region, r3d:RegionView3D,
-    raycast_list : list[Callable[[Vector,Vector], Vector|None]],
-    point_world : Vector|Sequence[float],
-) -> float:
-    ray_e_world, ray_d_world = ray_from_point_fast(rgn, r3d, point_world)
-    if not ray_e_world or not ray_d_world: return float('inf')
-
-    best_dist = float('inf')
-    for ray_cast in raycast_list:
-        co_world = ray_cast(ray_e_world, ray_d_world)
-        if not co_world: continue
-        dist_world = distance_between_locations(ray_e_world, co_world)
-        best_dist = min(best_dist, dist_world)
-
-    return best_dist
-
 
 def raycast_point_valid_sources(context:Context, point_screen_or_world:Vector, **kwargs) -> Vector|None:
     ray_e_world, ray_d_world = ray_from_point(context, point_screen_or_world)

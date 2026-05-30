@@ -27,6 +27,7 @@ import os
 from itertools import chain
 from random import random
 from bmesh.types import BMVert, BMEdge, BMFace
+from bpy.types import Context, UILayout, WorkSpaceTool
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -205,9 +206,20 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
+    algorithm_use_cache: bpy.props.BoolProperty(
+        name = 'Use Cache',
+        description = 'Reuse the acceleration structure between strokes if possible',
+        default = True,
+    )
 
     def init(self, context, event):
-        self.logic = Relax_Logic(context, event, RFTool_Relax.rf_brush, self)
+        self.logic = Relax_Logic(
+            context,
+            event,
+            RFTool_Relax.rf_brush,
+            self,
+            cache=RFTool_Relax._stroke_cache,
+        )
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
 
@@ -254,6 +266,7 @@ class RFTool_Relax(RFTool_Base):
     bl_operator = 'retopoflow.relax'
 
     rf_brush = RFBrush_Relax()
+    _stroke_cache = {}
 
     props = None  # needed to reset properties
 
@@ -265,7 +278,8 @@ class RFTool_Relax(RFTool_Base):
         RFOperator_TopoRotate,
     )
 
-    def draw_settings(context, layout, tool):
+    @staticmethod
+    def draw_settings(context:Context, layout:UILayout, tool:WorkSpaceTool):
         props_relax = tool.operator_properties(RFOperator_Relax.bl_idname)
         RFTool_Relax.props = props_relax
         props_scene = context.scene.retopoflow
@@ -326,6 +340,7 @@ class RFTool_Relax(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
+        cls._stroke_cache.clear()
         cls.rf_brush.set_operator(RFOperator_Relax)
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Relax')
@@ -340,3 +355,4 @@ class RFTool_Relax(RFTool_Base):
     def deactivate(cls, context):
         cls.resetter.reset()
         cls.rf_brush.stop()
+        cls._stroke_cache.clear()
