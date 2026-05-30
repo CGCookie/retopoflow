@@ -479,15 +479,13 @@ class Relax_Logic:
             return False
 
         timings.append(('filtering:initial', time.time()))
-        self.verts_filtered : list[BMVert] = [
-            bmv for bmv in self.bm.verts
-            if not any([
-                bmv.hide,
-                bmv.is_wire,
-                bmv.is_boundary and is_bmvert_on_ngon(bmv),
-                bmv_co_isnan(bmv),
-            ])
-        ]
+        def bmv_is_good(bmv : BMVert) -> bool:
+            if bmv.hide: return False
+            if bmv.is_wire: return False
+            if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
+            if bmv_co_isnan(bmv): return False
+            return True
+        self.verts_filtered : list[BMVert] = [ bmv for bmv in self.bm.verts if bmv_is_good(bmv) ]
 
         timings.append(('filtering: bmvert and bmedge features', time.time()))
         if self.exclude_opt('corners'):
