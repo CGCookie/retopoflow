@@ -33,15 +33,15 @@ from collections.abc import Sequence
 
 from ...addon_common.common.maths import clamp, Point, Vector, Normal
 
-def view_forward_direction(context):
+def view_forward_direction(context:Context) -> Vector:
     r3d = context.region_data
     mat = r3d.view_matrix
     return (mat.inverted_safe() @ Vector((0,0,-1,0))).xyz
-def view_right_direction(context):
+def view_right_direction(context:Context) -> Vector:
     r3d = context.region_data
     mat = r3d.view_matrix
     return (mat.inverted_safe() @ Vector((1,0,0,0))).xyz
-def view_up_direction(context):
+def view_up_direction(context:Context) -> Vector:
     r3d = context.region_data
     mat = r3d.view_matrix
     return (mat.inverted_safe() @ Vector((0,1,0,0))).xyz
