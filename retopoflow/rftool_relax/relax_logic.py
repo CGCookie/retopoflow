@@ -1052,7 +1052,6 @@ class Relax_Logic:
 
                 if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts and self.boundary_accel:
                     if p := self.boundary_accel.closest_point(co):
-                        print(f'snapping {co} to {p} on boundary')
                         co = p
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts and self.seam_accel:
                     if p := self.seam_accel.closest_point(co):

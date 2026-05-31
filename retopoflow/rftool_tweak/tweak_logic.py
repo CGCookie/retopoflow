@@ -33,7 +33,7 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, EdgeAccel
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, EdgeAccel, bme_cos
 from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -80,9 +80,7 @@ class Tweak_Logic:
             if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
         ]
         self._boundary_verts = {bmv for bme in boundary_edges for bmv in bme.verts}
-        self._boundary_accel = EdgeAccel(
-            (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in boundary_edges
-        )
+        self._boundary_accel = EdgeAccel([bme_cos(bme) for bme in boundary_edges])
 
     def collect_seams(self):
         self._seam_verts = set()
@@ -90,9 +88,7 @@ class Tweak_Logic:
         if self.props_scene.mask_seams != 'SLIDE': return
         seam_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.seam)]
         self._seam_verts = {bmv for bme in seam_edges for bmv in bme.verts}
-        self._seam_accel = EdgeAccel(
-            (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in seam_edges
-        )
+        self._seam_accel = EdgeAccel([bme_cos(bme) for bme in seam_edges])
 
     def collect_sharps(self):
         self._sharp_verts = set()
@@ -100,9 +96,7 @@ class Tweak_Logic:
         if self.props_scene.mask_sharps != 'SLIDE': return
         sharp_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)]
         self._sharp_verts = {bmv for bme in sharp_edges for bmv in bme.verts}
-        self._sharp_accel = EdgeAccel(
-            (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in sharp_edges
-        )
+        self._sharp_accel = EdgeAccel([bme_cos(bme) for bme in sharp_edges])
 
     def collect_creases(self):
         self._crease_verts = set()
@@ -111,9 +105,7 @@ class Tweak_Logic:
         self.bm.edges.ensure_lookup_table()
         crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.crease, ensure_lookup=False)]
         self._crease_verts = {bmv for bme in crease_edges for bmv in bme.verts}
-        self._crease_accel = EdgeAccel(
-            (Vector(bme.verts[0].co), Vector(bme.verts[1].co)) for bme in crease_edges
-        )
+        self._crease_accel = EdgeAccel([bme_cos(bme) for bme in crease_edges])
 
     def collect_verts(self, context, event):
         self.verts = []
