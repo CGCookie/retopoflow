@@ -202,7 +202,7 @@ def find_crossed_edge(context: Context, matrix_world : Matrix, pt0 : Vector, pt1
         return (bme, pt)
     return None
 
-def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start : BMVert|BMEdge, p0 : Vector, p1 : Vector) -> list[tuple[BMVert|BMEdge, Vector]]:
+def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start : BMVert|BMEdge, p0 : Vector, p1 : Vector, normal : Vector|None) -> list[tuple[BMVert|BMEdge, Vector]]:
     found : list[tuple[BMVert|BMEdge, Vector]] = []
     touched : set[BMEdge|BMVert] = set()
     bmfs_search : deque[BMFace] = deque()
@@ -226,6 +226,8 @@ def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start
 
     while bmfs_search:
         bmf : BMFace = bmfs_search.popleft()
+        if normal and normal.dot(bmf.normal) > 0:
+            continue
         bmes = set(bmf.edges) - touched
         res = find_crossed_edge(context, matrix_world, p0, p1, bmes)
         if not res: continue
@@ -336,6 +338,7 @@ class PP_Logic:
 
     matrix_world : Matrix
     matrix_world_inv : Matrix
+    vec_forward : Vector
 
     bm : BMesh | None
     em : Mesh | None
@@ -421,6 +424,7 @@ class PP_Logic:
         # print('UPDATE')
 
         M, rgn, r3d = self.matrix_world, context.region, context.region_data
+        self.vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
         self.project = lambda p: location_3d_to_region_2d(rgn, r3d, M @ p) if p else None
 
         self.insert_mode = insert_mode
@@ -624,7 +628,7 @@ class PP_Logic:
                     if pt1:
                         w = (p3 - p2).normalized().dot(pt1 - p2) / (p3 - p2).length
                         pt0 = p0 + (p1 - p0) * w
-                        splits = find_bmedges_to_split(context, self.matrix_world, self.bme, pt0, pt1)
+                        splits = find_bmedges_to_split(context, self.matrix_world, self.bme, pt0, pt1, self.vec_forward if self.ignore_splitting_backfaces else None)
                         # print(f'{w=:0.2f} {len(splits)=}')
                         # print(f'  {p0} {pt0} {p1}')
                         # print(f'  {p3} {pt1} {p2}')
@@ -797,8 +801,6 @@ class PP_Logic:
                     # hovering bmface adjacent to hovered bmedge
                     return False
 
-        vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
-
         found : list[tuple[
             BMVert|None, BMEdge, BMFace,
             BMFace, BMEdge|None, BMVert|None,
@@ -818,7 +820,7 @@ class PP_Logic:
                     # only start walking if starting from a quad
                     continue
 
-                if self.ignore_splitting_backfaces and bmf_start.normal.dot(vec_forward) > 0:
+                if self.ignore_splitting_backfaces and bmf_start.normal.dot(self.vec_forward) > 0:
                     # quad is backfacing and we're ignoring backfacing faces
                     continue
 
@@ -851,7 +853,7 @@ class PP_Logic:
 
                     bmf_current : BMFace
                     for bmf_current in bme_current.link_faces:
-                        if self.ignore_splitting_backfaces and bmf_current.normal.dot(vec_forward) > 0:
+                        if self.ignore_splitting_backfaces and bmf_current.normal.dot(self.vec_forward) > 0:
                             # stop walking, because hit backfacing bmface and, we're ignoring backfacing faces
                             continue
 
@@ -1152,7 +1154,7 @@ class PP_Logic:
                 p1 = p10 + d1 * l
                 p0 = p00 + v0 * (l / l1)
 
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1, self.vec_forward if self.ignore_splitting_backfaces else None)
 
                 def find_opposite_and_center_split_quad() -> tuple[Vector|None, Vector|None]:
                     if self.state != PP_Action.SPLIT_QUAD_CENTER: return (None, None)
@@ -1269,7 +1271,7 @@ class PP_Logic:
                     return (po, pnn)
                 po, pnn = find_opposite_and_center_split_edge()
 
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt, self.vec_forward if self.ignore_splitting_backfaces else None)
                 splits = [
                     (bme, pt)
                     for (bme, pt) in splits
@@ -1351,9 +1353,9 @@ class PP_Logic:
 
                 splits : list[tuple[BMVert|BMEdge, Vector]] = []
                 if self.state == PP_Action.VERT_EDGE and self.bmv:
-                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bmv, p0, pt))
+                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bmv, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None))
                 elif self.bme:  # elif self.state == PP_Action.EDGE_SPLIT_EDGE:
-                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt))
+                    splits.extend(find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None))
 
                 if self.nearest.bmv:
                     splits = [
@@ -1745,7 +1747,6 @@ class PP_Logic:
                 bmv_new = self.bm.verts.new(conn)   # raycast to surface
 
                 # split bmf into 3 quads
-                fwd = (self.matrix_world_inv @ direction_to_bvec4(vec_forward(context))).xyz
                 self.bm.faces.remove(bmf)
                 bmf0 = self.bm.faces.new([bmvc, bmv0_new, bmv_new, bmv1_new])
                 bmf1 = self.bm.faces.new([bmv0_new, bmv0, bmvo, bmv_new])
@@ -1754,9 +1755,9 @@ class PP_Logic:
                 bmf0.normal_update()
                 bmf1.normal_update()
                 bmf2.normal_update()
-                if bmf0.normal.dot(fwd) > 0: bmf0.normal_flip()
-                if bmf1.normal.dot(fwd) > 0: bmf1.normal_flip()
-                if bmf2.normal.dot(fwd) > 0: bmf2.normal_flip()
+                if bmf0.normal.dot(self.vec_forward) > 0: bmf0.normal_flip()
+                if bmf1.normal.dot(self.vec_forward) > 0: bmf1.normal_flip()
+                if bmf2.normal.dot(self.vec_forward) > 0: bmf2.normal_flip()
 
                 select_now = [bmv1_new]
                 select_later = []
@@ -1771,7 +1772,7 @@ class PP_Logic:
                 p0 = self.project(co)
                 pt = self.project(self.hit)
 
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, pt, self.vec_forward if self.ignore_splitting_backfaces else None)
                 create_wire = True
                 if self.nearest.bmv:
                     # hovering bmvert, so do not make final split
@@ -1803,13 +1804,16 @@ class PP_Logic:
 
             case PP_Action.VERT_EDGE:
                 # create new edge between selected vert and current mouse position
+                if not self.bmv or not self.nearest:
+                    return
+
                 bmv0 = self.bmv
                 bmv_opposite, bmv_corner = None, None
                 split_co = None
 
                 pn = self.project(self.bmv.co)
                 pt = self.project(self.hit)
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt, self.vec_forward if self.ignore_splitting_backfaces else None)
                 if self.nearest.bmv:
                     splits = [
                         (bme, pt)
@@ -1962,7 +1966,7 @@ class PP_Logic:
                 pt = self.project(self.hit)
                 if not pn or not pt:
                     return
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt, self.vec_forward if self.ignore_splitting_backfaces else None)
                 splits = [
                     (bme, pt)
                     for (bme, pt) in splits
