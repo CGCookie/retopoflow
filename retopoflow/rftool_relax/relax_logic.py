@@ -329,6 +329,8 @@ class Relax_Logic:
 
     rf_options : PropertyGroup
 
+    check_nans : bool = True
+
     boundary : list[tuple[Vector,Vector]]
     boundary_verts : set[BMVert]
     boundary_accel : EdgeAccel | None
@@ -364,6 +366,7 @@ class Relax_Logic:
     draw_vectors_net : list[tuple[Vector,Vector]]
     _time : float
 
+
     def mask_opt(self, name : str) -> str:
         return str(getattr(self.rf_options, f'mask_{name}'))  # pyright: ignore[reportAny]
     def include_opt(self, name : str) -> bool:
@@ -371,7 +374,7 @@ class Relax_Logic:
     def exclude_opt(self, name : str) -> bool:
         return not bool(getattr(self.rf_options, f'include_{name}'))  # pyright: ignore[reportAny]
 
-    def __init__(self, context:Context, event:Event, brush, relax, cache=None):
+    def __init__(self, context:Context, event:Event, brush, relax, *, debug_print:bool=False):
         timings : list[tuple[str,float]] = [('start', time.time())]
 
         assert context.edit_object, 'Expected to be editing a mesh object'
@@ -416,12 +419,11 @@ class Relax_Logic:
         self.draw_vectors_negative = []
         self.draw_vectors_net = []
 
-
-        timings.append(('boundaries', time.time()))
         self.boundary = []
         self.boundary_verts = set()
         self.boundary_accel = None
         if self.mask_opt('boundary') == 'SLIDE':
+            timings.append(('boundaries', time.time()))
             boundary_edges = [
                 bme
                 for bme in self.bm.edges
@@ -431,11 +433,11 @@ class Relax_Logic:
             self.boundary_verts = { bmv for bme in boundary_edges for bmv in bme.verts }
             self.boundary_accel = EdgeAccel(self.boundary)
 
-        timings.append(('creases', time.time()))
         self.crease = []
         self.crease_verts = set()
         self.crease_accel = None
         if self.mask_opt('creases') == 'SLIDE':
+            timings.append(('creases', time.time()))
             crease_edges = [
                 bme
                 for bme in self.bm.edges
@@ -445,11 +447,11 @@ class Relax_Logic:
             self.crease_verts = { bmv for bme in crease_edges for bmv in bme.verts }
             self.crease_accel = EdgeAccel(self.crease)
 
-        timings.append(('sharps', time.time()))
         self.sharp = []
         self.sharp_verts = set()
         self.sharp_accel = None
         if self.mask_opt('sharps') == 'SLIDE':
+            timings.append(('sharps', time.time()))
             sharp_edges = [
                 bme
                 for bme in self.bm.edges
@@ -459,10 +461,10 @@ class Relax_Logic:
             self.sharp_verts = { bmv for bme in sharp_edges for bmv in bme.verts }
             self.sharp_accel = EdgeAccel(self.sharp)
 
-        timings.append(('seams', time.time()))
         self.seam = []
         self.seam_verts = set()
         self.seam_accel = None
+        timings.append(('seams', time.time()))
         if self.mask_opt('seams') == 'SLIDE':
             seam_edges = [
                 bme
@@ -477,14 +479,17 @@ class Relax_Logic:
             # TODO: IMPLEMENT!
             return False
 
-        timings.append(('filtering:initial', time.time()))
+        timings.append(('filtering: initial', time.time()))
         def bmv_is_good(bmv : BMVert) -> bool:
             if bmv.hide: return False
             if bmv.is_wire: return False
             if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
-            if bmv_co_isnan(bmv): return False
             return True
         self.verts_filtered : list[BMVert] = [ bmv for bmv in self.bm.verts if bmv_is_good(bmv) ]
+
+        if Relax_Logic.check_nans:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv_co_isnan(bmv) ]
+            Relax_Logic.check_nans = False
 
         timings.append(('filtering: bmvert and bmedge features', time.time()))
         if self.exclude_opt('corners'):
@@ -509,17 +514,17 @@ class Relax_Logic:
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv.select ]
         if self.mask_opt('boundary') == 'SLIDE':
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
-        if self.mask_opt('seams')    == 'SLIDE':
+        if self.mask_opt('seams') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) <= 2
             ]
-        if self.mask_opt('sharps')   == 'SLIDE':
+        if self.mask_opt('sharps') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) >= 2
             ]
-        if self.mask_opt('creases')  == 'SLIDE':
+        if self.mask_opt('creases') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
@@ -584,7 +589,8 @@ class Relax_Logic:
             f'{time1-time0:0.3f}s {label}'
             for (label, time0), (_label, time1) in zip(timings[:-1], timings[1:])
         ] + ['------ --------------', f'{total_time:0.3f}s total']
-        term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
+        if debug_print:
+            term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
 
         ##########################################################################################
@@ -672,7 +678,7 @@ class Relax_Logic:
         context.area.tag_redraw()
 
 
-    def update(self, context:Context, event:Event):
+    def update(self, context:Context, event:Event, *, debug_print:bool=False):
         self.verts_accel.rebuild(context)
 
         match event.type:
@@ -1103,7 +1109,8 @@ class Relax_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
-        print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')
+        if debug_print:
+            print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')
 
 
     def draw(self, context:Context):

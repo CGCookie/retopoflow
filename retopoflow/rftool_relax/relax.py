@@ -221,8 +221,7 @@ class RFOperator_Relax(RFOperator):
             context,
             event,
             RFTool_Relax.rf_brush,
-            self,
-            cache=RFTool_Relax._stroke_cache,
+            self
         )
         self.tickle(context)
         self.timer = TimerHandler(120, context=context, enabled=True)
@@ -271,7 +270,6 @@ class RFTool_Relax(RFTool_Base):
     bl_operator = 'retopoflow.relax'
 
     rf_brush = RFBrush_Relax()
-    _stroke_cache = {}
 
     props = None  # needed to reset properties
 
@@ -345,7 +343,7 @@ class RFTool_Relax(RFTool_Base):
     def activate(cls, context):
         # TODO: some of the following might not be needed since we are creating our
         #       own transform operators
-        cls._stroke_cache.clear()
+        Relax_Logic.check_nans = True
         cls.rf_brush.set_operator(RFOperator_Relax)
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Relax')
@@ -360,4 +358,3 @@ class RFTool_Relax(RFTool_Base):
     def deactivate(cls, context):
         cls.resetter.reset()
         cls.rf_brush.stop()
-        cls._stroke_cache.clear()
