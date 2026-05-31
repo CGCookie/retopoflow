@@ -378,7 +378,7 @@ class PP_Logic:
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
         self.update_bmesh_selection = False
-        self.mouse = None
+        self.mouse = None                   # pyright: ignore[reportAttributeAccessIssue]
         self.insert_mode = None
         self.quad_preserve = None
         self.parallel_stable = None
@@ -404,9 +404,9 @@ class PP_Logic:
         self.bme_hovered_bmvs = None
         self.bmv2 = None
         self.bmv3 = None
-        self.hit2 = None
-        self.hit3 = None
-        self.hit = None
+        self.hit2 = None                    # pyright: ignore[reportAttributeAccessIssue]
+        self.hit3 = None                    # pyright: ignore[reportAttributeAccessIssue]
+        self.hit = None                     # pyright: ignore[reportAttributeAccessIssue]
 
     def cleanup(self):
         if not self.bm or not self.bm.is_valid: return
@@ -482,7 +482,7 @@ class PP_Logic:
         if hit := raycast_valid_sources(context, mouse_from_event(event)):
             self.hit = hit['co_local']  # pyright: ignore[reportAttributeAccessIssue]
         else:
-            self.hit = None
+            self.hit = None             # pyright: ignore[reportAttributeAccessIssue]
 
         if not self.hit: return
 
@@ -769,27 +769,25 @@ class PP_Logic:
         bme_hovered : BMEdge|None = self.nearest_bme.bme
         bmes_selected.sort(key=lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme))
 
-        # if bme_hovered and bme_hovered.is_boundary:
-        #     # bme should have one face
-        #     # if edge connecting center of selected bmedge and hovered bmvert crosses the
-        #     # bmface adjacent to selected bmedge, then we split selected edge!
-        #     bmf = next(iter(bme_hovered.link_faces), None)
-        #     bme_co = bme_midpoint(bme_hovered)
-        #     bme_co0, bme_co1 = bme_cos(bme_hovered)
-        #     bmf_co = bmf_midpoint(bmf)
-        #     bmf_pt  = self.project(bmf_co)
-        #     bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_co, bme_co0, bme_co1)
+        if bme_hovered and bme_hovered.is_boundary:
+            # bme_hovered has one bmface.  if mouse is not hovering that bmf, then we should bridge instead of split
 
-        #     # compute vector perpendicular to selected bmedge in screen space that is
-        #     # pointing toward center of adjacent bmface
-        #     v_bme_perp = Vector((bme_pt1.y - bme_pt0.y, bme_pt0.x - bme_pt1.x))
-        #     if v_bme_perp.dot(bmf_pt - bme_pt) < 0:
-        #         v_bme_perp.negate()
+            bmf : BMFace = next(iter(bme_hovered.link_faces))
+            bme_co = bme_midpoint(bme_hovered)
+            bme_co0, bme_co1 = bme_cos(bme_hovered)
+            bmf_co = bmf_midpoint(bmf)
+            bmf_pt  = self.project(bmf_co)
+            bme_pt, bme_pt0, bme_pt1  = self.project_all(bme_co, bme_co0, bme_co1)
 
-        #     # check if vector from center of selected bmedge to hovered bmvert is
-        #     # pointing in same direction as perpendicular vector computed above
-        #     if v_bme_perp.dot(self.mouse - bme_pt) < 0:
-        #         return False
+            if bmf_pt and bme_pt and bme_pt0 and bme_pt1:
+                # compute vector perpendicular to selected bmedge in screen space that is
+                # pointing toward center of adjacent bmface
+                v_bme_perp = perpendicular_direction2(bme_pt0 - bme_pt1, bmf_pt - bme_pt)
+
+                # check if vector from center of selected bmedge to hovered bmvert is
+                # pointing in same direction as perpendicular vector computed above
+                if v_bme_perp.dot(self.mouse - bme_pt) < 0:
+                    return False
 
         vec_forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
 
