@@ -172,151 +172,6 @@ class Accel:
             if (M @ v.co - co_world).length_squared <= r2
         }
 
-
-# class EdgeAccelBuilder:
-#     @staticmethod
-#     def build(bm, verts, mirror, mirror_threshold, mirror_clip, mask_boundary, mask_creases, mask_sharps, mask_seams):
-#         local_edges = {bme for bmv in verts for bme in bmv.link_edges}
-
-#         boundary = []
-#         boundary_verts = set()
-#         boundary_accel = None
-#         if mask_boundary == 'SLIDE':
-#             boundary_edges = [
-#                 bme for bme in local_edges
-#                 if is_bmedge_boundary(bme, mirror, mirror_threshold, mirror_clip)
-#             ]
-#             boundary = [
-#                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-#                 for bme in boundary_edges
-#             ]
-#             boundary_verts = {
-#                 bmv for bme in boundary_edges for bmv in bme.verts
-#             }
-#             boundary_accel = EdgeAccel(boundary)
-
-#         crease = []
-#         crease_verts = set()
-#         crease_accel = None
-#         if mask_creases == 'SLIDE':
-#             crease_edges = [
-#                 bme for bme in local_edges
-#                 if is_bmedge_edgemark(bm, bme, BMMarking.crease)
-#             ]
-#             crease = [
-#                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-#                 for bme in crease_edges
-#             ]
-#             crease_verts = {
-#                 bmv for bme in crease_edges for bmv in bme.verts
-#             }
-#             crease_accel = EdgeAccel(crease)
-
-#         sharp = []
-#         sharp_verts = set()
-#         sharp_accel = None
-#         if mask_sharps == 'SLIDE':
-#             sharp_edges = [
-#                 bme for bme in local_edges
-#                 if is_bmedge_edgemark(bm, bme, BMMarking.sharp)
-#             ]
-#             sharp = [
-#                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-#                 for bme in sharp_edges
-#             ]
-#             sharp_verts = {
-#                 bmv for bme in sharp_edges for bmv in bme.verts
-#             }
-#             sharp_accel = EdgeAccel(sharp)
-
-#         seam = []
-#         seam_verts = set()
-#         seam_accel = None
-#         if mask_seams == 'SLIDE':
-#             seam_edges = [
-#                 bme for bme in local_edges
-#                 if is_bmedge_edgemark(bm, bme, BMMarking.seam)
-#             ]
-#             seam = [
-#                 (Vector(bme.verts[0].co), Vector(bme.verts[1].co))
-#                 for bme in seam_edges
-#             ]
-#             seam_verts = {
-#                 bmv for bme in seam_edges for bmv in bme.verts
-#             }
-#             seam_accel = EdgeAccel(seam)
-
-#         edge_data = {
-#             'boundary': boundary,
-#             'boundary_verts': boundary_verts,
-#             'boundary_accel': boundary_accel,
-#             'crease': crease,
-#             'crease_verts': crease_verts,
-#             'crease_accel': crease_accel,
-#             'sharp': sharp,
-#             'sharp_verts': sharp_verts,
-#             'sharp_accel': sharp_accel,
-#             'seam': seam,
-#             'seam_verts': seam_verts,
-#             'seam_accel': seam_accel,
-#         }
-#         return edge_data
-
-
-# class RelaxStrokeCache:
-#     def __init__(self, cache, *, context, bm, matrix_world):
-#         self.cache = cache if isinstance(cache, dict) else None
-#         self.context = context
-#         self.bm = bm
-#         self.matrix_world = matrix_world
-
-#         self.accel_key = (
-#             context.edit_object.as_pointer(),
-#             id(bm),
-#             len(bm.verts),
-#             len(bm.edges),
-#             len(bm.faces),
-#         )
-
-#     def get_verts_accel(self):
-#         if not self.cache:
-#             return None
-#         cached_accel = self.cache.get('verts_accel')
-#         if not isinstance(cached_accel, dict):
-#             return None
-#         if cached_accel.get('key') != self.accel_key:
-#             return None
-#         if cached_accel.get('bm') is not self.bm:
-#             return None
-#         return cached_accel
-
-#     def set_verts_accel(self, *, verts_filtered, verts_accel):
-#         if self.cache is None:
-#             return
-#         self.cache['verts_accel'] = {
-#             'key': self.accel_key,
-#             'bm': self.bm,
-#             'verts_filtered': verts_filtered,
-#             'verts_accel': verts_accel,
-#         }
-
-#     def get_or_build_verts_accel(self):
-#         cached_accel = self.get_verts_accel()
-#         if cached_accel is not None:
-#             return cached_accel['verts_filtered'], cached_accel['verts_accel']
-
-#         context = self.context
-#         bm = self.bm
-#         verts_filtered = list(bm.verts)
-
-#         depsgraph = context.evaluated_depsgraph_get()
-#         object_evaluated = context.edit_object.evaluated_get(depsgraph)
-#         bbox = object_evaluated.bound_box
-#         verts_accel = Accel(verts_filtered, self.matrix_world, bbox=bbox)
-#         self.set_verts_accel(verts_filtered=verts_filtered, verts_accel=verts_accel)
-#         return verts_filtered, verts_accel
-
-
 class Relax_Logic:
     bm : BMesh
     em : Mesh
@@ -359,6 +214,7 @@ class Relax_Logic:
     bounce_mult : dict[BMVert, float]       # ...
 
     verts_accel : Accel
+    laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
 
     # debugging and profiling
     draw_vectors_positive : list[tuple[Vector,Vector]]
@@ -530,6 +386,8 @@ class Relax_Logic:
                 if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
             ]
 
+        self.laplacian_cache = {}
+
         timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
         self.is_bmvert_hidden = lambda _bmv: False  # nop where every bmvert is visible
@@ -591,84 +449,6 @@ class Relax_Logic:
         ] + ['------ --------------', f'{total_time:0.3f}s total']
         if debug_print:
             term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
-
-
-        ##########################################################################################
-        # lampel
-
-
-        # def is_vert_included(bmv):
-        #     if bmv.hide: return False
-        #     if len(bmv.link_faces) == 0: return False
-        #     if isnan(bmv.co.x) or isnan(bmv.co.y) or isnan(bmv.co.z): return False
-        #     if self.mask_opt('selected') == 'EXCLUDE' and bmv.select: return False
-        #     if self.mask_opt('selected') == 'ONLY' and not bmv.select: return False
-        #     if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
-        #     if self.include_opt('corner') == False and is_bmvert_corner(bmv): return False
-        #     if self.include_opt('pinned') == False and get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float'):
-        #         return False
-        #     if self.mask_opt('symmetry') == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv):
-        #         return False
-        #     if self.mask_opt('creases') == 'EXCLUDE' and (
-        #             get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-        #             not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-        #     ):
-        #         return False
-        #     if self.mask_opt('creases') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'crease', ensure_lookup=False):
-        #         return False
-        #     if self.mask_opt('seams') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'seam'):
-        #         return False
-        #     if self.mask_opt('sharps') == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, 'sharp'):
-        #         return False
-        #     if self.mask_opt('boundary') == 'EXCLUDE' and is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip):
-        #         return False
-        #     if self.mask_opt('boundary') == 'SLIDE' and is_bmvert_corner(bmv):
-        #         return False
-        #     if self.mask_opt('seams') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'seam')) > 2:
-        #         return False
-        #     if self.mask_opt('sharps') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'sharp')) > 2:
-        #         return False
-        #     if self.mask_opt('creases') == 'SLIDE' and sum(1 for bme in bmv.link_edges if is_bmedge_edgemark(self.bm, bme, 'crease', ensure_lookup=False)) > 2:
-        #         return False
-        #     return True
-
-        # Cache verts and edges between strokes
-        # stroke_cache = RelaxStrokeCache(
-        #     cache if opt_use_cache else None,
-        #     context=context,
-        #     bm=self.bm,
-        #     matrix_world=self.matrix_world
-        # )
-        # verts, self.verts_accel = stroke_cache.get_or_build_verts_accel()
-        # self.verts_filtered = set([bmv for bmv in verts if is_vert_included(bmv)])
-        # edge_data = EdgeAccelBuilder.build(
-        #     self.bm,
-        #     self.verts_filtered,
-        #     self.mirror,
-        #     self.mirror_threshold,
-        #     self.mirror_clip,
-        #     self.mask_opt('boundary'),
-        #     self.mask_opt('creases'),
-        #     self.mask_opt('sharps'),
-        #     self.mask_opt('seams'),
-        # )
-        # self.boundary = edge_data['boundary']
-        # self.boundary_verts = edge_data['boundary_verts']
-        # self.boundary_accel = edge_data['boundary_accel']
-        # self.crease = edge_data['crease']
-        # self.crease_verts = edge_data['crease_verts']
-        # self.crease_accel = edge_data['crease_accel']
-        # self.sharp = edge_data['sharp']
-        # self.sharp_verts = edge_data['sharp_verts']
-        # self.sharp_accel = edge_data['sharp_accel']
-        # self.seam = edge_data['seam']
-        # self.seam_verts = edge_data['seam_verts']
-        # self.seam_accel = edge_data['seam_accel']
-
-        # self.occlusion_cache = {}
-
-        ##########################################################################################
-
 
 
     def cancel(self, context):
@@ -768,32 +548,58 @@ class Relax_Logic:
                 elif sign < 0:
                     self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
 
-        def laplacian_smooth(bmv, shape_preservation=0):
+        def laplacian_smooth(bmv, laplacian_cache, shape_preservation=0):
             ''' Push verts towards the average of their neighbors '''
-            # Skip corners
-            edge_count = len(bmv.link_edges)
-            if edge_count == 2: return
-            if edge_count == 4 and len(bmv.link_faces) == 3: return
-            if bmv.is_boundary:
-                if edge_count > 4: return
-                neighbors = [x.other_vert(bmv) for x in bmv.link_edges if x.is_boundary]
+            if bmv in laplacian_cache:
+                laplacian_data = laplacian_cache[bmv]
+                if laplacian_data is None: return
             else:
-                neighbors = [x.other_vert(bmv) for x in bmv.link_edges]
-            average_co = Vector([
-                sum([x.co[0] for x in neighbors]),
-                sum([x.co[1] for x in neighbors]),
-                sum([x.co[2] for x in neighbors])]
-            ) / len(neighbors)
+                link_edges = bmv.link_edges
+                edge_count = len(link_edges)
+                if (
+                    edge_count == 2 or
+                    edge_count == 4 and len(bmv.link_faces) == 3
+                ):
+                    laplacian_cache[bmv] = None
+                    return
+                is_boundary = bmv.is_boundary
+                if is_boundary:
+                    if edge_count > 4:
+                        laplacian_cache[bmv] = None
+                        return
+                    neighbors = tuple(bme.other_vert(bmv) for bme in link_edges if bme.is_boundary)
+                else:
+                    neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
+                if not neighbors:
+                    laplacian_cache[bmv] = None
+                    return
+                laplacian_data = (neighbors, is_boundary, 1.0 / len(neighbors))
+                laplacian_cache[bmv] = laplacian_data
+            neighbors, is_boundary, nb_reciprocal = laplacian_data
+
+            sum_x = sum_y = sum_z = 0.0
+            for nb in neighbors:
+                nb_co = nb.co
+                sum_x += nb_co[0]
+                sum_y += nb_co[1]
+                sum_z += nb_co[2]
+            average_co = Vector((sum_x * nb_reciprocal, sum_y * nb_reciprocal, sum_z * nb_reciprocal))
+
+            bmv_co = bmv.co
             if shape_preservation:
                 # Shape Preservation doesn't seem to work well with how the brush iterates
-                if bmv not in self.prev_position: self.prev_position[bmv] = Vector(bmv.co)
-                weighted_o = self.prev_position[bmv] * shape_preservation
-                weighted_q = bmv.co * (1 - shape_preservation)
+                prev_position = self.prev_position
+                prev_co = prev_position.get(bmv)
+                if prev_co is None:
+                    prev_co = Vector(bmv_co)
+                    prev_position[bmv] = prev_co
+                weighted_o = prev_co * shape_preservation
+                weighted_q = bmv_co * (1.0 - shape_preservation)
                 displacement = average_co - (weighted_o + weighted_q)
             else:
-                displacement = average_co - bmv.co
-            if bmv.is_boundary: displacement /= 2
-            add_force(bmv, displacement / 10, mult=40)
+                displacement = average_co - bmv_co
+            if is_boundary: displacement *= 0.5
+            add_force(bmv, displacement * 0.1, mult=40)
 
         def straighten_edges(bmv):
             ''' push verts to straighten edges (still WiP!) '''
@@ -940,7 +746,7 @@ class Relax_Logic:
             reset_forces()
             if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
                 for bmv in verts & chk_verts:
-                    if relax.algorithm_laplacian: laplacian_smooth(bmv)
+                    if relax.algorithm_laplacian: laplacian_smooth(bmv, self.laplacian_cache)
                     if relax.algorithm_straighten_edges: straighten_edges(bmv)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
