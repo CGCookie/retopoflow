@@ -215,6 +215,7 @@ class Relax_Logic:
 
     verts_accel : Accel
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
+    straighten_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
 
     # debugging and profiling
     draw_vectors_positive : list[tuple[Vector,Vector]]
@@ -387,6 +388,7 @@ class Relax_Logic:
             ]
 
         self.laplacian_cache = {}
+        self.straighten_cache = {}
 
         timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
@@ -601,31 +603,55 @@ class Relax_Logic:
             if is_boundary: displacement *= 0.5
             add_force(bmv, displacement * 0.1, mult=40)
 
-        def straighten_edges(bmv):
+        def straighten_edges(bmv, straighten_cache):
             ''' push verts to straighten edges (still WiP!) '''
+            if bmv in straighten_cache:
+                straighten_data = straighten_cache[bmv]
+                if straighten_data is None: return
+            else:
+                link_edges = bmv.link_edges
+                edge_count = len(link_edges)
+                face_count = len(bmv.link_faces)
+                if edge_count == 2 or (edge_count == 4 and face_count == 3):
+                    straighten_cache[bmv] = None
+                    return
+                all_neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
+                if not all_neighbors:
+                    straighten_cache[bmv] = None
+                    return
+                boundary_neighbors = tuple(
+                    bme.other_vert(bmv)
+                    for bme in link_edges
+                    if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
+                )
+                straighten_data = (all_neighbors, boundary_neighbors, edge_count)
+                straighten_cache[bmv] = straighten_data
+            all_neighbors, boundary_neighbors, edge_count = straighten_data
+
             is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             if is_boundary and self.mask_opt('boundary') == 'EXCLUDE': return
-            edge_count = len(bmv.link_edges)
-            if edge_count == 2: return  # skip corners
-            if edge_count == 4 and len(bmv.link_faces) == 3: return
             if is_boundary:
                 if edge_count > 4: return
-                connected_edges = [
-                    bme for bme in bmv.link_edges if is_bmedge_boundary(
-                        bme, self.mirror, self.mirror_threshold, self.mirror_clip
-                )]
+                connected_neighbors = boundary_neighbors
             else:
-                connected_edges = list(bmv.link_edges)
-            if not connected_edges: return
+                connected_neighbors = all_neighbors
+            if not connected_neighbors: return
             if relax.algorithm_laplacian or relax.algorithm_average_edge_lengths:
                 # Faster method when verts are being spread out anyway
-                center = Point.average([bme.other_vert(bmv).co for bme in connected_edges])
+                sum_x = sum_y = sum_z = 0.0
+                for nb in connected_neighbors:
+                    nb_co = nb.co
+                    sum_x += nb_co[0]
+                    sum_y += nb_co[1]
+                    sum_z += nb_co[2]
+                reciprocal = 1.0 / len(connected_neighbors)
+                center = Vector((sum_x * reciprocal, sum_y * reciprocal, sum_z * reciprocal))
                 force_mult = 1
             else:
                 # Slower method that does not spread out verts
-                if len(bmv.link_edges) > 4: return
-                min_length = min(bme.calc_length() for bme in connected_edges)
-                directions = [(bme.other_vert(bmv).co - bmv.co).normalized() for bme in connected_edges]
+                if edge_count > 4: return
+                min_length = min((nb.co - bmv.co).length for nb in connected_neighbors)
+                directions = [(nb.co - bmv.co).normalized() for nb in connected_neighbors]
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
                 force_mult = 1
             vec = center - bmv.co
@@ -747,7 +773,7 @@ class Relax_Logic:
             if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
                 for bmv in verts & chk_verts:
                     if relax.algorithm_laplacian: laplacian_smooth(bmv, self.laplacian_cache)
-                    if relax.algorithm_straighten_edges: straighten_edges(bmv)
+                    if relax.algorithm_straighten_edges: straighten_edges(bmv, self.straighten_cache)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in edges & chk_edges:
