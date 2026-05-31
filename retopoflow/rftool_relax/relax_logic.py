@@ -701,7 +701,7 @@ class Relax_Logic:
                 diff = avg_rel_len - rel_len
                 if diff > 0: diff /= 10 # Reduces shrinking
                 f = rel * diff * strength * 5
-                add_force(bmv, f, bmf_midpoint(bmf), (avg_rel_len - rel_len), 40)
+                add_force(bmv, f, ctr, (avg_rel_len - rel_len), 40)
 
         def average_face_sides(bmf, bmv_count):
             ''' push verts toward equal edge lengths '''
@@ -710,9 +710,12 @@ class Relax_Logic:
                 bmv0, bmv1 = bme.verts
                 vec = bme_vector(bme)
                 edge_len = vec.length
-                f = vec * ((avg_face_edge_len - edge_len) * strength * 2)
-                add_force(bmv0, f * -0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
-                add_force(bmv1, f * 0.5, bme_midpoint(bme), (avg_face_edge_len - edge_len), 40)
+                edge_diff = (avg_face_edge_len - edge_len)
+                if abs(edge_diff) < 1e-12: continue
+                edge_midpoint = bme_midpoint(bme)
+                f = vec * (edge_diff * strength * 2)
+                add_force(bmv0, f * -0.5, edge_midpoint, edge_diff, 40)
+                add_force(bmv1, f * 0.5, edge_midpoint, edge_diff, 40)
 
         def average_face_angles(bmf, bmv_count):
             ''' push verts toward equal spread '''
@@ -784,7 +787,7 @@ class Relax_Logic:
                     average_edge_length(bme, avg_edge_len)
             if relax.algorithm_equalize_faces:
                 avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
-                for bmf in faces & chk_faces:
+                for bmf in faces:
                     bmv_count = len(bmf.verts)
                     average_face_angles(bmf, bmv_count)
                     average_face_radius(bmf, bmv_count)
