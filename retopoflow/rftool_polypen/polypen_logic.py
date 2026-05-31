@@ -216,7 +216,7 @@ def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start
             if bmvn is None: break
             bmv = bmvn
         bmfs_search.extend(bmv.link_faces)
-        touched.add(bmelem_start.link_edges)
+        touched |= set(bmelem_start.link_edges)
     elif type(bmelem_start) is BMEdge:
         bmfs_search.extend(bmelem_start.link_faces)
         touched.add(bmelem_start)
@@ -224,6 +224,7 @@ def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start
     else:
         assert False, f'Unhandled type {type(bmelem_start)} ({bmelem_start})'
 
+    # print(f'{bmelem_start=} {bmfs_search=} {touched=}')
     while bmfs_search:
         bmf : BMFace = bmfs_search.popleft()
         if normal and normal.dot(bmf.normal) > 0:
