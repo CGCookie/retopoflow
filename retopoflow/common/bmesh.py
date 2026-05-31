@@ -210,9 +210,12 @@ def bme_cos(bme : BMEdge) -> tuple[Vector, Vector]:
 
 def bmf_midpoint(bmf : BMFace) -> Vector:
     return sum((bmv.co for bmv in bmf.verts), Vector((0,0,0))) / len(bmf.verts)
-def bmf_radius(bmf):
+def bmf_radius(bmf : BMFace) -> float:
     mid = bmf_midpoint(bmf)
     return max((bmv.co - mid).length for bmv in bmf.verts)
+def bmf_radius_squared(bmf : BMFace) -> float:
+    mid = bmf_midpoint(bmf)
+    return max((bmv.co - mid).length_squared for bmv in bmf.verts)
 def bmf_midpoint_radius(bmf):
     mid = bmf_midpoint(bmf)
     rad = max((bmv.co - mid).length for bmv in bmf.verts)
@@ -243,6 +246,10 @@ def bmf_is_flipped(bmf:BMFace) -> bool:
     return any(v.normal.dot(fn) <= 0 for v in bmf.verts)
 
 
+def index_of(item, items) -> int:
+    for index, ii in enumerate(items):
+        if ii == item: return index
+    return -1
 def bmf_opposite_bmelem(bmf:BMFace, bmelem:BMVert|BMEdge) -> BMVert | BMEdge | None:
     try:
         l = len(bmf.edges)
@@ -250,25 +257,26 @@ def bmf_opposite_bmelem(bmf:BMFace, bmelem:BMVert|BMEdge) -> BMVert | BMEdge | N
             # even-sided face
             o = l // 2                          # offset
             if isinstance(bmelem, BMEdge):
-                idx0 = bmf.edges.index(bmelem)
+                idx0 = index_of(bmelem, bmf.edges)
                 idx1 = (idx0 + o) % l
                 return bmf.edges[idx1]
             elif isinstance(bmelem, BMVert):
-                idx0 = bmf.verts.index(bmelem)
+                idx0 = index_of(bmelem, bmf.verts)
                 idx1 = (idx0 + o) % l
                 return bmf.verts[idx1]
         else:
             # odd-sided face
             o1, o2 = l // 2, l // 2 + 1         # offsets
             if isinstance(bmelem, BMEdge):
-                idx0 = bmf.edges.index(bmelem)
+                idx0 = index_of(bmelem, bmf.edges)
                 idx1, idx2 = (idx0 + o1) % l, (idx0 + o2) % l
                 return bmes_shared_bmv(bmf.edges[idx1], bmf.edges[idx2])
             elif isinstance(bmelem, BMVert):
-                idx0 = bmf.verts.index(bmelem)
+                idx0 = index_of(bmelem, bmf.verts)
                 idx1, idx2 = (idx0 + o1) % l, (idx0 + o2) % l
                 return bmvs_shared_bme(bmf.verts[idx1], bmf.verts[idx2])
-    except:
+    except Exception as e:
+        print(e)
         return None
 
 

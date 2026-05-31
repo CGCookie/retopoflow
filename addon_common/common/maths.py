@@ -2137,15 +2137,18 @@ def point_inside_face_2d(pt:Vector|None, pts_face:list[Vector|None]) -> bool:
         for (pt1,pt2) in zip(pts_face[1:], pts_face[2:])
     )
 
-def point_inside_face(pt : Vector, pts_face : list[Vector]) -> Vector | None:
+def point_inside_face(pt : Vector, pts_face : list[Vector], *, radius_ratio:float=0.25) -> Vector | None:
     # assuming simple face (convex)
     face_center = sum(pts_face, Vector((0,0,0))) / len(pts_face)
-    face_radius = max((pt_face - face_center).length_squared for pt_face in pts_face)
-    if (pt - face_center).length_squared > face_radius: return False
+    face_radius_squared = max((pt_face - face_center).length_squared for pt_face in pts_face)
+    max_dist = face_radius_squared * radius_ratio * radius_ratio
     pt0 = pts_face[0]
     for (pt1, pt2) in zip(pts_face[1:], pts_face[2:]):
         p = intersect_point_tri(pt, pt0, pt1, pt2)
-        if p: return p
+        if not p:
+            continue
+        if (p - pt).length_squared < max_dist:
+            return p
     return None
 
 def points_of_bmface(bmf : BMFace) -> list[Vector]:

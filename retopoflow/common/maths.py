@@ -137,13 +137,13 @@ def lerp_map(v, vm, vM, m, M):
     f = (v - vm) / (vM - vm)
     return m + f * (M - m)
 
-def xform_point(M, p):
+def xform_point(M : Matrix, p : Vector) -> Vector:
     return point_to_bvec3(M @ bvec_point_to_bvec4(p))
-def xform_vector(M, v):
+def xform_vector(M : Matrix, v : Vector) -> Vector:
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(v))
-def xform_direction(M, d):
+def xform_direction(M : Matrix, d : Vector) -> Vector:
     return vector_to_bvec3(M @ bvec_vector_to_bvec4(d)).normalized()
-def xform_normal(Mit, d):
+def xform_normal(Mit : Matrix, d : Vector) -> Vector:
     return vector_to_bvec3(Mit @ bvec_vector_to_bvec4(d)).normalized()
 
 
