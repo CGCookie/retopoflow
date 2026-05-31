@@ -532,17 +532,19 @@ class Relax_Logic:
         def reset_forces():
             nonlocal displace
             displace.clear()
+
+        enabled_algorithms_count = (
+            int(relax.algorithm_laplacian) +
+            int(relax.algorithm_average_edge_lengths) +
+            int(relax.algorithm_straighten_edges) +
+            int(relax.algorithm_equalize_faces) * 4
+        )
+        weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
+
         def add_force(bmv, f, wrt=None, sign=0, mult=0):
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            options = [
-                relax.algorithm_laplacian,
-                relax.algorithm_average_edge_lengths,
-                relax.algorithm_straighten_edges,
-                relax.algorithm_equalize_faces, relax.algorithm_equalize_faces, relax.algorithm_equalize_faces, relax.algorithm_equalize_faces,
-            ]
-            weight_mult = 1 / len([x for x in options if x == True])
             displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
             if opt_draw_all and wrt:
                 if sign > 0:
@@ -661,11 +663,13 @@ class Relax_Logic:
             ''' Expand and contract edges closer to average edge length '''
             bmv0, bmv1 = bme.verts
             vec = bme_vector(bme)
-            edge_len = vec.length
-            diff = avg_edge_len - edge_len
-            f = vec * (diff * strength)
-            add_force(bmv0, -f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
-            add_force(bmv1, f, bme_midpoint(bme), (avg_edge_len-edge_len), 40)
+            diff = avg_edge_len - vec.length
+            if abs(diff) < 1e-12: return
+            edge_midpoint = bme_midpoint(bme)
+            diff_strength = diff * strength
+            f = vec * diff_strength
+            add_force(bmv0, -f, edge_midpoint, diff, 40)
+            add_force(bmv1, f, edge_midpoint, diff, 40)
 
         def average_edge_length_springs(bmv, avg_edge_len):
             # Intended to help edges not collapse around holes but
@@ -776,7 +780,7 @@ class Relax_Logic:
                     if relax.algorithm_straighten_edges: straighten_edges(bmv, self.straighten_cache)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
-                for bme in edges & chk_edges:
+                for bme in edges:
                     average_edge_length(bme, avg_edge_len)
             if relax.algorithm_equalize_faces:
                 avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
