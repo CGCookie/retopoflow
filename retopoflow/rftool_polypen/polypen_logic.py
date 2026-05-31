@@ -1952,11 +1952,16 @@ class PP_Logic:
 
             case PP_Action.VERT_SPLIT_EDGE:
                 # split hovered edge and create new edge from selected vert
-                bme = self.nearest_bme.bme
-                bmev0, bmev1 = bme.verts
+                if not self.nearest_bme or not self.bmv or not self.hit:
+                    return
+                if not self.nearest_bme.bme:
+                    return
+                bmev0, bmev1 = self.nearest_bme.bme.verts
 
                 pn = self.project(self.bmv.co)
                 pt = self.project(self.hit)
+                if not pn or not pt:
+                    return
                 splits = find_bmedges_to_split(context, self.matrix_world, self.bmv, pn, pt)
                 splits = [
                     (bme, pt)
@@ -1979,8 +1984,9 @@ class PP_Logic:
                                 split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                 split_co = bmv_corner.co + split_dir * split_dist
                                 split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
+                                splits = []
 
-                _, bmv_new = edge_split(bme, bmev0, 0.5)
+                _, bmv_new = edge_split(self.nearest_bme.bme, bmev0, 0.5)
                 if not self.constrain_edge_vert:
                     bmv_new.co = self.hit
                 else:
