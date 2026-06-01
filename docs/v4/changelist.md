@@ -5,20 +5,21 @@ This document contains details about what has changed in Retopoflow in version 4
 
 ### 4.1.6
 
+- Significantly improved Relax performance
+- Added option to slide along seams, creases, and sharp edges in Tweak and Relax
 - Added vertex and edge sliding when pressing G during transforms
     - Clamping is off by default for boundary edges so you can easily slide outwards
 - Added Tweak Loops option to Contours, which is on by default
     - This will select and slide loops when clicking and dragging from an edge instead of grabbing the edge
 - Improved auto picking projection method during transforms
     - If a lot of vertices are selected or any of their normals are not pointing towards the view, Face Nearest is used. Otherwise, Face Project.
-- Slightly improved boundary sliding performance in Tweak and Relax
-- Added option to slide along seams, creases, and sharp edges in Tweak and Relax
 - Added option to specify specific objects or collections as snapping sources
 - Added option to disable auto picking projection method
 - Added option to disable loop cutting feature in PolyPen's knife
 - Added option to disable transforms correcting face normals
 - Increased default Face Nearest snapping steps
 - Fixed PolyPen attempting to loop cut when it should bridge
+- Fixed several PolyPen knife issues
 - Fixed transforms flipping normals on thin curved surfaces
 - Fixed snapping to self during loop cut and slide
 - Fixed some Blender settings not being returned to previous values when exiting
