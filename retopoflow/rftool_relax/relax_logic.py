@@ -250,7 +250,6 @@ class Relax_Logic:
 
         # gather options
         self.rf_options = context.scene.retopoflow
-        # opt_use_cache = relax.algorithm_use_cache
 
         self.mirror = set()
         self.mirror_clip = False

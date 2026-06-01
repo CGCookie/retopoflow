@@ -206,11 +206,6 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
-    algorithm_use_cache: bpy.props.BoolProperty(
-        name = 'Use Cache',
-        description = 'Reuse the acceleration structure between strokes if possible',
-        default = True,
-    )
 
 
     logic : Relax_Logic     # pyright: ignore[reportUninitializedInstanceVariable]
