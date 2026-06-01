@@ -24,7 +24,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origi
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
-from bmesh.types import BMesh, BMVert
+from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
 import time
@@ -216,6 +216,7 @@ class Relax_Logic:
     verts_accel : Accel
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
+    face_topology_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMEdge, ...], tuple[float, float, float]] | None]
 
     # debugging and profiling
     draw_vectors_positive : list[tuple[Vector,Vector]]
@@ -389,6 +390,7 @@ class Relax_Logic:
 
         self.laplacian_cache = {}
         self.straighten_cache = {}
+        self.face_topology_cache = {}
 
         timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
@@ -617,8 +619,8 @@ class Relax_Logic:
                 if edge_count == 2 or (edge_count == 4 and face_count == 3):
                     straighten_cache[bmv] = None
                     return
-                all_neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
-                if not all_neighbors:
+                neighbors = tuple(bme.other_vert(bmv) for bme in link_edges)
+                if not neighbors:
                     straighten_cache[bmv] = None
                     return
                 boundary_neighbors = tuple(
@@ -626,9 +628,9 @@ class Relax_Logic:
                     for bme in link_edges
                     if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
                 )
-                straighten_data = (all_neighbors, boundary_neighbors, edge_count)
+                straighten_data = (neighbors, boundary_neighbors, edge_count)
                 straighten_cache[bmv] = straighten_data
-            all_neighbors, boundary_neighbors, edge_count = straighten_data
+            neighbors, boundary_neighbors, edge_count = straighten_data
 
             is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             if is_boundary and self.mask_opt('boundary') == 'EXCLUDE': return
@@ -636,7 +638,7 @@ class Relax_Logic:
                 if edge_count > 4: return
                 connected_neighbors = boundary_neighbors
             else:
-                connected_neighbors = all_neighbors
+                connected_neighbors = neighbors
             if not connected_neighbors: return
             if relax.algorithm_laplacian or relax.algorithm_average_edge_lengths:
                 # Faster method when verts are being spread out anyway
@@ -691,22 +693,37 @@ class Relax_Logic:
             if spring_force.length:
                 add_force(bmv, spring_force, bmv.co, 1, 40)
 
-        def average_face_radius(bmf, bmv_count):
+        def average_face_radius(bmf, face_topology_cache):
             ''' push verts toward average dist from verts to face center '''
-            ctr = bmf_midpoint(bmf)
-            rels = [bmv.co - ctr for bmv in bmf.verts]
-            avg_rel_len = sum(rel.length for rel in rels) / bmv_count
-            for rel, bmv in zip(rels, bmf.verts):
+            if bmf in face_topology_cache:
+                verts, edges, center = face_topology_cache[bmf]
+            else:
+                verts = tuple(bmv for bmv in bmf.verts)
+                center = bmf_midpoint(bmf)
+                face_topology_cache[bmf] = (
+                    verts,
+                    tuple(bme for bme in bmf.edges),
+                    center
+                )
+            rels = [bmv.co - center for bmv in verts]
+            avg_rel_len = sum(rel.length for rel in rels) / len(verts)
+            for rel, bmv in zip(rels, verts):
                 rel_len = rel.length
                 diff = avg_rel_len - rel_len
                 if diff > 0: diff /= 10 # Reduces shrinking
                 f = rel * diff * strength * 5
-                add_force(bmv, f, ctr, (avg_rel_len - rel_len), 40)
+                add_force(bmv, f, center, (avg_rel_len - rel_len), 40)
 
-        def average_face_sides(bmf, bmv_count):
+        def average_face_sides(bmf, face_topology_cache):
             ''' push verts toward equal edge lengths '''
-            avg_face_edge_len = sum(bme_length(bme) for bme in bmf.edges) / bmv_count
-            for bme in bmf.edges:
+            if bmf in face_topology_cache:
+                verts, edges, center = face_topology_cache[bmf]
+            else:
+                verts = tuple(bmv for bmv in bmf.verts)
+                edges = tuple(bme for bme in bmf.edges)
+                face_topology_cache[bmf] = (verts, edges, bmf_midpoint(bmf))
+            avg_face_edge_len = sum(bme_length(bme) for bme in edges) / len(verts)
+            for bme in edges:
                 bmv0, bmv1 = bme.verts
                 vec = bme_vector(bme)
                 edge_len = vec.length
@@ -717,8 +734,17 @@ class Relax_Logic:
                 add_force(bmv0, f * -0.5, edge_midpoint, edge_diff, 40)
                 add_force(bmv1, f * 0.5, edge_midpoint, edge_diff, 40)
 
-        def average_face_angles(bmf, bmv_count):
+        def average_face_angles(bmf, face_topology_cache):
             ''' push verts toward equal spread '''
+            if bmf in face_topology_cache:
+                verts, edges, center = face_topology_cache[bmf]
+            else:
+                verts = tuple(bmv for bmv in bmf.verts)
+                face_topology_cache[bmf] = (
+                    verts,
+                    tuple(bme for bme in bmf.edges),
+                    bmf_midpoint(bmf)
+                )
             bmf_z = bmf.normal.normalized()
             if abs(bmf_z.dot(self.forward)) < 0.95:
                 bmf_y = bmf_z.cross(self.forward).normalized()
@@ -726,12 +752,13 @@ class Relax_Logic:
             else:
                 bmf_x = self.up.cross(bmf_z).normalized()
                 bmf_y = bmf_z.cross(bmf_x).normalized()
-            sum_of_interior_angles = math.pi * (bmv_count - 2)
-            angle_target = sum_of_interior_angles / bmv_count
-            for i1 in range(bmv_count):
-                i0 = (i1 + bmv_count - 1) % bmv_count
-                i2 = (i1 + 1) % bmv_count
-                bmv0, bmv1, bmv2 = bmf.verts[i0], bmf.verts[i1], bmf.verts[i2]
+            vert_count = len(verts)
+            sum_of_interior_angles = math.pi * (vert_count - 2)
+            angle_target = sum_of_interior_angles / vert_count
+            for i1 in range(vert_count):
+                i0 = (i1 + vert_count - 1) % vert_count
+                i2 = (i1 + 1) % vert_count
+                bmv0, bmv1, bmv2 = verts[i0], verts[i1], verts[i2]
                 v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
                 d10, d12 = v10.normalized(), v12.normalized()
                 d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
@@ -746,18 +773,25 @@ class Relax_Logic:
                     # Exception is thrown if d10_2 or d12_2 are 0-length
                     pass
 
-        def average_face_areas(bmf, bmv_count, avg_vert_area):
+        def average_face_areas(bmf, avg_vert_area, face_topology_cache):
             ''' scale faces towards the average '''
-            # Useful for preserving area when faces should retain uneven sides
-            diff = (bmf.calc_area() / bmv_count) - avg_vert_area
-            center = Point.average(bmv.co for bmv in bmf.verts)
-            for bmv in bmf.verts:
+            if bmf in face_topology_cache:
+                verts, edges, center = face_topology_cache[bmf]
+            else:
+                verts = tuple(bmv for bmv in bmf.verts)
+                edges = tuple(bme for bme in bmf.edges)
+                center = bmf_midpoint(bmf)
+                face_topology_cache[bmf] = (verts, edges, center)
+            diff = (bmf.calc_area() / len(verts)) - avg_vert_area
+            center = Point.average(bmv.co for bmv in verts)
+            edge_set = set(edges)
+            for bmv in verts:
                 if bmv.is_boundary and len(bmv.link_edges) == 3:
-                    other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in bmf.edges]
+                    other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in edge_set]
                     if other_boundary_verts:
                         center = Point.average([bmv.co, other_boundary_verts[0].co])
                 vec = (center - bmv.co) * diff * self.scale_avg * 500
-                add_force(bmv, vec * strength, bmf_midpoint(bmf), 1, 40)
+                add_force(bmv, vec * strength, center, 1, 40)
 
         def correct_flipped_faces():
             ''' push verts if neighboring faces seem flipped (still WiP!) '''
@@ -788,11 +822,10 @@ class Relax_Logic:
             if relax.algorithm_equalize_faces:
                 avg_vert_area = sum(bmf.calc_area() / len(bmf.verts) for bmf in faces) / len(faces)
                 for bmf in faces:
-                    bmv_count = len(bmf.verts)
-                    average_face_angles(bmf, bmv_count)
-                    average_face_radius(bmf, bmv_count)
-                    average_face_sides(bmf, bmv_count)
-                    average_face_areas(bmf, bmv_count, avg_vert_area)
+                    average_face_angles(bmf, self.face_topology_cache)
+                    average_face_radius(bmf, self.face_topology_cache)
+                    average_face_sides(bmf, self.face_topology_cache)
+                    average_face_areas(bmf, avg_vert_area, self.face_topology_cache)
             if relax.algorithm_correct_flipped_faces: correct_flipped_faces()
 
         # perform smoothing
