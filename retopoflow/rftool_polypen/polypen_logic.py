@@ -202,8 +202,8 @@ def find_crossed_edge(context: Context, matrix_world : Matrix, pt0 : Vector, pt1
         return (bme, pt)
     return None
 
-def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start : BMVert|BMEdge, p0 : Vector, p1 : Vector, normal : Vector|None) -> list[tuple[BMVert|BMEdge, Vector]]:
-    found : list[tuple[BMVert|BMEdge, Vector]] = []
+def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start : BMVert|BMEdge, p0 : Vector, p1 : Vector, normal : Vector|None) -> list[tuple[BMEdge, Vector]]:
+    found : list[tuple[BMEdge, Vector]] = []
     touched : set[BMEdge|BMVert] = set()
     bmfs_search : deque[BMFace] = deque()
 
@@ -739,12 +739,14 @@ class PP_Logic:
             return
 
         if len(self.selected[BMEdge]) > 1:
-            self.state = PP_Action.EDGE_TRI
             sel_bmes : set[BMEdge] = self.selected[BMEdge]  # pyright: ignore[reportAssignmentType]
-            self.bme = min(
-                sel_bmes,
-                key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
-            )
+            sel_bmes = { bme for bme in sel_bmes if bme.is_boundary }
+            if sel_bmes:
+                self.state = PP_Action.EDGE_TRI
+                self.bme = min(
+                    sel_bmes,
+                    key=(lambda bme:distance2d_point_bmedge(context, self.matrix_world, self.hit, bme)),
+                )
             return
 
     def update_split_face_loop(self, context:Context) -> bool:
@@ -977,10 +979,10 @@ class PP_Logic:
         idx0, idx1 = [ bmvs.index(bmv) for bmv in bme_bmf_end.verts ]
         idx = idx0 if wrap_idx(idx1 + 1) == idx0 else idx1
         bmvs = bmvs[idx:] + bmvs[:idx]
-        if bmf_is_pentagon(bmf_end):
-            a, b, _e, c, d = [ self.project(bmv.co) for bmv in bmvs ]
-        else:
-            a, b, c, d = [ self.project(bmv.co) for bmv in bmvs ]
+
+        a, b = self.project(bmvs[0].co), self.project(bmvs[1].co)
+        c, d = self.project(bmvs[-2].co), self.project(bmvs[-1].co)
+
         if not self.mouse or not a or not b or not c or not d:
             return False
 
@@ -1141,14 +1143,18 @@ class PP_Logic:
                     bmv11 = bme_other_bmv(bme1, bmv10)
                     if not bmv01 or not bmv11: return
 
-                p00 = self.project(bmv00.co)
-                p01 = self.project(bmv01.co)
-                p10 = self.project(bmv10.co)
-                p11 = self.project(bmv11.co)
+                p00, p01 = self.project(bmv00.co), self.project(bmv01.co)  # selected
+                p10, p11 = self.project(bmv10.co), self.project(bmv11.co)  # hovered
                 pt = self.nearest_bme.co2d
                 if not pt or not p00 or not p01 or not p10 or not p11: return
 
                 v0, v1 = (p01 - p00), (p11 - p10)
+                p = intersection2d_line_line(p00, p01, p10, p11)
+                if not p:
+                    if v0.dot(v1) < 0: p10, p11, v1 = p11, p10, -v1
+                else:
+                    if v0.dot(p - p00) < 0: p00, p01, v0 = p01, p00, -v0
+                    if v1.dot(p - p10) < 0: p10, p11, v1 = p11, p10, -v1
                 l0, l1 = v0.length, v1.length
                 d0, d1 = v0 / l0, v1 / l1
                 l = d1.dot(pt - p10)
@@ -1640,24 +1646,25 @@ class PP_Logic:
                 select_later = []
 
             case PP_Action.SPLIT_QUAD:
-                if not self.bme or not self.nearest_bme or not self.nearest_bme.bme:
+                if not self.bm or not self.bme or not self.nearest_bme or not self.nearest_bme.bme:
                     return
                 bme0 = self.bme
                 bmv00, bmv01 = bme0.verts
                 bme1 = self.nearest_bme.bme
                 bmv10, bmv11 = bme1.verts
 
-                p00 = self.project(bmv00.co)
-                p01 = self.project(bmv01.co)
-                p10 = self.project(bmv10.co)
-                p11 = self.project(bmv11.co)
+                p00, p01 = self.project(bmv00.co), self.project(bmv01.co)  # selected
+                p10, p11 = self.project(bmv10.co), self.project(bmv11.co)  # hovered
                 pt = self.nearest_bme.co2d
                 if not p00 or not p01 or not p10 or not p11 or not pt:
                     return
                 vec0, vec1 = p01 - p00, p11 - p10
-                if vec0.dot(vec1) < 0:
-                    p00, p01 = p01, p00
-                    bmv00, bmv01 = bmv01, bmv00
+                p = intersection2d_line_line(p00, p01, p10, p11)
+                if not p:
+                    if vec0.dot(vec1) < 0: p10, p11, vec1 = p11, p10, -vec1
+                else:
+                    if vec0.dot(p - p00) < 0: p00, p01, vec0 = p01, p00, -vec0
+                    if vec1.dot(p - p10) < 0: p10, p11, vec1 = p11, p10, -vec1
                 len1 = vec1.length
                 percent = vec1.dot(pt - p10) / len1 / len1
 
@@ -1673,13 +1680,14 @@ class PP_Logic:
                     for (bme, pt) in splits:
                         if bme == bme0 or bme == bme1: continue
                         _, bmv_new = edge_split(bme, bme.verts[0], 0.5)
-                        bmv_new.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt)  # raycast to surface
-                        connect_verts(self.bm, verts=[bmv_from, bmv_new])
+                        if pt3d := raycast_point_valid_sources(context, pt):     # raycast to surface
+                            bmv_new.co = self.matrix_world_inv @ pt3d
+                        connect_verts(self.bm, verts=[bmv_from, bmv_new])   # pyright: ignore [reportUnusedCallResult]
                         bmv_from = bmv_new
                     if bmvs_share_bmf(bmv_from, bmv1_new):
-                        connect_verts(self.bm, verts=[bmv_from, bmv1_new])
+                        connect_verts(self.bm, verts=[bmv_from, bmv1_new])  # pyright: ignore [reportUnusedCallResult]
                     else:
-                        self.bm.edges.new((bmv_from, bmv1_new))
+                        self.bm.edges.new((bmv_from, bmv1_new))             # pyright: ignore [reportUnusedCallResult]
                 else:
                     ret = connect_verts(self.bm, verts=[bmv0_new, bmv1_new])
                 select_now = [bmv1_new]

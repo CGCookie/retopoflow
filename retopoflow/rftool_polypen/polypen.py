@@ -230,9 +230,10 @@ class RFOperator_PolyPen(RFOperator):
             return {'FINISHED'}
 
         self.logic.update(context, event, self.insert_mode, self.quad_stability, self.quad_preserve, self.constrain_edge_vert, self.use_loop_cuts)
-        # print(f'PolyPen logic state: "{self.logic.state.name}"')
+        # print(f'PolyPen update: "{self.logic.state.name}"')
 
         if event.type == 'LEFTMOUSE' and event.value == 'PRESS' and event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
+            # print(f'PolyPen commit: "{self.logic.state.name}"')
             self.logic.commit(context, event)
             return {'RUNNING_MODAL'}
 

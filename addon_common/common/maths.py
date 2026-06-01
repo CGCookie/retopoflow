@@ -2052,7 +2052,7 @@ def mid(v0, v1, v2):
     return v1
 
 
-def intersection2d_line_line(p0, p1, p2, p3):
+def intersection2d_line_line(p0:Vector, p1:Vector, p2:Vector, p3:Vector) -> Vector|None:
     # https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
     x0,y0 = p0
     x1,y1 = p1
