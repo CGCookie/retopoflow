@@ -103,7 +103,7 @@ class Tweak_Logic:
         self._crease_accel = None
         if self.props_scene.mask_creases != 'SLIDE': return
         self.bm.edges.ensure_lookup_table()
-        crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.crease, ensure_lookup=False)]
+        crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.crease)]
         self._crease_verts = {bmv for bme in crease_edges for bmv in bme.verts}
         self._crease_accel = EdgeAccel([bme_cos(bme) for bme in crease_edges])
 

@@ -374,17 +374,17 @@ class Relax_Logic:
         if self.mask_opt('seams') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
-                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) <= 2
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) > 2
             ]
         if self.mask_opt('sharps') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
-                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) >= 2
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) > 2
             ]
         if self.mask_opt('creases') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
-                if sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) >= 2
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2
             ]
 
         self.laplacian_cache = {}

@@ -16,7 +16,7 @@ def draw_keymap_options(layout, keymap_item):
     modifiers.prop(keymap_item, 'alt_ui', toggle=True)
 
 
-def draw_expandable_enum(context, layout, props, prop_name:str, breakpoint:int=500, text:str|None=None):
+def draw_expandable_enum(context, layout, props, prop_name:str, breakpoint:int=600, text:str|None=None):
     if text == None:
         text = props.bl_rna.properties[prop_name].name
 
