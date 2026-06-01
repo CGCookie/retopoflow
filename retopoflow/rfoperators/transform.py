@@ -188,7 +188,7 @@ class RFOperator_Translate(RFOperator):
                 prev_mode = tuple(context.tool_settings.mesh_select_mode)
                 context.tool_settings.mesh_select_mode = (False, True, False)
                 if bpy.app.version >= (5, 1, 0):
-                    bpy.ops.mesh.select_edge_loop_multi()
+                    bpy.ops.mesh.select_edge_loop_multi(delimit_edge_loop={'NGONS', 'INNER_CORNERS', 'OUTER_CORNERS'})
                 else:
                     bpy.ops.mesh.loop_multi_select(ring=False)
                 context.tool_settings.mesh_select_mode = prev_mode
@@ -294,9 +294,9 @@ class RFOperator_Translate(RFOperator):
             selected_verts = bmops.get_all_selected_bmverts(self.bm)
             verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
             has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
-            use_edge_slide = bool(selected_edges) and not has_unconnected_vert
-            slide_op = bpy.ops.transform.edge_slide if use_edge_slide else bpy.ops.transform.vert_slide
-            clamp = not use_edge_slide or not all([v.is_boundary for v in selected_edges])
+            use_vert_slide = bool(selected_edges) and has_unconnected_vert
+            slide_op = bpy.ops.transform.vert_slide if use_vert_slide else bpy.ops.transform.edge_slide
+            clamp = use_vert_slide or not any([e.is_boundary for e in selected_edges])
             result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
             if 'RUNNING_MODAL' in result or 'FINISHED' in result:
                 return {'FINISHED'}
