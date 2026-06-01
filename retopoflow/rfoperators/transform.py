@@ -59,12 +59,38 @@ from ..common.drawing import Drawing, CC_2D_POINTS
 from ..rfoverlays.proportional_edit_overlay import ProportionalEditOverlay
 
 
+class RFOperator_Slide(RFOperator):
+    # Registered as a separate operator because it needs 'UNDO' on while Translate needs it off
+    bl_idname = "retopoflow.slide"
+    bl_label = 'Slide'
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    bl_options = {'UNDO'}
+
+    def init(self, context, event):
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+
+    def update(self, context, event):
+        selected_edges = bmops.get_all_selected_bmedges(self.bm)
+        selected_verts = bmops.get_all_selected_bmverts(self.bm)
+        verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
+        has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
+        use_vert_slide = not bool(selected_edges) or (bool(selected_edges) and has_unconnected_vert)
+        slide_op = bpy.ops.transform.vert_slide if use_vert_slide else bpy.ops.transform.edge_slide
+        clamp = use_vert_slide or not any([e.is_boundary for e in selected_edges])
+        prev_nearest_steps = context.scene.tool_settings.snap_face_nearest_steps
+        context.scene.tool_settings.snap_face_nearest_steps = 1 # needed to merge properly
+        slide_op('INVOKE_DEFAULT', use_clamp=clamp, use_snap_self=False, use_snap_edit=False)
+        context.scene.tool_settings.snap_face_nearest_steps = prev_nearest_steps
+        return {'FINISHED'}
+
+
 class RFOperator_Translate(RFOperator):
     bl_idname = "retopoflow.translate"
     bl_label = 'Translate'
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
-    bl_options = {'UNDO'}
+    bl_options = set()
 
     rf_keymaps = [
         (f'{bl_idname}_grab', {'type': 'G', 'value': 'PRESS'}, None),
@@ -192,6 +218,25 @@ class RFOperator_Translate(RFOperator):
             else:
                 self.snap_method = 'NEAREST'
 
+        # Handle loop selection
+        active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+        if active_tool and self.used_keyboard == False:
+            tool_props = active_tool.operator_properties(active_tool.idname)
+            self.select_loops = getattr(tool_props, 'select_loops', False)
+        if self.select_loops:
+            selected_edges = bmops.get_all_selected_bmedges(self.bm)
+            selected_faces = bmops.get_all_selected_bmfaces(self.bm)
+            if len(selected_edges) and not len(selected_faces):
+                prev_mode = tuple(context.tool_settings.mesh_select_mode)
+                context.tool_settings.mesh_select_mode = (False, True, False)
+                if bpy.app.version >= (5, 1, 0):
+                    bpy.ops.mesh.select_edge_loop_multi(delimit_edge_loop={'NGONS', 'INNER_CORNERS', 'OUTER_CORNERS'})
+                else:
+                    bpy.ops.mesh.loop_multi_select(ring=False)
+                context.tool_settings.mesh_select_mode = prev_mode
+                bmops.flush_selection(self.bm, self.em)
+                self.use_slide = True
+
         if self.use_native == 'TRUE' and self.use_slide == False:
             ts = context.scene.tool_settings
             prev_snap_individual = ts.snap_elements_individual
@@ -269,36 +314,11 @@ class RFOperator_Translate(RFOperator):
         # Cursors.set('NONE')  # PAINT_CROSS
 
     def update(self, context, event):
-        # Handle loop selection
-        active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        if active_tool and self.used_keyboard == False:
-            tool_props = active_tool.operator_properties(active_tool.idname)
-            self.select_loops = getattr(tool_props, 'select_loops', False)
-        if self.select_loops:
-            selected_edges = bmops.get_all_selected_bmedges(self.bm)
-            selected_faces = bmops.get_all_selected_bmfaces(self.bm)
-            if len(selected_edges) and not len(selected_faces):
-                prev_mode = tuple(context.tool_settings.mesh_select_mode)
-                context.tool_settings.mesh_select_mode = (False, True, False)
-                if bpy.app.version >= (5, 1, 0):
-                    bpy.ops.mesh.select_edge_loop_multi(delimit_edge_loop={'NGONS', 'INNER_CORNERS', 'OUTER_CORNERS'})
-                else:
-                    bpy.ops.mesh.loop_multi_select(ring=False)
-                context.tool_settings.mesh_select_mode = prev_mode
-                bmops.flush_selection(self.bm, self.em)
-                self.use_slide = True
 
         if self.use_slide or (event.type == 'G' and event.value == 'PRESS'):
-            selected_edges = bmops.get_all_selected_bmedges(self.bm)
-            selected_verts = bmops.get_all_selected_bmverts(self.bm)
-            verts_in_selected_edges = {bmv for bme in selected_edges for bmv in bme.verts}
-            has_unconnected_vert = any(bmv not in verts_in_selected_edges for bmv in selected_verts)
-            use_vert_slide = bool(selected_edges) and has_unconnected_vert
-            slide_op = bpy.ops.transform.vert_slide if use_vert_slide else bpy.ops.transform.edge_slide
-            clamp = use_vert_slide or not any([e.is_boundary for e in selected_edges])
-            result = slide_op('INVOKE_DEFAULT', use_clamp=clamp)
-            if 'RUNNING_MODAL' in result or 'FINISHED' in result:
-                return {'FINISHED'}
+            bpy.ops.retopoflow.slide('INVOKE_DEFAULT')
+            self.automerge(context, event)
+            return {'FINISHED'}
 
         if self.use_native == 'TRUE':
             return {'FINISHED'}
