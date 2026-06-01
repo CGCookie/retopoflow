@@ -416,10 +416,10 @@ class RFTool_Contours(RFTool_Base):
             if props_contours.process_source_method == 'fast':
                 layout.prop(props_contours, 'sample_points', text=f'Samples')
                 layout.prop(props_contours, 'sample_width', text=f'Width')
-            layout.separator()
-            layout.prop(props_contours, 'select_loops')
             draw_line_separator(layout)
-            layout.popover('RF_PT_TweakCommon', text='Tweaking')
+            row = layout.row(align=True)
+            row.prop(props_contours, 'select_loops', text='Loops', toggle=True)
+            row.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
@@ -429,7 +429,6 @@ class RFTool_Contours(RFTool_Base):
             layout.popover('RF_PT_General', text='', icon='OPTIONS')
             layout.popover('RF_PT_Help', text='', icon='INFO_LARGE' if bpy.app.version >= (4,3,0) else 'INFO')
         else:
-            layout.prop(props_contours, 'select_loops')
             header, panel = layout.panel(idname='contours_cut_panel', default_closed=False)
             header.label(text="Insert")
             if panel:

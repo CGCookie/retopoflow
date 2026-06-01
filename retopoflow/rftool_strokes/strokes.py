@@ -421,7 +421,6 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         subtype='PIXEL',
         default=12,
     )
-
     stroke_smoothing: bpy.props.FloatProperty(
         name='Stroke Smoothing',
         description='Stroke smoothing factor.  Zero means no smoothing, and higher means more smoothing.',
@@ -430,6 +429,11 @@ class RFOperator_Strokes(RFOperator_Stroke_Insert_Properties, RFOperator):
         min=0.00,
         max=1.0,
         default=0.5,
+    )
+    select_loops: bpy.props.BoolProperty(
+        name = 'Tweak Loops',
+        description = 'Select and transform loops while tweaking edges with the mouse',
+        default = False
     )
 
     def init(self, context, event):
@@ -552,7 +556,9 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(heading='T-Strips:', align=False)
             row.prop(props_strokes, 'extrapolate_mode', expand=True)
             draw_line_separator(layout)
-            layout.popover('RF_PT_TweakCommon')
+            row = layout.row(align=True)
+            row.prop(props_strokes, 'select_loops', text='Loops', toggle=True)
+            row.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False

@@ -27,31 +27,34 @@ from ..common.interface import draw_section_header
 
 def draw_tweaking_options(context, layout):
     props = RF_Prefs.get_prefs(context)
+    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
 
     grid = layout.grid_flow(even_columns=True, even_rows=False)
     grid.use_property_split = True
     grid.use_property_decorate = False
 
+    if tool.idname in ['retopoflow.strokes', 'retopoflow.contours']:
+        tool_props = tool.operator_properties(tool.idname)
+        col = grid.column()
+        draw_section_header(context, col, tool_props.bl_rna.name)
+        col.prop(tool_props, 'select_loops', text='Loops Mode')
+
     col = grid.column()
     draw_section_header(context, col, 'Selection')
     col.prop(props, 'tweaking_distance', text='Distance')
     row = col.row(heading='Auto Select')
-    if context.region.type != 'TOOL_HEADER' and context.region.width < 500:
-        row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
-        col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
-    else:
-        row = col.row(heading='Auto Select', align=False)
-        row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse', toggle=False)
-        row.separator()
-        row.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard', toggle=False)
-    col.separator()
+    row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
+    col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
 
     col = grid.column()
     draw_section_header(context, col, 'Transform')
     col.prop(props, 'tweaking_use_native', text='Native')
-    col2 = col.column()
-    col2.enabled = not props.tweaking_use_native
-    col2.prop(props, 'tweaking_update_normals')
+
+    if not props.tweaking_use_native:
+        col.separator()
+        col2 = col.column()
+        col2.enabled = not props.tweaking_use_native
+        col2.row(heading='Normals').prop(props, 'tweaking_update_normals', text='Update')
 
     if context.area.type != 'PREFERENCES':
         col.separator()
@@ -69,7 +72,7 @@ def draw_tweaking_options(context, layout):
         col.prop(context.scene.tool_settings, 'snap_elements_individual', text=' ')
     row = col.row()
     row.enabled = props.tweaking_use_auto_snap_method or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
-    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Snapping Steps')
+    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
     col.separator()
 
 
