@@ -579,8 +579,8 @@ class RFTool_Strokes(RFTool_Base):
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
                 panel.prop(props_strokes, 'extrapolate_mode', text='T-Strips')
             draw_tweaking_panel(context, layout)
-            draw_mirror_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)
 

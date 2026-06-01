@@ -438,8 +438,8 @@ class RFTool_Contours(RFTool_Base):
                 if props_contours.process_source_method == 'fast':
                     panel.prop(props_contours, 'sample_points', text=f'Samples')
                     panel.prop(props_contours, 'sample_width', text=f'Width')
-            draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)

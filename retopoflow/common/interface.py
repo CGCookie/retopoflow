@@ -16,6 +16,16 @@ def draw_keymap_options(layout, keymap_item):
     modifiers.prop(keymap_item, 'alt_ui', toggle=True)
 
 
+def draw_expandable_enum(context, layout, props, prop_name:str, breakpoint:int=500, text:str|None=None):
+    if text == None:
+        text = props.bl_rna.properties[prop_name].name
+
+    if context.region.width < breakpoint or context.region.type == 'TOOL_HEADER':
+        layout.prop(props, prop_name, text=text)
+    else:
+        layout.row().prop(props, prop_name, text=text, expand=True)
+
+
 def draw_line_separator(layout):
     if bpy.app.version >= (4,2,0):
         return layout.separator(type='LINE')
@@ -25,9 +35,9 @@ def draw_line_separator(layout):
 
 def draw_section_indent(context, layout):
     if context.region.type != 'TOOL_HEADER':
-        if context.region.width > 350:
+        if context.region.width > 450:
             layout.label(icon='BLANK1')
-        if context.region.width > 570:
+        if context.region.width > 600:
             layout.label(icon='BLANK1')
 
 

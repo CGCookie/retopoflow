@@ -17,6 +17,7 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added option to disable auto picking projection method
 - Added option to disable loop cutting feature in PolyPen's knife
 - Added option to disable transforms correcting face normals
+- Minor UI cleanup
 - Increased default Face Nearest snapping steps
 - Fixed PolyPen attempting to loop cut when it should bridge
 - Fixed several PolyPen knife issues

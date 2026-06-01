@@ -40,13 +40,13 @@ def draw_mirror_options(context, layout):
 
     if tool.idname == 'retopoflow.strokes':
         tool_props = tool.operator_properties(tool.idname)
-        layout.label(text='Strokes')
+        draw_section_header(context, layout, 'Strokes')
         layout.prop(tool_props, 'mirror_correct', text='Active Side')
         layout.prop(tool_props, 'mirror_mode', text='Crossing Mode')
 
     elif tool.idname == 'retopoflow.polystrips':
         tool_props = tool.operator_properties(tool.idname)
-        layout.label(text='PolyStrips')
+        draw_section_header(context, layout, 'PolyStrips')
         layout.prop(tool_props, 'mirror_correct', text='Active Side')
 
     draw_section_header(context, layout, 'Modifier')
@@ -72,7 +72,7 @@ def draw_mirror_options(context, layout):
         col.enabled = props_obj.mirror_axis[0] or props_obj.mirror_axis[1] or props_obj.mirror_axis[2]
 
     if mod:
-        col.label(text='Preview')
+        draw_section_header(context, layout, 'Preview')
         col.prop(props, 'mirror_display')
 
         if props.mirror_display == 'SOLID' or props.mirror_display == 'WIRE':

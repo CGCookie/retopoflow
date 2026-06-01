@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..preferences import RF_Prefs
+from ..common.interface import draw_expandable_enum
 
 
 def draw_pinning_options(context, layout):
@@ -30,9 +31,9 @@ def draw_pinning_options(context, layout):
 
     layout.use_property_split = True
     layout.use_property_decorate = False
-    layout.prop(props, 'mask_creases', text="Creases")
-    layout.prop(props, 'mask_seams', text="Seams")
-    layout.prop(props, 'mask_sharps', text="Sharps")
+    draw_expandable_enum(context, layout, props, 'mask_creases', text='Creases')
+    draw_expandable_enum(context, layout, props, 'mask_seams', text='Seams')
+    draw_expandable_enum(context, layout, props, 'mask_sharps', text='Sharps')
     layout.row(heading='Include').prop(props, 'include_corners')
     if prefs.setup_pinning:
         layout.prop(props, 'include_pinned')
@@ -43,6 +44,7 @@ def draw_pinning_options(context, layout):
         row = layout.row()
         row.operator('retopoflow.pinverts', text='Pin', icon='PINNED')
         row.operator('retopoflow.unpinverts', text='Unpin', icon='UNPINNED')
+
 
 class RFMenu_PT_Pinning(bpy.types.Panel):
     bl_label = "Pinning"
@@ -60,8 +62,8 @@ def draw_masking_options(context, layout):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    layout.prop(props, 'mask_selected', text="Selected")
-    layout.prop(props, 'mask_boundary', text="Boundary")
+    draw_expandable_enum(context, layout, props, 'mask_selected', text='Selected')
+    draw_expandable_enum(context, layout, props, 'mask_boundary', text='Boundary')
     # layout.prop(props, 'mask_symmetry', text="Symmetry")  # TODO: Implement
     draw_pinning_options(context, layout)
 

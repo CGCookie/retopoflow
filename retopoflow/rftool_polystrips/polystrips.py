@@ -758,8 +758,8 @@ class RFTool_PolyStrips(RFTool_Base):
                 panel.prop(props_polystrips, 'stroke_smoothing', slider=True)
                 panel.prop(props_polystrips, 'split_angle')
             draw_tweaking_panel(context, layout)
-            draw_mirror_panel(context, layout)
             draw_cleanup_panel(context, layout)
+            draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)
 

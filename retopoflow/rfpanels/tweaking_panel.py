@@ -32,38 +32,45 @@ def draw_tweaking_options(context, layout):
     grid.use_property_split = True
     grid.use_property_decorate = False
 
-    if context.area.type != 'PREFERENCES':
-        col = grid.column()
-        draw_section_header(context, col, 'Auto Merge')
-        col.prop(context.scene.tool_settings, 'use_mesh_automerge', text='Enable', toggle=False)
-        row = col.row()
-        row.enabled = context.scene.tool_settings.use_mesh_automerge
-        row.prop(context.scene.tool_settings, 'double_threshold', text='Threshold')
-        col.separator()
-
     col = grid.column()
     draw_section_header(context, col, 'Selection')
     col.prop(props, 'tweaking_distance', text='Distance')
-    row = col.row(heading='Mouse')
-    row.prop(props, 'tweaking_move_hovered_mouse', text='Auto Select')
-    row = col.row(heading='Keyboard')
-    row.prop(props, 'tweaking_move_hovered_keyboard', text='Auto Select')
+    row = col.row(heading='Auto Select')
+    if context.region.type != 'TOOL_HEADER' and context.region.width < 500:
+        row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse')
+        col.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard')
+    else:
+        row = col.row(heading='Auto Select', align=False)
+        row.prop(props, 'tweaking_move_hovered_mouse', text='Mouse', toggle=False)
+        row.separator()
+        row.prop(props, 'tweaking_move_hovered_keyboard', text='Keyboard', toggle=False)
     col.separator()
 
     col = grid.column()
-    draw_section_header(context, col, 'Snapping')
-    row = col.row(heading='Auto')
-    row.prop(props, 'tweaking_use_auto_snap_method', text='Projection Method')
-    row = col.row()
-    row.enabled = props.tweaking_use_auto_snap_method or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
-    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
-    col.separator()
-
     draw_section_header(context, col, 'Transform')
     col.prop(props, 'tweaking_use_native', text='Native')
     col2 = col.column()
     col2.enabled = not props.tweaking_use_native
     col2.prop(props, 'tweaking_update_normals')
+
+    if context.area.type != 'PREFERENCES':
+        col.separator()
+        row = col.row(heading='Auto Merge')
+        row.prop(context.scene.tool_settings, 'use_mesh_automerge', text='', toggle=False)
+        row.separator(factor=0.5)
+        row2 = row.row()
+        row2.enabled = context.scene.tool_settings.use_mesh_automerge
+        row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+
+    col.separator()
+    row = col.row(heading='Projection')
+    row.prop(props, 'tweaking_use_auto_snap_method', text='Automatic')
+    if not props.tweaking_use_auto_snap_method:
+        col.prop(context.scene.tool_settings, 'snap_elements_individual', text=' ')
+    row = col.row()
+    row.enabled = props.tweaking_use_auto_snap_method or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
+    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Snapping Steps')
+    col.separator()
 
 
 def draw_tweaking_panel(context, layout):

@@ -313,8 +313,8 @@ class RFTool_PolyPen(RFTool_Base):
                 col.prop(props_polypen, 'use_loop_cuts', text='Loop Cuts')
                 if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
                     col.prop(props_polypen, 'quad_preserve', text='Junctions')
-            draw_cleanup_panel(context, layout)
             draw_tweaking_panel(context, layout)
+            draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
             draw_help_panel(context, layout)
