@@ -9,8 +9,9 @@ This document contains details about what has changed in Retopoflow in version 4
 - Added option to slide along seams, creases, and sharp edges in Tweak and Relax
 - Added vertex and edge sliding when pressing G during transforms
     - Clamping is off by default for boundary edges so you can easily slide outwards
-- Added Tweak Loops option to Contours, which is on by default
+- Added Tweak Loops option to PolyPen, Strokes, and Contours
     - This will select and slide loops when clicking and dragging from an edge instead of grabbing the edge
+    - It is per-tool and on by default in Contours
 - Improved auto picking projection method during transforms
     - If a lot of vertices are selected or any of their normals are not pointing towards the view, Face Nearest is used. Otherwise, Face Project.
 - Added option to specify specific objects or collections as snapping sources

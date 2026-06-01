@@ -29,7 +29,9 @@ You must have at least one source object to draw on for the Retopoflow tools to 
 Any mesh object that is visible and not the active retopolgoy object is considered a source object.
 This means that you can hide or move objects to different scenes to change which source objects will be retopologized.
 
-You can also mark objects as non-selectable in the Outliner and in Retopoflow's Options menu (far right in the tool header) choose Exclude Non-Selectable to keep those objects visible but not acting as sources.
+To keep objects visible but not acting as sources, mark objects as non-selectable in the Outliner and, in Retopoflow's Options menu (far right in the tool header), choose Exclude Non-Selectable.
+
+Or, you can also mark a specific object or collection as the designated source.
 
 ## Selection
 
@@ -57,7 +59,9 @@ Retopoflow has slightly altered versions of a few Blender operators in order to 
 
 All settings for the Retopoflow tools can be found in the 3D View tool header, the sidebar in the Tool tab, or the Tool tab of the Properties Editor when the tool is active in the 3D View toolbar.
 
-The insert tools share the same **Tweak** settings for how big the selection hitbox is, whether vertices are auto-merged, and how big the auto-merge threshold is while using `LMB Drag` on geometry to tweak it. *These settings are not the same as the Tweak Brush tool settings.*
+The insert tools share the same **Tweaking** settings for how big the selection hitbox is, whether vertices are auto-merged, and how big the auto-merge threshold is while using `LMB Drag` on geometry to tweak it. *These settings are not the same as the Tweak Brush tool settings.*
+
+Tools that commonly work with edge loops, such as Contours, have a Tweak Loops mode that replaces edge grab with a loop select and slide.
 
 Brush tools have the same **Brush** settings, though they are not shared across the tools. That way, you can use a small Tweak brush with a large Relax brush if you prefer.
 
