@@ -1659,7 +1659,7 @@ class PP_Logic:
 
                 p0 = p00 + (p01 - p00) * percent
                 p1 = p10 + (p11 - p10) * percent
-                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1)
+                splits = find_bmedges_to_split(context, self.matrix_world, self.bme, p0, p1, self.vec_forward if self.ignore_splitting_backfaces else None)
 
                 _, bmv0_new = edge_split(bme0, bmv00, percent)
                 _, bmv1_new = edge_split(bme1, bmv10, percent)
