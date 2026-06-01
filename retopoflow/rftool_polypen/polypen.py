@@ -198,6 +198,11 @@ class RFOperator_PolyPen(RFOperator):
         description = "Allow PolyPen's knife to follow along quad loops",
         default = True,
     )
+    select_loops: bpy.props.BoolProperty(
+        name = 'Tweak Loops',
+        description = 'Select and transform loops while tweaking edges with the mouse',
+        default = False
+    )
 
     @classmethod
     def can_start(cls, context):
@@ -291,7 +296,9 @@ class RFTool_PolyPen(RFTool_Base):
             if props_polypen.insert_mode in ('TRI/QUAD', 'QUAD-ONLY'):
                 row.prop(props_polypen, 'quad_preserve', text='Junctions')
             draw_line_separator(layout)
-            layout.popover('RF_PT_TweakCommon', text='Tweaking')
+            row = layout.row(align=True)
+            row.prop(props_polypen, 'select_loops', text='Loops', toggle=True)
+            row.popover('RF_PT_TweakCommon')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False

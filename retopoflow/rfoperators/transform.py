@@ -178,8 +178,7 @@ class RFOperator_Translate(RFOperator):
 
         # Handle loop selection
         active_tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-        loops_tools = ['retopoflow.contours', 'retopoflow.strokes']
-        if active_tool and active_tool.idname in loops_tools and self.used_keyboard == False:
+        if active_tool and self.used_keyboard == False:
             tool_props = active_tool.operator_properties(active_tool.idname)
             self.select_loops = getattr(tool_props, 'select_loops', False)
         if self.select_loops:
