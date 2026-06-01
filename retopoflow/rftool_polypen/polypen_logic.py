@@ -216,7 +216,7 @@ def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start
             if bmvn is None: break
             bmv = bmvn
         bmfs_search.extend(bmv.link_faces)
-        touched |= set(bmelem_start.link_edges)
+        touched.update(bmelem_start.link_edges)
     elif type(bmelem_start) is BMEdge:
         bmfs_search.extend(bmelem_start.link_faces)
         touched.add(bmelem_start)
@@ -233,7 +233,7 @@ def find_bmedges_to_split(context : Context, matrix_world : Matrix, bmelem_start
         res = find_crossed_edge(context, matrix_world, p0, p1, bmes)
         if not res: continue
         bme, pt = res
-        touched.add(bme)
+        touched.update(bmes) # .add(bme)
         found.append((bme, pt))
         bmf_other = bme_other_bmf(bme, bmf)
         if bmf_other:
@@ -352,7 +352,7 @@ class PP_Logic:
 
     state : PP_Action
 
-    hit : Vector | None
+    hit : Vector | None             # raycast mouse in local
     bmv : BMVert | None             # BMVert to extrude from / work with
     bme : BMEdge | None             # BMEdge to extrude from / work with
     bmf : BMFace | None             # BMFace to work with
@@ -1640,6 +1640,8 @@ class PP_Logic:
                 select_later = []
 
             case PP_Action.SPLIT_QUAD:
+                if not self.bme or not self.nearest_bme or not self.nearest_bme.bme:
+                    return
                 bme0 = self.bme
                 bmv00, bmv01 = bme0.verts
                 bme1 = self.nearest_bme.bme
@@ -1650,6 +1652,8 @@ class PP_Logic:
                 p10 = self.project(bmv10.co)
                 p11 = self.project(bmv11.co)
                 pt = self.nearest_bme.co2d
+                if not p00 or not p01 or not p10 or not p11 or not pt:
+                    return
                 vec0, vec1 = p01 - p00, p11 - p10
                 if vec0.dot(vec1) < 0:
                     p00, p01 = p01, p00
@@ -1669,7 +1673,7 @@ class PP_Logic:
                     for (bme, pt) in splits:
                         if bme == bme0 or bme == bme1: continue
                         _, bmv_new = edge_split(bme, bme.verts[0], 0.5)
-                        bmv_new.co = raycast_point_valid_sources(context, pt)  # raycast to surface
+                        bmv_new.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt)  # raycast to surface
                         connect_verts(self.bm, verts=[bmv_from, bmv_new])
                         bmv_from = bmv_new
                     if bmvs_share_bmf(bmv_from, bmv1_new):
