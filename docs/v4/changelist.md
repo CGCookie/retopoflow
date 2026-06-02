@@ -3,6 +3,12 @@
 This document contains details about what has changed in Retopoflow in version 4.
 
 
+### 4.1.7
+
+- Improved Relax at extreme scales
+- Impproved Relax Equalize Faces
+- Fixed crease and sharp sliding in Tweak and Relax
+
 ### 4.1.6
 
 - Significantly improved Relax performance
