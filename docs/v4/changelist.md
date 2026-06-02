@@ -3,6 +3,11 @@
 This document contains details about what has changed in Retopoflow in version 4.
 
 
+### 4.1.8
+
+- Fixed issue with Relax brush with mirror boundary clipping
+- Improved stability of Relax near mirror boundaries
+
 ### 4.1.7
 
 - Improved Relax at extreme scales
