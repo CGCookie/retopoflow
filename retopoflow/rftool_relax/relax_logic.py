@@ -982,7 +982,7 @@ class Relax_Logic:
                 co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
 
                 if self.mirror:
-                    co_orig = self.prev_position[bmv]
+                    co_orig = bmv.co
                     co = Vector(co_local_snapped)
                     t = self.mirror_threshold
                     zero = {
