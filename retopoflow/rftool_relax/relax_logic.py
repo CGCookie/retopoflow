@@ -552,12 +552,6 @@ class Relax_Logic:
                 neighbors = boundary_neighbors
             if not neighbors: return
 
-            if verts_near_source_edge:
-                # Exclude edge constrained neighbours
-                filtered = [nb for nb in neighbors if nb not in verts_near_source_edge]
-                if filtered:
-                    neighbors = filtered
-
             if relax.algorithm_laplacian or relax.algorithm_average_edge_lengths:
                 # Faster method when verts are being spread out anyway
                 sum_x = sum_y = sum_z = 0.0
@@ -571,18 +565,27 @@ class Relax_Logic:
                 force_mult = 0.5
             else:
                 # Slower method that does not spread out verts
-                if edge_count > 4: return
-                min_length = min((nb.co - bmv.co).length for nb in neighbors)
-                directions = [(nb.co - bmv.co).normalized() for nb in neighbors]
-                center = Point.average([bmv.co + (d * min_length) for d in directions])
-                force_mult = 1
+                if is_boundary:
+                    # min_length pulls toward the shorter edge end (corner-slide); use centroid instead.
+                    center = Point.average([nb.co for nb in neighbors])
+                    force_mult = 0.5
+                else:
+                    if edge_count > 4: return
+                    min_length = min((nb.co - bmv.co).length for nb in neighbors)
+                    directions = [(nb.co - bmv.co).normalized() for nb in neighbors]
+                    center = Point.average([bmv.co + (d * min_length) for d in directions])
+                    force_mult = 1
             vec = (center - bmv.co) * force_mult
             add_force(bmv, vec, bmv.co, 1, 40)
 
-        def straighten_loops(bmv, cache):
+        def straighten_loops(bmv, straighten_loops_cache):
             ''' push quad verts towards the line between opposing neighbords '''
-            if bmv in cache:
-                loops = cache[bmv]
+            if verts_near_source_edge and bmv in verts_near_source_edge:
+                # Skip to preserve verts constrained to source edges
+                return
+
+            if bmv in straighten_loops_cache:
+                loops = straighten_loops_cache[bmv]
             else:
                 link_edges = list(bmv.link_edges)
                 if len(link_edges) != 4 or len(bmv.link_faces) != 4:
@@ -606,20 +609,16 @@ class Relax_Logic:
                         used.add(i); used.add(opp)
                         pairs.append((link_edges[i].other_vert(bmv), link_edges[opp].other_vert(bmv)))
                     loops = tuple(pairs) if (ok and len(pairs) == 2) else None
-                cache[bmv] = loops
+                straighten_loops_cache[bmv] = loops
             if not loops: return
 
-            if verts_near_source_edge and bmv in verts_near_source_edge:
-                # Skip to preserve verts constrained to source edges
-                return
-
             co = bmv.co
-            for (P, N) in loops:
-                d  = N.co - P.co
-                dd = d.dot(d)
-                if dd < 1e-12: continue
-                t = (co - P.co).dot(d) / dd
-                closest = P.co + d * t
+            for (start_pt, end_pt) in loops:
+                direction  = end_pt.co - start_pt.co
+                len_sq = direction.dot(direction)
+                if len_sq < 1e-12: continue
+                t = (co - start_pt.co).dot(direction) / len_sq
+                closest = start_pt.co + direction * t
                 add_force(bmv, (closest - co) * 0.5, co, 1, 40)
 
         def average_edge_length(bme, avg_edge_len):
@@ -927,11 +926,9 @@ class Relax_Logic:
                 for bmv in verts & chk_verts:
                     if relax.algorithm_laplacian: laplacian_smooth(bmv, self.laplacian_cache)
                     if relax.algorithm_straighten_edges:
-                        # Loop-aware line straightening when edge snapping is active;
-                        # the original centroid method otherwise.
-                        if self.source_edge_accel:
-                            straighten_loops(bmv, self.straighten_loops_cache)
-                        else:
+                        straighten_loops(bmv, self.straighten_loops_cache)
+                        if self.straighten_loops_cache.get(bmv) is None:
+                            # handles poles, boundaries, and other topology
                             straighten_edges(bmv, self.straighten_cache)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
