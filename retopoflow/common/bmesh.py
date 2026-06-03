@@ -346,7 +346,6 @@ def get_boundary_strips_cycles(bmes):
     return (strips, cycles)
 
 
-
 # finds closest path of selected, connected, boundary/wire BMEdges
 def find_selected_cycle_or_path(bm, point_closest, *, only_boundary=True):
     selected = bmops.get_all_selected(bm)
@@ -431,6 +430,25 @@ def find_selected_cycle_or_path(bm, point_closest, *, only_boundary=True):
             break
     is_cyclic = len(longest_cycle) >= len(longest_path) * 0.5
     return (longest_cycle if is_cyclic else longest_path, is_cyclic)
+
+
+def get_bmv_loop_pairs(bmv: BMVert) -> tuple[tuple[BMVert, BMVert], ...] | None:
+    link_edges = list(bmv.link_edges)
+    if len(link_edges) != 4 or len(bmv.link_faces) != 4:
+        return None
+    pairs = []
+    used  = set()
+    for i in range(4):
+        if i in used: continue
+        fi  = set(link_edges[i].link_faces)
+        opp = next((j for j in range(4)
+                    if j != i and j not in used
+                    and fi.isdisjoint(link_edges[j].link_faces)), -1)
+        if opp < 0: return None
+        used.add(i); used.add(opp)
+        pairs.append((link_edges[i].other_vert(bmv),
+                      link_edges[opp].other_vert(bmv)))
+    return tuple(pairs) if len(pairs) == 2 else None
 
 
 def nearest_bmv_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):

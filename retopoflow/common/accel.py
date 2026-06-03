@@ -217,6 +217,20 @@ class SourceAccel:
     def closest_point(self, co: Vector) -> 'Vector | None':
         return self.edge_accel.closest_point(co) if self.edge_accel else None
 
+    def closest_point_in_threshold(
+        self,
+        co_local : Vector,
+        matrix_world : Matrix,
+        matrix_world_inv : Matrix,
+        threshold: float,
+    ) -> 'Vector | None':
+        ''' Transforms co_local to world, finds closest point, returns it in local space if in threshold. '''
+        co_world = point_to_bvec3((matrix_world @ Vector((*co_local, 1.0))).xyz)
+        p = self.closest_point(co_world)
+        if p is None: return None
+        closest_p = matrix_world_inv @ Vector(p)
+        return closest_p if (closest_p - co_local).length <= threshold else None
+
     def find_corner(self, co: Vector) -> 'tuple[Vector, int, float] | None':
         return self.corner_kd.find(co) if self.corner_kd else None
 
