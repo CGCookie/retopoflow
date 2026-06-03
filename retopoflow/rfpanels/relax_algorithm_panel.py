@@ -34,10 +34,13 @@ def draw_relax_algo_options(context, layout):
     layout.row(heading="Smooth").prop(props, 'algorithm_laplacian', text='Vertices')
     layout.row(heading="Average").prop(props, 'algorithm_average_edge_lengths', text='Edges')
     layout.row(heading="Straighten").prop(props, 'algorithm_straighten_edges', text='Edges')
-    layout.column(heading="Equalize").prop(props, 'algorithm_equalize_faces',  text='Faces')
+    layout.row(heading="Equalize").prop(props, 'algorithm_equalize_faces',  text='Faces')
+    layout.row(heading="Correct").prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
-    col = layout.column(heading="Correct")
-    col.prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
+    layout.separator()
+    layout.row(heading="Snap").prop(props, 'algorithm_snap_sharp',  text='Sharp Edges')
+    layout.prop(props, 'algorithm_sharp_proximity', text='Proximity')
+    layout.prop(props, 'algorithm_sharp_escape_force', text='Escape Force')
 
     layout.separator()
     layout.row().prop(props, 'algorithm_method', expand=False, text='Integration')

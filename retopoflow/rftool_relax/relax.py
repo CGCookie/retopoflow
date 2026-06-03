@@ -206,6 +206,27 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
+    algorithm_snap_sharp: bpy.props.BoolProperty(
+        name='Algorithm: Snap to Sharp',
+        description="Snap vertices to the sharp edges of the high poly mesh",
+        default=True,
+    )
+    algorithm_sharp_proximity: bpy.props.FloatProperty(
+        name = 'Snap to Sharp Proximity',
+        description = 'How close to sharp edges should vertices be to snap to them',
+        subtype = 'DISTANCE',
+        min = 0,
+        max = 1,
+        default = 0.25
+    )
+    algorithm_sharp_escape_force: bpy.props.FloatProperty(
+        name = 'Snap to Sharp Escape Force',
+        description = 'How difficult it is for vertices to escape sharp edges',
+        subtype = 'NONE',
+        min = 0,
+        max = 1,
+        default = 0.25
+    )
 
 
     logic : Relax_Logic     # pyright: ignore[reportUninitializedInstanceVariable]
