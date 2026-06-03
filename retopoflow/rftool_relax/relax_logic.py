@@ -91,7 +91,7 @@ class Relax_Logic:
 
     source_edge_accel : SourceAccel | None
     source_sharp_proximity : float
-    elected_face_verts : set[BMVert]
+    elected_loop_verts : set[BMVert]
 
     is_bmvert_hidden : Callable[[BMVert], bool]
     visibility_cache : dict[BMVert, bool]
@@ -109,7 +109,7 @@ class Relax_Logic:
 
     verts_accel : Accel
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
-    straighten_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
+    straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
     straighten_loops_cache : dict[BMVert, tuple[tuple[BMVert, BMVert], ...] | None]
     face_topology_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMEdge, ...]] | None]
 
@@ -268,11 +268,7 @@ class Relax_Logic:
         self.straighten_cache = {}
         self.straighten_loops_cache = {}
         self.face_topology_cache = {}
-        # Face vertices elected as part of the intended edge loop. Populated when any
-        # face vertex first snaps to the source edge and propagated along the loop via
-        # straighten_loops_cache. Persists for the lifetime of this brush stroke so
-        # the same loop wins consistently along the full edge length.
-        self.elected_face_verts: set[BMVert] = set()
+        self.elected_loop_verts: set[BMVert] = set() # Helps guide snapping to sharp edges
 
         timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
@@ -368,8 +364,7 @@ class Relax_Logic:
         cur_time = time.time()
         time_delta = cur_time - self._time
         if time_delta < 1.0 / 120:
-            # do not run faster than 120Hz!
-            return
+            return # do not run faster than 120Hz!
         time_delta = clamp(time_delta, 0.0, 0.1)
         self._time = cur_time
 
@@ -405,34 +400,31 @@ class Relax_Logic:
         chk_verts = set(verts)
         chk_verts.update({ bmv for bme in edges for bmv in bme.verts })
         chk_verts.update({ bmv for bmf in faces for bmv in bmf.verts })
-        chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
+        # chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
         chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
+        verts_near_source_edge: set[BMVert] = set()
 
         self.draw_vectors_positive.clear()
         self.draw_vectors_negative.clear()
         self.draw_vectors_net.clear()
 
         displace = {}
-        # Vertices within snapping proximity of the source sharp edge.
-        # Rebuilt at the start of each relax_3d() call as positions change.
-        source_sharp_near: set[BMVert] = set()
 
         def reset_forces():
             nonlocal displace
             displace.clear()
 
-        enabled_algorithms_count = (
-            int(relax.algorithm_laplacian) +
-            int(relax.algorithm_average_edge_lengths) +
-            int(relax.algorithm_straighten_edges) +
-            int(relax.algorithm_equalize_faces) * 4
-        )
-        weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
-
         def add_force(bmv, f, wrt=None, sign=0, mult=0):
             nonlocal displace, verts, vert_strength
             if bmv not in verts or bmv not in vert_strength: return
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
+            enabled_algorithms_count = (
+                int(relax.algorithm_laplacian) +
+                int(relax.algorithm_average_edge_lengths) +
+                int(relax.algorithm_straighten_edges) +
+                int(relax.algorithm_equalize_faces) * 2
+            )
+            weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
             displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
             if opt_draw_all and wrt:
                 if sign > 0:
@@ -469,43 +461,31 @@ class Relax_Logic:
                 laplacian_cache[bmv] = laplacian_data
             neighbors, is_boundary, nb_reciprocal = laplacian_data
 
-            # For edge-constrained vertices, compute the Laplacian from ALL neighbors
-            # (not just edge-side ones) but project the resulting displacement onto the
-            # source edge direction. This provides along-edge redistribution for bunched
-            # vertices while:
-            #   - Face neighbors dilute the corner-snap cascade (4 neighbours vs 2 →
-            #     corner influence is halved compared to the filtered version)
-            #   - The projection zeroes any off-edge component so the snap isn't
-            #     fighting the Laplacian every frame
             edge_proj_dir = None
-            if source_sharp_near and bmv in source_sharp_near:
-                edge_nbrs = [nb for nb in neighbors if nb in source_sharp_near]
+            if verts_near_source_edge and bmv in verts_near_source_edge:
+                # slides snapped vertices along source edges
+                edge_nbrs = [nb for nb in neighbors if nb in verts_near_source_edge]
                 if len(edge_nbrs) >= 2:
                     v = edge_nbrs[-1].co - edge_nbrs[0].co
-                    if v.length > 1e-8:
+                    if v.length > 0:
                         edge_proj_dir = v.normalized()
                 elif len(edge_nbrs) == 1:
-                    # Single edge-constrained neighbour (end-of-edge vertex).
                     v = edge_nbrs[0].co - bmv.co
-                    if v.length > 1e-8:
+                    if v.length > 0:
                         edge_proj_dir = v.normalized()
                 else:
-                    # No edge-constrained neighbours in the Laplacian set. Typical for
-                    # boundary vertices whose Laplacian uses only the two perpendicular-
-                    # path boundary neighbours (going down the faces). Those neighbours
-                    # ARE the target — we just need the along-edge direction, which we
-                    # find by scanning all connected edges for an edge-constrained vertex.
+                    # no edge-constrained neighbors found
                     if is_boundary:
                         all_edge_nbrs = [
                             bme.other_vert(bmv) for bme in bmv.link_edges
-                            if bme.other_vert(bmv) in source_sharp_near
+                            if bme.other_vert(bmv) in verts_near_source_edge
                         ]
                         if all_edge_nbrs:
                             v = all_edge_nbrs[0].co - bmv.co
                             if v.length > 1e-8:
                                 edge_proj_dir = v.normalized()
                     if edge_proj_dir is None:
-                        return  # no edge reference at all — skip
+                        return
 
             sum_x = sum_y = sum_z = 0.0
             for nb in neighbors:
@@ -530,17 +510,18 @@ class Relax_Logic:
                 displacement = average_co - bmv_co
             if is_boundary: displacement *= 0.5
 
-            # Project displacement onto the edge axis for edge-constrained vertices.
-            # Degenerate case (single edge neighbor, zero-length edge): skip entirely.
             if edge_proj_dir is not None:
+                # Project edge constrained verts onto the edge
                 displacement = edge_proj_dir * displacement.dot(edge_proj_dir)
-            elif source_sharp_near and bmv in source_sharp_near:
-                return
 
             add_force(bmv, displacement * 0.1, mult=40)
 
         def straighten_edges(bmv, straighten_cache):
             ''' push verts to straighten edges (still WiP!) '''
+            if verts_near_source_edge and bmv in verts_near_source_edge:
+                # Skip to avoid bad pulling at constrained edges
+                return
+
             if bmv in straighten_cache:
                 straighten_data = straighten_cache[bmv]
                 if straighten_data is None: return
@@ -560,80 +541,53 @@ class Relax_Logic:
                     for bme in link_edges
                     if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
                 )
-                straighten_data = (neighbors, boundary_neighbors, edge_count)
+                is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
+                straighten_data = (is_boundary, neighbors, boundary_neighbors, edge_count)
                 straighten_cache[bmv] = straighten_data
-            neighbors, boundary_neighbors, edge_count = straighten_data
+            is_boundary, neighbors, boundary_neighbors, edge_count = straighten_data
 
-            # Edge-constrained vertices: Laplacian handles redistribution along the
-            # edge; Straighten Edges is skipped to avoid any toward-edge bias.
-            if source_sharp_near and bmv in source_sharp_near:
-                return
-
-            is_boundary = is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
             if is_boundary and self.mask_opt('boundary') == 'EXCLUDE': return
             if is_boundary:
                 if edge_count > 4: return
-                connected_neighbors = boundary_neighbors
-            else:
-                connected_neighbors = neighbors
-            if not connected_neighbors: return
+                neighbors = boundary_neighbors
+            if not neighbors: return
 
-            # Exclude source-edge-constrained neighbours from the average. Edge
-            # vertices sit at y=1 (on the source edge), so including them biases the
-            # centre toward the edge and pulls face vertices along with it even though
-            # the straightening force should only redistribute within the face.
-            if source_sharp_near:
-                filtered = [nb for nb in connected_neighbors if nb not in source_sharp_near]
+            if verts_near_source_edge:
+                # Exclude edge constrained neighbours
+                filtered = [nb for nb in neighbors if nb not in verts_near_source_edge]
                 if filtered:
-                    connected_neighbors = filtered
+                    neighbors = filtered
 
             if relax.algorithm_laplacian or relax.algorithm_average_edge_lengths:
                 # Faster method when verts are being spread out anyway
                 sum_x = sum_y = sum_z = 0.0
-                for nb in connected_neighbors:
+                for nb in neighbors:
                     nb_co = nb.co
                     sum_x += nb_co[0]
                     sum_y += nb_co[1]
                     sum_z += nb_co[2]
-                reciprocal = 1.0 / len(connected_neighbors)
+                reciprocal = 1.0 / len(neighbors)
                 center = Vector((sum_x * reciprocal, sum_y * reciprocal, sum_z * reciprocal))
                 force_mult = 0.5
             else:
                 # Slower method that does not spread out verts
                 if edge_count > 4: return
-                min_length = min((nb.co - bmv.co).length for nb in connected_neighbors)
-                directions = [(nb.co - bmv.co).normalized() for nb in connected_neighbors]
+                min_length = min((nb.co - bmv.co).length for nb in neighbors)
+                directions = [(nb.co - bmv.co).normalized() for nb in neighbors]
                 center = Point.average([bmv.co + (d * min_length) for d in directions])
                 force_mult = 1
             vec = (center - bmv.co) * force_mult
             add_force(bmv, vec, bmv.co, 1, 40)
 
         def straighten_loops(bmv, cache):
-            ''' Loop-aware 3D straightening for the hard-surface / sharp-edge case.
-
-            Unlike straighten_edges (which averages ALL neighbours toward a centroid and
-            has no concept of loop direction), this treats each of the two edge loops
-            through a valence-4 vertex independently and projects the vertex onto the
-            LINE between that loop's two opposite neighbours.
-
-              - Line projection (not midpoint) removes only the perpendicular kink, so
-                loops straighten without sliding along their own length: no collapse
-                toward corners, and parallel loops stay parallel.
-              - Sharp-edge vertices are fixed anchors (skipped here; their position is
-                owned by the Laplacian edge-projection + snap). This preserves the bend
-                where a loop crosses the edge, while their face-side neighbours straighten
-                toward them, forming clean perpendicular runs that meet the edge squarely.
-            '''
+            ''' push quad verts towards the line between opposing neighbords '''
             if bmv in cache:
                 loops = cache[bmv]
             else:
                 link_edges = list(bmv.link_edges)
                 if len(link_edges) != 4 or len(bmv.link_faces) != 4:
-                    # Only regular interior valence-4 verts have two well-defined loops.
                     loops = None
                 else:
-                    # Two edges share the same loop when they share no face. A regular
-                    # valence-4 vertex has exactly one opposite per edge → two loops.
                     pairs = []
                     used = set()
                     ok = True
@@ -655,8 +609,8 @@ class Relax_Logic:
                 cache[bmv] = loops
             if not loops: return
 
-            # Sharp-edge vertices are fixed anchors — skip to preserve the bend.
-            if source_sharp_near and bmv in source_sharp_near:
+            if verts_near_source_edge and bmv in verts_near_source_edge:
+                # Skip to preserve verts constrained to source edges
                 return
 
             co = bmv.co
@@ -853,9 +807,9 @@ class Relax_Logic:
                     add_force(bmv1, vec * 5, bmf_midpoint(bmf), 1, 40)
 
         def relax_3d():
-            nonlocal source_sharp_near
-            # Recompute source_sharp_near each step because positions change.
-            source_sharp_near = set()
+            nonlocal verts_near_source_edge
+            # Recompute verts_near_source_edge each step because positions change.
+            verts_near_source_edge = set()
             if self.source_edge_accel:
                 for bmv in chk_verts:
                     bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
@@ -872,20 +826,20 @@ class Relax_Logic:
                                 # perpendicular to the approach direction (dot ≈ 0), so it
                                 # is excluded even when geometrically close to the edge.
                                 if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
-                                    source_sharp_near.add(bmv)
+                                    verts_near_source_edge.add(bmv)
 
-            # Expand source_sharp_near one step along each loop (via the previous
+            # Expand verts_near_source_edge one step along each loop (via the previous
             # frame's loop pairs) with a 1.5× threshold. Nudges the same topological
             # loop to snap consistently rather than switching mid-edge.
-            if source_sharp_near and self.straighten_loops_cache:
+            if verts_near_source_edge and self.straighten_loops_cache:
                 expanded = set()
-                for V in source_sharp_near:
+                for V in verts_near_source_edge:
                     loops = self.straighten_loops_cache.get(V)
                     if not loops:
                         continue
                     for (P, N) in loops:
                         for nb in (P, N):
-                            if nb in source_sharp_near:
+                            if nb in verts_near_source_edge:
                                 continue
                             nb_world = point_to_bvec3((M @ Vector((*nb.co, 1.0))).xyz)
                             if p := self.source_edge_accel.closest_point(nb_world):
@@ -897,16 +851,16 @@ class Relax_Logic:
                                     if dist <= avg_el * self.source_sharp_proximity * 2:
                                         if dist < 1e-8 or (diff / dist).dot(nb.normal) > 0.3:
                                             expanded.add(nb)
-                source_sharp_near.update(expanded)
+                verts_near_source_edge.update(expanded)
 
             # ── Election update ──────────────────────────────────────────────
-            # Any face vertex that enters source_sharp_near (just snapped) gets
+            # Any face vertex that enters verts_near_source_edge (just snapped) gets
             # elected. The election then propagates along its loop so that the SAME
             # topological loop wins all the way along the edge, even at positions
             # the brush hasn't reached yet where a different loop may be closer.
             if self.source_edge_accel:
-                # 1. Elect all current source_sharp_near members.
-                self.elected_face_verts.update(source_sharp_near)
+                # 1. Elect all current verts_near_source_edge members.
+                self.elected_loop_verts.update(verts_near_source_edge)
 
                 # 2. Propagate election one step along each loop.
                 #    Use the straighten_loops_cache if available; otherwise compute
@@ -917,7 +871,7 @@ class Relax_Logic:
                 #    (that check uses the vertex's own normal, which is perpendicular
                 #    for face vertices even when they are legitimately on the same loop).
                 newly = set()
-                for V in self.elected_face_verts:
+                for V in self.elected_loop_verts:
                     loops = self.straighten_loops_cache.get(V)
                     if loops is None:
                         # Compute on-the-fly for vertices not yet in the cache.
@@ -941,7 +895,7 @@ class Relax_Logic:
                         continue
                     for (P, N) in loops:
                         for nb in (P, N):
-                            if nb in self.elected_face_verts:
+                            if nb in self.elected_loop_verts:
                                 continue
                             nb_world = point_to_bvec3((M @ Vector((*nb.co, 1.0))).xyz)
                             if p := self.source_edge_accel.closest_point(nb_world):
@@ -951,13 +905,13 @@ class Relax_Logic:
                                     dist   = (p_nb - nb.co).length
                                     if dist <= avg_el * self.source_sharp_proximity * 2.0:
                                         newly.add(nb)
-                self.elected_face_verts.update(newly)
+                self.elected_loop_verts.update(newly)
 
                 # 3. Evict elected members (in the current brush area only) that have
                 #    drifted far from the edge — they escaped, so drop the election.
                 evict = set()
-                for V in self.elected_face_verts & chk_verts:
-                    if V in source_sharp_near:
+                for V in self.elected_loop_verts & chk_verts:
+                    if V in verts_near_source_edge:
                         continue
                     V_world = point_to_bvec3((M @ Vector((*V.co, 1.0))).xyz)
                     if p := self.source_edge_accel.closest_point(V_world):
@@ -966,7 +920,7 @@ class Relax_Logic:
                             avg_el = sum(bme_length(bme) for bme in V.link_edges) / len(V.link_edges)
                             if (p_local - V.co).length > avg_el * self.source_sharp_proximity * 3.0:
                                 evict.add(V)
-                self.elected_face_verts -= evict
+                self.elected_loop_verts -= evict
 
             reset_forces()
             if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
@@ -997,7 +951,7 @@ class Relax_Logic:
             # when equidistant from a competitor.  Non-elected face vertices
             # within the detection zone get an away-from-edge force so the
             # wrong loop can't win even when geometrically closer.
-            if self.source_edge_accel and self.elected_face_verts:
+            if self.source_edge_accel and self.elected_loop_verts:
                 detect_factor = 1.5  # zone in which to apply forces
                 for bmv in verts:
                     bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
@@ -1012,11 +966,11 @@ class Relax_Logic:
                             continue
                         if dist < 1e-8 or (to_edge / dist).dot(bmv.normal) <= 0.3:
                             continue  # not aligned → skip (bevel/edge vertex)
-                        if bmv in self.elected_face_verts:
+                        if bmv in self.elected_loop_verts:
                             # Elected: gentle toward-edge force keeps it converging
                             # to the source edge even when Laplacian force is zero.
                             add_force(bmv, to_edge * 0.15)
-                        elif bmv not in source_sharp_near:
+                        elif bmv not in verts_near_source_edge:
                             # Non-elected competitor: push away from the edge so it
                             # can't displace the elected loop, regardless of proximity.
                             add_force(bmv, to_edge * -0.15)
@@ -1025,9 +979,9 @@ class Relax_Logic:
             # displace, which means the snap mechanisms also never run for them.
             # Seed them with a zero vector so the update loop processes them and
             # applies the normal/edge/corner snaps (zero force → escape never fires).
-            if source_sharp_near:
+            if verts_near_source_edge:
                 for bmv in verts:
-                    if bmv in source_sharp_near and bmv not in displace:
+                    if bmv in verts_near_source_edge and bmv not in displace:
                         displace[bmv] = Vector((0.0, 0.0, 0.0))
 
         # perform smoothing
@@ -1149,7 +1103,7 @@ class Relax_Logic:
 
                 co_world = M @ Vector((*co.xyz, 1.0))
 
-                # Edge snap: only for source_sharp_near vertices (proximity + alignment).
+                # Edge snap: only for verts_near_source_edge vertices (proximity + alignment).
                 # Stickiness [0, 1] controls how hard the vertex clings to the edge:
                 # Stickiness [0, 1]: controls escape from the source edge.
                 #   0   → snap skipped entirely; vertex drifts freely off any edge.
@@ -1166,7 +1120,7 @@ class Relax_Logic:
                 snap_avg_edge_len = 0.0
                 if self.source_edge_accel and bmv.link_edges and stickiness > 0.0:
                     snap_avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
-                    if bmv in source_sharp_near:
+                    if bmv in verts_near_source_edge:
                         if stickiness >= 1.0:
                             apply_edge_snap = True
                         else:
@@ -1177,7 +1131,7 @@ class Relax_Logic:
                             # trying to pull the vertex off the edge perpendicularly.
                             perp = displace[bmv]
                             edge_nbrs = [bme.other_vert(bmv) for bme in bmv.link_edges
-                                         if bme.other_vert(bmv) in source_sharp_near]
+                                         if bme.other_vert(bmv) in verts_near_source_edge]
                             if len(edge_nbrs) >= 2:
                                 ev = edge_nbrs[-1].co - edge_nbrs[0].co
                                 if ev.length > 1e-8:
@@ -1214,7 +1168,7 @@ class Relax_Logic:
                 if not co_world_snapped: continue
                 co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
 
-                if bmv in source_sharp_near and snap_avg_edge_len > 0:
+                if bmv in verts_near_source_edge and snap_avg_edge_len > 0:
                     threshold        = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
                     corner_threshold = threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
 
@@ -1236,7 +1190,7 @@ class Relax_Logic:
 
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
                     # Approaching vertex (alignment check failed, not yet in
-                    # source_sharp_near): snap to the edge once nearest-point lands
+                    # verts_near_source_edge): snap to the edge once nearest-point lands
                     # within the threshold, but only if the displacement is directed
                     # toward the edge. Bevel vertices at rest have displacement away
                     # from or perpendicular to the edge (dot product ≤ 0).
