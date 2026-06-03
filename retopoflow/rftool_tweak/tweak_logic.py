@@ -33,8 +33,8 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.accel import EdgeAccel
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, bme_cos
+from ..common.accel import EdgeMarkAccel
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner
 from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
@@ -66,47 +66,19 @@ class Tweak_Logic:
 
         self._time = time.time()
 
-        self.collect_boundary()
-        self.collect_seams()
-        self.collect_sharps()
-        self.collect_creases()
+        boundary, seam, sharp, crease = EdgeMarkAccel.build_all(
+            self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,
+            slide_boundary = self.props_scene.mask_boundary == 'SLIDE',
+            slide_seams    = self.props_scene.mask_seams    == 'SLIDE',
+            slide_sharps   = self.props_scene.mask_sharps   == 'SLIDE',
+            slide_creases  = self.props_scene.mask_creases  == 'SLIDE',
+        )
+        self.boundary_verts, self.boundary_accel = boundary
+        self.seam_verts,     self.seam_accel     = seam
+        self.sharp_verts,    self.sharp_accel    = sharp
+        self.crease_verts,   self.crease_accel   = crease
+
         self.collect_verts(context, event)
-
-    def collect_boundary(self):
-        self._boundary_verts = set()
-        self._boundary_accel = None
-        if self.props_scene.mask_boundary != 'SLIDE': return
-        boundary_edges = [
-            bme for bme in self.bm.edges
-            if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
-        ]
-        self._boundary_verts = {bmv for bme in boundary_edges for bmv in bme.verts}
-        self._boundary_accel = EdgeAccel([bme_cos(bme) for bme in boundary_edges])
-
-    def collect_seams(self):
-        self._seam_verts = set()
-        self._seam_accel = None
-        if self.props_scene.mask_seams != 'SLIDE': return
-        seam_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.seam)]
-        self._seam_verts = {bmv for bme in seam_edges for bmv in bme.verts}
-        self._seam_accel = EdgeAccel([bme_cos(bme) for bme in seam_edges])
-
-    def collect_sharps(self):
-        self._sharp_verts = set()
-        self._sharp_accel = None
-        if self.props_scene.mask_sharps != 'SLIDE': return
-        sharp_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)]
-        self._sharp_verts = {bmv for bme in sharp_edges for bmv in bme.verts}
-        self._sharp_accel = EdgeAccel([bme_cos(bme) for bme in sharp_edges])
-
-    def collect_creases(self):
-        self._crease_verts = set()
-        self._crease_accel = None
-        if self.props_scene.mask_creases != 'SLIDE': return
-        self.bm.edges.ensure_lookup_table()
-        crease_edges = [bme for bme in self.bm.edges if is_bmedge_edgemark(self.bm, bme, BMMarking.crease)]
-        self._crease_verts = {bmv for bme in crease_edges for bmv in bme.verts}
-        self._crease_accel = EdgeAccel([bme_cos(bme) for bme in crease_edges])
 
     def collect_verts(self, context, event):
         self.verts = []
@@ -189,7 +161,7 @@ class Tweak_Logic:
         if delta.length_squared == 0: return
 
         for (bmv, co_orig, xy, strength) in self.verts:
-            if self.props_scene.mask_boundary == 'SLIDE' and bmv in self._boundary_verts:
+            if self.props_scene.mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
                 new_co = Vector(bmv.co)
                 delta_strength = delta.length * strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
@@ -198,8 +170,8 @@ class Tweak_Logic:
                     new_co2 = raycast_valid_sources(context, pt2d + delta * (strength / opt_steps) * pressure)
                     if not new_co2: break
                     new_co = new_co2['co_local']
-                    if self._boundary_accel:
-                        p = self._boundary_accel.closest_point(new_co)
+                    if self.boundary_accel:
+                        p = self.boundary_accel.closest_point(new_co)
                         if p is not None:
                             new_co = p
             else:
@@ -207,17 +179,17 @@ class Tweak_Logic:
                 new_co = raycast_valid_sources(context, cur_xy + delta * strength * pressure)
                 if not new_co: continue
                 new_co = new_co['co_local']
-                if self.props_scene.mask_seams == 'SLIDE' and bmv in self._seam_verts:
-                    if self._seam_accel:
-                        p = self._seam_accel.closest_point(new_co)
+                if self.props_scene.mask_seams == 'SLIDE' and bmv in self.seam_verts:
+                    if self.seam_accel:
+                        p = self.seam_accel.closest_point(new_co)
                         if p is not None: new_co = p
-                if self.props_scene.mask_sharps == 'SLIDE' and bmv in self._sharp_verts:
-                    if self._sharp_accel:
-                        p = self._sharp_accel.closest_point(new_co)
+                if self.props_scene.mask_sharps == 'SLIDE' and bmv in self.sharp_verts:
+                    if self.sharp_accel:
+                        p = self.sharp_accel.closest_point(new_co)
                         if p is not None: new_co = p
-                if self.props_scene.mask_creases == 'SLIDE' and bmv in self._crease_verts:
-                    if self._crease_accel:
-                        p = self._crease_accel.closest_point(new_co)
+                if self.props_scene.mask_creases == 'SLIDE' and bmv in self.crease_verts:
+                    if self.crease_accel:
+                        p = self.crease_accel.closest_point(new_co)
                         if p is not None: new_co = p
 
             if self.mirror:

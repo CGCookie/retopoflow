@@ -31,7 +31,7 @@ from math import isnan, inf
 from typing import Callable
 from collections.abc import Iterator, Sequence
 
-from ..common.accel import EdgeAccel, SourceAccel, Accel
+from ..common.accel import EdgeMarkAccel, SourceAccel, Accel
 from ..common.bmesh import (
     get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint,
     bmv_co_isnan,
@@ -80,18 +80,14 @@ class Relax_Logic:
 
     check_nans : bool = True
 
-    boundary : list[tuple[Vector,Vector]]
     boundary_verts : set[BMVert]
-    boundary_accel : EdgeAccel | None
-    crease : list[tuple[Vector,Vector]]
+    boundary_accel : EdgeMarkAccel
     crease_verts : set[BMVert]
-    crease_accel : EdgeAccel | None
-    sharp : list[tuple[Vector,Vector]]
+    crease_accel : EdgeMarkAccel
     sharp_verts : set[BMVert]
-    sharp_accel : EdgeAccel | None
-    seam : list[tuple[Vector,Vector]]
+    sharp_accel : EdgeMarkAccel
     seam_verts : set[BMVert]
-    seam_accel : EdgeAccel | None
+    seam_accel : EdgeMarkAccel
 
     source_edge_accel : SourceAccel | None
     source_sharp_proximity : float
@@ -124,6 +120,27 @@ class Relax_Logic:
     _time : float
 
 
+
+
+    def set_source_accel(self, context, relax):
+        source_angle  = getattr(relax, 'source_edge_angle',  math.pi)
+        source_sharps = getattr(relax, 'source_edge_sharps', False)
+        source_seams        = getattr(relax, 'source_edge_seams',  False)
+        source_creases      = getattr(relax, 'source_edge_creases',False)
+        if not (
+            getattr(self.relax, 'snap_to_source_features', False) or
+            source_sharps or
+            source_seams or
+            source_creases or
+            source_angle < math.pi):
+            self.source_edge_accel = None
+            return
+        self.source_edge_accel = SourceAccel.build(
+            context, source_angle, source_sharps, source_seams, source_creases,
+        )
+
+
+
     def mask_opt(self, name : str) -> str:
         return str(getattr(self.rf_options, f'mask_{name}'))  # pyright: ignore[reportAny]
     def include_opt(self, name : str) -> bool:
@@ -150,6 +167,18 @@ class Relax_Logic:
         # gather options
         self.rf_options = context.scene.retopoflow
 
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        self._time = time.time()
+        self.pressure = 1.0
+
+        self.prev_position = {}
+        self.prev_displace = {}
+        self.bounce_mult = {}
+
+        self.draw_vectors_positive = []
+        self.draw_vectors_negative = []
+        self.draw_vectors_net = []
+
         self.mirror = set()
         self.mirror_clip = False
         self.mirror_threshold = Vector((0, 0, 0))
@@ -163,77 +192,22 @@ class Relax_Logic:
             self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
             self.mirror_clip = mod.use_clip
 
-        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        self._time = time.time()
-        self.pressure = 1.0
-
-        self.prev_position = {}
-        self.prev_displace = {}
-        self.bounce_mult = {}
-
-        self.draw_vectors_positive = []
-        self.draw_vectors_negative = []
-        self.draw_vectors_net = []
-
-        self.boundary = []
-        self.boundary_verts = set()
-        self.boundary_accel = None
-        if self.mask_opt('boundary') == 'SLIDE':
-            timings.append(('boundaries', time.time()))
-            boundary_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_boundary(bme, self.mirror, self.mirror_threshold, self.mirror_clip)
-            ]
-            self.boundary = [ bme_cos(bme) for bme in boundary_edges ]
-            self.boundary_verts = { bmv for bme in boundary_edges for bmv in bme.verts }
-            self.boundary_accel = EdgeAccel(self.boundary)
-
-        self.crease = []
-        self.crease_verts = set()
-        self.crease_accel = None
-        if self.mask_opt('creases') == 'SLIDE':
-            timings.append(('creases', time.time()))
-            crease_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, BMMarking.crease)
-            ]
-            self.crease = [ bme_cos(bme) for bme in crease_edges ]
-            self.crease_verts = { bmv for bme in crease_edges for bmv in bme.verts }
-            self.crease_accel = EdgeAccel(self.crease)
-
-        self.sharp = []
-        self.sharp_verts = set()
-        self.sharp_accel = None
-        if self.mask_opt('sharps') == 'SLIDE':
-            timings.append(('sharps', time.time()))
-            sharp_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)
-            ]
-            self.sharp = [ bme_cos(bme) for bme in sharp_edges ]
-            self.sharp_verts = { bmv for bme in sharp_edges for bmv in bme.verts }
-            self.sharp_accel = EdgeAccel(self.sharp)
-
-        self.seam = []
-        self.seam_verts = set()
-        self.seam_accel = None
-        timings.append(('seams', time.time()))
-        if self.mask_opt('seams') == 'SLIDE':
-            seam_edges = [
-                bme
-                for bme in self.bm.edges
-                if is_bmedge_edgemark(self.bm, bme, BMMarking.seam)
-            ]
-            self.seam = [ bme_cos(bme) for bme in seam_edges ]
-            self.seam_verts = { bmv for bme in seam_edges for bmv in bme.verts }
-            self.seam_accel = EdgeAccel(self.seam)
+        timings.append(('edge accels', time.time()))
+        boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
+            self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,
+            slide_boundary = self.mask_opt('boundary') == 'SLIDE',
+            slide_creases  = self.mask_opt('creases')  == 'SLIDE',
+            slide_sharps   = self.mask_opt('sharps')   == 'SLIDE',
+            slide_seams    = self.mask_opt('seams')    == 'SLIDE',
+        )
+        self.boundary_verts, self.boundary_accel = boundary
+        self.crease_verts,   self.crease_accel   = crease
+        self.sharp_verts,    self.sharp_accel    = sharp
+        self.seam_verts,     self.seam_accel     = seam
 
         self.source_edge_accel = None
+        self.set_source_accel(context, relax)
         self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
-        self._rebuild_source_edge_accel(context)
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -369,34 +343,6 @@ class Relax_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
-
-    def _rebuild_source_edge_accel(self, context: Context) -> None:
-        '''Build source_edge_accel from the current operator settings.
-
-        Called once from __init__. Settings are fixed for the lifetime of
-        a brush stroke, so no per-frame rebuild is needed.
-        SourceAccel.build() is cached by parameter key, so successive
-        strokes with unchanged settings pay only a dict lookup.
-        '''
-        relax = self.relax
-        if not getattr(relax, 'snap_to_source_features', False):
-            self.source_edge_accel = None
-            return
-        _angle        = getattr(relax, 'source_edge_angle',  math.pi)
-        _sharp_marked = getattr(relax, 'source_edge_sharps', False)
-        _seams        = getattr(relax, 'source_edge_seams',  False)
-        _creases      = getattr(relax, 'source_edge_creases',False)
-        # Skip the build entirely when no criterion could match.
-        # At π radians (180°) the dihedral check never fires.
-        if not (_sharp_marked or _seams or _creases or _angle < math.pi):
-            self.source_edge_accel = None
-            return
-        self.source_edge_accel = SourceAccel.build(
-            context, _angle,
-            include_sharps=_sharp_marked,
-            include_seams=_seams,
-            include_creases=_creases,
-        )
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False):
         self.verts_accel.rebuild(context)

@@ -32,7 +32,7 @@ from bmesh.types import BMesh, BMVert
 
 from ...addon_common.common.maths import clamp_int
 from .iter_utils import AttrIter, CastIter
-from .bmesh import edges_to_triangles
+from .bmesh import edges_to_triangles, is_bmedge_boundary, bme_cos
 from .bmesh_maths import is_bmedge_edgemark, BMMarking
 from .maths import point_to_bvec3
 from .raycast import iter_all_valid_sources
@@ -143,27 +143,70 @@ class Accel:
         }
 
 
-class EdgeAccel:
-    bvh : BVHTree
+class EdgeMarkAccel:
+    verts : set[BMVert]
+    bvh   : 'BVHTree | None'
 
-    def __init__(self, segments: list[tuple[Vector, Vector]]):
+    def __init__(
+        self,
+        segments : list[tuple[Vector, Vector]],
+        verts    : 'set[BMVert] | None' = None,
+    ):
+        self.verts = verts if verts is not None else set()
         self.bvh = BVHTree.FromPolygons(
-            [ v for vs in segments for v in vs ],   # pyright: ignore [reportArgumentType]
+            [v for vs in segments for v in vs],   # pyright: ignore [reportArgumentType]
             edges_to_triangles(len(segments)),
             all_triangles=True,
-        )
+        ) if segments else None
 
-    def closest_point(self, co:Vector) -> Vector | None:
+    def __bool__(self) -> bool:
+        return self.bvh is not None
+
+    def closest_point(self, co: Vector) -> 'Vector | None':
+        if self.bvh is None: return None
         return self.bvh.find_nearest(co)[0]
+
+    @classmethod
+    def from_bmedges(cls, edges: list) -> 'EdgeMarkAccel':
+        '''Build from a list of BMEdge objects.'''
+        if not edges:
+            return cls([])
+        return cls([bme_cos(bme) for bme in edges], {bmv for bme in edges for bmv in bme.verts})
+
+    @classmethod
+    def build_all(
+        cls,
+        bm               : BMesh,
+        mirror           : set[str],
+        mirror_threshold : Vector,
+        mirror_clip      : bool,
+        *,
+        slide_boundary   : bool = False,
+        slide_creases    : bool = False,
+        slide_sharps     : bool = False,
+        slide_seams      : bool = False,
+    ) -> 'tuple':
+
+        # Each element unpacks as (verts, accel).
+        def pack(edges: list) -> 'tuple[set, EdgeMarkAccel]':
+            accel = cls.from_bmedges(edges)
+            return accel.verts, accel
+
+        return (
+            pack([bme for bme in bm.edges if is_bmedge_boundary(bme, mirror, mirror_threshold, mirror_clip)] if slide_boundary else []),
+            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.crease)] if slide_creases else []),
+            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.sharp)]  if slide_sharps  else []),
+            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.seam)]   if slide_seams   else []),
+        )
 
 
 class SourceAccel:
     cache_key: tuple | None = None
     cache_val: 'SourceAccel | None' = None
-    edge_accel : EdgeAccel | None
-    corner_kd  : KDTree | None
+    edge_accel : 'EdgeMarkAccel | None'
+    corner_kd  : 'KDTree | None'
 
-    def __init__(self, edge_accel: 'EdgeAccel | None', corner_kd: 'KDTree | None'):
+    def __init__(self, edge_accel: 'EdgeMarkAccel | None', corner_kd: 'KDTree | None'):
         self.edge_accel = edge_accel
         self.corner_kd  = corner_kd
 
@@ -182,7 +225,6 @@ class SourceAccel:
         cls,
         context: Context,
         sharp_threshold: float,
-        *,
         include_sharps: bool = False,
         include_seams: bool = False,
         include_creases: bool = False,
@@ -237,7 +279,7 @@ class SourceAccel:
             finally:
                 bm.free()
 
-        edge_accel = EdgeAccel(segments) if segments else None
+        edge_accel = EdgeMarkAccel(segments) if segments else None
 
         corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
         corner_kd: KDTree | None = None
