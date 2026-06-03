@@ -1026,19 +1026,6 @@ class Relax_Logic:
 
                 co_world = M @ Vector((*co.xyz, 1.0))
 
-                # Edge snap: only for verts_near_source_edge vertices (proximity + alignment).
-                # Stickiness [0, 1] controls how hard the vertex clings to the edge:
-                # Stickiness [0, 1]: controls escape from the source edge.
-                #   0   → snap skipped entirely; vertex drifts freely off any edge.
-                #   0.5 → escapes when the perpendicular-to-edge force exceeds the
-                #         baseline (~half-edge-length displacement from equilibrium).
-                #   1   → never escapes regardless of force.
-                #
-                # Only the PERPENDICULAR component of the force is compared against
-                # the threshold — the along-edge component (Laplacian redistribution)
-                # is invisible to the escape check so sliding always works freely.
-                # Gated on stickiness > 0; snap_avg_edge_len stays 0 so the
-                # downstream corner/edge snap block is also skipped at stickiness=0.
                 apply_edge_snap = False
                 snap_avg_edge_len = 0.0
                 if self.source_edge_accel and bmv.link_edges and self.stickiness > 0.0:
@@ -1047,14 +1034,12 @@ class Relax_Logic:
                         if self.stickiness >= 1.0:
                             apply_edge_snap = True
                         else:
-                            # Threshold scales with the hyperbola s/(1−s) so that
-                            # stickiness=0.5 matches the baseline escape force.
                             escape_threshold = snap_avg_edge_len * 0.005 * self.stickiness / (1.0 - self.stickiness)
-                            # Strip the along-edge component; compare only what's
-                            # trying to pull the vertex off the edge perpendicularly.
+                            # Only the perpendicular component of the force is compared against the threshold
                             perp = displace[bmv]
-                            edge_nbrs = [bme.other_vert(bmv) for bme in bmv.link_edges
-                                         if bme.other_vert(bmv) in self.verts_near_source_edge]
+                            edge_nbrs = [
+                                bme.other_vert(bmv) for bme in bmv.link_edges if bme.other_vert(bmv) in self.verts_near_source_edge
+                            ]
                             if len(edge_nbrs) >= 2:
                                 ev = edge_nbrs[-1].co - edge_nbrs[0].co
                                 if ev.length > 1e-8:
@@ -1067,14 +1052,10 @@ class Relax_Logic:
                                     perp = perp - ed * perp.dot(ed)
                             apply_edge_snap = perp.length <= escape_threshold
 
-                # Project onto the source surface. When the vertex was displaced into
-                # the mesh, cast a ray along its normal — it exits through the near
-                # face correctly. When it hasn't moved (on-surface or equilibrium), use
-                # nearest-point instead: a raycast from exactly on a face is unreliable
-                # (+normal misses, −normal hits the far face) and risks overhang snapping.
                 co_world_snapped = None
                 if self.source_edge_accel and displace_vec.length > 1e-6:
-                    co_pt        = point_to_bvec3(co_world.xyz)
+                    # For better snapping, project the vert using raycasting instead of nearest face if possible
+                    co_pt = point_to_bvec3(co_world.xyz)
                     normal_world = (M.to_3x3() @ bmv.normal).normalized()
                     for obj in iter_all_valid_sources(context):
                         M_obj  = obj.matrix_world
@@ -1092,36 +1073,27 @@ class Relax_Logic:
                 co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
 
                 if bmv in self.verts_near_source_edge and snap_avg_edge_len > 0:
-                    threshold        = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
-                    corner_threshold = threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
-
-                    # Corner snap: always applied for true edge vertices regardless of
-                    # whether the escape fired. Correct corners must stay at their
-                    # corner position even when the escape threshold is lowered.
+                    # Handle edge snapping for verts near source edges
+                    snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
+                    corner_threshold = snap_threshold * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
+                    # Prioritize snapping to corners
                     snapped_to_corner = False
                     if corner_result := self.source_edge_accel.find_corner(co_world_snapped):
                         co_corner, _, dist_corner = corner_result
                         if dist_corner < corner_threshold:
                             co_local_snapped  = Mi @ Vector(co_corner)
                             snapped_to_corner = True
-
-                    # Edge proximity snap: only when not escaped and not at a corner.
                     if apply_edge_snap and not snapped_to_corner:
                         if p := self.source_edge_accel.closest_point(co_world_snapped):
-                            if (Vector(p) - Vector(co_world_snapped)).length <= threshold:
+                            if (Vector(p) - Vector(co_world_snapped)).length <= snap_threshold:
                                 co_local_snapped = Mi @ Vector(p)
-
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
-                    # Approaching vertex (alignment check failed, not yet in
-                    # verts_near_source_edge): snap to the edge once nearest-point lands
-                    # within the threshold, but only if the displacement is directed
-                    # toward the edge. Bevel vertices at rest have displacement away
-                    # from or perpendicular to the edge (dot product ≤ 0).
-                    threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
+                    # Handle edge snapping for verts not yet near source edges but moving towards them
+                    snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
                     if p := self.source_edge_accel.closest_point(co_world_snapped):
                         p_vec     = Vector(p)
                         to_edge_w = p_vec - Vector(co_world_snapped)
-                        if to_edge_w.length <= threshold:
+                        if to_edge_w.length <= snap_threshold:
                             disp_world = M.to_3x3() @ displace_vec
                             if to_edge_w.length < 1e-8 or disp_world.dot(to_edge_w) > 0:
                                 co_local_snapped = Mi @ p_vec
