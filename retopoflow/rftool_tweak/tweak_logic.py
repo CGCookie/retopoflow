@@ -33,7 +33,8 @@ from mathutils.bvhtree import BVHTree
 import math
 import time
 
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, EdgeAccel, bme_cos
+from ..common.accel import EdgeAccel
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, bme_cos
 from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
 from ..common.maths import point_to_bvec4
 from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event

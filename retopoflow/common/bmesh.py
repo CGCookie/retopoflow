@@ -25,7 +25,6 @@ from bpy.types import Mesh, Context, MirrorModifier
 from bmesh.types import BMVert, BMEdge, BMFace, BMesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils.bvhtree import BVHTree
-from mathutils.kdtree import KDTree
 from mathutils import Vector, Matrix
 from math import inf, isnan
 from typing import Callable, Iterator, Sequence
@@ -560,20 +559,6 @@ def edges_to_triangles(count:int, *, triangle_inds:list[tuple[int,int,int]]=[]) 
             for i in range(len(triangle_inds), count*2)
         ])
     return triangle_inds[:count]
-
-
-class EdgeAccel:
-    bvh : BVHTree
-
-    def __init__(self, segments: list[tuple[Vector, Vector]]):
-        self.bvh = BVHTree.FromPolygons(
-            [ v for vs in segments for v in vs ],   # pyright: ignore [reportArgumentType]
-            edges_to_triangles(len(segments)),
-            all_triangles=True,
-        )
-
-    def closest_point(self, co:Vector) -> Vector | None:
-        return self.bvh.find_nearest(co)[0]
 
 
 class NearestBMEdge(NearestElem):

@@ -23,8 +23,6 @@ import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from mathutils import Vector, Matrix
-from mathutils.bvhtree import BVHTree
-from mathutils.kdtree import KDTree
 from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
@@ -33,8 +31,9 @@ from math import isnan, inf
 from typing import Callable
 from collections.abc import Iterator, Sequence
 
+from ..common.accel import EdgeAccel, SourceAccel, Accel
 from ..common.bmesh import (
-    get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint, EdgeAccel,
+    get_bmesh_emesh, is_bmedge_boundary, is_bmvert_boundary, is_bmvert_corner, is_bmvert_on_ngon, bme_midpoint, bmf_midpoint,
     bmv_co_isnan,
     bme_cos,
     bme_vector, bme_length,
@@ -65,230 +64,7 @@ from ..common.drawing import (
 from ...addon_common.terminal import term_printer
 from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
 from ...addon_common.common.colors import Color4
-from ..common.iter_utils import AttrIter, CastIter
 
-
-class SourceEdgeAccel:
-    '''Acceleration structures for source mesh feature edges and their corners.
-
-    Feature edges: sharp (marked or geometric), seams, or creases — configurable.
-    Corners: source vertices where 2+ feature edges meet (cube corners, T-junctions…).
-    All coordinates are stored in world space.
-
-    Use SourceEdgeAccel.build() to get a cached instance; the class keeps a single
-    cached entry keyed by source objects + parameters and rebuilds automatically when
-    either changes.
-    '''
-
-    _cache: dict = {}
-
-    _edge_accel : 'EdgeAccel | None'
-    _corner_kd  : 'KDTree | None'
-
-    def __init__(self, edge_accel: 'EdgeAccel | None', corner_kd: 'KDTree | None'):
-        self._edge_accel = edge_accel
-        self._corner_kd  = corner_kd
-
-    def __bool__(self) -> bool:
-        '''True when at least one feature edge was found.'''
-        return self._edge_accel is not None
-
-    def closest_point(self, co: Vector) -> 'Vector | None':
-        '''Nearest point on any feature edge (world space).'''
-        return self._edge_accel.closest_point(co) if self._edge_accel else None
-
-    def find_corner(self, co: Vector) -> 'tuple[Vector, int, float] | None':
-        '''Nearest corner as (position, index, distance), or None if no corners exist.'''
-        return self._corner_kd.find(co) if self._corner_kd else None
-
-    @classmethod
-    def build(
-        cls,
-        context: Context,
-        sharp_threshold_radians: float,
-        *,
-        include_sharp_marked: bool = False,
-        include_seams: bool = False,
-        include_creases: bool = False,
-    ) -> 'SourceEdgeAccel':
-        '''Return a cached instance; rebuild only when parameters or sources change.'''
-        # Short-circuit: nothing could be a feature edge, so skip the mesh scan.
-        use_angle = sharp_threshold_radians < math.pi
-        if not (include_sharp_marked or include_seams or include_creases or use_angle):
-            return cls(None, None)
-
-        sources = list(iter_all_valid_sources(context))
-        cache_key = (
-            frozenset(obj.name for obj in sources),
-            sharp_threshold_radians,
-            include_sharp_marked,
-            include_seams,
-            include_creases,
-        )
-
-        if cache_key in cls._cache:
-            return cls._cache[cache_key]
-
-        cos_threshold = math.cos(sharp_threshold_radians)
-        segments: list[tuple[Vector, Vector]] = []
-        vert_feature_count: dict[int, int] = {}
-        vert_world_pos:     dict[int, Vector] = {}
-        depsgraph = context.evaluated_depsgraph_get()
-
-        for obj in sources:
-            M = obj.matrix_world
-            bm = bmesh.new()
-            try:
-                bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
-                bm.verts.ensure_lookup_table()
-                bm.edges.ensure_lookup_table()
-                for bme in bm.edges:
-                    is_feature = include_sharp_marked and is_bmedge_edgemark(bm, bme, BMMarking.sharp)
-                    if not is_feature and use_angle and len(bme.link_faces) == 2:
-                        n0 = bme.link_faces[0].normal
-                        n1 = bme.link_faces[1].normal
-                        if n0.length > 1e-8 and n1.length > 1e-8:
-                            is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
-                    if not is_feature and include_seams:
-                        is_feature = is_bmedge_edgemark(bm, bme, BMMarking.seam)
-                    if not is_feature and include_creases:
-                        is_feature = is_bmedge_edgemark(bm, bme, BMMarking.crease)
-                    if is_feature:
-                        v0, v1 = bme.verts
-                        v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
-                        v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
-                        segments.append((v0w, v1w))
-                        for v, vw in ((v0, v0w), (v1, v1w)):
-                            k = v.index  # stable; id() is unreliable across bme.verts accesses
-                            vert_feature_count[k] = vert_feature_count.get(k, 0) + 1
-                            vert_world_pos[k] = vw
-            finally:
-                bm.free()
-
-        edge_accel = EdgeAccel(segments) if segments else None
-
-        # Corners: source vertices where 3+ feature edges meet (cube corners,
-        # T-junctions, etc.). Interior vertices on a subdivided feature edge have
-        # exactly 2 incident feature edges (one on each side) and must not be
-        # treated as corners.
-        corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
-        corner_kd: KDTree | None = None
-        if corner_pts:
-            corner_kd = KDTree(len(corner_pts))
-            for i, pos in enumerate(corner_pts):
-                corner_kd.insert(pos, i)
-            corner_kd.balance()
-
-        instance = cls(edge_accel, corner_kd)
-        cls._cache.clear()
-        cls._cache[cache_key] = instance
-        return instance
-
-
-class Accel:
-    BINS_COUNT : int = 10
-    MIN_REBUILD_TIME : float = 2.0
-
-    bmverts : list[BMVert]
-    matrix_world : Matrix
-    min_x : float
-    min_y : float
-    min_z : float
-    max_x : float
-    max_y : float
-    max_z : float
-    _bin_scale_x : float
-    _bin_scale_y : float
-    _bin_scale_z : float
-    time : float
-    bins : list[list[list[list[BMVert]]]]
-
-    def __init__(self, context:Context, bmverts:list[BMVert], matrix_world:Matrix, *, bbox:list[Vector]|None=None):
-        self.bmverts = bmverts
-        self.matrix_world = matrix_world
-        self.min_x, self.min_y, self.min_z = 0, 0, 0
-        self.max_x, self.max_y, self.max_z = 0, 0, 0
-        self._bin_scale_x, self._bin_scale_y, self._bin_scale_z = 0, 0, 0
-        self.time = time.time() - 1000
-        self.rebuild(context)
-
-    def rebuild(self, context:Context):
-        if time.time() - self.time < Accel.MIN_REBUILD_TIME:
-            return
-        if len(self.bmverts) == 0:
-            return
-
-        depsgraph = context.evaluated_depsgraph_get()
-        object_evaluated = context.edit_object.evaluated_get(depsgraph)
-        bbox : list[Vector]|None = list(object_evaluated.bound_box)
-
-        # Check if any corner has NaN values.
-        for corner in bbox:
-            if isnan(corner[0]) or isnan(corner[1]) or isnan(corner[2]):
-                print('RelaxLogic.Accel.rebuild: NaN values were found in bbox: ' + str(corner))
-                bbox = None  # fallback to using bmesh verts (slower but already filtered for NaN values)
-                break
-
-        # Initilization.
-        MW = self.matrix_world
-        loc_points : Iterator[Vector] = AttrIter(self.bmverts, 'co') if bbox is None else CastIter(bbox, Vector)
-        self.time = time.time()
-        self.bins = [[[[] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)] for _ in range(Accel.BINS_COUNT)]
-        self.min_x, self.min_y, self.min_z = inf, inf, inf
-        self.max_x, self.max_y, self.max_z = -inf, -inf, -inf
-        bins = self.bins
-        get_index = self.index
-
-        # Calculate the min/max.
-        for lpt in loc_points:
-            wpt = MW @ lpt
-            self.min_x = min(self.min_x, wpt.x)
-            self.min_y = min(self.min_y, wpt.y)
-            self.min_z = min(self.min_z, wpt.z)
-            self.max_x = max(self.max_x, wpt.x)
-            self.max_y = max(self.max_y, wpt.y)
-            self.max_z = max(self.max_z, wpt.z)
-
-        # Calculate the size.
-        dx, dy, dz = self.max_x - self.min_x, self.max_y - self.min_y, self.max_z - self.min_z
-        max_Dxyz = max(dx, dy, dz)
-        if dx < 0.001: self.min_x, self.max_x = self.min_x - max_Dxyz * 0.001, self.max_x + max_Dxyz * 0.001
-        if dy < 0.001: self.min_y, self.max_y = self.min_y - max_Dxyz * 0.001, self.max_y + max_Dxyz * 0.001
-        if dz < 0.001: self.min_z, self.max_z = self.min_z - max_Dxyz * 0.001, self.max_z + max_Dxyz * 0.001
-
-        # Precompute bin scales.
-        denom_x = max(0.001, self.max_x - self.min_x)
-        denom_y = max(0.001, self.max_y - self.min_y)
-        denom_z = max(0.001, self.max_z - self.min_z)
-        self._bin_scale_x = Accel.BINS_COUNT / denom_x
-        self._bin_scale_y = Accel.BINS_COUNT / denom_y
-        self._bin_scale_z = Accel.BINS_COUNT / denom_z
-
-        # Populate the bins.
-        for bmv in self.bmverts:
-            ix, iy, iz = get_index(MW @ bmv.co)
-            bins[ix][iy][iz].append(bmv)
-
-    def index(self, co_world: Vector) -> tuple[int, int, int]:
-        max_bin_index = Accel.BINS_COUNT - 1
-        ix = clamp_int(int((co_world.x - self.min_x) * self._bin_scale_x), 0, max_bin_index)
-        iy = clamp_int(int((co_world.y - self.min_y) * self._bin_scale_y), 0, max_bin_index)
-        iz = clamp_int(int((co_world.z - self.min_z) * self._bin_scale_z), 0, max_bin_index)
-        return (ix, iy, iz)
-
-    def get(self, co_world:Vector, radius_world:float) -> set[BMVert]:
-        M = self.matrix_world
-        r2 = radius_world * radius_world
-        min_ix, min_iy, min_iz = self.index(co_world - Vector((radius_world, radius_world, radius_world)))
-        max_ix, max_iy, max_iz = self.index(co_world + Vector((radius_world, radius_world, radius_world)))
-        return {
-            v
-            for ix in range(min_ix, max_ix+1)
-            for iy in range(min_iy, max_iy+1)
-            for iz in range(min_iz, max_iz+1)
-            for v in self.bins[ix][iy][iz]
-            if (M @ v.co - co_world).length_squared <= r2
-        }
 
 class Relax_Logic:
     bm : BMesh
@@ -317,7 +93,7 @@ class Relax_Logic:
     seam_verts : set[BMVert]
     seam_accel : EdgeAccel | None
 
-    source_edge_accel : SourceEdgeAccel | None
+    source_edge_accel : SourceAccel | None
     source_sharp_proximity : float
     elected_face_verts : set[BMVert]
 
@@ -599,7 +375,7 @@ class Relax_Logic:
 
         Called once from __init__. Settings are fixed for the lifetime of
         a brush stroke, so no per-frame rebuild is needed.
-        SourceEdgeAccel.build() is cached by parameter key, so successive
+        SourceAccel.build() is cached by parameter key, so successive
         strokes with unchanged settings pay only a dict lookup.
         '''
         relax = self.relax
@@ -615,9 +391,9 @@ class Relax_Logic:
         if not (_sharp_marked or _seams or _creases or _angle < math.pi):
             self.source_edge_accel = None
             return
-        self.source_edge_accel = SourceEdgeAccel.build(
+        self.source_edge_accel = SourceAccel.build(
             context, _angle,
-            include_sharp_marked=_sharp_marked,
+            include_sharps=_sharp_marked,
             include_seams=_seams,
             include_creases=_creases,
         )
