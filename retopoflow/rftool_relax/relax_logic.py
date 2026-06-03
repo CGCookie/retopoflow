@@ -68,79 +68,121 @@ from ...addon_common.common.colors import Color4
 from ..common.iter_utils import AttrIter, CastIter
 
 
-# Module-level cache for source mesh sharp edge acceleration structures.
-# Keyed by (frozenset of source object names, sharp_threshold_degrees).
-# Rebuilt only when the source object set or threshold changes.
-_source_sharp_cache: dict = {}
+class SourceEdgeAccel:
+    '''Acceleration structures for source mesh feature edges and their corners.
 
+    Feature edges: sharp (marked or geometric), seams, or creases — configurable.
+    Corners: source vertices where 2+ feature edges meet (cube corners, T-junctions…).
+    All coordinates are stored in world space.
 
-def _build_source_sharp_accel(
-    context: Context,
-    sharp_threshold_degrees: float,
-) -> 'tuple[EdgeAccel | None, KDTree | None]':
-    '''Build (or return cached) EdgeAccel of sharp source edges and KDTree of sharp corners.
-    Sharp edges: explicitly marked (not bme.smooth) OR dihedral angle > threshold.
-    Corners: source vertices where 2+ sharp edges meet (cube corners, T-junctions, etc.).
-    All structures store world-space coordinates.'''
-    import math as _math
+    Use SourceEdgeAccel.build() to get a cached instance; the class keeps a single
+    cached entry keyed by source objects + parameters and rebuilds automatically when
+    either changes.
+    '''
 
-    sources = list(iter_all_valid_sources(context))
-    cache_key = (
-        frozenset(obj.name for obj in sources),
-        sharp_threshold_degrees,
-    )
+    _cache: dict = {}
 
-    if cache_key in _source_sharp_cache:
-        return _source_sharp_cache[cache_key]
+    _edge_accel : 'EdgeAccel | None'
+    _corner_kd  : 'KDTree | None'
 
-    cos_threshold = _math.cos(_math.radians(sharp_threshold_degrees))
-    segments: list[tuple[Vector, Vector]] = []
-    # Map from BMVert identity → (world position, count of sharp edges incident to it)
-    vert_sharp_count: dict[int, int] = {}
-    vert_world_pos: dict[int, Vector] = {}
-    depsgraph = context.evaluated_depsgraph_get()
+    def __init__(self, edge_accel: 'EdgeAccel | None', corner_kd: 'KDTree | None'):
+        self._edge_accel = edge_accel
+        self._corner_kd  = corner_kd
 
-    for obj in sources:
-        M = obj.matrix_world
-        bm = bmesh.new()
-        try:
-            bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
-            bm.verts.ensure_lookup_table()
-            bm.edges.ensure_lookup_table()
-            for bme in bm.edges:
-                is_sharp = not bme.smooth
-                if not is_sharp and len(bme.link_faces) == 2:
-                    n0 = bme.link_faces[0].normal
-                    n1 = bme.link_faces[1].normal
-                    if n0.length > 1e-8 and n1.length > 1e-8:
-                        is_sharp = n0.normalized().dot(n1.normalized()) < cos_threshold
-                if is_sharp:
-                    v0, v1 = bme.verts
-                    v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
-                    v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
-                    segments.append((v0w, v1w))
-                    for v, vw in ((v0, v0w), (v1, v1w)):
-                        k = v.index  # stable integer index; id() is unreliable across bme.verts accesses
-                        vert_sharp_count[k] = vert_sharp_count.get(k, 0) + 1
-                        vert_world_pos[k] = vw
-        finally:
-            bm.free()
+    def __bool__(self) -> bool:
+        '''True when at least one feature edge was found.'''
+        return self._edge_accel is not None
 
-    accel = EdgeAccel(segments) if segments else None
+    def closest_point(self, co: Vector) -> 'Vector | None':
+        '''Nearest point on any feature edge (world space).'''
+        return self._edge_accel.closest_point(co) if self._edge_accel else None
 
-    # Corners are source vertices where 2+ sharp edges meet.
-    corner_pts = [pos for k, pos in vert_world_pos.items() if vert_sharp_count[k] >= 2]
-    corner_kd: KDTree | None = None
-    if corner_pts:
-        corner_kd = KDTree(len(corner_pts))
-        for i, pos in enumerate(corner_pts):
-            corner_kd.insert(pos, i)
-        corner_kd.balance()
+    def find_corner(self, co: Vector) -> 'tuple[Vector, int, float] | None':
+        '''Nearest corner as (position, index, distance), or None if no corners exist.'''
+        return self._corner_kd.find(co) if self._corner_kd else None
 
-    result = (accel, corner_kd)
-    _source_sharp_cache.clear()
-    _source_sharp_cache[cache_key] = result
-    return result
+    @classmethod
+    def build(
+        cls,
+        context: Context,
+        sharp_threshold_radians: float,
+        *,
+        include_sharp_marked: bool = False,
+        include_seams: bool = False,
+        include_creases: bool = False,
+    ) -> 'SourceEdgeAccel':
+        '''Return a cached instance; rebuild only when parameters or sources change.'''
+        # Short-circuit: nothing could be a feature edge, so skip the mesh scan.
+        use_angle = sharp_threshold_radians < math.pi
+        if not (include_sharp_marked or include_seams or include_creases or use_angle):
+            return cls(None, None)
+
+        sources = list(iter_all_valid_sources(context))
+        cache_key = (
+            frozenset(obj.name for obj in sources),
+            sharp_threshold_radians,
+            include_sharp_marked,
+            include_seams,
+            include_creases,
+        )
+
+        if cache_key in cls._cache:
+            return cls._cache[cache_key]
+
+        cos_threshold = math.cos(sharp_threshold_radians)
+        segments: list[tuple[Vector, Vector]] = []
+        vert_feature_count: dict[int, int] = {}
+        vert_world_pos:     dict[int, Vector] = {}
+        depsgraph = context.evaluated_depsgraph_get()
+
+        for obj in sources:
+            M = obj.matrix_world
+            bm = bmesh.new()
+            try:
+                bm.from_object(obj.evaluated_get(depsgraph), depsgraph)
+                bm.verts.ensure_lookup_table()
+                bm.edges.ensure_lookup_table()
+                for bme in bm.edges:
+                    is_feature = include_sharp_marked and is_bmedge_edgemark(bm, bme, BMMarking.sharp)
+                    if not is_feature and use_angle and len(bme.link_faces) == 2:
+                        n0 = bme.link_faces[0].normal
+                        n1 = bme.link_faces[1].normal
+                        if n0.length > 1e-8 and n1.length > 1e-8:
+                            is_feature = n0.normalized().dot(n1.normalized()) < cos_threshold
+                    if not is_feature and include_seams:
+                        is_feature = is_bmedge_edgemark(bm, bme, BMMarking.seam)
+                    if not is_feature and include_creases:
+                        is_feature = is_bmedge_edgemark(bm, bme, BMMarking.crease)
+                    if is_feature:
+                        v0, v1 = bme.verts
+                        v0w = point_to_bvec3((M @ Vector((*v0.co, 1.0))).xyz)
+                        v1w = point_to_bvec3((M @ Vector((*v1.co, 1.0))).xyz)
+                        segments.append((v0w, v1w))
+                        for v, vw in ((v0, v0w), (v1, v1w)):
+                            k = v.index  # stable; id() is unreliable across bme.verts accesses
+                            vert_feature_count[k] = vert_feature_count.get(k, 0) + 1
+                            vert_world_pos[k] = vw
+            finally:
+                bm.free()
+
+        edge_accel = EdgeAccel(segments) if segments else None
+
+        # Corners: source vertices where 3+ feature edges meet (cube corners,
+        # T-junctions, etc.). Interior vertices on a subdivided feature edge have
+        # exactly 2 incident feature edges (one on each side) and must not be
+        # treated as corners.
+        corner_pts = [pos for k, pos in vert_world_pos.items() if vert_feature_count[k] >= 3]
+        corner_kd: KDTree | None = None
+        if corner_pts:
+            corner_kd = KDTree(len(corner_pts))
+            for i, pos in enumerate(corner_pts):
+                corner_kd.insert(pos, i)
+            corner_kd.balance()
+
+        instance = cls(edge_accel, corner_kd)
+        cls._cache.clear()
+        cls._cache[cache_key] = instance
+        return instance
 
 
 class Accel:
@@ -275,8 +317,7 @@ class Relax_Logic:
     seam_verts : set[BMVert]
     seam_accel : EdgeAccel | None
 
-    source_sharp_accel : EdgeAccel | None
-    source_corner_kd : KDTree | None
+    source_edge_accel : SourceEdgeAccel | None
     source_sharp_proximity : float
     elected_face_verts : set[BMVert]
 
@@ -414,15 +455,9 @@ class Relax_Logic:
             self.seam_verts = { bmv for bme in seam_edges for bmv in bme.verts }
             self.seam_accel = EdgeAccel(self.seam)
 
-        self.source_sharp_accel = None
-        self.source_corner_kd = None
-        self.source_sharp_proximity = getattr(relax, 'algorithm_sharp_proximity', 0.3)
-        if getattr(relax, 'algorithm_snap_sharp', False):
-            timings.append(('source_sharp_edges', time.time()))
-            self.source_sharp_accel, self.source_corner_kd = _build_source_sharp_accel(
-                context,
-                getattr(relax, 'algorithm_source_sharp_angle', 30.0),
-            )
+        self.source_edge_accel = None
+        self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
+        self._rebuild_source_edge_accel(context)
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -558,6 +593,34 @@ class Relax_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
+
+    def _rebuild_source_edge_accel(self, context: Context) -> None:
+        '''Build source_edge_accel from the current operator settings.
+
+        Called once from __init__. Settings are fixed for the lifetime of
+        a brush stroke, so no per-frame rebuild is needed.
+        SourceEdgeAccel.build() is cached by parameter key, so successive
+        strokes with unchanged settings pay only a dict lookup.
+        '''
+        relax = self.relax
+        if not getattr(relax, 'snap_to_source_features', False):
+            self.source_edge_accel = None
+            return
+        _angle        = getattr(relax, 'source_edge_angle',  math.pi)
+        _sharp_marked = getattr(relax, 'source_edge_sharps', False)
+        _seams        = getattr(relax, 'source_edge_seams',  False)
+        _creases      = getattr(relax, 'source_edge_creases',False)
+        # Skip the build entirely when no criterion could match.
+        # At π radians (180°) the dihedral check never fires.
+        if not (_sharp_marked or _seams or _creases or _angle < math.pi):
+            self.source_edge_accel = None
+            return
+        self.source_edge_accel = SourceEdgeAccel.build(
+            context, _angle,
+            include_sharp_marked=_sharp_marked,
+            include_seams=_seams,
+            include_creases=_creases,
+        )
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False):
         self.verts_accel.rebuild(context)
@@ -1071,10 +1134,10 @@ class Relax_Logic:
             nonlocal source_sharp_near
             # Recompute source_sharp_near each step because positions change.
             source_sharp_near = set()
-            if self.source_sharp_accel:
+            if self.source_edge_accel:
                 for bmv in chk_verts:
                     bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
-                    if p := self.source_sharp_accel.closest_point(bmv_world):
+                    if p := self.source_edge_accel.closest_point(bmv_world):
                         p_local = Mi @ Vector(p)
                         if bmv.link_edges:
                             avg_el = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
@@ -1103,7 +1166,7 @@ class Relax_Logic:
                             if nb in source_sharp_near:
                                 continue
                             nb_world = point_to_bvec3((M @ Vector((*nb.co, 1.0))).xyz)
-                            if p := self.source_sharp_accel.closest_point(nb_world):
+                            if p := self.source_edge_accel.closest_point(nb_world):
                                 p_local = Mi @ Vector(p)
                                 if nb.link_edges:
                                     avg_el = sum(bme_length(bme) for bme in nb.link_edges) / len(nb.link_edges)
@@ -1119,7 +1182,7 @@ class Relax_Logic:
             # elected. The election then propagates along its loop so that the SAME
             # topological loop wins all the way along the edge, even at positions
             # the brush hasn't reached yet where a different loop may be closer.
-            if self.source_sharp_accel:
+            if self.source_edge_accel:
                 # 1. Elect all current source_sharp_near members.
                 self.elected_face_verts.update(source_sharp_near)
 
@@ -1159,7 +1222,7 @@ class Relax_Logic:
                             if nb in self.elected_face_verts:
                                 continue
                             nb_world = point_to_bvec3((M @ Vector((*nb.co, 1.0))).xyz)
-                            if p := self.source_sharp_accel.closest_point(nb_world):
+                            if p := self.source_edge_accel.closest_point(nb_world):
                                 p_nb = Mi @ Vector(p)
                                 if nb.link_edges:
                                     avg_el = sum(bme_length(bme) for bme in nb.link_edges) / len(nb.link_edges)
@@ -1175,7 +1238,7 @@ class Relax_Logic:
                     if V in source_sharp_near:
                         continue
                     V_world = point_to_bvec3((M @ Vector((*V.co, 1.0))).xyz)
-                    if p := self.source_sharp_accel.closest_point(V_world):
+                    if p := self.source_edge_accel.closest_point(V_world):
                         p_local = Mi @ Vector(p)
                         if V.link_edges:
                             avg_el = sum(bme_length(bme) for bme in V.link_edges) / len(V.link_edges)
@@ -1190,7 +1253,7 @@ class Relax_Logic:
                     if relax.algorithm_straighten_edges:
                         # Loop-aware line straightening when edge snapping is active;
                         # the original centroid method otherwise.
-                        if self.source_sharp_accel:
+                        if self.source_edge_accel:
                             straighten_loops(bmv, self.straighten_loops_cache)
                         else:
                             straighten_edges(bmv, self.straighten_cache)
@@ -1212,11 +1275,11 @@ class Relax_Logic:
             # when equidistant from a competitor.  Non-elected face vertices
             # within the detection zone get an away-from-edge force so the
             # wrong loop can't win even when geometrically closer.
-            if self.source_sharp_accel and self.elected_face_verts:
+            if self.source_edge_accel and self.elected_face_verts:
                 detect_factor = 1.5  # zone in which to apply forces
                 for bmv in verts:
                     bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
-                    if p := self.source_sharp_accel.closest_point(bmv_world):
+                    if p := self.source_edge_accel.closest_point(bmv_world):
                         p_local = Mi @ Vector(p)
                         if not bmv.link_edges:
                             continue
@@ -1327,6 +1390,9 @@ class Relax_Logic:
                 print('Relax: Limiting distance')
                 break
 
+            # Stickiness for this iteration step (constant per step, read once).
+            stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+
             # update
             update_to = {}
             for bmv in displace:
@@ -1340,6 +1406,7 @@ class Relax_Logic:
                 if relax.algorithm_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
                 displace_vec : Vector = displace[bmv].normalized() * displace_dist
+
                 co : Vector = bmv.co + displace_vec
 
                 if opt_draw_net:
@@ -1361,16 +1428,45 @@ class Relax_Logic:
                 co_world = M @ Vector((*co.xyz, 1.0))
 
                 # Edge snap: only for source_sharp_near vertices (proximity + alignment).
-                # Skipped when the raw force exceeds the escape threshold so vertices
-                # on wrong edges can pull free. Bevel vertices fail the alignment check
-                # in source_sharp_near, so they always use nearest-point only.
+                # Stickiness [0, 1] controls how hard the vertex clings to the edge:
+                # Stickiness [0, 1]: controls escape from the source edge.
+                #   0   → snap skipped entirely; vertex drifts freely off any edge.
+                #   0.5 → escapes when the perpendicular-to-edge force exceeds the
+                #         baseline (~half-edge-length displacement from equilibrium).
+                #   1   → never escapes regardless of force.
+                #
+                # Only the PERPENDICULAR component of the force is compared against
+                # the threshold — the along-edge component (Laplacian redistribution)
+                # is invisible to the escape check so sliding always works freely.
+                # Gated on stickiness > 0; snap_avg_edge_len stays 0 so the
+                # downstream corner/edge snap block is also skipped at stickiness=0.
                 apply_edge_snap = False
                 snap_avg_edge_len = 0.0
-                if self.source_sharp_accel and bmv.link_edges:
+                if self.source_edge_accel and bmv.link_edges and stickiness > 0.0:
                     snap_avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
                     if bmv in source_sharp_near:
-                        escape_threshold = snap_avg_edge_len * getattr(relax, 'algorithm_sharp_escape_force', 0.025)
-                        apply_edge_snap  = displace[bmv].length <= escape_threshold
+                        if stickiness >= 1.0:
+                            apply_edge_snap = True
+                        else:
+                            # Threshold scales with the hyperbola s/(1−s) so that
+                            # stickiness=0.5 matches the baseline escape force.
+                            escape_threshold = snap_avg_edge_len * 0.005 * stickiness / (1.0 - stickiness)
+                            # Strip the along-edge component; compare only what's
+                            # trying to pull the vertex off the edge perpendicularly.
+                            perp = displace[bmv]
+                            edge_nbrs = [bme.other_vert(bmv) for bme in bmv.link_edges
+                                         if bme.other_vert(bmv) in source_sharp_near]
+                            if len(edge_nbrs) >= 2:
+                                ev = edge_nbrs[-1].co - edge_nbrs[0].co
+                                if ev.length > 1e-8:
+                                    ed = ev.normalized()
+                                    perp = perp - ed * perp.dot(ed)
+                            elif len(edge_nbrs) == 1:
+                                ev = edge_nbrs[0].co - bmv.co
+                                if ev.length > 1e-8:
+                                    ed = ev.normalized()
+                                    perp = perp - ed * perp.dot(ed)
+                            apply_edge_snap = perp.length <= escape_threshold
 
                 # Project onto the source surface. When the vertex was displaced into
                 # the mesh, cast a ray along its normal — it exits through the near
@@ -1378,7 +1474,7 @@ class Relax_Logic:
                 # nearest-point instead: a raycast from exactly on a face is unreliable
                 # (+normal misses, −normal hits the far face) and risks overhang snapping.
                 co_world_snapped = None
-                if self.source_sharp_accel and displace_vec.length > 1e-6:
+                if self.source_edge_accel and displace_vec.length > 1e-6:
                     co_pt        = point_to_bvec3(co_world.xyz)
                     normal_world = (M.to_3x3() @ bmv.normal).normalized()
                     for obj in iter_all_valid_sources(context):
@@ -1404,26 +1500,26 @@ class Relax_Logic:
                     # whether the escape fired. Correct corners must stay at their
                     # corner position even when the escape threshold is lowered.
                     snapped_to_corner = False
-                    if self.source_corner_kd:
-                        co_corner, _, dist_corner = self.source_corner_kd.find(co_world_snapped)
+                    if corner_result := self.source_edge_accel.find_corner(co_world_snapped):
+                        co_corner, _, dist_corner = corner_result
                         if dist_corner < corner_threshold:
                             co_local_snapped  = Mi @ Vector(co_corner)
                             snapped_to_corner = True
 
                     # Edge proximity snap: only when not escaped and not at a corner.
                     if apply_edge_snap and not snapped_to_corner:
-                        if p := self.source_sharp_accel.closest_point(co_world_snapped):
+                        if p := self.source_edge_accel.closest_point(co_world_snapped):
                             if (Vector(p) - Vector(co_world_snapped)).length <= threshold:
                                 co_local_snapped = Mi @ Vector(p)
 
-                elif self.source_sharp_accel and bmv.link_edges and snap_avg_edge_len > 0:
+                elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
                     # Approaching vertex (alignment check failed, not yet in
                     # source_sharp_near): snap to the edge once nearest-point lands
                     # within the threshold, but only if the displacement is directed
                     # toward the edge. Bevel vertices at rest have displacement away
                     # from or perpendicular to the edge (dot product ≤ 0).
                     threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity
-                    if p := self.source_sharp_accel.closest_point(co_world_snapped):
+                    if p := self.source_edge_accel.closest_point(co_world_snapped):
                         p_vec     = Vector(p)
                         to_edge_w = p_vec - Vector(co_world_snapped)
                         if to_edge_w.length <= threshold:

@@ -206,26 +206,49 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
-    algorithm_snap_sharp: bpy.props.BoolProperty(
-        name='Algorithm: Snap to Sharp',
-        description="Snap vertices to the sharp edges of the high poly mesh",
-        default=True,
+    snap_to_source_features: bpy.props.BoolProperty(
+        name='Algorithm: Snap to Features',
+        description="Snap vertices to certain edges of the high poly mesh",
+        default=False,
     )
-    algorithm_sharp_proximity: bpy.props.FloatProperty(
-        name = 'Snap to Sharp Proximity',
-        description = 'How close to sharp edges should vertices be to snap to them',
+    source_edge_proximity: bpy.props.FloatProperty(
+        name = 'Proximity',
+        description = 'How close to feature edges should vertices be to snap to them',
         subtype = 'DISTANCE',
         min = 0,
         max = 1,
         default = 0.25
     )
-    algorithm_sharp_escape_force: bpy.props.FloatProperty(
+    source_edge_stickiness: bpy.props.FloatProperty(
         name = 'Snap to Sharp Escape Force',
         description = 'How difficult it is for vertices to escape sharp edges',
         subtype = 'NONE',
         min = 0,
         max = 1,
-        default = 0.25
+        default = 0.5
+    )
+    source_edge_angle: bpy.props.FloatProperty(
+        name = 'Angle',
+        description = 'Angle threshold for what is considered as a sharp edge on the source object',
+        subtype = 'ANGLE',
+        min = math.radians(1),
+        max = math.radians(180),
+        default = math.radians(45)
+    )
+    source_edge_seams: bpy.props.BoolProperty(
+        name='Snap to Source Seams',
+        description="Snap vertices to the seams of the high poly mesh",
+        default=False,
+    )
+    source_edge_creases: bpy.props.BoolProperty(
+        name='Snap to Source Creases',
+        description="Snap vertices to the creases of the high poly mesh",
+        default=False,
+    )
+    source_edge_sharps: bpy.props.BoolProperty(
+        name='Snap to Source Sharps',
+        description="Snap vertices to the sharps of the high poly mesh",
+        default=False,
     )
 
 

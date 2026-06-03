@@ -38,15 +38,23 @@ def draw_relax_algo_options(context, layout):
     layout.row(heading="Correct").prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
     layout.separator()
-    layout.row(heading="Snap").prop(props, 'algorithm_snap_sharp',  text='Sharp Edges')
-    layout.prop(props, 'algorithm_sharp_proximity', text='Proximity')
-    layout.prop(props, 'algorithm_sharp_escape_force', text='Escape Force')
-
-    layout.separator()
     layout.row().prop(props, 'algorithm_method', expand=False, text='Integration')
     if props.algorithm_method == 'STEPS':
         layout.prop(props, 'algorithm_iterations', text="Iterations")
     layout.separator()
+
+    header, panel = layout.panel(idname='relax_panel_source_edges', default_closed=False)
+    header.label(text='Hard Surface Snapping')
+    if panel:
+        panel.row(heading="Sources").prop(props, 'snap_to_source_features',  text='Detect Features')
+        col = panel.column(align=False)
+        col.enabled = props.snap_to_source_features
+        col.prop(props, 'source_edge_angle', text='Angle')
+        col.row(heading='Include').prop(props, 'source_edge_creases', text='Creases')
+        col.prop(props, 'source_edge_seams', text='Seams')
+        col.prop(props, 'source_edge_sharps', text='Sharps')
+        col.prop(props, 'source_edge_proximity', text='Proximity')
+        col.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')
