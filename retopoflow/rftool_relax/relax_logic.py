@@ -138,14 +138,14 @@ class Relax_Logic:
 
 
 
-    def set_source_accel(self, context, relax):
+    def set_source_accel(self, context):
         if not getattr(self.relax, 'snap_to_source_features', False):
             self.source_edge_accel = None
             return
-        source_angle   = getattr(relax, 'source_edge_angle',   math.pi)
-        source_sharps  = getattr(relax, 'source_edge_sharps',  False)
-        source_seams   = getattr(relax, 'source_edge_seams',   False)
-        source_creases = getattr(relax, 'source_edge_creases', False)
+        source_angle   = getattr(self.relax, 'source_edge_angle',   math.pi)
+        source_sharps  = getattr(self.relax, 'source_edge_sharps',  False)
+        source_seams   = getattr(self.relax, 'source_edge_seams',   False)
+        source_creases = getattr(self.relax, 'source_edge_creases', False)
         if not (source_sharps or source_seams or source_creases or source_angle < math.pi):
             self.source_edge_accel = None
             return
@@ -220,7 +220,7 @@ class Relax_Logic:
         self.seam_verts,     self.seam_accel     = seam
 
         self.source_edge_accel = None
-        self.set_source_accel(context, relax)
+        self.set_source_accel(context)
         self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
         self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
@@ -335,6 +335,7 @@ class Relax_Logic:
         self.demoted_verts       = set()
         self._guide_verts        = None
         self._saved_selection    = None
+        self._warned_limiting    = False   # 'Limiting distance' is printed at most once per stroke
 
         # If debug loop highlight is active, save the current selection and clear it
         # so the highlight is clearly visible.  Restored in finish() / cancel().
@@ -429,8 +430,6 @@ class Relax_Logic:
 
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False):
-        self.verts_accel.rebuild(context)
-
         match event.type:
             case 'MOUSEMOVE':
                 self.pressure = getattr(event, 'pressure', 1.0)
@@ -444,18 +443,21 @@ class Relax_Logic:
             case _:
                 return
 
+        # Throttle to 120 Hz before the raycast so a high-poll device doesn't fire
+        # raycast_valid_sources hundreds of times per second on easy meshes.
+        # self.mouse is already updated above so we always act on the latest position.
+        cur_time = time.time()
+        time_delta = cur_time - self._time
+        if time_delta < 1.0 / 120:
+            return  # do not run faster than 120Hz!
+        time_delta = clamp(time_delta, 0.0, 0.1)
+        self._time = cur_time
+        self.verts_accel.rebuild(context)
+
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
         co_world : Vector = hit['co_world']  # pyright: ignore[reportAssignmentType]
         brush_center_world = Vector(co_world.xyz)  # save before inner loop overwrites co_world
-
-        # Limit updates so moving the mouse doesn't update faster than timer
-        cur_time = time.time()
-        time_delta = cur_time - self._time
-        if time_delta < 1.0 / 120:
-            return # do not run faster than 120Hz!
-        time_delta = clamp(time_delta, 0.0, 0.1)
-        self._time = cur_time
 
         # debugging options
         opt_draw_all         = False
@@ -508,9 +510,10 @@ class Relax_Logic:
 
         self.verts_near_source_edge = {}
 
-        self.draw_vectors_positive.clear()
-        self.draw_vectors_negative.clear()
-        self.draw_vectors_net.clear()
+        if opt_draw_all or opt_draw_net:
+            self.draw_vectors_positive.clear()
+            self.draw_vectors_negative.clear()
+            self.draw_vectors_net.clear()
 
         displace = {}
 
@@ -528,6 +531,40 @@ class Relax_Logic:
                     self.draw_vectors_positive.append((wrt, f.xyz * mult * vert_strength[bmv]))
                 elif sign < 0:
                     self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
+
+        def to_world(co):
+            ''' Local coordinate -> world-space 3D point. '''
+            return point_to_bvec3((M @ Vector((*co, 1.0))).xyz)
+
+        def avg_link_edge_len(bmv):
+            ''' Average length of a vert's connected edges (0.0 if it has none). '''
+            le = bmv.link_edges
+            return (sum(bme_length(bme) for bme in le) / len(le)) if le else 0.0
+
+        def edge_constrained_neighbors(bmv):
+            ''' bmv's neighbors that are themselves snapped to a source edge. '''
+            return [
+                other for bme in bmv.link_edges
+                if (other := bme.other_vert(bmv)) in self.verts_near_source_edge
+            ]
+
+        def get_face_topology(bmf):
+            ''' Cached (verts, edges) tuples for a face. '''
+            cached = self.face_topology_cache.get(bmf)
+            if cached is None:
+                cached = (tuple(bmf.verts), tuple(bmf.edges))
+                self.face_topology_cache[bmf] = cached
+            return cached
+
+        def corner_for_vert(bmv, factor):
+            ''' The source-corner result (co, idx, dist) if bmv lies within
+            avg_link_edge_len(bmv) * scale_avg * factor of a source corner, else None. '''
+            if not self.source_edge_accel or not bmv.link_edges:
+                return None
+            cr = self.source_edge_accel.find_corner(to_world(bmv.co))
+            if cr and cr[2] < avg_link_edge_len(bmv) * self.scale_avg * factor:
+                return cr
+            return None
 
         def laplacian_smooth(bmv, laplacian_cache, shape_preservation=0):
             ''' Push verts towards the average of their neighbors '''
@@ -583,10 +620,7 @@ class Relax_Logic:
                 else:
                     # no edge-constrained neighbors found
                     if is_boundary:
-                        all_edge_nbrs = [
-                            bme.other_vert(bmv) for bme in bmv.link_edges
-                            if bme.other_vert(bmv) in self.verts_near_source_edge
-                        ]
+                        all_edge_nbrs = edge_constrained_neighbors(bmv)
                         if all_edge_nbrs:
                             v = all_edge_nbrs[0].co - bmv.co
                             if v.length > 1e-8:
@@ -715,10 +749,7 @@ class Relax_Logic:
             ''' Return the along-source-edge direction for a snapped vert, or None. '''
             if not (self.verts_near_source_edge and bmv in self.verts_near_source_edge):
                 return None
-            edge_nbrs = [
-                bme.other_vert(bmv) for bme in bmv.link_edges
-                if bme.other_vert(bmv) in self.verts_near_source_edge
-            ]
+            edge_nbrs = edge_constrained_neighbors(bmv)
             if len(edge_nbrs) >= 2:
                 v = edge_nbrs[-1].co - edge_nbrs[0].co
                 if v.length > 1e-8:
@@ -735,7 +766,7 @@ class Relax_Logic:
             vec = bme_vector(bme)
             diff = avg_edge_len - vec.length
             if abs(diff) < 1e-12: return
-            edge_midpoint = bme_midpoint(bme)
+            edge_midpoint = bme_midpoint(bme) if opt_draw_all else None  # only needed for debug draw
             f = vec.normalized() * diff / 25
             f0 = -f
             if edge_proj_dir := get_edge_proj_dir(bmv0):
@@ -766,32 +797,23 @@ class Relax_Logic:
             if spring_force.length:
                 add_force(bmv, spring_force, bmv.co, 1, 40)
 
-        def average_face_radius(bmf, avg_vert_area_sqrt, center, face_topology_cache):
+        def average_face_radius(bmf, avg_vert_area_sqrt, center):
             ''' push verts toward average dist from verts to face center '''
-            if bmf in face_topology_cache:
-                verts, edges = face_topology_cache[bmf]
-            else:
-                verts = tuple(bmv for bmv in bmf.verts)
-                face_topology_cache[bmf] = (verts, tuple(bme for bme in bmf.edges))
-            rels = [bmv.co - center for bmv in verts]
-            avg_rel_len = sum(rel.length for rel in rels) / len(verts)
-            for rel, bmv in zip(rels, verts):
+            face_verts, face_edges = get_face_topology(bmf)
+            rels = [bmv.co - center for bmv in face_verts]
+            avg_rel_len = sum(rel.length for rel in rels) / len(face_verts)
+            for rel, bmv in zip(rels, face_verts):
                 rel_len = rel.length
                 diff = avg_rel_len - rel_len
                 if diff > 0: diff /= 10 # Reduces shrinking
                 f = rel.normalized() * (diff / avg_rel_len) * avg_vert_area_sqrt
                 add_force(bmv, f, center, (avg_rel_len - rel_len), 40)
 
-        def average_face_sides(bmf, avg_vert_area_sqrt, face_topology_cache):
+        def average_face_sides(bmf, avg_vert_area_sqrt):
             ''' push verts toward equal edge lengths '''
-            if bmf in face_topology_cache:
-                verts, edges = face_topology_cache[bmf]
-            else:
-                verts = tuple(bmv for bmv in bmf.verts)
-                edges = tuple(bme for bme in bmf.edges)
-                face_topology_cache[bmf] = (verts, edges)
-            avg_face_edge_len = sum(bme_length(bme) for bme in edges) / len(verts)
-            for bme in edges:
+            face_verts, face_edges = get_face_topology(bmf)
+            avg_face_edge_len = sum(bme_length(bme) for bme in face_edges) / len(face_verts)
+            for bme in face_edges:
                 bmv0, bmv1 = bme.verts
                 vec = bme_vector(bme)
                 edge_len = vec.length
@@ -802,13 +824,9 @@ class Relax_Logic:
                 add_force(bmv0, f * -0.5, edge_midpoint, edge_diff, 40)
                 add_force(bmv1, f * 0.5, edge_midpoint, edge_diff, 40)
 
-        def average_face_angles(bmf, avg_vert_area_sqrt, face_topology_cache):
+        def average_face_angles(bmf, avg_vert_area_sqrt):
             ''' push verts toward equal spread '''
-            if bmf in face_topology_cache:
-                verts, edges = face_topology_cache[bmf]
-            else:
-                verts = tuple(bmv for bmv in bmf.verts)
-                face_topology_cache[bmf] = (verts, tuple(bme for bme in bmf.edges))
+            face_verts, face_edges = get_face_topology(bmf)
             bmf_z = bmf.normal.normalized()
             if abs(bmf_z.dot(self.forward)) < 0.95:
                 bmf_y = bmf_z.cross(self.forward).normalized()
@@ -816,13 +834,13 @@ class Relax_Logic:
             else:
                 bmf_x = self.up.cross(bmf_z).normalized()
                 bmf_y = bmf_z.cross(bmf_x).normalized()
-            vert_count = len(verts)
+            vert_count = len(face_verts)
             sum_of_interior_angles = math.pi * (vert_count - 2)
             angle_target = sum_of_interior_angles / vert_count
             for i1 in range(vert_count):
                 i0 = (i1 + vert_count - 1) % vert_count
                 i2 = (i1 + 1) % vert_count
-                bmv0, bmv1, bmv2 = verts[i0], verts[i1], verts[i2]
+                bmv0, bmv1, bmv2 = face_verts[i0], face_verts[i1], face_verts[i2]
                 v10, v12 = bmv0.co - bmv1.co, bmv2.co - bmv1.co
                 d10, d12 = v10.normalized(), v12.normalized()
                 d10_2 = Vector((bmf_x.dot(d10), bmf_y.dot(d10))).normalized()
@@ -837,34 +855,29 @@ class Relax_Logic:
                     # Exception is thrown if d10_2 or d12_2 are 0-length
                     pass
 
-        def average_face_areas(bmf, avg_vert_area, center, face_topology_cache):
+        def average_face_areas(bmf, avg_vert_area, center):
             ''' scale faces towards the average '''
-            if bmf in face_topology_cache:
-                verts, edges = face_topology_cache[bmf]
-            else:
-                verts = tuple(bmv for bmv in bmf.verts)
-                edges = tuple(bme for bme in bmf.edges)
-                face_topology_cache[bmf] = (verts, edges)
+            face_verts, face_edges = get_face_topology(bmf)
             if avg_vert_area < 1e-20: return
-            diff = ((bmf.calc_area() / len(verts)) - avg_vert_area) / avg_vert_area
-            for bmv in verts:
+            diff = ((bmf.calc_area() / len(face_verts)) - avg_vert_area) / avg_vert_area
+            for bmv in face_verts:
                 if bmv.is_boundary and len(bmv.link_edges) == 3:
-                    other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in edges]
+                    other_boundary_verts = [e.other_vert(bmv) for e in bmv.link_edges if e.is_boundary and e in face_edges]
                     if other_boundary_verts:
-                        center = Point.average([bmv.co, other_boundary_verts[0].co])
-                vec = (center - bmv.co) * diff * 0.25
+                        bmv_center = Point.average([bmv.co, other_boundary_verts[0].co])
+                    else:
+                        bmv_center = center
+                else:
+                    bmv_center = center
+                vec = (bmv_center - bmv.co) * diff * 0.25
                 if edge_proj_dir := get_edge_proj_dir(bmv):
                     vec = edge_proj_dir * vec.dot(edge_proj_dir)
-                add_force(bmv, vec, center, 1, 40)
+                add_force(bmv, vec, bmv_center, 1, 40)
 
-        def average_face_shape(bmf, avg_vert_area_sqrt, center, face_topology_cache):
+        def average_face_shape(bmf, avg_vert_area_sqrt, center):
             ''' push verts toward their target positions on a regular polygon '''
-            if bmf in face_topology_cache:
-                verts, edges = face_topology_cache[bmf]
-            else:
-                verts = tuple(bmv for bmv in bmf.verts)
-                face_topology_cache[bmf] = (verts, tuple(bme for bme in bmf.edges))
-            vert_count = len(verts)
+            face_verts, face_edges = get_face_topology(bmf)
+            vert_count = len(face_verts)
             bmf_z = bmf.normal.normalized()
             ref = Vector((0, 0, 1)) if abs(bmf_z.z) < 0.9 else Vector((1, 0, 0))
             bmf_x = ref.cross(bmf_z).normalized()
@@ -883,7 +896,7 @@ class Relax_Logic:
             sum_z = complex(0.0, 0.0)
             conj_k = complex(1.0, 0.0)
             conj_step = complex(cos_s, -sin_s)
-            for bmv in verts:
+            for bmv in face_verts:
                 rel = bmv.co - center
                 rels.append(rel)
                 avg_radius += rel.length
@@ -900,7 +913,7 @@ class Relax_Logic:
             bmf_y_s = bmf_y * avg_vert_area_sqrt
             current  = complex(math.cos(phase), math.sin(phase))
             step = complex(cos_s, sin_s)
-            for bmv, rel in zip(verts, rels):
+            for bmv, rel in zip(face_verts, rels):
                 f = current.real * bmf_x_s + current.imag * bmf_y_s - rel * scale
                 if edge_proj_dir := get_edge_proj_dir(bmv):
                     f = edge_proj_dir * f.dot(edge_proj_dir)
@@ -920,13 +933,14 @@ class Relax_Logic:
                     # pull edge toward bmf_other center
                     vec = bmf_midpoint(bmf_other) - bme_midpoint(bme)
                     bmv0,bmv1 = bme.verts
-                    add_force(bmv0, vec * 5, bmf_midpoint(bmf), 1, 40)
-                    add_force(bmv1, vec * 5, bmf_midpoint(bmf), 1, 40)
+                    bmf_center = bmf_midpoint(bmf) if opt_draw_all else None  # only needed for debug draw
+                    add_force(bmv0, vec * 5, bmf_center, 1, 40)
+                    add_force(bmv1, vec * 5, bmf_center, 1, 40)
 
         def push_chosen_loops(bmv, loops_strength):
             if not self.source_edge_accel or not self.promoted_loop_verts: return
             if not bmv.link_edges: return
-            avg_el = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
+            avg_el = avg_link_edge_len(bmv)
             dist_threshold = avg_el * self.source_sharp_proximity * 1.5
             closest_p = self.source_edge_accel.closest_point_in_threshold(bmv.co, M, Mi, dist_threshold)
             if not closest_p: return
@@ -945,12 +959,12 @@ class Relax_Logic:
             if not self.source_edge_accel:
                 return result
             for bmv in chk_verts:
-                bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                bmv_world = to_world(bmv.co)
                 if closest_v := self.source_edge_accel.closest_point(bmv_world):
                     if bmv.link_edges:
                         diff   = Mi @ Vector(closest_v) - bmv.co
                         dist   = diff.length
-                        proximity_local_vert = (sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)) * self.source_sharp_proximity
+                        proximity_local_vert = avg_link_edge_len(bmv) * self.source_sharp_proximity
                         if dist <= proximity_local_vert:
                             # Only include verts with normals pointing towards the edge
                             if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
@@ -986,15 +1000,7 @@ class Relax_Logic:
             # snap margin).  Called per-vert during the walk so it works for ALL verts on
             # the loop, not just the ones currently within the brush radius.
             def is_on_source_corner(v):
-                if not self.source_edge_accel or not v.link_edges:
-                    return False
-                v_world = point_to_bvec3((M @ Vector((*v.co, 1.0))).xyz)
-                cr = self.source_edge_accel.find_corner(v_world)
-                if not cr:
-                    return False
-                _, _, dist_c = cr
-                snap_margin = (sum(bme_length(bme) for bme in v.link_edges) / len(v.link_edges)) * self.scale_avg * 0.05
-                return dist_c < snap_margin
+                return corner_for_vert(v, 0.05) is not None  # tight fixed margin: genuinely on the corner
 
             # A vert continues the loop ONLY if it is a regular 4-valence interior vert,
             # or a 3-valence boundary vert.  Everything else (poles, corners, n-gon
@@ -1132,14 +1138,10 @@ class Relax_Logic:
                 corner_prox_mult = getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                 corner_owner = {}  # corner index -> (distance, owning vert)
                 for cv in self.verts_near_source_edge:
-                    cv_world = point_to_bvec3((M @ Vector((*cv.co, 1.0))).xyz)
-                    corner_result = self.source_edge_accel.find_corner(cv_world)
-                    if not corner_result:
+                    cr = corner_for_vert(cv, self.source_sharp_proximity * corner_prox_mult)
+                    if not cr:
                         continue
-                    _, corner_idx, dist_corner = corner_result
-                    cv_prox_world = (sum(bme_length(bme) for bme in cv.link_edges) / len(cv.link_edges)) * self.scale_avg * self.source_sharp_proximity
-                    if dist_corner > cv_prox_world * corner_prox_mult:
-                        continue
+                    _, corner_idx, dist_corner = cr
                     if corner_idx not in corner_owner or dist_corner < corner_owner[corner_idx][0]:
                         corner_owner[corner_idx] = (dist_corner, cv)
                 for _dist, cv in corner_owner.values():
@@ -1181,8 +1183,8 @@ class Relax_Logic:
                 avg_vert_area_sqrt = math.sqrt(avg_vert_area)
                 for bmf in faces:
                     face_center = bmf_midpoint(bmf)
-                    average_face_areas(bmf, avg_vert_area, face_center, self.face_topology_cache)
-                    average_face_shape(bmf, avg_vert_area_sqrt, face_center, self.face_topology_cache)
+                    average_face_areas(bmf, avg_vert_area, face_center)
+                    average_face_shape(bmf, avg_vert_area_sqrt, face_center)
             if relax.algorithm_correct_flipped_faces: correct_flipped_faces()
 
             # Pull every promoted vert toward its nearest point on the source edge —
@@ -1196,24 +1198,19 @@ class Relax_Logic:
                 # Corners already owned by a snapped vert are considered occupied.
                 occupied_corners = set()
                 for _sv in self.verts_near_source_edge:
-                    _sv_w = point_to_bvec3((M @ Vector((*_sv.co, 1.0))).xyz)
-                    if _cr := self.source_edge_accel.find_corner(_sv_w):
-                        _, _cidx, _cdist = _cr
-                        _sv_prox_world = (sum(bme_length(bme) for bme in _sv.link_edges) / len(_sv.link_edges)) * self.scale_avg * self.source_sharp_proximity
-                        if _cdist < _sv_prox_world * corner_prox:
-                            occupied_corners.add(_cidx)
+                    if cr := corner_for_vert(_sv, self.source_sharp_proximity * corner_prox):
+                        occupied_corners.add(cr[1])
 
                 for bmv in verts:
                     if bmv not in self.promoted_loop_verts:
                         continue
-                    bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                    bmv_world = to_world(bmv.co)
 
                     # Prefer an unoccupied corner within range.
                     target_local = None
-                    if cr := self.source_edge_accel.find_corner(bmv_world):
-                        co_corner, corner_idx, dist_corner = cr
-                        bmv_prox_world = (sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)) * self.scale_avg * self.source_sharp_proximity if bmv.link_edges else 0.0
-                        if dist_corner < bmv_prox_world * corner_prox and corner_idx not in occupied_corners:
+                    if cr := corner_for_vert(bmv, self.source_sharp_proximity * corner_prox):
+                        co_corner, corner_idx, _ = cr
+                        if corner_idx not in occupied_corners:
                             target_local = Mi @ Vector(co_corner)
 
                     # Fall back to the nearest point on the source edge.
@@ -1237,7 +1234,10 @@ class Relax_Logic:
                         displace[bmv] = Vector((0.0, 0.0, 0.0))
 
         # perform smoothing
-        strength_base = 20.0 * self.scale_avg * brush.strength / time_delta * self.pressure
+        # NOTE: self.pressure is applied per-vert to displace_dist in the update loop below
+        # (post-cap, for ALL methods) rather than here, so tablet pressure isn't normalised
+        # out by the distance caps and works in the default (non-RK4) methods too.
+        strength_base = 20.0 * self.scale_avg * brush.strength / time_delta
         if relax.algorithm_method == 'AUTO':
             vert_count = len(verts)
             if relax.algorithm_equalize_faces: vert_count *= 2 # It's pretty slow
@@ -1294,7 +1294,8 @@ class Relax_Logic:
                     #bmv.co = original[bmv] + (f1 + 2 * f2 + 2 * f3 + f4) * strength
 
             else:
-                strength = strength_base / steps
+                # Non-RK4 methods don't scale forces by strength_base; the per-step
+                # distance is governed by the max-distance caps (and pressure) below.
                 relax_3d()
 
             if relax.algorithm_prevent_bounce:
@@ -1318,7 +1319,9 @@ class Relax_Logic:
                 mult *= min(1.0, radius3D * relax.algorithm_max_distance_radius / displace_max)
             # print(time_delta, radius3D, relax.algorithm_max_distance_radius, displace_max, mult)
             if displace_max > radius3D:
-                print('Relax: Limiting distance')
+                if not self._warned_limiting:
+                    print('Relax: Limiting distance')
+                    self._warned_limiting = True
                 break
 
             # Pre-compute which already-snapped verts occupy each source corner.
@@ -1328,16 +1331,10 @@ class Relax_Logic:
             vert_to_corner_idx = {}
             if self.source_edge_accel and self.verts_near_source_edge:
                 for _bmv in self.verts_near_source_edge:
-                    _bmv_world = point_to_bvec3((M @ Vector((*_bmv.co, 1.0))).xyz)
-                    if _r := self.source_edge_accel.find_corner(_bmv_world):
-                        _, _cidx, _dist = _r
-                        # Tight fixed margin — only register verts genuinely sitting on the
-                        # corner, not just nearby. Snapped verts will be at ~0 distance;
-                        # 5% of local edge length is well above float error but well below
-                        # any proximity threshold.
-                        _snap_margin = (sum(bme_length(bme) for bme in _bmv.link_edges) / len(_bmv.link_edges)) * self.scale_avg * 0.05
-                        if _dist < _snap_margin:
-                            vert_to_corner_idx[_bmv] = _cidx
+                    # Tight fixed margin (5% of local edge length) — only register verts
+                    # genuinely sitting on the corner, not just nearby.
+                    if cr := corner_for_vert(_bmv, 0.05):
+                        vert_to_corner_idx[_bmv] = cr[1]
 
             # update
             update_to = {}
@@ -1346,9 +1343,10 @@ class Relax_Logic:
 
                 displace_dist = displace[bmv].length * mult
                 if bmv.link_edges and displace_dist > 1e-8:
-                    avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
+                    avg_edge_len = avg_link_edge_len(bmv)
                     displace_dist *= min(1.0, avg_edge_len * relax.algorithm_max_distance_edges / displace_dist)
                 # displace_dist *= vert_strength[bmv]
+                displace_dist *= self.pressure  # tablet pressure (1.0 for mouse); applied here so it isn't normalised out by the caps above
                 if relax.algorithm_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
                 displace_vec : Vector = displace[bmv].normalized() * displace_dist
@@ -1376,7 +1374,7 @@ class Relax_Logic:
                 apply_edge_snap = False
                 snap_avg_edge_len = 0.0
                 if self.source_edge_accel and bmv.link_edges and self.stickiness > 0.0:
-                    snap_avg_edge_len = sum(bme_length(bme) for bme in bmv.link_edges) / len(bmv.link_edges)
+                    snap_avg_edge_len = avg_link_edge_len(bmv)
                     if bmv in self.demoted_verts:
                         apply_edge_snap = False  # demoted verts lose all stickiness
                     elif bmv in self.verts_near_source_edge:
@@ -1386,9 +1384,7 @@ class Relax_Logic:
                             escape_threshold = snap_avg_edge_len * 0.005 * self.stickiness / (1.0 - self.stickiness)
                             # Only the perpendicular component of the force is compared against the threshold
                             perp = displace[bmv]
-                            edge_nbrs = [
-                                bme.other_vert(bmv) for bme in bmv.link_edges if bme.other_vert(bmv) in self.verts_near_source_edge
-                            ]
+                            edge_nbrs = edge_constrained_neighbors(bmv)
                             if len(edge_nbrs) >= 2:
                                 ev = edge_nbrs[-1].co - edge_nbrs[0].co
                                 if ev.length > 1e-8:
