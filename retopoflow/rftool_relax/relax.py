@@ -213,8 +213,8 @@ class RFOperator_Relax(RFOperator):
     )
     source_edge_proximity: bpy.props.FloatProperty(
         name = 'Proximity',
-        description = 'How close to feature edges should vertices be to snap to them',
-        subtype = 'DISTANCE',
+        description = 'How close to feature edges vertices must be to snap, as a fraction of the brush radius',
+        subtype = 'FACTOR',
         min = 0,
         max = 1,
         default = 0.25
@@ -226,6 +226,24 @@ class RFOperator_Relax(RFOperator):
         min = 0,
         max = 1,
         default = 0.5
+    )
+    source_edge_guide_loops: bpy.props.FloatProperty(
+        name = 'Guide Loops',
+        description = 'How strongly elected loops are pulled toward the source edge and competing loops are pushed away',
+        subtype = 'FACTOR',
+        min = 0,
+        max = 1,
+        default = 0.5
+    )
+    source_edge_debug_loops: bpy.props.EnumProperty(
+        name = 'Debug: Highlight Loop',
+        description = 'Select promoted or demoted verts on every update so they are visible in the viewport (for debugging)',
+        items = [
+            ('NONE',     'None',     'No debug selection'),
+            ('PROMOTED', 'Promoted', 'Select the promoted (guide) loop verts'),
+            ('DEMOTED',  'Demoted',  'Select the demoted (competing) loop verts'),
+        ],
+        default = 'NONE',
     )
     source_edge_angle: bpy.props.FloatProperty(
         name = 'Angle',

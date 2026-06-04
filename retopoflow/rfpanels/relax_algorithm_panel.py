@@ -55,6 +55,8 @@ def draw_relax_algo_options(context, layout):
         col.prop(props, 'source_edge_sharps', text='Sharps')
         col.prop(props, 'source_edge_proximity', text='Proximity')
         col.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
+        col.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)
+        col.prop(props, 'source_edge_debug_loops', text='Debug Highlight')
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')
