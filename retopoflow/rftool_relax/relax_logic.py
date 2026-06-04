@@ -273,6 +273,15 @@ class Relax_Logic:
         self.promoted_loop_verts = set()
         self.demoted_verts       = set()
         self._guide_verts        = None
+        self._saved_selection    = None
+
+        # If debug loop highlight is active, save the current selection and clear it
+        # so the highlight is clearly visible.  Restored in finish() / cancel().
+        if getattr(relax, 'source_edge_debug_loops', 'NONE') != 'NONE':
+            self._saved_selection = frozenset(bmv for bmv in self.bm.verts if bmv.select)
+            for bmv in self.bm.verts:
+                bmv.select_set(False)
+            bmesh.update_edit_mesh(self.em)
 
         timings.append(('filtering: setting up visibility test', time.time()))
         self.visibility_cache = {}
@@ -337,7 +346,21 @@ class Relax_Logic:
             term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
 
+    def _restore_selection(self):
+        """Restore the selection that was saved at stroke start (if any)."""
+        if self._saved_selection is None:
+            return
+        for bmv in self.bm.verts:
+            bmv.select_set(bmv in self._saved_selection)
+        self._saved_selection = None
+
+    def finish(self, context):
+        self._restore_selection()
+        bmesh.update_edit_mesh(self.em)
+        context.area.tag_redraw()
+
     def cancel(self, context):
+        self._restore_selection()
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em)
@@ -837,71 +860,92 @@ class Relax_Logic:
             )
             v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
 
-            # Find which loop-pair at v0 contains v1 — that pair defines the loop
-            # direction along the source edge.
-            lps_v0 = get_bmv_loop_pairs(v0)
-            if not lps_v0:
-                return
-            along_pair_v0 = next(
-                ((p, n) for (p, n) in lps_v0 if p is v1 or n is v1), None
-            )
-            if not along_pair_v0:
-                return
+            # --- loop-walk helpers ------------------------------------------------
+            # A vert continues the loop ONLY if it is a regular 4-valence interior vert,
+            # or a 3-valence boundary vert.  Everything else (poles, corners, n-gon
+            # junctions, irregular boundary verts) terminates the walk.
+            def is_loop_continuation(v):
+                if any(e.is_boundary for e in v.link_edges):
+                    return len(v.link_edges) == 3
+                return len(v.link_edges) == 4 and len(v.link_faces) == 4
 
-            # Walk the loop in one direction from v0 (away from v1) and in the
-            # opposite direction from v1 (away from v0), covering the full loop.
-            promoted = {v0, v1}
+            # Given the vert we came from (prev) and the current vert, return the next
+            # vert that continues the loop STRAIGHT through cur, or None to stop.  This
+            # never turns the loop, so it can't spread across a face.
+            def next_loop_vert(prev, cur):
+                if any(e.is_boundary for e in cur.link_edges):
+                    # Boundary vert: continue along the boundary, and only if we
+                    # arrived along it (a loop arriving from the interior ends here).
+                    prev_edge = next((e for e in cur.link_edges if e.other_vert(cur) is prev), None)
+                    if prev_edge is None or not prev_edge.is_boundary:
+                        return None
+                    for e in cur.link_edges:
+                        if e is not prev_edge and e.is_boundary:
+                            return e.other_vert(cur)
+                    return None
+                # Regular interior vert: step straight across via the opposing loop pair.
+                lps = get_bmv_loop_pairs(cur)
+                if not lps:
+                    return None
+                for (p, n) in lps:
+                    if p is prev: return n
+                    if n is prev: return p
+                return None
 
-            def walk_direction(start, first_step):
-                prev, cur = start, first_step
-                while cur not in promoted:
+            # Walk outward from cur (having arrived from prev), adding loop verts until
+            # the continuation rule fails or the safety cap is reached.
+            MAX_LOOP_VERTS = 10000
+            promoted = set()
+            def walk_from(cur, prev):
+                while cur not in promoted and len(promoted) < MAX_LOOP_VERTS:
+                    # The current vert is always part of the loop (including the corner
+                    # the loop ends on) — we just don't walk PAST a non-continuation vert.
                     promoted.add(cur)
-                    lps = get_bmv_loop_pairs(cur)
-                    if not lps:
+                    if not is_loop_continuation(cur):
                         break
-                    nxt = None
-                    for (p, n) in lps:
-                        if p is prev: nxt = n; break
-                        if n is prev: nxt = p; break
+                    nxt = next_loop_vert(prev, cur)
                     if nxt is None:
                         break
                     prev, cur = cur, nxt
 
-            # Away from v1 starting at v0
-            away_v0 = along_pair_v0[1] if along_pair_v0[0] is v1 else along_pair_v0[0]
-            walk_direction(v0, away_v0)
+            # The chosen edge defines the loop direction: walk away from v1 starting at
+            # v0, and away from v0 starting at v1.  Together these cover the whole loop —
+            # closed loops wrap around, open/boundary loops reach both ends.
+            walk_from(v0, v1)
+            walk_from(v1, v0)
+            if not promoted:
+                return  # guide edge sits on a corner/pole — nothing to propagate
 
-            # Away from v0 starting at v1
-            lps_v1 = get_bmv_loop_pairs(v1)
-            if lps_v1:
-                along_pair_v1 = next(
-                    ((p, n) for (p, n) in lps_v1 if p is v0 or n is v0), None
-                )
-                if along_pair_v1:
-                    away_v1 = along_pair_v1[1] if along_pair_v1[0] is v0 else along_pair_v1[0]
-                    walk_direction(v1, away_v1)
+            # Terminal verts are those the walk stopped on because is_loop_continuation
+            # returned False.  If they are non-boundary (interior corners/poles) their
+            # edge-neighbors include verts on orthogonal source edges that must NOT be
+            # demoted; use the face-diagonal pattern there instead.
+            terminal_non_boundary = {
+                v for v in promoted
+                if not is_loop_continuation(v) and not any(e.is_boundary for e in v.link_edges)
+            }
 
-            # Demote cross-loop neighbors: for each promoted vert, its two loop-pairs
-            # are (along, cross).  The along pair has at least one member in promoted;
-            # the cross pair does not.  Demote the cross-pair members (not corners).
-            # For boundary verts and poles get_bmv_loop_pairs returns None, so fall back
-            # to demoting all edge-connected neighbors that are not already promoted.
             demoted = set()
             for v in promoted:
-                lps = get_bmv_loop_pairs(v)
-                if not lps:
-                    # Boundary vert or pole: demote every non-promoted edge neighbor
+                if v in terminal_non_boundary:
+                    # Face-diagonal pattern: ALL direct edge-neighbors of the corner are
+                    # protected (they lie on the source edges that meet here, whether or
+                    # not they are in the promoted set).  Only the face-diagonal verts —
+                    # those that share a face but not an edge with the corner — are demoted.
+                    all_adj = {bme.other_vert(v) for bme in v.link_edges}
+                    for bmf in v.link_faces:
+                        if len(bmf.verts) != 4:
+                            continue
+                        for fv in bmf.verts:
+                            if fv is v or fv in all_adj:
+                                continue
+                            if not is_bmvert_corner(fv):
+                                demoted.add(fv)
+                else:
+                    # Normal: demote valid-loop-continuation neighbors not in the promoted set.
                     for bme in v.link_edges:
                         nb = bme.other_vert(v)
-                        if nb not in promoted and not is_bmvert_corner(nb):
-                            demoted.add(nb)
-                    continue
-                for (p, n) in lps:
-                    if p in promoted or n in promoted:
-                        continue  # this is the along pair
-                    # cross pair: both neighbors belong to the competing loop
-                    for nb in (p, n):
-                        if not is_bmvert_corner(nb):
+                        if nb not in promoted and is_loop_continuation(nb):
                             demoted.add(nb)
 
             self.promoted_loop_verts = promoted
@@ -938,34 +982,36 @@ class Relax_Logic:
             # Promoted/demoted sets persist until the brush leaves the guide edge area
             # or the stroke ends (next __init__ clears everything).
 
-            # Corner demotion: when a vert is snapped to a source corner, demote any
-            # face-mate that is NOT (one step away from it AND already on a source edge).
-            # For a clean quad corner that means the diagonal opposite vert of each face.
-            # This prevents those verts from snapping to the wrong edge at the corner.
+            # Corner demotion: the single vert that actually owns each source corner
+            # demotes the face-mates that are NOT (one step away AND already on a source
+            # edge) — for a clean quad corner that is just the diagonal opposite verts.
+            # We only let the CLOSEST near vert own each corner, otherwise every vert
+            # within the (fat) corner threshold would fan demotion across all its faces.
             if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
                 corner_thresh = proximity_world * getattr(relax, 'algorithm_source_corner_proximity', 2.0)
+                corner_owner = {}  # corner index -> (distance, owning vert)
                 for cv in self.verts_near_source_edge:
                     cv_world = point_to_bvec3((M @ Vector((*cv.co, 1.0))).xyz)
                     corner_result = self.source_edge_accel.find_corner(cv_world)
                     if not corner_result:
                         continue
-                    _, _, dist_corner = corner_result
+                    _, corner_idx, dist_corner = corner_result
                     if dist_corner > corner_thresh:
                         continue
-                    # cv is at a corner.  Verts that are adjacent to cv AND already on a
-                    # source edge are protected (they belong to the meeting source edges).
-                    source_adjacent = {
-                        bme.other_vert(cv)
-                        for bme in cv.link_edges
-                        if bme.other_vert(cv) in self.verts_near_source_edge
-                    }
+                    if corner_idx not in corner_owner or dist_corner < corner_owner[corner_idx][0]:
+                        corner_owner[corner_idx] = (dist_corner, cv)
+                for _dist, cv in corner_owner.values():
+                    # ALL direct edge-neighbors of the corner are protected — they lie on
+                    # source edges meeting here and must never be demoted, whether or not
+                    # they have snapped yet.  Only the face-diagonal verts are demoted.
+                    all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
                     for bmf in cv.link_faces:
                         if len(bmf.verts) != 4:
                             continue  # only meaningful for quads
                         for fv in bmf.verts:
-                            if fv is cv or fv in source_adjacent:
+                            if fv is cv or fv in all_adj:
                                 continue
-                            if not is_bmvert_corner(fv):
+                            if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
                                 self.demoted_verts.add(fv)
 
             if debug_loops_sel != 'NONE':

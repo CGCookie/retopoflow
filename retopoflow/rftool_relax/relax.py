@@ -306,6 +306,7 @@ class RFOperator_Relax(RFOperator):
 
     def finish(self, context):
         self.timer.stop()
+        self.logic.finish(context)
 
     def draw_postpixel(self, context):
         if not self.RFCore: return
