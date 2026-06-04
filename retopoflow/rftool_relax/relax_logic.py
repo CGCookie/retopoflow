@@ -1051,12 +1051,55 @@ class Relax_Logic:
                         continue
                     to_edge = closest_p - bmv.co
                     dist    = to_edge.length
-                    if dist < 1e-8 or (to_edge / dist).dot(bmv.normal) <= 0.3:
-                        continue
+                    # if dist < 1e-8 or (to_edge / dist).dot(bmv.normal) <= 0.5:
+                    #     continue
                     if bmv in self.promoted_loop_verts:
                         add_force(bmv, to_edge * loops_strength)
                     elif bmv in self.demoted_verts:
                         add_force(bmv, to_edge * loops_strength * -1)
+
+            # Pull every promoted vert toward its nearest point on the source edge —
+            # or toward a nearby source corner if one is unoccupied.
+            # Corners are preferred so promoted verts naturally slide into them.
+            # Scaled by loops_strength * brush.strength.
+            if self.source_edge_accel and self.promoted_loop_verts:
+                pull_strength  = loops_strength * brush.strength
+                corner_prox    = getattr(relax, 'algorithm_source_corner_proximity', 2.0)
+                corner_thresh  = proximity_world * corner_prox
+
+                # Corners already owned by a snapped vert are considered occupied.
+                occupied_corners = set()
+                for _sv in self.verts_near_source_edge:
+                    _sv_w = point_to_bvec3((M @ Vector((*_sv.co, 1.0))).xyz)
+                    if _cr := self.source_edge_accel.find_corner(_sv_w):
+                        _, _cidx, _cdist = _cr
+                        if _cdist < corner_thresh:
+                            occupied_corners.add(_cidx)
+
+                for bmv in verts:
+                    if bmv not in self.promoted_loop_verts:
+                        continue
+                    bmv_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+
+                    # Prefer an unoccupied corner within range.
+                    target_local = None
+                    if cr := self.source_edge_accel.find_corner(bmv_world):
+                        co_corner, corner_idx, dist_corner = cr
+                        if dist_corner < corner_thresh and corner_idx not in occupied_corners:
+                            target_local = Mi @ Vector(co_corner)
+
+                    # Fall back to the nearest point on the source edge.
+                    if target_local is None:
+                        closest_p = self.source_edge_accel.closest_point(bmv_world)
+                        if not closest_p:
+                            continue
+                        target_local = Mi @ Vector(closest_p)
+
+                    to_target = target_local - bmv.co
+                    dist = to_target.length
+                    if dist < 1e-8:
+                        continue
+                    add_force(bmv, to_target * pull_strength)
 
             if self.verts_near_source_edge:
                 # Edge-constrained verts may have zero net force; add a zero vector so
