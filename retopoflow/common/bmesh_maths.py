@@ -326,15 +326,18 @@ def is_bmvert_on_edgemark(bm:BMesh, bmv:BMVert, mark:BMMarking) -> bool:
     return False
 
 
-def is_bmvert_pinned(bm : BMesh, bmv: BMVert) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'retopoflow_pins', 'float')
+def is_bmvert_pinned(bm : BMesh, bmv: BMVert, *, ensure_lookup_table: bool = True) -> bool:
+    return get_bmvert_attribute(bm, bmv, 'retopoflow_pins', 'float', ensure_lookup_table=ensure_lookup_table)
 
-def is_bmvert_creased(bm : BMesh, bmv : BMVert) -> bool:
-    return get_bmvert_attribute(bm, bmv, 'crease_vert', 'float')
+def is_bmvert_creased(bm : BMesh, bmv : BMVert, *, ensure_lookup_table: bool = True) -> bool:
+    return get_bmvert_attribute(bm, bmv, 'crease_vert', 'float', ensure_lookup_table=ensure_lookup_table)
 
 
-def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
-    bm.verts.ensure_lookup_table()
+def get_bmvert_attribute(bm:BMesh, bmv:BMVert, attribute:str, data_type:str, *, ensure_lookup_table: bool = True) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
+    # Callers that have already ensured the lookup table (e.g. when filtering many verts
+    # in a tight loop) can pass ensure_lookup_table=False to skip this per-vert call.
+    if ensure_lookup_table:
+        bm.verts.ensure_lookup_table()
     layer = getattr(bm.verts.layers, data_type).get(attribute) # pyright: ignore[reportAny]
     if layer:
         return bmv[layer]  # pyright: ignore[reportAny]

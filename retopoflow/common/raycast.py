@@ -354,15 +354,20 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
-def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True) -> Vector|None:
+def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True, sources=None) -> Vector|None:
     point_world = Vector((*point_world, 1.0))
     best_hit = None
     best_dist = float('inf')
 
+    # Callers in a tight per-vert loop can pass a precomputed `sources` iterable of
+    # (obj, matrix_world, matrix_world_inv[, ...]) tuples to avoid re-filtering the view
+    # layer and re-inverting matrices on every call.
+    if sources is None:
+        sources = ((obj, obj.matrix_world, obj.matrix_world.inverted_safe()) for obj in iter_all_valid_sources(context))
+
     # print(f'RAY {ray_world}')
-    for obj in iter_all_valid_sources(context):
-        M = obj.matrix_world
-        Mi = M.inverted_safe()
+    for src in sources:
+        obj, M, Mi = src[0], src[1], src[2]
         point_local = Mi @ point_world
         result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
         if not result: continue

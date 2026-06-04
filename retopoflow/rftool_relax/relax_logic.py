@@ -80,6 +80,18 @@ class Relax_Logic:
 
     check_nans : bool = True
 
+    # Topology + feature filtering is deterministic for a given mesh topology and set of
+    # mask/include options, so the result is cached across strokes (class-level so it
+    # survives the per-stroke Relax_Logic instances).  Selection and occlusion are never
+    # part of this cache — they are applied/handled separately every stroke.
+    _filter_cache_key   : 'tuple | None' = None
+    _filter_cache_verts : 'list[BMVert] | None' = None
+
+    # Valid source objects with their (cached) world/inverse matrices, built once per
+    # stroke in __init__ so the per-vert snap/mirror loops don't re-filter the view layer
+    # or re-invert matrices for every vertex.
+    sources : 'list[tuple[object, Matrix, Matrix, Matrix]]'
+
     boundary_verts : set[BMVert]
     boundary_accel : EdgeMarkAccel
     crease_verts : set[BMVert]
@@ -212,45 +224,86 @@ class Relax_Logic:
         self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
         self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
+        # Cache valid sources + their matrices once per stroke.  Source objects don't move
+        # during a relax stroke, so the per-vert snap/mirror loops can reuse these instead
+        # of re-filtering the view layer and re-inverting matrices for every vertex.
+        self.sources = []
+        for obj in iter_all_valid_sources(context):
+            M_obj = obj.matrix_world
+            Mi_obj = M_obj.inverted_safe()
+            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
+
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
 
         timings.append(('filtering: initial', time.time()))
-        def bmv_is_good(bmv : BMVert) -> bool:
-            if bmv.hide: return False
-            if bmv.is_wire: return False
-            if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
-            return True
-        self.verts_filtered : list[BMVert] = [ bmv for bmv in self.bm.verts if bmv_is_good(bmv) ]
+        # Ensure the lookup table once here so the per-vert feature predicates below can
+        # skip their own (otherwise per-vertex) ensure_lookup_table() calls.
+        self.bm.verts.ensure_lookup_table()
 
-        if Relax_Logic.check_nans:
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv_co_isnan(bmv) ]
-            Relax_Logic.check_nans = False
+        # Phase 1 — topology-only filters: cached across strokes.
+        # These depend only on mesh connectivity/counts and the topology-related options,
+        # NOT on any edge/vert markings (seams, sharps, creases, pins) which the user can
+        # change between strokes without altering counts.
+        # Key: bmesh identity + element counts + topology options + mirror config.
+        topo_cache_key = (
+            id(self.bm), context.edit_object.name,  # name (str) is safe if the prior object is freed
+            len(self.bm.verts), len(self.bm.edges), len(self.bm.faces),
+            self.exclude_opt('corners'),
+            self.mask_opt('boundary'), self.mask_opt('symmetry'),
+            frozenset(self.mirror), self.mirror_clip, tuple(self.mirror_threshold),
+        )
+        cache_verts = Relax_Logic._filter_cache_verts
+        cache_valid = (
+            Relax_Logic._filter_cache_key == topo_cache_key
+            and cache_verts is not None
+            and (not cache_verts or cache_verts[0].is_valid)  # guard against a freed bmesh reusing the same id()
+        )
 
-        timings.append(('filtering: bmvert and bmedge features', time.time()))
-        if self.exclude_opt('corners'):
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+        if cache_valid:
+            self.verts_filtered : list[BMVert] = list(cache_verts)
+        else:
+            def bmv_is_good(bmv : BMVert) -> bool:
+                if bmv.is_wire: return False
+                if bmv.is_boundary and is_bmvert_on_ngon(bmv): return False
+                return True
+            self.verts_filtered = [ bmv for bmv in self.bm.verts if bmv_is_good(bmv) ]
+
+            if Relax_Logic.check_nans:
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv_co_isnan(bmv) ]
+                Relax_Logic.check_nans = False
+
+            # The looping structure is intentional: cheap filters run first so the more
+            # expensive predicates only ever see the (already much smaller) survivors.
+            if self.exclude_opt('corners'):
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+            if self.mask_opt('boundary') == 'EXCLUDE':
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip) ]
+            if self.mask_opt('symmetry') == 'EXCLUDE':
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_symmetry_plane(bmv) ]
+            if self.mask_opt('boundary') == 'SLIDE':
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+
+            Relax_Logic._filter_cache_key   = topo_cache_key
+            Relax_Logic._filter_cache_verts = list(self.verts_filtered)
+
+        timings.append(('filtering: topology (cached)' if cache_valid else 'filtering: topology', time.time()))
+
+        # Phase 2 — marking/attribute filters: always re-evaluated every stroke.
+        # Hide state, seams, sharps, creases, and pins can all be changed between strokes
+        # without altering mesh topology, so these must not be cached.
+        self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv.hide ]
         if self.exclude_opt('pinned'):
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_pinned(self.bm, bmv) ]
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False) ]
         if self.mask_opt('creases') == 'EXCLUDE':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_creased(self.bm, bmv) or is_bmvert_pinned(self.bm, bmv) ]
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_creased(self.bm, bmv, ensure_lookup_table=False) or is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False) ]
         if self.mask_opt('creases')  == 'EXCLUDE':
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease) ]
         if self.mask_opt('seams')    == 'EXCLUDE':
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
         if self.mask_opt('sharps')   == 'EXCLUDE':
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
-        if self.mask_opt('boundary') == 'EXCLUDE':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip) ]
-        if self.mask_opt('symmetry') == 'EXCLUDE':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_symmetry_plane(bmv) ]
-        if self.mask_opt('selected') == 'EXCLUDE':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv.select ]
-        if self.mask_opt('selected') == 'ONLY':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv.select ]
-        if self.mask_opt('boundary') == 'SLIDE':
-            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
         if self.mask_opt('seams') == 'SLIDE':
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
@@ -266,6 +319,13 @@ class Relax_Logic:
                 bmv for bmv in self.verts_filtered
                 if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2
             ]
+
+        timings.append(('filtering: markings', time.time()))
+        # Phase 3 — selection: not cached (can change between strokes without any mesh edit).
+        if self.mask_opt('selected') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv.select ]
+        if self.mask_opt('selected') == 'ONLY':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv.select ]
 
         self.laplacian_cache = {}
         self.straighten_cache = {}
@@ -430,7 +490,21 @@ class Relax_Logic:
         chk_verts.update({ bmv for bme in edges for bmv in bme.verts })
         chk_verts.update({ bmv for bmf in faces for bmv in bmf.verts })
         # chk_edges = { bme for bmv in chk_verts for bme in bmv.link_edges }
-        chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces }
+        # Only correct_flipped_faces consumes chk_faces — skip building it otherwise.
+        chk_faces = { bmf for bmv in chk_verts for bmf in bmv.link_faces } if relax.algorithm_correct_flipped_faces else set()
+
+        # These are constant for the whole update() — algorithm flags and source-edge
+        # options don't change mid-stroke — so compute them once here instead of inside
+        # the per-vert / per-substep hot paths below.
+        enabled_algorithms_count = (
+            int(relax.algorithm_laplacian) +
+            int(relax.algorithm_average_edge_lengths) +
+            int(relax.algorithm_straighten_edges) +
+            int(relax.algorithm_equalize_faces) * 2
+        )
+        weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
+        loops_strength  = getattr(relax, 'source_edge_guide_loops', 0.5)
+        debug_loops_sel = getattr(relax, 'source_edge_debug_loops', 'NONE')
 
         self.verts_near_source_edge = {}
 
@@ -445,17 +519,10 @@ class Relax_Logic:
             displace.clear()
 
         def add_force(bmv, f, wrt=None, sign=0, mult=0):
-            nonlocal displace, verts, vert_strength
-            if bmv not in verts or bmv not in vert_strength: return
+            nonlocal displace
+            if bmv not in vert_strength: return  # vert_strength has exactly the keys of `verts`
             if bmv not in displace: displace[bmv] = Vector((0,0,0))
-            enabled_algorithms_count = (
-                int(relax.algorithm_laplacian) +
-                int(relax.algorithm_average_edge_lengths) +
-                int(relax.algorithm_straighten_edges) +
-                int(relax.algorithm_equalize_faces) * 2
-            )
-            weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
-            displace[bmv] += f.xyz * vert_strength[bmv] * weight_mult
+            displace[bmv] += f * (vert_strength[bmv] * weight_mult)
             if opt_draw_all and wrt:
                 if sign > 0:
                     self.draw_vectors_positive.append((wrt, f.xyz * mult * vert_strength[bmv]))
@@ -915,25 +982,25 @@ class Relax_Logic:
             v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
 
             # --- loop-walk helpers ------------------------------------------------
-            # Verts already snapped to a source corner terminate the walk just like
-            # topological corners, even when their valence looks like a regular loop vert
-            # (e.g. the end of an open mesh whose bottom is not filled in).
-            source_corner_snapped_verts = set()
-            if self.source_edge_accel:
-                for _v in self.verts_near_source_edge:
-                    _v_world = point_to_bvec3((M @ Vector((*_v.co, 1.0))).xyz)
-                    if _cr := self.source_edge_accel.find_corner(_v_world):
-                        _, _, _dist_c = _cr
-                        if _v.link_edges:
-                            _snap_margin = (sum(bme_length(bme) for bme in _v.link_edges) / len(_v.link_edges)) * self.scale_avg * 0.05
-                            if _dist_c < _snap_margin:
-                                source_corner_snapped_verts.add(_v)
+            # Queries whether a vert sits exactly on a source corner (within the tight
+            # snap margin).  Called per-vert during the walk so it works for ALL verts on
+            # the loop, not just the ones currently within the brush radius.
+            def is_on_source_corner(v):
+                if not self.source_edge_accel or not v.link_edges:
+                    return False
+                v_world = point_to_bvec3((M @ Vector((*v.co, 1.0))).xyz)
+                cr = self.source_edge_accel.find_corner(v_world)
+                if not cr:
+                    return False
+                _, _, dist_c = cr
+                snap_margin = (sum(bme_length(bme) for bme in v.link_edges) / len(v.link_edges)) * self.scale_avg * 0.05
+                return dist_c < snap_margin
 
             # A vert continues the loop ONLY if it is a regular 4-valence interior vert,
             # or a 3-valence boundary vert.  Everything else (poles, corners, n-gon
             # junctions, irregular boundary verts, source-corner-snapped verts) terminates.
             def is_loop_continuation(v):
-                if v in source_corner_snapped_verts:
+                if is_on_source_corner(v):
                     return False
                 if any(e.is_boundary for e in v.link_edges):
                     return len(v.link_edges) == 3
@@ -994,7 +1061,7 @@ class Relax_Logic:
                 v for v in promoted
                 if not is_loop_continuation(v) and (
                     not any(e.is_boundary for e in v.link_edges)
-                    or v in source_corner_snapped_verts
+                    or is_on_source_corner(v)
                 )
             }
 
@@ -1025,14 +1092,15 @@ class Relax_Logic:
             self.demoted_verts = demoted
             self._guide_verts = (v0, v1)
 
-        def relax_3d():
-            loops_strength  = getattr(relax, 'source_edge_guide_loops', 0.5)
-            debug_loops_sel = getattr(relax, 'source_edge_debug_loops', 'NONE')
-
-            near_to_edge = {}
+        def update_source_context():
+            ''' Recompute which verts lie near/on the source edge and re-derive the
+            promoted/demoted guide loop.  This is position-dependent but only needs to run
+            once per step — not once per RK4 sub-evaluation — so it is split out of the
+            force computation in relax_3d() below. '''
             if self.source_edge_accel:
-                near_to_edge = collect_verts_near_source_edge()
-                self.verts_near_source_edge = near_to_edge
+                self.verts_near_source_edge = collect_verts_near_source_edge()
+            else:
+                self.verts_near_source_edge = {}
 
             if loops_strength == 0:
                 # Guide loops disabled entirely — wipe all state.
@@ -1093,9 +1161,10 @@ class Relax_Logic:
                 for v in self.bm.verts:
                     v.select_set(v in highlight)
 
+        def relax_3d():
             reset_forces()
             if relax.algorithm_straighten_edges or relax.algorithm_laplacian:
-                for bmv in verts & chk_verts:
+                for bmv in verts:  # chk_verts is a superset of verts, so the old `verts & chk_verts` was just `verts`
                     if relax.algorithm_laplacian: laplacian_smooth(bmv, self.laplacian_cache)
                     if relax.algorithm_straighten_edges:
                         straighten_loops(bmv, self.straighten_loops_cache)
@@ -1182,6 +1251,9 @@ class Relax_Logic:
         else:
             steps = relax.algorithm_iterations
         for _i_step in range(steps):
+            # Source-edge proximity + guide loop are recomputed once per step (not once
+            # per RK4 sub-evaluation) — positions barely change between sub-evaluations.
+            update_source_context()
             if relax.algorithm_method == 'RK4':
                 original = { bmv: Vector(bmv.co) for bmv in verts }
 
@@ -1334,17 +1406,15 @@ class Relax_Logic:
                     # For better snapping, project the vert using raycasting instead of nearest face if possible
                     co_pt = point_to_bvec3(co_world.xyz)
                     normal_world = (M.to_3x3() @ bmv.normal).normalized()
-                    for obj in iter_all_valid_sources(context):
-                        M_obj  = obj.matrix_world
-                        Mi_obj = M_obj.inverted_safe()
+                    for obj, M_obj, Mi_obj, Mi_obj_3x3 in self.sources:
                         ray_o  = (Mi_obj @ Vector((*co_pt, 1.0))).xyz
-                        ray_d  = (Mi_obj.to_3x3() @ normal_world).normalized()
+                        ray_d  = (Mi_obj_3x3 @ normal_world).normalized()
                         result, co_hit, _, _ = obj.ray_cast(ray_o, ray_d)
                         if result:
                             co_world_snapped = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
                             break
                 if not co_world_snapped:
-                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world.xyz), world=True)
+                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources)
 
                 if not co_world_snapped: continue
                 co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
@@ -1421,7 +1491,7 @@ class Relax_Logic:
                         if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                         if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                         co_world = M @ Vector((*co, 1.0))
-                        co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True)
+                        co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources)
                         if not co_world_snapped: continue
                         co = Mi @ co_world_snapped
                         if d < 0.001: break  # break out if change was below threshold
