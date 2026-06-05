@@ -432,6 +432,11 @@ def find_selected_cycle_or_path(bm, point_closest, *, only_boundary=True):
     return (longest_cycle if is_cyclic else longest_path, is_cyclic)
 
 
+def get_bmv_avg_edge_len(bmv):
+    links = bmv.link_edges
+    return (sum(bme_length(bme) for bme in links) / len(links)) if links else 0.0
+
+
 def get_bmv_loop_pairs(bmv: BMVert) -> tuple[tuple[BMVert, BMVert], ...] | None:
     link_edges = list(bmv.link_edges)
     if len(link_edges) != 4 or len(bmv.link_faces) != 4:
@@ -451,6 +456,26 @@ def get_bmv_loop_pairs(bmv: BMVert) -> tuple[tuple[BMVert, BMVert], ...] | None:
     return tuple(pairs) if len(pairs) == 2 else None
 
 
+def get_bmv_next_loop_vert(prev, cur):
+    if any(e.is_boundary for e in cur.link_edges):
+        # Continue along the boundary only if we started on it
+        prev_edge = next((e for e in cur.link_edges if e.other_vert(cur) is prev), None)
+        if prev_edge is None or not prev_edge.is_boundary:
+            return None
+        for e in cur.link_edges:
+            if e is not prev_edge and e.is_boundary:
+                return e.other_vert(cur)
+        return None
+    # Regular interior vert: step straight via the opposing loop pair.
+    lps = get_bmv_loop_pairs(cur)
+    if not lps:
+        return None
+    for (p, n) in lps:
+        if p is prev: return n
+        if n is prev: return p
+    return None
+
+
 def nearest_bmv_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):
     # note: xform co local, so technically we are not finding the closest in world-space
     #       as object could be scaled non-uniformly, but this is faster!
@@ -468,6 +493,7 @@ def nearest_bmv_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.8
         if dist >= closest_dist: continue
         closest, closest_dist = bmv, dist
     return closest
+
 
 def nearest_bme_world(context, bm, matrix, matrix_inv, co_world, *, distance=1.84467e19, distance2d=10):
     # note: xform co local, so technically we are not finding the closest in world-space

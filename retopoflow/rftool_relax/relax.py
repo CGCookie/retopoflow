@@ -240,8 +240,8 @@ class RFOperator_Relax(RFOperator):
         description = 'Select promoted or demoted verts on every update so they are visible in the viewport (for debugging)',
         items = [
             ('NONE',     'None',     'No debug selection'),
-            ('PROMOTED', 'Promoted', 'Select the promoted (guide) loop verts'),
-            ('DEMOTED',  'Demoted',  'Select the demoted (competing) loop verts'),
+            ('PROMOTED', 'Chosen Verts', 'Select the promoted (guide) loop verts during stroke'),
+            ('DEMOTED',  'Rejected Verts',  'Select the demoted (competing) loop verts during stroke'),
         ],
         default = 'NONE',
     )

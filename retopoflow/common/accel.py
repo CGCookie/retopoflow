@@ -187,16 +187,19 @@ class EdgeMarkAccel:
         slide_seams      : bool = False,
     ) -> 'tuple':
 
-        # Each element unpacks as (verts, accel).
+        # Each element unpacks as (verts, accel)
         def pack(edges: list) -> 'tuple[set, EdgeMarkAccel]':
             accel = cls.from_bmedges(edges)
             return accel.verts, accel
 
+        # Fetch the layer here and skip the scan if it is absent
+        crease_layer = bm.edges.layers.float.get('crease_edge') if slide_creases else None
+
         return (
             pack([bme for bme in bm.edges if is_bmedge_boundary(bme, mirror, mirror_threshold, mirror_clip)] if slide_boundary else []),
-            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.crease)] if slide_creases else []),
-            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.sharp)]  if slide_sharps  else []),
-            pack([bme for bme in bm.edges if is_bmedge_edgemark(bm, bme, BMMarking.seam)]   if slide_seams   else []),
+            pack([bme for bme in bm.edges if bme[crease_layer]] if crease_layer else []),
+            pack([bme for bme in bm.edges if not bme.smooth]    if slide_sharps else []),
+            pack([bme for bme in bm.edges if bme.seam]          if slide_seams  else []),
         )
 
 
@@ -238,15 +241,16 @@ class SourceAccel:
     def build(
         cls,
         context: Context,
-        sharp_threshold: float,
+        sources: list = [],
+        sharp_threshold: float = math.pi,
         include_sharps: bool = False,
         include_seams: bool = False,
         include_creases: bool = False,
     ) -> 'SourceAccel':
         if not (include_sharps or include_seams or include_creases or sharp_threshold < math.pi):
             return cls(None, None)
-
-        sources = list(iter_all_valid_sources(context))
+        if not sources:
+            sources = list(iter_all_valid_sources(context))
         cache_key = (
             frozenset(obj.name for obj in sources),
             sharp_threshold,
