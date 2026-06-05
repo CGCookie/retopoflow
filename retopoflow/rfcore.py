@@ -56,10 +56,8 @@ RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 # print(f'RFTools: {list(RFTools.keys())}')
 
 from .rfpanels import (
-    general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel,
-
-    tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+    general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
+    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
 
@@ -148,6 +146,8 @@ class RFCore:
         RFCore._unwrap_activate_tool = wrap_function(space_toolsystem_common.activate_by_id, fn_pre=RFCore.tool_changed)
 
         bpy.types.VIEW3D_MT_mesh_add.append(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_vertices.append(menu_mesh.draw_vertex_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(menu_mesh.draw_vertex_menu_items)
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
 
         RFCore._is_registered = True
@@ -179,6 +179,8 @@ class RFCore:
         get_object_bmesh.cache.clear()
 
         bpy.types.VIEW3D_MT_mesh_add.remove(RFCore.draw_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(menu_mesh.draw_vertex_menu_items)
+        bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(menu_mesh.draw_vertex_menu_items)
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
 
         # unwrap tool change function

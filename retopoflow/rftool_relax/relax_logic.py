@@ -85,6 +85,7 @@ class RelaxOptions:
     algorithm_straighten_edges: bool = True
     algorithm_equalize_faces: bool = False
     algorithm_correct_flipped_faces: bool = False
+    algorithm_interpolate_loops: bool = False
     algorithm_source_corner_proximity: float = 2.0
     snap_to_source_features: bool = False
     source_edge_angle: float = math.radians(45)
@@ -154,6 +155,7 @@ class Relax_Logic:
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
     straighten_loops_cache : dict[BMVert, tuple[tuple[BMVert, BMVert], ...] | None]
+    loop_interp_cache : dict[BMVert, 'tuple[BMVert,int,BMVert,int,BMVert,int,BMVert,int] | None']
     face_topology_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMEdge, ...]] | None]
 
     # debugging and profiling
@@ -411,6 +413,7 @@ class Relax_Logic:
         self.laplacian_cache = {}
         self.straighten_cache = {}
         self.straighten_loops_cache = {}
+        self.loop_interp_cache = {}
         self.face_topology_cache = {}
         self.promoted_loop_verts = set()
         self.demoted_verts = set()
@@ -554,7 +557,8 @@ class Relax_Logic:
                     global_strength:float=1.0,
                     time_delta:float=1.0/60,
                     debug_print:bool=False,
-                    snap_bvh:'BVHTree|None'=None): #MARK: Relax core
+                    snap_bvh:'BVHTree|None'=None,
+                    snap_unforced_verts:bool=False): #MARK: Relax core
         ''' Core relaxation, independent of the brush.  Computes forces on `verts` (each
         weighted by `vert_strength[bmv]`), integrates them over the configured (or
         `iterations`-overridden) step count, snaps to sources + mirror, and writes the
@@ -575,6 +579,11 @@ class Relax_Logic:
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
+
+        # loop_interp_cache stores boundary-vert references keyed by interior vert.
+        # Must be cleared per relax_verts call because `verts` (the interior set)
+        # changes as the brush moves, invalidating the prior boundary traces.
+        self.loop_interp_cache.clear()
 
         # Non-brush callers can omit the brush geometry; fall back to the vert set's own
         # bounds so the distance caps and snap falloff still have meaningful values.
@@ -597,7 +606,8 @@ class Relax_Logic:
             int(relax.algorithm_laplacian) +
             int(relax.algorithm_average_edge_lengths) +
             int(relax.algorithm_straighten_edges) +
-            int(relax.algorithm_equalize_faces) * 2
+            int(relax.algorithm_equalize_faces) * 2 +
+            int(getattr(relax, 'algorithm_interpolate_loops', False))
         )
         weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
         loops_strength  = getattr(relax, 'source_edge_guide_loops', 0.5)
@@ -846,6 +856,69 @@ class Relax_Logic:
                 t = (co - start_pt.co).dot(direction) / len_sq
                 closest = start_pt.co + direction * t
                 add_force(bmv, (closest - co) * 0.5, co, 1, 40)
+
+        def walk_loop(origin, first_step, max_depth=50):
+            ''' Walk outward along a loop from `origin` through `first_step`.
+            Returns (boundary_bmv, hop_count): the first vert outside `verts`
+            (or the last vert reached when a pole, mesh boundary, or closed
+            loop terminates the walk early). '''
+            prev, cur = origin, first_step
+            hops = 1
+            seen = {origin}
+            while True:
+                if cur not in verts:
+                    return cur, hops            # reached an unaffected boundary vert
+                seen.add(cur)
+                if hops >= max_depth:
+                    return cur, hops            # depth guard
+                nxt = get_bmv_next_loop_vert(prev, cur)
+                if nxt is None or nxt in seen:
+                    return cur, hops            # pole / mesh boundary / closed loop
+                prev, cur = cur, nxt
+                hops += 1
+
+        def loop_interpolation(bmv, loop_cache):
+            ''' Push each vert toward its parametrically-interpolated target,
+            computed from the unaffected boundary verts along its two loop axes.
+
+            This is the bilinear (simple) variant of Blender's Grid Fill
+            "Interpolate Loops" algorithm.  For each of the two quad loop axes,
+            the vert's parametric position t = n_near/(n_near+n_far) is used to
+            linearly interpolate between the boundary vert positions at either
+            end.  The final target is the average of both axis estimates and the
+            force is half the delta — identical step fraction to straighten_loops.
+
+            Key difference from straighten_loops: that algorithm uses the direct
+            1-hop loop pair neighbors.  This one traces the full loop to the
+            unaffected boundary, so it encodes global loop shape rather than only
+            local straightness. '''
+            if bmv in loop_cache:
+                data = loop_cache[bmv]
+                if data is None: return
+            else:
+                lps = get_bmv_loop_pairs(bmv)
+                if lps is None:
+                    loop_cache[bmv] = None
+                    return
+                (nb_a, nb_b), (nb_c, nb_d) = lps
+                bnd_a, n_a = walk_loop(bmv, nb_a)
+                bnd_b, n_b = walk_loop(bmv, nb_b)
+                bnd_c, n_c = walk_loop(bmv, nb_c)
+                bnd_d, n_d = walk_loop(bmv, nb_d)
+                loop_cache[bmv] = (bnd_a, n_a, bnd_b, n_b, bnd_c, n_c, bnd_d, n_d)
+                data = loop_cache[bmv]
+
+            bnd_a, n_a, bnd_b, n_b, bnd_c, n_c, bnd_d, n_d = data
+
+            # Parametric position along each loop axis (0 = near side, 1 = far side)
+            s = n_a / (n_a + n_b)
+            t = n_c / (n_c + n_d)
+
+            # Linearly interpolated target from each axis boundary
+            ideal_1 = bnd_a.co * (1.0 - s) + bnd_b.co * s
+            ideal_2 = bnd_c.co * (1.0 - t) + bnd_d.co * t
+
+            add_force(bmv, (((ideal_1 + ideal_2) * 0.5) - bmv.co) * 0.5)
 
         def average_edge_length(bme, avg_edge_len):
             ''' Expand and contract edges closer to average edge length '''
@@ -1223,6 +1296,9 @@ class Relax_Logic:
                         laplacian_smooth(bmv, self.laplacian_cache)
                     if relax.algorithm_straighten_edges:
                         straighten_loops(bmv, self.straighten_loops_cache)
+            if getattr(relax, 'algorithm_interpolate_loops', False):
+                for bmv in verts:
+                    loop_interpolation(bmv, self.loop_interp_cache)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in edges:
@@ -1346,6 +1422,12 @@ class Relax_Logic:
                         vert_to_corner_idx[corner_bmv] = cr[1]
 
             #MARK: Snapping
+            # Ensure verts that received no algorithmic force still enter the snap pass
+            # so they are projected onto the source surface from their current position.
+            if snap_unforced_verts:
+                for bmv in verts:
+                    if bmv not in displace:
+                        displace[bmv] = Vector((0.0, 0.0, 0.0))
             update_to = {}
             for bmv in displace:
                 if bmv not in self.prev_position: self.prev_position[bmv] = Vector(bmv.co)
@@ -1473,7 +1555,12 @@ class Relax_Logic:
                                 if (Vector(closest_p) - Vector(co_world_snapped)).length <= snap_threshold:
                                     co_local_snapped = Mi @ Vector(closest_p)
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
-                    # Vert is approaching the source edge
+                    # Vert is approaching the source edge.
+                    # Distance is measured from the vert's actual world position (co_world),
+                    # NOT from its surface-projected position (co_world_snapped).  Using the
+                    # snapped position caused verts floating directly above a feature edge to
+                    # have to_edge_w ≈ 0 (the projection IS the edge), snapping them at any
+                    # proximity value.  Using co_world gives the true 3D vert→edge distance.
                     is_demoted  = bool(self.demoted_verts)  and bmv in self.demoted_verts
                     is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
                     snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity * brush_snap_falloff
@@ -1481,13 +1568,15 @@ class Relax_Logic:
                         snap_threshold *= 1.5   # wider window pulls promoted loop in sooner
                     elif is_demoted:
                         snap_threshold *= 0.5   # narrower window keeps demoted verts farther out
-                    if closest_p := self.source_edge_accel.closest_point(co_world_snapped):
+                    co_world_pt = point_to_bvec3(co_world.xyz)
+                    if closest_p := self.source_edge_accel.closest_point(co_world_pt):
                         p_vec = Vector(closest_p)
-                        to_edge_w = p_vec - Vector(co_world_snapped)
+                        to_edge_w = p_vec - co_world_pt
                         if to_edge_w.length <= snap_threshold:
                             if is_demoted:
                                 # Demoted: push away regardless of direction
-                                co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_w * 0.5)
+                                to_edge_from_snapped = p_vec - Vector(co_world_snapped)
+                                co_local_snapped = Mi @ (Vector(co_world_snapped) - to_edge_from_snapped * 0.5)
                             else:
                                 # Promoted or neutral: snap only when approaching
                                 disp_world = M.to_3x3() @ displace_vec

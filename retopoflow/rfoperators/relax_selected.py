@@ -32,12 +32,10 @@ from mathutils.bvhtree import BVHTree
 
 from ..common.operator import RFRegisterClass
 from ..common.interface import draw_expandable_enum
+from ..common.accel import SourceAccel
+from ..common.maths import point_to_bvec3
+from ..common.raycast import nearest_point_valid_sources
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
-
-
-def _vertex_menu_draw(self, context):
-    self.layout.separator()
-    self.layout.operator("retopoflow.relax_selected", icon='MOD_SMOOTH')
 
 
 class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
@@ -50,14 +48,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
     rf_label = "Relax Selected Vertices"
     RFCore = None
-
-    @classmethod
-    def register(cls):
-        bpy.types.VIEW3D_MT_edit_mesh_vertices.append(_vertex_menu_draw)
-
-    @classmethod
-    def unregister(cls):
-        bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(_vertex_menu_draw)
 
     # -------------------------------------------------------------------------
     # Algorithm settings
@@ -103,15 +93,73 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         ),
         default=True,
     )
-    reproject_shape: BoolProperty(
-        name='Reproject onto Shape',
-        description=(
-            'Project each vertex back onto the original mesh surface after every relax step, '
-            'preserving the overall shape while improving topology. '
-            'Uses the full mesh island connected to the selection as the projection surface. '
-            'Ignored when a source object is present (the source is used instead)'
-        ),
+    snap_to: EnumProperty(
+        name='Snap To',
+        description='Surface to project vertices onto after each relax step',
+        items=[
+            ('NONE',           'None',           'Do not snap vertices to any surface'),
+            ('ORIGINAL_MESH',  'Original Mesh',  'Project each vertex back onto the original mesh shape before relaxation'),
+            ('ALL_VISIBLE',    'All Visible',    'Snap to all visible mesh objects in the scene'),
+            ('ALL_SELECTABLE', 'All Selectable', 'Snap to all selectable visible mesh objects in the scene'),
+            ('OBJECT',         'Object',         'Snap to a specific object'),
+            ('COLLECTION',     'Collection',     'Snap to all mesh objects in a specific collection'),
+        ],
+        default='NONE',
+    )
+    snap_object: bpy.props.StringProperty(
+        name='Object',
+        description='Name of the object to snap vertices to',
+        default='',
+    )
+    snap_collection: bpy.props.StringProperty(
+        name='Collection',
+        description='Name of the collection to snap vertices to',
+        default='',
+    )
+    source_edge_sharps: BoolProperty(
+        name='Snap to Source Sharps',
+        description='Snap vertices to the sharp edges of the source mesh',
         default=False,
+    )
+    source_edge_seams: BoolProperty(
+        name='Snap to Source Seams',
+        description='Snap vertices to the seams of the source mesh',
+        default=False,
+    )
+    source_edge_creases: BoolProperty(
+        name='Snap to Source Creases',
+        description='Snap vertices to the creases of the source mesh',
+        default=False,
+    )
+    source_edge_angle: bpy.props.FloatProperty(
+        name='Angle',
+        description='Angle threshold for what is considered a sharp edge on the source object',
+        subtype='ANGLE',
+        min=math.radians(1),
+        max=math.radians(180),
+        default=math.radians(45),
+    )
+    source_edge_angle_enabled: BoolProperty(
+        name='Use Angle Threshold',
+        description='Detect sharp edges on the source mesh based on face angle',
+        default=False,
+    )
+    source_edge_proximity: bpy.props.FloatProperty(
+        name='Proximity',
+        description='How close to feature edges vertices must be to snap, as a fraction of the average edge length',
+        subtype='FACTOR',
+        min=0, max=1, default=0.25,
+    )
+    source_edge_stickiness: bpy.props.FloatProperty(
+        name='Stickiness',
+        description='How difficult it is for vertices to escape feature edges',
+        min=0, max=1, default=0.5,
+    )
+    source_edge_guide_loops: bpy.props.FloatProperty(
+        name='Guide Loops',
+        description='How strongly elected loops are pulled toward the source edge',
+        subtype='FACTOR',
+        min=0, max=1, default=1.0,
     )
 
     # -------------------------------------------------------------------------
@@ -195,6 +243,49 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     def poll(cls, context):
         return context.mode == 'EDIT_MESH'
 
+    def draw_warning(self, layout):
+        row = layout.split(factor=0.4)
+        row.alert = True
+        row.separator()
+        row.label(text='No valid source found', icon='ERROR')
+
+    def draw_snapping_props(self, context, layout):
+        layout.prop(self, 'snap_to', text='Snap To')
+        if self.snap_to == 'OBJECT':
+            layout.prop_search(self, 'snap_object', context.blend_data, 'objects', text='Object')
+            obj = context.blend_data.objects.get(self.snap_object)
+            if obj and not self._is_snap_candidate(context, obj):
+                self.draw_warning(layout)
+        elif self.snap_to == 'COLLECTION':
+            layout.prop_search(self, 'snap_collection', context.blend_data, 'collections', text='Collection')
+            collection = context.blend_data.collections.get(self.snap_collection)
+            if collection and not self._build_sources_collection(context, collection):
+                self.draw_warning(layout)
+        elif self.snap_to == 'ALL_VISIBLE':
+            if not self._build_sources_visible(context):
+                self.draw_warning(layout)
+        elif self.snap_to == 'ALL_SELECTABLE':
+            if not self._build_sources_selectable(context):
+                self.draw_warning(layout)
+        if self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
+            col = layout.column(heading='Feature Edges')
+            col.prop(self, 'source_edge_sharps',  text='Sharps')
+            col.prop(self, 'source_edge_seams',   text='Seams')
+            col.prop(self, 'source_edge_creases', text='Creases')
+            row = col.row(align=True, heading='Sharp Angles')
+            row.prop(self, 'source_edge_angle_enabled', text='')
+            sub = row.row()
+            sub.enabled = self.source_edge_angle_enabled
+            sub.prop(self, 'source_edge_angle', text='')
+            col2 = col.column()
+            col2.enabled = (
+                self.source_edge_angle_enabled and self.source_edge_angle != math.radians(180) or
+                self.source_edge_creases or self.source_edge_seams or self.source_edge_sharps
+            )
+            col2.prop(self, 'source_edge_proximity')
+            col2.prop(self, 'source_edge_stickiness', slider=True)
+            col2.prop(self, 'source_edge_guide_loops')
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -202,28 +293,42 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         layout.prop(self, 'strength', slider=True)
         layout.prop(self, 'iterations', slider=True)
         layout.prop(self, 'preserve_volume')
-        layout.prop(self, 'reproject_shape', text='Reproject')
-        layout.separator()
-        col = layout.column(heading='Algorithm')
-        col.prop(self, 'smooth_vertices',      text='Smooth Vertices')
-        col.prop(self, 'straighten_edges',     text='Straighten Edges')
-        col.prop(self, 'average_edge_lengths', text='Average Edge Lengths')
-        col.prop(self, 'equalize_faces',       text='Equalize Faces')
-        layout.separator()
-        layout.row(heading='Include').prop(self, 'include_corners', text='Corners')
-        layout.prop( self, 'mask_boundary',  text='Boundary',    )
-        layout.prop( self, 'mask_angle',     text='Sharp Angles',)
-        row = layout.row()
-        row.enabled = self.mask_angle != 'INCLUDE'
-        row.prop(self, 'mask_angle_threshold', text='Threshold')
-        layout.prop( self, 'mask_seams',     text='Seams',       )
-        layout.prop( self, 'mask_sharps',    text='Sharps',      )
-        layout.prop( self, 'mask_creases',   text='Creases',     )
+        layout.prop(self, 'smooth_vertices',      text='Smooth Vertices')
+        layout.prop(self, 'straighten_edges',     text='Straighten Edges')
+        layout.prop(self, 'average_edge_lengths', text='Average Edge Lengths')
+        layout.prop(self, 'equalize_faces',       text='Equalize Faces')
+
+        mask_header, mask_panel = layout.panel('relax_selected_mask', default_closed=True)
+        mask_header.label(text='Masking')
+        if mask_panel:
+            mask_panel.row(heading='Include').prop(self, 'include_corners', text='Corners')
+            mask_panel.prop(self, 'mask_boundary',  text='Boundary')
+            mask_panel.prop(self, 'mask_angle',     text='Sharp Angles')
+            row = mask_panel.row()
+            row.enabled = self.mask_angle != 'INCLUDE'
+            row.prop(self, 'mask_angle_threshold',  text='Threshold')
+            mask_panel.prop(self, 'mask_seams',     text='Seams')
+            mask_panel.prop(self, 'mask_sharps',    text='Sharps')
+            mask_panel.prop(self, 'mask_creases',   text='Creases')
+
+        snap_header, snap_panel = layout.panel('relax_selected_snap', default_closed=True)
+        snap_header.label(text='Snapping')
+        if snap_panel:
+            self.draw_snapping_props(context, snap_panel)
 
     def execute(self, context):
-        # Build a plain options object and a brush-less engine, then drive the shared core.
-        # Pass self as rf_options so the engine uses this operator's own mask_*/include_*
-        # props rather than context.scene.retopoflow.
+        sources = []
+        if self.snap_to == 'ALL_VISIBLE':
+            sources = self._build_sources_visible(context)
+        elif self.snap_to == 'ALL_SELECTABLE':
+            sources = self._build_sources_selectable(context)
+        elif self.snap_to == 'OBJECT':
+            obj = context.blend_data.objects.get(self.snap_object)
+            sources = self._build_sources_object(context, obj)
+        elif self.snap_to == 'COLLECTION':
+            collection = context.blend_data.collections.get(self.snap_collection)
+            sources = self._build_sources_collection(context, collection)
+
         options = RelaxOptions(
             algorithm_method='STEPS',
             algorithm_iterations=self.iterations,
@@ -231,10 +336,25 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             algorithm_straighten_edges=self.straighten_edges,
             algorithm_average_edge_lengths=self.average_edge_lengths,
             algorithm_equalize_faces=self.equalize_faces,
+            snap_to_source_features=bool(sources),
+            source_edge_angle=self.source_edge_angle if self.source_edge_angle_enabled else math.pi,
+            source_edge_seams=self.source_edge_seams,
+            source_edge_creases=self.source_edge_creases,
+            source_edge_sharps=self.source_edge_sharps,
+            source_edge_proximity=self.source_edge_proximity,
+            source_edge_stickiness=self.source_edge_stickiness,
+            source_edge_guide_loops=self.source_edge_guide_loops
         )
         logic = Relax_Logic.for_options(context, options, rf_options=self)
 
-        raw_verts = { bmv for bmv in logic.bm.verts if     bmv.select and not bmv.hide }
+        logic.sources = sources
+        # Rebuild the source feature accel with the correct sources now that we have
+        # overridden logic.sources (it was built during _setup from iter_all_valid_sources).
+        logic.source_edge_accel = SourceAccel.build_from_tool(context, options, sources)
+        logic.source_sharp_proximity = options.source_edge_proximity
+        logic.stickiness = options.source_edge_stickiness if logic.source_edge_accel else 0.0
+
+        raw_verts = { bmv for bmv in logic.bm.verts if bmv.select and not bmv.hide }
 
         # Further filter by boundary, seams, sharps, creases, angle, pins, corners.
         verts = logic.filter_verts(raw_verts)
@@ -242,10 +362,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             self.report({'WARNING'}, 'Relax: no vertices remain after applying mask settings')
             return {'CANCELLED'}
 
-        # Build an island BVH from the original mesh shape if requested and there is no
-        # source object to project onto. Capture positions NOW, before any relaxation.
+        # Build island BVH now that logic and verts are available.
         snap_bvh = None
-        if self.reproject_shape and not logic.sources:
+        if self.snap_to == 'ORIGINAL_MESH':
             snap_bvh = self._build_island_bvh(logic, verts)
 
         # Capture volume before relaxation (cube-root-of-volume-ratio algorithm).
@@ -257,7 +376,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         # vert_strength instead keeps every algorithm within its stability bounds: the worst
         # case (straighten at strength=1.0) is 0.5 × 1.0 = 0.5 < 1.0, always convergent.
         vert_strength = { bmv: self.strength for bmv in verts }
-        logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh)
+        logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh, snap_unforced_verts=(self.snap_to != 'NONE'))
 
         # Volume preservation: scale selected verts around their centroid so the overall
         # mesh volume matches what it was before relaxation.
@@ -269,9 +388,74 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
                     centroid = sum((bmv.co for bmv in verts), Vector()) / len(verts)
                     for bmv in verts:
                         bmv.co = centroid + (bmv.co - centroid) * scale
+                    # Re-snap to surface so the scaled positions land back on the mesh.
+                    if logic.sources or snap_bvh:
+                        M  = logic.matrix_world
+                        Mi = logic.matrix_world_inv
+                        for bmv in verts:
+                            co_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                            snapped = nearest_point_valid_sources(context, co_world, world=True, sources=logic.sources)
+                            if not snapped and snap_bvh:
+                                hit_loc, _, _, _ = snap_bvh.find_nearest(co_world)
+                                if hit_loc:
+                                    snapped = point_to_bvec3(hit_loc)
+                            if snapped:
+                                bmv.co = Mi @ snapped
                     bmesh.update_edit_mesh(logic.em)
 
         return {'FINISHED'}
+
+    # ------------------------------------------------------------------
+    # Source-building helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _source_tuple(obj):
+        M  = obj.matrix_world
+        Mi = M.inverted_safe()
+        return (obj, M, Mi, Mi.to_3x3())
+
+    @staticmethod
+    def _is_snap_candidate(context, obj) -> bool:
+        return (
+            obj != context.edit_object
+            and obj.mode == 'OBJECT'
+            and obj.visible_get()
+            and obj.type == 'MESH'
+            and bool(obj.data.polygons)
+        )
+
+    @classmethod
+    def _build_sources_visible(cls, context) -> list:
+        return [
+            cls._source_tuple(obj)
+            for obj in context.view_layer.objects
+            if cls._is_snap_candidate(context, obj)
+        ]
+
+    @classmethod
+    def _build_sources_selectable(cls, context) -> list:
+        return [
+            cls._source_tuple(obj)
+            for obj in context.view_layer.objects
+            if cls._is_snap_candidate(context, obj) and not obj.hide_select
+        ]
+
+    @classmethod
+    def _build_sources_object(cls, context, obj) -> list:
+        if obj and cls._is_snap_candidate(context, obj):
+            return [cls._source_tuple(obj)]
+        return []
+
+    @classmethod
+    def _build_sources_collection(cls, context, collection) -> list:
+        if not collection:
+            return []
+        return [
+            cls._source_tuple(obj)
+            for obj in collection.objects
+            if cls._is_snap_candidate(context, obj)
+        ]
 
     @staticmethod
     def _build_island_bvh(logic, seed_verts, rings: int = 3) -> 'BVHTree | None':

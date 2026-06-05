@@ -35,6 +35,7 @@ def draw_relax_algo_options(context, layout):
     layout.row(heading="Smooth").prop(props, 'algorithm_laplacian', text='Vertices')
     layout.row(heading="Average").prop(props, 'algorithm_average_edge_lengths', text='Edges')
     layout.row(heading="Straighten").prop(props, 'algorithm_straighten_edges', text='Edges')
+    layout.row(heading="Interpolate").prop(props, 'algorithm_interpolate_loops', text='Loops')
     layout.row(heading="Equalize").prop(props, 'algorithm_equalize_faces',  text='Faces')
     layout.row(heading="Correct").prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 

@@ -46,7 +46,11 @@ def draw_hard_surface_snapping(layout, props, *, guide_loops:bool=False):
     layout.row(heading="Sources").prop(props, 'snap_to_source_features', text='Detect Features')
     col = layout.column(align=False)
     col.enabled = props.snap_to_source_features
-    col.prop(props, 'source_edge_angle', text='Angle')
+    row = col.row(align=True)
+    row.prop(props, 'source_edge_angle_enabled', text='', icon_only=True)
+    sub = row.row()
+    sub.enabled = getattr(props, 'source_edge_angle_enabled', True)
+    sub.prop(props, 'source_edge_angle', text='Angle')
     col.row(heading='Include').prop(props, 'source_edge_creases', text='Creases')
     col.prop(props, 'source_edge_seams', text='Seams')
     col.prop(props, 'source_edge_sharps', text='Sharps')

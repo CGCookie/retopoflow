@@ -201,6 +201,16 @@ class RFOperator_Relax(RFOperator):
         description='Try to move vertices so faces are not flipped',
         default=False,
     )
+    algorithm_interpolate_loops: bpy.props.BoolProperty(
+        name='Algorithm: Interpolate Loops',
+        description=(
+            'Push vertices toward positions that linearly interpolate between '
+            'the unaffected boundary verts at each end of their loop axes. '
+            'Distributes vertices evenly along the surrounding loops without '
+            'straightening them — similar to Blender\'s Grid Fill (Simple Blending off)'
+        ),
+        default=False,
+    )
     algorithm_laplacian: bpy.props.BoolProperty(
         name='Algorithm: Laplacian Smooth',
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
@@ -252,6 +262,11 @@ class RFOperator_Relax(RFOperator):
         min = math.radians(1),
         max = math.radians(180),
         default = math.radians(45)
+    )
+    source_edge_angle_enabled: bpy.props.BoolProperty(
+        name='Use Angle Threshold',
+        description='Detect sharp edges on the source mesh based on face angle',
+        default=True,
     )
     source_edge_seams: bpy.props.BoolProperty(
         name='Snap to Source Seams',
