@@ -31,6 +31,10 @@ def draw_pinning_options(context, layout):
 
     layout.use_property_split = True
     layout.use_property_decorate = False
+    draw_expandable_enum(context, layout, props, 'mask_angle', text='Sharp Angles')
+    row = layout.row()
+    row.enabled = props.mask_angle != 'INCLUDE'
+    row.prop(props, 'mask_angle_threshold', text='Threshold')
     draw_expandable_enum(context, layout, props, 'mask_creases', text='Creases')
     draw_expandable_enum(context, layout, props, 'mask_seams', text='Seams')
     draw_expandable_enum(context, layout, props, 'mask_sharps', text='Sharps')

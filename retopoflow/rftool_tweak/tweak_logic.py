@@ -75,6 +75,9 @@ class Tweak_Logic:
     sharp_accel : EdgeMarkAccel
     seam_verts : set[BMVert]
     seam_accel : EdgeMarkAccel
+    angle_verts : set[BMVert]
+    angle_edges : set[BMEdge]
+    angle_accel : EdgeMarkAccel
 
     is_bmvert_hidden : Callable[[BMVert], bool]
     visibility_cache : dict[BMVert, bool]
@@ -140,6 +143,22 @@ class Tweak_Logic:
         self.crease_verts,   self.crease_accel   = crease
         self.sharp_verts,    self.sharp_accel    = sharp
         self.seam_verts,     self.seam_accel     = seam
+
+        # Angle mask (mirrors Relax_Logic._setup — see there for design notes)
+        self.angle_verts : set[BMVert] = set()
+        self.angle_edges : set[BMEdge] = set()
+        self.angle_accel = EdgeMarkAccel([])
+        if self.mask_opt('angle') in ('SLIDE', 'EXCLUDE'):
+            angle_threshold = getattr(self.rf_options, 'mask_angle_threshold', math.radians(45))
+            angle_bmedges = [
+                bme for bme in self.bm.edges
+                if len(bme.link_faces) == 2
+                and bme.calc_face_angle(0.0) > angle_threshold
+            ]
+            _angle_accel = EdgeMarkAccel.from_bmedges(angle_bmedges)
+            self.angle_verts = _angle_accel.verts
+            self.angle_edges = set(angle_bmedges)
+            self.angle_accel = _angle_accel
 
         self.sources = []
         for obj in iter_all_valid_sources(context):
@@ -233,6 +252,8 @@ class Tweak_Logic:
         if self.mask_opt('sharps') == 'EXCLUDE':
             if any(not bme.smooth for bme in self.bm.edges):
                 self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv not in self.angle_verts ]
         # Tier 6: iterate link_edges calling a function per edge
         # seam_verts/sharp_verts/crease_verts are pre-built by build_all so the truthiness check is free.
         if self.mask_opt('seams') == 'SLIDE' and self.seam_verts:
@@ -249,6 +270,11 @@ class Tweak_Logic:
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
                 if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2
+            ]
+        if self.mask_opt('angle') == 'SLIDE' and self.angle_verts:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not sum(bme in self.angle_edges for bme in bmv.link_edges) > 2
             ]
 
         self.visibility_cache = {}
@@ -660,6 +686,10 @@ class Tweak_Logic:
                 if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts:
                     if self.crease_accel:
                         p = self.crease_accel.closest_point(new_co)
+                        if p is not None: new_co = p
+                if self.mask_opt('angle') == 'SLIDE' and bmv in self.angle_verts:
+                    if self.angle_accel:
+                        p = self.angle_accel.closest_point(new_co)
                         if p is not None: new_co = p
                 # snap to the source mesh's feature edges/corners (high-poly hard surfaces)
                 if self.source_edge_accel:

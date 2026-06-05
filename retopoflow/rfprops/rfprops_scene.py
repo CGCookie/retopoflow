@@ -19,6 +19,7 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import math
 import bpy
 from ..common.viewport import update_retopo_overlay
 from ..rfoperators.mirror import update_nodes_preview, update_mirror_mod
@@ -254,7 +255,7 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     )
     mask_sharps: bpy.props.EnumProperty(
         name='Mask Sharps',
-        description='How to handle sharp edges',
+        description='How to handle edges marked as sharp',
         items=[
             ('INCLUDE', 'Include', 'Relax vertices regardless of being along a sharp edge', 'SELECT_EXTEND', 2),
             ('SLIDE',   'Slide',   'Relax vertices along a sharp edge, but move them by sliding along it', 'SNAP_MIDPOINT', 1),
@@ -271,6 +272,24 @@ class RFProps_Scene(bpy.types.PropertyGroup):
             ('EXCLUDE', 'Exclude', 'Do not relax vertices along a seams', 'SELECT_DIFFERENCE', 0),
         ],
         default='INCLUDE',
+    )
+    mask_angle: bpy.props.EnumProperty(
+        name='Mask Angle',
+        description='How to handle vertices on edges whose adjacent faces exceed the angle threshold',
+        items=[
+            ('INCLUDE', 'Include', 'Relax vertices regardless of edge angle',                              'SELECT_EXTEND',     2),
+            ('SLIDE',   'Slide',   'Relax vertices along high-angle edges by sliding along them',          'SNAP_MIDPOINT',     1),
+            ('EXCLUDE', 'Exclude', 'Do not relax vertices that lie on edges exceeding the angle threshold','SELECT_DIFFERENCE', 0),
+        ],
+        default='INCLUDE',
+    )
+    mask_angle_threshold: bpy.props.FloatProperty(
+        name='Angle Threshold',
+        description='Edges whose adjacent face dihedral angle exceeds this value are treated as high-angle',
+        subtype='ANGLE',
+        min=math.radians(0),
+        max=math.radians(180),
+        default=math.radians(45),
     )
     #endregion
 

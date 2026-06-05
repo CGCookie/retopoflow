@@ -23,6 +23,7 @@ import bmesh
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
@@ -30,6 +31,7 @@ import time
 from math import isnan, inf
 from typing import Callable
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 
 from ..common.accel import EdgeMarkAccel, SourceAccel, Accel
 from ..common.bmesh import (
@@ -67,6 +69,34 @@ from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
 from ...addon_common.common.colors import Color4
 
 
+@dataclass
+class RelaxOptions:
+    ''' Plain-data relax settings, decoupled from the brush operator's bpy properties so
+    relax_verts() can be driven by any caller.  The Relax brush passes its operator (which
+    duck-types these same attribute names); the relax-selected operator and, later, Tweak
+    build one of these directly. '''
+    algorithm_method: str = 'AUTO'                  # 'AUTO' | 'STEPS' | 'RK4'
+    algorithm_iterations: int = 2
+    algorithm_max_distance_radius: float = 0.10
+    algorithm_max_distance_edges: float = 0.05
+    algorithm_prevent_bounce: bool = False
+    algorithm_laplacian: bool = True
+    algorithm_average_edge_lengths: bool = False
+    algorithm_straighten_edges: bool = True
+    algorithm_equalize_faces: bool = False
+    algorithm_correct_flipped_faces: bool = False
+    algorithm_source_corner_proximity: float = 2.0
+    snap_to_source_features: bool = False
+    source_edge_angle: float = math.radians(45)
+    source_edge_seams: bool = False
+    source_edge_creases: bool = False
+    source_edge_sharps: bool = False
+    source_edge_proximity: float = 0.25
+    source_edge_stickiness: float = 0.5
+    source_edge_guide_loops: float = 1.0
+    source_edge_debug_loops: str = 'NONE'
+
+
 class Relax_Logic:
     bm : BMesh
     em : Mesh
@@ -94,6 +124,9 @@ class Relax_Logic:
     sharp_accel : EdgeMarkAccel
     seam_verts : set[BMVert]
     seam_accel : EdgeMarkAccel
+    angle_verts : set[BMVert]
+    angle_edges : set[BMEdge]
+    angle_accel : EdgeMarkAccel
     verts_near_source_edge: 'dict[BMVert, Vector]'
 
     is_bmvert_hidden : Callable[[BMVert], bool]
@@ -135,74 +168,21 @@ class Relax_Logic:
 
         assert context.edit_object, 'Expected to be editing a mesh object'
 
+        # Brush-independent setup (mesh, matrices, accels, sources, caches): everything
+        # relax_verts() needs except the verts to affect and their per-vert strength.
+        self._setup(context, relax)
+        timings.append(('engine setup', time.time()))
+
+        # --- Brush-specific setup: the candidate vert set for the per-frame spatial query,
+        # occlusion testing, and the spatial acceleration structure the brush samples. ---
         self.brush = brush
-        self.relax = relax
-
-        self.rf_options = context.scene.retopoflow
-
-        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
         self._time = time.time()
         self.mouse = mouse_from_event(event)
         self.pressure = 1.0
-        self.warned_limiting = False
-
-        self.prev_position = {}
-        self.prev_displace = {}
-        self.bounce_mult = {}
-
-        self.draw_vectors_positive = []
-        self.draw_vectors_negative = []
-        self.draw_vectors_net = []
-
-        self.matrix_world = context.edit_object.matrix_world
-        self.matrix_world_inv = self.matrix_world.inverted_safe()
-        self.forward = xform_direction(self.matrix_world_inv, view_forward_direction(context))
-        self.right = xform_direction(self.matrix_world_inv, view_right_direction(context))
-        self.up = xform_direction(self.matrix_world_inv, view_up_direction(context))
-        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
-
-        self.mirror = set()
-        self.mirror_clip = False
-        self.mirror_threshold = Vector((0, 0, 0))
-        for mod in context.edit_object.modifiers:
-            # last one in stack is the one that shows up
-            if mod.type != 'MIRROR': continue
-            if not mod.use_clip: continue
-            if mod.use_axis[0]: self.mirror.add('x')
-            if mod.use_axis[1]: self.mirror.add('y')
-            if mod.use_axis[2]: self.mirror.add('z')
-            mt, scale = mod.merge_threshold, context.edit_object.scale
-            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
-            self.mirror_clip = mod.use_clip
-
-        timings.append(('edge accels', time.time()))
-        boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
-            self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,
-            slide_boundary = self.mask_opt('boundary') == 'SLIDE',
-            slide_creases  = self.mask_opt('creases')  == 'SLIDE',
-            slide_sharps   = self.mask_opt('sharps')   == 'SLIDE',
-            slide_seams    = self.mask_opt('seams')    == 'SLIDE',
-        )
-        self.boundary_verts, self.boundary_accel = boundary
-        self.crease_verts,   self.crease_accel   = crease
-        self.sharp_verts,    self.sharp_accel    = sharp
-        self.seam_verts,     self.seam_accel     = seam
-
-        self.sources = []
-        for obj in iter_all_valid_sources(context):
-            M_obj = obj.matrix_world
-            Mi_obj = M_obj.inverted_safe()
-            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
-
-        self.source_edge_accel = SourceAccel.build_from_tool(context, self.relax, self.sources)
-        self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
-        self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
             return False
-
-        timings.append(('filtering: initial pass', time.time())) # MARK: Filtering
 
         self.bm.verts.ensure_lookup_table() # So we can skip this in the per vert fns below
 
@@ -250,6 +230,9 @@ class Relax_Logic:
         if self.mask_opt('sharps') == 'EXCLUDE':
             if any(not bme.smooth for bme in self.bm.edges):
                 self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        # angle_verts is pre-built by _setup so the truthiness check is free.
+        if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv not in self.angle_verts ]
         # Tier 6: iterate link_edges calling a function per edge
         # seam_verts/sharp_verts/crease_verts are pre-built by build_all so the truthiness check is free.
         if self.mask_opt('seams') == 'SLIDE' and self.seam_verts:
@@ -267,23 +250,13 @@ class Relax_Logic:
                 bmv for bmv in self.verts_filtered
                 if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2
             ]
+        if self.mask_opt('angle') == 'SLIDE' and self.angle_verts:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not sum(bme in self.angle_edges for bme in bmv.link_edges) > 2
+            ]
 
-        self.laplacian_cache = {}
-        self.straighten_cache = {}
-        self.straighten_loops_cache = {}
-        self.face_topology_cache = {}
-        self.promoted_loop_verts = set()
-        self.demoted_verts = set()
-        self.loop_guide_verts = None
-        self.saved_selection = None
-
-        if getattr(relax, 'source_edge_debug_loops', 'NONE') != 'NONE':
-            self.saved_selection = frozenset(bmv for bmv in self.bm.verts if bmv.select)
-            for bmv in self.bm.verts:
-                bmv.select_set(False)
-            bmesh.update_edit_mesh(self.em)
-
-        timings.append(('filtering: setting up visibility test', time.time()))
+        timings.append(('filtering', time.time()))
         self.visibility_cache = {}
         self.is_bmvert_hidden = lambda _bmv: False  # nop where every bmvert is visible
         if self.exclude_opt('occluded'):
@@ -346,12 +319,177 @@ class Relax_Logic:
             term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
 
+    def _setup(self, context:Context, relax, rf_options=None): #MARK: Engine setup
+        ''' Brush-independent setup shared by the Relax brush (__init__), the relax-selected
+        operator, and (later) Tweak's post-grab relax via for_options().  Builds everything
+        relax_verts() depends on; callers supply which verts to affect and how strongly.
+        `rf_options` overrides context.scene.retopoflow for masking; any object that
+        duck-types the mask_*/include_* attribute names works (e.g. the operator itself). '''
+        self.relax = relax
+        self.rf_options = rf_options if rf_options is not None else context.scene.retopoflow
+
+        self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        self.warned_limiting = False
+
+        self.prev_position = {}
+        self.prev_displace = {}
+        self.bounce_mult = {}
+
+        self.draw_vectors_positive = []
+        self.draw_vectors_negative = []
+        self.draw_vectors_net = []
+
+        self.matrix_world = context.edit_object.matrix_world
+        self.matrix_world_inv = self.matrix_world.inverted_safe()
+        # view directions are only needed by average_face_angles; fall back to world-space
+        # defaults when there is no 3D view (e.g. called from the Python console or a
+        # non-interactive operator that has no region_data).
+        Mi = self.matrix_world_inv
+        if context.region_data:
+            self.forward = xform_direction(Mi, view_forward_direction(context))
+            self.right   = xform_direction(Mi, view_right_direction(context))
+            self.up      = xform_direction(Mi, view_up_direction(context))
+        else:
+            self.forward = xform_direction(Mi, Vector((0, 0, -1)))
+            self.right   = xform_direction(Mi, Vector((1, 0,  0)))
+            self.up      = xform_direction(Mi, Vector((0, 1,  0)))
+        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
+
+        self.mirror = set()
+        self.mirror_clip = False
+        self.mirror_threshold = Vector((0, 0, 0))
+        for mod in context.edit_object.modifiers:
+            # last one in stack is the one that shows up
+            if mod.type != 'MIRROR': continue
+            if not mod.use_clip: continue
+            if mod.use_axis[0]: self.mirror.add('x')
+            if mod.use_axis[1]: self.mirror.add('y')
+            if mod.use_axis[2]: self.mirror.add('z')
+            mt, scale = mod.merge_threshold, context.edit_object.scale
+            self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
+            self.mirror_clip = mod.use_clip
+
+        boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
+            self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,
+            slide_boundary = self.mask_opt('boundary') == 'SLIDE',
+            slide_creases  = self.mask_opt('creases')  == 'SLIDE',
+            slide_sharps   = self.mask_opt('sharps')   == 'SLIDE',
+            slide_seams    = self.mask_opt('seams')    == 'SLIDE',
+        )
+        self.boundary_verts, self.boundary_accel = boundary
+        self.crease_verts,   self.crease_accel   = crease
+        self.sharp_verts,    self.sharp_accel    = sharp
+        self.seam_verts,     self.seam_accel     = seam
+
+        # Angle mask: computed from dihedral angles between adjacent faces (not a stored
+        # BMesh attribute), so it is built here rather than inside EdgeMarkAccel.build_all.
+        self.angle_verts = set()
+        self.angle_edges : set[BMEdge] = set()
+        self.angle_accel = EdgeMarkAccel([])
+        if self.mask_opt('angle') in ('SLIDE', 'EXCLUDE'):
+            angle_threshold = getattr(self.rf_options, 'mask_angle_threshold', math.radians(45))
+            angle_bmedges = [
+                bme for bme in self.bm.edges
+                if len(bme.link_faces) == 2
+                and bme.calc_face_angle(0.0) > angle_threshold
+            ]
+            _angle_accel = EdgeMarkAccel.from_bmedges(angle_bmedges)
+            self.angle_verts = _angle_accel.verts
+            self.angle_edges = set(angle_bmedges)
+            self.angle_accel = _angle_accel
+
+        self.sources = []
+        for obj in iter_all_valid_sources(context):
+            M_obj = obj.matrix_world
+            Mi_obj = M_obj.inverted_safe()
+            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
+
+        self.source_edge_accel = SourceAccel.build_from_tool(context, self.relax, self.sources)
+        self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
+        self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+
+        self.laplacian_cache = {}
+        self.straighten_cache = {}
+        self.straighten_loops_cache = {}
+        self.face_topology_cache = {}
+        self.promoted_loop_verts = set()
+        self.demoted_verts = set()
+        self.loop_guide_verts = None
+        self.verts_near_source_edge = {}
+        self.saved_selection = None
+
+        if getattr(relax, 'source_edge_debug_loops', 'NONE') != 'NONE':
+            self.saved_selection = frozenset(bmv for bmv in self.bm.verts if bmv.select)
+            for bmv in self.bm.verts:
+                bmv.select_set(False)
+            bmesh.update_edit_mesh(self.em)
+
+    @classmethod
+    def for_options(cls, context:Context, relax, rf_options=None) -> 'Relax_Logic':
+        ''' Build a brush-less instance for callers that bring their own verts (the
+        relax-selected operator and, later, Tweak).  Runs only the shared _setup(); the
+        brush-only spatial-query/occlusion state is intentionally left unset, so update()
+        must NOT be called on an instance built this way — drive relax_verts() directly.
+        Pass `rf_options` to override scene masking (e.g. pass the operator itself so its
+        own mask_*/include_* props are used instead of context.scene.retopoflow). '''
+        self = cls.__new__(cls)
+        self._setup(context, relax, rf_options=rf_options)
+        return self
+
+
     def mask_opt(self, name : str) -> str:
-        return str(getattr(self.rf_options, f'mask_{name}'))  # pyright: ignore[reportAny]
+        return str(getattr(self.rf_options, f'mask_{name}', 'INCLUDE'))  # pyright: ignore[reportAny]
     def include_opt(self, name : str) -> bool:
-        return bool(getattr(self.rf_options, f'include_{name}'))  # pyright: ignore[reportAny]
+        return bool(getattr(self.rf_options, f'include_{name}', True))  # pyright: ignore[reportAny]
     def exclude_opt(self, name : str) -> bool:
-        return not bool(getattr(self.rf_options, f'include_{name}'))  # pyright: ignore[reportAny]
+        return not bool(getattr(self.rf_options, f'include_{name}', True))  # pyright: ignore[reportAny]
+
+    def filter_verts(self, verts:'set[BMVert]') -> 'set[BMVert]':
+        ''' Apply the scene masking options to an externally-supplied vert set.
+        Used by non-brush callers like the relax_selected operator so they get the
+        same boundary/seam/crease/angle/pin masking as the Relax brush.
+        Does NOT apply mask_selected — callers control their own input selection. '''
+        filtered : list[BMVert] = [bmv for bmv in verts if not bmv.hide]
+
+        # Tier 2: O(1) len() checks
+        if self.exclude_opt('corners'):
+            filtered = [ bmv for bmv in filtered if not is_bmvert_corner(bmv) ]
+        if self.mask_opt('boundary') == 'SLIDE':
+            filtered = [ bmv for bmv in filtered if not is_bmvert_corner(bmv) ]
+        # Tier 3: attribute check
+        if self.mask_opt('boundary') == 'EXCLUDE':
+            filtered = [ bmv for bmv in filtered if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip) ]
+        # Tier 4: layer dict-lookup
+        if self.exclude_opt('pinned'):
+            filtered = [ bmv for bmv in filtered if not is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False) ]
+        if self.mask_opt('creases') == 'EXCLUDE':
+            if self.bm.verts.layers.float.get('crease_vert'):
+                filtered = [ bmv for bmv in filtered if (
+                    not is_bmvert_creased(self.bm, bmv, ensure_lookup_table=False)
+                    or is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False)
+                )]
+            if self.bm.edges.layers.float.get('crease_edge'):
+                filtered = [ bmv for bmv in filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease) ]
+        # Tier 5
+        if self.mask_opt('seams') == 'EXCLUDE':
+            if any(bme.seam for bme in self.bm.edges):
+                filtered = [ bmv for bmv in filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
+        if self.mask_opt('sharps') == 'EXCLUDE':
+            if any(not bme.smooth for bme in self.bm.edges):
+                filtered = [ bmv for bmv in filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts:
+            filtered = [ bmv for bmv in filtered if bmv not in self.angle_verts ]
+        # Tier 6
+        if self.mask_opt('seams') == 'SLIDE' and self.seam_verts:
+            filtered = [ bmv for bmv in filtered if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam)   for bme in bmv.link_edges) > 2 ]
+        if self.mask_opt('sharps') == 'SLIDE' and self.sharp_verts:
+            filtered = [ bmv for bmv in filtered if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp)  for bme in bmv.link_edges) > 2 ]
+        if self.mask_opt('creases') == 'SLIDE' and self.crease_verts:
+            filtered = [ bmv for bmv in filtered if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2 ]
+        if self.mask_opt('angle') == 'SLIDE' and self.angle_verts:
+            filtered = [ bmv for bmv in filtered if not sum(bme in self.angle_edges for bme in bmv.link_edges) > 2 ]
+
+        return set(filtered)
 
 
     def update(self, context:Context, event:Event, *, debug_print:bool=False): #MARK: Update
@@ -382,14 +520,7 @@ class Relax_Logic:
         co_world : Vector = hit['co_world']  # pyright: ignore[reportAssignmentType]
         brush_center_world = Vector(co_world.xyz)  # save before inner loop overwrites co_world
 
-        # debugging options
-        opt_draw_all         = False
-        opt_draw_net         = False
-
         M = self.matrix_world
-        Mi = self.matrix_world_inv
-        brush = self.brush
-        relax = self.relax
         radius3D = self.brush.get_scaled_radius()
 
         # # Debug: select all verts under brush
@@ -403,12 +534,57 @@ class Relax_Logic:
         if self.exclude_opt('occluded'):
             verts = { bmv for bmv in verts if not self.is_bmvert_hidden(bmv) }
         if not verts: return
+        vert_strength = { bmv: self.brush.get_strength_Point(M @ bmv.co) for bmv in verts }
+
+        self.relax_verts(
+            context, verts, vert_strength,
+            brush_center_world = brush_center_world,
+            radius3D           = radius3D,
+            pressure           = self.pressure,
+            global_strength    = self.brush.strength,
+            time_delta         = time_delta,
+            debug_print        = debug_print,
+        )
+
+    def relax_verts(self, context:Context, verts:'set[BMVert]', vert_strength:'dict[BMVert, float]', *,
+                    iterations:'int|None'=None,
+                    brush_center_world:'Vector|None'=None,
+                    radius3D:'float|None'=None,
+                    pressure:float=1.0,
+                    global_strength:float=1.0,
+                    time_delta:float=1.0/60,
+                    debug_print:bool=False,
+                    snap_bvh:'BVHTree|None'=None): #MARK: Relax core
+        ''' Core relaxation, independent of the brush.  Computes forces on `verts` (each
+        weighted by `vert_strength[bmv]`), integrates them over the configured (or
+        `iterations`-overridden) step count, snaps to sources + mirror, and writes the
+        results back.  Driven by the Relax brush's update(), the relax-selected operator,
+        and (later) Tweak's post-grab relax.
+
+        Brush-only inputs are parameters with fallbacks so non-brush callers can omit them:
+        `brush_center_world` / `radius3D` default to the vert set's own centroid + bounding
+        radius; `pressure` / `global_strength` default to 1.0. '''
+        relax = self.relax
+        M = self.matrix_world
+        Mi = self.matrix_world_inv
+
+        # debugging options
+        opt_draw_all         = False
+        opt_draw_net         = False
+
         edges = { bme for bmv in verts for bme in bmv.link_edges }
         if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
-        vert_strength = { bmv:brush.get_strength_Point(M @ bmv.co) for bmv in verts }
 
-        strength = self.pressure
+        # Non-brush callers can omit the brush geometry; fall back to the vert set's own
+        # bounds so the distance caps and snap falloff still have meaningful values.
+        if brush_center_world is None or radius3D is None:
+            world_cos = [M @ bmv.co for bmv in verts]
+            center = sum(world_cos, Vector((0.0, 0.0, 0.0))) / len(world_cos)
+            if brush_center_world is None: brush_center_world = center
+            if radius3D is None:           radius3D = max((wc - center).length for wc in world_cos) or 1.0
+
+        strength = pressure
 
         # capture all verts involved in relaxing
         chk_verts = set(verts)
@@ -849,7 +1025,7 @@ class Relax_Logic:
                     add_force(bmv1, vec * 5, bmf_center, 1, 40)
 
         def pull_promoted_push_demoted():
-            pull_strength  = loops_strength * brush.strength
+            pull_strength  = loops_strength * global_strength
             corner_prox    = getattr(relax, 'algorithm_source_corner_proximity', 2.0)
 
             # Corners already owned by a snapped vert are considered occupied.
@@ -921,7 +1097,7 @@ class Relax_Logic:
                 return  # no snapped edge yet; try again next frame
 
             # Pick the guide edge whose midpoint is closest to the brush centre.
-            co_local = (Mi @ Vector((*co_world.xyz, 1.0))).xyz
+            co_local = (Mi @ Vector((*brush_center_world, 1.0))).xyz
             guide_edge = min(
                 guide_edges,
                 key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - Vector(co_local)).length,
@@ -1071,7 +1247,7 @@ class Relax_Logic:
                         displace[bmv] = Vector((0.0, 0.0, 0.0))
 
         #MARK: Smoothing
-        strength_base = 20.0 * self.scale_avg * brush.strength / time_delta
+        strength_base = 20.0 * self.scale_avg * global_strength / time_delta
         if relax.algorithm_method == 'AUTO':
             vert_count = len(verts)
             if relax.algorithm_equalize_faces: vert_count *= 2 # It's pretty slow
@@ -1084,6 +1260,11 @@ class Relax_Logic:
             steps = 1
         else:
             steps = relax.algorithm_iterations
+
+        # explicit override lets non-brush callers (relax-selected operator, Tweak) ask for
+        # an exact number of integration steps regardless of the configured method.
+        if iterations is not None:
+            steps = iterations
 
         for i in range(steps):
             update_source_context()
@@ -1174,7 +1355,7 @@ class Relax_Logic:
                     avg_edge_len = get_bmv_avg_edge_len(bmv)
                     displace_dist *= min(1.0, avg_edge_len * relax.algorithm_max_distance_edges / displace_dist)
                 # displace_dist *= vert_strength[bmv]
-                displace_dist *= self.pressure  # tablet pressure applied here so it isn't normalised out by the caps above
+                displace_dist *= pressure  # tablet pressure applied here so it isn't normalised out by the caps above
                 if relax.algorithm_prevent_bounce:
                     displace_dist *= self.bounce_mult.get(bmv, 1.0)
                 displace_vec : Vector = displace[bmv].normalized() * displace_dist
@@ -1195,6 +1376,9 @@ class Relax_Logic:
                         co = p
                 if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts and self.sharp_accel:
                     if p := self.sharp_accel.closest_point(co):
+                        co = p
+                if self.mask_opt('angle') == 'SLIDE' and bmv in self.angle_verts and self.angle_accel:
+                    if p := self.angle_accel.closest_point(co):
                         co = p
 
                 co_world = M @ Vector((*co.xyz, 1.0))
@@ -1240,8 +1424,21 @@ class Relax_Logic:
                 if not co_world_snapped:
                     co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources)
 
-                if not co_world_snapped: continue
-                co_local_snapped : Vector = (Mi @ co_world_snapped) if co_world_snapped else co
+                # Reproject-shape fallback: when no external source exists but the caller
+                # supplied a BVH built from the original mesh island, project onto that.
+                if not co_world_snapped and snap_bvh:
+                    hit_loc, _hit_norm, _hit_idx, _hit_dist = snap_bvh.find_nearest(point_to_bvec3(co_world.xyz))
+                    if hit_loc:
+                        co_world_snapped = point_to_bvec3(hit_loc)
+
+                if not co_world_snapped:
+                    # No source surface to snap to (e.g. relaxing a standalone mesh): keep the
+                    # relaxed position. When sources ARE present, skip instead so a vert that
+                    # failed to project isn't flung off the surface.
+                    if self.sources: continue
+                    co_local_snapped : Vector = co
+                else:
+                    co_local_snapped : Vector = Mi @ co_world_snapped
 
                 _bv_world = (M @ Vector((*bmv.co, 1.0))).xyz
                 _dist_to_brush = (Vector(_bv_world) - brush_center_world).length
@@ -1330,7 +1527,7 @@ class Relax_Logic:
             # self.rfcontext.update_verts_faces(displace)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)
-        context.area.tag_redraw()
+        if context.area: context.area.tag_redraw()
 
         if debug_print:
             print(f'elapsed: {time.time() - self._time:0.3f}s {1.0/time_delta:0.1f}fps v:{len(verts)} e:{len(edges)} f:{len(faces)}')
