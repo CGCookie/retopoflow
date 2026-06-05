@@ -76,6 +76,7 @@ from ..rfpanels.masking_panel import draw_masking_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
+from ..rfpanels.tweak_snapping_panel import draw_tweak_snapping_panel
 from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
@@ -125,6 +126,72 @@ class RFOperator_Tweak(RFOperator):
         min=0.01,
         max=1.00,
         default=0.75,
+    )
+
+    # Hard surface snapping (mirrors the Relax source_edge_* options; the shared snapping
+    # logic lives in ..common.sources). Tweak has no relaxation forces, so the guide-loop
+    # options are intentionally omitted — the user pulls verts onto features directly.
+    snap_to_source_features: bpy.props.BoolProperty(
+        name='Algorithm: Snap to Features',
+        description="Snap vertices to certain edges of the high poly mesh",
+        default=False,
+    )
+    source_edge_angle: bpy.props.FloatProperty(
+        name = 'Angle',
+        description = 'Angle threshold for what is considered as a sharp edge on the source object',
+        subtype = 'ANGLE',
+        min = math.radians(1),
+        max = math.radians(180),
+        default = math.radians(45),
+    )
+    source_edge_creases: bpy.props.BoolProperty(
+        name='Snap to Source Creases',
+        description="Snap vertices to the creases of the high poly mesh",
+        default=False,
+    )
+    source_edge_seams: bpy.props.BoolProperty(
+        name='Snap to Source Seams',
+        description="Snap vertices to the seams of the high poly mesh",
+        default=False,
+    )
+    source_edge_sharps: bpy.props.BoolProperty(
+        name='Snap to Source Sharps',
+        description="Snap vertices to the sharps of the high poly mesh",
+        default=False,
+    )
+    source_edge_proximity: bpy.props.FloatProperty(
+        name = 'Proximity',
+        description = 'How close to feature edges vertices must be to snap, as a fraction of the average edge length',
+        subtype = 'FACTOR',
+        min = 0,
+        max = 1,
+        default = 0.25,
+    )
+    source_edge_stickiness: bpy.props.FloatProperty(
+        name = 'Stickiness',
+        description = 'How difficult it is to drag a snapped vertex back off of a feature edge or corner',
+        subtype = 'NONE',
+        min = 0,
+        max = 1,
+        default = 0.5,
+    )
+    source_edge_guide_loops: bpy.props.FloatProperty(
+        name = 'Guide Loops',
+        description = 'How strongly the nearest retopo loop is attracted to the source edge while competing loops are kept away',
+        subtype = 'FACTOR',
+        min = 0,
+        max = 1,
+        default = 1.0,
+    )
+    source_edge_debug_loops: bpy.props.EnumProperty(
+        name = 'Debug: Highlight Loop',
+        description = 'Select promoted or demoted verts on every update so they are visible in the viewport (for debugging)',
+        items = [
+            ('NONE',     'None',          'No debug selection'),
+            ('PROMOTED', 'Chosen Verts',  'Select the promoted (guide) loop verts during stroke'),
+            ('DEMOTED',  'Rejected Verts','Select the demoted (competing) loop verts during stroke'),
+        ],
+        default = 'NONE',
     )
 
     def init(self, context, event):
@@ -217,6 +284,7 @@ class RFTool_Tweak(RFTool_Base):
                     layout.popover('RF_PT_Pinning', text='Masking')
             else:
                 layout.popover('RF_PT_Masking')
+            layout.popover('RF_PT_TweakSnapping', text='Snapping')
             draw_line_separator(layout)
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
@@ -235,6 +303,7 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props_tweak, 'brush_strength', slider=True)
                 panel.prop(props_tweak, 'brush_falloff', slider=True)
             draw_masking_panel(context, layout)
+            draw_tweak_snapping_panel(context, layout)
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)

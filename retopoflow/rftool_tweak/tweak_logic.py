@@ -36,8 +36,8 @@ import time
 from typing import Callable
 from collections.abc import Sequence
 
-from ..common.accel import EdgeMarkAccel
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan
+from ..common.accel import EdgeMarkAccel, SourceAccel
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned, is_bmvert_creased,
@@ -47,6 +47,7 @@ from ..common.raycast import (
     raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources,
     mouse_from_event, iter_all_valid_sources,
 )
+from ..common.sources import to_world
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
@@ -78,12 +79,30 @@ class Tweak_Logic:
     is_bmvert_hidden : Callable[[BMVert], bool]
     visibility_cache : dict[BMVert, bool]
 
+    # Hard surface snapping (see ..common.sources). scale_avg converts local distances to
+    # world so thresholds line up with the world-space source accel.
+    scale_avg : float
+    source_edge_accel : 'SourceAccel | None'
+    source_sharp_proximity : float
+    stickiness : float
+    snapped_verts : set[BMVert]          # verts currently snapped to a source feature (for hysteresis)
+    vert_corner_idx : dict[BMVert, int]  # snapped-to-corner verts -> source corner index (prevents two verts on one corner)
+    verts_near_source_edge : 'dict[BMVert, Vector]'
+    promoted_loop_verts : set[BMVert]    # loop verts elected to ride the source edge
+    demoted_verts : set[BMVert]          # adjacent loop verts to be kept away from the source edge
+    loop_guide_verts : 'tuple[BMVert, BMVert] | None'  # the seed edge that anchors the loop walk
+
     verts_filtered : list[BMVert]
     verts : list[tuple]            # (bmv, original co, projected xy, brush strength) captured at grab time
 
     mouse : Vector
     mouse_prev : Vector
     _time : float
+
+    # Snapping tuning — intentionally different from Relax, which snaps against tiny
+    # per-substep forces; here we snap against direct mouse motion.
+    SNAP_CORNER_PROXIMITY : float = 2.0  # corner snap radius as a multiple of the edge snap radius
+    SNAP_STICK_MULT       : float = 2.0  # how far stickiness=1 extends the release radius past the snap radius
 
     def __init__(self, context, event, brush, tweak):
         self.brush = brush
@@ -127,6 +146,20 @@ class Tweak_Logic:
             M_obj = obj.matrix_world
             Mi_obj = M_obj.inverted_safe()
             self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
+
+        # Hard surface snapping: detect the source feature edges/corners once per stroke
+        # (cached in SourceAccel and shared with Relax when the options match).
+        self.scale_avg = sum(self.matrix_world.to_scale()) / 3
+        self.source_edge_accel = SourceAccel.build_from_tool(context, self.tweak, self.sources)
+        self.source_sharp_proximity = getattr(self.tweak, 'source_edge_proximity', 0.25)
+        self.stickiness = getattr(self.tweak, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+        self.loops_strength = getattr(self.tweak, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
+        self.snapped_verts = set()
+        self.vert_corner_idx = {}
+        self.verts_near_source_edge = {}
+        self.promoted_loop_verts = set()
+        self.demoted_verts = set()
+        self.loop_guide_verts = None
 
         self.collect_verts(context, event)
 
@@ -294,6 +327,291 @@ class Tweak_Logic:
         return p.xy if p else None
 
 
+    # -------------------------------------------------------------------------
+    # Hard surface snapping helpers
+    # -------------------------------------------------------------------------
+
+    def _source_corner_of_vert(self, bmv, margin):
+        ''' If bmv sits within `margin` (as a multiple of its local avg-edge-len * scale_avg)
+        of a source corner, return (corner_co_world, corner_idx, distance); else None. '''
+        if not self.source_edge_accel: return None
+        cr = self.source_edge_accel.find_corner(to_world(bmv.co, self.matrix_world))
+        if cr and cr[2] < get_bmv_avg_edge_len(bmv) * self.scale_avg * margin:
+            return cr
+        return None
+
+    def _collect_verts_near_source_edge(self):
+        ''' Return {bmv: local-space vector to nearest feature edge} for every GRABBED vert
+        that is close enough and facing the feature.
+        Limiting to grabbed verts (not all verts_filtered) ensures ungrabbed stationary
+        verts don't keep the proximity dict populated when the user pulls the brush away. '''
+        result = {}
+        if not self.source_edge_accel:
+            return result
+        Mi = self.matrix_world_inv
+        for bmv, *_ in self.verts:
+            if not bmv.link_edges: continue
+            bmv_world = to_world(bmv.co, self.matrix_world)
+            closest_v = self.source_edge_accel.closest_point(bmv_world)
+            if not closest_v: continue
+            diff = Mi @ Vector(closest_v) - bmv.co
+            dist = diff.length
+            if dist <= get_bmv_avg_edge_len(bmv) * self.source_sharp_proximity:
+                if dist < 1e-8 or (diff / dist).dot(bmv.normal) > 0.3:
+                    result[bmv] = diff
+        return result
+
+    def _seed_guide_loop(self):
+        ''' Walk outward from the retopo edge nearest the brush centre that already lies on
+        the source feature to elect promoted/demoted verts — matching Relax's seed_guide_loop
+        logic exactly.  Called once when the first verts snap to the feature. '''
+        # Need at least one retopo edge where both endpoints are on the feature.
+        guide_edges = [
+            bme for bmv in self.verts_near_source_edge
+            for bme in bmv.link_edges
+            if bme.other_vert(bmv) in self.verts_near_source_edge
+        ]
+        if not guide_edges: return
+
+        # Pick the seed edge whose midpoint is closest to the brush center.
+        brush_co = to_world(self.verts[0][0].co, self.matrix_world) if self.verts else Vector((0, 0, 0))
+        guide_edge = min(
+            guide_edges,
+            key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - (self.matrix_world_inv @ Vector((*brush_co, 1.0))).xyz).length,
+        )
+        v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
+
+        def is_on_source_corner(v):
+            return self._source_corner_of_vert(v, margin=0.05) is not None
+
+        def is_loop_continuation(v):
+            if is_on_source_corner(v):
+                return False
+            if any(e.is_boundary for e in v.link_edges):
+                return len(v.link_edges) == 3
+            return len(v.link_edges) == 4 and len(v.link_faces) == 4
+
+        promoted = set()
+        def walk_from(cur, prev):
+            while cur not in promoted and len(promoted) < 100:
+                promoted.add(cur)
+                if not is_loop_continuation(cur): break
+                nxt = get_bmv_next_loop_vert(prev, cur)
+                if nxt is None: break
+                prev, cur = cur, nxt
+
+        walk_from(v0, v1)
+        walk_from(v1, v0)
+        if not promoted: return
+
+        terminal_at_corner = {
+            v for v in promoted
+            if not is_loop_continuation(v) and (
+                not any(e.is_boundary for e in v.link_edges)
+                or is_on_source_corner(v)
+            )
+        }
+
+        demoted = set()
+        for v in promoted:
+            if v in terminal_at_corner:
+                all_adj = {bme.other_vert(v) for bme in v.link_edges}
+                for bmf in v.link_faces:
+                    if len(bmf.verts) != 4: continue
+                    for fv in bmf.verts:
+                        if fv is v or fv in all_adj: continue
+                        if not is_bmvert_corner(fv):
+                            demoted.add(fv)
+            else:
+                for bme in v.link_edges:
+                    nb = bme.other_vert(v)
+                    if nb not in promoted and is_loop_continuation(nb):
+                        demoted.add(nb)
+
+        self.promoted_loop_verts = promoted
+        self.demoted_verts = demoted
+        self.loop_guide_verts = (v0, v1)
+
+    def _update_source_context(self):
+        ''' Recompute which grabbed verts lie near the feature and refresh promoted/demoted.
+        Called once per mouse-move event (positions have changed). '''
+        self.verts_near_source_edge = self._collect_verts_near_source_edge()
+
+        if self.loops_strength == 0:
+            self.promoted_loop_verts.clear()
+            self.demoted_verts.clear()
+            self.loop_guide_verts = None
+            return
+
+        grabbed = {t[0] for t in self.verts}
+
+        # If the seed edge is no longer in the grabbed set, reset so it can be re-elected.
+        if self.loop_guide_verts is not None:
+            gv0, gv1 = self.loop_guide_verts
+            if gv0 not in grabbed or gv1 not in grabbed:
+                self.promoted_loop_verts.clear()
+                self.demoted_verts.clear()
+                self.loop_guide_verts = None
+
+        # If the brush is pulling away from the feature, clear the guide loop.
+        # Detection: all grabbed promoted verts have left the proximity zone.
+        # verts_near_source_edge is now grabbed-only, so this is a reliable signal that
+        # the grabbed verts have actually moved away from the feature.
+        if self.promoted_loop_verts:
+            grabbed_promoted = self.promoted_loop_verts & grabbed
+            if grabbed_promoted and not any(v in self.verts_near_source_edge for v in grabbed_promoted):
+                self.promoted_loop_verts.clear()
+                self.demoted_verts.clear()
+                self.loop_guide_verts = None
+
+        if self.verts_near_source_edge and not self.promoted_loop_verts:
+            self._seed_guide_loop()
+
+        # Per-corner demotion: the closest snapped vert owns each corner; face-diagonal
+        # neighbours of the owner are demoted (mirrors Relax's update_source_context).
+        if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
+            corner_owner: dict[int, tuple[float, BMVert]] = {}
+            for cv in self.verts_near_source_edge:
+                corner = self._source_corner_of_vert(cv, self.source_sharp_proximity * self.SNAP_CORNER_PROXIMITY)
+                if not corner: continue
+                _, corner_idx, dist_corner = corner
+                if corner_idx not in corner_owner or dist_corner < corner_owner[corner_idx][0]:
+                    corner_owner[corner_idx] = (dist_corner, cv)
+            for _dist, cv in corner_owner.values():
+                all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
+                for bmf in cv.link_faces:
+                    if len(bmf.verts) != 4: continue
+                    for fv in bmf.verts:
+                        if fv is cv or fv in all_adj: continue
+                        if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
+                            self.demoted_verts.add(fv)
+
+        debug_loops_sel = getattr(self.tweak, 'source_edge_debug_loops', 'NONE')
+        if debug_loops_sel != 'NONE':
+            highlight = self.promoted_loop_verts if debug_loops_sel == 'PROMOTED' else self.demoted_verts
+            for v in self.bm.verts:
+                v.select_set(v in highlight)
+
+    def _neighbor_on_corner(self, bmv, corner_idx):
+        ''' True if a directly-connected neighbor is already snapped to the same source
+        corner, so two verts don't collapse onto one corner. '''
+        return any(
+            self.vert_corner_idx.get(bme.other_vert(bmv)) == corner_idx
+            for bme in bmv.link_edges
+        )
+
+    def snap_to_source_feature(self, bmv, new_co, falloff):
+        ''' Snap a dragged vert onto the nearest source feature edge/corner.
+
+        Promoted verts (the elected guide loop) use a wider snap radius and always snap
+        when within range.  Demoted verts (adjacent competing loops) are actively pushed
+        away from the feature when they stray too close.  Unclassified verts snap only when
+        moving toward the feature (direction check), then stick via hysteresis. '''
+        accel = self.source_edge_accel
+        if not accel or not bmv.link_edges:
+            return new_co
+
+        snap_radius = get_bmv_avg_edge_len(bmv) * self.scale_avg * self.source_sharp_proximity * max(falloff, 0.0)
+        if snap_radius <= 0.0:
+            self.snapped_verts.discard(bmv)
+            self.vert_corner_idx.pop(bmv, None)
+            return new_co
+
+        M, Mi = self.matrix_world, self.matrix_world_inv
+        new_co_world = to_world(new_co, M)
+
+        is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
+        is_demoted  = bool(self.demoted_verts)       and bmv in self.demoted_verts
+        is_snapped  = bmv in self.snapped_verts
+
+        # --- Demoted verts: push away when they stray into the snap zone ---
+        if is_demoted:
+            self.snapped_verts.discard(bmv)
+            self.vert_corner_idx.pop(bmv, None)
+            push_radius = snap_radius * 0.5 * self.loops_strength
+            if closest_p := accel.closest_point(new_co_world):
+                to_edge = Vector(closest_p) - new_co_world
+                if to_edge.length < push_radius:
+                    # Reflect away from the edge by the same distance it has intruded.
+                    return Mi @ (new_co_world - to_edge)
+            return new_co
+
+        # --- Promoted + unclassified: snap toward the feature ---
+
+        # Promoted verts use a wider base radius (easier to attract to the feature), but
+        # once snapped the same stickiness multiplier governs release as for regular verts.
+        # This means stickiness=0 lets you drag a promoted vert off just as easily as any
+        # other vert, while higher stickiness values make it progressively harder to escape.
+        promoted_base = snap_radius * 1.5
+        if is_promoted:
+            snap_in_radius   = promoted_base
+            release_radius   = promoted_base * (1.0 + self.stickiness * self.SNAP_STICK_MULT)
+        else:
+            snap_in_radius   = snap_radius
+            release_radius   = snap_radius * (1.0 + self.stickiness * self.SNAP_STICK_MULT)
+
+        effective_radius = release_radius if is_snapped else snap_in_radius
+
+        # Compute drag displacement once; used in both corner and edge direction checks.
+        disp_world = M.to_3x3() @ (new_co - bmv.co)
+
+        # Corners take priority over edges.
+        was_on_corner = bmv in self.vert_corner_idx
+        if is_snapped:
+            corner_radius = effective_radius
+        else:
+            corner_radius = snap_in_radius * self.SNAP_CORNER_PROXIMITY  # wider snap-in only
+
+        snapped_to_corner = False
+        snapped_co_corner = None
+        if corner := accel.find_corner(new_co_world):
+            co_corner, corner_idx, dist_corner = corner
+            if dist_corner <= corner_radius and not self._neighbor_on_corner(bmv, corner_idx):
+                to_corner = Vector(co_corner) - new_co_world
+                # Direction check for ALL corner snapping — both snap-in and re-snap.
+                # This fixes two problems:
+                # (a) A corner-snapped vert can escape: bmv.co == corner, so
+                #     disp_world always opposes to_corner (their dot product is
+                #     always ≤ 0), meaning the check only passes when the drag
+                #     target is essentially at the corner (to_corner.length < 1e-8).
+                # (b) A released vert passing near a different corner at speed
+                #     won't snap to it unless actually moving toward it.
+                if to_corner.length < 1e-8 or disp_world.dot(to_corner) > 0:
+                    self.snapped_verts.add(bmv)
+                    self.vert_corner_idx[bmv] = corner_idx
+                    snapped_to_corner = True
+                    snapped_co_corner = co_corner
+
+        if snapped_to_corner:
+            return Mi @ Vector(snapped_co_corner)
+
+        self.vert_corner_idx.pop(bmv, None)
+        if was_on_corner:
+            self.snapped_verts.discard(bmv)
+            is_snapped = False
+
+        # Edge snapping.
+        if closest_p := accel.closest_point(new_co_world):
+            p_vec = Vector(closest_p)
+            to_edge = p_vec - new_co_world
+            if to_edge.length <= effective_radius:
+                if is_snapped:
+                    # Already snapped: stay until dragged past release radius.
+                    self.snapped_verts.add(bmv)
+                    return Mi @ p_vec
+                # The to_edge.length < 1e-8 shortcut is intentionally skipped for
+                # was_on_corner verts: corners sit on feature edges, so to_edge ≈ 0
+                # even when dragging away.  Without this, the edge check re-snaps the
+                # vert to the corner position immediately after the corner check releases.
+                if (not was_on_corner and to_edge.length < 1e-8) or disp_world.dot(to_edge) > 0:
+                    self.snapped_verts.add(bmv)
+                    return Mi @ p_vec
+
+        # Out of range -> release.
+        self.snapped_verts.discard(bmv)
+        return new_co
+
+
     def update(self, context, event):
         pressure = getattr(event, 'pressure', 1.0)
 
@@ -306,6 +624,11 @@ class Tweak_Logic:
 
         M = self.matrix_world
         Mi = self.matrix_world_inv
+
+        # Recompute which verts are near the feature and refresh the guide loop election.
+        # Vert positions have just changed, so this must run before the per-vert snap pass.
+        if self.source_edge_accel:
+            self._update_source_context()
 
         for (bmv, co_orig, xy, strength) in self.verts:
             if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
@@ -338,6 +661,9 @@ class Tweak_Logic:
                     if self.crease_accel:
                         p = self.crease_accel.closest_point(new_co)
                         if p is not None: new_co = p
+                # snap to the source mesh's feature edges/corners (high-poly hard surfaces)
+                if self.source_edge_accel:
+                    new_co = self.snap_to_source_feature(bmv, new_co, strength)
 
             if self.mirror:
                 co = Vector(new_co)

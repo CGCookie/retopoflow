@@ -311,3 +311,20 @@ class SourceAccel:
         cls.cache_key = cache_key
         cls.cache_val = instance
         return instance
+
+    @classmethod
+    def build_from_tool(cls, context: Context, tool, sources: list) -> 'SourceAccel | None':
+        ''' Build from a tool's `source_edge_*` operator properties.  Returns None when
+        feature snapping is disabled or no feature type is selected.  `sources` is the
+        precomputed [(obj, M, Mi, Mi_3x3), ...] list built in the tool's __init__. '''
+        if not getattr(tool, 'snap_to_source_features', False):
+            return None
+        source_angle   = getattr(tool, 'source_edge_angle',   math.pi)
+        source_sharps  = getattr(tool, 'source_edge_sharps',  False)
+        source_seams   = getattr(tool, 'source_edge_seams',   False)
+        source_creases = getattr(tool, 'source_edge_creases', False)
+        if not (source_sharps or source_seams or source_creases or source_angle < math.pi):
+            return None
+        return cls.build(
+            context, [src[0] for src in sources], source_angle, source_sharps, source_seams, source_creases,
+        )

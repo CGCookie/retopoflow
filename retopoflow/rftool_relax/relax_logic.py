@@ -60,6 +60,7 @@ from ..common.drawing import (
     Drawing,
     CC_2D_LINES,
 )
+from ..common.sources import to_world as source_to_world
 
 from ...addon_common.terminal import term_printer
 from ...addon_common.common.maths import Point, sign_threshold, clamp_int, clamp
@@ -193,16 +194,7 @@ class Relax_Logic:
             Mi_obj = M_obj.inverted_safe()
             self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
 
-        self.source_edge_accel = None
-        if getattr(self.relax, 'snap_to_source_features', False):
-            source_angle   = getattr(self.relax, 'source_edge_angle',   math.pi)
-            source_sharps  = getattr(self.relax, 'source_edge_sharps',  False)
-            source_seams   = getattr(self.relax, 'source_edge_seams',   False)
-            source_creases = getattr(self.relax, 'source_edge_creases', False)
-            if (source_sharps or source_seams or source_creases or source_angle < math.pi):
-                self.source_edge_accel = SourceAccel.build(
-                    context, [i[0] for i in self.sources], source_angle, source_sharps, source_seams, source_creases,
-                )
+        self.source_edge_accel = SourceAccel.build_from_tool(context, self.relax, self.sources)
         self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
         self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
@@ -460,7 +452,7 @@ class Relax_Logic:
                     self.draw_vectors_negative.append((wrt, f.xyz * mult * vert_strength[bmv]))
 
         def to_world(co):
-            return point_to_bvec3((M @ Vector((*co, 1.0))).xyz)
+            return source_to_world(co, M)
 
         def edge_constrained_neighbors(bmv):
             return [

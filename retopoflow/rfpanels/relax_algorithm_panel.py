@@ -22,6 +22,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 from ..common.interface import draw_section_header
+from ..common.sources import draw_hard_surface_snapping
 
 
 def draw_relax_algo_options(context, layout):
@@ -46,19 +47,7 @@ def draw_relax_algo_options(context, layout):
     header, panel = layout.panel(idname='relax_panel_source_edges', default_closed=False)
     header.label(text='Hard Surface Snapping')
     if panel:
-        panel.row(heading="Sources").prop(props, 'snap_to_source_features',  text='Detect Features')
-        col = panel.column(align=False)
-        col.enabled = props.snap_to_source_features
-        col.prop(props, 'source_edge_angle', text='Angle')
-        col.row(heading='Include').prop(props, 'source_edge_creases', text='Creases')
-        col.prop(props, 'source_edge_seams', text='Seams')
-        col.prop(props, 'source_edge_sharps', text='Sharps')
-        col.prop(props, 'source_edge_proximity', text='Proximity')
-        col.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
-        col.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)
-        row = col.row()
-        row.enabled = props.source_edge_guide_loops != 0
-        row.prop(props, 'source_edge_debug_loops', text='Highlight')
+        draw_hard_surface_snapping(panel, props, guide_loops=True)
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')

@@ -57,7 +57,7 @@ RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 
 from .rfpanels import (
     general_panel, help_panel, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel,
+    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel,
 
     tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
@@ -134,6 +134,7 @@ class RFCore:
         mirror_panel.register()
         pinning.register()
         relax_algorithm_panel.register()
+        tweak_snapping_panel.register()
         launch_browser.register()
         tools_pie.register()
 
@@ -199,6 +200,7 @@ class RFCore:
         help_panel.unregister()
         mirror_panel.unregister()
         relax_algorithm_panel.unregister()
+        tweak_snapping_panel.unregister()
         tools_pie.unregister()
         rfprops_scene.unregister()
         rfprops_object.unregister()
