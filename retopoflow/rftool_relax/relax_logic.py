@@ -304,7 +304,7 @@ class Relax_Logic:
             is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = []
             for obj in iter_all_valid_sources(context):
                 Mi = obj.matrix_world.inverted_safe()
-                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float) -> bool:
+                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float, obj=obj, Mi=Mi) -> bool:
                     ray_e_local = point_to_bvec3(Mi @ ray_e_world)
                     ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
                     return obj.ray_cast(ray_e_local, ray_d_local, distance=max_distance)[0]

@@ -23,28 +23,77 @@ import blf
 import bmesh
 import bpy
 import gpu
-from bmesh.types import BMVert, BMEdge, BMFace
+from bmesh.types import BMesh, BMVert, BMEdge, BMFace
 from bmesh.utils import edge_split
-from bpy_extras.view3d_utils import location_3d_to_region_2d
+from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
+from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_line_2d
 from mathutils.bvhtree import BVHTree
 
 import math
 import time
+from typing import Callable
+from collections.abc import Sequence
 
 from ..common.accel import EdgeMarkAccel
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner
-from ..common.bmesh_maths import is_bmvert_hidden, is_bmvert_on_edgemark, is_bmedge_edgemark, get_bmvert_attribute, BMMarking
-from ..common.maths import point_to_bvec4
-from ..common.raycast import raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources, mouse_from_event
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan
+from ..common.bmesh_maths import (
+    is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
+    is_bmvert_pinned, is_bmvert_creased,
+)
+from ..common.maths import point_to_bvec3, point_to_bvec4, direction_to_bvec3
+from ..common.raycast import (
+    raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources,
+    mouse_from_event, iter_all_valid_sources,
+)
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
 
 class Tweak_Logic:
+    bm : BMesh
+    em : Mesh
+    matrix_world : Matrix
+    matrix_world_inv : Matrix
+    mirror : set[str]
+    mirror_clip : bool
+    mirror_threshold : Vector
+
+    rf_options : PropertyGroup
+
+    check_nans : bool = True
+
+    sources : 'list[tuple[object, Matrix, Matrix, Matrix]]'
+
+    boundary_verts : set[BMVert]
+    boundary_accel : EdgeMarkAccel
+    crease_verts : set[BMVert]
+    crease_accel : EdgeMarkAccel
+    sharp_verts : set[BMVert]
+    sharp_accel : EdgeMarkAccel
+    seam_verts : set[BMVert]
+    seam_accel : EdgeMarkAccel
+
+    is_bmvert_hidden : Callable[[BMVert], bool]
+    visibility_cache : dict[BMVert, bool]
+
+    verts_filtered : list[BMVert]
+    verts : list[tuple]            # (bmv, original co, projected xy, brush strength) captured at grab time
+
+    mouse : Vector
+    mouse_prev : Vector
+    _time : float
+
     def __init__(self, context, event, brush, tweak):
+        self.brush = brush
+        self.tweak = tweak
+
+        self.rf_options = context.scene.retopoflow
+
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
+        self._time = time.time()
+
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
 
@@ -61,24 +110,32 @@ class Tweak_Logic:
             self.mirror_threshold = Vector(( mt / scale.x, mt / scale.y, mt / scale.z ))
             self.mirror_clip = mod.use_clip
 
-        self.brush = brush
-        self.props_scene = context.scene.retopoflow
-
-        self._time = time.time()
-
-        boundary, seam, sharp, crease = EdgeMarkAccel.build_all(
+        boundary, crease, sharp, seam = EdgeMarkAccel.build_all(
             self.bm, self.mirror, self.mirror_threshold, self.mirror_clip,
-            slide_boundary = self.props_scene.mask_boundary == 'SLIDE',
-            slide_seams    = self.props_scene.mask_seams    == 'SLIDE',
-            slide_sharps   = self.props_scene.mask_sharps   == 'SLIDE',
-            slide_creases  = self.props_scene.mask_creases  == 'SLIDE',
+            slide_boundary = self.mask_opt('boundary') == 'SLIDE',
+            slide_creases  = self.mask_opt('creases')  == 'SLIDE',
+            slide_sharps   = self.mask_opt('sharps')   == 'SLIDE',
+            slide_seams    = self.mask_opt('seams')    == 'SLIDE',
         )
         self.boundary_verts, self.boundary_accel = boundary
-        self.seam_verts,     self.seam_accel     = seam
-        self.sharp_verts,    self.sharp_accel    = sharp
         self.crease_verts,   self.crease_accel   = crease
+        self.sharp_verts,    self.sharp_accel    = sharp
+        self.seam_verts,     self.seam_accel     = seam
+
+        self.sources = []
+        for obj in iter_all_valid_sources(context):
+            M_obj = obj.matrix_world
+            Mi_obj = M_obj.inverted_safe()
+            self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
 
         self.collect_verts(context, event)
+
+    def mask_opt(self, name : str) -> str:
+        return str(getattr(self.rf_options, f'mask_{name}'))  # pyright: ignore[reportAny]
+    def include_opt(self, name : str) -> bool:
+        return bool(getattr(self.rf_options, f'include_{name}'))  # pyright: ignore[reportAny]
+    def exclude_opt(self, name : str) -> bool:
+        return not bool(getattr(self.rf_options, f'include_{name}'))  # pyright: ignore[reportAny]
 
     def collect_verts(self, context, event):
         self.verts = []
@@ -88,8 +145,8 @@ class Tweak_Logic:
         hit = raycast_valid_sources(context, self.mouse)
         if not hit: return
 
-        offset = context.space_data.overlay.retopology_offset
         M = self.matrix_world
+        brush_center_world = Vector(hit['co_world'])
 
         def is_bmvert_on_symmetry_plane(bmv):
             # TODO: IMPLEMENT!
@@ -97,44 +154,129 @@ class Tweak_Logic:
 
         # right now, falloff brush works in 3D... should switch to 2D?
         radius2D, radius3D = self.brush.radius, self.brush.get_scaled_radius()
-        props = self.props_scene
-        for bmv in self.bm.verts:
-            if bmv.hide: continue
-            # if (self.project_bmv(bmv) - mouse).length > radius2D: continue
-            if ((M @ bmv.co) - (M @ hit['co_local'])).length > radius3D: continue
 
-            if self.props_scene.mask_boundary == 'EXCLUDE' and (
-                is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip)
-            ):
-                continue
-            if (props.include_corners  == False or self.props_scene.mask_boundary == 'SLIDE') and is_bmvert_corner(bmv):
-                continue
-            if props.include_pinned == False and (
-                get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ):
-                continue
-            if props.mask_creases == 'EXCLUDE' and (
-                get_bmvert_attribute(self.bm, bmv, 'crease_vert', 'float') and
-                not get_bmvert_attribute(self.bm, bmv, 'retopoflow_pins', 'float')
-            ):
-                continue
-            if props.mask_creases  == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease): continue
-            if props.mask_seams    == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam): continue
-            if props.mask_sharps   == 'EXCLUDE' and is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp): continue
-            if props.mask_seams    == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges]) > 2: continue
-            if props.mask_sharps   == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges]) > 2: continue
-            if props.mask_creases  == 'SLIDE'   and sum([is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges]) > 2: continue
-            if props.mask_symmetry == 'EXCLUDE' and is_bmvert_on_symmetry_plane(bmv): continue
-            if props.include_occluded == False  and is_bmvert_hidden(context, bmv): continue
-            if props.mask_selected == 'EXCLUDE' and bmv.select: continue
-            if props.mask_selected == 'ONLY'    and not bmv.select: continue
+        self.bm.verts.ensure_lookup_table() # Ensure here so the per-vert filters don't need to call it
 
-            self.verts.append((
+        self.verts_filtered = [
+            bmv for bmv in self.bm.verts
+            if not bmv.hide and ((M @ bmv.co) - brush_center_world).length <= radius3D
+        ]
+
+        if Tweak_Logic.check_nans:
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv_co_isnan(bmv) ]
+            Tweak_Logic.check_nans = False
+
+        # Tier 1: O(1) direct attribute reads
+        if self.mask_opt('selected') == 'ONLY':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv.select ]
+        elif self.mask_opt('selected') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not bmv.select ]
+        # Tier 2: O(1) len() checks
+        if self.exclude_opt('corners'):
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+        if self.mask_opt('boundary') == 'SLIDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_corner(bmv) ]
+        # Tier 3: attribute check + possible hidden-edge scan
+        if self.mask_opt('boundary') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_boundary(bmv, self.mirror, self.mirror_threshold, self.mirror_clip) ]
+        if self.mask_opt('symmetry') == 'EXCLUDE':
+            self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_symmetry_plane(bmv) ]
+        # Tier 4: layer dict-lookup + vert data access
+        if self.exclude_opt('pinned'): self.verts_filtered = [
+            bmv for bmv in self.verts_filtered if not is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False)
+        ]
+        if self.mask_opt('creases') == 'EXCLUDE':
+            # Needs to check both vert and edge creases and account for pins.
+            if self.bm.verts.layers.float.get('crease_vert'):
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if (
+                    not is_bmvert_creased(self.bm, bmv, ensure_lookup_table=False) or is_bmvert_pinned(self.bm, bmv, ensure_lookup_table=False)
+                )]
+            if self.bm.edges.layers.float.get('crease_edge'):
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.crease) ]
+        # Tier 5: iterate link_edges with any()/all()
+        if self.mask_opt('seams') == 'EXCLUDE':
+            if any(bme.seam for bme in self.bm.edges):
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.seam) ]
+        if self.mask_opt('sharps') == 'EXCLUDE':
+            if any(not bme.smooth for bme in self.bm.edges):
+                self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
+        # Tier 6: iterate link_edges calling a function per edge
+        # seam_verts/sharp_verts/crease_verts are pre-built by build_all so the truthiness check is free.
+        if self.mask_opt('seams') == 'SLIDE' and self.seam_verts:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.seam) for bme in bmv.link_edges) > 2
+            ]
+        if self.mask_opt('sharps') == 'SLIDE' and self.sharp_verts:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.sharp) for bme in bmv.link_edges) > 2
+            ]
+        if self.mask_opt('creases') == 'SLIDE' and self.crease_verts:
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not sum(is_bmedge_edgemark(self.bm, bme, BMMarking.crease) for bme in bmv.link_edges) > 2
+            ]
+
+        self.visibility_cache = {}
+        self.is_bmvert_hidden = lambda _bmv: False  # nop where every bmvert is visible
+        if self.exclude_opt('occluded'):
+            # ASSUMING WE HAVE A REGION AND REGIONVIEW3D!
+            rgn : Region = context.region
+            r3d : RegionView3D = context.region_data
+            matrix_world = self.matrix_world
+            retopology_offset : float = context.space_data.overlay.retopology_offset
+
+            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = []
+            for obj in iter_all_valid_sources(context):
+                Mi = obj.matrix_world.inverted_safe()
+                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float, obj=obj, Mi=Mi) -> bool:
+                    ray_e_local = point_to_bvec3(Mi @ ray_e_world)
+                    ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
+                    return obj.ray_cast(ray_e_local, ray_d_local, distance=max_distance)[0]
+                is_bmvert_hidden_list.append(hidden_tester)
+
+            def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
+                point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
+                if not point_screen: return (None, None)
+                return (
+                    Vector((*region_2d_to_origin_3d(rgn, r3d, point_screen), 1.0)),
+                    Vector((*region_2d_to_vector_3d(rgn, r3d, point_screen).normalized(), 0.0)),
+                )
+
+            def is_point_hidden_fast(point_world:Vector, *, factor:float=0.99) -> bool:
+                ray_to_e_world, ray_to_d_world = ray_from_point_fast(rgn, r3d, point_world)
+                if not ray_to_e_world or not ray_to_d_world: return True
+                ray_from_d_world = -ray_to_d_world
+                ray_from_e_world = point_world.xyz + ray_from_d_world.xyz * retopology_offset
+                max_distance = (ray_to_e_world.xyz - point_world.xyz).length * factor
+                return any(
+                    fn(ray_from_e_world, ray_from_d_world, max_distance)
+                    for fn in is_bmvert_hidden_list
+                )
+
+            def is_bmvert_hidden(bmv : BMVert) -> bool:
+                if bmv not in self.visibility_cache:
+                    self.visibility_cache[bmv] = is_point_hidden_fast(matrix_world @ bmv.co)
+                return self.visibility_cache[bmv]
+
+            self.is_bmvert_hidden = is_bmvert_hidden
+
+            self.verts_filtered = [
+                bmv for bmv in self.verts_filtered
+                if not self.is_bmvert_hidden(bmv)
+            ]
+
+        self.verts = [
+            (
                 bmv,
-                Vector(bmv.co),
-                self.project_bmv(context, bmv),
-                self.brush.get_strength_Point(self.matrix_world @ bmv.co),
-            ))
+                Vector(bmv.co), # original location
+                self.project_bmv(context, bmv), # screen position
+                self.brush.get_strength_Point(M @ bmv.co), # grab strength
+            )
+            for bmv in self.verts_filtered
+        ]
+
 
     def cancel(self, context):
         if not self.verts: return
@@ -146,9 +288,11 @@ class Tweak_Logic:
     def project_pt(self, context, pt):
         p = location_3d_to_region_2d(context.region, context.region_data, self.matrix_world @ pt)
         return p.xy if p else None
+
     def project_bmv(self, context, bmv):
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
+
 
     def update(self, context, event):
         pressure = getattr(event, 'pressure', 1.0)
@@ -160,8 +304,11 @@ class Tweak_Logic:
         delta = mouse - self.mouse_prev
         if delta.length_squared == 0: return
 
+        M = self.matrix_world
+        Mi = self.matrix_world_inv
+
         for (bmv, co_orig, xy, strength) in self.verts:
-            if self.props_scene.mask_boundary == 'SLIDE' and bmv in self.boundary_verts:
+            if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
                 new_co = Vector(bmv.co)
                 delta_strength = delta.length * strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
@@ -179,15 +326,15 @@ class Tweak_Logic:
                 new_co = raycast_valid_sources(context, cur_xy + delta * strength * pressure)
                 if not new_co: continue
                 new_co = new_co['co_local']
-                if self.props_scene.mask_seams == 'SLIDE' and bmv in self.seam_verts:
+                if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
                     if self.seam_accel:
                         p = self.seam_accel.closest_point(new_co)
                         if p is not None: new_co = p
-                if self.props_scene.mask_sharps == 'SLIDE' and bmv in self.sharp_verts:
+                if self.mask_opt('sharps') == 'SLIDE' and bmv in self.sharp_verts:
                     if self.sharp_accel:
                         p = self.sharp_accel.closest_point(new_co)
                         if p is not None: new_co = p
-                if self.props_scene.mask_creases == 'SLIDE' and bmv in self.crease_verts:
+                if self.mask_opt('creases') == 'SLIDE' and bmv in self.crease_verts:
                     if self.crease_accel:
                         p = self.crease_accel.closest_point(new_co)
                         if p is not None: new_co = p
@@ -206,9 +353,10 @@ class Tweak_Logic:
                     if zero['x']: co.x, d = co.x * 0.95, max(abs(co.x), d)
                     if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                     if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
-                    co_world = self.matrix_world @ Vector((*co, 1.0))
-                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
-                    co = self.matrix_world_inv @ co_world_snapped
+                    co_world = M @ Vector((*co, 1.0))
+                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources)
+                    if not co_world_snapped: continue
+                    co = Mi @ co_world_snapped
                     if d < 0.001: break  # break out if change was below threshold
                 if zero['x']: co.x = 0
                 if zero['y']: co.y = 0

@@ -233,7 +233,7 @@ class RFOperator_Relax(RFOperator):
         subtype = 'FACTOR',
         min = 0,
         max = 1,
-        default = 0.5
+        default = 1
     )
     source_edge_debug_loops: bpy.props.EnumProperty(
         name = 'Debug: Highlight Loop',
