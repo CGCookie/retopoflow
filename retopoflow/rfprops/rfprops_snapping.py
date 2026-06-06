@@ -47,7 +47,7 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
     source_edge_angle_enabled: bpy.props.BoolProperty(
         name='Use Angle Threshold',
         description='Detect sharp edges on the source mesh based on face angle',
-        default=True,
+        default=False,
     )
     source_edge_angle: bpy.props.FloatProperty(
         name='Angle',
@@ -76,8 +76,8 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
         name='Proximity',
         description='How close to feature edges vertices must be to snap, as a fraction of the average edge length',
         subtype='FACTOR',
-        min=0,
-        max=1,
+        min=0.0,
+        max=1.0,
         default=0.25,
     )
     source_edge_stickiness: bpy.props.FloatProperty(

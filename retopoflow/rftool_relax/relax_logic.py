@@ -407,7 +407,7 @@ class Relax_Logic:
 
         snapping = context.scene.retopoflow.snapping
         self.source_edge_accel = SourceAccel.build_from_tool(context, snapping, self.sources)
-        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.1)
+        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
         self.laplacian_cache = {}
