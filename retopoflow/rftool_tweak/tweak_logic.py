@@ -91,6 +91,7 @@ class Tweak_Logic:
     source_sharp_proximity : float
     stickiness : float
     snapped_verts : set[BMVert]          # verts currently snapped to a source feature (for hysteresis)
+    snap_target_world : 'dict[BMVert, Vector]'  # accumulated unconstrained world position (for drift-based release)
     vert_corner_idx : dict[BMVert, int]  # snapped-to-corner verts -> source corner index (prevents two verts on one corner)
     verts_near_source_edge : 'dict[BMVert, Vector]'
     promoted_loop_verts : set[BMVert]    # loop verts elected to ride the source edge
@@ -177,6 +178,7 @@ class Tweak_Logic:
         self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
         self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
         self.snapped_verts = set()
+        self.snap_target_world = {}
         self.vert_corner_idx = {}
         self.verts_near_source_edge = {}
         self.promoted_loop_verts = set()
@@ -523,7 +525,7 @@ class Tweak_Logic:
             for bme in bmv.link_edges
         )
 
-    def snap_to_source_feature(self, bmv, new_co, falloff):
+    def snap_to_source_feature(self, bmv, new_co, falloff, context=None, disp_2d=None):
         ''' Snap a dragged vert onto the nearest source feature edge/corner.
 
         Promoted verts (the elected guide loop) use a wider snap radius and always snap
@@ -551,6 +553,7 @@ class Tweak_Logic:
         if is_demoted:
             self.snapped_verts.discard(bmv)
             self.vert_corner_idx.pop(bmv, None)
+            self.snap_target_world.pop(bmv, None)
             push_radius = snap_radius * 0.5 * self.loops_strength
             if closest_p := accel.closest_point(new_co_world):
                 to_edge = Vector(closest_p) - new_co_world
@@ -574,6 +577,28 @@ class Tweak_Logic:
             release_radius   = snap_radius * (1.0 + self.stickiness * self.SNAP_STICK_MULT)
 
         effective_radius = release_radius if is_snapped else snap_in_radius
+
+        # --- Accumulated unconstrained drift ---
+        # Because Tweak's per-frame new_co is computed from the vert's current screen
+        # position + a small delta, a slide-locked vert never moves far enough in a
+        # single step for the normal to_edge distance check to trigger release.
+        # Tracking the cumulative unconstrained drift across frames fixes this: the vert
+        # releases once the brush has moved far enough away (or through the edge).
+        if is_snapped:
+            if bmv not in self.snap_target_world:
+                self.snap_target_world[bmv] = to_world(Vector(bmv.co), M)
+            else:
+                drift_local = Vector(new_co) - Vector(bmv.co)
+                self.snap_target_world[bmv] = self.snap_target_world[bmv] + M.to_3x3() @ drift_local
+            target_world = self.snap_target_world[bmv]
+            if closest_target := accel.closest_point(target_world):
+                if (target_world - Vector(closest_target)).length > effective_radius:
+                    self.snapped_verts.discard(bmv)
+                    self.vert_corner_idx.pop(bmv, None)
+                    self.snap_target_world.pop(bmv, None)
+                    return new_co
+        else:
+            self.snap_target_world.pop(bmv, None)
 
         # Compute drag displacement once; used in both corner and edge direction checks.
         disp_world = M.to_3x3() @ (new_co - bmv.co)
@@ -611,6 +636,7 @@ class Tweak_Logic:
         self.vert_corner_idx.pop(bmv, None)
         if was_on_corner:
             self.snapped_verts.discard(bmv)
+            self.snap_target_world.pop(bmv, None)
             is_snapped = False
 
         # Edge snapping.
@@ -619,9 +645,33 @@ class Tweak_Logic:
             to_edge = p_vec - new_co_world
             if to_edge.length <= effective_radius:
                 if is_snapped:
-                    # Already snapped: stay until dragged past release radius.
+                    # Already snapped: slide along the edge only for the screen-space
+                    # parallel component of the brush movement.  Perpendicular brush
+                    # movement (crossing the edge) should keep the vert fixed.
+                    bmv_world = to_world(bmv.co, M)
+                    tangent_result = accel.closest_point_with_tangent(bmv_world)
+                    if tangent_result is not None and context is not None and disp_2d is not None:
+                        _, tangent = tangent_result
+                        p0 = location_3d_to_region_2d(context.region, context.region_data, bmv_world)
+                        p1 = location_3d_to_region_2d(context.region, context.region_data, bmv_world + tangent)
+                        if p0 is not None and p1 is not None:
+                            tangent_2d = p1 - p0
+                            tangent_2d_len = tangent_2d.length
+                            if tangent_2d_len > 1e-8:
+                                tangent_2d_norm = tangent_2d / tangent_2d_len
+                                # Screen-space pixels moved parallel to the projected edge
+                                parallel_2d = disp_2d.dot(tangent_2d_norm)
+                                # tangent is unit-length in world space, so tangent_2d_len
+                                # is pixels per 1 world unit; invert to get world units per pixel
+                                parallel_3d = parallel_2d / tangent_2d_len
+                                candidate = point_to_bvec3(bmv_world + tangent * parallel_3d)
+                                constrained = accel.closest_point(candidate)
+                                if constrained is not None:
+                                    self.snapped_verts.add(bmv)
+                                    return Mi @ Vector(constrained)
+                    # Fallback: keep vert at its current on-edge position (don't slide).
                     self.snapped_verts.add(bmv)
-                    return Mi @ p_vec
+                    return Vector(bmv.co)
                 # The to_edge.length < 1e-8 shortcut is intentionally skipped for
                 # was_on_corner verts: corners sit on feature edges, so to_edge ≈ 0
                 # even when dragging away.  Without this, the edge check re-snaps the
@@ -632,6 +682,7 @@ class Tweak_Logic:
 
         # Out of range -> release.
         self.snapped_verts.discard(bmv)
+        self.snap_target_world.pop(bmv, None)
         return new_co
 
 
@@ -690,7 +741,7 @@ class Tweak_Logic:
                         if p is not None: new_co = p
                 # snap to the source mesh's feature edges/corners (high-poly hard surfaces)
                 if self.source_edge_accel:
-                    new_co = self.snap_to_source_feature(bmv, new_co, strength)
+                    new_co = self.snap_to_source_feature(bmv, new_co, strength, context, delta * strength * pressure)
 
             if self.mirror:
                 co = Vector(new_co)

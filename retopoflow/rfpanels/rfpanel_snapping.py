@@ -64,11 +64,11 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     ):
         layout.column().prop(context.scene.tool_settings, 'snap_target', text='From', expand=True)
 
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
-    if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
-        return
+    # tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH', create=False)
+    # if tool.idname not in ['retopoflow.relax', 'retopoflow.tweak']:
+    #     return
     feat_header, feat_panel = layout.panel(idname='RF_feature_detection', default_closed=False)
-    feat_header.label(text='Feature Detection')
+    feat_header.label(text='Brush Feature Detection')
     if feat_panel:
         props = context.scene.retopoflow.snapping
         feat_panel.use_property_split = True

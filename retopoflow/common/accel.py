@@ -144,8 +144,9 @@ class Accel:
 
 
 class EdgeMarkAccel:
-    verts : set[BMVert]
-    bvh   : 'BVHTree | None'
+    verts     : set[BMVert]
+    bvh       : 'BVHTree | None'
+    _segments : list[tuple[Vector, Vector]]
 
     def __init__(
         self,
@@ -153,6 +154,7 @@ class EdgeMarkAccel:
         verts    : 'set[BMVert] | None' = None,
     ):
         self.verts = verts if verts is not None else set()
+        self._segments = list(segments)
         self.bvh = BVHTree.FromPolygons(
             [v for vs in segments for v in vs],   # pyright: ignore [reportArgumentType]
             edges_to_triangles(len(segments)),
@@ -165,6 +167,20 @@ class EdgeMarkAccel:
     def closest_point(self, co: Vector) -> 'Vector | None':
         if self.bvh is None: return None
         return self.bvh.find_nearest(co)[0]
+
+    def closest_point_with_tangent(self, co: Vector) -> 'tuple[Vector, Vector] | None':
+        '''Returns (closest_point, edge_tangent_normalized) or None.
+        The poly index from find_nearest maps 1-to-1 onto self._segments
+        because edges_to_triangles creates exactly one triangle per segment.
+        '''
+        if self.bvh is None: return None
+        loc, _normal, poly_idx, _dist = self.bvh.find_nearest(co)
+        if loc is None or poly_idx is None or poly_idx >= len(self._segments): return None
+        v0, v1 = self._segments[poly_idx]
+        edge_vec = Vector(v1) - Vector(v0)
+        length = edge_vec.length
+        if length < 1e-8: return None
+        return (Vector(loc), edge_vec / length)
 
     @classmethod
     def from_bmedges(cls, edges: list) -> 'EdgeMarkAccel':
@@ -219,6 +235,9 @@ class SourceAccel:
 
     def closest_point(self, co: Vector) -> 'Vector | None':
         return self.edge_accel.closest_point(co) if self.edge_accel else None
+
+    def closest_point_with_tangent(self, co: Vector) -> 'tuple[Vector, Vector] | None':
+        return self.edge_accel.closest_point_with_tangent(co) if self.edge_accel else None
 
     def closest_point_in_threshold(
         self,

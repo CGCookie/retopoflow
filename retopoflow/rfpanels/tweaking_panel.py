@@ -34,12 +34,6 @@ def draw_tweaking_options(context, layout):
     grid.use_property_split = True
     grid.use_property_decorate = False
 
-    select_loops = getattr(tool_props, 'select_loops', False)
-    if select_loops:
-        col = grid.column()
-        draw_section_header(context, col, tool_props.bl_rna.name)
-        col.prop(tool_props, 'select_loops', text='Loops Mode')
-
     col = grid.column()
     draw_section_header(context, col, 'Selection')
     col.prop(props, 'tweaking_distance', text='Distance')
@@ -68,6 +62,10 @@ def draw_tweaking_options(context, layout):
         row2 = row.row()
         row2.enabled = context.scene.tool_settings.use_mesh_automerge
         row2.prop(context.scene.tool_settings, 'double_threshold', text='')
+
+    if context.area.type != 'PREFERENCES' and hasattr(tool_props, 'select_loops'):
+        col = grid.column()
+        col.prop(tool_props, 'select_loops', text='Select Loops')
 
 
 def draw_tweaking_panel(context, layout):
