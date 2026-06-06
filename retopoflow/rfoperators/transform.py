@@ -53,6 +53,23 @@ from ..common.maths import (
 )
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.colors import Color4
+
+
+def sync_projection_from_blender(context):
+    '''Sync RF projection from Blender's snap_elements_individual.
+    Called on tool switch so that if the user changed Blender's projection
+    setting manually, RF picks it up. Does NOT sync snap_elements_base bools
+    — those are user-controlled via RF's UI and pushed to Blender via update callbacks.'''
+    snapping = context.scene.retopoflow.snapping
+    ts = context.scene.tool_settings
+
+    # Sync projection (only when RF is managing a specific mode)
+    if snapping.projection in ('SCREEN_SPACE', 'WORLD_SPACE'):
+        elements_individual = ts.snap_elements_individual
+        if 'FACE_PROJECT' in elements_individual:
+            snapping.projection = 'SCREEN_SPACE'
+        elif 'FACE_NEAREST' in elements_individual:
+            snapping.projection = 'WORLD_SPACE'
 from ...addon_common.common.maths import sign_threshold
 from ..common.drawing import Drawing, CC_2D_POINTS
 
@@ -121,11 +138,6 @@ class RFOperator_Translate(RFOperator):
         ],
         default='AUTO',
     )
-    use_auto_snap_method: bpy.props.BoolProperty(
-        name = 'Auto Projection',
-        description="Whether the snapping uses Blender's Face Project or Face Nearest snap settings or is automatic based on the selection",
-        default=True,
-    )
     move_hovered: bpy.props.BoolProperty(
         name='Select and Move Hovered',
         description='If False, currently selected geometry is moved.  If True, hovered geometry is selected then moved.',
@@ -170,9 +182,15 @@ class RFOperator_Translate(RFOperator):
         self.nearest_bme = NearestBMEdge(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.nearest_bmf = NearestBMFace(self.bm, self.matrix_world, self.matrix_world_inv, ensure_lookup_tables=False)
         self.use_update_normals = prefs.tweaking_update_normals
-        self.use_auto_snap_method = prefs.tweaking_use_auto_snap_method
+        sync_projection_from_blender(context)
+        self.tweaking_projection = context.scene.retopoflow.snapping.projection
         if self.use_native == 'AUTO':
-            self.use_native = 'TRUE' if prefs.tweaking_use_native else 'FALSE'
+            snapping = context.scene.retopoflow.snapping
+            use_native = (
+                snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
+                or snapping.snap_edge_perpendicular or snapping.snap_face_center
+            )
+            self.use_native = 'TRUE' if use_native else 'FALSE'
 
         if self.used_keyboard:
             move_hovered = self.move_hovered and prefs.tweaking_move_hovered_keyboard
@@ -206,13 +224,17 @@ class RFOperator_Translate(RFOperator):
         # self.bmvs_co_orig = [Vector(bmv.co) for bmv in self.bmvs]
         # self.bmvs_co2d_orig = [location_3d_to_region_2d(context.region, context.region_data, (self.matrix_world @ Vector((*bmv.co, 1.0))).xyz) for bmv in self.bmvs]
 
-        if self.use_auto_snap_method:
+        if self.tweaking_projection == 'AUTO':
             if self.snap_method == 'AUTO':
                 if self.use_screen_space(context, self.bmvs):
                     self.snap_method = 'PROJECTED'
                 else:
                     self.snap_method = 'NEAREST'
-        else:
+        elif self.tweaking_projection == 'SCREEN_SPACE':
+            self.snap_method = 'PROJECTED'
+        elif self.tweaking_projection == 'WORLD_SPACE':
+            self.snap_method = 'NEAREST'
+        else:  # FOLLOW_BLENDER
             if 'FACE_PROJECT' in context.scene.tool_settings.snap_elements_individual:
                 self.snap_method = 'PROJECTED'
             else:
@@ -238,15 +260,21 @@ class RFOperator_Translate(RFOperator):
                 self.use_slide = True
 
         if self.use_native == 'TRUE' and self.use_slide == False:
-            ts = context.scene.tool_settings
-            prev_snap_individual = ts.snap_elements_individual
+            snapping = context.scene.retopoflow.snapping
+
+            # Build snap_elements from RF's settings
+            new_base = set()
+            if snapping.snap_vertex:             new_base.add('VERTEX')
+            if snapping.snap_edge:               new_base.add('EDGE')
+            if snapping.snap_edge_center:        new_base.add('EDGE_MIDPOINT')
+            if snapping.snap_edge_perpendicular: new_base.add('EDGE_PERPENDICULAR')
+            if snapping.snap_face_center and bpy.app.version >= (5, 1, 0):
+                new_base.add('FACE_MIDPOINT')
+
             if self.snap_method == 'PROJECTED':
-                ts.snap_elements_individual = {'FACE_PROJECT'}
-                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=True)
+                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=True, snap_elements=new_base)
             elif self.snap_method == 'NEAREST':
-                ts.snap_elements_individual = {'FACE_NEAREST'}
-                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=False)
-            ts.snap_elements_individual = prev_snap_individual
+                bpy.ops.transform.translate('INVOKE_DEFAULT', use_snap_project=False, snap_elements=new_base)
 
         # gather neighboring geo
         if self.bmvs and context.tool_settings.use_proportional_edit:
@@ -439,10 +467,12 @@ class RFOperator_Translate(RFOperator):
                 if not co:
                     co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.last_success[bmv])
                     co = nearest_point_valid_sources(context, co_world, world=False)
+                if not co:
+                    co = self.last_success[bmv]
             elif self.snap_method == 'NEAREST':
-                co = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
-                co = nearest_point_valid_sources(context, co, world=True)
-                co = self.matrix_world_inv @ co
+                co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
+                co_snapped = nearest_point_valid_sources(context, co_world, world=True) if co_world else None
+                co = self.matrix_world_inv @ co_snapped if co_snapped else self.last_success[bmv]
 
             if self.mirror:
                 t = self.mirror_threshold
@@ -459,6 +489,7 @@ class RFOperator_Translate(RFOperator):
                     if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                     co_world = self.matrix_world @ Vector((*co, 1.0))
                     co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                    if not co_world_snapped: break
                     co = self.matrix_world_inv @ co_world_snapped
                     if d < 0.001: break  # break out if change was below threshold
                 if zero['x']: co.x = 0

@@ -35,6 +35,7 @@ from ..common.interface import draw_expandable_enum
 from ..common.accel import SourceAccel
 from ..common.maths import point_to_bvec3
 from ..common.raycast import nearest_point_valid_sources
+from ..common.sources import draw_hard_surface_snapping
 from ..rftool_relax.relax_logic import Relax_Logic, RelaxOptions
 
 
@@ -133,7 +134,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
     )
     source_edge_angle: bpy.props.FloatProperty(
         name='Angle',
-        description='Angle threshold for what is considered a sharp edge on the source object',
+        description='Snap to edges above this angle threshold on the source object',
         subtype='ANGLE',
         min=math.radians(1),
         max=math.radians(180),
@@ -268,23 +269,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             if not self._build_sources_selectable(context):
                 self.draw_warning(layout)
         if self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
-            col = layout.column(heading='Feature Edges')
-            col.prop(self, 'source_edge_sharps',  text='Sharps')
-            col.prop(self, 'source_edge_seams',   text='Seams')
-            col.prop(self, 'source_edge_creases', text='Creases')
-            row = col.row(align=True, heading='Sharp Angles')
-            row.prop(self, 'source_edge_angle_enabled', text='')
-            sub = row.row()
-            sub.enabled = self.source_edge_angle_enabled
-            sub.prop(self, 'source_edge_angle', text='')
-            col2 = col.column()
-            col2.enabled = (
-                self.source_edge_angle_enabled and self.source_edge_angle != math.radians(180) or
-                self.source_edge_creases or self.source_edge_seams or self.source_edge_sharps
-            )
-            col2.prop(self, 'source_edge_proximity')
-            col2.prop(self, 'source_edge_stickiness', slider=True)
-            col2.prop(self, 'source_edge_guide_loops')
+            draw_hard_surface_snapping(layout, self, guide_loops=True)
 
     def draw(self, context):
         layout = self.layout
@@ -336,7 +321,6 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             algorithm_straighten_edges=self.straighten_edges,
             algorithm_average_edge_lengths=self.average_edge_lengths,
             algorithm_equalize_faces=self.equalize_faces,
-            snap_to_source_features=bool(sources),
             source_edge_angle=self.source_edge_angle if self.source_edge_angle_enabled else math.pi,
             source_edge_seams=self.source_edge_seams,
             source_edge_creases=self.source_edge_creases,

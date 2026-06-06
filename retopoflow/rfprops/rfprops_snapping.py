@@ -1,0 +1,157 @@
+'''
+Copyright (C) 2024 CG Cookie
+http://cgcookie.com
+hello@cgcookie.com
+
+Created by Jonathan Denning, Jonathan Lampel
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
+import math
+import bpy
+
+
+class RFProps_Snapping(bpy.types.PropertyGroup):
+
+    """ Sources """
+    snap_only_selected: bpy.props.BoolProperty(
+        name='Exclude Non-selected',
+        description='Only selected objects in Object Mode are considered as valid sources. This allows you to manage what you snap to in the Outliner',
+        default=False
+    )
+    snap_object: bpy.props.PointerProperty(
+        name='Source Object',
+        type=bpy.types.Object,
+        poll= lambda self, obj: obj.mode != 'EDIT' and obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT'],
+    )
+    snap_collection: bpy.props.PointerProperty(
+        name='Source Collection',
+        type=bpy.types.Collection,
+        poll= lambda self, collection: collection in [c for c in bpy.data.collections if bpy.context.scene.user_of_id(c)],
+    )
+
+
+    """ Feature Detection """
+    source_edge_angle_enabled: bpy.props.BoolProperty(
+        name='Use Angle Threshold',
+        description='Detect sharp edges on the source mesh based on face angle',
+        default=True,
+    )
+    source_edge_angle: bpy.props.FloatProperty(
+        name='Angle',
+        description='Snap to edges above this angle threshold on the source object',
+        subtype='ANGLE',
+        min=math.radians(1),
+        max=math.radians(180),
+        default=math.radians(45),
+    )
+    source_edge_creases: bpy.props.BoolProperty(
+        name='Snap to Source Creases',
+        description='Snap vertices to the creases of the high poly mesh',
+        default=False,
+    )
+    source_edge_seams: bpy.props.BoolProperty(
+        name='Snap to Source Seams',
+        description='Snap vertices to the seams of the high poly mesh',
+        default=False,
+    )
+    source_edge_sharps: bpy.props.BoolProperty(
+        name='Snap to Source Sharps',
+        description='Snap vertices to the sharps of the high poly mesh',
+        default=False,
+    )
+    source_edge_proximity: bpy.props.FloatProperty(
+        name='Proximity',
+        description='How close to feature edges vertices must be to snap, as a fraction of the average edge length',
+        subtype='FACTOR',
+        min=0,
+        max=1,
+        default=0.25,
+    )
+    source_edge_stickiness: bpy.props.FloatProperty(
+        name='Stickiness',
+        description='How difficult it is to drag a snapped vertex back off of a feature edge or corner',
+        subtype='NONE',
+        min=0,
+        max=1,
+        default=0.5,
+    )
+    source_edge_guide_loops: bpy.props.FloatProperty(
+        name='Guide Loops',
+        description='How strongly the nearest retopo loop is attracted to the source edge while competing loops are kept away',
+        subtype='FACTOR',
+        min=0,
+        max=1,
+        default=1.0,
+    )
+
+    """ Projection """
+    projection: bpy.props.EnumProperty(
+        name='Projection',
+        description='How vertices are projected onto the source mesh during tweaking',
+        items=[
+            ('AUTO',           'Automatic',      'Automatically choose screen space or world space projection based on the selection', 'SNAP_ON', 0),
+            ('SCREEN_SPACE',   'Screen Space',   'Always project using Face Project (screen space)',                                   'SNAP_FACE', 1),
+            ('WORLD_SPACE',    'World Space',    'Always project using Face Nearest (world space)',                                    'SNAP_FACE_NEAREST',2),
+            ('FOLLOW_BLENDER', 'Follow Blender', "Use Blender's current snap_elements_individual setting without overriding it",       'BLENDER', 3),
+        ],
+        default='AUTO',
+        update=lambda self, context: setattr(
+            context.scene.tool_settings,
+            'snap_elements_individual',
+            {'FACE_PROJECT'} if self.projection == 'SCREEN_SPACE' else
+            {'FACE_NEAREST'} if self.projection in ('AUTO', 'WORLD_SPACE') else
+            context.scene.tool_settings.snap_elements_individual
+        ),
+    )
+
+    """ Snap Elements """
+    snap_vertex: bpy.props.BoolProperty(
+        name='Vertex', description='Snap to vertices', default=True,
+        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
+            (ctx.scene.tool_settings.snap_elements_base | {'VERTEX'}) if self.snap_vertex
+            else (ctx.scene.tool_settings.snap_elements_base - {'VERTEX'})),
+    )
+    snap_edge: bpy.props.BoolProperty(
+        name='Edge', description='Snap to edges', default=False,
+        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
+            (ctx.scene.tool_settings.snap_elements_base | {'EDGE'}) if self.snap_edge
+            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE'})),
+    )
+    snap_edge_center: bpy.props.BoolProperty(
+        name='Edge Center', description='Snap to edge midpoints', default=False,
+        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
+            (ctx.scene.tool_settings.snap_elements_base | {'EDGE_MIDPOINT'}) if self.snap_edge_center
+            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE_MIDPOINT'})),
+    )
+    snap_edge_perpendicular: bpy.props.BoolProperty(
+        name='Edge Perpendicular', description='Snap to perpendicular points on edges', default=False,
+        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
+            (ctx.scene.tool_settings.snap_elements_base | {'EDGE_PERPENDICULAR'}) if self.snap_edge_perpendicular
+            else (ctx.scene.tool_settings.snap_elements_base - {'EDGE_PERPENDICULAR'})),
+    )
+    snap_face_center: bpy.props.BoolProperty(
+        name='Face Center', description='Snap to face centers', default=False,
+        update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
+            (ctx.scene.tool_settings.snap_elements_base | {'FACE_MIDPOINT'}) if self.snap_face_center
+            else (ctx.scene.tool_settings.snap_elements_base - {'FACE_MIDPOINT'})),
+    )
+
+
+def register():
+    bpy.utils.register_class(RFProps_Snapping)
+
+def unregister():
+    bpy.utils.unregister_class(RFProps_Snapping)

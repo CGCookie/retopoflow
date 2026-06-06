@@ -49,13 +49,16 @@ def draw_tweaking_options(context, layout):
 
     col = grid.column()
     draw_section_header(context, col, 'Transform')
-    col.prop(props, 'tweaking_use_native', text='Native')
 
-    if not props.tweaking_use_native:
-        col.separator()
+    snapping = context.scene.retopoflow.snapping
+    use_native = (
+        snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
+        or snapping.snap_edge_perpendicular or snapping.snap_face_center
+    )
+    if not use_native:
         col2 = col.column()
-        col2.enabled = not props.tweaking_use_native
         col2.row(heading='Normals').prop(props, 'tweaking_update_normals', text='Update')
+        col.separator()
 
     if context.area.type != 'PREFERENCES':
         col.separator()
@@ -65,16 +68,6 @@ def draw_tweaking_options(context, layout):
         row2 = row.row()
         row2.enabled = context.scene.tool_settings.use_mesh_automerge
         row2.prop(context.scene.tool_settings, 'double_threshold', text='')
-
-    col.separator()
-    row = col.row(heading='Projection')
-    row.prop(props, 'tweaking_use_auto_snap_method', text='Automatic')
-    if not props.tweaking_use_auto_snap_method:
-        col.prop(context.scene.tool_settings, 'snap_elements_individual', text=' ')
-    row = col.row()
-    row.enabled = props.tweaking_use_auto_snap_method or 'FACE_NEAREST' in context.scene.tool_settings.snap_elements_individual
-    row.prop(context.scene.tool_settings, 'snap_face_nearest_steps', text='Steps')
-    col.separator()
 
 
 def draw_tweaking_panel(context, layout):

@@ -37,6 +37,8 @@ from typing import Callable
 from collections.abc import Sequence
 
 from ..common.accel import EdgeMarkAccel, SourceAccel
+from ..common.drawing import Drawing, CC_2D_POINTS
+from ...addon_common.common.colors import Color4
 from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
@@ -169,10 +171,11 @@ class Tweak_Logic:
         # Hard surface snapping: detect the source feature edges/corners once per stroke
         # (cached in SourceAccel and shared with Relax when the options match).
         self.scale_avg = sum(self.matrix_world.to_scale()) / 3
-        self.source_edge_accel = SourceAccel.build_from_tool(context, self.tweak, self.sources)
-        self.source_sharp_proximity = getattr(self.tweak, 'source_edge_proximity', 0.25)
-        self.stickiness = getattr(self.tweak, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
-        self.loops_strength = getattr(self.tweak, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
+        snapping = context.scene.retopoflow.snapping
+        self.source_edge_accel = SourceAccel.build_from_tool(context, snapping, self.sources)
+        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.25)
+        self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+        self.loops_strength = getattr(snapping, 'source_edge_guide_loops', 0.5) if self.source_edge_accel else 0.0
         self.snapped_verts = set()
         self.vert_corner_idx = {}
         self.verts_near_source_edge = {}
@@ -512,12 +515,6 @@ class Tweak_Logic:
                         if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
                             self.demoted_verts.add(fv)
 
-        debug_loops_sel = getattr(self.tweak, 'source_edge_debug_loops', 'NONE')
-        if debug_loops_sel != 'NONE':
-            highlight = self.promoted_loop_verts if debug_loops_sel == 'PROMOTED' else self.demoted_verts
-            for v in self.bm.verts:
-                v.select_set(v in highlight)
-
     def _neighbor_on_corner(self, bmv, corner_idx):
         ''' True if a directly-connected neighbor is already snapped to the same source
         corner, so two verts don't collapse onto one corner. '''
@@ -724,3 +721,22 @@ class Tweak_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
         self.mouse_prev = mouse
+
+    def draw(self, context: Context):
+        Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)
+        from ..preferences import RF_Prefs
+        highlight = RF_Prefs.get_prefs(context).highlight_color
+        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight)
+        if self.demoted_verts:
+            vertex_size = context.preferences.themes[0].view_3d.vertex_size
+            M = self.matrix_world
+            rgn, r3d = context.region, context.region_data
+            red = Color4((1, 0, 0, 1))
+            for bmv in self.demoted_verts:
+                if not bmv.is_valid: continue
+                p = location_3d_to_region_2d(rgn, r3d, M @ bmv.co)
+                if not p: continue
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(red)
+                    draw.vertex(p)

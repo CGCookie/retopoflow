@@ -25,6 +25,7 @@ Created by Jonathan Denning, Jonathan Lampel
 # tools.  (File name is provisional; grouping by concern for now.)
 
 from mathutils import Vector, Matrix
+import math
 
 from .maths import point_to_bvec3
 
@@ -43,21 +44,26 @@ def draw_hard_surface_snapping(layout, props, *, guide_loops:bool=False):
     straight into `layout`, so the caller owns the panel/popover wrapper and its header.
     `guide_loops` adds the Relax-only loop-guiding controls (Tweak has no forces, so it
     pulls verts onto features directly without electing guide loops). '''
-    layout.row(heading="Sources").prop(props, 'snap_to_source_features', text='Detect Features')
-    col = layout.column(align=False)
-    col.enabled = props.snap_to_source_features
-    row = col.row(align=True)
-    row.prop(props, 'source_edge_angle_enabled', text='', icon_only=True)
+    col = layout.column()
+    row = col.row(align=True, heading='Angles')
+    row.prop(props, 'source_edge_angle_enabled', text='')
     sub = row.row()
     sub.enabled = getattr(props, 'source_edge_angle_enabled', True)
-    sub.prop(props, 'source_edge_angle', text='Angle')
-    col.row(heading='Include').prop(props, 'source_edge_creases', text='Creases')
-    col.prop(props, 'source_edge_seams', text='Seams')
-    col.prop(props, 'source_edge_sharps', text='Sharps')
-    col.prop(props, 'source_edge_proximity', text='Proximity')
-    col.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
+    sub.prop(props, 'source_edge_angle', text='')
+    col.prop(props, 'source_edge_creases', text='Creases')
+    col.prop(props, 'source_edge_seams',   text='Seams')
+    col.prop(props, 'source_edge_sharps',  text='Sharps')
+    angle_enabled = getattr(props, 'source_edge_angle_enabled', True)
+    angle = getattr(props, 'source_edge_angle', math.pi)
+    col2 = col.column()
+    col2.enabled = (
+        angle_enabled and angle != math.radians(180) or
+        getattr(props, 'source_edge_creases', False) or
+        getattr(props, 'source_edge_seams',   False) or
+        getattr(props, 'source_edge_sharps',  False)
+    )
+    col2.separator()
+    col2.prop(props, 'source_edge_proximity', text='Proximity')
+    col2.prop(props, 'source_edge_stickiness', text='Stickiness', slider=True)
     if guide_loops:
-        col.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)
-        row = col.row()
-        row.enabled = props.source_edge_guide_loops != 0
-        row.prop(props, 'source_edge_debug_loops', text='Highlight')
+        col2.prop(props, 'source_edge_guide_loops', text='Guide Loops', slider=True)

@@ -23,6 +23,7 @@ import bpy
 import bmesh
 import gpu
 from mathutils import Vector, Matrix, Color
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
 from gpu.types import (
     GPUBatch,
@@ -703,6 +704,63 @@ class Drawing:
             ubos_2D_point.update_shader()
             batch_2D_point.draw(shader_2D_point)
         gpu.shader.unbind()
+
+    @staticmethod
+    def draw_snap_circles(context, snapped_verts, matrix_world):
+        '''Draw snap indicator circles (same style as PolyPen) around a set of BMVerts.
+        Uses the theme highlight color and vertex size from preferences.'''
+        if not snapped_verts: return
+        from ..preferences import RF_Prefs
+        theme = context.preferences.themes[0].view_3d
+        props = RF_Prefs.get_prefs(context)
+        highlight = props.highlight_color
+        color_point              = Color4((highlight[0], highlight[1], highlight[2], 1))
+        color_border_transparent = Color4((highlight[0], highlight[1], highlight[2], 0))
+        vertex_size = theme.vertex_size
+        rgn, r3d = context.region, context.region_data
+        for bmv in snapped_verts:
+            if not bmv.is_valid: continue
+            co = matrix_world @ bmv.co
+            p = location_3d_to_region_2d(rgn, r3d, co)
+            if not p: continue
+            with Drawing.draw(context, CC_2D_POINTS) as draw:
+                draw.point_size(vertex_size + 4)
+                draw.border(width=2, color=color_point)
+                draw.color(color_border_transparent)
+                draw.vertex(p)
+
+    @staticmethod
+    def draw_loop_highlight(context, loop_verts, matrix_world, color):
+        if not loop_verts: return
+        color_line    = Color4((color[0], color[1], color[2], 1.0))
+        color_stipple = Color4((color[0], color[1], color[2], 0.0))
+        rgn, r3d = context.region, context.region_data
+        M = matrix_world
+        scaled_8px = Drawing.scale(8)
+        if scaled_8px is None: return
+        seen_edges = set()
+        edges_to_draw = []
+        for bmv in loop_verts:
+            if not bmv.is_valid: continue
+            for bme in bmv.link_edges:
+                if bme in seen_edges: continue
+                seen_edges.add(bme)
+                other = bme.other_vert(bmv)
+                if other in loop_verts:
+                    edges_to_draw.append((bmv, other))
+        if not edges_to_draw: return
+        with Drawing.draw(context, CC_2D_LINES) as draw:
+            draw.line_width(2)
+            draw.stipple(pattern=[5, 5], offset=0, color=color_stipple)
+            draw.color(color_line)
+            for v0, v1 in edges_to_draw:
+                p0 = location_3d_to_region_2d(rgn, r3d, M @ v0.co)
+                p1 = location_3d_to_region_2d(rgn, r3d, M @ v1.co)
+                if not p0 or not p1: continue
+                diff = p1 - p0
+                if diff.length < 2 * scaled_8px: continue
+                d = diff.normalized() * scaled_8px
+                draw.vertex(p0 + d).vertex(p1 - d)
 
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')

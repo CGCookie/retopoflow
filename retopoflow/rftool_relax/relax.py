@@ -69,6 +69,7 @@ from .relax_logic import Relax_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Tweak_QuickSwitch
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.transform import sync_projection_from_blender
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
@@ -78,6 +79,7 @@ from ..rfpanels.relax_algorithm_panel import draw_relax_algo_panel
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.help_panel import draw_help_panel
+from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
@@ -216,74 +218,6 @@ class RFOperator_Relax(RFOperator):
         description="Average vertex locations similarly to Blender's smooth sculpting brush",
         default=True,
     )
-    snap_to_source_features: bpy.props.BoolProperty(
-        name='Algorithm: Snap to Features',
-        description="Snap vertices to certain edges of the high poly mesh",
-        default=False,
-    )
-    source_edge_proximity: bpy.props.FloatProperty(
-        name = 'Proximity',
-        description = 'How close to feature edges vertices must be to snap, as a fraction of the brush radius',
-        subtype = 'FACTOR',
-        min = 0,
-        max = 1,
-        default = 0.25
-    )
-    source_edge_stickiness: bpy.props.FloatProperty(
-        name = 'Snap to Sharp Escape Force',
-        description = 'How difficult it is for vertices to escape sharp edges',
-        subtype = 'NONE',
-        min = 0,
-        max = 1,
-        default = 0.5
-    )
-    source_edge_guide_loops: bpy.props.FloatProperty(
-        name = 'Guide Loops',
-        description = 'How strongly elected loops are pulled toward the source edge and competing loops are pushed away',
-        subtype = 'FACTOR',
-        min = 0,
-        max = 1,
-        default = 1
-    )
-    source_edge_debug_loops: bpy.props.EnumProperty(
-        name = 'Debug: Highlight Loop',
-        description = 'Select promoted or demoted verts on every update so they are visible in the viewport (for debugging)',
-        items = [
-            ('NONE',     'None',     'No debug selection'),
-            ('PROMOTED', 'Chosen Verts', 'Select the promoted (guide) loop verts during stroke'),
-            ('DEMOTED',  'Rejected Verts',  'Select the demoted (competing) loop verts during stroke'),
-        ],
-        default = 'NONE',
-    )
-    source_edge_angle: bpy.props.FloatProperty(
-        name = 'Angle',
-        description = 'Angle threshold for what is considered as a sharp edge on the source object',
-        subtype = 'ANGLE',
-        min = math.radians(1),
-        max = math.radians(180),
-        default = math.radians(45)
-    )
-    source_edge_angle_enabled: bpy.props.BoolProperty(
-        name='Use Angle Threshold',
-        description='Detect sharp edges on the source mesh based on face angle',
-        default=True,
-    )
-    source_edge_seams: bpy.props.BoolProperty(
-        name='Snap to Source Seams',
-        description="Snap vertices to the seams of the high poly mesh",
-        default=False,
-    )
-    source_edge_creases: bpy.props.BoolProperty(
-        name='Snap to Source Creases',
-        description="Snap vertices to the creases of the high poly mesh",
-        default=False,
-    )
-    source_edge_sharps: bpy.props.BoolProperty(
-        name='Snap to Source Sharps',
-        description="Snap vertices to the sharps of the high poly mesh",
-        default=False,
-    )
-
 
     logic : Relax_Logic     # pyright: ignore[reportUninitializedInstanceVariable]
     timer : TimerHandler    # pyright: ignore[reportUninitializedInstanceVariable]
@@ -386,6 +320,7 @@ class RFTool_Relax(RFTool_Base):
             else:
                 layout.popover('RF_PT_Masking')
             draw_line_separator(layout)
+            layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
@@ -404,6 +339,7 @@ class RFTool_Relax(RFTool_Base):
                 panel.prop(props_relax, 'brush_falloff', slider=True)
             draw_relax_algo_panel(context, layout)
             draw_masking_panel(context, layout)
+            draw_snapping_panel(context, layout, idname='relax_snapping_panel', guide_loops=True)
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
@@ -420,12 +356,17 @@ class RFTool_Relax(RFTool_Base):
         cls.rf_brush.set_operator(RFOperator_Relax)
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Relax')
+        if not prefs.setup_snapping:
+            context.scene.retopoflow.snapping.projection = 'FOLLOW_BLENDER'
+        else:
+            sync_projection_from_blender(context)
         if prefs.setup_automerge:
             cls.resetter['context.tool_settings.use_mesh_automerge'] = False
-        if prefs.setup_snapping:
+        if context.scene.retopoflow.snapping.projection != 'FOLLOW_BLENDER':
             # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
             cls.resetter.store('context.tool_settings.snap_elements_base')
-            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+            snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
 
     @classmethod
     def deactivate(cls, context):

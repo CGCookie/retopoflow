@@ -211,27 +211,11 @@ class RF_Prefs(bpy.types.AddonPreferences):
         description='Selects the geometry under the cursor, if any, before transforming using keyboard shortcuts',
         default=False,
     )
-    tweaking_use_native: bpy.props.BoolProperty(
-        name='Use Native Transform',
-        description=(
-            "Uses Blender's transform for tweaking rather than Retopoflow's. "
-            "This allows you to use all of Blender's built-in features, but means that snapping will affect the source and retopology objects the same. "
-            "\n\n"
-            "For example, using the native transform with vertex snapping means that the selection will snap to the individual vertices of the high poly source, "
-            "while using it without vertex snapping means that you will not be able to snap the vertices of the low poly retopology object to each other."
-        ),
-        default=False,
-    )
     tweaking_update_normals: bpy.props.BoolProperty(
         name='Update Normals',
         description='Update the normals of the affected faces to try to keep them facing outwards',
         default=True
         )
-    tweaking_use_auto_snap_method: bpy.props.BoolProperty(
-        name='Auto Projection',
-        description="Whether the snapping uses Blender's Face Project or Face Nearest snap settings or is automatic based on the selection",
-        default=True,
-    )
     #endregion
 
     """ Naming """

@@ -1050,13 +1050,7 @@ class PP_Logic:
         vertex_size = theme.vertex_size
 
         if self.nearest.bmv:
-            co = self.matrix_world @ self.nearest.bmv.co
-            p = location_3d_to_region_2d(context.region, context.region_data, co)
-            with Drawing.draw(context, CC_2D_POINTS) as draw:
-                draw.point_size(vertex_size + 4)
-                draw.border(width=2, color=color_point)
-                draw.color(color_border_transparent)
-                draw.vertex(p)
+            Drawing.draw_snap_circles(context, [self.nearest.bmv], self.matrix_world)
 
         match self.state:
             case PP_Action.VERT:

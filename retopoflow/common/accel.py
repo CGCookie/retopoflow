@@ -317,8 +317,6 @@ class SourceAccel:
         ''' Build from a tool's `source_edge_*` operator properties.  Returns None when
         feature snapping is disabled or no feature type is selected.  `sources` is the
         precomputed [(obj, M, Mi, Mi_3x3), ...] list built in the tool's __init__. '''
-        if not getattr(tool, 'snap_to_source_features', False):
-            return None
         source_angle   = getattr(tool, 'source_edge_angle', math.pi)
         if not getattr(tool, 'source_edge_angle_enabled', True):
             source_angle = math.pi

@@ -57,7 +57,7 @@ RFTools = { rft.bl_idname: rft for rft in RFTool_Base.get_all_RFTools() }
 
 from .rfpanels import (
     general_panel, help_panel, menu_mesh, mesh_cleanup_panel, masking_panel, mirror_panel,
-    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
+    relax_algorithm_panel, tweaking_panel, tweak_snapping_panel, rfpanel_snapping, tools_pie,  # MUST IMPORT THIS _AFTER_ THE RFTOOLS ABOVE TO MAINTAIN ORDER!
 
 )
 
@@ -133,6 +133,7 @@ class RFCore:
         pinning.register()
         relax_algorithm_panel.register()
         tweak_snapping_panel.register()
+        rfpanel_snapping.register()
         launch_browser.register()
         tools_pie.register()
 
@@ -203,6 +204,7 @@ class RFCore:
         mirror_panel.unregister()
         relax_algorithm_panel.unregister()
         tweak_snapping_panel.unregister()
+        rfpanel_snapping.unregister()
         tools_pie.unregister()
         rfprops_scene.unregister()
         rfprops_object.unregister()
@@ -382,9 +384,14 @@ class RFCore:
         if bpy.app.version >= (5,1,0):
             bpy.app.handlers.exit_pre.append(RFCore.handle_exit_pre)
 
-        # Setup tool settings
+        # Apply setup_snapping preference to projection before touching any snap settings
         prefs = preferences.RF_Prefs.get_prefs(context)
-        if prefs.setup_snapping:
+        snapping = context.scene.retopoflow.snapping
+        if not prefs.setup_snapping:
+            snapping.projection = 'FOLLOW_BLENDER'
+
+        # Setup tool settings
+        if snapping.projection != 'FOLLOW_BLENDER':
             RFCore.resetter['context.scene.tool_settings.use_snap'] = True
             RFCore.resetter['context.scene.tool_settings.snap_target'] = 'CLOSEST'
             RFCore.resetter['context.scene.tool_settings.use_snap_self'] = True
@@ -394,7 +401,8 @@ class RFCore:
             RFCore.resetter['context.scene.tool_settings.use_snap_rotate'] = True
             RFCore.resetter['context.scene.tool_settings.use_snap_scale'] = True
             RFCore.resetter.store('context.tool_settings.snap_elements_base')
-            RFCore.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+            snap_elem = 'FACE_PROJECT' if snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
+            RFCore.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
             if context.scene.tool_settings.snap_face_nearest_steps < 6:
                 RFCore.resetter['context.scene.tool_settings.snap_face_nearest_steps'] = 6
 
@@ -899,10 +907,10 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
         prefs = preferences.RF_Prefs.get_prefs(context)
         source_count = len(list(iter_all_valid_sources(context)))
         if source_count == 0 and prefs.warn_no_sources:
-            selected = context.scene.retopoflow.snap_only_selected
+            selected = context.scene.retopoflow.snapping.snap_only_selected
             selectable = context.scene.tool_settings.use_snap_selectable
-            obj = context.scene.retopoflow.snap_object
-            collection = context.scene.retopoflow.snap_collection
+            obj = context.scene.retopoflow.snapping.snap_object
+            collection = context.scene.retopoflow.snapping.snap_collection
             message = (
                 f"No sources detected.\n"
                 f"Retopoflow tools need a visible object that is not being edited to snap the retopology mesh to."

@@ -61,6 +61,7 @@ from ..common.raycast import (
 from ..common.drawing import (
     Drawing,
     CC_2D_LINES,
+    CC_2D_POINTS,
 )
 from ..common.sources import to_world as source_to_world
 
@@ -87,7 +88,6 @@ class RelaxOptions:
     algorithm_correct_flipped_faces: bool = False
     algorithm_interpolate_loops: bool = False
     algorithm_source_corner_proximity: float = 2.0
-    snap_to_source_features: bool = False
     source_edge_angle: float = math.radians(45)
     source_edge_seams: bool = False
     source_edge_creases: bool = False
@@ -95,7 +95,6 @@ class RelaxOptions:
     source_edge_proximity: float = 0.25
     source_edge_stickiness: float = 0.5
     source_edge_guide_loops: float = 1.0
-    source_edge_debug_loops: str = 'NONE'
 
 
 class Relax_Logic:
@@ -129,6 +128,7 @@ class Relax_Logic:
     angle_edges : set[BMEdge]
     angle_accel : EdgeMarkAccel
     verts_near_source_edge: 'dict[BMVert, Vector]'
+    snapped_verts: 'set[BMVert]'
 
     is_bmvert_hidden : Callable[[BMVert], bool]
     visibility_cache : dict[BMVert, bool]
@@ -138,7 +138,6 @@ class Relax_Logic:
     promoted_loop_verts : set[BMVert]
     demoted_verts : set[BMVert]
     loop_guide_verts : 'tuple[BMVert, BMVert] | None'
-    saved_selection    : 'frozenset[BMVert] | None'
 
     forward : Vector
     right : Vector
@@ -406,9 +405,10 @@ class Relax_Logic:
             Mi_obj = M_obj.inverted_safe()
             self.sources.append((obj, M_obj, Mi_obj, Mi_obj.to_3x3()))
 
-        self.source_edge_accel = SourceAccel.build_from_tool(context, self.relax, self.sources)
-        self.source_sharp_proximity = getattr(relax, 'source_edge_proximity', 0.1)
-        self.stickiness = getattr(relax, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
+        snapping = context.scene.retopoflow.snapping
+        self.source_edge_accel = SourceAccel.build_from_tool(context, snapping, self.sources)
+        self.source_sharp_proximity = getattr(snapping, 'source_edge_proximity', 0.1)
+        self.stickiness = getattr(snapping, 'source_edge_stickiness', 0.5) if self.source_edge_accel else 0.0
 
         self.laplacian_cache = {}
         self.straighten_cache = {}
@@ -419,13 +419,7 @@ class Relax_Logic:
         self.demoted_verts = set()
         self.loop_guide_verts = None
         self.verts_near_source_edge = {}
-        self.saved_selection = None
-
-        if getattr(relax, 'source_edge_debug_loops', 'NONE') != 'NONE':
-            self.saved_selection = frozenset(bmv for bmv in self.bm.verts if bmv.select)
-            for bmv in self.bm.verts:
-                bmv.select_set(False)
-            bmesh.update_edit_mesh(self.em)
+        self.snapped_verts = set()
 
     @classmethod
     def for_options(cls, context:Context, relax, rf_options=None) -> 'Relax_Logic':
@@ -610,10 +604,10 @@ class Relax_Logic:
             int(getattr(relax, 'algorithm_interpolate_loops', False))
         )
         weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
-        loops_strength  = getattr(relax, 'source_edge_guide_loops', 0.5)
-        debug_loops_sel = getattr(relax, 'source_edge_debug_loops', 'NONE')
+        loops_strength  = getattr(context.scene.retopoflow.snapping, 'source_edge_guide_loops', 0.5)
 
         self.verts_near_source_edge = {}
+        self.snapped_verts = set()
 
         if opt_draw_all or opt_draw_net:
             self.draw_vectors_positive.clear()
@@ -1282,11 +1276,6 @@ class Relax_Logic:
                             if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
                                 self.demoted_verts.add(fv)
 
-            if debug_loops_sel != 'NONE':
-                highlight = self.promoted_loop_verts if debug_loops_sel == 'PROMOTED' else self.demoted_verts
-                for v in self.bm.verts:
-                    v.select_set(v in highlight)
-
         def relax_3d():
             #MARK: Add forces
             reset_forces()
@@ -1550,10 +1539,12 @@ class Relax_Logic:
                                 if not neighbor_at_corner:
                                     co_local_snapped  = Mi @ Vector(co_corner)
                                     snapped_to_corner = True
+                                    self.snapped_verts.add(bmv)
                         if apply_edge_snap and not snapped_to_corner:
                             if closest_p := self.source_edge_accel.closest_point(co_world_snapped):
                                 if (Vector(closest_p) - Vector(co_world_snapped)).length <= snap_threshold:
                                     co_local_snapped = Mi @ Vector(closest_p)
+                                    self.snapped_verts.add(bmv)
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
                     # Vert is approaching the source edge.
                     # Distance is measured from the vert's actual world position (co_world),
@@ -1623,6 +1614,24 @@ class Relax_Logic:
 
 
     def draw(self, context:Context):
+        Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)
+        from ..preferences import RF_Prefs
+        highlight = RF_Prefs.get_prefs(context).highlight_color
+        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight)
+        if self.demoted_verts:
+            vertex_size = context.preferences.themes[0].view_3d.vertex_size
+            M = self.matrix_world
+            rgn, r3d = context.region, context.region_data
+            red = Color4((1, 0, 0, 1))
+            for bmv in self.demoted_verts:
+                if not bmv.is_valid: continue
+                p = location_3d_to_region_2d(rgn, r3d, M @ bmv.co)
+                if not p: continue
+                with Drawing.draw(context, CC_2D_POINTS) as draw:
+                    draw.point_size(vertex_size + 4)
+                    draw.color(red)
+                    draw.vertex(p)
+
         if not self.draw_vectors_positive and not self.draw_vectors_negative and not self.draw_vectors_net:
             return
 
@@ -1658,19 +1667,11 @@ class Relax_Logic:
                     draw.vertex(pt1)
 
 
-    def restore_selection(self):
-        if self.saved_selection is None: return
-        for bmv in self.bm.verts:
-            bmv.select_set(bmv in self.saved_selection)
-        self.saved_selection = None
-
     def finish(self, context):
-        self.restore_selection()
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
 
     def cancel(self, context):
-        self.restore_selection()
         for (bmv, co) in self.prev_position.items():
             bmv.co = co
         bmesh.update_edit_mesh(self.em)

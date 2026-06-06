@@ -29,17 +29,6 @@ def draw_general_options(context, layout):
     if panel:
         draw_ui_options(context, panel)
 
-    header, panel = layout.panel(idname='RF_snapping_prefs', default_closed=False)
-    header.label(text="Sources")
-    if panel:
-        panel.use_property_split = True
-        panel.use_property_decorate = False
-        panel.prop(context.scene.retopoflow, 'snap_object', text='Only Include')
-        col = panel.column()
-        col.enabled = context.scene.retopoflow.snap_object == None
-        col.prop(context.scene.retopoflow, 'snap_collection', text=' ')
-        col.prop(context.scene.retopoflow, 'snap_only_selected', text='Selected')
-        col.prop(context.scene.tool_settings, 'use_snap_selectable', text='Selectable')
 
     header, panel = layout.panel(idname='RF_general_tools_panel', default_closed=True)
     header.label(text='Tools')

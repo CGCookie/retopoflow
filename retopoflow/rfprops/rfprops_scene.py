@@ -23,6 +23,7 @@ import math
 import bpy
 from ..common.viewport import update_retopo_overlay
 from ..rfoperators.mirror import update_nodes_preview, update_mirror_mod
+from .rfprops_snapping import RFProps_Snapping
 
 
 class RFProps_Scene(bpy.types.PropertyGroup):
@@ -293,26 +294,14 @@ class RFProps_Scene(bpy.types.PropertyGroup):
     )
     #endregion
 
-    """ Sources """
-    snap_only_selected: bpy.props.BoolProperty(
-        name='Exclude Non-selected',
-        description='Only selected objects in Object Mode are considered as valid sources. This allows you to manage what you snap to in the Outliner',
-        default=False
-    )
-    snap_object: bpy.props.PointerProperty(
-        name='Source Object',
-        type=bpy.types.Object,
-        poll= lambda self, obj: obj.mode != 'EDIT' and obj.type in ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT'],
-    )
-    snap_collection: bpy.props.PointerProperty(
-        name='Source Collection',
-        type=bpy.types.Collection,
-        poll= lambda self, collection: collection in [c for c in bpy.data.collections if bpy.context.scene.user_of_id(c)],
-    )
+    """ Hard Surface Snapping """
+    snapping: bpy.props.PointerProperty(type=RFProps_Snapping)
 
 def register():
+    bpy.utils.register_class(RFProps_Snapping)
     bpy.utils.register_class(RFProps_Scene)
     bpy.types.Scene.retopoflow = bpy.props.PointerProperty(type=RFProps_Scene)
 
 def unregister():
     bpy.utils.unregister_class(RFProps_Scene)
+    bpy.utils.unregister_class(RFProps_Snapping)

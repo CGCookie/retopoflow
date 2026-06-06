@@ -226,7 +226,7 @@ def is_valid_source(context:Context, obj:BObject) -> bool:
     scene : Scene|None = context.scene
     if not scene: return False
     ts = scene.tool_settings
-    props = getattr(scene, 'retopoflow')
+    props = getattr(scene, 'retopoflow').snapping
     if obj.mode != 'OBJECT': return False
     if not obj.visible_get(): return False
     if not has_faces(context, obj): return False

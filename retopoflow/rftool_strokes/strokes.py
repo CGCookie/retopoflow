@@ -48,12 +48,13 @@ from ...addon_common.common.utils import iter_pairs
 from .strokes_logic import Strokes_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch, RFOperator_Tweak_QuickSwitch
-from ..rfoperators.transform import RFOperator_Translate
+from ..rfoperators.transform import RFOperator_Translate, sync_projection_from_blender
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 
 from ..rfpanels.mesh_cleanup_panel import draw_cleanup_panel
 from ..rfpanels.tweaking_panel import draw_tweaking_panel
+from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
@@ -559,6 +560,7 @@ class RFTool_Strokes(RFTool_Base):
             row = layout.row(align=True)
             row.prop(props_strokes, 'select_loops', text='Loops', toggle=True)
             row.popover('RF_PT_TweakCommon')
+            layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
@@ -585,6 +587,7 @@ class RFTool_Strokes(RFTool_Base):
                 col.prop(props_strokes, 'smooth_density1', text='End', slider=True)
                 panel.prop(props_strokes, 'extrapolate_mode', text='T-Strips')
             draw_tweaking_panel(context, layout)
+            draw_snapping_panel(context, layout, idname='strokes_snapping_panel')
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
@@ -594,11 +597,16 @@ class RFTool_Strokes(RFTool_Base):
     def activate(cls, context):
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Strokes')
+        if not prefs.setup_snapping:
+            context.scene.retopoflow.snapping.projection = 'FOLLOW_BLENDER'
+        else:
+            sync_projection_from_blender(context)
         if prefs.setup_automerge:
             cls.resetter['context.tool_settings.use_mesh_automerge'] = True
-        if prefs.setup_snapping:
+        if context.scene.retopoflow.snapping.projection != 'FOLLOW_BLENDER':
             cls.resetter.store('context.tool_settings.snap_elements_base')
-            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+            snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
         if prefs.setup_selection_mode:
             cls.resetter['context.tool_settings.mesh_select_mode'] = [True, True, False]
 

@@ -68,6 +68,7 @@ from .tweak_logic import Tweak_Logic
 
 from ..rfoperators.quickswitch import RFOperator_Relax_QuickSwitch
 from ..rfoperators.maximize_watcher import RFOperator_MaximizeWatcher
+from ..rfoperators.transform import sync_projection_from_blender
 from ..rfoperators.topo_rotate import RFOperator_TopoRotate
 from ..rfbrushes.falloff_brush import create_falloff_brush
 
@@ -76,7 +77,7 @@ from ..rfpanels.masking_panel import draw_masking_panel
 from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
-from ..rfpanels.tweak_snapping_panel import draw_tweak_snapping_panel
+from ..rfpanels.rfpanel_snapping import draw_snapping_panel
 from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
@@ -128,72 +129,6 @@ class RFOperator_Tweak(RFOperator):
         default=0.75,
     )
 
-    # Hard surface snapping (mirrors the Relax source_edge_* options; the shared snapping
-    # logic lives in ..common.sources). Tweak has no relaxation forces, so the guide-loop
-    # options are intentionally omitted — the user pulls verts onto features directly.
-    snap_to_source_features: bpy.props.BoolProperty(
-        name='Algorithm: Snap to Features',
-        description="Snap vertices to certain edges of the high poly mesh",
-        default=False,
-    )
-    source_edge_angle: bpy.props.FloatProperty(
-        name = 'Angle',
-        description = 'Angle threshold for what is considered as a sharp edge on the source object',
-        subtype = 'ANGLE',
-        min = math.radians(1),
-        max = math.radians(180),
-        default = math.radians(45),
-    )
-    source_edge_creases: bpy.props.BoolProperty(
-        name='Snap to Source Creases',
-        description="Snap vertices to the creases of the high poly mesh",
-        default=False,
-    )
-    source_edge_seams: bpy.props.BoolProperty(
-        name='Snap to Source Seams',
-        description="Snap vertices to the seams of the high poly mesh",
-        default=False,
-    )
-    source_edge_sharps: bpy.props.BoolProperty(
-        name='Snap to Source Sharps',
-        description="Snap vertices to the sharps of the high poly mesh",
-        default=False,
-    )
-    source_edge_proximity: bpy.props.FloatProperty(
-        name = 'Proximity',
-        description = 'How close to feature edges vertices must be to snap, as a fraction of the average edge length',
-        subtype = 'FACTOR',
-        min = 0,
-        max = 1,
-        default = 0.25,
-    )
-    source_edge_stickiness: bpy.props.FloatProperty(
-        name = 'Stickiness',
-        description = 'How difficult it is to drag a snapped vertex back off of a feature edge or corner',
-        subtype = 'NONE',
-        min = 0,
-        max = 1,
-        default = 0.5,
-    )
-    source_edge_guide_loops: bpy.props.FloatProperty(
-        name = 'Guide Loops',
-        description = 'How strongly the nearest retopo loop is attracted to the source edge while competing loops are kept away',
-        subtype = 'FACTOR',
-        min = 0,
-        max = 1,
-        default = 1.0,
-    )
-    source_edge_debug_loops: bpy.props.EnumProperty(
-        name = 'Debug: Highlight Loop',
-        description = 'Select promoted or demoted verts on every update so they are visible in the viewport (for debugging)',
-        items = [
-            ('NONE',     'None',          'No debug selection'),
-            ('PROMOTED', 'Chosen Verts',  'Select the promoted (guide) loop verts during stroke'),
-            ('DEMOTED',  'Rejected Verts','Select the demoted (competing) loop verts during stroke'),
-        ],
-        default = 'NONE',
-    )
-
     def init(self, context, event):
         # print(f'STARTING POLYPEN')
         RFTool_Tweak.rf_brush.update(context, event, force=True)
@@ -226,7 +161,7 @@ class RFOperator_Tweak(RFOperator):
 
     def draw_postpixel(self, context):
         if not self.RFCore.is_current_area(context): return
-        # self.logic.draw(context)
+        self.logic.draw(context)
 
 
 @execute_operator('switch_to_tweak', 'RetopoFlow: Switch to Tweak', fn_poll=poll_retopoflow)
@@ -284,8 +219,8 @@ class RFTool_Tweak(RFTool_Base):
                     layout.popover('RF_PT_Pinning', text='Masking')
             else:
                 layout.popover('RF_PT_Masking')
-            layout.popover('RF_PT_TweakSnapping', text='Snapping')
             draw_line_separator(layout)
+            layout.popover('RF_PT_Snapping', text='Snapping')
             row = layout.row(align=True)
             row.popover('RF_PT_MeshCleanup', text='Clean Up')
             row.operator("retopoflow.meshcleanup", text='', icon='PLAY').affect_all=False
@@ -303,7 +238,7 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props_tweak, 'brush_strength', slider=True)
                 panel.prop(props_tweak, 'brush_falloff', slider=True)
             draw_masking_panel(context, layout)
-            draw_tweak_snapping_panel(context, layout)
+            draw_snapping_panel(context, layout, idname='tweak_snapping_panel', guide_loops=True)
             draw_cleanup_panel(context, layout)
             draw_mirror_panel(context, layout)
             draw_general_panel(context, layout)
@@ -321,12 +256,17 @@ class RFTool_Tweak(RFTool_Base):
 
         prefs = RF_Prefs.get_prefs(context)
         cls.resetter = Resetter('Tweak')
+        if not prefs.setup_snapping:
+            context.scene.retopoflow.snapping.projection = 'FOLLOW_BLENDER'
+        else:
+            sync_projection_from_blender(context)
         if prefs.setup_automerge:
             cls.resetter['context.tool_settings.use_mesh_automerge'] = False
-        if prefs.setup_snapping:
+        if context.scene.retopoflow.snapping.projection != 'FOLLOW_BLENDER':
             # cls.resetter['context.tool_settings.snap_elements_base'] = {'VERTEX'}
             cls.resetter.store('context.tool_settings.snap_elements_base')
-            cls.resetter['context.tool_settings.snap_elements_individual'] = {'FACE_NEAREST'}
+            snap_elem = 'FACE_PROJECT' if context.scene.retopoflow.snapping.projection == 'SCREEN_SPACE' else 'FACE_NEAREST'
+            cls.resetter['context.tool_settings.snap_elements_individual'] = {snap_elem}
 
     @classmethod
     def deactivate(cls, context):
