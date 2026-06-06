@@ -340,8 +340,7 @@ class RFTool_Tweak(RFTool_Base):
 
     @classmethod
     def activate(cls, context):
-        # TODO: some of the following might not be needed since we are creating our
-        #       own transform operators
+        # TODO: some of the following might not be needed since we are creating our own transform operators
         Tweak_Logic.check_nans = True
         cls.rf_brush.set_operator(RFOperator_Tweak)
 

@@ -72,11 +72,7 @@ from ...addon_common.common.colors import Color4
 
 @dataclass
 class RelaxOptions:
-    ''' Plain-data relax settings, decoupled from the brush operator's bpy properties so
-    relax_verts() can be driven by any caller.  The Relax brush passes its operator (which
-    duck-types these same attribute names); the relax-selected operator and, later, Tweak
-    build one of these directly. '''
-    algorithm_method: str = 'AUTO'                  # 'AUTO' | 'STEPS' | 'RK4'
+    algorithm_method: str = 'AUTO' # 'AUTO' | 'STEPS' | 'RK4'
     algorithm_iterations: int = 2
     algorithm_max_distance_radius: float = 0.10
     algorithm_max_distance_edges: float = 0.05
@@ -169,13 +165,9 @@ class Relax_Logic:
 
         assert context.edit_object, 'Expected to be editing a mesh object'
 
-        # Brush-independent setup (mesh, matrices, accels, sources, caches): everything
-        # relax_verts() needs except the verts to affect and their per-vert strength.
-        self._setup(context, relax)
-        timings.append(('engine setup', time.time()))
+        self.initial_setup(context, relax)
+        timings.append(('initial setup', time.time()))
 
-        # --- Brush-specific setup: the candidate vert set for the per-frame spatial query,
-        # occlusion testing, and the spatial acceleration structure the brush samples. ---
         self.brush = brush
         self._time = time.time()
         self.mouse = mouse_from_event(event)
@@ -231,11 +223,9 @@ class Relax_Logic:
         if self.mask_opt('sharps') == 'EXCLUDE':
             if any(not bme.smooth for bme in self.bm.edges):
                 self.verts_filtered = [ bmv for bmv in self.verts_filtered if not is_bmvert_on_edgemark(self.bm, bmv, BMMarking.sharp) ]
-        # angle_verts is pre-built by _setup so the truthiness check is free.
         if self.mask_opt('angle') == 'EXCLUDE' and self.angle_verts:
             self.verts_filtered = [ bmv for bmv in self.verts_filtered if bmv not in self.angle_verts ]
-        # Tier 6: iterate link_edges calling a function per edge
-        # seam_verts/sharp_verts/crease_verts are pre-built by build_all so the truthiness check is free.
+        # Tier 6: iterate link_edges calling a function per edge. Edge marks are pre-built so truthiness check is free.
         if self.mask_opt('seams') == 'SLIDE' and self.seam_verts:
             self.verts_filtered = [
                 bmv for bmv in self.verts_filtered
@@ -320,12 +310,7 @@ class Relax_Logic:
             term_printer.boxed(*report, title='Timings for Relax_Logic.__init__()')
 
 
-    def _setup(self, context:Context, relax, rf_options=None): #MARK: Engine setup
-        ''' Brush-independent setup shared by the Relax brush (__init__), the relax-selected
-        operator, and (later) Tweak's post-grab relax via for_options().  Builds everything
-        relax_verts() depends on; callers supply which verts to affect and how strongly.
-        `rf_options` overrides context.scene.retopoflow for masking; any object that
-        duck-types the mask_*/include_* attribute names works (e.g. the operator itself). '''
+    def initial_setup(self, context:Context, relax, rf_options=None): #MARK: Initial setup
         self.relax = relax
         self.rf_options = rf_options if rf_options is not None else context.scene.retopoflow
 
@@ -342,15 +327,14 @@ class Relax_Logic:
 
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
-        # view directions are only needed by average_face_angles; fall back to world-space
-        # defaults when there is no 3D view (e.g. called from the Python console or a
-        # non-interactive operator that has no region_data).
+        # View directions are only needed by average_face_angles
         Mi = self.matrix_world_inv
         if context.region_data:
             self.forward = xform_direction(Mi, view_forward_direction(context))
             self.right   = xform_direction(Mi, view_right_direction(context))
             self.up      = xform_direction(Mi, view_up_direction(context))
         else:
+            # Fall back to world-space defaults when there is no 3D view
             self.forward = xform_direction(Mi, Vector((0, 0, -1)))
             self.right   = xform_direction(Mi, Vector((1, 0,  0)))
             self.up      = xform_direction(Mi, Vector((0, 1,  0)))
@@ -382,8 +366,7 @@ class Relax_Logic:
         self.sharp_verts,    self.sharp_accel    = sharp
         self.seam_verts,     self.seam_accel     = seam
 
-        # Angle mask: computed from dihedral angles between adjacent faces (not a stored
-        # BMesh attribute), so it is built here rather than inside EdgeMarkAccel.build_all.
+        # Angle mask computed from angles between adjacent faces, not a stored BMesh attribute
         self.angle_verts = set()
         self.angle_edges : set[BMEdge] = set()
         self.angle_accel = EdgeMarkAccel([])
@@ -423,14 +406,11 @@ class Relax_Logic:
 
     @classmethod
     def for_options(cls, context:Context, relax, rf_options=None) -> 'Relax_Logic':
-        ''' Build a brush-less instance for callers that bring their own verts (the
-        relax-selected operator and, later, Tweak).  Runs only the shared _setup(); the
-        brush-only spatial-query/occlusion state is intentionally left unset, so update()
-        must NOT be called on an instance built this way — drive relax_verts() directly.
-        Pass `rf_options` to override scene masking (e.g. pass the operator itself so its
-        own mask_*/include_* props are used instead of context.scene.retopoflow). '''
+        ''' Build a brush-less instance for callers that bring their own verts.
+        The brush-only spatial-query/occlusion state is intentionally left unset, so update()
+        must NOT be called on an instance built this way... drive relax_verts() directly. '''
         self = cls.__new__(cls)
-        self._setup(context, relax, rf_options=rf_options)
+        self.initial_setup(context, relax, rf_options=rf_options)
         return self
 
 
@@ -442,10 +422,8 @@ class Relax_Logic:
         return not bool(getattr(self.rf_options, f'include_{name}', True))  # pyright: ignore[reportAny]
 
     def filter_verts(self, verts:'set[BMVert]') -> 'set[BMVert]':
-        ''' Apply the scene masking options to an externally-supplied vert set.
-        Used by non-brush callers like the relax_selected operator so they get the
-        same boundary/seam/crease/angle/pin masking as the Relax brush.
-        Does NOT apply mask_selected — callers control their own input selection. '''
+        ''' Apply scene masking options to an externally-supplied vert set.
+        Used by non-brush callers so they get the same masking as the Relax brush. '''
         filtered : list[BMVert] = [bmv for bmv in verts if not bmv.hide]
 
         # Tier 2: O(1) len() checks
@@ -553,15 +531,7 @@ class Relax_Logic:
                     debug_print:bool=False,
                     snap_bvh:'BVHTree|None'=None,
                     snap_unforced_verts:bool=False): #MARK: Relax core
-        ''' Core relaxation, independent of the brush.  Computes forces on `verts` (each
-        weighted by `vert_strength[bmv]`), integrates them over the configured (or
-        `iterations`-overridden) step count, snaps to sources + mirror, and writes the
-        results back.  Driven by the Relax brush's update(), the relax-selected operator,
-        and (later) Tweak's post-grab relax.
-
-        Brush-only inputs are parameters with fallbacks so non-brush callers can omit them:
-        `brush_center_world` / `radius3D` default to the vert set's own centroid + bounding
-        radius; `pressure` / `global_strength` default to 1.0. '''
+        # Brush-only parameters have fallbacks so non-brush callers can omit them
         relax = self.relax
         M = self.matrix_world
         Mi = self.matrix_world_inv
@@ -574,13 +544,11 @@ class Relax_Logic:
         if not edges: return
         faces = { bmf for bmv in verts for bmf in bmv.link_faces }
 
-        # loop_interp_cache stores boundary-vert references keyed by interior vert.
-        # Must be cleared per relax_verts call because `verts` (the interior set)
-        # changes as the brush moves, invalidating the prior boundary traces.
+        # Boundary vert references must be cleared because `verts` changes as the brush moves, invalidating prior boundary traces.
         self.loop_interp_cache.clear()
 
-        # Non-brush callers can omit the brush geometry; fall back to the vert set's own
-        # bounds so the distance caps and snap falloff still have meaningful values.
+        # Non-brush callers fall back to the vert set's own bounds
+        # so the distance caps and snap falloff still have meaningful values.
         if brush_center_world is None or radius3D is None:
             world_cos = [M @ bmv.co for bmv in verts]
             center = sum(world_cos, Vector((0.0, 0.0, 0.0))) / len(world_cos)
@@ -853,9 +821,9 @@ class Relax_Logic:
 
         def walk_loop(origin, first_step, max_depth=50):
             ''' Walk outward along a loop from `origin` through `first_step`.
-            Returns (boundary_bmv, hop_count): the first vert outside `verts`
-            (or the last vert reached when a pole, mesh boundary, or closed
-            loop terminates the walk early). '''
+            Returns (boundary_bmv, hop_count) the first vert outside `verts`
+            or the last vert reached when a pole, mesh boundary, or closed
+            loop terminates the walk early. '''
             prev, cur = origin, first_step
             hops = 1
             seen = {origin}
@@ -872,20 +840,10 @@ class Relax_Logic:
                 hops += 1
 
         def loop_interpolation(bmv, loop_cache):
-            ''' Push each vert toward its parametrically-interpolated target,
+            ''' Push each vert toward its parametrically interpolated target,
             computed from the unaffected boundary verts along its two loop axes.
-
-            This is the bilinear (simple) variant of Blender's Grid Fill
-            "Interpolate Loops" algorithm.  For each of the two quad loop axes,
-            the vert's parametric position t = n_near/(n_near+n_far) is used to
-            linearly interpolate between the boundary vert positions at either
-            end.  The final target is the average of both axis estimates and the
-            force is half the delta — identical step fraction to straighten_loops.
-
-            Key difference from straighten_loops: that algorithm uses the direct
-            1-hop loop pair neighbors.  This one traces the full loop to the
-            unaffected boundary, so it encodes global loop shape rather than only
-            local straightness. '''
+            straighten_loops uses the direct 1-hop loop pair neighbors while
+            this one traces the full loop to the unaffected boundary. '''
             if bmv in loop_cache:
                 data = loop_cache[bmv]
                 if data is None: return
@@ -1152,8 +1110,8 @@ class Relax_Logic:
             return result
 
         def seed_guide_loop():
-            # Finds the first retopo edge under the brush that lies on the source edge
-            # and traces its loops to help guide snapping
+            ''' Finds the first retopo edge under the brush that lies
+            on the source edge and traces its loops to help guide snapping '''
 
             guide_edges = [
                 bme for bme in edges
@@ -1232,8 +1190,8 @@ class Relax_Logic:
             self.loop_guide_verts = (v0, v1)
 
         def update_source_context():
-            # Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loop
-            # This is position-dependent but only needs to run once per step and not once per RK4 sub-evaluation
+            ''' Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loop.
+            This is position-dependent but only needs to run once per step and not once per RK4 sub-evaluation '''
             if self.source_edge_accel:
                 self.verts_near_source_edge = collect_verts_near_source_edge()
             else:
@@ -1326,8 +1284,7 @@ class Relax_Logic:
         else:
             steps = relax.algorithm_iterations
 
-        # explicit override lets non-brush callers (relax-selected operator, Tweak) ask for
-        # an exact number of integration steps regardless of the configured method.
+        # Lets non-brush callers ask for an exact number of integration steps
         if iterations is not None:
             steps = iterations
 
@@ -1503,8 +1460,8 @@ class Relax_Logic:
                         co_world_snapped = point_to_bvec3(hit_loc)
 
                 if not co_world_snapped:
-                    # No source surface to snap to (e.g. relaxing a standalone mesh): keep the
-                    # relaxed position. When sources ARE present, skip instead so a vert that
+                    # No source surface to snap to so keep the relaxed position.
+                    # When sources are present, skip instead so a vert that
                     # failed to project isn't flung off the surface.
                     if self.sources: continue
                     co_local_snapped : Vector = co
@@ -1547,11 +1504,7 @@ class Relax_Logic:
                                     self.snapped_verts.add(bmv)
                 elif self.source_edge_accel and bmv.link_edges and snap_avg_edge_len > 0:
                     # Vert is approaching the source edge.
-                    # Distance is measured from the vert's actual world position (co_world),
-                    # NOT from its surface-projected position (co_world_snapped).  Using the
-                    # snapped position caused verts floating directly above a feature edge to
-                    # have to_edge_w ≈ 0 (the projection IS the edge), snapping them at any
-                    # proximity value.  Using co_world gives the true 3D vert→edge distance.
+                    # Distance is measured from the vert's world position not its projected position.
                     is_demoted  = bool(self.demoted_verts)  and bmv in self.demoted_verts
                     is_promoted = bool(self.promoted_loop_verts) and bmv in self.promoted_loop_verts
                     snap_threshold = snap_avg_edge_len * self.scale_avg * self.source_sharp_proximity * brush_snap_falloff
