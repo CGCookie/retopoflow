@@ -53,6 +53,7 @@ from ..common.sources import to_world
 
 from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
+from ..rftool_relax.relax_logic import Relax_Logic
 
 class Tweak_Logic:
     bm : BMesh
@@ -197,10 +198,18 @@ class Tweak_Logic:
         # Compute a fixed world-space snap radius from the grabbed verts' average edge
         # lengths at stroke start.  Using a per-vert value each frame would let a vert
         # that accidentally projects far grow a huge snap radius mid-stroke.
-        if self.source_edge_accel and self.verts:
+        # Always compute avg_lens so the relax step threshold has a consistent distance unit.
+        if self.verts:
             avg_lens = [get_bmv_avg_edge_len(bmv) for (bmv, *_) in self.verts if bmv.link_edges]
             stroke_avg = (sum(avg_lens) / len(avg_lens)) if avg_lens else 1.0
-            self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+            if self.source_edge_accel:
+                self.stroke_snap_radius = stroke_avg * self.scale_avg * self.source_sharp_proximity
+            # Convert avg world-space edge length to screen pixels for the step threshold.
+            hit_scale = self.brush.hit_scale or 1e-6
+            self.relax_step_px = (stroke_avg * self.scale_avg) / hit_scale
+        else:
+            self.relax_step_px = max(self.brush.radius * 0.1, 1.0)
+        self.relax_accum_px = 0.0
 
     def mask_opt(self, name : str) -> str:
         return str(getattr(self.rf_options, f'mask_{name}'))  # pyright: ignore[reportAny]
@@ -355,6 +364,10 @@ class Tweak_Logic:
             )
             for bmv in self.verts_filtered
         ]
+
+        # Capture brush geometry at grab time for post_relax distance weighting.
+        self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
+        self.grab_brush_radius: float = self.brush.get_scaled_radius()
 
 
     def cancel(self, context):
@@ -949,9 +962,65 @@ class Tweak_Logic:
             if new_co: bmv.co = new_co
         if self.source_edge_accel:
             self._push_crowded_edge_neighbors(context, mouse - self.mouse)
+
+        # Live relax stepping: fire one step each time the brush travels relax_step_px / factor pixels.
+        relax_factor = float(getattr(self.tweak, 'post_relax_steps', 0.0))
+        if relax_factor > 0.0:
+            self.relax_accum_px += delta.length
+            threshold_px = self.relax_step_px * 0.1 / relax_factor
+            while self.relax_accum_px >= threshold_px:
+                self.relax_accum_px -= threshold_px
+                self._do_relax_step(context)
+
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
         self.mouse_prev = mouse
+
+    def _do_relax_step(self, context):
+        ''' Run one Relax iteration on grabbed verts + expanded neighbours.
+        Centre verts (dist ≈ 0 from grab start) are excluded; outer verts get full strength.
+        Called from update() each time the brush travels the configured threshold distance. '''
+        if not self.verts:
+            return
+        expand = getattr(self.tweak, 'post_relax_expand', 1)
+
+        centre = self.grab_brush_centre_world
+        radius = self.grab_brush_radius if self.grab_brush_radius > 1e-6 else 1e-6
+        vert_strength: dict[BMVert, float] = {}
+        M = self.matrix_world
+        for bmv, orig_co, _xy, _grab_strength in self.verts:
+            if not bmv.is_valid or bmv.hide: continue
+            if centre is not None:
+                dist = (M @ orig_co - centre).length
+                relax_s = min(dist / radius, 1.0)
+            else:
+                relax_s = 1.0
+            if relax_s > 0.0:
+                vert_strength[bmv] = relax_s
+
+        frontier: set[BMVert] = set(vert_strength.keys())
+        visited: set[BMVert] = set(frontier)
+        for _ in range(expand):
+            next_frontier: set[BMVert] = set()
+            for bmv in frontier:
+                for bmf in bmv.link_faces:
+                    for nbv in bmf.verts:
+                        if nbv not in visited and not nbv.hide and nbv.is_valid:
+                            visited.add(nbv)
+                            next_frontier.add(nbv)
+                            if nbv not in vert_strength:
+                                vert_strength[nbv] = 1.0
+            frontier = next_frontier
+
+        all_verts = set(vert_strength.keys())
+        if not all_verts:
+            return
+
+        relax_opts = self.tweak
+        engine = Relax_Logic.for_options(context, relax_opts)
+        filtered = engine.filter_verts(all_verts)
+        filtered_strength = {bmv: vert_strength[bmv] for bmv in filtered if bmv in vert_strength}
+        engine.relax_verts(context, set(filtered_strength.keys()), filtered_strength)
 
     def draw(self, context: Context):
         Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)

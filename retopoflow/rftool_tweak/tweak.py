@@ -78,6 +78,7 @@ from ..rfpanels.mirror_panel import draw_mirror_panel, draw_mirror_popover
 from ..rfpanels.general_panel import draw_general_panel
 from ..rfpanels.help_panel import draw_help_panel
 from ..rfpanels.rfpanel_snapping import draw_snapping_panel
+from ..rfpanels.relax_algorithm_panel import draw_relax_algo_options
 from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
@@ -127,6 +128,88 @@ class RFOperator_Tweak(RFOperator):
         min=0.01,
         max=1.00,
         default=0.75,
+    )
+
+    post_relax_steps: bpy.props.FloatProperty(
+        name='Relax Factor',
+        description='How frequently relax steps are applied while moving the brush. 1 = every 0.1 edge-lengths moved, 0 = disabled',
+        subtype='FACTOR',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+    )
+    post_relax_expand: bpy.props.IntProperty(
+        name='Relax Expand',
+        description='How many face-steps beyond the grabbed vertices are also relaxed',
+        min=0,
+        max=10,
+        default=1,
+    )
+
+    algorithm_method: bpy.props.EnumProperty(
+        name='Method',
+        description='How Relax updates the position of the vertices',
+        items=[
+            ('AUTO',  'Auto',              'Automatic substep count based on enabled options and vertex count'),
+            ('STEPS', 'Substeps',          'Multiple tiny incremental steps'),
+            ('RK4',   'RK4 (Experimental)','Runge-Kutta integration for improved stability'),
+        ],
+        default='AUTO',
+    )
+    algorithm_iterations: bpy.props.IntProperty(
+        name='Iterations',
+        description='Number of iterations per relax step (Substeps mode only)',
+        min=1, max=10, default=2,
+    )
+    algorithm_laplacian: bpy.props.BoolProperty(
+        name='Algorithm: Laplacian Smooth',
+        description="Average vertex locations similarly to Blender's smooth sculpting brush",
+        default=True,
+    )
+    algorithm_average_edge_lengths: bpy.props.BoolProperty(
+        name='Algorithm: Average Edge Lengths',
+        description='Squash / stretch each edge toward the average edge length near the brush',
+        default=False,
+    )
+    algorithm_straighten_edges: bpy.props.BoolProperty(
+        name='Algorithm: Straighten Edges',
+        description='Moves each vertex towards making its connected edges straighter',
+        default=True,
+    )
+    algorithm_interpolate_loops: bpy.props.BoolProperty(
+        name='Algorithm: Interpolate Loops',
+        description='Push vertices toward positions that linearly interpolate between unaffected boundary verts',
+        default=False,
+    )
+    algorithm_equalize_faces: bpy.props.BoolProperty(
+        name='Algorithm: Equalize Faces',
+        description='Moves vertices of each face to be evenly spread and equal distance from the face center',
+        default=False,
+    )
+    algorithm_correct_flipped_faces: bpy.props.BoolProperty(
+        name='Algorithm: Correct Flipped Faces',
+        description='Try to move vertices so faces are not flipped',
+        default=False,
+    )
+    algorithm_prevent_bounce: bpy.props.BoolProperty(
+        name='Algorithm: Prevent Bounce',
+        description='Try to prevent vertices from bouncing back and forth',
+        default=False,
+    )
+    algorithm_max_distance_radius: bpy.props.FloatProperty(
+        name='Max Distance (Radius)',
+        description='Limit distance vertices are moved per iteration based on brush radius',
+        min=0.001, max=1.0, default=0.10,
+    )
+    algorithm_max_distance_edges: bpy.props.FloatProperty(
+        name='Max Distance (Edges)',
+        description='Limit distance vertices are moved per iteration based on average connected edge length',
+        min=0.001, max=1.0, default=0.05,
+    )
+    algorithm_source_corner_proximity: bpy.props.FloatProperty(
+        name='Corner Proximity',
+        description='Corner snap radius as a multiple of the edge snap radius',
+        min=0.1, max=10.0, default=2.0,
     )
 
     def init(self, context, event):
@@ -237,6 +320,14 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props_tweak, 'brush_radius')
                 panel.prop(props_tweak, 'brush_strength', slider=True)
                 panel.prop(props_tweak, 'brush_falloff', slider=True)
+            header, panel = layout.panel(idname='tweak_relax_panel', default_closed=False)
+            header.label(text="Relax")
+            if panel:
+                panel.prop(props_tweak, 'post_relax_steps', slider=True)
+                if props_tweak.post_relax_steps > 0:
+                    panel.prop(props_tweak, 'post_relax_expand')
+                    panel.separator()
+                    draw_relax_algo_options(context, panel, props=props_tweak)
             draw_masking_panel(context, layout)
             draw_snapping_panel(context, layout, idname='tweak_snapping_panel', guide_loops=True)
             draw_cleanup_panel(context, layout)

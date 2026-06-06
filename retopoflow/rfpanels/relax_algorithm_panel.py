@@ -25,9 +25,10 @@ from ..common.interface import draw_section_header
 from ..common.sources import draw_hard_surface_snapping
 
 
-def draw_relax_algo_options(context, layout):
-    tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
-    props = tool.operator_properties(tool.idname)
+def draw_relax_algo_options(context, layout, props=None):
+    if props is None:
+        tool = context.workspace.tools.from_space_view3d_mode('EDIT_MESH')
+        props = tool.operator_properties(tool.idname)
 
     layout.use_property_split = True
     layout.use_property_decorate = False
