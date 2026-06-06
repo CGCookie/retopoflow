@@ -19,10 +19,6 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-# A plain Blender operator that drives the extracted relax core (Relax_Logic.relax_verts)
-# on the current vertex selection.  Primarily a test harness for the core now that it is
-# decoupled from the brush, and a reference for how Tweak will call it after a grab.
-
 import math
 import bpy
 import bmesh
@@ -332,48 +328,42 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         logic = Relax_Logic.for_options(context, options, rf_options=self)
 
         logic.sources = sources
-        # Rebuild the source feature accel with the correct sources now that we have
-        # overridden logic.sources (it was built during _setup from iter_all_valid_sources).
+        # Rebuild the source feature accel with the correct sources after overriding logic.sources
         logic.source_edge_accel = SourceAccel.build_from_tool(context, options, sources)
         logic.source_sharp_proximity = options.source_edge_proximity
         logic.stickiness = options.source_edge_stickiness if logic.source_edge_accel else 0.0
 
         raw_verts = { bmv for bmv in logic.bm.verts if bmv.select and not bmv.hide }
 
-        # Further filter by boundary, seams, sharps, creases, angle, pins, corners.
+        # Further filter by boundary, seams, sharps, creases, angle, pins, corners
         verts = logic.filter_verts(raw_verts)
         if not verts:
             self.report({'WARNING'}, 'Relax: no vertices remain after applying mask settings')
             return {'CANCELLED'}
 
-        # Build island BVH now that logic and verts are available.
+        # Build island BVH now that logic and verts are available
         snap_bvh = None
         if self.snap_to == 'ORIGINAL_MESH':
             snap_bvh = self._build_island_bvh(logic, verts)
 
-        # Capture volume before relaxation (cube-root-of-volume-ratio algorithm).
+        # Capture volume before relaxation, cube root of volume ratio algorithm
         vol_before = abs(logic.bm.calc_volume()) if self.preserve_volume else 0.0
 
-        # Scale vert_strength by the user's strength setting rather than using pressure.
-        # pressure is a final multiplier applied after integration, so pressure > 2 causes
-        # straighten_edges (0.5× step fraction) to overshoot and diverge.  Scaling
-        # vert_strength instead keeps every algorithm within its stability bounds: the worst
-        # case (straighten at strength=1.0) is 0.5 × 1.0 = 0.5 < 1.0, always convergent.
+        # Use vert_strength and not pressure to keeps every algo within its stability bounds
         vert_strength = { bmv: self.strength for bmv in verts }
         logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh, snap_unforced_verts=(self.snap_to != 'NONE'))
 
-        # Volume preservation: scale selected verts around their centroid so the overall
-        # mesh volume matches what it was before relaxation.
+        # Volume preservation
         if self.preserve_volume and vol_before > 1e-6:
             vol_after = abs(logic.bm.calc_volume())
             if vol_after > 1e-6:
                 scale = (vol_before / vol_after) ** (1.0 / 3.0)
-                if abs(scale - 1.0) > 1e-6:  # skip trivial no-op
+                if abs(scale - 1.0) > 1e-6:  # skip no-op
                     centroid = sum((bmv.co for bmv in verts), Vector()) / len(verts)
                     for bmv in verts:
                         bmv.co = centroid + (bmv.co - centroid) * scale
-                    # Re-snap to surface so the scaled positions land back on the mesh.
                     if logic.sources or snap_bvh:
+                        # Re-snap to surface so the scaled positions land back on the mesh
                         M  = logic.matrix_world
                         Mi = logic.matrix_world_inv
                         for bmv in verts:
@@ -443,14 +433,9 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
     @staticmethod
     def _build_island_bvh(logic, seed_verts, rings: int = 3) -> 'BVHTree | None':
-        ''' Build a world-space BVH from the original (pre-relaxation) face geometry
-        surrounding the selected verts.
-
-        Expands outward `rings` times via face adjacency using a frontier-only BFS so each
-        step is O(new faces in that ring), not O(all accumulated faces).  Three rings gives
-        enough buffer that no selected vert can project onto geometry outside the patch,
-        while keeping the BVH small and fast to build on any mesh size. '''
-        # Seed: all non-hidden faces that directly touch a selected vert.
+        ''' Builds a world-space BVH from the original face geometry surrounding the selected verts.
+        Three face steps outwards gives enough buffer that no selected vert can project onto geometry
+        outside the patch while keeping the BVH fast. '''
         face_set = {
             bmf for bmv in seed_verts
             for bmf in bmv.link_faces
@@ -458,7 +443,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         }
         frontier = set(face_set)
 
-        for _ in range(rings):
+        for i in range(rings):
             next_frontier = set()
             for bmf in frontier:
                 for bme in bmf.edges:
@@ -473,9 +458,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         if not face_set:
             return None
 
-        # Capture vertex positions now — before any relaxation — to freeze the original shape.
-        # Build in world space so it matches relax_verts' world-space projections.
-        M = logic.matrix_world
+        M = logic.matrix_world # World space matches relax_verts' projections
         poly_verts   = []
         poly_indices = []
         for bmf in face_set:
