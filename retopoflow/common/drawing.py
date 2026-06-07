@@ -730,7 +730,12 @@ class Drawing:
                 draw.vertex(p)
 
     @staticmethod
-    def draw_loop_highlight(context, loop_verts, matrix_world, color):
+    def draw_loop_highlight(context, loop_verts, matrix_world, color, *, skip_verts=None):
+        ''' Draw a dashed highlight along every edge shared by two loop verts.
+        skip_verts: verts to keep padding around (line stops short of those endpoints).
+                    None (default) = keep padding around ALL verts (original behavior).
+                    Pass an empty set/frozenset to draw lines all the way to every endpoint,
+                    which keeps visibility at very dense topology. '''
         if not loop_verts: return
         color_line    = Color4((color[0], color[1], color[2], 1.0))
         color_stipple = Color4((color[0], color[1], color[2], 0.0))
@@ -738,6 +743,9 @@ class Drawing:
         M = matrix_world
         scaled_8px = Drawing.scale(8)
         if scaled_8px is None: return
+        # None means original behaviour: treat every vert as a skip vert.
+        def needs_gap(v):
+            return skip_verts is None or v in skip_verts
         seen_edges = set()
         edges_to_draw = []
         for bmv in loop_verts:
@@ -758,9 +766,11 @@ class Drawing:
                 p1 = location_3d_to_region_2d(rgn, r3d, M @ v1.co)
                 if not p0 or not p1: continue
                 diff = p1 - p0
-                if diff.length < 2 * scaled_8px: continue
-                d = diff.normalized() * scaled_8px
-                draw.vertex(p0 + d).vertex(p1 - d)
+                gap0 = scaled_8px if needs_gap(v0) else 0.0
+                gap1 = scaled_8px if needs_gap(v1) else 0.0
+                if diff.length < gap0 + gap1: continue
+                d = diff.normalized()
+                draw.vertex(p0 + d * gap0).vertex(p1 - d * gap1)
 
     # def draw2D_point(context, pt, color, *, radius=1, border=0, borderColor=None):
     #     gpu.state.blend_set('ALPHA')

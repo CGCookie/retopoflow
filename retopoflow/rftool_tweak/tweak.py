@@ -100,7 +100,8 @@ class RFOperator_Tweak(RFOperator):
     bl_options = {'UNDO', 'INTERNAL'}
 
     rf_keymaps = [
-        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'}, {'km_context': 'init', 'km_label': 'Tweak'}),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS'},              {'km_context': 'init', 'km_label': 'Tweak'}),
+        (bl_idname, {'type': 'LEFTMOUSE', 'value': 'PRESS', 'ctrl': True}, {'km_context': 'init', 'km_label': 'Tweak (Invert Pinch/Magnify)'}),  # blocks Blender's Ctrl+LMB Select Shortest Path
     ]
     rf_status = ['LMB: Tweak']
 
@@ -150,12 +151,31 @@ class RFOperator_Tweak(RFOperator):
         name='Brush Type',
         description='How the Tweak brush moves vertices',
         items=[
-            ('GRAB',    'Grab',    'Classic Tweak behavior: grab and drag vertices under the brush'),
-            ('NUDGE',   'Nudge',   'Nudge-style: smear vertices in the direction of the stroke without grabbing'),
-            ('PINCH',   'Pinch',   'Pull vertices toward the brush center as the brush moves'),
-            ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center as the brush moves'),
+            ('GRAB',          'Grab',          'Classic Tweak behavior: grab and drag vertices under the brush'),
+            ('NUDGE',         'Nudge',         'Nudge-style: smear vertices in the direction of the stroke without grabbing'),
+            ('PINCH_MAGNIFY', 'Pinch / Magnify', 'Pull or push vertices perpendicular to the stroke direction'),
         ],
         default='GRAB',
+    )
+
+    nudge_mode: bpy.props.EnumProperty(
+        name='Nudge Mode',
+        description='How the Nudge brush selects which vertices to move',
+        items=[
+            ('BRUSH', 'Brush', 'Smear all vertices under the brush in the stroke direction'),
+            ('LOOPS', 'Loops', 'Find the nearest edge loop perpendicular to the stroke and smear only its vertices'),
+        ],
+        default='BRUSH',
+    )
+
+    pinch_magnify_mode: bpy.props.EnumProperty(
+        name='Pinch / Magnify Mode',
+        description='Magnify pushes vertices away from the brush center; Pinch pulls them toward it. Hold Ctrl while brushing to invert for that stroke',
+        items=[
+            ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center', 'ADD',    0),
+            ('PINCH',   'Pinch',   'Pull vertices toward the brush center',    'REMOVE', 1),
+        ],
+        default='MAGNIFY',
     )
 
     algorithm_method: bpy.props.EnumProperty(
@@ -333,6 +353,10 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props_tweak, 'brush_strength', slider=True)
                 panel.prop(props_tweak, 'brush_falloff', slider=True)
                 panel.prop(props_tweak, 'brush_type', expand=True)
+                if props_tweak.brush_type == 'NUDGE':
+                    panel.row().prop(props_tweak, 'nudge_mode', expand=True)
+                if props_tweak.brush_type == 'PINCH_MAGNIFY':
+                    panel.row().prop(props_tweak, 'pinch_magnify_mode', expand=True, text=' ')
             header, panel = layout.panel(idname='tweak_relax_panel', default_closed=False)
             header.label(text="Relax")
             if panel:

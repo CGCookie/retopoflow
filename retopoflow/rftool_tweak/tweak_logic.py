@@ -19,40 +19,33 @@ Created by Jonathan Denning, Jonathan Lampel
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import blf
 import bmesh
 import bpy
-import gpu
-from bmesh.types import BMesh, BMVert, BMEdge, BMFace
-from bmesh.utils import edge_split
+from bmesh.types import BMesh, BMVert, BMEdge
 from bpy.types import Context, Event, Region, RegionView3D, Mesh, PropertyGroup
 from bpy_extras.view3d_utils import location_3d_to_region_2d, region_2d_to_origin_3d, region_2d_to_vector_3d
 from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_line_line_2d
-from mathutils.bvhtree import BVHTree
 
 import math
-import time
 from typing import Callable
 from collections.abc import Sequence
 
 from ..common.accel import EdgeMarkAccel, SourceAccel, Accel
 from ..common.drawing import Drawing, CC_2D_POINTS
 from ...addon_common.common.colors import Color4
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
+from ..common.bmesh import get_bmesh_emesh, is_bmvert_boundary, is_bmvert_corner, bmv_co_isnan, get_bmv_avg_edge_len, get_bmv_next_loop_vert
 from ..common.bmesh_maths import (
     is_bmvert_on_edgemark, is_bmedge_edgemark, BMMarking,
     is_bmvert_pinned, is_bmvert_creased,
 )
-from ..common.maths import point_to_bvec3, point_to_bvec4, direction_to_bvec3
+from ..common.maths import point_to_bvec3, direction_to_bvec3
 from ..common.raycast import (
-    raycast_valid_sources, raycast_point_valid_sources, nearest_point_valid_sources,
+    raycast_valid_sources, nearest_point_valid_sources,
     mouse_from_event, iter_all_valid_sources,
 )
 from ..common.sources import to_world
 
-from ...addon_common.common import bmesh_ops as bmops
-from ...addon_common.common.maths import closest_point_segment, Point, sign, sign_threshold
+from ...addon_common.common.maths import sign_threshold
 from ..rftool_relax.relax_logic import Relax_Logic
 
 class Tweak_Logic:
@@ -102,22 +95,29 @@ class Tweak_Logic:
     SNAP_CORNER_PROXIMITY : float = 2.0  # corner snap radius as a multiple of the edge snap radius
     SNAP_STICK_MULT       : float = 2.0  # how far stickiness=1 extends the release radius past the snap radius
 
+    nudge_loop_verts : 'set[BMVert]'  # loop elected once per Nudge-Loops stroke; empty for Brush mode
+    _nudge_vert_tangents : 'dict[BMVert, Vector]'  # slide tangent per vert, locked once (at election or first encounter)
+
     verts_filtered : list[BMVert]
     verts : list[tuple]  # (bmv, original co, projected xy, brush strength) captured at grab time
 
     mouse : Vector
     mouse_prev : Vector
-    _time : float
 
 
     def __init__(self, context, event, brush, tweak):
         self.brush = brush
         self.tweak = tweak
+        # Capture Ctrl at stroke start to invert Pinch/Magnify for the whole stroke (mirrors Blender sculpt behavior).
+        # The Ctrl+LMB keymap entry in rf_keymaps ensures Blender's Select Shortest Path never fires first.
+        self._pinch_ctrl_flip: bool = (
+            bool(getattr(event, 'ctrl', False))
+            and getattr(tweak, 'brush_type', 'GRAB') == 'PINCH_MAGNIFY'
+        )
 
         self.rf_options = context.scene.retopoflow
 
         self.bm, self.em = get_bmesh_emesh(context, ensure_lookup_tables=True)
-        self._time = time.time()
 
         self.matrix_world = context.edit_object.matrix_world
         self.matrix_world_inv = self.matrix_world.inverted_safe()
@@ -184,6 +184,10 @@ class Tweak_Logic:
         self.demoted_verts = set()
         self.loop_guide_verts = None
         self.stroke_snap_radius = 0.0  # computed after collect_verts below
+        self.nudge_loop_verts: set[BMVert] = set()
+        self._nudge_loop_elected: bool = False
+        self._nudge_stroke_dir_2d: 'Vector | None' = None  # locked at election time
+        self._nudge_vert_tangents: dict[BMVert, Vector] = {}  # locked at election or first encounter
 
         # Spatial accel over all non-hidden retopo verts for O(1) corner-occupant lookup.
         # Only built when feature snapping is active
@@ -364,6 +368,86 @@ class Tweak_Logic:
         # Capture brush geometry at grab time for post_relax distance weighting.
         self.grab_brush_centre_world: Vector | None = Vector(self.brush.hit_p) if self.brush.hit_p else None
         self.grab_brush_radius: float = self.brush.get_scaled_radius()
+
+
+    def _elect_nudge_loop(self, context, delta: Vector):
+        ''' Score each screen-space edge by proximity to the mouse AND parallelism with the
+        stroke direction, then walk its full loop.  Calling on the first meaningful mouse
+        movement ensures stroke direction is known, so the right loop is chosen even when
+        the user starts on a vertex shared by multiple loops. '''
+        self.nudge_loop_verts = set()
+        rgn, r3d = context.region, context.region_data
+        M = self.matrix_world
+        mouse_2d = self.mouse
+        stroke_dir_2d = delta.normalized()
+        self._nudge_stroke_dir_2d = stroke_dir_2d  # lock direction for the whole stroke
+
+        # Score: (1 - parallelism with stroke) / (screen-space distance to edge + 1).
+        # High score = edge runs perpendicular to stroke AND is close to the mouse.
+        # Perpendicular edges are the cross-edges whose loop runs parallel to the stroke direction.
+        best_edge: BMEdge | None = None
+        best_score = -1.0
+        for bme in self.bm.edges:
+            if bme.verts[0].hide or bme.verts[1].hide: continue
+            p0 = location_3d_to_region_2d(rgn, r3d, M @ bme.verts[0].co)
+            p1 = location_3d_to_region_2d(rgn, r3d, M @ bme.verts[1].co)
+            if p0 is None or p1 is None: continue
+            seg_vec = p1 - p0
+            seg_len = seg_vec.length
+            if seg_len < 1e-4: continue
+            t = max(0.0, min(1.0, (mouse_2d - p0).dot(seg_vec) / (seg_len * seg_len)))
+            dist = (p0 + seg_vec * t - mouse_2d).length
+            parallelism = abs((seg_vec / seg_len).dot(stroke_dir_2d))
+            score = (1.0 - parallelism) / (dist + 1.0)
+            if score > best_score:
+                best_score = score
+                best_edge = bme
+
+        if best_edge is None:
+            return
+
+        v0, v1 = best_edge.verts[0], best_edge.verts[1]
+
+        # Walk both directions from the seed edge to collect the full loop.
+        loop_verts: set[BMVert] = set()
+        def walk_from(cur, prev):
+            while cur not in loop_verts and len(loop_verts) < 500:
+                loop_verts.add(cur)
+                nxt = get_bmv_next_loop_vert(prev, cur)
+                if nxt is None: break
+                prev, cur = cur, nxt
+
+        walk_from(v0, v1)
+        walk_from(v1, v0)
+        self.nudge_loop_verts = loop_verts
+
+        # Precompute a locked slide tangent for every loop vert from stable (pre-movement)
+        # positions.  Using original positions prevents the per-frame drift that causes
+        # inconsistent/reversed movement on diagonal strokes.
+        self._nudge_vert_tangents.clear()
+        def _best_tangent(p_cur, bmv_):
+            best_dot_ = -1.0
+            best_t_: 'Vector | None' = None
+            for bme_ in bmv_.link_edges:
+                nb_ = bme_.other_vert(bmv_)
+                if nb_.hide: continue
+                p_nb_ = location_3d_to_region_2d(rgn, r3d, M @ nb_.co)
+                if p_nb_ is None: continue
+                d_ = Vector(p_nb_) - Vector(p_cur)
+                if d_.length < 1e-4: continue
+                d_norm_ = d_ / d_.length
+                dot_ = d_norm_.dot(stroke_dir_2d)
+                abs_dot_ = abs(dot_)
+                if abs_dot_ > best_dot_:
+                    best_dot_ = abs_dot_
+                    best_t_ = d_norm_ if dot_ > 0.0 else -d_norm_
+            return best_t_ if (best_t_ is not None and best_dot_ > 1e-4) else None
+        for bmv_ in loop_verts:
+            p_ = location_3d_to_region_2d(rgn, r3d, M @ bmv_.co)
+            if p_ is None: continue
+            t_ = _best_tangent(p_, bmv_)
+            if t_ is not None:
+                self._nudge_vert_tangents[bmv_] = t_
 
 
     def cancel(self, context):
@@ -861,11 +945,12 @@ class Tweak_Logic:
             bmv: M @ bmv.co for bmv, *_ in self.verts if bmv.is_valid
         }
 
-        is_nudge   = getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
-        is_pinch   = getattr(self.tweak, 'brush_type', 'GRAB') == 'PINCH'
-        is_magnify = getattr(self.tweak, 'brush_type', 'GRAB') == 'MAGNIFY'
+        is_nudge         = getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
+        is_pinch_magnify = getattr(self.tweak, 'brush_type', 'GRAB') == 'PINCH_MAGNIFY'
+        _mode_is_pinch   = getattr(self.tweak, 'pinch_magnify_mode', 'MAGNIFY') == 'PINCH'
+        is_pinch         = is_pinch_magnify and (_mode_is_pinch ^ self._pinch_ctrl_flip)
         for (bmv, co_orig, xy, strength) in self.verts:
-            effective_strength = 0.0 if (is_nudge or is_pinch or is_magnify) else strength
+            effective_strength = 0.0 if (is_nudge or is_pinch_magnify) else strength
             if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
                 new_co = Vector(bmv.co)
                 delta_strength = delta.length * effective_strength * pressure
@@ -931,11 +1016,18 @@ class Tweak_Logic:
             if new_co: bmv.co = new_co
 
         if is_nudge:
+            # Loops mode: defer election to the first meaningful movement so stroke direction
+            # is known and the most parallel nearby edge can be scored.
+            if (
+                getattr(self.tweak, 'nudge_mode', 'BRUSH') == 'LOOPS'
+                and not self._nudge_loop_elected
+                and delta.length > 3.0
+            ):
+                self._elect_nudge_loop(context, delta)
+                self._nudge_loop_elected = True
             self._smudge_sweep(context, mouse, delta, pressure, pre_frame_world)
-        elif is_pinch:
-            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=True)
-        elif is_magnify:
-            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=False)
+        elif is_pinch_magnify:
+            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=is_pinch)
 
         if self.source_edge_accel:
             self._push_crowded_edge_neighbors(context, mouse - self.mouse)
@@ -968,7 +1060,13 @@ class Tweak_Logic:
 
         if delta.length < 1e-4:
             return
-        stroke_dir_2d = delta.normalized()
+        # In Loops mode use the direction locked at election time so the loop slides
+        # in a straight line regardless of how the brush moves after the first tick.
+        stroke_dir_2d = (
+            self._nudge_stroke_dir_2d
+            if (self.nudge_loop_verts and self._nudge_stroke_dir_2d is not None)
+            else delta.normalized()
+        )
 
         M = self.matrix_world
         brush_strength = self.brush.strength
@@ -977,41 +1075,80 @@ class Tweak_Logic:
         if brush_centre_2d is None:
             return
 
+        # In Loops mode, precompute world positions of loop verts once for O(loop) distance queries per vert.
+        loop_vert_worlds: list[Vector] = []
+        if self.nudge_loop_verts:
+            loop_vert_worlds = [M @ v.co for v in self.nudge_loop_verts if v.is_valid and not v.hide]
+
         for bmv in self.bm.verts:
             if bmv.hide or not bmv.is_valid:
                 continue
-            dist = (M @ bmv.co - brush_centre_world).length
-            if dist > radius3D:
-                continue
 
-            # Use the brush's own falloff curve so the Falloff slider is respected.
-            # get_strength_Point returns brush.strength * falloff_weight, so dividing
-            # back out gives us a 0→1 spatial weight that drives the per-vert push.
-            t_lin = 1.0 - dist / radius3D
-            vert_str = self.brush.get_strength_Point(M @ bmv.co)
-            t = vert_str / brush_strength if brush_strength > 1e-8 else t_lin
+            if self.nudge_loop_verts:
+                if bmv in self.nudge_loop_verts:
+                    # Loop vert: always pushed at full strength.
+                    t_lin = 1.0
+                    t = 1.0
+                else:
+                    # Non-loop vert: falloff from the nearest loop vert in world space,
+                    # as if every loop vert were its own brush center.
+                    if not loop_vert_worlds:
+                        continue
+                    bmv_world = M @ bmv.co
+                    dist_to_loop = min((bmv_world - lw).length for lw in loop_vert_worlds)
+                    if dist_to_loop > radius3D:
+                        continue
+                    t_lin = 1.0 - dist_to_loop / radius3D
+                    t = t_lin
+            else:
+                dist = (M @ bmv.co - brush_centre_world).length
+                if dist > radius3D:
+                    continue
+                t_lin = 1.0 - dist / radius3D
+                vert_str = self.brush.get_strength_Point(M @ bmv.co)
+                t = vert_str / brush_strength if brush_strength > 1e-8 else t_lin
 
             cur_2d = self.project_bmv(context, bmv)
             if cur_2d is None:
                 continue
 
-            # Forward push along stroke direction.
-            forward_push = stroke_dir_2d * delta.length * t
+            # Forward push: signed projection of current delta onto the (possibly locked) stroke
+            # direction.  Positive = forward, negative = backward, zero = pure perpendicular drift.
+            forward_push = stroke_dir_2d * delta.dot(stroke_dir_2d) * t
 
-            # Small lateral spread: nudge verts away from stroke axis, proportional
-            # to the forward push magnitude so it never dominates (0.15 = 15%).
-            offset_2d = cur_2d - Vector(brush_centre_2d)
-            along = offset_2d.dot(stroke_dir_2d)
-            perp_2d = offset_2d - stroke_dir_2d * along
-            perp_len = perp_2d.length
-            if perp_len > 1e-4:
-                perp_norm = perp_2d / perp_len
-                lateral_scale = 4.0 * t_lin * (1.0 - t_lin)  # peaks at mid-radius
-                lateral_push = perp_norm * delta.length * t * lateral_scale * 0
+            if self.nudge_loop_verts:
+                # Loops mode: use the tangent locked at election time (loop verts) or cached on
+                # first encounter (surrounding verts).  Never recompute from live positions —
+                # that caused diagonal-stroke flipping as edges drifted between frames.
+                tangent_2d = self._nudge_vert_tangents.get(bmv)
+                if tangent_2d is None:
+                    # First time this surrounding vert enters the brush: compute and lock now
+                    # while its neighbors haven't moved yet.
+                    best_dot_c = -1.0
+                    best_t_c: 'Vector | None' = None
+                    for bme in bmv.link_edges:
+                        nb = bme.other_vert(bmv)
+                        if nb.hide: continue
+                        p_nb = self.project_bmv(context, nb)
+                        if p_nb is None: continue
+                        d = Vector(p_nb) - Vector(cur_2d)
+                        if d.length < 1e-4: continue
+                        d_norm = d / d.length
+                        dot = d_norm.dot(stroke_dir_2d)
+                        abs_dot = abs(dot)
+                        if abs_dot > best_dot_c:
+                            best_dot_c = abs_dot
+                            best_t_c = d_norm if dot > 0.0 else -d_norm
+                    if best_t_c is not None and best_dot_c > 1e-4:
+                        self._nudge_vert_tangents[bmv] = best_t_c
+                        tangent_2d = best_t_c
+                if tangent_2d is not None:
+                    proj = forward_push.dot(tangent_2d)
+                    push_2d = tangent_2d * proj * brush_strength * pressure
+                else:
+                    push_2d = forward_push * brush_strength * pressure
             else:
-                lateral_push = Vector((0.0, 0.0))
-
-            push_2d = (forward_push + lateral_push) * brush_strength * pressure
+                push_2d = forward_push * brush_strength * pressure
 
             new_hit = raycast_valid_sources(context, cur_2d + push_2d)
             if not new_hit:
@@ -1023,7 +1160,10 @@ class Tweak_Logic:
         away from (Magnify) the brush center in screen space each frame, then raycasted
         back onto the source mesh.  Movement magnitude scales with mouse speed (delta.length),
         brush strength, pressure, and the per-vert falloff weight so verts at the brush
-        periphery are nudged less than those at the center. '''
+        periphery are nudged less than those at the center.
+        Only verts whose screen-space offset from the brush center is perpendicular to the
+        stroke direction are affected (weight = |sin θ|), so stroking along a loop does not
+        shrink the loop itself but only draws in the surrounding cross-edges. '''
         if not self.brush.hit_p:
             return
         brush_centre_world = Vector(self.brush.hit_p)
@@ -1033,6 +1173,8 @@ class Tweak_Logic:
 
         if delta.length < 1e-4:
             return
+
+        stroke_dir_2d = delta.normalized()  # unit vector along the stroke in screen space
 
         M = self.matrix_world
         brush_strength = self.brush.strength
@@ -1064,11 +1206,21 @@ class Tweak_Logic:
                 # Vert is already at the brush center; skip to avoid zero-length direction.
                 continue
 
+            # Perpendicular weight: |sin θ| between the vert's radial offset and the stroke.
+            # = 1.0 when vert is fully perpendicular to stroke (cross-edges → full effect).
+            # = 0.0 when vert is parallel to stroke (the loop being stroked → no effect).
+            along = radial_2d.dot(stroke_dir_2d)
+            perp_2d = radial_2d - stroke_dir_2d * along
+            perp_weight = perp_2d.length / radial_len  # equivalent to |sin(θ)|
+
+            if perp_weight < 1e-4:
+                continue
+
             radial_dir_2d = radial_2d / radial_len
             if not is_pinch:
                 radial_dir_2d = -radial_dir_2d  # Magnify: push outward
 
-            push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * 0.25
+            push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * perp_weight * 0.25
 
             new_hit = raycast_valid_sources(context, cur_2d + push_2d)
             if not new_hit:
@@ -1125,6 +1277,7 @@ class Tweak_Logic:
         from ..preferences import RF_Prefs
         highlight = RF_Prefs.get_prefs(context).highlight_color
         Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight)
+        Drawing.draw_loop_highlight(context, self.nudge_loop_verts, self.matrix_world, highlight, skip_verts=frozenset())
         if self.demoted_verts:
             vertex_size = context.preferences.themes[0].view_3d.vertex_size
             M = self.matrix_world
