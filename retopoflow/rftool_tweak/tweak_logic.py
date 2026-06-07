@@ -855,14 +855,24 @@ class Tweak_Logic:
         if self.source_edge_accel:
             self._update_source_context()
 
+        # Snapshot world positions before moving anything so _smudge_sweep can
+        # compute per-frame displacement (not accumulated stroke displacement).
+        pre_frame_world: dict[BMVert, Vector] = {
+            bmv: M @ bmv.co for bmv, *_ in self.verts if bmv.is_valid
+        }
+
+        is_nudge   = getattr(self.tweak, 'brush_type', 'GRAB') == 'NUDGE'
+        is_pinch   = getattr(self.tweak, 'brush_type', 'GRAB') == 'PINCH'
+        is_magnify = getattr(self.tweak, 'brush_type', 'GRAB') == 'MAGNIFY'
         for (bmv, co_orig, xy, strength) in self.verts:
+            effective_strength = 0.0 if (is_nudge or is_pinch or is_magnify) else strength
             if self.mask_opt('boundary') == 'SLIDE' and bmv in self.boundary_verts:
                 new_co = Vector(bmv.co)
-                delta_strength = delta.length * strength * pressure
+                delta_strength = delta.length * effective_strength * pressure
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
                 for step in range(opt_steps):
                     pt2d = self.project_pt(context, new_co) or xy
-                    new_co2 = raycast_valid_sources(context, pt2d + delta * (strength / opt_steps) * pressure)
+                    new_co2 = raycast_valid_sources(context, pt2d + delta * (effective_strength / opt_steps) * pressure)
                     if not new_co2: break
                     new_co = new_co2['co_local']
                     if self.boundary_accel:
@@ -871,7 +881,7 @@ class Tweak_Logic:
                             new_co = p
             else:
                 cur_xy = self.project_bmv(context, bmv) or xy
-                new_co = raycast_valid_sources(context, cur_xy + delta * strength * pressure)
+                new_co = raycast_valid_sources(context, cur_xy + delta * effective_strength * pressure)
                 if not new_co: continue
                 new_co = new_co['co_local']
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
@@ -891,7 +901,7 @@ class Tweak_Logic:
                         p = self.angle_accel.closest_point(new_co)
                         if p is not None: new_co = p
                 if self.source_edge_accel:
-                    new_co = self.snap_to_source_feature(bmv, new_co, strength, context, delta * strength * pressure, mouse - self.mouse)
+                    new_co = self.snap_to_source_feature(bmv, new_co, effective_strength, context, delta * effective_strength * pressure, mouse - self.mouse)
 
             if self.mirror:
                 co = Vector(new_co)
@@ -919,6 +929,14 @@ class Tweak_Logic:
 
 
             if new_co: bmv.co = new_co
+
+        if is_nudge:
+            self._smudge_sweep(context, mouse, delta, pressure, pre_frame_world)
+        elif is_pinch:
+            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=True)
+        elif is_magnify:
+            self._pinch_magnify_sweep(context, mouse, delta, pressure, is_pinch=False)
+
         if self.source_edge_accel:
             self._push_crowded_edge_neighbors(context, mouse - self.mouse)
 
@@ -926,7 +944,7 @@ class Tweak_Logic:
         relax_factor = float(getattr(self.tweak, 'post_relax_steps', 0.0))
         if relax_factor > 0.0:
             self.relax_accum_px += delta.length
-            threshold_px = self.relax_step_px * 0.1 / relax_factor
+            threshold_px = self.relax_step_px * 0.05 / relax_factor
             while self.relax_accum_px >= threshold_px:
                 self.relax_accum_px -= threshold_px
                 self._do_relax_step(context)
@@ -934,6 +952,128 @@ class Tweak_Logic:
         bmesh.update_edit_mesh(self.em)
         context.area.tag_redraw()
         self.mouse_prev = mouse
+
+    def _smudge_sweep(self, context, mouse: Vector, delta: Vector, pressure: float, pre_frame_world: 'dict[BMVert, Vector]'):
+        ''' Nudge-style smear: every vert under the brush is pushed in the 2D stroke
+        direction this frame, projected back onto the source mesh.
+        - Smooth-step falloff (t²(3-2t)) for a rounded profile.
+        - Small lateral spread (10% of forward push) to avoid bunching.
+        - Strength controlled by brush.strength only; smudge_factor is on/off + grab blend. '''
+        if not self.brush.hit_p:
+            return
+        brush_centre_world = Vector(self.brush.hit_p)
+        radius3D = self.brush.get_scaled_radius()
+        if radius3D <= 0:
+            return
+
+        if delta.length < 1e-4:
+            return
+        stroke_dir_2d = delta.normalized()
+
+        M = self.matrix_world
+        brush_strength = self.brush.strength
+
+        brush_centre_2d = location_3d_to_region_2d(context.region, context.region_data, brush_centre_world)
+        if brush_centre_2d is None:
+            return
+
+        for bmv in self.bm.verts:
+            if bmv.hide or not bmv.is_valid:
+                continue
+            dist = (M @ bmv.co - brush_centre_world).length
+            if dist > radius3D:
+                continue
+
+            # Use the brush's own falloff curve so the Falloff slider is respected.
+            # get_strength_Point returns brush.strength * falloff_weight, so dividing
+            # back out gives us a 0→1 spatial weight that drives the per-vert push.
+            t_lin = 1.0 - dist / radius3D
+            vert_str = self.brush.get_strength_Point(M @ bmv.co)
+            t = vert_str / brush_strength if brush_strength > 1e-8 else t_lin
+
+            cur_2d = self.project_bmv(context, bmv)
+            if cur_2d is None:
+                continue
+
+            # Forward push along stroke direction.
+            forward_push = stroke_dir_2d * delta.length * t
+
+            # Small lateral spread: nudge verts away from stroke axis, proportional
+            # to the forward push magnitude so it never dominates (0.15 = 15%).
+            offset_2d = cur_2d - Vector(brush_centre_2d)
+            along = offset_2d.dot(stroke_dir_2d)
+            perp_2d = offset_2d - stroke_dir_2d * along
+            perp_len = perp_2d.length
+            if perp_len > 1e-4:
+                perp_norm = perp_2d / perp_len
+                lateral_scale = 4.0 * t_lin * (1.0 - t_lin)  # peaks at mid-radius
+                lateral_push = perp_norm * delta.length * t * lateral_scale * 0
+            else:
+                lateral_push = Vector((0.0, 0.0))
+
+            push_2d = (forward_push + lateral_push) * brush_strength * pressure
+
+            new_hit = raycast_valid_sources(context, cur_2d + push_2d)
+            if not new_hit:
+                continue
+            bmv.co = new_hit['co_local']
+
+    def _pinch_magnify_sweep(self, context, mouse: Vector, delta: Vector, pressure: float, is_pinch: bool):
+        ''' Pinch/Magnify: every vert under the brush is pulled toward (Pinch) or pushed
+        away from (Magnify) the brush center in screen space each frame, then raycasted
+        back onto the source mesh.  Movement magnitude scales with mouse speed (delta.length),
+        brush strength, pressure, and the per-vert falloff weight so verts at the brush
+        periphery are nudged less than those at the center. '''
+        if not self.brush.hit_p:
+            return
+        brush_centre_world = Vector(self.brush.hit_p)
+        radius3D = self.brush.get_scaled_radius()
+        if radius3D <= 0:
+            return
+
+        if delta.length < 1e-4:
+            return
+
+        M = self.matrix_world
+        brush_strength = self.brush.strength
+
+        brush_centre_2d = location_3d_to_region_2d(context.region, context.region_data, brush_centre_world)
+        if brush_centre_2d is None:
+            return
+
+        for bmv in self.bm.verts:
+            if bmv.hide or not bmv.is_valid:
+                continue
+            dist = (M @ bmv.co - brush_centre_world).length
+            if dist > radius3D:
+                continue
+
+            # Derive a 0→1 spatial weight from the brush falloff curve.
+            t_lin = 1.0 - dist / radius3D
+            vert_str = self.brush.get_strength_Point(M @ bmv.co)
+            t = vert_str / brush_strength if brush_strength > 1e-8 else t_lin
+
+            cur_2d = self.project_bmv(context, bmv)
+            if cur_2d is None:
+                continue
+
+            # Radial direction relative to the brush center in screen space.
+            radial_2d = Vector(brush_centre_2d) - Vector(cur_2d)
+            radial_len = radial_2d.length
+            if radial_len < 1e-4:
+                # Vert is already at the brush center; skip to avoid zero-length direction.
+                continue
+
+            radial_dir_2d = radial_2d / radial_len
+            if not is_pinch:
+                radial_dir_2d = -radial_dir_2d  # Magnify: push outward
+
+            push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * 0.25
+
+            new_hit = raycast_valid_sources(context, cur_2d + push_2d)
+            if not new_hit:
+                continue
+            bmv.co = new_hit['co_local']
 
     def _do_relax_step(self, context):
         ''' Run one Relax iteration on grabbed verts + expanded neighbours.

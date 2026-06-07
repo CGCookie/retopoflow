@@ -146,6 +146,18 @@ class RFOperator_Tweak(RFOperator):
         default=1,
     )
 
+    brush_type: bpy.props.EnumProperty(
+        name='Brush Type',
+        description='How the Tweak brush moves vertices',
+        items=[
+            ('GRAB',    'Grab',    'Classic Tweak behavior: grab and drag vertices under the brush'),
+            ('NUDGE',   'Nudge',   'Nudge-style: smear vertices in the direction of the stroke without grabbing'),
+            ('PINCH',   'Pinch',   'Pull vertices toward the brush center as the brush moves'),
+            ('MAGNIFY', 'Magnify', 'Push vertices away from the brush center as the brush moves'),
+        ],
+        default='GRAB',
+    )
+
     algorithm_method: bpy.props.EnumProperty(
         name='Method',
         description='How Relax updates the position of the vertices',
@@ -320,6 +332,7 @@ class RFTool_Tweak(RFTool_Base):
                 panel.prop(props_tweak, 'brush_radius')
                 panel.prop(props_tweak, 'brush_strength', slider=True)
                 panel.prop(props_tweak, 'brush_falloff', slider=True)
+                panel.prop(props_tweak, 'brush_type', expand=True)
             header, panel = layout.panel(idname='tweak_relax_panel', default_closed=False)
             header.label(text="Relax")
             if panel:
