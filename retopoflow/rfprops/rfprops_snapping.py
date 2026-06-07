@@ -119,7 +119,7 @@ class RFProps_Snapping(bpy.types.PropertyGroup):
 
     """ Snap Elements """
     snap_vertex: bpy.props.BoolProperty(
-        name='Vertex', description='Snap to vertices', default=True,
+        name='Vertex', description='Snap to vertices', default=False,
         update=lambda self, ctx: setattr(ctx.scene.tool_settings, 'snap_elements_base',
             (ctx.scene.tool_settings.snap_elements_base | {'VERTEX'}) if self.snap_vertex
             else (ctx.scene.tool_settings.snap_elements_base - {'VERTEX'})),

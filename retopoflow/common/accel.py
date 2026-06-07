@@ -313,6 +313,24 @@ class SourceAccel:
                             idx = v.index
                             vert_feature_count[idx] = vert_feature_count.get(idx, 0) + 1
                             vert_world_pos[idx] = vw
+
+                # 5+ edge poles whose total face-angle curvature exceeds
+                # sharp_threshold are treated as corners. This catches cone tips.
+                for bmv in bm.verts:
+                    if len(bmv.link_edges) < 5:
+                        continue
+                    idx = bmv.index
+                    if vert_feature_count.get(idx, 0) >= 3:
+                        continue  # already registered as a corner via feature edges
+                    total_curvature = sum(
+                        bme.calc_face_angle(0.0)
+                        for bme in bmv.link_edges
+                        if len(bme.link_faces) == 2
+                    )
+                    if total_curvature > sharp_threshold:
+                        vw = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
+                        vert_world_pos[idx] = vw
+                        vert_feature_count[idx] = 3  # satisfy the corner threshold
             finally:
                 bm.free()
 
