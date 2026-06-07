@@ -80,6 +80,16 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         description='Even out face size and spread (slower)',
         default=False,
     )
+    interpolate_loops: BoolProperty(
+        name='Interpolate Loops',
+        description=(
+            'Push vertices toward positions that linearly interpolate between '
+            'the unaffected boundary verts at each end of their loop axes. '
+            'Distributes vertices evenly along the surrounding loops without '
+            'straightening them — similar to Blender\'s Grid Fill (Simple Blending off)'
+        ),
+        default=False,
+    )
     preserve_volume: BoolProperty(
         name='Preserve Volume',
         description=(
@@ -246,38 +256,44 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         row.separator()
         row.label(text='No valid source found', icon='ERROR')
 
-    def draw_snapping_props(self, context, layout):
-        layout.prop(self, 'snap_to', text='Snap To')
-        if self.snap_to == 'OBJECT':
-            layout.prop_search(self, 'snap_object', context.blend_data, 'objects', text='Object')
-            obj = context.blend_data.objects.get(self.snap_object)
-            if obj and not self._is_snap_candidate(context, obj):
-                self.draw_warning(layout)
-        elif self.snap_to == 'COLLECTION':
-            layout.prop_search(self, 'snap_collection', context.blend_data, 'collections', text='Collection')
-            collection = context.blend_data.collections.get(self.snap_collection)
-            if collection and not self._build_sources_collection(context, collection):
-                self.draw_warning(layout)
-        elif self.snap_to == 'ALL_VISIBLE':
-            if not self._build_sources_visible(context):
-                self.draw_warning(layout)
-        elif self.snap_to == 'ALL_SELECTABLE':
-            if not self._build_sources_selectable(context):
-                self.draw_warning(layout)
-        if self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
+    def draw_snapping_props(self, context, layout, show_snap_to=True):
+        if show_snap_to:
+            layout.prop(self, 'snap_to', text='Snap To')
+            if self.snap_to == 'OBJECT':
+                layout.prop_search(self, 'snap_object', context.blend_data, 'objects', text='Object')
+                obj = context.blend_data.objects.get(self.snap_object)
+                if obj and not self._is_snap_candidate(context, obj):
+                    self.draw_warning(layout)
+            elif self.snap_to == 'COLLECTION':
+                layout.prop_search(self, 'snap_collection', context.blend_data, 'collections', text='Collection')
+                collection = context.blend_data.collections.get(self.snap_collection)
+                if collection and not self._build_sources_collection(context, collection):
+                    self.draw_warning(layout)
+            elif self.snap_to == 'ALL_VISIBLE':
+                if not self._build_sources_visible(context):
+                    self.draw_warning(layout)
+            elif self.snap_to == 'ALL_SELECTABLE':
+                if not self._build_sources_selectable(context):
+                    self.draw_warning(layout)
+        if not show_snap_to or self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
             draw_hard_surface_snapping(layout, self, guide_loops=True)
 
     def draw(self, context):
+        from ..rfcore import RFCore
+        rf_is_running = RFCore.is_running
+
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
         layout.prop(self, 'strength', slider=True)
         layout.prop(self, 'iterations', slider=True)
-        layout.prop(self, 'preserve_volume')
-        layout.prop(self, 'smooth_vertices',      text='Smooth Vertices')
-        layout.prop(self, 'straighten_edges',     text='Straighten Edges')
-        layout.prop(self, 'average_edge_lengths', text='Average Edge Lengths')
-        layout.prop(self, 'equalize_faces',       text='Equalize Faces')
+        layout.row(heading='Preserve').prop(self, 'preserve_volume', text='Volume')
+        layout.separator()
+        layout.row(heading="Smooth").prop(self, 'smooth_vertices', text='Vertices')
+        layout.row(heading="Average").prop(self, 'average_edge_lengths', text='Edges')
+        layout.row(heading="Straighten").prop(self, 'straighten_edges', text='Edges')
+        layout.row(heading="Interpolate").prop(self, 'interpolate_loops', text='Loops')
+        layout.row(heading="Equalize").prop(self, 'equalize_faces', text='Faces')
 
         mask_header, mask_panel = layout.panel('relax_selected_mask', default_closed=True)
         mask_header.label(text='Masking')
@@ -295,20 +311,24 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         snap_header, snap_panel = layout.panel('relax_selected_snap', default_closed=True)
         snap_header.label(text='Snapping')
         if snap_panel:
-            self.draw_snapping_props(context, snap_panel)
+            self.draw_snapping_props(context, snap_panel, show_snap_to=not rf_is_running)
 
     def execute(self, context):
+        from ..rfcore import RFCore
+        rf_is_running = RFCore.is_running
+
         sources = []
-        if self.snap_to == 'ALL_VISIBLE':
-            sources = self._build_sources_visible(context)
-        elif self.snap_to == 'ALL_SELECTABLE':
-            sources = self._build_sources_selectable(context)
-        elif self.snap_to == 'OBJECT':
-            obj = context.blend_data.objects.get(self.snap_object)
-            sources = self._build_sources_object(context, obj)
-        elif self.snap_to == 'COLLECTION':
-            collection = context.blend_data.collections.get(self.snap_collection)
-            sources = self._build_sources_collection(context, collection)
+        if not rf_is_running:
+            if self.snap_to == 'ALL_VISIBLE':
+                sources = self._build_sources_visible(context)
+            elif self.snap_to == 'ALL_SELECTABLE':
+                sources = self._build_sources_selectable(context)
+            elif self.snap_to == 'OBJECT':
+                obj = context.blend_data.objects.get(self.snap_object)
+                sources = self._build_sources_object(context, obj)
+            elif self.snap_to == 'COLLECTION':
+                collection = context.blend_data.collections.get(self.snap_collection)
+                sources = self._build_sources_collection(context, collection)
 
         options = RelaxOptions(
             algorithm_method='STEPS',
@@ -317,6 +337,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
             algorithm_straighten_edges=self.straighten_edges,
             algorithm_average_edge_lengths=self.average_edge_lengths,
             algorithm_equalize_faces=self.equalize_faces,
+            algorithm_interpolate_loops=self.interpolate_loops,
             source_edge_angle=self.source_edge_angle if self.source_edge_angle_enabled else math.pi,
             source_edge_seams=self.source_edge_seams,
             source_edge_creases=self.source_edge_creases,
@@ -327,9 +348,13 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         )
         logic = Relax_Logic.for_options(context, options, rf_options=self)
 
-        logic.sources = sources
-        # Rebuild the source feature accel with the correct sources after overriding logic.sources
-        logic.source_edge_accel = SourceAccel.build_from_tool(context, options, sources)
+        if not rf_is_running:
+            logic.sources = sources
+
+        # Always rebuild the source feature accel from the operator's own settings.
+        # When RF is running, logic.sources already holds the RF sources from initial_setup,
+        # so the accel is built against those sources but controlled by the operator's props.
+        logic.source_edge_accel = SourceAccel.build_from_tool(context, options, logic.sources)
         logic.source_sharp_proximity = options.source_edge_proximity
         logic.stickiness = options.source_edge_stickiness if logic.source_edge_accel else 0.0
 
@@ -343,7 +368,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
         # Build island BVH now that logic and verts are available
         snap_bvh = None
-        if self.snap_to == 'ORIGINAL_MESH':
+        if not rf_is_running and self.snap_to == 'ORIGINAL_MESH':
             snap_bvh = self._build_island_bvh(logic, verts)
 
         # Capture volume before relaxation, cube root of volume ratio algorithm
@@ -351,7 +376,8 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
 
         # Use vert_strength and not pressure to keeps every algo within its stability bounds
         vert_strength = { bmv: self.strength for bmv in verts }
-        logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh, snap_unforced_verts=(self.snap_to != 'NONE'))
+        snap_unforced = bool(logic.sources) if rf_is_running else (self.snap_to != 'NONE')
+        logic.relax_verts(context, verts, vert_strength, iterations=self.iterations, snap_bvh=snap_bvh, snap_unforced_verts=snap_unforced)
 
         # Volume preservation
         if self.preserve_volume and vol_before > 1e-6:

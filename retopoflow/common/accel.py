@@ -254,7 +254,7 @@ class SourceAccel:
         return closest_p if (closest_p - co_local).length <= threshold else None
 
     def find_corner(self, co: Vector) -> 'tuple[Vector, int, float] | None':
-        return self.corner_kd.find(co) if self.corner_kd else None
+        return self.corner_kd.find(Vector((co[0], co[1], co[2]))) if self.corner_kd else None
 
     @classmethod
     def build(

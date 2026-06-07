@@ -36,7 +36,6 @@ def draw_relax_algo_options(context, layout, props=None):
     layout.row(heading="Smooth").prop(props, 'algorithm_laplacian', text='Vertices')
     layout.row(heading="Average").prop(props, 'algorithm_average_edge_lengths', text='Edges')
     layout.row(heading="Straighten").prop(props, 'algorithm_straighten_edges', text='Edges')
-    layout.row(heading="Interpolate").prop(props, 'algorithm_interpolate_loops', text='Loops')
     layout.row(heading="Equalize").prop(props, 'algorithm_equalize_faces',  text='Faces')
     layout.row(heading="Correct").prop(props, 'algorithm_correct_flipped_faces', text='Flipped Faces')
 
@@ -49,7 +48,8 @@ def draw_relax_algo_options(context, layout, props=None):
     header, panel = layout.panel(idname='relax_panel_source_edges', default_closed=False)
     header.label(text='Hard Surface Snapping')
     if panel:
-        draw_hard_surface_snapping(panel, props, guide_loops=True)
+        snapping = context.scene.retopoflow.snapping
+        draw_hard_surface_snapping(panel, snapping, guide_loops=True)
 
     header, panel = layout.panel(idname='relax_panel_algo_limits', default_closed=True)
     header.label(text='Limit Distance')
