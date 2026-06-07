@@ -186,7 +186,7 @@ class RFOperator_Translate(RFOperator):
         self.tweaking_projection = context.scene.retopoflow.snapping.projection
         if self.use_native == 'AUTO':
             snapping = context.scene.retopoflow.snapping
-            use_native = (
+            use_native = snapping.snap_vertex and (
                 snapping.snap_vertex or snapping.snap_edge or snapping.snap_edge_center
                 or snapping.snap_edge_perpendicular or snapping.snap_face_center
             )

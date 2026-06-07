@@ -49,12 +49,20 @@ def draw_snapping_options(context, layout, *, guide_loops: bool = False):
     col = split.column()
     col.alignment = 'RIGHT'
     col.label(text='Also Snap To')
-    row = split.split(align=True)
-    row.prop(snapping, 'snap_vertex',             text='', icon='SNAP_VERTEX',        toggle=True, expand=True)
+    split = split.split(align=True)
+    split.prop(snapping, 'snap_vertex',             text='', icon='SNAP_VERTEX',        toggle=True, expand=True)
+    row = split.column()
+    row.enabled = snapping.snap_vertex
     row.prop(snapping, 'snap_edge',               text='', icon='SNAP_EDGE',          toggle=True, expand=True)
+    row = split.column()
+    row.enabled = snapping.snap_vertex
     row.prop(snapping, 'snap_edge_center',        text='', icon='SNAP_MIDPOINT',      toggle=True, expand=True)
+    row = split.column()
+    row.enabled = snapping.snap_vertex
     row.prop(snapping, 'snap_edge_perpendicular', text='', icon='SNAP_PERPENDICULAR', toggle=True, expand=True)
     if bpy.app.version >= (5, 1, 0):
+        row = split.column()
+        row.enabled = snapping.snap_vertex
         row.prop(snapping, 'snap_face_center',    text='', icon='SNAP_FACE_CENTER',   toggle=True, expand=True)
     layout.use_property_split = True
 
