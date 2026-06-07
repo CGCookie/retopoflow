@@ -38,7 +38,7 @@ from enum import Enum
 
 from ..rftool_base import RFTool_Base
 from ..rfbrush_base import RFBrush_Base
-from ..common.bmesh import get_bmesh_emesh, NearestBMVert, is_bmvert_corner, get_bmv_next_loop_vert
+from ..common.bmesh import get_bmesh_emesh, NearestBMVert
 from ..common.drawing import (
     Drawing,
     CC_2D_POINTS,
@@ -83,93 +83,13 @@ from ..common.interface import draw_line_separator
 
 from ..preferences import RF_Prefs
 
-def _tweak_nudge_hover_draw(brush, context):
-    ''' Compute and draw the hovered guide loop while hovering in Nudge + Loops mode.
-    Runs every frame via the brush draw_postpixel hook (only when not actively stroking). '''
-    # During an active stroke Tweak_Logic.draw() handles loop highlight — skip here.
-    if RFOperator_Tweak.is_active(): return
-    if context.area not in brush.mouse_areas: return
-    if not context.edit_object: return
-    props = context.scene.retopoflow
-    if getattr(props, 'brush_type', 'GRAB') != 'NUDGE': return
-    if not getattr(props, 'nudge_loops', False): return
-    if not brush.mouse: return
-
-    # Draw the cached loop if mouse hasn't moved.
-    if brush.mouse == brush._last_hover_mouse:
-        if brush._hover_loop_verts:
-            M = context.edit_object.matrix_world
-            highlight = RF_Prefs.get_prefs(context).highlight_color
-            Drawing.draw_loop_highlight(context, brush._hover_loop_verts, M, highlight, skip_verts=frozenset())
-        return
-
-    # Mouse moved — recompute.
-    brush._last_hover_mouse = brush.mouse
-    brush._hover_loop_edge  = None
-    brush._hover_loop_verts = set()
-
-    bm, _em  = get_bmesh_emesh(context)
-    M        = context.edit_object.matrix_world
-    rgn, r3d = context.region, context.region_data
-    mouse_2d = Vector(brush.mouse)
-
-    # Find the nearest edge to the mouse in screen space.
-    best_edge = None
-    best_dist = float('inf')
-    for bme in bm.edges:
-        if bme.verts[0].hide or bme.verts[1].hide: continue
-        p0 = location_3d_to_region_2d(rgn, r3d, M @ bme.verts[0].co)
-        p1 = location_3d_to_region_2d(rgn, r3d, M @ bme.verts[1].co)
-        if p0 is None or p1 is None: continue
-        seg_vec = p1 - p0
-        seg_len = seg_vec.length
-        if seg_len < 1e-4: continue
-        t    = max(0.0, min(1.0, (mouse_2d - p0).dot(seg_vec) / (seg_len * seg_len)))
-        dist = (p0 + seg_vec * t - mouse_2d).length
-        if dist < best_dist:
-            best_dist = dist
-            best_edge = bme
-
-    if best_edge is None:
-        return
-
-    # Walk the loop from the seed edge (same rules as Tweak_Logic._init_loop_from_seed_edge).
-    is_boundary_loop = best_edge.is_boundary
-    v0, v1 = best_edge.verts[0], best_edge.verts[1]
-    loop_verts: set = set()
-
-    def walk_from(cur, prev):
-        while cur not in loop_verts and len(loop_verts) < 500:
-            loop_verts.add(cur)
-            if is_boundary_loop and is_bmvert_corner(cur):
-                break
-            nxt = get_bmv_next_loop_vert(prev, cur)
-            if nxt is None: break
-            prev, cur = cur, nxt
-
-    walk_from(v0, v1)
-    walk_from(v1, v0)
-
-    brush._hover_loop_edge  = best_edge
-    brush._hover_loop_verts = loop_verts
-
-    if loop_verts:
-        highlight = RF_Prefs.get_prefs(context).highlight_color
-        Drawing.draw_loop_highlight(context, loop_verts, M, highlight, skip_verts=frozenset())
-
-
 RFBrush_Tweak, RFOperator_TweakBrush_Adjust = create_falloff_brush(
     'tweak_brush',
     'Tweak Brush',
     radius=100,
     color=Color.from_ints(255, 145,  0, 255),
     fn_disable=lambda event: event.shift and not event.ctrl,
-    fn_draw_postpixel=_tweak_nudge_hover_draw,
 )
-# Hover-loop state: shared across all hover frames and read by Tweak_Logic.__init__.
-RFBrush_Tweak._hover_loop_edge:   BMEdge | None = None
-RFBrush_Tweak._hover_loop_verts:  set           = set()
-RFBrush_Tweak._last_hover_mouse:  object        = None
 
 class RFOperator_Tweak(RFOperator):
     bl_idname = "retopoflow.tweak"
