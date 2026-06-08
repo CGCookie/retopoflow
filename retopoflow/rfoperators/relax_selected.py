@@ -246,6 +246,20 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         default=True,
     )
 
+    # -------------------------------------------------------------------------
+    # Debug settings
+    # -------------------------------------------------------------------------
+    debug_select: EnumProperty(
+        name='Select',
+        description='After relaxing, replace the selection with the chosen guide-loop vert set for debugging',
+        items=[
+            ('ALL',      'All',      'Leave selection unchanged after relaxing'),
+            ('PROMOTED', 'Promoted', 'Select only the elected guide-loop vertices'),
+            ('DEMOTED',  'Demoted',  'Select only the demoted (pushed-away) vertices'),
+        ],
+        default='ALL',
+    )
+
     @classmethod
     def poll(cls, context):
         return context.mode == 'EDIT_MESH'
@@ -277,6 +291,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
                     self.draw_warning(layout)
         if not show_snap_to or self.snap_to not in ('NONE', 'ORIGINAL_MESH'):
             draw_hard_surface_snapping(layout, self, guide_loops=True)
+            # layout.prop(self, 'debug_select', text='Select') # highlight for debugging promoted / demoted
 
     def draw(self, context):
         from ..rfcore import RFCore
@@ -402,6 +417,13 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
                             if snapped:
                                 bmv.co = Mi @ snapped
                     bmesh.update_edit_mesh(logic.em)
+
+        if not rf_is_running and self.debug_select != 'ALL':
+            target = logic.promoted_loop_verts if self.debug_select == 'PROMOTED' else logic.demoted_verts
+            for bmv in logic.bm.verts:
+                bmv.select = bmv in target
+            logic.bm.select_flush_mode()
+            bmesh.update_edit_mesh(logic.em)
 
         return {'FINISHED'}
 

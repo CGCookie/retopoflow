@@ -549,6 +549,7 @@ class Relax_Logic:
 
         # Non-brush callers fall back to the vert set's own bounds
         # so the distance caps and snap falloff still have meaningful values.
+        is_brush_call = brush_center_world is not None
         if brush_center_world is None or radius3D is None:
             world_cos = [M @ bmv.co for bmv in verts]
             center = sum(world_cos, Vector((0.0, 0.0, 0.0))) / len(world_cos)
@@ -572,7 +573,7 @@ class Relax_Logic:
             int(getattr(relax, 'algorithm_interpolate_loops', False))
         )
         weight_mult = (1.0 / enabled_algorithms_count) if enabled_algorithms_count else 0.0
-        loops_strength  = getattr(context.scene.retopoflow.snapping, 'source_edge_guide_loops', 0.5)
+        loops_strength  = getattr(relax, 'source_edge_guide_loops', getattr(context.scene.retopoflow.snapping, 'source_edge_guide_loops', 0.5))
 
         self.verts_near_source_edge = {}
         self.snapped_verts = set()
@@ -1109,38 +1110,22 @@ class Relax_Logic:
                                 result[bmv] = diff
             return result
 
-        def seed_guide_loop():
-            ''' Finds the first retopo edge under the brush that lies
-            on the source edge and traces its loops to help guide snapping '''
+        def is_on_source_corner(v):
+            return source_corner_of_vert(v, margin=0.05) is not None
 
-            guide_edges = [
-                bme for bme in edges
-                if bme.verts[0] in self.verts_near_source_edge
-                and bme.verts[1] in self.verts_near_source_edge
-            ]
-            if not guide_edges:
-                return  # no snapped edge yet; try again next frame
+        def is_loop_continuation(v):
+            if is_on_source_corner(v):
+                return False
+            if any(e.is_boundary for e in v.link_edges):
+                return len(v.link_edges) == 3
+            return len(v.link_edges) == 4 and len(v.link_faces) == 4
 
-            # Pick the guide edge whose midpoint is closest to the brush centre.
-            co_local = (Mi @ Vector((*brush_center_world, 1.0))).xyz
-            guide_edge = min(
-                guide_edges,
-                key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - Vector(co_local)).length,
-            )
+        def elect_loop_from_edge(guide_edge):
+            ''' Walk guide_edge's retopo loop in both directions; return (promoted, demoted) or None '''
             v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
 
-            def is_on_source_corner(v):
-                return source_corner_of_vert(v, margin=0.05) is not None
-
-            def is_loop_continuation(v):
-                if is_on_source_corner(v):
-                    return False
-                if any(e.is_boundary for e in v.link_edges):
-                    return len(v.link_edges) == 3
-                return len(v.link_edges) == 4 and len(v.link_faces) == 4
-
             promoted = set()
-            limit=100
+            limit = 100
             def walk_from(cur, prev):
                 while cur not in promoted and len(promoted) < limit:
                     # The current vert is always part of the loop, including the corner the loop ends on
@@ -1152,10 +1137,10 @@ class Relax_Logic:
                         break
                     prev, cur = cur, nxt
 
-            # check both directions
             walk_from(v0, v1)
             walk_from(v1, v0)
-            if not promoted: return  # guide edge sits on a corner/pole
+            if not promoted:
+                return None  # guide edge sits on a corner/pole
 
             # Terminal verts are those the walk stopped on, corners, poles, and on source corners
             terminal_at_corner = {
@@ -1185,9 +1170,106 @@ class Relax_Logic:
                         if nb not in promoted and is_loop_continuation(nb):
                             demoted.add(nb)
 
-            self.promoted_loop_verts = promoted
-            self.demoted_verts = demoted
-            self.loop_guide_verts = (v0, v1)
+            return promoted, demoted
+
+        def seed_guide_loop():
+            ''' Brush mode: elect one guide loop — the retopo loop whose seed edge is closest to the brush centre '''
+            guide_edges = [
+                bme for bme in edges
+                if bme.verts[0] in self.verts_near_source_edge
+                and bme.verts[1] in self.verts_near_source_edge
+            ]
+            if not guide_edges:
+                return  # no snapped edge yet; try again next frame
+
+            # Pick the guide edge whose midpoint is closest to the brush centre.
+            co_local = (Mi @ Vector((*brush_center_world, 1.0))).xyz
+            guide_edge = min(
+                guide_edges,
+                key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - Vector(co_local)).length,
+            )
+            result = elect_loop_from_edge(guide_edge)
+            if result is None:
+                return
+            self.promoted_loop_verts, self.demoted_verts = result
+            self.loop_guide_verts = (guide_edge.verts[0], guide_edge.verts[1])
+
+        def seed_all_guide_loops():
+            ''' Standalone mode: elect one guide loop per connected cluster of retopo edges near a source feature.
+            Retopo edges near the same source feature are typically contiguous in the mesh — each connected
+            component in the guide-edge subgraph corresponds to one distinct source feature, so one loop is
+            elected per component. On a cube with three loops of sharp edges, this produces three elected loops.
+            Guide edges are only formed between verts whose source tangents are parallel; this prevents a retopo
+            edge that crosses from one source loop to another (e.g. near a cube corner) from bridging the two
+            clusters into one and collapsing multiple source loops into a single elected loop. '''
+
+            # Compute the source-edge tangent for every vert that is near a source feature.
+            # Two verts are on the same source loop when their tangents are parallel (|dot| > threshold).
+            vert_tangent = {}
+            for bmv in self.verts_near_source_edge:
+                result = self.source_edge_accel.closest_point_with_tangent(to_world(bmv.co))
+                if result:
+                    vert_tangent[bmv] = result[1]
+
+            guide_edges = [
+                bme for bme in edges
+                if bme.verts[0] in vert_tangent
+                and bme.verts[1] in vert_tangent
+                and abs(vert_tangent[bme.verts[0]].dot(vert_tangent[bme.verts[1]])) > 0.7
+            ]
+            if not guide_edges:
+                return
+
+            # Build vert → guide edges adjacency for connectivity BFS
+            vert_to_guide = {}
+            for bme in guide_edges:
+                for v in bme.verts:
+                    vert_to_guide.setdefault(v, []).append(bme)
+
+            # Find connected components in the guide-edge subgraph
+            visited = set()
+            components = []
+            for seed in guide_edges:
+                if seed in visited:
+                    continue
+                component = []
+                stack = [seed]
+                while stack:
+                    bme = stack.pop()
+                    if bme in visited:
+                        continue
+                    visited.add(bme)
+                    component.append(bme)
+                    for v in bme.verts:
+                        for nb in vert_to_guide.get(v, []):
+                            if nb not in visited:
+                                stack.append(nb)
+                components.append(component)
+
+            all_promoted = set()
+            all_demoted = set()
+
+            for component in components:
+                # Elect the edge whose midpoint is closest to the component's own centroid
+                comp_center = sum(
+                    ((bme.verts[0].co + bme.verts[1].co) * 0.5 for bme in component),
+                    Vector((0.0, 0.0, 0.0))
+                ) / len(component)
+                guide_edge = min(
+                    component,
+                    key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - comp_center).length,
+                )
+                result = elect_loop_from_edge(guide_edge)
+                if result is None:
+                    continue
+                promoted, demoted = result
+                all_promoted.update(promoted)
+                all_demoted.update(demoted)
+
+            # A vert elected by one loop must not be demoted by another
+            self.promoted_loop_verts = all_promoted
+            self.demoted_verts = all_demoted - all_promoted
+            self.loop_guide_verts = None
 
         def update_source_context():
             ''' Recompute which verts lie near/on the source edge and re-derive the promoted/demoted guide loop.
@@ -1201,8 +1283,8 @@ class Relax_Logic:
                 self.promoted_loop_verts.clear()
                 self.demoted_verts.clear()
                 self.loop_guide_verts = None
-            else:
-                # If the brush moved away from the chosen edge, reset so a new edge can be picked.
+            elif is_brush_call:
+                # Brush: persist the elected loop until its seed edge leaves the brush region, then re-seed.
                 if self.loop_guide_verts is not None:
                     gv0, gv1 = self.loop_guide_verts
                     if gv0 not in chk_verts or gv1 not in chk_verts:
@@ -1211,6 +1293,12 @@ class Relax_Logic:
                         self.loop_guide_verts = None
                 if self.verts_near_source_edge and not self.promoted_loop_verts:
                     seed_guide_loop()
+            else:
+                # Standalone: recompute every step — one elected loop per distinct source feature cluster.
+                self.promoted_loop_verts.clear()
+                self.demoted_verts.clear()
+                if self.verts_near_source_edge:
+                    seed_all_guide_loops()
 
             # The vert that owns each source corner demotes the face-mates that are not
             # one step away and already on a source edge. Usually the diagonal opposite verts.
