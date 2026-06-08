@@ -58,7 +58,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         name='Strength',
         description='How far vertices move per iteration — equivalent to brush strength',
         subtype='FACTOR',
-        min=0.01, max=1.0, default=0.5,
+        min=0.01, max=1.0, default=1,
     )
     smooth_vertices: BoolProperty(
         name='Smooth Vertices',
@@ -303,11 +303,11 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
         layout.prop(self, 'strength', slider=True)
         layout.prop(self, 'iterations', slider=True)
         layout.row(heading='Preserve').prop(self, 'preserve_volume', text='Volume')
+        layout.row(heading="Interpolate").prop(self, 'interpolate_loops', text='Loops')
         layout.separator()
         layout.row(heading="Smooth").prop(self, 'smooth_vertices', text='Vertices')
         layout.row(heading="Average").prop(self, 'average_edge_lengths', text='Edges')
         layout.row(heading="Straighten").prop(self, 'straighten_edges', text='Edges')
-        layout.row(heading="Interpolate").prop(self, 'interpolate_loops', text='Loops')
         layout.row(heading="Equalize").prop(self, 'equalize_faces', text='Faces')
 
         mask_header, mask_panel = layout.panel('relax_selected_mask', default_closed=True)
