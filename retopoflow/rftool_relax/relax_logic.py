@@ -28,7 +28,7 @@ from bmesh.types import BMesh, BMVert, BMEdge
 
 import math
 import time
-from math import isnan, inf
+from math import isnan, inf, acos, tan
 from typing import Callable
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -150,7 +150,7 @@ class Relax_Logic:
     laplacian_cache : dict[BMVert, tuple[tuple[BMVert, ...], bool, float] | None]
     straighten_cache : dict[BMVert, tuple[bool, tuple[BMVert, ...], tuple[BMVert, ...], int] | None]
     straighten_loops_cache : dict[BMVert, tuple[tuple[BMVert, BMVert], ...] | None]
-    loop_interp_cache : dict[BMVert, 'tuple[BMVert,int,BMVert,int,BMVert,int,BMVert,int] | None']
+    loop_interp_cache : dict[BMVert, 'list[tuple] | None']
     face_topology_cache : dict[BMVert, tuple[tuple[BMVert, ...], tuple[BMEdge, ...]] | None]
 
     # debugging and profiling
@@ -820,58 +820,205 @@ class Relax_Logic:
                 closest = start_pt.co + direction * t
                 add_force(bmv, (closest - co) * 0.5, co, 1, 40)
 
-        def walk_loop(origin, first_step, max_depth=50):
-            ''' Walk outward along a loop from `origin` through `first_step`.
-            Returns (boundary_bmv, hop_count) the first vert outside `verts`
-            or the last vert reached when a pole, mesh boundary, or closed
-            loop terminates the walk early. '''
+        def walk_loop_to_selection_boundary(origin, first_step, max_depth=200):
+            ''' Walk the loop from origin through first_step to the last SELECTED
+            vert in that direction (the outermost vert of the selection).
+
+            Returns (depth, last_selected_vert):
+              depth=0, origin  — origin itself is the selection boundary
+                                  (first_step is already outside verts)
+              depth=k, vert    — vert is the outermost selected vert, k hops away
+            Returns None for poles, mesh boundaries, or closed loops that never
+            exit the selection. '''
+            if first_step not in verts:
+                # Origin is right at the selection edge in this direction.
+                return 0, origin
             prev, cur = origin, first_step
-            hops = 1
+            depth = 1
             seen = {origin}
             while True:
-                if cur not in verts:
-                    return cur, hops            # reached an unaffected boundary vert
                 seen.add(cur)
-                if hops >= max_depth:
-                    return cur, hops            # depth guard
                 nxt = get_bmv_next_loop_vert(prev, cur)
-                if nxt is None or nxt in seen:
-                    return cur, hops            # pole / mesh boundary / closed loop
+                if nxt is None:
+                    return None              # mesh boundary or pole
+                if nxt in seen:
+                    return None              # closed loop entirely inside selection
+                if nxt not in verts:
+                    return depth, cur        # cur is the last selected vert
+                if depth >= max_depth:
+                    return None              # depth guard
                 prev, cur = cur, nxt
-                hops += 1
+                depth += 1
 
-        def loop_interpolation(bmv, loop_cache):
-            ''' Push each vert toward its parametrically interpolated target,
-            computed from the unaffected boundary verts along its two loop axes.
-            straighten_loops uses the direct 1-hop loop pair neighbors while
-            this one traces the full loop to the unaffected boundary. '''
-            if bmv in loop_cache:
-                data = loop_cache[bmv]
-                if data is None: return
-            else:
+        def vert_current_normal(bmv):
+            ''' Average of adjacent face normals, used for the arc reconstruction
+            instead of bmv.normal so we get a fresh average rather than the
+            potentially stale per-vert cache. '''
+            n = Vector((0.0, 0.0, 0.0))
+            for f in bmv.link_faces:
+                n += f.normal
+            ln = n.length
+            return n / ln if ln > 1e-8 else Vector(bmv.normal)
+
+        def compute_loop_arc_target(bmv, axes):
+            ''' Given the current vert bmv and a list of (bnd_a, t, bnd_b) tuples,
+            return the averaged arc target on the curved surface.
+
+            bnd_a and bnd_b are the outermost SELECTED verts on each side of the
+            loop (the selection-boundary row/column).  t is the fractional position
+            of the current vert between them:
+              t = depth_a / (depth_a + depth_b)
+
+            Algorithm per axis:
+              1. Reconstruct sphere:  R = (P_b−P_a)·Δn / |Δn|²,  C = P_a − R·n_a
+              2. Find the unique circle through bnd_a, bnd_b, and bmv:
+                   k = normalize((P_b−P_a) × (P_cur−P_a))   ← axis of the circle's plane
+                   C_ring = C + ((P_a−C)·k) k               ← ring centre on sphere axis
+              3. 2D SLERP between e_a=(P_a−C_ring)/r and e_b=(P_b−C_ring)/r in the
+                 ring plane; target = C_ring + e_t * r_ring
+
+            For great circles (meridians) C_ring == C so this reduces to the original
+            3D SLERP between n_a and n_b — identical results, no regression.
+            For small circles (latitude rings) the ring plane is horizontal and the
+            2D SLERP stays on the latitude ring, eliminating the pole-ward bowing
+            that 3D SLERP produced.
+
+            Normals are recomputed from current face geometry so the formula stays
+            accurate as boundary verts are moved by forces and surface-snapping. '''
+            ideals = []
+            P_cur = Vector(bmv.co)
+
+            for bnd_a, t, bnd_b in axes:
+                P_a = Vector(bnd_a.co)
+                P_b = Vector(bnd_b.co)
+                n_a = vert_current_normal(bnd_a)
+                n_b = vert_current_normal(bnd_b)
+
+                # --- Reconstruct sphere from boundary vert normals ---
+                n_diff    = n_b - n_a
+                n_diff_sq = n_diff.dot(n_diff)
+                if n_diff_sq < 1e-10:
+                    # Normals nearly parallel — flat surface, lerp positions.
+                    ideals.append(P_a.lerp(P_b, t))
+                    continue
+
+                R = (P_b - P_a).dot(n_diff) / n_diff_sq
+                if abs(R) < 1e-10:
+                    ideals.append(P_a.lerp(P_b, t))
+                    continue
+                C = P_a - n_a * R   # sphere centre
+
+                # --- Find the circle's plane axis using bmv as third point ---
+                chord = P_b - P_a
+                arm   = P_cur - P_a
+                k     = chord.cross(arm)
+                k_len = k.length
+                if k_len < 1e-8:
+                    # bmv is collinear with bnd_a and bnd_b (degenerate patch);
+                    # fall back to the original 3D SLERP between the normals.
+                    dot       = max(-1.0, min(1.0, n_a.dot(n_b)))
+                    omega     = acos(dot)
+                    sin_omega = math.sin(omega)
+                    if sin_omega < 1e-6:
+                        n_t = n_a.lerp(n_b, t).normalized()
+                    else:
+                        n_t = (math.sin((1.0 - t) * omega) / sin_omega) * n_a \
+                            + (math.sin(       t  * omega) / sin_omega) * n_b
+                    ideals.append(C + n_t * R)
+                    continue
+                k = k / k_len
+
+                # --- Small-circle geometry ---
+                # Ring centre: foot of perpendicular from sphere centre onto the plane
+                C_ring = C + (P_a - C).dot(k) * k
+
+                v_a = P_a - C_ring
+                v_b = P_b - C_ring
+                r_a = v_a.length
+                if r_a < 1e-8:
+                    ideals.append(P_a.lerp(P_b, t))
+                    continue
+
+                # Project v_b into the ring plane (strip the k-component)
+                v_b_in_plane = v_b - v_b.dot(k) * k
+                r_b = v_b_in_plane.length
+                if r_b < 1e-8:
+                    ideals.append(P_a.lerp(P_b, t))
+                    continue
+
+                e_a = v_a / r_a
+                e_b = v_b_in_plane / r_b
+
+                # 2D SLERP in the ring plane
+                cos_theta = max(-1.0, min(1.0, e_a.dot(e_b)))
+                theta     = acos(cos_theta)
+                sin_theta = math.sin(theta)
+                if sin_theta < 1e-6:
+                    e_t = e_a.lerp(e_b, t).normalized() if cos_theta > 0 else e_a
+                else:
+                    e_t = (math.sin((1.0 - t) * theta) / sin_theta) * e_a \
+                        + (math.sin(       t  * theta) / sin_theta) * e_b
+
+                r_ring = (r_a + r_b) / 2.0
+                ideals.append(C_ring + e_t * r_ring)
+
+            if not ideals:
+                return None
+            return sum(ideals, Vector((0.0, 0.0, 0.0))) / len(ideals)
+
+        def loop_interpolation_spline(bmv, loop_cache):
+            ''' Build the interpolation cache for bmv (first call only).
+
+            The outermost SELECTED verts in each loop direction are the anchors —
+            they define the reference curves and are not moved by this algorithm.
+            A vert is considered an anchor (selection boundary) when the walk in
+            that direction returns depth=0, meaning the immediate loop-neighbor is
+            already outside the selection.
+
+            For interior verts the topological parameter is:
+              t = depth_a / (depth_a + depth_b)
+            where depth_a/depth_b are hop-counts to the two anchors, so the center
+            vert of a five-row selection gets t=0.5 and verts near the boundary get
+            t→0 or 1.
+
+            Cache stores (anchor_a, t, anchor_b) tuples.  Anchors are selected
+            boundary verts whose positions are read fresh each frame.  Normals are
+            also recomputed from current face geometry rather than the BMesh cache.
+
+            No force is added here.  All correction is done by the single hard-snap
+            pass that runs ONCE per relax_verts call (outside the per-step loop),
+            so the strength slider maps linearly to per-frame correction regardless
+            of the integration step count. '''
+            if bmv not in loop_cache:
                 lps = get_bmv_loop_pairs(bmv)
-                if lps is None:
+                if not lps:
                     loop_cache[bmv] = None
-                    return
-                (nb_a, nb_b), (nb_c, nb_d) = lps
-                bnd_a, n_a = walk_loop(bmv, nb_a)
-                bnd_b, n_b = walk_loop(bmv, nb_b)
-                bnd_c, n_c = walk_loop(bmv, nb_c)
-                bnd_d, n_d = walk_loop(bmv, nb_d)
-                loop_cache[bmv] = (bnd_a, n_a, bnd_b, n_b, bnd_c, n_c, bnd_d, n_d)
-                data = loop_cache[bmv]
-
-            bnd_a, n_a, bnd_b, n_b, bnd_c, n_c, bnd_d, n_d = data
-
-            # Parametric position along each loop axis (0 = near side, 1 = far side)
-            s = n_a / (n_a + n_b)
-            t = n_c / (n_c + n_d)
-
-            # Linearly interpolated target from each axis boundary
-            ideal_1 = bnd_a.co * (1.0 - s) + bnd_b.co * s
-            ideal_2 = bnd_c.co * (1.0 - t) + bnd_d.co * t
-
-            add_force(bmv, (((ideal_1 + ideal_2) * 0.5) - bmv.co) * 0.5)
+                else:
+                    axes = []
+                    on_selection_boundary = False
+                    for nb_a, nb_b in lps:
+                        result_a = walk_loop_to_selection_boundary(bmv, nb_a)
+                        if result_a is None:
+                            continue
+                        result_b = walk_loop_to_selection_boundary(bmv, nb_b)
+                        if result_b is None:
+                            continue
+                        depth_a, bnd_a = result_a
+                        depth_b, bnd_b = result_b
+                        # depth=0 means this vert IS the outermost selected vert
+                        # in that direction — it is the anchor for the reference
+                        # curve, not something to be interpolated.
+                        if depth_a == 0 or depth_b == 0:
+                            on_selection_boundary = True
+                            break
+                        # t=0 at bnd_a, t=1 at bnd_b
+                        # span = depth_a + depth_b (hops across the interior)
+                        t = depth_a / (depth_a + depth_b)
+                        axes.append((bnd_a, t, bnd_b))
+                    if on_selection_boundary:
+                        loop_cache[bmv] = None      # anchor verts: no interpolation
+                    else:
+                        loop_cache[bmv] = axes if axes else None
 
         def average_edge_length(bme, avg_edge_len):
             ''' Expand and contract edges closer to average edge length '''
@@ -1113,6 +1260,15 @@ class Relax_Logic:
         def is_on_source_corner(v):
             return source_corner_of_vert(v, margin=0.05) is not None
 
+        def is_on_source_edge(v):
+            # True if v currently lies on (within snap proximity of) a source feature edge.
+            # Lets guide-loop demotion spare verts that legitimately ride a source edge.
+            if not self.source_edge_accel or not v.link_edges:
+                return False
+            if closest_v := self.source_edge_accel.closest_point(to_world(v.co)):
+                return (Mi @ Vector(closest_v) - v.co).length <= get_bmv_avg_edge_len(v) * self.source_sharp_proximity
+            return False
+
         def is_loop_continuation(v):
             if is_on_source_corner(v):
                 return False
@@ -1157,12 +1313,17 @@ class Relax_Logic:
                     # All direct edge-neighbors of the corner are protected
                     # Face-diagonal verts, those sharing a face but not an edge with the corner, are demoted
                     all_adj = {bme.other_vert(v) for bme in v.link_edges}
+                    v_is_boundary = any(e.is_boundary for e in v.link_edges)
                     for bmf in v.link_faces:
                         if len(bmf.verts) != 4: continue
                         for fv in bmf.verts:
                             if fv is v or fv in all_adj: continue
-                            if not is_bmvert_corner(fv):
-                                demoted.add(fv)
+                            # A vert that itself rides a source edge (e.g. the perpendicular feature
+                            # meeting the loop where it ends at a corner) belongs there, so don't demote it.
+                            if is_bmvert_corner(fv) or is_on_source_edge(fv): continue
+                            # When the loop ends at a boundary corner, never demote its fellow boundary verts.
+                            if v_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
+                            demoted.add(fv)
                 else:
                     # Demote adjacent loop verts not already promoted
                     for bme in v.link_edges:
@@ -1284,10 +1445,19 @@ class Relax_Logic:
                 self.demoted_verts.clear()
                 self.loop_guide_verts = None
             elif is_brush_call:
-                # Brush: persist the elected loop until its seed edge leaves the brush region, then re-seed.
+                # Brush: keep the elected loop's seed edge until it leaves the brush region, but re-derive
+                # promoted/demoted from it each step so a vert that snaps to a source corner mid-stroke is
+                # recognised as a corner now (loop terminates there), not only if it started on the corner.
                 if self.loop_guide_verts is not None:
                     gv0, gv1 = self.loop_guide_verts
-                    if gv0 not in chk_verts or gv1 not in chk_verts:
+                    seed_bme = next((e for e in gv0.link_edges if e.other_vert(gv0) is gv1), None)
+                    if gv0 not in chk_verts or gv1 not in chk_verts or seed_bme is None:
+                        self.promoted_loop_verts.clear()
+                        self.demoted_verts.clear()
+                        self.loop_guide_verts = None
+                    elif (result := elect_loop_from_edge(seed_bme)) is not None:
+                        self.promoted_loop_verts, self.demoted_verts = result
+                    else:
                         self.promoted_loop_verts.clear()
                         self.demoted_verts.clear()
                         self.loop_guide_verts = None
@@ -1300,9 +1470,9 @@ class Relax_Logic:
                 if self.verts_near_source_edge:
                     seed_all_guide_loops()
 
-            # The vert that owns each source corner demotes the face-mates that are not
-            # one step away and already on a source edge. Usually the diagonal opposite verts.
-            # One vert per corner, otherwise every nearby vert fans demotion across all its faces.
+            # The vert that owns each source corner demotes the face-mates that are not one step
+            # away, except those that themselves ride a source edge. Usually the diagonal opposite
+            # verts. One vert per corner, otherwise every nearby vert fans demotion across its faces.
             if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
                 corner_prox_mult = getattr(relax, 'algorithm_source_corner_proximity', 2.0)
                 corner_owner = {}
@@ -1315,12 +1485,15 @@ class Relax_Logic:
                 for _dist, cv in corner_owner.values():
                     # All direct neighbors of the corner must be protected
                     all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
+                    cv_is_boundary = any(e.is_boundary for e in cv.link_edges)
                     for bmf in cv.link_faces:
                         if len(bmf.verts) != 4: continue  # only meaningful for quads
                         for fv in bmf.verts:
                             if fv is cv or fv in all_adj: continue
-                            if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
-                                self.demoted_verts.add(fv)
+                            if fv in self.promoted_loop_verts or is_bmvert_corner(fv) or is_on_source_edge(fv): continue
+                            # When the owner is a boundary corner, never demote its fellow boundary verts.
+                            if cv_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
+                            self.demoted_verts.add(fv)
 
         def relax_3d():
             #MARK: Add forces
@@ -1333,7 +1506,7 @@ class Relax_Logic:
                         straighten_loops(bmv, self.straighten_loops_cache)
             if getattr(relax, 'algorithm_interpolate_loops', False):
                 for bmv in verts:
-                    loop_interpolation(bmv, self.loop_interp_cache)
+                    loop_interpolation_spline(bmv, self.loop_interp_cache)
             if relax.algorithm_average_edge_lengths:
                 avg_edge_len = sum(bme_length(bme) for bme in edges) / len(edges)
                 for bme in edges:
@@ -1646,6 +1819,71 @@ class Relax_Logic:
             for (bmv, co) in update_to.items():
                 bmv.co = co
             # self.rfcontext.update_verts_faces(displace)
+
+        # Hard snap: ONCE per relax_verts call (outside the per-step loop).
+        #
+        # Applying this inside the step loop multiplied its effect by the step
+        # count (up to 10× for small selections in AUTO mode), making strength
+        # values above ~0.1 indistinguishable — the vert already converged
+        # before the user could perceive any difference.
+        #
+        # Two-stage design:
+        #
+        # Stage 1 — Convergence: run a small fixed number of full-strength snap
+        # passes to determine the TRUE ideal position.  Each pass improves the
+        # current vert position (P_cur), which in turn improves the small-circle
+        # axis k = (P_b−P_a)×(P_cur−P_a) used by compute_loop_arc_target.
+        # Without this, a bowed starting position feeds a tilted k into the
+        # first snap and the ideal is inaccurate.
+        #
+        # Stage 2 — Strength blend: move each vert from its ORIGINAL position
+        # (before convergence) to the CONVERGED ideal, scaled by vert_strength.
+        # This makes the slider linear: strength=0 → no change, strength=1 →
+        # exactly at the converged ideal, intermediate → proportional blend.
+        #
+        # Selection-boundary verts have loop_cache=None and are skipped, so
+        # only interior verts are moved — matching Grid Fill behaviour.
+        #
+        # mult (the global force limiter) and the edge-length cap are
+        # intentionally omitted — this is a targeted correction, not a free
+        # force.  delta_len still prevents overshoot.
+        if getattr(relax, 'algorithm_interpolate_loops', False):
+            # Collect interior verts that have cached axes
+            interp_verts = [bmv for bmv in verts if self.loop_interp_cache.get(bmv)]
+
+            # Save starting positions before convergence moves anything
+            orig_positions = { bmv: Vector(bmv.co) for bmv in interp_verts }
+
+            # Stage 1: converge to the true ideal via a fixed number of full
+            # snaps, each pass refining P_cur and therefore k.
+            CONVERGENCE_STEPS = 5
+            for _ in range(CONVERGENCE_STEPS):
+                # Two-pass: compute all targets before applying any move, so
+                # one snap cannot shift the anchor of a neighbouring vert.
+                step_targets = {}
+                for bmv in interp_verts:
+                    ideal = compute_loop_arc_target(bmv, self.loop_interp_cache[bmv])
+                    if ideal is not None:
+                        step_targets[bmv] = ideal
+                for bmv, ideal in step_targets.items():
+                    bmv.co = ideal   # full snap — refines P_cur for next pass
+
+            # Stage 2: apply strength-scaled fraction of the total correction.
+            for bmv in interp_verts:
+                orig     = orig_positions[bmv]
+                converged = Vector(bmv.co)
+                bmv.co   = orig          # restore before blending
+
+                delta     = converged - orig
+                delta_len = delta.length
+                if delta_len < 1e-10:
+                    continue
+
+                snap_dist = delta_len * vert_strength[bmv] * pressure
+                if relax.algorithm_prevent_bounce:
+                    snap_dist *= self.bounce_mult.get(bmv, 1.0)
+                if snap_dist > 1e-10:
+                    bmv.co = orig + delta / delta_len * min(snap_dist, delta_len)
         # print(f'relaxed {len(verts)} ({len(chk_verts)}) in {time.time() - st} with {strength}')
         bmesh.update_edit_mesh(self.em)
         if context.area: context.area.tag_redraw()
@@ -1658,7 +1896,11 @@ class Relax_Logic:
         Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)
         from ..preferences import RF_Prefs
         highlight = RF_Prefs.get_prefs(context).highlight_color
-        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight)
+        # Only verts the snapper actually locked to the source edge keep their end padding, so the
+        # snap circle reads cleanly; the line runs straight through every un-snapped vert. Using
+        # snapped_verts avoids highlighting verts that merely drift inside the snap radius.
+        snapped_loop = self.promoted_loop_verts & self.snapped_verts
+        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight, skip_verts=snapped_loop)
         if self.demoted_verts:
             vertex_size = context.preferences.themes[0].view_3d.vertex_size
             M = self.matrix_world

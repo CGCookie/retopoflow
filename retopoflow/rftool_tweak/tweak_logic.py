@@ -614,6 +614,17 @@ class Tweak_Logic:
             return cr
         return None
 
+    def _is_on_source_edge(self, v):
+        ''' True if v currently lies on (within snap proximity of) a source feature edge.
+        Used to spare verts that legitimately ride a source edge from guide-loop demotion. '''
+        if not self.source_edge_accel or not v.link_edges:
+            return False
+        v_world = to_world(v.co, self.matrix_world)
+        closest = self.source_edge_accel.closest_point(v_world)
+        if not closest:
+            return False
+        return (Vector(closest) - v_world).length <= self.stroke_snap_radius
+
     def _collect_verts_near_source_edge(self):
         ''' Return {bmv: local-space vector to nearest feature edge} for every grabbed vert
         that is close enough and facing the feature. Limiting to grabbed verts ensures ungrabbed
@@ -635,9 +646,8 @@ class Tweak_Logic:
         return result
 
     def _seed_guide_loop(self):
-        ''' Walk outward from the retopo edge nearest the brush centre that already lies on
-        the source feature to elect promoted/demoted verts, matching Relax's seed_guide_loop
-        logic exactly. Called once when the first verts snap to the feature. '''
+        ''' Pick the seed edge nearest the brush centre (among retopo edges with both ends on the
+        feature) and elect the guide loop from it. Called when no loop is currently elected. '''
         guide_edges = [
             bme for bmv in self.verts_near_source_edge
             for bme in bmv.link_edges
@@ -646,14 +656,25 @@ class Tweak_Logic:
         # Need at least one retopo edge where both endpoints are on the feature.
         if not guide_edges: return
 
-        # Pick the seed edge whose midpoint is closest to the brush center.
-        brush_co = to_world(self.verts[0][0].co, self.matrix_world) if self.verts else Vector((0, 0, 0))
+        # Pick the seed edge whose midpoint is closest to the brush center (the cursor).
+        # Anchoring to the live brush center rather than an arbitrary grabbed vert means a
+        # large brush elects the loop under the cursor, not one out on the brush's rim.
+        if self.brush.hit_p:
+            brush_co_local = (self.matrix_world_inv @ Vector((*self.brush.hit_p, 1.0))).xyz
+        elif self.verts:
+            brush_co_local = self.verts[0][0].co
+        else:
+            brush_co_local = Vector((0, 0, 0))
         guide_edge = min(
             guide_edges,
-            key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - (self.matrix_world_inv @ Vector((*brush_co, 1.0))).xyz).length,
+            key=lambda e: ((e.verts[0].co + e.verts[1].co) * 0.5 - brush_co_local).length,
         )
-        v0, v1 = guide_edge.verts[0], guide_edge.verts[1]
+        self._elect_loop_from_edge(guide_edge.verts[0], guide_edge.verts[1])
 
+    def _elect_loop_from_edge(self, v0, v1):
+        ''' Walk the loop from seed edge (v0, v1) and derive promoted/demoted from CURRENT vert
+        positions. Re-run every frame so a vert that snaps to a source corner mid-stroke is
+        recognised as a corner (the loop terminates there), not only when it started on the corner. '''
         def is_on_source_corner(v):
             return self._source_corner_of_vert(v, self.stroke_snap_radius * 0.05) is not None
 
@@ -675,7 +696,11 @@ class Tweak_Logic:
 
         walk_from(v0, v1)
         walk_from(v1, v0)
-        if not promoted: return
+        if not promoted:
+            self.promoted_loop_verts = set()
+            self.demoted_verts = set()
+            self.loop_guide_verts = None
+            return
 
         terminal_at_corner = {
             v for v in promoted
@@ -689,12 +714,17 @@ class Tweak_Logic:
         for v in promoted:
             if v in terminal_at_corner:
                 all_adj = {bme.other_vert(v) for bme in v.link_edges}
+                v_is_boundary = any(e.is_boundary for e in v.link_edges)
                 for bmf in v.link_faces:
                     if len(bmf.verts) != 4: continue
                     for fv in bmf.verts:
                         if fv is v or fv in all_adj: continue
-                        if not is_bmvert_corner(fv):
-                            demoted.add(fv)
+                        # A vert that itself rides a source edge (e.g. the perpendicular feature
+                        # meeting the loop where it ends at a corner) belongs there, so don't demote it.
+                        if is_bmvert_corner(fv) or self._is_on_source_edge(fv): continue
+                        # When the loop ends at a boundary corner, never demote its fellow boundary verts.
+                        if v_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
+                        demoted.add(fv)
             else:
                 for bme in v.link_edges:
                     nb = bme.other_vert(v)
@@ -734,10 +764,18 @@ class Tweak_Logic:
                 self.demoted_verts.clear()
                 self.loop_guide_verts = None
 
+        # Re-derive the loop from its persisted seed edge every frame so a vert that snaps to a
+        # source corner mid-stroke is recognised as a corner now, not only if it started there.
+        if self.loop_guide_verts is not None:
+            gv0, gv1 = self.loop_guide_verts
+            if gv0.is_valid and gv1.is_valid:
+                self._elect_loop_from_edge(gv0, gv1)
+
         if self.verts_near_source_edge and not self.promoted_loop_verts:
             self._seed_guide_loop()
 
-        # The closest snapped vert owns each corner and face-diagonal neighbours of the owner are demoted.
+        # The closest snapped vert owns each corner and face-diagonal neighbours of the owner are
+        # demoted, except neighbours that themselves ride a source edge.
         if self.source_edge_accel and self.promoted_loop_verts and self.verts_near_source_edge:
             corner_owner: dict[int, tuple[float, BMVert]] = {}
             for cv in self.verts_near_source_edge:
@@ -748,12 +786,15 @@ class Tweak_Logic:
                     corner_owner[corner_idx] = (dist_corner, cv)
             for _dist, cv in corner_owner.values():
                 all_adj = {bme.other_vert(cv) for bme in cv.link_edges}
+                cv_is_boundary = any(e.is_boundary for e in cv.link_edges)
                 for bmf in cv.link_faces:
                     if len(bmf.verts) != 4: continue
                     for fv in bmf.verts:
                         if fv is cv or fv in all_adj: continue
-                        if fv not in self.promoted_loop_verts and not is_bmvert_corner(fv):
-                            self.demoted_verts.add(fv)
+                        if fv in self.promoted_loop_verts or is_bmvert_corner(fv) or self._is_on_source_edge(fv): continue
+                        # When the owner is a boundary corner, never demote its fellow boundary verts.
+                        if cv_is_boundary and any(e.is_boundary for e in fv.link_edges): continue
+                        self.demoted_verts.add(fv)
 
     def _find_corner_occupant(self, corner_co_world, incoming_bmv, radius):
         ''' Find a vert other than incoming_bmv sitting in a source corner.
@@ -1479,7 +1520,12 @@ class Tweak_Logic:
         Drawing.draw_snap_circles(context, self.snapped_verts, self.matrix_world)
         from ..preferences import RF_Prefs
         highlight = RF_Prefs.get_prefs(context).highlight_color
-        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight)
+        # Only verts the snapper actually locked to the source edge keep their end padding, so the
+        # snap circle reads cleanly; the line runs straight through every un-snapped vert. Using
+        # snapped_verts (authoritative, persists across the grab) avoids highlighting verts that
+        # merely drift inside the snap radius without being snapped.
+        snapped_loop = self.promoted_loop_verts & self.snapped_verts
+        Drawing.draw_loop_highlight(context, self.promoted_loop_verts, self.matrix_world, highlight, skip_verts=snapped_loop)
         Drawing.draw_loop_highlight(context, self.nudge_loop_verts, self.matrix_world, highlight, skip_verts=frozenset())
         if self.demoted_verts:
             vertex_size = context.preferences.themes[0].view_3d.vertex_size
