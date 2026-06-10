@@ -350,7 +350,7 @@ def create_stroke_brush(
             if event.type == 'LEFTMOUSE':
                 if event.value == 'PRESS':
                     if event_modifier_check(event, ctrl=True, shift=False, alt=False, oskey=False):
-                        if self.add_stroke_point(context, Point2D(self.mouse)):
+                        if self.mouse and self.add_stroke_point(context, Point2D(self.mouse)):
                             self.mouse = mouse
                             self.mousedown = mouse
                             self.stroke_far = False
