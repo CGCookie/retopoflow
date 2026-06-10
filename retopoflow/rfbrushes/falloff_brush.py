@@ -171,7 +171,7 @@ def create_falloff_brush(idname, label, **kwargs):
             self.hit = False
             if not self.mouse: return
             # print(f'RFBrush_Falloff.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-            hit = raycast_valid_sources(context, self.mouse)
+            hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
             # print(f'  {hit=}')
             if not hit: return
             #scale = size2D_to_size_point(context, self.mouse, hit['co_world'])

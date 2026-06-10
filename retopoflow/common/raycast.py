@@ -200,7 +200,7 @@ def plane_normal_from_points(context, p0, p1):
 def is_point_hidden(context, co_edit, *, factor=1.0, use_offset=True):
     M = context.edit_object.matrix_world
     co_world = M @ point_to_bvec4(co_edit)
-    hit = raycast_valid_sources(context, co_world)
+    hit = raycast_valid_sources(context, co_world, respect_clip_planes=True)
     if not hit: return False
     ray_e = hit['ray_world'][0]
     offset = context.space_data.overlay.retopology_offset if use_offset else 0.0
@@ -258,7 +258,59 @@ def prep_raycast_valid_sources(context):
         obj.ray_cast(Vector((0,0,0)), Vector((1,0,0)))
     print(f'  {time.time() - start:0.2f}secs')
 
-def raycast_valid_sources(context : Context, point : Vector|Sequence[float]|None) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
+CLIP_MAX_SKIPS = 16    # max out-of-clip-region hits to punch through before giving up
+CLIP_SKIP_NUDGE = 1e-4 # world-space distance to advance the ray origin past a rejected hit
+
+def is_point_in_clip_region(context: Context, co_world) -> bool:
+    '''
+    Returns True if Alt+B clip region is not used or the world-space point is inside the region.
+    Accepts a 3 or 4 component sequence (e.g. a plain Vector or a homogeneous bvec4).
+    Uses rv3d.clip_planes: six world-space half-plane equations (ax+by+cz+d >= 0 = inside).
+    '''
+    rv3d = context.region_data
+    if not rv3d or not rv3d.use_clip_planes:
+        return True
+    x, y, z = co_world[0], co_world[1], co_world[2]
+    for p in rv3d.clip_planes:
+        if p[0]*x + p[1]*y + p[2]*z + p[3] < 0:
+            return False
+    return True
+
+def make_hidden_tester(context: Context, obj) -> 'Callable[[Vector, Vector, float], bool]':
+    '''
+    Returns a fast per-object occlusion tester that calls obj.ray_cast() directly,
+    bypassing raycast_valid_sources for speed, skipping hits outside the active Alt+B clip region.
+
+    Signature of the returned callable: hidden_tester(ray_e_world, ray_d_world, max_distance) -> bool
+    where ray_e_world is a ray origin, ray_d_world is a 3 or 4D direction, all in world space units.
+    Returns True if the source mesh occludes this ray (hit inside clip region found).
+    '''
+    M  = obj.matrix_world
+    Mi = M.inverted_safe()
+    def hidden_tester(ray_e_world: Vector, ray_d_world: Vector, max_distance: float) -> bool:
+        ray_d3      = Vector(ray_d_world[:3])          # ensure 3D: input may be 4D (w=0)
+        ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
+        cur_e       = Vector(ray_e_world[:3])          # world-space origin, advances past clipped hits
+        dist_spent  = 0.0
+        for _ in range(CLIP_MAX_SKIPS):
+            dist_left = max_distance - dist_spent
+            if dist_left <= 0: return False
+            ray_e_local = point_to_bvec3(Mi @ cur_e)
+            result, co, normal, idx = obj.ray_cast(ray_e_local, ray_d_local, distance=dist_left)
+            if not result: return False
+            co_world = (M @ Vector((*co, 1.0))).to_3d()
+            if not is_point_in_clip_region(context, co_world):
+                dist_to_hit = (co_world - cur_e).length
+                cur_e       = cur_e + ray_d3 * (dist_to_hit + CLIP_SKIP_NUDGE)
+                dist_spent += dist_to_hit + CLIP_SKIP_NUDGE
+                continue
+            return True
+        return False
+    return hidden_tester
+
+def raycast_valid_sources(
+        context : Context, point : Vector|Sequence[float]|None, respect_clip_planes:bool=False
+) -> dict[str,tuple[Vector,Vector]|float|int|object|Vector|Sequence[float]]|None:
     if not point:
         return None
 
@@ -266,6 +318,8 @@ def raycast_valid_sources(context : Context, point : Vector|Sequence[float]|None
 
     # print(f'raycast_valid_sources {ray_world=}')
     if ray_world[0] is None: return None
+
+    ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
 
     best = None
 
@@ -277,33 +331,46 @@ def raycast_valid_sources(context : Context, point : Vector|Sequence[float]|None
         Mi  = M.inverted_safe()
         Mit = Mi.transposed()
         #Mt  = M.transposed()
-        ray_local = (
-            (Mi @ ray_world[0]),
-            (Mi @ ray_world[1]).normalized(),
-        )
-        result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
-        if not result: continue
 
-        no_hit = no_hit.normalized()
+        current_origin = ray_origin  # 4D point, w=1, advances past rejected hits when clipping
 
-        co_world = point_to_bvec3(M @ point_to_bvec4(co_hit))
-        no_world  = vector_to_bvec3(Mit @ vector_to_bvec4(no_hit)).normalized()
-        dist = distance_between_locations(ray_world[0], co_world)
-        # print(co_hit, dist)
+        for _ in range(CLIP_MAX_SKIPS if respect_clip_planes else 1):
+            ray_local = (
+                Mi @ current_origin,
+                (Mi @ ray_dir).normalized(),
+            )
+            result, co_hit, no_hit, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
+            if not result: break
 
-        if best and best['distance'] <= dist: continue
+            co_world = point_to_bvec3(M @ point_to_bvec4(co_hit))
 
-        co_local = point_to_bvec3(Mei @ point_to_bvec4(co_world))
-        no_local = vector_to_bvec3(Met @ vector_to_bvec4(no_world)).normalized()
+            if respect_clip_planes and not is_point_in_clip_region(context, co_world):
+                # hit is outside the clipping region: advance past it and retry.
+                dist_to_hit = distance_between_locations(current_origin, co_world)
+                current_origin = current_origin + ray_dir * (dist_to_hit + CLIP_SKIP_NUDGE)
+                continue
 
-        best = {
-            'ray_world':  ray_world,  # ray based on point_world
-            'distance':   dist,       # world distance between ray origin and hit point
-            'object':     obj,       'face_index': idx,        # hit object and face index
-            'co_local':   co_local,  'no_local':   no_local,   # co and normal wrt to active object
-            'co_hit':     co_hit,    'no_hit':     no_hit,     # co and normal wrt to hit object
-            'co_world':   co_world,  'no_world':   no_world,   # co and normal in world space
-        }
+            # Hit is valid
+            no_hit = no_hit.normalized()
+            no_world  = vector_to_bvec3(Mit @ vector_to_bvec4(no_hit)).normalized()
+            dist = distance_between_locations(ray_origin, co_world)
+            # print(co_hit, dist)
+
+            if best and best['distance'] <= dist: break
+
+            co_local = point_to_bvec3(Mei @ point_to_bvec4(co_world))
+            no_local = vector_to_bvec3(Met @ vector_to_bvec4(no_world)).normalized()
+
+            best = {
+                'ray_world':  ray_world,  # ray based on point_world
+                'distance':   dist,       # world distance between ray origin and hit point
+                'object':     obj,       'face_index': idx,        # hit object and face index
+                'co_local':   co_local,  'no_local':   no_local,   # co and normal wrt to active object
+                'co_hit':     co_hit,    'no_hit':     no_hit,     # co and normal wrt to hit object
+                'co_world':   co_world,  'no_world':   no_world,   # co and normal in world space
+            }
+            break
+
     return best
 
     # if not best: return None
@@ -324,27 +391,47 @@ def raycast_point_valid_sources(context:Context, point_screen_or_world:Vector, *
     if not ray_e_world or not ray_d_world: return None
     return raycast_ray_valid_sources(context, (ray_e_world, ray_d_world), **kwargs)
 
-def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True) -> Vector|None:
+def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *, world:bool=True, respect_clip_planes:bool=False) -> Vector|None:
     if ray_world[0] is None: return None
 
     best_hit = None
     best_dist = float('inf')
+
+    ray_origin, ray_dir = ray_world  # 4D: w=1 (point) and w=0 (direction, already normalised)
+
     # print(f'RAY {ray_world}')
     for obj in iter_all_valid_sources(context):
         M = obj.matrix_world
         Mi = M.inverted_safe()
-        ray_local = (
-            Mi @ ray_world[0],
-            (Mi @ vector_to_bvec4(ray_world[1])).normalized(),
-        )
-        result, co, normal, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
-        if not result: continue
-        co_world = M @ Vector((*co, 1.0))
-        dist = distance_between_locations(ray_world[0], co_world)
-        # print(f'  HIT {obj.name} {co_world} {dist}')
-        if dist >= best_dist: continue
-        best_hit = co_world
-        best_dist = dist
+
+        current_origin = ray_origin   # 4D point, w=1, advances past rejected hits when clipping
+
+        # Loop up to CLIP_MAX_SKIPS times only when clip-plane respecting is on
+        for _ in range(CLIP_MAX_SKIPS if respect_clip_planes else 1):
+            ray_local = (
+                Mi @ current_origin,
+                (Mi @ vector_to_bvec4(ray_dir)).normalized(),
+            )
+            result, co, normal, idx = obj.ray_cast(point_to_bvec3(ray_local[0]), vector_to_bvec3(ray_local[1]))
+            if not result:
+                break
+
+            co_world = M @ Vector((*co, 1.0))
+
+            if respect_clip_planes and not is_point_in_clip_region(context, co_world):
+                # hit is outside the Alt+B clipping region: advance past it and retry.
+                dist_to_hit = distance_between_locations(current_origin, co_world)
+                current_origin = current_origin + ray_dir * (dist_to_hit + CLIP_SKIP_NUDGE)
+                continue
+
+            # Hit is valid (inside clipping region, or clipping not active / not respected).
+            dist = distance_between_locations(ray_origin, co_world)
+            # print(f'  HIT {obj.name} {co_world} {dist}')
+            if dist < best_dist:
+                best_hit = co_world
+                best_dist = dist
+            break
+
     if not best_hit: return None
 
     hit = Vector((*point_to_bvec3(best_hit), 1.0))
@@ -354,7 +441,7 @@ def raycast_ray_valid_sources(context:Context, ray_world:tuple[Vector,Vector], *
         hit = Mi @ hit
     return point_to_bvec3(hit)
 
-def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True, sources=None) -> Vector|None:
+def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bool=True, sources=None, respect_clip_planes:bool=False) -> Vector|None:
     point_world = Vector((*point_world, 1.0))
     best_hit = None
     best_dist = float('inf')
@@ -372,6 +459,8 @@ def nearest_point_valid_sources(context:Context, point_world:Vector, *, world:bo
         result, co, normal, idx = obj.closest_point_on_mesh(point_local.xyz)
         if not result: continue
         co_world = M @ Vector((*co, 1.0))
+        if respect_clip_planes and not is_point_in_clip_region(context, co_world):
+            continue
         dist = distance_between_locations(point_world, co_world)
         # print(f'  HIT {obj.name} {co_world} {dist}')
         if dist >= best_dist: continue

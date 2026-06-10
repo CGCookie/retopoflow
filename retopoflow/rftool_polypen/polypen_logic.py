@@ -304,8 +304,8 @@ def PP_get_edge_quad_verts(context:Context, p0:Vector, p1:Vector, mouse:Vector|N
 
     for _tries in range(32):
         p2, p3 = mid23 + toward * (dist01 / 2), mid23 - toward * (dist01 / 2)
-        hit2 = raycast_point_valid_sources(context, p2)
-        hit3 = raycast_point_valid_sources(context, p3)
+        hit2 = raycast_point_valid_sources(context, p2, respect_clip_planes=True)
+        hit3 = raycast_point_valid_sources(context, p3, respect_clip_planes=True)
         if hit2 and hit3:
             Mi = matrix_world.inverted_safe()
             return (Mi @ hit2, Mi @ hit3)
@@ -484,7 +484,7 @@ class PP_Logic:
 
         # update commit data structure with mouse position
         self.state = PP_Action.NONE
-        if hit := raycast_valid_sources(context, mouse_from_event(event)):
+        if hit := raycast_valid_sources(context, mouse_from_event(event), respect_clip_planes=True):
             self.hit = hit['co_local']  # pyright: ignore[reportAttributeAccessIssue]
         else:
             self.hit = None             # pyright: ignore[reportAttributeAccessIssue]
@@ -1674,7 +1674,7 @@ class PP_Logic:
                     for (bme, pt) in splits:
                         if bme == bme0 or bme == bme1: continue
                         _, bmv_new = edge_split(bme, bme.verts[0], 0.5)
-                        if pt3d := raycast_point_valid_sources(context, pt):     # raycast to surface
+                        if pt3d := raycast_point_valid_sources(context, pt, respect_clip_planes=True):     # raycast to surface
                             bmv_new.co = self.matrix_world_inv @ pt3d
                         connect_verts(self.bm, verts=[bmv_from, bmv_new])   # pyright: ignore [reportUnusedCallResult]
                         bmv_from = bmv_new
@@ -1742,16 +1742,19 @@ class PP_Logic:
                 dist = ((pc - p0n).length + (pc - p1n).length) / 1.5
                 pnn = pc + (po - pc).normalized() * dist
 
-                co0 = self.matrix_world_inv @ raycast_point_valid_sources(context, p0n)
-                co1 = self.matrix_world_inv @ raycast_point_valid_sources(context, p1n)
-                conn = self.matrix_world_inv @ raycast_point_valid_sources(context, pnn)
+                rc0  = raycast_point_valid_sources(context, p0n,  respect_clip_planes=True)
+                rc1  = raycast_point_valid_sources(context, p1n,  respect_clip_planes=True)
+                rcnn = raycast_point_valid_sources(context, pnn,  respect_clip_planes=True)
+                co0  = self.matrix_world_inv @ rc0   if rc0   else None
+                co1  = self.matrix_world_inv @ rc1   if rc1   else None
+                conn = self.matrix_world_inv @ rcnn  if rcnn  else None
 
                 _, bmv0_new = edge_split(bme0, bmvc, 0.5)
                 _, bmv1_new = edge_split(bme1, bmvc, 0.5)
 
-                bmv0_new.co = co0                   # raycast to surface
-                bmv1_new.co = co1                   # raycast to surface
-                bmv_new = self.bm.verts.new(conn)   # raycast to surface
+                if co0:  bmv0_new.co = co0                              # raycast to surface
+                if co1:  bmv1_new.co = co1                              # raycast to surface
+                bmv_new = self.bm.verts.new(conn if conn else bmvc.co)  # raycast to surface
 
                 # split bmf into 3 quads
                 self.bm.faces.remove(bmf)
@@ -1793,7 +1796,8 @@ class PP_Logic:
                 bmv_from = None
                 for (bme_split, pt_split) in splits:
                     _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
-                    bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)  # raycast to surface
+                    if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
+                        bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                     if bmv_from: connect_verts(self.bm, verts=[bmv_from, bmv_split])
                     bmv_from = bmv_split
 
@@ -1843,7 +1847,8 @@ class PP_Logic:
                                     split_dist = ((self.bmv.co - bmv_corner.co).length + (self.nearest.bmv.co - bmv_corner.co).length) / 2
                                     split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                     split_co = bmv_corner.co + split_dir * split_dist
-                                    split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
+                                    if snapped := nearest_point_valid_sources(context, self.matrix_world @ split_co, respect_clip_planes=True):
+                                        split_co = self.matrix_world_inv @ snapped
                 else:
                     co = self.correct_mirror_side(context, self.hit, [bmv0])
                     bmv1 = self.bm.verts.new(co)
@@ -1877,7 +1882,8 @@ class PP_Logic:
                     for (bme_split, pt_split) in splits:
                         if bme_split == self.nearest_bme.bme: break
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
-                        bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)  # raycast to surface
+                        if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
+                            bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                         connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         if bmv_first_new is None: bmv_first_new = bmv_split
                         bmv_from = bmv_split
@@ -1994,7 +2000,8 @@ class PP_Logic:
                                 split_dist = ((self.bmv.co - bmv_corner.co).length + (self.hit - bmv_corner.co).length) / 1.5
                                 split_dir = (bmv_opposite.co - bmv_corner.co).normalized()
                                 split_co = bmv_corner.co + split_dir * split_dist
-                                split_co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ split_co)
+                                if snapped := nearest_point_valid_sources(context, self.matrix_world @ split_co, respect_clip_planes=True):
+                                    split_co = self.matrix_world_inv @ snapped
                                 splits = []
 
                 _, bmv_new = edge_split(self.nearest_bme.bme, bmev0, 0.5)
@@ -2023,7 +2030,8 @@ class PP_Logic:
                     for (bme_split, pt_split) in splits:
                         if bme_split == self.nearest_bme.bme: break
                         _, bmv_split = edge_split(bme_split, bme_split.verts[0], 0.5)
-                        bmv_split.co = self.matrix_world_inv @ raycast_point_valid_sources(context, pt_split)  # raycast to surface
+                        if rc := raycast_point_valid_sources(context, pt_split, respect_clip_planes=True):
+                            bmv_split.co = self.matrix_world_inv @ rc  # raycast to surface
                         connect_verts(self.bm, verts=[bmv_from, bmv_split])
                         if bmv_first_new is None: bmv_first_new = bmv_split
                         bmv_from = bmv_split
@@ -2144,7 +2152,8 @@ class PP_Logic:
 
         for bmv in snap_verts:
             if not bmv.is_valid: continue
-            bmv.co = self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ bmv.co)
+            if snapped := nearest_point_valid_sources(context, self.matrix_world @ bmv.co, respect_clip_planes=True):
+                bmv.co = self.matrix_world_inv @ snapped
 
         bmops.deselect_all(self.bm)
         for bmelem in select_now:

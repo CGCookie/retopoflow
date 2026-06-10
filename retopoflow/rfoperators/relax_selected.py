@@ -409,7 +409,7 @@ class RFOperator_RelaxSelected(RFRegisterClass, bpy.types.Operator):
                         Mi = logic.matrix_world_inv
                         for bmv in verts:
                             co_world = point_to_bvec3((M @ Vector((*bmv.co, 1.0))).xyz)
-                            snapped = nearest_point_valid_sources(context, co_world, world=True, sources=logic.sources)
+                            snapped = nearest_point_valid_sources(context, co_world, world=True, sources=logic.sources, respect_clip_planes=True)
                             if not snapped and snap_bvh:
                                 hit_loc, _, _, _ = snap_bvh.find_nearest(co_world)
                                 if hit_loc:

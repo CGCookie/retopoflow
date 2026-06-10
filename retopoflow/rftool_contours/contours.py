@@ -311,12 +311,12 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
 
         hits_neg = list(itertools.takewhile(
             bool,
-            (raycast_valid_sources(context, self.v_to_point(-(v+1) / n, mouse0, mouse1)) for v in range(n)),
+            (raycast_valid_sources(context, self.v_to_point(-(v+1) / n, mouse0, mouse1), respect_clip_planes=True) for v in range(n)),
         ))
-        hit_mid = raycast_valid_sources(context, mouse0 + (mouse1 - mouse0) / 2)
+        hit_mid = raycast_valid_sources(context, mouse0 + (mouse1 - mouse0) / 2, respect_clip_planes=True)
         hits_pos = list(itertools.takewhile(
             bool,
-            (raycast_valid_sources(context, self.v_to_point(+(v+1) / n, mouse0, mouse1)) for v in range(n))
+            (raycast_valid_sources(context, self.v_to_point(+(v+1) / n, mouse0, mouse1), respect_clip_planes=True) for v in range(n))
         ))
         hits = list(itertools.chain(hits_neg, [hit_mid], hits_pos))
 
@@ -326,7 +326,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             for hit in hits_neg
         ]
         pts_neg_back = [
-            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
+            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True, respect_clip_planes=True)
             for (p, d) in rays_neg if p is not None and d is not None
         ]
         rays_pos = [
@@ -334,7 +334,7 @@ class RFOperator_Contours(RFOperator_Contours_Insert_Properties, RFOperator):
             for hit in hits_pos
         ]
         pts_pos_back = [
-            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True)
+            raycast_ray_valid_sources(context, (p + d * 0.0001, d), world=True, respect_clip_planes=True)
             for (p, d) in rays_pos if p is not None and d is not None
         ]
         points = list(itertools.chain(

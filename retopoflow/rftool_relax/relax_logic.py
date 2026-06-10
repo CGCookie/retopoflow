@@ -50,13 +50,13 @@ from ..common.maths import (
     view_forward_direction, view_right_direction, view_up_direction,
     xform_direction,
     point_to_bvec3,
-    direction_to_bvec3,
 )
 from ..common.raycast import (
     raycast_valid_sources,
     nearest_point_valid_sources,
     mouse_from_event,
     iter_all_valid_sources,
+    make_hidden_tester,
 )
 from ..common.drawing import (
     Drawing,
@@ -257,14 +257,10 @@ class Relax_Logic:
             matrix_world = self.matrix_world
             retopology_offset : float = context.space_data.overlay.retopology_offset
 
-            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = []
-            for obj in iter_all_valid_sources(context):
-                Mi = obj.matrix_world.inverted_safe()
-                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float, obj=obj, Mi=Mi) -> bool:
-                    ray_e_local = point_to_bvec3(Mi @ ray_e_world)
-                    ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
-                    return obj.ray_cast(ray_e_local, ray_d_local, distance=max_distance)[0]
-                is_bmvert_hidden_list.append(hidden_tester)
+            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = [
+                make_hidden_tester(context, obj)
+                for obj in iter_all_valid_sources(context)
+            ]
 
             def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
                 point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
@@ -490,7 +486,7 @@ class Relax_Logic:
         self._time = cur_time
         self.verts_accel.rebuild(context)
 
-        hit = raycast_valid_sources(context, self.mouse)
+        hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
         if not hit: return
         co_world : Vector = hit['co_world']  # pyright: ignore[reportAssignmentType]
         brush_center_world = Vector(co_world.xyz)  # save before inner loop overwrites co_world
@@ -1711,7 +1707,9 @@ class Relax_Logic:
                             co_world_snapped = point_to_bvec3((M_obj @ Vector((*co_hit, 1.0))).xyz)
                             break
                 if not co_world_snapped:
-                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources)
+                    co_world_snapped = nearest_point_valid_sources(
+                        context, point_to_bvec3(co_world.xyz), world=True, sources=self.sources, respect_clip_planes=True
+                    )
 
                 # Reproject-shape fallback: when no external source exists but the caller
                 # supplied a BVH built from the original mesh island, project onto that.
@@ -1804,7 +1802,7 @@ class Relax_Logic:
                         if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                         if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                         co_world = M @ Vector((*co, 1.0))
-                        co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources)
+                        co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources, respect_clip_planes=True)
                         if not co_world_snapped: continue
                         co = Mi @ co_world_snapped
                         if d < 0.001: break  # break out if change was below threshold

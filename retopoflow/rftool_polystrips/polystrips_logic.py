@@ -448,7 +448,10 @@ class PolyStrips_Logic:
                 find_point_at(stroke3D_local, self.is_cycle, (i / (nsamples - 1)))
                 for i in range(nsamples)
             ]
-            samples = [ nearest_point_valid_sources(context, M @ pt, world=False) for pt in samples ]
+            samples = [
+                nearest_point_valid_sources(context, M @ pt, world=False, respect_clip_planes=True) or pt
+                for pt in samples
+            ]
             normals = [ Direction(nearest_normal_valid_sources(context, M @ pt, world=False)) for pt in samples ]
             forwards = [ Direction(p1 - p0) for (p0, p1) in iter_pairs(samples, self.is_cycle) ]
             forwards += [ forwards[-1] ]
@@ -531,7 +534,8 @@ class PolyStrips_Logic:
 
             # snap newly created bmverts to source
             for bmv in chain(bmvs[0], bmvs[1]):
-                bmv.co = nearest_point_valid_sources(context, M @ bmv.co, world=False)
+                if snapped := nearest_point_valid_sources(context, M @ bmv.co, world=False, respect_clip_planes=True):
+                    bmv.co = snapped
 
             ######################################################
             # handle mirror
@@ -616,7 +620,8 @@ class PolyStrips_Logic:
         p = self.project_pt(context, bmv.co)
         return p.xy if p else None
     def nearest_point(self, context, p):
-        return self.matrix_world_inv @ nearest_point_valid_sources(context, self.matrix_world @ p)
+        snapped = nearest_point_valid_sources(context, self.matrix_world @ p, respect_clip_planes=True)
+        return self.matrix_world_inv @ snapped if snapped else p
     def bmv_closest(self, bmvs, pt3D):
         pt2D = self.project_pt(context, pt3D)
         # bmvs = [bmv for bmv in bmvs if bmv.select and (pt := self.project_bmv(bmv)) and (pt - pt2D).length_squared < 20*20]

@@ -41,7 +41,7 @@ from ..common.bmesh_maths import (
 from ..common.maths import point_to_bvec3, direction_to_bvec3
 from ..common.raycast import (
     raycast_valid_sources, nearest_point_valid_sources,
-    mouse_from_event, iter_all_valid_sources,
+    mouse_from_event, iter_all_valid_sources, make_hidden_tester,
 )
 from ..common.sources import to_world
 
@@ -232,7 +232,7 @@ class Tweak_Logic:
         self.mouse = Vector(mouse_from_event(event))
         self.mouse_prev = self.mouse.copy()
 
-        hit = raycast_valid_sources(context, self.mouse)
+        hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
         if not hit: return
 
         M = self.matrix_world
@@ -324,14 +324,10 @@ class Tweak_Logic:
             matrix_world = self.matrix_world
             retopology_offset : float = context.space_data.overlay.retopology_offset
 
-            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = []
-            for obj in iter_all_valid_sources(context):
-                Mi = obj.matrix_world.inverted_safe()
-                def hidden_tester(ray_e_world:Vector, ray_d_world:Vector, max_distance:float, obj=obj, Mi=Mi) -> bool:
-                    ray_e_local = point_to_bvec3(Mi @ ray_e_world)
-                    ray_d_local = direction_to_bvec3(Mi @ ray_d_world)
-                    return obj.ray_cast(ray_e_local, ray_d_local, distance=max_distance)[0]
-                is_bmvert_hidden_list.append(hidden_tester)
+            is_bmvert_hidden_list : list[Callable[[Vector, Vector, float], bool]] = [
+                make_hidden_tester(context, obj)
+                for obj in iter_all_valid_sources(context)
+            ]
 
             def ray_from_point_fast(rgn:Region, r3d:RegionView3D, point_world:Sequence[float]|Vector) -> tuple[Vector|None, Vector|None]:
                 point_screen : Sequence[float]|None = location_3d_to_region_2d(rgn, r3d, point_world)  # pyright: ignore [reportAssignmentType]
@@ -591,7 +587,7 @@ class Tweak_Logic:
             if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
             if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
             co_world = M @ Vector((*co, 1.0))
-            co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources)
+            co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources, respect_clip_planes=True)
             if not co_world_snapped: continue
             co = Mi @ co_world_snapped
             if d < 0.001: break
@@ -854,7 +850,7 @@ class Tweak_Logic:
                 p_ref = location_3d_to_region_2d(context.region, context.region_data, corner_w + Vector((occ_release_r, 0, 0)))
                 pix_per_unit = ((p_ref - corner_2d).length / occ_release_r) if p_ref else 50.0
                 sample_2d = corner_2d + kick_2d_norm * occ_release_r * pix_per_unit
-                hit = raycast_valid_sources(context, sample_2d)
+                hit = raycast_valid_sources(context, sample_2d, respect_clip_planes=True)
                 if hit:
                     sample_world = Vector(hit['co_world'])
                     d = sample_world - corner_w
@@ -937,7 +933,7 @@ class Tweak_Logic:
                         perp_sign = -1
 
                 sample_2d = nb_2d + perp_2d * (perp_sign * push_pixels)
-                hit = raycast_valid_sources(context, sample_2d)
+                hit = raycast_valid_sources(context, sample_2d, respect_clip_planes=True)
                 if hit is None: continue
 
                 nb.co = Vector(hit['co_local'])
@@ -1138,7 +1134,8 @@ class Tweak_Logic:
                 opt_steps = max(math.ceil(delta_strength / 10), 1)
                 for step in range(opt_steps):
                     pt2d = self.project_pt(context, new_co) or xy
-                    new_co2 = raycast_valid_sources(context, pt2d + delta * (effective_strength / opt_steps) * pressure)
+                    pt = pt2d + delta * (effective_strength / opt_steps) * pressure
+                    new_co2 = raycast_valid_sources(context, pt, respect_clip_planes=True)
                     if not new_co2: break
                     new_co = new_co2['co_local']
                     if self.boundary_accel:
@@ -1147,7 +1144,7 @@ class Tweak_Logic:
                             new_co = p
             else:
                 cur_xy = self.project_bmv(context, bmv) or xy
-                new_co = raycast_valid_sources(context, cur_xy + delta * effective_strength * pressure)
+                new_co = raycast_valid_sources(context, cur_xy + delta * effective_strength * pressure, respect_clip_planes=True)
                 if not new_co: continue
                 new_co = new_co['co_local']
                 if self.mask_opt('seams') == 'SLIDE' and bmv in self.seam_verts:
@@ -1184,7 +1181,7 @@ class Tweak_Logic:
                     if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                     if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                     co_world = M @ Vector((*co, 1.0))
-                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources)
+                    co_world_snapped = nearest_point_valid_sources(context, point_to_bvec3(co_world), world=True, sources=self.sources, respect_clip_planes=True)
                     if not co_world_snapped: continue
                     co = Mi @ co_world_snapped
                     if d < 0.001: break  # break out if change was below threshold
@@ -1209,8 +1206,8 @@ class Tweak_Logic:
             # Compute 3D displacement: raycast both the current and previous mouse positions
             # onto the source surface and take the difference as the true 3D brush motion.
             delta_3d: 'Vector | None' = None
-            curr_hit = raycast_valid_sources(context, mouse)
-            prev_hit = raycast_valid_sources(context, self.mouse_prev)
+            curr_hit = raycast_valid_sources(context, mouse, respect_clip_planes=True)
+            prev_hit = raycast_valid_sources(context, self.mouse_prev, respect_clip_planes=True)
             if curr_hit and prev_hit:
                 d3 = Vector(curr_hit['co_world']) - Vector(prev_hit['co_world'])
                 if d3.length > 1e-8:
@@ -1386,7 +1383,7 @@ class Tweak_Logic:
                 push_3d = delta_3d * t * brush_strength * pressure
 
             new_vert_world = (M @ bmv.co) + push_3d
-            new_pt = nearest_point_valid_sources(context, point_to_bvec3(new_vert_world), world=True, sources=self.sources)
+            new_pt = nearest_point_valid_sources(context, point_to_bvec3(new_vert_world), world=True, sources=self.sources, respect_clip_planes=True)
             if new_pt is None:
                 continue
             new_co = self.matrix_world_inv @ new_pt
@@ -1463,7 +1460,7 @@ class Tweak_Logic:
 
             push_2d = radial_dir_2d * delta.length * t * brush_strength * pressure * perp_weight * 0.25
 
-            new_hit = raycast_valid_sources(context, cur_2d + push_2d)
+            new_hit = raycast_valid_sources(context, cur_2d + push_2d, respect_clip_planes=True)
             if not new_hit:
                 continue
             new_co = Vector(new_hit['co_local'])

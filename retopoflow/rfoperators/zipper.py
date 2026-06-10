@@ -129,7 +129,7 @@ class Zipper_Logic:
                 return True
 
         if event.type == 'MOUSEMOVE' or self.first:
-            hit = raycast_valid_sources(context, mouse_from_event(event))
+            hit = raycast_valid_sources(context, mouse_from_event(event), respect_clip_planes=True)
             self.hit = hit['co_local'] if hit else None
             self.nearest_bmf.update(
                 context,
@@ -348,7 +348,8 @@ class Zipper_Logic:
             for i, (bmv0, bmv1) in enumerate(self.path_zip):
                 if bmv0 == bmv1: continue
                 co = pt_origin + (m - pt_origin) * i / (l - 1)
-                co = raycast_point_valid_sources(context, co, world=False)
+                co = raycast_point_valid_sources(context, co, world=False, respect_clip_planes=True)
+                if not co: continue
                 oco[bmv0] = bmv0.co
                 oco[bmv1] = bmv1.co
                 bmesh.ops.pointmerge(self.bm, verts=[bmv0, bmv1], merge_co=co)

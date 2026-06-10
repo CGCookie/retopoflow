@@ -289,7 +289,7 @@ def generate_point_inside_bmf(bmf):
 def is_bmvert_hidden(context:Context, bmv:BMVert, *, factor:float=0.99) -> bool:
     if bmv.hide: return True
     point = context.edit_object.matrix_world @ point_to_bvec4(bmv.co)
-    hit = raycast_valid_sources(context, point)
+    hit = raycast_valid_sources(context, point, respect_clip_planes=True)
     if not hit: return False
     ray_e, hit_dist = hit['ray_world'][0], hit['distance']
     offset = context.space_data.overlay.retopology_offset

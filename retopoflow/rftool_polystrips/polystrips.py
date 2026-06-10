@@ -472,7 +472,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                 pt0_new_world = region_2d_to_location_3d(rgn, r3d, pt0_new_screen, pt0_cur_world)
                 pt0_new_edit  = Mi @ pt0_new_world
                 return pt0_new_edit
-            pt0_new_world = raycast_point_valid_sources(context, pt0_new_screen)
+            pt0_new_world = raycast_point_valid_sources(context, pt0_new_screen, respect_clip_planes=True)
             if not pt0_new_world: return (pt0_cur_edit, pt1_cur_edit)
             pt0_new_edit = Mi @ pt0_new_world
             pt1_new_edit = pt1_cur_edit + (pt0_new_edit - pt0_cur_edit)
@@ -506,7 +506,7 @@ class RFOperator_PolyStrips_Edit(RFOperator):
             f = Frame(o, x=fwd, z=z)
             pt_edit_new = M @ f.l2w_point(pt_curve_orig)
             pt_edit_new = pt_edit_orig + (pt_edit_new - pt_edit_orig) * factor
-            co = nearest_point_valid_sources(context, pt_edit_new, world=False)
+            co = nearest_point_valid_sources(context, pt_edit_new, world=False, respect_clip_planes=True) or pt_edit_orig
 
             if self.mirror:
                 t = self.mirror_threshold
@@ -522,7 +522,8 @@ class RFOperator_PolyStrips_Edit(RFOperator):
                     if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                     if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                     co_world = M @ Vector((*co, 1.0))
-                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
+                    if not co_world_snapped: break
                     co = Mi @ co_world_snapped
                     if d < 0.001: break  # break out if change was below threshold
                 if zero['x']: co.x = 0
@@ -642,7 +643,7 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
                 d = Direction2D(p0 - p1)
                 for i in range(1, 101):
                     p = p0 + d * (radius2D * (i / 100))
-                    if not raycast_point_valid_sources(context, p): break
+                    if not raycast_point_valid_sources(context, p, respect_clip_planes=True): break
                     stroke2D = [p] + stroke2D
         if not snap_bmf1:
             p0 = stroke2D[-1]
@@ -651,10 +652,10 @@ class RFOperator_PolyStrips(RFOperator_PolyStrips_Insert_Properties, RFOperator)
                 d = Direction2D(p0 - p1)
                 for i in range(1, 101):
                     p = p0 + d * (radius2D * (i / 100))
-                    if not raycast_point_valid_sources(context, p): break
+                    if not raycast_point_valid_sources(context, p, respect_clip_planes=True): break
                     stroke2D += [p]
         length2D = sum((p1-p0).length for (p0,p1) in iter_pairs(stroke2D, is_cycle))
-        stroke3D = [raycast_point_valid_sources(context, pt, world=False) for pt in stroke2D]
+        stroke3D = [raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True) for pt in stroke2D]
         stroke3D = [pt for pt in stroke3D if pt]
         RFOperator_PolyStrips_Insert.polystrips_insert(
             context,

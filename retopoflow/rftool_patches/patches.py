@@ -296,7 +296,7 @@ class RFOperator_Patches_Insert(RFOperator):
             size = self.orientation_data['size']
 
         if update_hit:
-            hit = raycast_valid_sources(context, point_screen)
+            hit = raycast_valid_sources(context, point_screen, respect_clip_planes=True)
             if hit is None: return
             match self.orientation:
                 case 'RAYCAST':
@@ -307,7 +307,7 @@ class RFOperator_Patches_Insert(RFOperator):
                     for i in range(100):
                         rad = 2.0 * pi * i / 100
                         p = point_screen + Vector((cos(rad) * self.scale, sin(rad) * self.scale))
-                        nhit = raycast_valid_sources(context, p)
+                        nhit = raycast_valid_sources(context, p, respect_clip_planes=True)
                         if not nhit: continue
                         sz = size2D_to_size(context, nhit['distance'])
                         delta = nhit['distance'] - dist_sum / dist_count
@@ -367,7 +367,7 @@ class RFOperator_Patches_Insert(RFOperator):
                     y = random.random() * 2 - 1
                     if x*x + y*y <= 1: break
                 pt = point_screen + Vector((x, y)) * self.scale
-                nhit = raycast_valid_sources(context, pt)
+                nhit = raycast_valid_sources(context, pt, respect_clip_planes=True)
             co = frame.w2l_point(nhit['co_local'])
             height = max(height, -co.z) * self.scale * size
         print(f'{height:0.4f}')
@@ -999,7 +999,7 @@ class RFOperator_Patches_Drag_template(RFOperator):
                 pt, no = None, None
                 p2d = location_3d_to_region_2d(context.region, context.region_data, p)
                 if p2d:
-                    hit = raycast_valid_sources(context, p2d)
+                    hit = raycast_valid_sources(context, p2d, respect_clip_planes=True)
                     if hit:
                         pt, no = hit['co_local'], hit['no_local']
                     else:
@@ -1032,8 +1032,8 @@ class RFOperator_Patches_Drag_template(RFOperator):
                 if not c: continue
                 p, _ = xform(f, v, n, c)
                 d = M @ direction_to_bvec4(f.z)
-                hit_p = raycast_ray_valid_sources(context, (p, d))
-                hit_n = raycast_ray_valid_sources(context, (p, -d))
+                hit_p = raycast_ray_valid_sources(context, (p, d), respect_clip_planes=True)
+                hit_n = raycast_ray_valid_sources(context, (p, -d), respect_clip_planes=True)
                 dist_p = (p - hit_p).length if hit_p else float('inf')
                 dist_n = (p - hit_n).length if hit_n else float('inf')
                 hit = hit_p if dist_p < dist_n else hit_n
@@ -1200,7 +1200,7 @@ class RFOperator_Patches_Drag_template(RFOperator):
 
     def update(self, context, event):
         self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
-        self.mouse_hit = raycast_valid_sources(context, self.mouse)
+        self.mouse_hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
         self.mouse_ray = ray_from_mouse(context, event)
 
         if event.type == 'ESC' and event.value == 'PRESS':

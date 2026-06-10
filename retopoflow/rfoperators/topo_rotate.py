@@ -345,7 +345,8 @@ class RFOperator_TopoRotate(RFOperator):
                     forces[bmo1] += spring_k * f
             for (bmv, f) in forces.items():
                 p = bmv.co + TIMESTEP * vels[bmv]
-                bmv.co = self.Mi @ nearest_point_valid_sources(context, self.M @ p)
+                if snapped := nearest_point_valid_sources(context, self.M @ p, respect_clip_planes=True):
+                    bmv.co = self.Mi @ snapped
                 vels[bmv] = TIMESTEP * forces[bmv] + (1 - spring_c) * vels[bmv]
 
         bmesh.update_edit_mesh(self.em)

@@ -130,7 +130,8 @@ class RFOperator_MeshCleanup(RFRegisterClass, bpy.types.Operator):
         if props.cleaning_use_snap:
             for v in components['verts']:
                 world_co = obj.matrix_world @ v.co
-                v.co = nearest_point_valid_sources(context, world_co, world=False)
+                if snapped := nearest_point_valid_sources(context, world_co, world=False, respect_clip_planes=True):
+                    v.co = snapped
 
         bmesh.update_edit_mesh(obj.data)
 

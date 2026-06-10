@@ -657,7 +657,7 @@ class Strokes_Logic:
             bmvs[0].append(bmv)
             for i in range(1, nverts):
                 pt = pt0 + v * (i / (nverts - 1))
-                co = raycast_point_valid_sources(context, pt, world=False)
+                co = raycast_point_valid_sources(context, pt, world=False, respect_clip_planes=True)
                 bmvs[i].append(self.bm.verts.new(co) if co else None)
 
             accum_dist += bme_length(bme_cur)
@@ -748,7 +748,7 @@ class Strokes_Logic:
             fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
             cur_bmvs = [bmv0]
             for t in fitted[1:]:
-                co = raycast_point_valid_sources(context, t, world=False)
+                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
             bmvs.append(cur_bmvs)
@@ -837,7 +837,7 @@ class Strokes_Logic:
             fitted = fit_template2D(template, pt0, target=pt1)
             cur_bmvs = [bmv0]
             for t in fitted[1:-1]:
-                co = raycast_point_valid_sources(context, t, world=False)
+                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -970,7 +970,8 @@ class Strokes_Logic:
                 cur_bmvs = []
                 for bmv, co_frame in prep_data:
                     co_local = frame1.l2w_point(co_frame)
-                    co_local = (Mi @ bvec_point_to_bvec4(nearest_point_valid_sources(context, (M @ bvec_point_to_bvec4(co_local)).xyz))).xyz
+                    snapped = nearest_point_valid_sources(context, (M @ bvec_point_to_bvec4(co_local)).xyz, respect_clip_planes=True)
+                    co_local = (Mi @ bvec_point_to_bvec4(snapped)).xyz if snapped else co_local
                     cur_bmvs.append( self.bm.verts.new(co_local) )
                 bmvs.append(cur_bmvs)
             #sel_idx = next((i for (i,bmv) in enumerate(bmvs[0]) if bmv == self.snap_bmv0), -1)
@@ -1009,14 +1010,14 @@ class Strokes_Logic:
                     fitted = fit_template2D(template, pt, target=(pt + (along * template_len)))
                     cur_bmvs = [bmv0]
                     for t in fitted[1:]:
-                        co = raycast_point_valid_sources(context, t, world=False)
+                        co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
                         cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
                 else:
                     cur_bmvs = [bmv0]
                     offset0 = template[0]
                     for offset in template[1:]:
-                        co = raycast_point_valid_sources(context, pt + offset - offset0, world=False)
+                        co = raycast_point_valid_sources(context, pt + offset - offset0, world=False, respect_clip_planes=True)
                         cur_bmvs.append(self.bm.verts.new(co) if co else None)
 
                 bmvs.append(cur_bmvs)
@@ -1144,7 +1145,7 @@ class Strokes_Logic:
             cur_bmvs = [bmv0]
             for t in fitted[1:-1]:
                 # co = raycast_point_valid_sources(context, pt0 + offset * scale, world=False)
-                co = raycast_point_valid_sources(context, t, world=False)
+                co = raycast_point_valid_sources(context, t, world=False, respect_clip_planes=True)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             cur_bmvs.append(bmv1)
             bmvs.append(cur_bmvs)
@@ -1240,7 +1241,7 @@ class Strokes_Logic:
             cur_bmvs = [bmv0]
             for (p0, p2) in zip(fitted0[1:], fitted2[1:]):
                 p = lerp(v, p0, p2)
-                co = raycast_point_valid_sources(context, p, world=False)
+                co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
                 cur_bmvs.append(self.bm.verts.new(co) if co else None)
             bmvs.append(cur_bmvs)
             if not bme: break
@@ -1355,7 +1356,7 @@ class Strokes_Logic:
                 else:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(context, p, world=False)
+                    co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
                     bmvs[i_lr][i_tb] = self.bm.verts.new(co) if co else None
 
         # fill in quads
@@ -1616,7 +1617,7 @@ class Strokes_Logic:
                 else:
                     v = i_tb / (llc_tb - 1)
                     p = lerp(v, fitted_l[i_lr], fitted_r[i_lr])
-                    co = raycast_point_valid_sources(context, p, world=False)
+                    co = raycast_point_valid_sources(context, p, world=False, respect_clip_planes=True)
                     if left_mirror_snap:
                         zs = 0 if at_l else 1 # (i_tb / (llc_tb - 1))**0.25
                         if 'x' in left_mirror_snap: co.x *= zs

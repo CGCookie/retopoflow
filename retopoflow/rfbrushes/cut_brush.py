@@ -151,7 +151,7 @@ class RFBrush_Cut(RFBrush_Base):
 
             if event.type == 'MOUSEMOVE' and self.is_stroking():
                 self.mousemiddle = Point2D.average((self.mouse, self.mousedown))
-                self.hit = raycast_valid_sources(context, self.mousemiddle)
+                self.hit = raycast_valid_sources(context, self.mousemiddle, respect_clip_planes=True)
                 context.area.tag_redraw()
 
     def draw_postpixel(self, context:Context):

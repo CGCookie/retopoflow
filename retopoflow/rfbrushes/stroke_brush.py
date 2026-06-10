@@ -236,7 +236,7 @@ def create_stroke_brush(
             if snap_any and not (self.nearest_bmv or self.nearest_bmf):
                 self.reset_nearest(context)
 
-            hit = raycast_valid_sources(context, mouse)
+            hit = raycast_valid_sources(context, mouse, respect_clip_planes=True)
             if not hit: return
 
             if self.nearest_bmv:
@@ -434,7 +434,7 @@ def create_stroke_brush(
             self.stroke3D_right_end = None
 
         def add_stroke_point(self, context, pt2D):
-            hit = raycast_valid_sources(context, pt2D)
+            hit = raycast_valid_sources(context, pt2D, respect_clip_planes=True)
             if not hit: return False
 
             pt3D = hit['co_local']
@@ -857,7 +857,7 @@ def create_stroke_brush(
             self.hit = False
             if not self.mouse: return
             # print(f'RFBrush_Stroke.update {(event.mouse_region_x, event.mouse_region_y)}') #{context.region=} {context.region_data=}')
-            hit = raycast_valid_sources(context, self.mouse)
+            hit = raycast_valid_sources(context, self.mouse, respect_clip_planes=True)
             # print(f'  {hit=}')
             if not hit: return
             if self.is_stroking():

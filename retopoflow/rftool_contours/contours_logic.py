@@ -361,7 +361,7 @@ class Contours_Logic:
             npt_world = point_to_bvec3(self.matrix_world @ npt_local)
 
             # Get closest point on source-mesh surface.
-            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True)
+            npt_world_snapped = nearest_point_valid_sources(context, npt_world, world=True, respect_clip_planes=True)
 
             if npt_world_snapped:
                 npt_world_new = npt_world_snapped
@@ -473,7 +473,9 @@ class Contours_Logic:
         assert len(npts) >= vertex_count
 
         npts = [
-            Mi @ nearest_point_valid_sources(context, M @ pt, world=True) for pt in npts
+            (Mi @ snapped) if (
+                snapped := nearest_point_valid_sources(context, M @ pt, world=True, respect_clip_planes=True)
+            ) else pt for pt in npts
         ]
 
         # create geometry!
@@ -524,7 +526,7 @@ class Contours_Logic:
         dirs_world = [ plane_cut.l2w_direction(dir_plane) for dir_plane in dirs_plane ]
         rays_world = [ (center_world, dir_world) for dir_world in dirs_world ]
         points_world = [
-            raycast_ray_valid_sources(context, ray_world, world=True)
+            raycast_ray_valid_sources(context, ray_world, world=True, respect_clip_planes=True)
             for ray_world in rays_world
         ]
 
@@ -574,7 +576,9 @@ class Contours_Logic:
             # print(f'{pt=} {direction=}')
             pt_next = pt + direction * dist
             for _ in range(10):
-                pt_next = nearest_point_valid_sources(context, pt_next, world=True)
+                snapped = nearest_point_valid_sources(context, pt_next, world=True, respect_clip_planes=True)
+                if snapped is None: break
+                pt_next = snapped
                 pt_next = plane_cut.w2l_point(pt_next)
                 pt_next.z = 0
                 pt_next = Vector(plane_cut.l2w_point(pt_next))

@@ -198,7 +198,7 @@ class RFOperator_Translate(RFOperator):
             move_hovered = self.move_hovered and prefs.tweaking_move_hovered_mouse
 
         if move_hovered:
-            hit = raycast_valid_sources(context, mouse_from_event(event))
+            hit = raycast_valid_sources(context, mouse_from_event(event), respect_clip_planes=True)
             if hit:
                 co = hit['co_local']
 
@@ -463,15 +463,15 @@ class RFOperator_Translate(RFOperator):
                 factor = 1
 
             if self.snap_method == 'PROJECTED':
-                co = raycast_point_valid_sources(context, co2d_orig + delta * factor, world=False)
+                co = raycast_point_valid_sources(context, co2d_orig + delta * factor, world=False, respect_clip_planes=True)
                 if not co:
                     co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.last_success[bmv])
-                    co = nearest_point_valid_sources(context, co_world, world=False)
+                    co = nearest_point_valid_sources(context, co_world, world=False, respect_clip_planes=True)
                 if not co:
                     co = self.last_success[bmv]
             elif self.snap_method == 'NEAREST':
                 co_world = region_2d_to_location_3d(context.region, context.region_data, co2d_orig + delta * factor, self.matrix_world @ co_orig)
-                co_snapped = nearest_point_valid_sources(context, co_world, world=True) if co_world else None
+                co_snapped = nearest_point_valid_sources(context, co_world, world=True, respect_clip_planes=True) if co_world else None
                 co = self.matrix_world_inv @ co_snapped if co_snapped else self.last_success[bmv]
 
             if self.mirror:
@@ -488,7 +488,7 @@ class RFOperator_Translate(RFOperator):
                     if zero['y']: co.y, d = co.y * 0.95, max(abs(co.y), d)
                     if zero['z']: co.z, d = co.z * 0.95, max(abs(co.z), d)
                     co_world = self.matrix_world @ Vector((*co, 1.0))
-                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True)
+                    co_world_snapped = nearest_point_valid_sources(context, co_world.xyz / co_world.w, world=True, respect_clip_planes=True)
                     if not co_world_snapped: break
                     co = self.matrix_world_inv @ co_world_snapped
                     if d < 0.001: break  # break out if change was below threshold
