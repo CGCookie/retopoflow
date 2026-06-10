@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bl_ui
+import bmesh
 
 import time
 
@@ -40,7 +41,7 @@ from ..addon_common.common.ui_draw import free_ui_draw_shaders_and_batches
 from .rftool_base  import RFTool_Base
 from .rfbrush_base import RFBrush_Base
 from .rfoverlays.overlays import overlay_names
-from .rftool_statusbar import draw_rftool_statusbar
+from .rftool_statusbar import draw_rftool_statusbar, StatusbarYield
 
 # NOTE: import order determines tool order
 from .rftool_polypen.polypen       import RFTool_PolyPen
@@ -100,6 +101,9 @@ class RFCore:
     km_context             = None   # context for the active tool keymap (used by the statusbar drawing to filter out keymaps that does not match the current tool context)
     km_status_override     = None   # override for the statusbar text (used to display additional information about the current tool)
 
+    _last_rf_mesh_update_time: float = 0.0
+    _original_bmesh_update_edit_mesh = None   # used to know when to pause statusbar drawing to let Blender info be displayed
+
     _is_registered        = False   # True if RF is registered with Blender
     _unwrap_activate_tool = None    # fn to unwrap space_toolsystem_common.activate_by_id
     _handle_draw_cursor   = None    # handle to callback for WindowManager's draw cursor
@@ -151,6 +155,17 @@ class RFCore:
         bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(menu_mesh.draw_vertex_menu_items)
         bpy.app.handlers.load_post.append(RFCore.handle_load_post)
 
+        # track when RF modifies the mesh vs built-in Blender operator
+        update_em_original = bmesh.update_edit_mesh
+        RFCore._original_bmesh_update_edit_mesh = update_em_original
+        def _rf_tracked_update_edit_mesh(*args, **kwargs):
+            if RFCore.is_running:
+                # Only record the time. Suppression is cancelled in modal() for direct user interactions.
+                # Timer-driven mesh changes also call update_edit_mesh and must not clear the yield window.
+                RFCore._last_rf_mesh_update_time = time.monotonic()
+            return update_em_original(*args, **kwargs)
+        bmesh.update_edit_mesh = _rf_tracked_update_edit_mesh
+
         RFCore._is_registered = True
 
     @staticmethod
@@ -160,6 +175,18 @@ class RFCore:
             print(f'  ALREADY UNREGISTERED!!')
             return
         RFCore._is_registered = False
+
+        # Restore bmesh.update_edit_mesh to its original (unpatched) version
+        # Must happen before the workspace early-return so the patch is never left in place on addon reload
+        if RFCore._original_bmesh_update_edit_mesh is not None:
+            import bmesh as _bmesh_mod
+            _bmesh_mod.update_edit_mesh = RFCore._original_bmesh_update_edit_mesh
+            RFCore._original_bmesh_update_edit_mesh = None
+
+        # unwrap tool change function, also before the early-return so activate_by_id is always removed
+        if RFCore._unwrap_activate_tool is not None:
+            RFCore._unwrap_activate_tool()
+            RFCore._unwrap_activate_tool = None
 
         if not bpy.context.workspace:
             # no workspace?  blender might be closing, which unregisters add-ons (DON'T KNOW WHY)
@@ -183,10 +210,6 @@ class RFCore:
         bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(menu_mesh.draw_vertex_menu_items)
         bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(menu_mesh.draw_vertex_menu_items)
         bpy.app.handlers.load_post.remove(RFCore.handle_load_post)
-
-        # unwrap tool change function
-        RFCore._unwrap_activate_tool()
-        RFCore._unwrap_activate_tool = None
 
         AutoSave.unregister()
 
@@ -289,6 +312,8 @@ class RFCore:
         # print(f'RFOperator._update_statusbar {RFCore.selected_RFTool_idname}')
         # get the statusbar text from the active/selected RFTool.
         if tool_idname := RFCore.selected_RFTool_idname:
+            if StatusbarYield.is_active():
+                return  # Currently showing native status bar for external op report: don't re-register yet
             RFCore.km_context = 'init'
             RFCore.km_status_override = None
             context.workspace.status_text_set(lambda statusbar, context: draw_rftool_statusbar(statusbar, context, tool=RFTools[tool_idname], rfc=RFCore))
@@ -359,6 +384,7 @@ class RFCore:
                             print(f'Caught exception while trying to activate overlay {e}')
                             RFCore.restart()
 
+        StatusbarYield.cancel()
         RFCore._update_statusbar(context)
 
     @staticmethod
@@ -367,6 +393,7 @@ class RFCore:
         RFCore.is_running = True
         RFCore.event_mouse = None
         RFCore.is_controlling = True
+        RFCore._last_rf_mesh_update_time = time.monotonic() # Reset timestamp so a startup geometry event never triggers a suppression window
 
         wm, space = bpy.types.WindowManager, bpy.types.SpaceView3D
         RFCore._handle_draw_cursor = wm.draw_cursor_add(RFCore.handle_draw_cursor,   (context, context.area), 'VIEW_3D', 'WINDOW')
@@ -499,6 +526,8 @@ class RFCore:
         RFCore.is_running = False
         RFCore.event_mouse = None
         RFCore.is_controlling = False
+
+        StatusbarYield.cancel() # Cancel any pending status bar suppression timers
 
         for rfop in RFOperator.active_operators:
             try:
@@ -740,6 +769,9 @@ class RFCore:
 
     @staticmethod
     def handle_depsgraph_update(scene, depsgraph):
+        if not RFCore.is_running:
+            # can happen between stop() setting is_running=False and the handler being removed from the list
+            return
         if not RFCore.selected_RFTool_idname:
             # this can happen when Blender is closing
             return
@@ -749,6 +781,19 @@ class RFCore:
         # print(f'handle_depsgraph_update({scene}, {depsgraph})')
         # for up in depsgraph.updates:
         #     print(f'  {up.id=} {up.is_updated_geometry=} {up.is_updated_shading=} {up.is_updated_transform=}')
+
+        # Detect Blender geometry ops to display their info in statusbar.
+        try:
+            # Intercept bmesh.update_edit_mesh to record the last time RF's own Python code pushed a mesh change.
+            # Built-in C operators never call Python's bmesh.update_edit_mesh.
+            _yield_active  = StatusbarYield.is_active()
+            _elapsed       = time.monotonic() - RFCore._last_rf_mesh_update_time
+            _has_geom      = any(u.is_updated_geometry for u in depsgraph.updates)
+            # print(f'RF depsgraph: {_yield_active=} elapsed={_elapsed:.3f} {_has_geom=}')
+            if not _yield_active and _elapsed > 0.2 and _has_geom:
+                StatusbarYield.begin(3.0)
+        except Exception as e:
+            print(f'RF: external op detection error: {e}')
 
         selected_RFTool = RFTools[RFCore.selected_RFTool_idname]
         selected_RFTool.depsgraph_update()
@@ -775,6 +820,7 @@ RFAssetShelf.RFCore = RFCore
 RFCore_NewTarget_Active.RFCore = RFCore
 RFCore_NewTarget_Cursor.RFCore = RFCore
 RFBrush_Base.RFCore = RFCore
+StatusbarYield.RFCore = RFCore
 
 
 class InvalidationManager:
@@ -973,6 +1019,15 @@ class RFCore_Operator(RFRegisterClass, bpy.types.Operator):
             RFCore.is_controlling = True
             context.area.tag_redraw()
         RFCore.event_mouse = (event.mouse_x, event.mouse_y)
+        # Cancel native status bar display on user interaction.
+        if (StatusbarYield.is_active()
+            # Check PRESS not RELEASE or else the click on the menu that calls the op interferes
+            and not event.type.startswith('TIMER')
+            and event.type not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE', 'NOTHING', 'WINRESIZE'}
+            and event.value == 'PRESS'
+        ):
+            StatusbarYield.cancel()
+            RFCore._update_statusbar(context)
 
         if RFCore.is_controlling:
             # RFCore.handle_update(context, event)

@@ -1,4 +1,5 @@
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Dict, Any, Tuple, List, TYPE_CHECKING
 
@@ -13,6 +14,97 @@ from .preferences import RF_Prefs
 
 if TYPE_CHECKING:
     from .rfcore import RFCore
+
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+# MARK: StatusbarYield
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+
+class StatusbarYield:
+    """
+    Temporarily hide RF's custom status bar so Blender can show native operator reports.
+
+    Intercept bmesh.update_edit_mesh in rfcore.register() to track the last time
+    RF's own Python code pushed a mesh change.  Built-in C operators (e.g. Merge by Distance,
+    Remove Doubles) never call Python's bmesh.update_edit_mesh, so a geometry depsgraph
+    update that arrives more than 0.2 s after the last RF mesh write must have come from an
+    external operator. We temporarily yield the status bar so its report is visible.
+
+    Detection is skipped while an RF brush operator is mid-stroke (Relax/Tweak actively
+    painting), because those tools stamp _last_rf_mesh_update_time continuously and the
+    0.2 s threshold would never be exceeded anyway.
+    """
+
+    RFCore = None
+
+    _yield_until: float = 0.0
+
+    @classmethod
+    def is_active(cls) -> bool:
+        """Return True while the native status bar is being shown in place of RF's bar."""
+        return cls._yield_until > time.monotonic()
+
+    @classmethod
+    def begin(cls, duration: float = 3.0):
+        """
+        Start a yield window: schedule the timer that hides the RF bar.
+        Sets the deadline first so the timer callback can verify the window is still valid
+        if the user cancels between scheduling and firing.
+        """
+        cls._yield_until = time.monotonic() + duration
+        if not bpy.app.timers.is_registered(cls._show_timer):
+            bpy.app.timers.register(cls._show_timer, first_interval=0.01)
+
+    @classmethod
+    def cancel(cls):
+        """
+        Cancel an active yield window and unregister any pending timers.
+        Does not restore the RF status bar. Callers should call RFCore._update_statusbar()
+        if they want an immediate restore.
+        """
+        cls._yield_until = 0.0
+        for fn in (cls._show_timer, cls._restore_timer):
+            if bpy.app.timers.is_registered(fn):
+                bpy.app.timers.unregister(fn)
+
+    @classmethod
+    def _show_timer(cls):
+        """bpy.app.timers callback (~10 ms after detection): hide RF bar, schedule restore."""
+        rfc = cls.RFCore
+        if not rfc or not rfc.is_running or not rfc.selected_RFTool_idname:
+            return None
+        if not cls.is_active():
+            return None  # yield was cancelled before this timer fired; do nothing
+        try:
+            bpy.context.workspace.status_text_set(None)
+        except Exception as e:
+            print(f'RF: could not show native status bar: {e}')
+            return None
+        if not bpy.app.timers.is_registered(cls._restore_timer):
+            # Schedule the restore to fire when the yield window actually expires.
+            # Using the remaining time (not a hardcoded constant) avoids over-running
+            # when _show_timer itself fires late due to Blender load.
+            remaining = max(0.1, cls._yield_until - time.monotonic())
+            bpy.app.timers.register(cls._restore_timer, first_interval=remaining)
+        return None
+
+    @classmethod
+    def _restore_timer(cls):
+        """bpy.app.timers callback: restore RF bar once the yield window expires."""
+        rfc = cls.RFCore
+        if not rfc or not rfc.is_running or not rfc.selected_RFTool_idname:
+            return None
+        remaining = cls._yield_until - time.monotonic()
+        if remaining > 0.1:
+            return remaining + 0.1  # Yield window was extended by a second external op; wait longer
+        # Clear the deadline BEFORE calling _update_statusbar so its yield guard does not
+        # block re-registration (fixes the "two ops within 100 ms" permanent-blank bug).
+        cls._yield_until = 0.0
+        try:
+            rfc._update_statusbar(bpy.context)
+        except Exception as e:
+            print(f'RF: could not restore RF status bar: {e}')
+        return None
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #

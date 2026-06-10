@@ -2,6 +2,11 @@
 
 This document contains details about what has changed in Retopoflow in version 4.
 
+### 4.2.0
+
+- Added low poly sharp edge and edge mark snapping to Tweak and Relax
+- Added standalone operator for Relax that can even be used outside of Retopoflow
+- Tools statusbar now shows the result of Blender operations such as Merge by Distance
 
 ### 4.1.8
 
