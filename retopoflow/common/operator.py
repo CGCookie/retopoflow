@@ -303,7 +303,14 @@ class RFOperator(RFOperator_KeymapContext, bpy.types.Operator):
 
         self.InvalidationManager.prevent_invalidation()
 
-        self.init(context, event)
+        try:
+            self.init(context, event)
+        except Exception as e:
+            print(f'Caught Exception in operator init: {e}')
+            Debugger.print_exception()
+            if self in RFOperator.active_operators: RFOperator.active_operators.remove(self)
+            type(self)._is_running = False
+            return {'CANCELLED'}
         context.area.tag_redraw()
         return {'RUNNING_MODAL'}
 
