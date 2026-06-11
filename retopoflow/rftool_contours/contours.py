@@ -21,6 +21,7 @@ Created by Jonathan Denning, Jonathan Lampel
 
 import bpy
 import bmesh
+import math
 from mathutils import Vector, Matrix
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from bpy.types import Context
@@ -29,7 +30,7 @@ from ..rfbrushes.cut_brush import RFBrush_Cut
 from ..rfoverlays.loopstrip_selection_overlay import create_loopstrip_selection_overlay
 
 from ..rftool_base import RFTool_Base
-from ..common.bmesh import get_bmesh_emesh, nearest_bmv_world, nearest_bme_world, bme_midpoint, get_boundary_strips_cycles
+from ..common.bmesh import get_bmesh_emesh, has_mirror_x, has_mirror_y, has_mirror_z
 from ..common.drawing import Drawing
 from ..common.icons import get_path_to_blender_icon
 from ..common.maths import view_forward_direction
@@ -50,7 +51,7 @@ from ...addon_common.common import bmesh_ops as bmops
 from ...addon_common.common.blender import event_modifier_check
 from ...addon_common.common.blender_cursors import Cursors
 from ...addon_common.common.debug import debugger
-from ...addon_common.common.maths import Plane
+from ...addon_common.common.maths import Plane, Point
 from ...addon_common.common.resetter import Resetter
 from ...addon_common.ext.circle_fit import hyperLSQ
 
@@ -115,10 +116,13 @@ class RFOperator_Contours_Insert(
     bl_description = 'Insert cut and extrude edges into a patch'
     bl_options = { 'REGISTER', 'UNDO', 'INTERNAL' }
 
-    twist: bpy.props.IntProperty(
+    twist: bpy.props.FloatProperty(
         name='Rotate Cut',
         description='Rotate cut',
-        default=0,
+        default=0.0,
+        min= -math.pi / 2,
+        max= math.pi / 2,
+        subtype='ANGLE',
     )
 
     is_cycle: bpy.props.BoolProperty(
@@ -226,21 +230,27 @@ class RFOperator_Contours_Insert(
             return wrapped
         return wrapper
 
-    @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1}, {'km_context': ('init', 'ready'), 'km_label': 'Change Spans'})
+    @create_redo_operator('contours_insert_spans_decreased', 'Reinsert cut with decreased spans',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'ctrl': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Change Spans'})
     def decrease_spans(context, logic):
         logic.span_count -= 1
 
-    @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
+    @create_redo_operator('contours_insert_spans_increased', 'Reinsert cut with increased spans',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'ctrl': 1})
     def increase_spans(context, logic):
         logic.span_count += 1
 
-    @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist', {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1}, {'km_context': ('init', 'ready'), 'km_label': 'Change Twist'})
-    def decrease_spans(context, logic):
-        if logic.show_twist: logic.twist -= 5
+    @create_redo_operator('contours_insert_twist_decreased', 'Reinsert cut with decreased twist',
+                          {'type': 'WHEELDOWNMOUSE', 'value': 'PRESS', 'shift': 1},
+                          {'km_context': ('init', 'ready'), 'km_label': 'Change Twist'})
+    def decrease_twist(context, logic):
+        if logic.show_twist: logic.twist = max(-math.pi / 2, logic.twist - math.radians(5))
 
-    @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist', {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
-    def increase_spans(context, logic):
-        if logic.show_twist: logic.twist += 5
+    @create_redo_operator('contours_insert_twist_increased', 'Reinsert cut with increased twist',
+                          {'type': 'WHEELUPMOUSE',   'value': 'PRESS', 'shift': 1})
+    def increase_twist(context, logic):
+        if logic.show_twist: logic.twist = min(math.pi / 2, logic.twist + math.radians(5))
 
 
 
@@ -383,6 +393,103 @@ def switch_rftool(context):
     RFTool_Contours.activate_tool(context)
 
 
+class RFOperator_Contours_Twist(RFRegisterClass, bpy.types.Operator):
+    bl_idname = 'retopoflow.contours_twist'
+    bl_label = 'Contours: Adjust Twist'
+    bl_description = 'Rotate selected loop about its plane'
+    bl_options = {'UNDO', 'INTERNAL'}
+
+    rf_keymaps = []
+
+    @classmethod
+    def poll(cls, context):
+        if not context.edit_object or context.edit_object.type != 'MESH':
+            return False
+        bm = bmesh.from_edit_mesh(context.edit_object.data)
+        return any(v.select for v in bm.verts)
+
+    def invoke(self, context, event):
+        bm, em = get_bmesh_emesh(context)
+        sel_verts = [v for v in bm.verts if v.select]
+        if len(sel_verts) < 3:
+            return {'CANCELLED'}
+
+        self._bm  = bm
+        self._em  = em
+        self._mw  = context.edit_object.matrix_world.copy()
+        self._mwi = self._mw.inverted()
+        self._initial_mouse_x = event.mouse_x
+        self._initial_verts   = {v: v.co.copy() for v in sel_verts}
+
+        # vertices on a symmetry plane must not be rotated
+        self._sym_verts = set()
+        mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
+        if mx or my or mz:
+            threshold = 1e-4
+            for v in sel_verts:
+                if mx and abs(v.co.x) < threshold: self._sym_verts.add(v)
+                if my and abs(v.co.y) < threshold: self._sym_verts.add(v)
+                if mz and abs(v.co.z) < threshold: self._sym_verts.add(v)
+
+        # derive rotation axis and center from the selected verts' best-fit plane/circle
+        points = [Point(v.co) for v in sel_verts]
+        try:
+            plane = Plane.fit_to_points(points)
+            self._normal = plane.n.copy()
+            try:
+                circle = hyperLSQ([list(plane.w2l_point(p).xy) for p in points])
+                self._center = Vector(plane.l2w_point(Point((circle[0], circle[1], 0))))
+            except Exception:
+                self._center = sum((v.co for v in sel_verts), Vector()) / len(sel_verts)
+        except Exception:
+            self._normal = None
+            self._center = sum((v.co for v in sel_verts), Vector()) / len(sel_verts)
+
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def _apply_preview(self, context, delta_degrees):
+        if not self._normal:
+            return
+        T0    = Matrix.Translation(-self._center)
+        T1    = Matrix.Translation(self._center)
+        RT    = Matrix.Rotation(math.radians(delta_degrees), 4, self._normal)
+        xform = T1 @ RT @ T0
+        for v, co0 in self._initial_verts.items():
+            if v in self._sym_verts:
+                continue
+            v.co = xform @ co0
+            snapped = nearest_point_valid_sources(context, self._mw @ v.co, world=True, respect_clip_planes=True)
+            if snapped:
+                v.co = self._mwi @ snapped
+        self._bm.normal_update()
+        bmesh.update_edit_mesh(self._em, loop_triangles=False)
+
+    def modal(self, context, event):
+        if event.type == 'MOUSEMOVE':
+            delta_x = event.mouse_x - self._initial_mouse_x
+            self._apply_preview(context, delta_x * 0.05)
+            return {'RUNNING_MODAL'}
+
+        if event.type in {'LEFTMOUSE', 'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
+            return {'FINISHED'}
+
+        if event.type in {'RIGHTMOUSE', 'ESC'} and event.value == 'PRESS':
+            for v, co0 in self._initial_verts.items():
+                v.co = co0.copy()
+            self._bm.normal_update()
+            bmesh.update_edit_mesh(self._em, loop_triangles=False)
+            return {'CANCELLED'}
+
+        return {'RUNNING_MODAL'}
+
+
+RFOperator_Contours_Twist.rf_keymaps = [
+    ('retopoflow.contours_twist', {'type': 'R', 'value': 'PRESS', 'alt': True},
+     {'km_context': ('init', 'ready'), 'km_label': 'Adjust Twist'}),
+]
+
+
 class RFTool_Contours(RFTool_Base):
     bl_idname = "retopoflow.contours"
     bl_label = "Contours"
@@ -399,6 +506,7 @@ class RFTool_Contours(RFTool_Base):
     bl_keymap = chain_rf_keymaps(
         RFOperator_Contours,
         RFOperator_Contours_Insert,
+        RFOperator_Contours_Twist,
         RFOperator_MaximizeWatcher,
         RFOperator_Translate,
         RFOperator_Relax_QuickSwitch,

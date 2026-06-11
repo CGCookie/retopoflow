@@ -342,13 +342,23 @@ class Contours_Logic:
             nplane_fit = plane_fit
             ncircle_fit = circle_fit
 
+        # identify symmetry plane verts before any transformation so we can re-pin them after
+        mx, my, mz = has_mirror_x(context), has_mirror_y(context), has_mirror_z(context)
+        sym_verts = set()
+        if mx or my or mz:
+            threshold = 1e-4
+            for bmv in nbmvs:
+                if mx and abs(bmv.co.x) < threshold: sym_verts.add(bmv)
+                if my and abs(bmv.co.y) < threshold: sym_verts.add(bmv)
+                if mz and abs(bmv.co.z) < threshold: sym_verts.add(bmv)
+
         # compute xforms to roughly move new geometry to match cut
         # instead of scaling based on circle radii, scale X and Y independently based on SVD if fit?
         # the two axes of two planes might not align....  although they _should_ if we're bridging
         T0 = Matrix.Translation(-nplane_fit.l2w_point(Point((ncircle_fit[0], ncircle_fit[1], 0))))
         S  = Matrix.Scale(circle_fit[2] / ncircle_fit[2], 4)
         R  = Matrix.Rotation(-plane_fit.n.angle(nplane_fit.n), 4, plane_fit.n.cross(nplane_fit.n))
-        RT = Matrix.Rotation(math.radians(self.twist), 4, plane_fit.n)
+        RT = Matrix.Rotation(self.twist, 4, plane_fit.n)
         T1 = Matrix.Translation(plane_fit.l2w_point(Point((circle_fit[0], circle_fit[1], 0))))
         xform = T1 @ RT @ R @ S @ T0
 
@@ -373,6 +383,12 @@ class Contours_Logic:
                 bmv.co = self.matrix_world_inv @ npt_world_new
             else:
                 bmv.co = npt_local
+
+        # re-pin any verts that were on a symmetry plane so twist can't move them off
+        for bmv in sym_verts:
+            if mx: bmv.co.x = 0
+            if my: bmv.co.y = 0
+            if mz: bmv.co.z = 0
 
         if not self.cyclic:
             # snap ends
@@ -413,6 +429,21 @@ class Contours_Logic:
         for pt in self.points:
             if points and (points[-1] - pt).length == 0: continue
             points += [pt]
+
+        if self.cyclic and not self.mirror_clipped_loop and self.twist and path_length > 0:
+            offset = (self.twist % (2 * math.pi)) / (2 * math.pi) * path_length
+            acc = 0.0
+            n = len(points)
+            for i in range(n):
+                pt0 = points[i]
+                pt1 = points[(i + 1) % n]
+                seg = (pt1 - pt0).length
+                if acc + seg >= offset:
+                    t = (offset - acc) / seg if seg > 0 else 0.0
+                    new_start = pt0 + (pt1 - pt0) * t
+                    points = [new_start] + points[i + 1:] + points[:i + 1]
+                    break
+                acc += seg
 
         segment_count = self.span_count
         vertex_count = self.span_count if self.cyclic else self.span_count + 1
@@ -501,6 +532,7 @@ class Contours_Logic:
         else:
             self.action = 'New Strip'
         self.show_span_count = True
+        self.show_twist = self.cyclic
 
         # select newly created geometry
         bmops.deselect_all(self.bm)

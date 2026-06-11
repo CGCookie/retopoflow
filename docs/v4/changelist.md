@@ -6,6 +6,8 @@ This document contains details about what has changed in Retopoflow in version 4
 
 - Added low poly sharp edge and edge mark snapping to Tweak and Relax
 - Added standalone operator for Relax that can even be used outside of Retopoflow
+- Added twist control to Contours for rotating around the wrapped form
+    - Alt R is the hotkey
 - All Retopoflow tools now respect Blender's Alt+B clipping region
     - Useful for isolating areas while working
 - Tools statusbar now shows the result of Blender operations such as Merge by Distance
