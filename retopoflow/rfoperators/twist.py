@@ -89,7 +89,7 @@ def _find_rings_in_component(component_verts):
 
     if not sel_faces:
         # Plain edge-loop selection — no enclosed quads; treat as one loop.
-        return [component_verts], []
+        return [component_verts], [], [0]
 
     # Boundary vertices: touch at least one face not in sel_faces,
     # or lie on a mesh boundary edge (≤ 1 adjacent face total).
@@ -107,7 +107,7 @@ def _find_rings_in_component(component_verts):
 
     if not boundary_verts:
         # Closed selection (sphere, fully-closed tube) — single group.
-        return [component_verts], []
+        return [component_verts], [], [0]
 
     # Multi-source BFS from all boundary verts, advancing ONE EDGE per step.
     #
@@ -153,7 +153,8 @@ def _find_rings_in_component(component_verts):
         by_level.setdefault(lv, []).append(v)
 
     # Within each level, split into edge-connected sub-loops.
-    rings = []
+    rings       = []
+    ring_levels = []
     for lv in sorted(by_level.keys()):
         group     = by_level[lv]
         group_set = set(group)
@@ -176,6 +177,57 @@ def _find_rings_in_component(component_verts):
                     continue
                 adj.setdefault(v, []).append(nb)
 
+        # Resolve T-junction vertices at the selection boundary (lv == 0).
+        #
+        # An n-gon corner that lies on the main ring can have 3+ boundary
+        # edges: two that continue the ring and one (or more) that branch off
+        # into partial / incomplete loops.  Without resolution, the connected-
+        # component BFS merges these branches into the main ring, producing a
+        # non-simple (branching) component that _traverse_loop_params rejects —
+        # so Ring A never forms a valid ring and falls back to a broken ring.
+        #
+        # Fix: at each T-junction keep only the most-opposite (most-linear)
+        # pairs of edges — the ones that actually pass through the vertex as
+        # part of a smooth ring — and remove the branch edge(s).  Removed-
+        # branch verts form their own small connected component, which
+        # _traverse_loop_params rejects as an open chain → they become broken
+        # rings that the bary embedding then handles correctly.
+        if lv == 0:
+            for v in group:
+                nbs = adj.get(v, [])
+                if len(nbs) <= 2:
+                    continue          # normal ring vert or dead end
+                # Greedily pair neighbours by most-opposite direction through v.
+                remaining = list(nbs)
+                paired    = set()
+                while len(remaining) >= 2:
+                    best_score       = -2.0
+                    best_i, best_j   = 0, 1
+                    for i in range(len(remaining)):
+                        for j in range(i + 1, len(remaining)):
+                            a, b = remaining[i], remaining[j]
+                            da = a.co - v.co
+                            db = b.co - v.co
+                            la, lb = da.length, db.length
+                            score = (
+                                -(da / la).dot(db / lb)
+                                if la > 1e-12 and lb > 1e-12
+                                else -1.0
+                            )
+                            if score > best_score:
+                                best_score   = score
+                                best_i, best_j = i, j
+                    paired.add(remaining[best_i])
+                    paired.add(remaining[best_j])
+                    remaining = [remaining[k] for k in range(len(remaining))
+                                 if k not in (best_i, best_j)]
+                # Remove branch edges — neighbours not accepted into any pair.
+                for nb in list(adj.get(v, [])):
+                    if nb not in paired:
+                        adj[v]  = [x for x in adj[v]  if x != nb]
+                        if nb in adj:
+                            adj[nb] = [x for x in adj[nb] if x != v]
+
         visited = set()
         for start in group:
             if start in visited:
@@ -192,8 +244,9 @@ def _find_rings_in_component(component_verts):
                 ring_verts.append(nb)
                 bq.extend(adj.get(nb, []))
             rings.append(ring_verts)
+            ring_levels.append(lv)
 
-    return (rings if rings else [component_verts]), bfs_non_ring
+    return (rings if rings else [component_verts]), bfs_non_ring, (ring_levels if rings else [0])
 
 
 def twist_detect_symmetry(context, sel_verts):
@@ -336,6 +389,233 @@ def _snap_to_nearest_segment(co, segments):
             best_d = d
             best   = proj
     return best
+
+
+_LOFT_NORMAL_THRESHOLD = 0.34   # cos(~70°) — reject rings more-perpendicular than this
+_BARY_EPS              = 0.05   # barycentric tolerance for "inside" triangle test
+
+
+def _ring_centroid(rd, initial_cos):
+    '''Average initial position of the ring's vertices.'''
+    verts = list(rd['initial_cos'].keys())
+    return sum((initial_cos[v] for v in verts), Vector()) / len(verts)
+
+
+def _build_loft_sequence(active_rings, initial_cos):
+    '''Determine which pairs of active rings to loft together.
+
+    Groups rings by BFS level, then for each level finds the nearest ring at the
+    next available level (skipping levels with no active rings) and applies a
+    normal-alignment quality check.  Returns a list of (rd_a, rd_b) pairs.
+
+    Handles:
+    - Gaps: BFS levels with only broken/incomplete rings are skipped; the loft
+      still bridges across them.
+    - Perpendicular rings: pairs whose normals are nearly perpendicular
+      (abs dot product < _LOFT_NORMAL_THRESHOLD) are rejected.
+    - Multiple rings at the same level: each finds its own nearest match at the
+      next level independently.
+    - Inverted BFS (e.g. cylinder with 5 rings at levels 0,1,2,1,0): produces
+      pairs that together tile the full surface.
+    '''
+    by_level = {}
+    for rd in active_rings:
+        by_level.setdefault(rd['bfs_level'], []).append(rd)
+
+    sorted_levels = sorted(by_level.keys())
+    pairs = []
+    seen  = set()
+
+    for idx, lv in enumerate(sorted_levels):
+        # Find the next level that actually has active rings.
+        rings_next = []
+        for nl in sorted_levels[idx + 1:]:
+            if by_level[nl]:
+                rings_next = by_level[nl]
+                break
+        # When there is no higher level to pair with, fall back to pairing rings
+        # within the same BFS level.  This handles the common case where both
+        # boundary loops (Ring A and Ring B) are at level 0 with no complete
+        # intermediate rings between them — without this, no loft is built and
+        # all non-ring verts fall through to the IDW fallback.
+        if not rings_next:
+            rings_next = by_level[lv]
+
+        for rd_a in by_level[lv]:
+            ctr_a = _ring_centroid(rd_a, initial_cos)
+            n_a   = rd_a['normal']
+            # Sort candidates by centroid distance, nearest first.
+            candidates = sorted(
+                rings_next,
+                key=lambda r: (_ring_centroid(r, initial_cos) - ctr_a).length_squared,
+            )
+            for rd_b in candidates:
+                if rd_b is rd_a:          # no self-pairing in same-level fallback
+                    continue
+                n_b = rd_b['normal']
+                # Quality check: skip near-perpendicular rings.
+                if n_a is not None and n_b is not None:
+                    if abs(n_a.dot(n_b)) < _LOFT_NORMAL_THRESHOLD:
+                        continue
+                key = (id(rd_a), id(rd_b))
+                rev = (id(rd_b), id(rd_a))
+                if key not in seen and rev not in seen:
+                    pairs.append((rd_a, rd_b))
+                    seen.add(key)
+                break   # take the first accepted candidate
+
+    return pairs
+
+
+def _loft_rings(rd_a, rd_b, initial_cos):
+    '''Zipper loft between two rings using arc-length correspondence.
+
+    Produces exactly n + m triangles (n = len(ring_a), m = len(ring_b)) that
+    together tile the cylindrical surface between the two rings.
+
+    Alignment step: rotate ring B so its vertex closest to ring A's first vertex
+    comes first, then recompute arc-length fractions from that new origin.
+
+    Zipper step: at each of the n+m iterations, advance whichever ring has its
+    next vertex sooner in arc-length (ties: advance A).
+    '''
+    order_a, cumul_a, total_a = rd_a['loop_params']
+    order_b, cumul_b, total_b = rd_b['loop_params']
+    n, m = len(order_a), len(order_b)
+
+    # Align B to start at the vertex closest to order_a[0].
+    co_a0 = initial_cos[order_a[0]]
+    j0    = min(range(m), key=lambda k: (initial_cos[order_b[k]] - co_a0).length_squared)
+    order_b = order_b[j0:] + order_b[:j0]
+    base    = cumul_b[j0] / total_b
+    frac_b  = [((cumul_b[(j0 + k) % m] / total_b) - base) % 1.0 for k in range(m)]
+    frac_a  = [cumul_a[i] / total_a for i in range(n)]
+
+    tris = []
+    ia = ib = 0
+    for _ in range(n + m):
+        a0 = order_a[ia % n]
+        b0 = order_b[ib % m]
+        if ia >= n:
+            # A exhausted — consume remaining B edges, closing the seam.
+            tris.append((order_a[0], b0, order_b[(ib + 1) % m]))
+            ib += 1
+        elif ib >= m:
+            # B exhausted — consume remaining A edges.
+            tris.append((a0, order_a[(ia + 1) % n], order_b[0]))
+            ia += 1
+        elif (frac_a[(ia + 1) % n] if ia < n - 1 else 1.0) \
+          <= (frac_b[(ib + 1) % m] if ib < m - 1 else 1.0):
+            tris.append((a0, order_a[(ia + 1) % n], b0))   # advance A
+            ia += 1
+        else:
+            tris.append((a0, b0, order_b[(ib + 1) % m]))   # advance B
+            ib += 1
+    return tris
+
+
+def _cap_ring(order):
+    '''Fan-triangulate a ring as an end cap (n − 2 triangles).
+
+    Used for terminal rings (those in only one loft pair) so that geometry
+    projecting "behind" the ring — e.g. a pole at the centre of an end loop —
+    can find a triangle to embed in.
+    '''
+    return [(order[0], order[i], order[i + 1]) for i in range(1, len(order) - 1)]
+
+
+def _build_loft_surface(active_rings, initial_cos):
+    '''Build the full set of loft + cap triangles for a component.
+
+    Returns a flat list of (v0, v1, v2) BMVert triples whose positions in
+    initial_cos define the surface used for barycentric embedding.
+    '''
+    if len(active_rings) < 2:
+        return []
+    pairs = _build_loft_sequence(active_rings, initial_cos)
+    if not pairs:
+        return []
+
+    tris       = []
+    pair_count = {}
+    for rd_a, rd_b in pairs:
+        tris.extend(_loft_rings(rd_a, rd_b, initial_cos))
+        pair_count[id(rd_a)] = pair_count.get(id(rd_a), 0) + 1
+        pair_count[id(rd_b)] = pair_count.get(id(rd_b), 0) + 1
+
+    # Add end caps for terminal rings (appear in at most one pair).
+    for rd in active_rings:
+        if pair_count.get(id(rd), 0) <= 1:
+            tris.extend(_cap_ring(rd['loop_params'][0]))
+    return tris
+
+
+def _bary_embed(co, v0, v1, v2, initial_cos):
+    '''Compute barycentric coordinates + normal offset for point co in a triangle.
+
+    Returns (w0, w1, w2, offset) where:
+      w0 + w1 + w2 ≈ 1  (barycentric weights for v0, v1, v2)
+      offset            signed distance from triangle plane (positive = same side
+                        as the triangle normal (B-A)×(C-A))
+
+    Uses the cross-product area method.  Returns (1/3, 1/3, 1/3, 0.0) for
+    degenerate (collinear) triangles.
+    '''
+    A = initial_cos[v0]; B = initial_cos[v1]; C = initial_cos[v2]
+    n    = (B - A).cross(C - A)
+    n_sq = n.dot(n)
+    if n_sq < 1e-20:
+        return (1/3, 1/3, 1/3, 0.0)
+    n_unit = n / math.sqrt(n_sq)
+    offset = (co - A).dot(n_unit)
+    proj   = co - offset * n_unit
+    w0 = n.dot((C - B).cross(proj - B)) / n_sq
+    w1 = n.dot((A - C).cross(proj - C)) / n_sq
+    return (w0, w1, 1.0 - w0 - w1, offset)
+
+
+def _find_bary_embedding(co, tris, initial_cos):
+    '''Find the best triangle in tris to embed local-space point co.
+
+    Two-tier selection:
+      Tier 1 — inside: triangles where min(w0,w1,w2) >= -_BARY_EPS.
+               Among those, pick the one with the smallest |offset|
+               (co is closest to lying on the surface).
+      Tier 2 — fallback: if no inside triangle exists, pick the triangle
+               whose centroid is nearest to co.
+
+    Returns (v0, v1, v2, w0, w1, w2, offset) or None if tris is empty.
+    '''
+    best_in   = None;  best_in_d  = float('inf')
+    best_out  = None;  best_out_d = float('inf')
+    for tri in tris:
+        w0, w1, w2, offset = _bary_embed(co, *tri, initial_cos)
+        if min(w0, w1, w2) >= -_BARY_EPS:
+            d = abs(offset)
+            if d < best_in_d:
+                best_in  = (*tri, w0, w1, w2, offset)
+                best_in_d = d
+        else:
+            A = initial_cos[tri[0]]; B = initial_cos[tri[1]]; C = initial_cos[tri[2]]
+            d = (co - (A + B + C) / 3).length_squared
+            if d < best_out_d:
+                best_out  = (*tri, w0, w1, w2, offset)
+                best_out_d = d
+    return best_in if best_in is not None else best_out
+
+
+def _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset):
+    '''Reconstruct a position from the current (post-twist) positions of three
+    ring verts using stored barycentric weights and normal offset.
+
+    Reads v0.co / v1.co / v2.co directly so it picks up whatever twist_apply
+    wrote in Pass 1 without needing a separate lookup.
+    '''
+    A = v0.co; B = v1.co; C = v2.co
+    base  = w0 * A + w1 * B + w2 * C
+    n     = (B - A).cross(C - A)
+    n_len = n.length
+    return base + offset * (n / n_len) if n_len > 1e-12 else base
 
 
 def twist_apply_blend_axis(ring_data_list, non_ring_initial_cos, sym_verts, sym_axes,
@@ -644,11 +924,11 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                 continue
             sym_verts, sym_axes = twist_detect_symmetry(context, component_verts)
 
-            ring_groups_verts, bfs_non_ring = _find_rings_in_component(component_verts)
+            ring_groups_verts, bfs_non_ring, ring_levels = _find_rings_in_component(component_verts)
 
             ring_groups = []
             ref_normal  = None   # first successfully-fitted normal; all others align to it
-            for ring_verts in ring_groups_verts:
+            for ring_idx, ring_verts in enumerate(ring_groups_verts):
                 if len(ring_verts) < 3:
                     bfs_non_ring.extend(ring_verts)
                     continue
@@ -701,15 +981,50 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
                     'center':          center,
                     'loop_params':     lp,
                     'retain_segments': segs,
+                    'bfs_level':       ring_levels[ring_idx],
                 })
 
             if ring_groups:
+                # Build barycentric loft surface and embed all non-ring verts.
+                #
+                # active_rings_lp: rings that form complete closed loops (have
+                # loop_params) — these are the "drivers" of the loft surface.
+                # non_ring_cos: all other selected verts (broken rings + BFS-
+                # unreachable) that need to be interpolated.
+                active_rings_lp = [rd for rd in ring_groups if rd['loop_params'] is not None]
+
+                all_ring_initial_cos = {}
+                for rd in ring_groups:
+                    all_ring_initial_cos.update(rd['initial_cos'])
+
+                bary_embeddings   = {}
+                bary_fallback_cos = {}
+
+                if len(active_rings_lp) >= 2:
+                    loft_tris = _build_loft_surface(active_rings_lp, all_ring_initial_cos)
+
+                    non_ring_cos = {}
+                    for rd in ring_groups:
+                        if rd['loop_params'] is None:
+                            non_ring_cos.update(rd['initial_cos'])
+                    for v in bfs_non_ring:
+                        non_ring_cos[v] = v.co.copy()
+
+                    for v, co0 in non_ring_cos.items():
+                        result = _find_bary_embedding(co0, loft_tris, all_ring_initial_cos)
+                        if result is not None:
+                            bary_embeddings[v] = result   # (v0,v1,v2, w0,w1,w2, offset)
+                        else:
+                            bary_fallback_cos[v] = co0
+
                 bfs_sym = {v for v in sym_verts if v in set(bfs_non_ring)}
                 components.append({
-                    'ring_groups':      ring_groups,
-                    'bfs_non_ring_cos': {v: v.co.copy() for v in bfs_non_ring},
-                    'bfs_non_ring_sym': bfs_sym,
-                    'sym_axes':         sym_axes,
+                    'ring_groups':       ring_groups,
+                    'bfs_non_ring_cos':  {v: v.co.copy() for v in bfs_non_ring},
+                    'bfs_non_ring_sym':  bfs_sym,
+                    'sym_axes':          sym_axes,
+                    'bary_embeddings':   bary_embeddings,
+                    'bary_fallback_cos': bary_fallback_cos,
                 })
         return components
 
@@ -765,16 +1080,39 @@ class RFOperator_TwistLoop(RFRegisterClass, bpy.types.Operator):
 
             # Pass 2: broken rings + BFS-unreachable verts.
             if active_rings:
-                # Complete rings exist → IDW for everything that couldn't arc-slide.
-                idw_cos = dict(cd['bfs_non_ring_cos'])
-                idw_sym = set(cd['bfs_non_ring_sym'])
+                # Complete rings exist.  The approach differs by retain_shape:
+                #
+                # Bary path — used for both retain_shape modes.
+                # With the T-junction fix in _find_rings_in_component, the
+                # outer boundary rings are now detected correctly even when
+                # n-gons interrupt them, so their arc-length distribution is
+                # no longer skewed by merged partial-loop branches.
+                bary_embeddings   = cd.get('bary_embeddings', {})
+                bary_fallback_cos = cd.get('bary_fallback_cos', {})
+                mx, my, mz = cd['sym_axes']
+                sym_all = set(cd['bfs_non_ring_sym'])
                 for rd in broken_rings:
-                    idw_cos.update(rd['initial_cos'])
-                    idw_sym.update(rd['sym_verts'])
-                if idw_cos:
-                    twist_apply_blend_axis(active_rings, idw_cos, idw_sym,
-                                           cd['sym_axes'], mw, mwi, deg,
+                    sym_all.update(rd['sym_verts'])
+
+                # Barycentric reconstruction from deformed loft surface.
+                for v, (v0, v1, v2, w0, w1, w2, offset) in bary_embeddings.items():
+                    if v in sym_all:
+                        continue
+                    v.co = _bary_reconstruct(v0, v1, v2, w0, w1, w2, offset)
+
+                # IDW fallback for verts with no loft coverage.
+                if bary_fallback_cos:
+                    fallback_sym = {v for v in sym_all if v in bary_fallback_cos}
+                    twist_apply_blend_axis(active_rings, bary_fallback_cos,
+                                           fallback_sym, cd['sym_axes'],
+                                           mw, mwi, deg,
                                            retain_shape=self.retain_shape)
+
+                # Symmetry clamp for all non-ring sym verts.
+                for v in sym_all:
+                    if mx: v.co.x = 0.0
+                    if my: v.co.y = 0.0
+                    if mz: v.co.z = 0.0
             else:
                 # No complete rings at all (plain non-loop selection).
                 # Fall back to per-ring rotation / retain_segments so verts move.
